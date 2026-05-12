@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7daaf6753bfe44c039856e720e8c4d00, type: 3}
+  m_Name: CombatSceneBindingAsset
+  m_EditorClassIdentifier: 
+  sceneGuid: 3e13b8a3f43d44d9395287bc28b28afa
+  bindingProfileId: CombatAnimationPhysicsTest
+  actors:
+  - entityId: 1
+    displayName: Combat_Player_Marker
+    markerId: Combat_Player_Marker
+    bodyId: 1
+    colliders:
+    - colliderId: 1
+      markerId: Combat_Player_Marker
+      sourceOrder: 1
+  - entityId: 2
+    displayName: Combat_Enemy_Marker
+    markerId: Combat_Enemy_Marker
+    bodyId: 2
+    colliders:
+    - colliderId: 2
+      markerId: Combat_Enemy_Marker
+      sourceOrder: 2
+  markers:
+  - markerId: Combat_Player_Marker
+    targetPath: Combat_Player_Marker
+    sourceOrder: 1
+  - markerId: Combat_Enemy_Marker
+    targetPath: Combat_Enemy_Marker
+    sourceOrder: 2
+  - markerId: Combat_Test_Ground
+    targetPath: Combat_Test_Ground
+    sourceOrder: 3
+  - markerId: RuntimeCombatShowcase
+    targetPath: RuntimeCombatShowcase
+    sourceOrder: 4

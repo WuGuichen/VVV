@@ -1,0 +1,55 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/MxFramework/GameplayComponentRuntime/GameplayComponentRuntimeShowcase.uss?fileID=7433441132597879392&amp;guid=089a25da73c24081af27b740c3983be4&amp;type=3#GameplayComponentRuntimeShowcase" />
+    <ui:VisualElement name="component-runtime-root" class="component-runtime-root">
+        <ui:VisualElement class="header-row">
+            <ui:VisualElement>
+                <ui:Label name="title-label" class="title-label" text="Component Runtime Showcase" />
+                <ui:Label class="subtitle-label" text="Spawn, target, ability rules, cleanup, hash, and SaveState" />
+            </ui:VisualElement>
+            <ui:Label name="phase-label" class="phase-label" text="Ready" />
+        </ui:VisualElement>
+        <ui:VisualElement class="main-row">
+            <ui:VisualElement class="state-panel">
+                <ui:VisualElement class="metric-row">
+                    <ui:Label class="metric-name" text="Frame" />
+                    <ui:Label name="frame-label" class="metric-value" text="Frame 0" />
+                </ui:VisualElement>
+                <ui:VisualElement class="metric-row">
+                    <ui:Label class="metric-name" text="Hero" />
+                    <ui:Label name="hero-label" class="metric-value hero-value" text="not spawned" />
+                </ui:VisualElement>
+                <ui:VisualElement class="metric-row">
+                    <ui:Label class="metric-name" text="Enemy" />
+                    <ui:Label name="enemy-label" class="metric-value enemy-value" text="not spawned" />
+                </ui:VisualElement>
+                <ui:VisualElement class="metric-row">
+                    <ui:Label class="metric-name" text="Strike Cooldown" />
+                    <ui:Label name="cooldown-label" class="metric-value cooldown-value" text="0 frames" />
+                </ui:VisualElement>
+                <ui:VisualElement class="metric-row">
+                    <ui:Label class="metric-name" text="Hash" />
+                    <ui:Label name="hash-label" class="metric-value hash-value" text="0" />
+                </ui:VisualElement>
+                <ui:VisualElement class="metric-row">
+                    <ui:Label class="metric-name" text="SaveState" />
+                    <ui:Label name="save-label" class="metric-value save-value" text="No save" />
+                </ui:VisualElement>
+                <ui:VisualElement class="button-row">
+                    <ui:Button name="spawn-button" class="demo-button" text="Spawn" />
+                    <ui:Button name="cast-button" class="demo-button primary-button" text="Cast Strike" />
+                    <ui:Button name="cleanup-button" class="demo-button" text="Cleanup" />
+                </ui:VisualElement>
+                <ui:VisualElement class="button-row">
+                    <ui:Button name="save-button" class="demo-button" text="Save" />
+                    <ui:Button name="restore-button" class="demo-button" text="Restore" />
+                    <ui:Button name="reset-button" class="demo-button danger-button" text="Reset" />
+                </ui:VisualElement>
+                <ui:Button name="script-button" class="demo-button script-button" text="Run Full Flow" />
+            </ui:VisualElement>
+            <ui:VisualElement class="event-panel">
+                <ui:Label class="event-title" text="Runtime Events" />
+                <ui:Label name="event-log-label" class="event-log" text="Runtime reset" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

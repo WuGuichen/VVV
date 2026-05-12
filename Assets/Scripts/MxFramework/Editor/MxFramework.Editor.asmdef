@@ -1,0 +1,29 @@
+{
+    "name": "MxFramework.Editor",
+    "rootNamespace": "MxFramework.Editor",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Core.Unity",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs",
+        "MxFramework.Modifiers",
+        "MxFramework.Config",
+        "MxFramework.Config.Runtime",
+        "MxFramework.AI",
+        "MxFramework.Diagnostics",
+        "MxFramework.Resources",
+        "MxFramework.Resources.Unity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

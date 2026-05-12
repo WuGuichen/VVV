@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.Gameplay",
+    "rootNamespace": "MxFramework.Gameplay",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs",
+        "MxFramework.Modifiers",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

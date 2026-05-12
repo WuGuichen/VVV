@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Resources",
+    "rootNamespace": "MxFramework.Resources",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Diagnostics"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

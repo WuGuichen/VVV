@@ -1,0 +1,9 @@
+{
+  "packageId": "sample.buff.mod",
+  "displayName": "示例 Buff Mod 包",
+  "author": "MxFramework",
+  "version": "0.1.0",
+  "schemaVersion": "1.0",
+  "gameVersionRange": ">=0.1.0 <1.0.0",
+  "kind": "Mod"
+}

@@ -1,0 +1,1265 @@
+{
+  "projectId": "wgameframework.demo",
+  "displayName": "WGameFramework Demo Authoring Package",
+  "authoringVersion": "0.1.0",
+  "schemaVersion": "1.0",
+  "generatedBy": "MxFramework.Authoring",
+  "schemas": [
+    {
+      "schemaId": "BuffFactoryData",
+      "displayName": "Buff 配置",
+      "structureKind": "Table",
+      "fields": [
+        {
+          "name": "Id",
+          "displayName": "编号",
+          "type": "Integer",
+          "required": true,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "Buff 稳定 ID。创建后尽量不要修改，供引用、存档和 Mod Patch 使用。",
+          "groupId": "common",
+          "groupDisplayName": "公共字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "Type",
+          "displayName": "Buff 类型",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.BuffType",
+          "referenceSource": "",
+          "description": "决定下方会出现哪些类型专属字段。",
+          "groupId": "common",
+          "groupDisplayName": "公共字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "Name",
+          "displayName": "名称",
+          "type": "LocalizedText",
+          "required": true,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "多语言 key 或直接文本。",
+          "groupId": "common",
+          "groupDisplayName": "公共字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "Desc",
+          "displayName": "描述",
+          "type": "LocalizedText",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "多语言 key 或直接文本。",
+          "groupId": "common",
+          "groupDisplayName": "公共字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "ShowHeadIcon",
+          "displayName": "显示头顶图标",
+          "type": "Boolean",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "common",
+          "groupDisplayName": "公共字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "Removeable",
+          "displayName": "可移除",
+          "type": "Boolean",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "玩家或系统是否允许移除。",
+          "groupId": "common",
+          "groupDisplayName": "公共字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "Target",
+          "displayName": "生效目标",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.BuffTargetType",
+          "referenceSource": "",
+          "description": "Buff 添加到谁身上。DamageByAttr 通常选择目标。",
+          "groupId": "stacking",
+          "groupDisplayName": "目标 / 堆叠 / 持续",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "AddType",
+          "displayName": "重复添加规则",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.BuffAddType",
+          "referenceSource": "",
+          "description": "同一个 Buff 重复添加时刷新、替换或叠层的规则。",
+          "groupId": "stacking",
+          "groupDisplayName": "目标 / 堆叠 / 持续",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "AddNum",
+          "displayName": "叠层数量",
+          "type": "Integer",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "每次添加增加的层数；为空时由运行时默认规则处理。",
+          "groupId": "stacking",
+          "groupDisplayName": "目标 / 堆叠 / 持续",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "Duration",
+          "displayName": "持续时间",
+          "type": "Integer",
+          "required": true,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "Buff 存在时长，单位毫秒。DamageByAttr 必须大于 0。",
+          "groupId": "stacking",
+          "groupDisplayName": "目标 / 堆叠 / 持续",
+          "unit": "ms",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "HitCooldown",
+          "displayName": "触发间隔",
+          "type": "Integer",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "周期伤害或周期触发间隔。DamageByAttr 必须大于 0，且不建议超过持续时间。",
+          "groupId": "stacking",
+          "groupDisplayName": "目标 / 堆叠 / 持续",
+          "unit": "ms",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "AttrID",
+          "displayName": "属性",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.AttrType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Numerical",
+            "ChangeAttr"
+          ]
+        },
+        {
+          "name": "AddValue",
+          "displayName": "加值",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Numerical",
+            "ChangeAttr"
+          ]
+        },
+        {
+          "name": "MulValue",
+          "displayName": "倍率",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Numerical",
+            "ChangeAttr"
+          ]
+        },
+        {
+          "name": "IsBuff",
+          "displayName": "是否增益",
+          "type": "Boolean",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Numerical"
+          ]
+        },
+        {
+          "name": "IsNeutralBuff",
+          "displayName": "中立 Buff",
+          "type": "Boolean",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Numerical"
+          ]
+        },
+        {
+          "name": "ConditionType",
+          "displayName": "条件类型",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.ConditionType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Condition"
+          ]
+        },
+        {
+          "name": "AddBuffList",
+          "displayName": "满足后添加 Buff",
+          "type": "Reference",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "BuffFactoryData",
+          "description": "逗号分隔 Buff ID。",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": true,
+          "visibleWhenBuffTypes": [
+            "Condition"
+          ]
+        },
+        {
+          "name": "RemoveBuffList",
+          "displayName": "满足后移除 Buff",
+          "type": "Reference",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "BuffFactoryData",
+          "description": "逗号分隔 Buff ID。",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": true,
+          "visibleWhenBuffTypes": [
+            "Condition"
+          ]
+        },
+        {
+          "name": "Values",
+          "displayName": "伤害公式",
+          "type": "String",
+          "required": true,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "当前预览支持固定数值，或 caster.Attack * 系数，例如 caster.Attack * 0.35。",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "DamageByAttr"
+          ]
+        },
+        {
+          "name": "DmgType",
+          "displayName": "伤害类型",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.DamageType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "DamageByAttr",
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "EleType",
+          "displayName": "元素类型",
+          "type": "Enum",
+          "required": false,
+          "enumId": "wgame.ElementType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "DamageByAttr",
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "EleValue",
+          "displayName": "元素值",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "DamageByAttr",
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "DamageBaseTypeID",
+          "displayName": "伤害基准类型",
+          "type": "Integer",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "开发模式字段；Mod 模式默认隐藏，避免玩家误改底层基准。",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "DamageByAttr"
+          ]
+        },
+        {
+          "name": "HitTarget",
+          "displayName": "命中目标",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.BuffTargetType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "HitBuffs",
+          "displayName": "命中 Buff",
+          "type": "Reference",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "BuffFactoryData",
+          "description": "逗号分隔 Buff ID。",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": true,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "HitSkill",
+          "displayName": "命中技能",
+          "type": "Reference",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "SkillData",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "StartPosition",
+          "displayName": "起点位置",
+          "type": "Enum",
+          "required": false,
+          "enumId": "wgame.PositionType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "EndPosition",
+          "displayName": "终点位置",
+          "type": "Enum",
+          "required": false,
+          "enumId": "wgame.PositionType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "Speed",
+          "displayName": "速度",
+          "type": "Float",
+          "required": true,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "Accelerate",
+          "displayName": "加速度",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "DelayTime",
+          "displayName": "延迟时间",
+          "type": "Integer",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "ms",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "OffsetRadius",
+          "displayName": "偏移半径",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack"
+          ]
+        },
+        {
+          "name": "OffsetType",
+          "displayName": "偏移类型",
+          "type": "String",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack"
+          ]
+        },
+        {
+          "name": "MoveAcc",
+          "displayName": "移动加速度",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbTrack"
+          ]
+        },
+        {
+          "name": "Gravity",
+          "displayName": "重力",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbTrack"
+          ]
+        },
+        {
+          "name": "RotSpeed",
+          "displayName": "旋转速度",
+          "type": "Float",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbTrack"
+          ]
+        },
+        {
+          "name": "UseParabola",
+          "displayName": "使用抛物线",
+          "type": "Boolean",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbTrack"
+          ]
+        },
+        {
+          "name": "EulerAngle",
+          "displayName": "直线角度",
+          "type": "String",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "PAttrType",
+          "displayName": "被动属性",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.AttrType",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Positive"
+          ]
+        },
+        {
+          "name": "PValue",
+          "displayName": "被动属性值",
+          "type": "Float",
+          "required": true,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Positive"
+          ]
+        },
+        {
+          "name": "StatusType",
+          "displayName": "状态类型",
+          "type": "Enum",
+          "required": true,
+          "enumId": "wgame.StatusBuffType",
+          "referenceSource": "",
+          "description": "属性影响由状态类型推导。",
+          "groupId": "type",
+          "groupDisplayName": "类型专属字段",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Status"
+          ]
+        },
+        {
+          "name": "StartEffect",
+          "displayName": "开始特效",
+          "type": "AssetPath",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "presentation",
+          "groupDisplayName": "表现资源",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": []
+        },
+        {
+          "name": "LoopEffect",
+          "displayName": "持续特效",
+          "type": "AssetPath",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "presentation",
+          "groupDisplayName": "表现资源",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "Numerical",
+            "ChangeAttr",
+            "Positive",
+            "Status"
+          ]
+        },
+        {
+          "name": "HitEffect",
+          "displayName": "命中特效",
+          "type": "AssetPath",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "presentation",
+          "groupDisplayName": "表现资源",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "DamageByAttr",
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        },
+        {
+          "name": "FlyEffect",
+          "displayName": "飞行特效",
+          "type": "AssetPath",
+          "required": false,
+          "enumId": "",
+          "referenceSource": "",
+          "description": "",
+          "groupId": "presentation",
+          "groupDisplayName": "表现资源",
+          "unit": "",
+          "isList": false,
+          "visibleWhenBuffTypes": [
+            "CastOrbBezier",
+            "CastOrbTrack",
+            "CastOrbLinear"
+          ]
+        }
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "enumId": "wgame.BuffType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "Numerical",
+          "displayName": "属性数值",
+          "value": 1
+        },
+        {
+          "name": "Condition",
+          "displayName": "条件触发",
+          "value": 2
+        },
+        {
+          "name": "ChangeAttr",
+          "displayName": "改变属性",
+          "value": 3
+        },
+        {
+          "name": "DamageByAttr",
+          "displayName": "持续伤害",
+          "value": 4
+        },
+        {
+          "name": "CastOrbBezier",
+          "displayName": "贝塞尔弹道",
+          "value": 5
+        },
+        {
+          "name": "CastOrbTrack",
+          "displayName": "追踪弹道",
+          "value": 6
+        },
+        {
+          "name": "CastOrbLinear",
+          "displayName": "直线弹道",
+          "value": 7
+        },
+        {
+          "name": "Positive",
+          "displayName": "被动属性",
+          "value": 8
+        },
+        {
+          "name": "Status",
+          "displayName": "状态控制",
+          "value": 9
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.BuffAddType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "AddNone",
+          "displayName": "不叠加",
+          "value": 0
+        },
+        {
+          "name": "RefreshAllTime",
+          "displayName": "刷新持续时间",
+          "value": 1
+        },
+        {
+          "name": "ReplaceMaxTime",
+          "displayName": "替换为最大持续时间",
+          "value": 2
+        },
+        {
+          "name": "RefreshAllTimeAndAdd",
+          "displayName": "刷新并增加层数",
+          "value": 3
+        },
+        {
+          "name": "ReplaceFist",
+          "displayName": "替换最早添加",
+          "value": 4
+        },
+        {
+          "name": "UseSingleTime",
+          "displayName": "使用单次时间",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.BuffTargetType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "Self",
+          "displayName": "自身",
+          "value": 0
+        },
+        {
+          "name": "Caster",
+          "displayName": "施加者",
+          "value": 1
+        },
+        {
+          "name": "Target",
+          "displayName": "目标",
+          "value": 2
+        },
+        {
+          "name": "Owner",
+          "displayName": "拥有者",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.AttrType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "Attack",
+          "displayName": "攻击",
+          "value": 1
+        },
+        {
+          "name": "Defense",
+          "displayName": "防御",
+          "value": 2
+        },
+        {
+          "name": "Hp",
+          "displayName": "生命",
+          "value": 3
+        },
+        {
+          "name": "MoveSpeed",
+          "displayName": "移动速度",
+          "value": 4
+        },
+        {
+          "name": "Crit",
+          "displayName": "暴击",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.DamageType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "Normal",
+          "displayName": "普通",
+          "value": 0
+        },
+        {
+          "name": "Physical",
+          "displayName": "物理",
+          "value": 1
+        },
+        {
+          "name": "Magic",
+          "displayName": "法术",
+          "value": 2
+        },
+        {
+          "name": "TrueDamage",
+          "displayName": "真实伤害",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.ElementType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "None",
+          "displayName": "无",
+          "value": 0
+        },
+        {
+          "name": "Fire",
+          "displayName": "火",
+          "value": 1
+        },
+        {
+          "name": "Ice",
+          "displayName": "冰",
+          "value": 2
+        },
+        {
+          "name": "Lightning",
+          "displayName": "雷",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.StatusBuffType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "Stun",
+          "displayName": "眩晕",
+          "value": 0
+        },
+        {
+          "name": "Paralysis",
+          "displayName": "麻痹",
+          "value": 2
+        },
+        {
+          "name": "SuperArmor",
+          "displayName": "霸体",
+          "value": 3
+        },
+        {
+          "name": "Focus",
+          "displayName": "专注",
+          "value": 14
+        },
+        {
+          "name": "FireEnchant",
+          "displayName": "火焰附魔",
+          "value": 15
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.ConditionType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "CheckHP",
+          "displayName": "检查生命",
+          "value": 1
+        },
+        {
+          "name": "OnBeHit",
+          "displayName": "受击时",
+          "value": 2
+        },
+        {
+          "name": "CheckStatus",
+          "displayName": "检查状态",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "enumId": "wgame.PositionType",
+      "isFlags": false,
+      "options": [
+        {
+          "name": "Self",
+          "displayName": "自身位置",
+          "value": 0
+        },
+        {
+          "name": "Target",
+          "displayName": "目标位置",
+          "value": 1
+        },
+        {
+          "name": "Socket",
+          "displayName": "挂点",
+          "value": 2
+        },
+        {
+          "name": "WorldPoint",
+          "displayName": "世界点",
+          "value": 3
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "source": "BuffFactoryData",
+      "entries": [
+        {
+          "source": "BuffFactoryData",
+          "id": "100001",
+          "displayName": "示例燃烧",
+          "kind": "Buff"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "workflowId": "buff.create",
+      "title": "创建 Buff",
+      "category": "Buff",
+      "status": "InProgress",
+      "mode": "Mod",
+      "target": {
+        "source": "BuffFactoryData",
+        "rowId": "",
+        "field": "",
+        "layer": "Mod"
+      },
+      "currentStepId": "buff-type",
+      "steps": [
+        {
+          "stepId": "intent",
+          "title": "确定 Buff 设计目标",
+          "description": "描述玩法目的并推荐 BuffType.",
+          "status": "Ready",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "Design intent"
+          ],
+          "outputs": [
+            "Buff purpose"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "buff-type",
+          "title": "选择 Buff 类型",
+          "description": "选择 WGame 风格 BuffType.",
+          "status": "Ready",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "BuffFactoryData.Type"
+          ],
+          "outputs": [
+            "BuffType"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "common-fields",
+          "title": "填写公共字段",
+          "description": "填写 ID、Name、Desc、ShowHeadIcon 和 Removeable.",
+          "status": "NotStarted",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "BuffData.ID"
+          ],
+          "outputs": [
+            "BuffData common fields"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "stacking-lifetime",
+          "title": "配置目标、堆叠和持续",
+          "description": "填写 Target、AddType、AddNum、Duration 和 HitCooldown.",
+          "status": "NotStarted",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "BuffData.Duration"
+          ],
+          "outputs": [
+            "Buff lifetime policy"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "type-fields",
+          "title": "填写类型专属字段",
+          "description": "根据 BuffType 填写专属字段.",
+          "status": "Blocked",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "BuffData subtype payload"
+          ],
+          "outputs": [
+            "BuffData subtype payload"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "validation",
+          "title": "运行校验",
+          "description": "校验字段、引用、多语言和 Patch 冲突.",
+          "status": "NotStarted",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "ModPackage"
+          ],
+          "outputs": [
+            "ValidationReport"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "merged-preview",
+          "title": "预览合并结果",
+          "description": "预览运行时最终读取的 Buff Patch.",
+          "status": "NotStarted",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "PatchDocument"
+          ],
+          "outputs": [
+            "MergePreview"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        },
+        {
+          "stepId": "export",
+          "title": "导出报告 / Mod Patch",
+          "description": "导出报告和 Mod Patch.",
+          "status": "NotStarted",
+          "actor": "Human",
+          "availableInModMode": true,
+          "requiresUnity": false,
+          "requiresSourceCode": false,
+          "requiresDeveloperMode": false,
+          "aiPromptHint": "只围绕当前步骤给出可执行建议。",
+          "inputs": [
+            "MergePreview"
+          ],
+          "outputs": [
+            "ModPackage"
+          ],
+          "checks": [
+            "No blocking errors"
+          ],
+          "quickActions": []
+        }
+      ]
+    }
+  ],
+  "localization": [
+    {
+      "key": "buff.sample.fire.name",
+      "zhCN": "示例燃烧",
+      "enUS": "Sample Burn"
+    },
+    {
+      "key": "buff.sample.fire.desc",
+      "zhCN": "每秒造成一次火焰伤害。",
+      "enUS": "Deals fire damage once per second."
+    }
+  ],
+  "assetWhitelistPrefixes": [
+    "Effects/",
+    "Audio/",
+    "UI/"
+  ]
+}

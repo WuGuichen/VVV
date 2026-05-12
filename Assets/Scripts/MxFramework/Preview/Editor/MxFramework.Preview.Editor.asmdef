@@ -1,0 +1,20 @@
+{
+    "name": "MxFramework.Preview.Editor",
+    "rootNamespace": "MxFramework.Preview.Editor",
+    "references": [
+        "MxFramework.Preview.Runtime",
+        "MxFramework.Editor",
+        "MxFramework.Buffs"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

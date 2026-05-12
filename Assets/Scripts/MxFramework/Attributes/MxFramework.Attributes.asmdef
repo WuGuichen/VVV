@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Attributes",
+    "rootNamespace": "MxFramework.Attributes",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Events"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

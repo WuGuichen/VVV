@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "packageId": "demo.runtime.patch.mod.override",
+  "displayName": "Demo Runtime Patch Mod Override",
+  "author": "MxFramework",
+  "version": "0.1.0",
+  "kind": "Mod",
+  "gameVersionRange": "*",
+  "runtimePatch": "runtime/runtime_config_patch.json"
+}

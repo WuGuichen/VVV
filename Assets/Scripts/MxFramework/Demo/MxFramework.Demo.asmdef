@@ -1,0 +1,30 @@
+{
+    "name": "MxFramework.Demo",
+    "rootNamespace": "MxFramework.Demo",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Core.Unity",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs",
+        "MxFramework.Modifiers",
+        "MxFramework.Config",
+        "MxFramework.Config.Runtime",
+        "MxFramework.Runtime",
+        "MxFramework.Input",
+        "MxFramework.Audio",
+        "MxFramework.Audio.FMOD",
+        "MxFramework.Gameplay",
+        "MxFramework.Combat",
+        "MxFramework.UI.Toolkit"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

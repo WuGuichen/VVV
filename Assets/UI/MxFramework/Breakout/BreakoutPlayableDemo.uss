@@ -1,0 +1,343 @@
+.breakout-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    background-color: rgb(18, 20, 23);
+}
+
+.breakout-shell {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.board-wrap {
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: 12px;
+    background-color: rgb(30, 35, 40);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(74, 83, 92);
+    border-right-color: rgb(74, 83, 92);
+    border-top-color: rgb(74, 83, 92);
+    border-bottom-color: rgb(74, 83, 92);
+    border-radius: 8px;
+}
+
+.breakout-board {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(10, 13, 16);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(53, 62, 72);
+    border-right-color: rgb(53, 62, 72);
+    border-top-color: rgb(53, 62, 72);
+    border-bottom-color: rgb(53, 62, 72);
+}
+
+.brick-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.brick {
+    position: absolute;
+    border-radius: 3px;
+    background-color: rgb(38, 149, 168);
+    border-bottom-width: 2px;
+    border-bottom-color: rgb(17, 89, 103);
+    align-items: center;
+    justify-content: center;
+}
+
+.brick-strong {
+    background-color: rgb(220, 159, 57);
+    border-bottom-color: rgb(135, 86, 26);
+}
+
+.brick-powerup {
+    background-color: rgb(80, 160, 96);
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-top-width: 2px;
+    border-left-color: rgb(232, 244, 210);
+    border-right-color: rgb(232, 244, 210);
+    border-top-color: rgb(232, 244, 210);
+    border-bottom-color: rgb(42, 108, 48);
+}
+
+.brick-buff-wide {
+    background-color: rgb(86, 180, 118);
+}
+
+.brick-buff-slow {
+    background-color: rgb(62, 147, 204);
+}
+
+.brick-buff-multi {
+    background-color: rgb(172, 106, 216);
+}
+
+.brick-buff-life {
+    background-color: rgb(224, 91, 106);
+}
+
+.brick-buff-laser {
+    background-color: rgb(232, 188, 61);
+}
+
+.brick-buff-label {
+    color: rgb(8, 11, 14);
+    font-size: 11px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.brick-unbreakable {
+    background-color: rgb(118, 125, 134);
+    border-bottom-color: rgb(68, 74, 82);
+}
+
+.brick-dead {
+    display: none;
+}
+
+.paddle {
+    position: absolute;
+    border-radius: 5px;
+    background-color: rgb(238, 238, 232);
+    border-bottom-width: 2px;
+    border-bottom-color: rgb(112, 123, 130);
+}
+
+.ball {
+    position: absolute;
+    border-radius: 99px;
+    background-color: rgb(245, 88, 88);
+}
+
+.side-panel {
+    margin-left: 22px;
+    padding: 16px;
+    background-color: rgb(28, 32, 37);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(70, 80, 88);
+    border-right-color: rgb(70, 80, 88);
+    border-top-color: rgb(70, 80, 88);
+    border-bottom-color: rgb(70, 80, 88);
+    border-radius: 8px;
+}
+
+.state-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 34px;
+    margin-bottom: 12px;
+}
+
+.state-pill {
+    min-width: 96px;
+    height: 28px;
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 6px;
+    background-color: rgb(32, 91, 71);
+    color: rgb(221, 255, 238);
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.stat-grid {
+    margin-bottom: 14px;
+}
+
+.stat-row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 32px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(47, 55, 63);
+}
+
+.label-soft {
+    color: rgb(165, 176, 185);
+    font-size: 12px;
+}
+
+.center-label {
+    -unity-text-align: middle-center;
+}
+
+.stat-value {
+    color: rgb(242, 245, 247);
+    font-size: 16px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-right;
+}
+
+.button-row {
+    flex-direction: row;
+    margin-bottom: 10px;
+}
+
+.primary-button,
+.secondary-button {
+    flex-grow: 1;
+    height: 34px;
+    margin-right: 8px;
+    border-radius: 6px;
+    color: rgb(246, 248, 250);
+    -unity-font-style: bold;
+}
+
+.primary-button {
+    background-color: rgb(40, 112, 92);
+}
+
+.secondary-button {
+    background-color: rgb(59, 75, 93);
+}
+
+.danger-button {
+    background-color: rgb(119, 54, 60);
+}
+
+.last-button {
+    margin-right: 0;
+}
+
+.diagnostics-panel {
+    padding: 10px;
+    margin-top: 4px;
+    margin-bottom: 12px;
+    background-color: rgb(20, 24, 29);
+    border-radius: 6px;
+}
+
+.hash-title {
+    margin-top: 8px;
+}
+
+.diag-value {
+    min-height: 20px;
+    color: rgb(230, 234, 238);
+    font-size: 12px;
+    white-space: normal;
+}
+
+.status-label {
+    min-height: 34px;
+    padding: 8px;
+    background-color: rgb(22, 27, 32);
+    color: rgb(218, 224, 229);
+    font-size: 12px;
+    white-space: normal;
+    border-radius: 6px;
+}
+
+.overlay-panel {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    padding-left: 32px;
+    padding-right: 32px;
+    background-color: rgba(8, 11, 14, 0.86);
+}
+
+.panel-title {
+    margin-bottom: 16px;
+    color: rgb(243, 246, 248);
+    font-size: 20px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.menu-panel .primary-button {
+    width: 160px;
+    flex-grow: 0;
+    margin-right: 0;
+}
+
+.game-over-panel .button-row {
+    width: 260px;
+    margin-top: 14px;
+}
+
+.progress-track {
+    width: 260px;
+    height: 10px;
+    margin-bottom: 8px;
+    background-color: rgb(32, 38, 45);
+    border-radius: 5px;
+}
+
+.progress-fill {
+    width: 0%;
+    height: 10px;
+    border-radius: 5px;
+    background-color: rgb(44, 151, 185);
+}
+
+.mode-boot .menu-panel,
+.mode-menu .menu-panel,
+.mode-loading .loading-panel,
+.mode-game-over .game-over-panel {
+    display: flex;
+}
+
+.mode-boot .menu-panel .primary-button {
+    display: none;
+}
+
+.mode-boot .menu-panel .panel-title {
+    margin-bottom: 0;
+}
+
+.mode-menu .loading-panel,
+.mode-gameplay .loading-panel,
+.mode-gameplay .menu-panel,
+.mode-gameplay .game-over-panel {
+    display: none;
+}
+
+.is-paused .state-pill {
+    background-color: rgb(105, 83, 39);
+    color: rgb(255, 236, 180);
+}
+
+.runtime-missing .status-label {
+    background-color: rgb(78, 45, 47);
+    color: rgb(255, 224, 224);
+}

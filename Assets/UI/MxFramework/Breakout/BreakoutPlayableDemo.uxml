@@ -1,0 +1,71 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="breakout-root" class="breakout-root mode-boot">
+        <ui:VisualElement name="breakout-shell" class="breakout-shell">
+            <ui:VisualElement name="board-wrap" class="board-wrap">
+                <ui:VisualElement name="breakout-board" class="breakout-board">
+                    <ui:VisualElement name="brick-layer" class="brick-layer" />
+                    <ui:VisualElement name="paddle" class="paddle" />
+                    <ui:VisualElement name="ball" class="ball" />
+                    <ui:VisualElement name="loading-panel" class="overlay-panel loading-panel">
+                        <ui:Label class="panel-title" text="Loading" />
+                        <ui:VisualElement class="progress-track">
+                            <ui:VisualElement name="progress-fill" class="progress-fill" />
+                        </ui:VisualElement>
+                        <ui:Label name="progress-label" class="label-soft center-label" text="0%" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="menu-panel" class="overlay-panel menu-panel">
+                        <ui:Label class="panel-title" text="Breakout" />
+                        <ui:Button name="start-button" class="primary-button" text="Start" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="game-over-panel" class="overlay-panel game-over-panel">
+                        <ui:Label name="game-over-title" class="panel-title" text="Game Over" />
+                        <ui:Label name="game-over-stats" class="label-soft center-label" text="Score 0 / Lives 3" />
+                        <ui:VisualElement class="button-row">
+                            <ui:Button name="game-over-restart-button" class="primary-button" text="Restart" />
+                            <ui:Button name="game-over-menu-button" class="secondary-button last-button" text="Menu" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="side-panel" class="side-panel">
+                <ui:VisualElement class="state-row">
+                    <ui:Label class="label-soft" text="AppFlow" />
+                    <ui:Label name="app-state-label" class="state-pill" text="Boot" />
+                </ui:VisualElement>
+                <ui:VisualElement class="stat-grid">
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="label-soft" text="Score" />
+                        <ui:Label name="score-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="label-soft" text="Lives" />
+                        <ui:Label name="lives-label" class="stat-value" text="3" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="label-soft" text="Frame" />
+                        <ui:Label name="frame-label" class="stat-value" text="Frame 0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="label-soft" text="Replay" />
+                        <ui:Label name="replay-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="button-row">
+                    <ui:Button name="pause-button" class="secondary-button" text="Pause" />
+                    <ui:Button name="launch-button" class="primary-button last-button" text="Launch" />
+                </ui:VisualElement>
+                <ui:VisualElement class="button-row">
+                    <ui:Button name="restart-button" class="secondary-button danger-button" text="Restart" />
+                    <ui:Button name="menu-button" class="secondary-button last-button" text="Menu" />
+                </ui:VisualElement>
+                <ui:VisualElement class="diagnostics-panel">
+                    <ui:Label class="label-soft" text="SceneFlow" />
+                    <ui:Label name="scene-label" class="diag-value" text="SceneFlow pending" />
+                    <ui:Label class="label-soft hash-title" text="Runtime Hash" />
+                    <ui:Label name="hash-label" class="diag-value" text="0" />
+                </ui:VisualElement>
+                <ui:Label name="status-label" class="status-label" text="Ready" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 109ca806dddc643bdbf02790c324f813, type: 3}
+  m_Name: RuntimeVerticalSliceSceneConfig
+  m_EditorClassIdentifier: 
+  _autoStartInScene: 1
+  _sceneName: RuntimeVerticalSlice
+  _useAbilitySlice: 1
+  _useConfigDrivenAbility: 1
+  _enableShowcaseUi: 1
+  _showLegacyOnGui: 0
+  _hudPanelSettings: {fileID: 0}
+  _hudVisualTree: {fileID: 9197481963319205126, guid: c6874298def91474fbd41d9a36ea8a67, type: 3}
+  _hudStyleSheet: {fileID: 7433441132597879392, guid: d5b5a25468ded49139eb1b43ba42b0e5, type: 3}
+  _hudFont: {fileID: 0}
+  _useConfigDriven: 0
+  _usePatchFile: 0
+  _patchFilePath: MxFramework/Demo/runtime_config_patch.json
+  _useModPackage: 0
+  _modPackagePath: MxFramework/Demo/runtime-patch-mod
+  _useModPackageLoadPlanMerge: 0
+  _showCatalog: 0
+  _useModPackageLoadout: 0
+  _loadoutFilePath: MxFramework/Demo/mod_loadout.json
+  _writeModDiagnosticSnapshot: 1
+  _modDiagnosticSnapshotFileName: mod_diagnostic_snapshot.json
+  _initialHp: 1000
+  _initialAttack: 100
+  _initialDefense: 20

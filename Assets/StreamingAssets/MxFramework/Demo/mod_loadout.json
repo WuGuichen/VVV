@@ -1,0 +1,10 @@
+{
+  "format": "mx.modLoadout.v1",
+  "profileId": "demo",
+  "displayName": "Demo Loadout",
+  "enabledPackageKeys": [
+    "demo.runtime.patch.mod|runtime-patch-mod",
+    "demo.runtime.patch.mod.override|runtime-patch-mod-override"
+  ],
+  "updatedUtc": "2026-05-07T00:00:00Z"
+}

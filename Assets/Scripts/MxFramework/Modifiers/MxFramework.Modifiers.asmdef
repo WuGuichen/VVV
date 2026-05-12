@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Modifiers",
+    "rootNamespace": "MxFramework.Modifiers",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

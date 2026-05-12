@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1",
+  "packageId": "sample.runtime.patch.mod",
+  "displayName": "Runtime Patch Mod 示例包",
+  "author": "MxFramework",
+  "version": "0.1.0",
+  "kind": "Preview",
+  "gameVersionRange": "*",
+  "runtimePatch": "runtime/runtime_config_patch.json"
+}

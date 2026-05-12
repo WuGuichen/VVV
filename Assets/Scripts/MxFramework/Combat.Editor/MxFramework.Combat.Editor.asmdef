@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Combat.Editor",
+    "rootNamespace": "MxFramework.Combat.Editor",
+    "references": [
+        "MxFramework.Combat.Authoring",
+        "MxFramework.Demo"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

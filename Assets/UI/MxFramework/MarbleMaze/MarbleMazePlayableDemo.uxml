@@ -1,0 +1,39 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="marble-root" class="marble-root" style="flex-grow: 1; padding-left: 24px; padding-right: 24px; padding-top: 20px; padding-bottom: 20px; align-items: flex-end;">
+        <ui:VisualElement name="marble-shell" class="marble-shell" style="width: 320px; max-width: 320px; align-self: flex-end;">
+            <ui:VisualElement class="header-row" style="height: 48px; flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <ui:Label text="Marble Maze" class="title" style="font-size: 24px; -unity-font-style: bold; color: rgb(244, 247, 248);" />
+                <ui:Label name="state-label" text="Ready" class="state-pill" style="min-width: 104px; height: 30px; padding-left: 12px; padding-right: 12px; border-radius: 4px; background-color: rgb(34, 84, 70); color: rgb(232, 255, 246); -unity-text-align: middle-center; -unity-font-style: bold;" />
+            </ui:VisualElement>
+            <ui:VisualElement class="content-row" style="flex-direction: row; justify-content: flex-end; align-items: flex-start;">
+                <ui:VisualElement class="side-panel" style="width: 300px; min-width: 300px; padding-left: 14px; padding-right: 14px; padding-top: 12px; padding-bottom: 12px; border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px; border-color: rgb(55, 60, 66); background-color: rgb(20, 23, 27);">
+                    <ui:VisualElement class="stat-row" style="min-height: 34px; flex-direction: row; justify-content: space-between; align-items: center; border-bottom-width: 1px; border-color: rgb(55, 60, 66);">
+                        <ui:Label text="Time" class="stat-name" style="color: rgb(166, 174, 182); font-size: 13px;" />
+                        <ui:Label name="time-label" text="0.00s" class="stat-value" style="color: rgb(239, 242, 244); font-size: 14px; -unity-font-style: bold; -unity-text-align: middle-right;" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row" style="min-height: 34px; flex-direction: row; justify-content: space-between; align-items: center; border-bottom-width: 1px; border-color: rgb(55, 60, 66);">
+                        <ui:Label text="Gems" class="stat-name" style="color: rgb(166, 174, 182); font-size: 13px;" />
+                        <ui:Label name="checkpoint-label" text="0 / 2" class="stat-value" style="color: rgb(239, 242, 244); font-size: 14px; -unity-font-style: bold; -unity-text-align: middle-right;" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row" style="min-height: 34px; flex-direction: row; justify-content: space-between; align-items: center; border-bottom-width: 1px; border-color: rgb(55, 60, 66);">
+                        <ui:Label text="Last event" class="stat-name" style="color: rgb(166, 174, 182); font-size: 13px;" />
+                        <ui:Label name="event-label" text="ready" class="stat-value" style="color: rgb(239, 242, 244); font-size: 14px; -unity-font-style: bold; -unity-text-align: middle-right;" />
+                    </ui:VisualElement>
+                    <ui:Label text="Runtime Hash" class="hash-title" style="margin-top: 16px; color: rgb(166, 174, 182); font-size: 12px;" />
+                    <ui:Label name="hash-label" text="0" class="hash-value" style="min-height: 42px; padding-top: 6px; color: rgb(229, 233, 236); white-space: normal;" />
+                    <ui:Label text="Goal" class="hash-title" style="margin-top: 12px; color: rgb(166, 174, 182); font-size: 12px;" />
+                    <ui:Label text="Collect GEM A and GEM B, then roll into EXIT. WASD / arrow keys tilt the board." class="save-label" style="min-height: 44px; color: rgb(211, 224, 231); white-space: normal;" />
+                    <ui:Label name="save-label" text="No save captured" class="save-label" style="min-height: 36px; color: rgb(171, 188, 200); white-space: normal;" />
+                    <ui:VisualElement class="button-row" style="flex-direction: row; margin-top: 10px;">
+                        <ui:Button name="pause-button" text="Pause" style="flex-grow: 1; min-height: 34px; margin-right: 8px; border-radius: 4px; background-color: rgb(47, 95, 120); color: rgb(248, 250, 251); -unity-font-style: bold;" />
+                        <ui:Button name="reset-button" text="Reset" style="flex-grow: 1; min-height: 34px; margin-right: 8px; border-radius: 4px; background-color: rgb(47, 95, 120); color: rgb(248, 250, 251); -unity-font-style: bold;" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="button-row" style="flex-direction: row; margin-top: 10px;">
+                        <ui:Button name="save-button" text="Save" style="flex-grow: 1; min-height: 34px; margin-right: 8px; border-radius: 4px; background-color: rgb(47, 95, 120); color: rgb(248, 250, 251); -unity-font-style: bold;" />
+                        <ui:Button name="load-button" text="Load" style="flex-grow: 1; min-height: 34px; margin-right: 8px; border-radius: 4px; background-color: rgb(47, 95, 120); color: rgb(248, 250, 251); -unity-font-style: bold;" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

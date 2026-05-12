@@ -1,0 +1,51 @@
+{
+    "name": "MxFramework.Tests",
+    "rootNamespace": "MxFramework.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "Unity.InputSystem",
+        "Unity.InputSystem.TestFramework",
+        "MxFramework.Core",
+        "MxFramework.Core.Unity",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs",
+        "MxFramework.Modifiers",
+        "MxFramework.AI",
+        "MxFramework.Config",
+        "MxFramework.Config.Runtime",
+        "MxFramework.Resources",
+        "MxFramework.Resources.Unity",
+        "MxFramework.Audio",
+        "MxFramework.Audio.FMOD",
+        "MxFramework.Audio.FMOD.Editor",
+        "FMODUnity",
+        "MxFramework.Editor",
+        "MxFramework.Diagnostics",
+        "MxFramework.Runtime",
+        "MxFramework.Input",
+        "MxFramework.Gameplay",
+        "MxFramework.Combat",
+        "MxFramework.Combat.Authoring",
+        "MxFramework.Combat.GameplayBridge",
+        "MxFramework.UI.Toolkit",
+        "MxFramework.Demo",
+        "MxFramework.Preview.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

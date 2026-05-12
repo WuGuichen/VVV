@@ -1,0 +1,85 @@
+# Unity generated state
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Unity generated project files
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.opendb
+*.VC.db
+*.pid
+sysinfo.txt
+
+# Unity crash and profiler output
+*.stackdump
+*.trace
+*.traceevents
+*.raw
+
+# .NET build output
+**/bin/
+**/obj/
+TestResults/
+coverage/
+coverage.*/
+*.trx
+
+# Package manager and local caches
+node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+
+# Version control metadata from other systems or nested working copies
+.svn/
+**/.svn/
+**/.git/
+
+# Local code intelligence and agent/tool caches
+.gitnexus/
+**/.gitnexus/
+.agents/
+.claude/
+.codex/
+CLAUDE.md
+.gitnexusignore
+.svnignore
+
+# IDE/editor state
+.idea/
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Project-local runtime/build outputs
+Bundles/
+dist/
+out/
+*.log
+start-gitnexus-ui.sh
+package.json

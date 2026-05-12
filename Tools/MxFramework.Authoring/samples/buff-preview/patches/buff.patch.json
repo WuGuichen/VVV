@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "source": "BuffFactoryData",
+  "entries": [
+    {
+      "operation": "Upsert",
+      "source": "BuffFactoryData",
+      "id": "100001",
+      "layer": "Mod",
+      "fields": {
+        "Id": "100001",
+        "Type": "DamageByAttr",
+        "Name": "buff.sample.fire.name",
+        "Desc": "buff.sample.fire.desc",
+        "ShowHeadIcon": "true",
+        "Removeable": "true",
+        "Target": "Target",
+        "AddType": "RefreshAllTime",
+        "AddNum": "1",
+        "Duration": "5000",
+        "HitCooldown": "1000",
+        "Values": "80",
+        "DmgType": "Magic",
+        "EleType": "Fire",
+        "EleValue": "1",
+        "DamageBaseTypeID": "0",
+        "HitEffect": "Effects/Hit/FireSmall"
+      }
+    }
+  ]
+}

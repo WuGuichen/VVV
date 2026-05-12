@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "mxframework.resources.m3.demo",
+  "packageId": "mxframework.demo",
+  "entries": [
+    {
+      "id": "demo.text.bundle_main",
+      "type": "TextAsset",
+      "variant": "",
+      "provider": "assetBundle",
+      "address": "m3-main|Assets/TestAssets/MxFramework/ResourcesDemo/resource_demo_text.txt",
+      "labels": ["demo", "m3"],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {}
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "packageId": "sample.buff.preview",
+  "displayName": "示例 Buff 预览包",
+  "author": "MxFramework",
+  "version": "0.1.0",
+  "schemaVersion": "1.0",
+  "gameVersionRange": "*",
+  "kind": "Preview"
+}

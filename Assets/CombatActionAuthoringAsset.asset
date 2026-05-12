@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca62027af21c244d99ea25532836e4e0, type: 3}
+  m_Name: CombatActionAuthoringAsset
+  m_EditorClassIdentifier: 
+  actionId: 1
+  totalFrames: 11
+  schemaVersion: 0.1.0
+  startup:
+    startFrame: 0
+    endFrame: 9
+  active:
+    startFrame: 0
+    endFrame: -1
+  recovery:
+    startFrame: 0
+    endFrame: -1
+  hitboxes:
+  - trackId: 1
+    shapeKind: 0
+    frameRange:
+      startFrame: 2
+      endFrame: 8
+    markerId: Combat_Player_Marker
+    localCenter: {x: 0, y: 0, z: 0}
+    radiusRaw: 300000
+    heightRaw: 900000
+    sourceOrder: 1
+  hurtboxes: []
+  weaponTraces: []

@@ -1,0 +1,22 @@
+{
+  "format": "mx.runtimeConfigPatch.v1",
+  "sourceId": "demo.runtime.patch.mod.override",
+  "layer": "Mod",
+  "modifiers": [{
+    "operation": "Upsert",
+    "id": 200001,
+    "nameText": "modifier.demo.attack.override.name",
+    "descriptionText": "modifier.demo.attack.override.desc",
+    "paramIndex": 2,
+    "parameters": [120]
+  }],
+  "buffs": [{
+    "operation": "Upsert",
+    "id": 100001,
+    "nameText": "buff.demo.attack.override.name",
+    "descriptionText": "buff.demo.attack.override.desc",
+    "duration": 10.0,
+    "maxLayers": 1,
+    "modifierId": 200001
+  }]
+}

@@ -1,0 +1,24 @@
+{
+    "name": "MxFramework.Preview.Runtime",
+    "rootNamespace": "MxFramework.Preview",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Modifiers",
+        "MxFramework.Buffs",
+        "MxFramework.Runtime",
+        "MxFramework.Diagnostics",
+        "MxFramework.Config",
+        "MxFramework.Config.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,18 @@
+{
+    "name": "MxFramework.Audio.FMOD",
+    "rootNamespace": "MxFramework.Audio.FMOD",
+    "references": [
+        "MxFramework.Audio",
+        "MxFramework.Runtime",
+        "FMODUnity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

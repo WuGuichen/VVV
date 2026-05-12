@@ -1,0 +1,20 @@
+{
+    "name": "MxFramework.Audio.FMOD.Editor",
+    "rootNamespace": "MxFramework.Audio.FMOD.Editor",
+    "references": [
+        "MxFramework.Audio",
+        "MxFramework.Audio.FMOD",
+        "FMODUnity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

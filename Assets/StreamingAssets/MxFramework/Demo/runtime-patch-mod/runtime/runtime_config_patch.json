@@ -1,0 +1,22 @@
+{
+  "format": "mx.runtimeConfigPatch.v1",
+  "sourceId": "demo.runtime.patch.mod",
+  "layer": "Patch",
+  "modifiers": [{
+    "operation": "Upsert",
+    "id": 200001,
+    "nameText": "modifier.demo.attack.name",
+    "descriptionText": "modifier.demo.attack.desc",
+    "paramIndex": 2,
+    "parameters": [80]
+  }],
+  "buffs": [{
+    "operation": "Upsert",
+    "id": 100001,
+    "nameText": "buff.demo.attack.name",
+    "descriptionText": "buff.demo.attack.desc",
+    "duration": 8.0,
+    "maxLayers": 1,
+    "modifierId": 200001
+  }]
+}

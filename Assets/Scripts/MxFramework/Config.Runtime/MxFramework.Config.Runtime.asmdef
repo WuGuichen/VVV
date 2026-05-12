@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.Config.Runtime",
+    "rootNamespace": "MxFramework.Config.Runtime",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Config",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs",
+        "MxFramework.Modifiers",
+        "MxFramework.Gameplay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

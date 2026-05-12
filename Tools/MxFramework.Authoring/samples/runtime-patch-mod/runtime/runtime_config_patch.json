@@ -1,0 +1,22 @@
+{
+  "format": "mx.runtimeConfigPatch.v1",
+  "sourceId": "sample.runtime.patch.mod",
+  "layer": "Patch",
+  "modifiers": [{
+    "operation": "Upsert",
+    "id": 200001,
+    "nameText": "modifier.buff.100001.name",
+    "descriptionText": "modifier.buff.100001.desc",
+    "paramIndex": 2,
+    "parameters": [80]
+  }],
+  "buffs": [{
+    "operation": "Upsert",
+    "id": 100001,
+    "nameText": "buff.sample.fire.name",
+    "descriptionText": "buff.sample.fire.desc",
+    "duration": 5.0,
+    "maxLayers": 1,
+    "modifierId": 200001
+  }]
+}
