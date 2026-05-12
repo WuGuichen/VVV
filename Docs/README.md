@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.29 | 2026-05-13
+> 版本 0.6.33 | 2026-05-13
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -12,6 +12,7 @@
 |--------|--------|
 | **想知道框架现在能做什么** | → `CAPABILITIES.md`（按使用场景分类的功能清单） |
 | **开始接入：最小代码示例** | → `USAGE.md`（属性/Buff/Modifier/配置 代码模板） |
+| **让 Agent 读取最小上下文** | → `PROJECT_INDEX.md`（Context Pack 入口和禁止默认读取范围） |
 | **让 agent 基于框架制作小游戏 / Demo** | → `AGENT_GAME_CREATION_GUIDE.md`（API 复用计划、标准分层、禁用项和验收清单） |
 | **选读哪个文档** | → 本文件下方「职责表」 |
 
@@ -21,6 +22,7 @@
 
 | 文档 | 回答的问题 |
 |------|------------|
+| `PROJECT_INDEX.md` | Agent 应该按什么顺序读取项目上下文？ |
 | `CAPABILITIES.md` | 框架当前能做什么？按场景分类。 |
 | `USAGE.md` | 如何接入和组合模块？最小代码示例。 |
 | `INTERFACES.md` | 接口索引、依赖矩阵、模块边界。 |
@@ -32,6 +34,8 @@
 | `API_STANDARDS.md` | API 命名、兼容性、GC、Unity 依赖标准。 |
 | `WORKFLOW.md` | 项目日常开发、验收、提交和推送流程。 |
 | `GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查。 |
+| `Decisions/` | ADR 决策记录，保存架构、流程和版本控制等正式决策。 |
+| `Progress/CurrentStatus.md` | 当前项目流程、主仓库和下一步运营状态。 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 基于框架制作小游戏 / Demo / Runtime Showcase 的执行规范。 |
 | `QUALITY_GATE.md` | 什么算做完、如何验收。 |
 | `ROADMAP.md` | 分阶段建设路线和完成定义（按 Phase 组织）。 |
@@ -155,6 +159,7 @@
 
 | 文档 | 回答的问题 | 更新时机 |
 |------|------------|----------|
+| `PROJECT_INDEX.md` | Agent 最小上下文入口和 Context Pack 读取顺序 | Agent 上下文组织变化 |
 | `CAPABILITIES.md` | 当前能用什么 | **每次新功能提交后** |
 | `DESIGN.md` | 框架为什么存在、包含什么、不包含什么 | 目标或模块边界变化 |
 | `ARCHITECTURE.md` | 模块如何协作、依赖如何约束、生命周期如何运行 | 新增模块或改变依赖方向 |
@@ -168,6 +173,8 @@
 | `API_STANDARDS.md` | API 如何命名、如何演进、如何避免隐藏耦合 | 新增公共类型前 |
 | `WORKFLOW.md` | 日常开发、验收、提交和推送如何执行 | 项目工作流变化 |
 | `GITNEXUS.md` | GitNexus 如何接入、何时检查、输出如何使用 | GitNexus 工作流变化 |
+| `Decisions/*.md` | 已接受的架构、流程和版本控制决策 | 重要决策接受或变更 |
+| `Progress/*.md` | 当前进度、流程状态和合并后摘要 | PR 合并后或状态变化 |
 | `QUALITY_GATE.md` | 什么算做完、如何验收 | 新增测试或发布要求 |
 | `EDITORS.md` | 编辑器工具怎么呈现和验证框架状态 | 开发 Editor 工具前 |
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部编辑器总规划 | 外部编辑器范围变化 |
@@ -192,6 +199,10 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.33 | 2026-05-13 | 收口 Agent Control Plane 文档：统一 WGameFramework / MxFramework 命名，明确人工/Agent 状态标签语义，将 `status/approved` 改为 `status/ready-to-merge`，并要求备份恢复测试包含 Git LFS 拉取验证 |
+| 0.6.32 | 2026-05-13 | 调整 Agent Control Plane 可执行性：新增 S0-S3 任务等级，补齐 `status/spec-draft`，精简默认 Context Pack，允许 GitNexus 失败时替代影响面分析，并把 Harness 检查脚本化列为后续任务 |
+| 0.6.31 | 2026-05-13 | 将 Gitea 流程升级为 Agent Control Plane：新增 `PROJECT_INDEX.md`、`Progress/CurrentStatus.md` 和 ADR-002，Issue/PR 模板加入 Context Pack 与 Agent Session 审计 |
+| 0.6.30 | 2026-05-13 | 将开发流程升级为 Gitea Issue / Branch / PR 驱动，新增 `.gitea` Issue/PR 模板和 `Docs/Decisions/ADR-001-Version-Control-Gitea.md` |
 | 0.6.29 | 2026-05-13 | 明确以后开发流程以 NAS Gitea `origin` 为主仓库和协作源，GitHub 仅作为非 LFS Git 镜像 |
 | 0.6.28 | 2026-05-13 | 新增 `WORKFLOW.md` 作为项目日常开发、验证、提交和推送的统一入口，并让 `AGENTS.md` 等文档引用该入口 |
 | 0.6.27 | 2026-05-13 | 新增 `GITNEXUS.md` 作为 GitNexus 唯一工作流入口，收束散落的接入、影响面分析和提交前检查规则 |

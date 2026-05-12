@@ -1,0 +1,25 @@
+# Current Status
+
+Date: 2026-05-13
+
+## Workflow State
+
+- NAS Gitea `origin` is the primary repository, task system, branch host, PR review entry, permission boundary, and automation source.
+- GitHub `github` is only a non-LFS Git mirror.
+- Daily development should use Spec Issue -> Agent Branch -> PR -> checks -> owner review -> merge main.
+- Task levels S0-S3 control workflow weight so small documentation changes do not require the full Agent Control Plane.
+- `status/in-progress` is reserved for human work; `status/agent-running` is for agent execution; `status/ready-to-merge` replaces ambiguous issue-level `status/approved`.
+- GitNexus is preferred for impact analysis; if unavailable, the PR must document substitute `git diff` / `rg` / source / test analysis.
+- Default Context Pack uses `AGENTS.md`, `Docs/PROJECT_INDEX.md`, issue-specified docs / ADRs, relevant interfaces, source, and tests; full `WORKFLOW.md` / `GITNEXUS.md` reads are section-specific.
+- `Docs/WORKFLOW.md` is the workflow authority.
+- `Docs/GITNEXUS.md` is the GitNexus authority.
+- `Docs/Decisions/ADR-001-Version-Control-Gitea.md` records the Gitea primary repository decision.
+- `Docs/Decisions/ADR-002-Gitea-Agent-Control-Plane.md` records the Agent Control Plane decision.
+
+## Next Operational Steps
+
+- Configure Gitea protected `main`.
+- Create labels from `Docs/WORKFLOW.md`.
+- Add Gitea Actions lightweight checks by first creating scripts under `Tools/Harness/`.
+- Wire webhook / Hermes as a notification and summary layer, not an auto-merge layer.
+- Add backup restore checks that verify Git LFS objects can be pulled, not just Git pointer files.

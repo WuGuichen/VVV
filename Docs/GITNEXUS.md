@@ -37,7 +37,7 @@ Tools/GitNexus/gitnexus.sh analyze
 ## 使用时机
 
 - 修改核心符号、公共 API、跨模块依赖、Runtime / Gameplay / Config / Combat 主流程前，优先做影响面分析。
-- 提交前运行 `Tools/GitNexus/gitnexus.sh detect-changes`，确认影响范围和本次任务一致。
+- 提交前优先运行 `Tools/GitNexus/gitnexus.sh detect-changes`，确认影响范围和本次任务一致。
 - 如果 GitNexus 提示索引过期，先重新分析，再依赖结果。
 - 如果 GitNexus 当前不可用，不阻断紧急修复；最终说明原因，并用 `rg`、编译和相关测试补足风险确认。
 
@@ -54,4 +54,4 @@ git status
 Tools/GitNexus/gitnexus.sh detect-changes
 ```
 
-之后按任务范围运行相关编译、EditMode / PlayMode 测试或 Unity MCP / Console 检查。
+如果 GitNexus 不可用，不能静默跳过；必须说明失败原因，并用 `git diff`、`rg`、源码阅读和相关测试做替代影响面分析。之后按任务范围运行相关编译、EditMode / PlayMode 测试或 Unity MCP / Console 检查。
