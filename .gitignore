@@ -56,7 +56,6 @@ node_modules/
 .claude/
 .codex/
 CLAUDE.md
-.gitnexusignore
 .svnignore
 
 # IDE/editor state

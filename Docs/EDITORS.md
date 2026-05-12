@@ -49,7 +49,7 @@ MxFramework.Editor (asmdef)
 - 运行模式通过 `IFrameworkDebugSource` 接入运行时快照，当前阶段为只读提示。
 - 已提供 Config Workbench v0：配置源选择、Schema 查看、字段结构、引用规则、行数、源预览、自动健康检测、问题明细、当前源校验和 AI 上下文导出。
 - Buff 创作流程不再放在 Unity Editor 内部维护；当前统一转向外部 Authoring Editor。
-- 暂不包含 GraphView、模块 sandbox、GitNexus Health Check、完整配置资产编辑器或真实 Mod 包导出。
+- 暂不包含 GraphView、模块 sandbox、GitNexus Health Check、完整配置资产编辑器或真实 Mod 包导出；GitNexus 工作流规则见 `GITNEXUS.md`。
 
 ### Config Workbench Layout
 
@@ -203,9 +203,9 @@ MxFramework.Editor (asmdef)
 ┌────────────────────────────────────────────────────────┐
 │  Framework Settings                                     │
 ├────────────────────────────────────────────────────────┤
-│  GitNexus CLI Path: [/usr/local/bin/gitnexus    ] [..] │
-│  Auto-index on save:  [✓]                              │
-│  Index interval:      [5 min                    ]      │
+│  GitNexus Workflow:   Docs/GITNEXUS.md                 │
+│  CLI wrapper:         Tools/GitNexus/gitnexus.sh       │
+│  Auto-index on save:  [ ]                              │
 │                                                        │
 │  Coupling Rules:                                        │
 │  [✓] No circular dependencies                          │
@@ -562,7 +562,7 @@ public static class MxEditorUtils
     // 检查跨层引用（上层是否引用了下层实现类）
     public static string[] FindDirectClassReferences(string fromAsmdef, string toAsmdef);
 
-    // 生成模块依赖 JSON（兼容 GitNexus）
+    // 生成模块依赖 JSON（供外部图谱工具读取）
     public static string ExportDependencyJson();
 
     // 导出质量门禁报告（文本或 JSON）
@@ -583,18 +583,6 @@ public static class MxEditorUtils
 
 ---
 
-## 6. 与 GitNexus 的 Editor 集成
+## 6. GitNexus 关系
 
-```
-Unity Editor
-├── MxFramework > Export for GitNexus
-│   └── 生成 JSON 描述全部接口和依赖关系
-│
-├── MxFramework > Import GitNexus Graph
-│   └── 读取 GitNexus 生成的知识图谱 JSON
-│   └── 在 DependencyGraphView 中渲染
-│
-└── MxFramework > GitNexus Health Check
-    └── 运行 gitnexus check 验证代码健康度
-    └── 结果展示在 Validation Tab
-```
+Unity Editor 不维护独立 GitNexus 接入规范。GitNexus 的命令、检查时机和 Agent 规则统一见 `GITNEXUS.md`；Editor 后续如果提供 GraphView / Health Check，只作为该文档工作流的可视化入口。

@@ -1,0 +1,35 @@
+# Unity generated folders
+Library/
+Temp/
+Logs/
+UserSettings/
+obj/
+Build/
+Bundles/
+
+# External Unity packages are not part of the framework source graph.
+Assets/Plugins/FMOD/
+Packages/com.coplaydev.unity-mcp/
+Packages/com.boxqkrtm.ide.cursor/
+
+# Version-control and editor internals
+.svn/
+.git/
+.gitnexus/
+.codex/cache/
+.idea/
+.vs/
+.vscode/
+
+# Generated project files
+*.csproj
+*.sln
+*.userprefs
+
+# Large migrated third-party utility; keep documented, exclude from graph until
+# Core cleanup decides whether to keep the original API.
+Assets/Scripts/MxFramework/Core/Extensions/ZString.cs
+
+# OS files
+.DS_Store
+Thumbs.db

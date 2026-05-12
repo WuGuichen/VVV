@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.20 | 2026-05-12
+> 版本 0.6.29 | 2026-05-13
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -30,6 +30,8 @@
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、模块边界、加载契约和阶段切片。 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画/物理协作方案和落地阶段。 |
 | `API_STANDARDS.md` | API 命名、兼容性、GC、Unity 依赖标准。 |
+| `WORKFLOW.md` | 项目日常开发、验收、提交和推送流程。 |
+| `GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查。 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 基于框架制作小游戏 / Demo / Runtime Showcase 的执行规范。 |
 | `QUALITY_GATE.md` | 什么算做完、如何验收。 |
 | `ROADMAP.md` | 分阶段建设路线和完成定义（按 Phase 组织）。 |
@@ -164,6 +166,8 @@
 | `INTERFACES.md` | 如何查找模块接口、跨模块依赖是否合法 | 新增模块或改变接口文档结构 |
 | `Interfaces/*.md` | 各模块对外公开哪些类型和方法 | 修改公共 API 前 |
 | `API_STANDARDS.md` | API 如何命名、如何演进、如何避免隐藏耦合 | 新增公共类型前 |
+| `WORKFLOW.md` | 日常开发、验收、提交和推送如何执行 | 项目工作流变化 |
+| `GITNEXUS.md` | GitNexus 如何接入、何时检查、输出如何使用 | GitNexus 工作流变化 |
 | `QUALITY_GATE.md` | 什么算做完、如何验收 | 新增测试或发布要求 |
 | `EDITORS.md` | 编辑器工具怎么呈现和验证框架状态 | 开发 Editor 工具前 |
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部编辑器总规划 | 外部编辑器范围变化 |
@@ -188,6 +192,10 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.29 | 2026-05-13 | 明确以后开发流程以 NAS Gitea `origin` 为主仓库和协作源，GitHub 仅作为非 LFS Git 镜像 |
+| 0.6.28 | 2026-05-13 | 新增 `WORKFLOW.md` 作为项目日常开发、验证、提交和推送的统一入口，并让 `AGENTS.md` 等文档引用该入口 |
+| 0.6.27 | 2026-05-13 | 新增 `GITNEXUS.md` 作为 GitNexus 唯一工作流入口，收束散落的接入、影响面分析和提交前检查规则 |
+| 0.6.26 | 2026-05-13 | 记录 Git 推送模式：`origin` 为 NAS Gitea 主 remote，`github` 为跳过 LFS 上传的 GitHub 镜像 remote，使用 deploy key 和 `pre-push` 防护 |
 | 0.6.25 | 2026-05-12 | 新增 Gameplay Component Ability Targeting v0，支持 generation-safe request target、team/lifecycle/tag/status filter 和 request cast |
 | 0.6.24 | 2026-05-12 | 新增 Gameplay Component Ability Command Bridge v0，支持 component entity 通过 `CastComponentAbility` 执行 self attribute delta ability |
 | 0.6.23 | 2026-05-12 | 新增 Gameplay Component Attribute Runtime v0，支持 component-native attribute set、attribute commands、events、hash 和 SaveState |

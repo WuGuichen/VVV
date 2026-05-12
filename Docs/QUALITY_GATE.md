@@ -1,6 +1,6 @@
 # MxFramework 质量门禁
 
-> 版本 0.3.1 | 2026-05-11
+> 版本 0.3.2 | 2026-05-13
 >
 > 本文档定义每批迁移、每个模块和每次发布必须满足的验收条件。
 
@@ -90,7 +90,7 @@
 
 ## 3. 自动检查建议
 
-可先用脚本实现以下检查，后续再接入 SVN pre-commit：
+可先用脚本实现以下检查；具体日常工作流和提交前步骤见 `WORKFLOW.md`：
 
 ```text
 check-no-wgame-reference
@@ -144,7 +144,7 @@ check-source-comment-for-migrated-files
 
 发布或提交前必须确认：
 
-- `svn status` 中没有意外的 `Library/`、`Temp/`、`Logs/`、`UserSettings/`。
+- `git status` 中没有意外的 `Library/`、`Temp/`、`Logs/`、`UserSettings/`、`.gitnexus/`、`.codex/`。
 - 新增 `.meta` 文件与资产文件同时提交。
 - 文档版本号已更新。
 - `MIGRATION.md` 的批次状态与代码一致。

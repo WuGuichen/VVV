@@ -46,7 +46,7 @@
 可选:   Unity.Mathematics (高性能数学)
 ```
 
-不使用 UPM 外部包。GitNexus 作为外部辅助工具，不嵌入框架代码。
+不使用 UPM 外部包。GitNexus 作为外部辅助工具，不嵌入框架运行时代码；接入和工作流规则统一见 `GITNEXUS.md`。
 
 ---
 
@@ -521,49 +521,9 @@ Unity Editor Window `MxFramework > Framework Manager`：
 
 ---
 
-## 6. GitNexus 集成
+## 6. GitNexus
 
-### 6.1 GitNexus 是什么
-
-一个零服务器的代码智能引擎：
-- 索引代码库生成知识图谱（依赖、调用链、聚类、执行流）
-- 提供 MCP Server 给 AI Agent 使用
-- 有 Web UI 用于可视化探索
-- 支持 CLI 批量操作
-
-### 6.2 在 MxFramework 中的角色
-
-```
-┌──────────────┐     MCP协议      ┌──────────────┐
-│  AI Agent    │ ←────────────── │  GitNexus    │
-│ (Hermes/     │   知识图谱查询    │  CLI+MCP     │
-│  Codex/      │                  │              │
-│  Claude)     │                  │  索引:       │
-└──────┬───────┘                  │  MxFramework │
-       │ 实际开发                  │  代码库      │
-       ▼                          └──────────────┘
-┌──────────────┐
-│  Unity       │
-│  Editor      │ ← GitNexus 数据导入 Editor
-└──────────────┘
-```
-
-### 6.3 集成方式
-
-1. **CLI 索引**: `gitnexus index /path/to/MxFramework`
-2. **MCP 接入**: 在 Hermes Agent 的 config.yaml 中配置 GitNexus MCP server
-3. **Editor 集成**: Editor 工具读取 GitNexus 导出的 JSON 依赖图，在 Unity 内可视化
-4. **CI 检查**: 在 SVN pre-commit hook 中运行 `gitnexus check` 验证耦合度
-
-### 6.4 具体配置
-
-```yaml
-# Hermes Agent config.yaml 中新增
-mcp_servers:
-  gitnexus:
-    command: gitnexus
-    args: ["mcp", "--repo", "${WGAMEFRAMEWORK_ROOT}"]
-```
+GitNexus 用于代码知识图谱、影响面分析和提交前辅助检查。当前接入方式、命令、Agent 规则和提交前要求统一维护在 `GITNEXUS.md`；本文只保留架构定位，避免多处文档漂移。
 
 ---
 
@@ -624,7 +584,7 @@ MxFramework.Editor         → 所有模块 + UnityEditor
 | 6.3 | Config Authoring | ✅ 完成 v1 | - |
 | 7 | AI 轻量 Planner | ✅ 完成 v1 | - |
 | 8 | Editor 编辑器 | 📋 待开始 | - |
-| 9 | GitNexus 集成 | 📋 待开始 | - |
+| 9 | GitNexus 工作流规范 | ✅ 已接入 | `GITNEXUS.md` |
 | 10 | 框架自测 + 示例项目 | 📋 待开始 | - |
 
 ---

@@ -6,7 +6,7 @@
 
 - 目标：沉淀可复用的游戏框架能力，不携带具体游戏业务。
 - 引擎：Unity 6。
-- 版本控制：Git 为主（NAS Gitea remote），SVN 保留备份。
+- 版本控制：以 NAS Gitea `origin` 为主仓库；GitHub 仅作非 LFS Git 镜像；SVN 保留备份。
 - 当前重点：先做可运行的运行时垂直切片，再继续外部编辑器、Mod、AI 辅助和复杂预览。
 
 ## 游戏功能开发强制入口
@@ -42,61 +42,24 @@
 
 ## 推荐工作流
 
-1. 先读 `Docs/README.md`，再按任务读对应设计文档。
-2. 涉及游戏功能、小游戏 / Demo / Runtime Showcase 时，先读 `Docs/AGENT_GAME_CREATION_GUIDE.md` 并写 API 复用计划。
-3. 改代码前查找现有模式，优先用 `rg` / `rg --files`。
-4. 涉及 Unity 项目状态、编译、场景、资源时，可以使用 Unity MCP。
-5. 涉及代码影响面或提交前，先用本地搜索、编译和测试确认风险；GitNexus 当前不作为默认门禁。
-6. 每个可验收阶段单独 Git 提交，标准提交流程：
+项目日常开发、验收、提交和推送统一遵守 `Docs/WORKFLOW.md`。
 
-```bash
-git status
-git add <要提交的文件>
-git commit -m "提交说明"
-
-# 推到 NAS Gitea（含 LFS 对象）
-git push origin main
-
-# 推到 GitHub（仅 refs + LFS pointer，pre-push hook 自动跳过 LFS 上传）
-git push github main
-```
-
-7. 如只需同步 GitHub：
-
-```bash
-git push github main
-```
-
-8. 如 GitHub 提示非快进，确认本地覆盖：
-
-```bash
-git push --force-with-lease github main
-```
-
-9. 如需同步 SVN，再单独 `svn commit`。
+- 先读 `Docs/README.md`，再按任务类型读取 `Docs/WORKFLOW.md` 指定的专项文档。
+- 涉及游戏功能、小游戏 / Demo / Runtime Showcase 时，先读 `Docs/AGENT_GAME_CREATION_GUIDE.md` 并写 API 复用计划。
+- 涉及代码影响面或提交前，按 `Docs/GITNEXUS.md` 使用 GitNexus 辅助分析。
+- 每个可验收阶段单独 Git 提交；推送模式见 `Docs/WORKFLOW.md`。
 
 ## Git 推送模式
 
-- `origin` 是 NAS Gitea 主 remote，日常提交后推送到 `origin/main`：`git push origin main`。
-- `github` 是 GitHub 镜像 remote，只同步非 LFS 的 Git 内容：`git push github main`。
-- 本地 `.git/hooks/pre-push` 已为 remote 名 `github` 设置 `GIT_LFS_SKIP_PUSH=1`，推送 GitHub 时应出现 `Skipping Git LFS upload for remote 'github'. Git refs will still be pushed.`。
-- GitHub remote 使用专用 deploy key 和 SSH alias `github-wgameframework-vvv`；不要把 GitHub 当作 LFS 资产备份。
-- 如果 GitHub `main` 与本地分叉，且确认以本地为准，使用 `git push --force-with-lease github main`，不要裸 `--force`。
-- SVN 仅作为可选备份同步，非默认提交来源。
+统一见 `Docs/WORKFLOW.md`。简述：`origin` 是 NAS Gitea 主仓库和默认推送目标；`github` 是跳过 LFS 上传的非 LFS Git 镜像；SVN 仅作可选备份。
 
 ## GitNexus
 
-本项目当前不视为已接入 GitNexus；`Tools/GitNexus/` 只作为后续重新接入的预留入口。重新接入前，不把 GitNexus 作为提交前强制门禁。
+本项目已接入 GitNexus；具体规则统一维护在 `Docs/GITNEXUS.md`，其他文档不重复定义命令细节。
 
-- 重新接入后，可用以下命令作为影响面辅助检查：
-
-```bash
-Tools/GitNexus/gitnexus.sh detect-changes
-```
-
-- 修改核心符号、公共 API 或跨模块依赖前，当前优先使用 `rg`、编译和相关测试确认影响面。
-- GitNexus 重新接入后，其输出只用于辅助判断风险，不替代编译、测试和人工边界检查。
-- 如果后续索引提示过期，必须先重新分析再依赖结果。
+- 修改核心符号、公共 API 或跨模块依赖前，按 `Docs/GITNEXUS.md` 做影响面分析。
+- GitNexus 输出用于辅助判断风险，不替代编译、测试和人工边界检查。
+- 如果索引提示过期，必须先重新分析再依赖结果。
 
 ## 文档入口
 
@@ -108,6 +71,8 @@ Tools/GitNexus/gitnexus.sh detect-changes
 | `Docs/USAGE.md` | 当前可用功能和接入方式 |
 | `Docs/INTERFACES.md` | 接口文档入口和依赖矩阵 |
 | `Docs/API_STANDARDS.md` | API 命名、兼容、性能规范 |
+| `Docs/WORKFLOW.md` | 项目日常开发、验收、提交和推送流程 |
+| `Docs/GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查 |
 | `Docs/AGENT_GAME_CREATION_GUIDE.md` | Agent 基于框架开发游戏功能 / 小游戏 / Demo / Runtime Showcase 的强制规范 |
 | `Docs/QUALITY_GATE.md` | 验收标准 |
 | `Docs/ROADMAP.md` | 阶段路线 |
@@ -115,10 +80,4 @@ Tools/GitNexus/gitnexus.sh detect-changes
 
 ## 提交前检查
 
-- `git status` 确认只提交本任务文件。
-- GitNexus 当前不作为默认门禁；重新接入后再运行 `Tools/GitNexus/gitnexus.sh detect-changes` 辅助确认影响范围。
-- Unity 相关改动至少确认无 Console error；能自动测试时优先跑测试。
-- 文档、代码、示例场景的描述要一致。
-- Git 提交推送到 Gitea：`git push origin main`。
-- 如需同步 GitHub 非 LFS 镜像：`git push github main`。
-- SVN 仍可用作备份同步，非必须。
+统一见 `Docs/WORKFLOW.md` 的提交前检查和推送模式。

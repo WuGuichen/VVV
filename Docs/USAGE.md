@@ -1426,12 +1426,12 @@ AI agent 进入项目后应按这个顺序读取：
 
 ## 17. 提交前检查
 
-每次改框架基础能力后至少执行：
+项目通用提交前流程见 `Docs/WORKFLOW.md`。每次改框架基础能力后至少确认：
 
 1. Unity 编译无错误。
-2. EditMode 测试全部通过。
-3. `svn status` 只包含本次相关文件。
-4. 如果 GitNexus 可用，提交前运行 `Tools/GitNexus/gitnexus.sh detect-changes`。
+2. 相关 EditMode / PlayMode 测试通过，或说明无法运行原因。
+3. `git status` 只包含本次相关文件。
+4. 按 `Docs/GITNEXUS.md` 运行 GitNexus 影响面检查。
 5. 如果本次涉及配置表，打开 `MxFramework > Framework Manager > 编辑模式 > 配置工作台`，点击 `提交前检查`，优先查看 `Temp/MxFrameworkReports/Config/config_precommit.txt`。
 
 当前已覆盖的关键测试：
