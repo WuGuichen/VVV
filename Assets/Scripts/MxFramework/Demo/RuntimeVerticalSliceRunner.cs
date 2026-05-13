@@ -300,9 +300,29 @@ namespace MxFramework.Demo
 
                 _resourcePreloadService = new ResourcePreloadService(manager);
                 // M7 warmup uses the current immediate provider path; player-main async loading should move this to a coroutine or async startup.
-                ResourcePreloadResult result = _resourcePreloadService.PreloadAsync(new ResourcePreloadPlan(
+                IResourceOperation<ResourcePreloadResult> operation = _resourcePreloadService.PreloadAsync(new ResourcePreloadPlan(
                     RuntimeVerticalSliceResourceCatalog.WarmupGroupId,
-                    labels: new[] { RuntimeVerticalSliceResourceCatalog.WarmupLabel })).Result.Value;
+                    labels: new[] { RuntimeVerticalSliceResourceCatalog.WarmupLabel }));
+                ResourceLoadResult<ResourcePreloadResult> loadResult = operation.Result;
+                if (!loadResult.Success)
+                {
+                    string message = string.IsNullOrWhiteSpace(loadResult.Error.Message)
+                        ? loadResult.Error.ToString()
+                        : loadResult.Error.Message;
+                    _resourceWarmupSummary = "Resource warmup error: " + message;
+                    LogEvent(_resourceWarmupSummary);
+                    _resourcePreloadService = null;
+                    return;
+                }
+
+                ResourcePreloadResult result = loadResult.Value;
+                if (result == null)
+                {
+                    _resourceWarmupSummary = "Resource warmup error: preload result is missing.";
+                    LogEvent(_resourceWarmupSummary);
+                    _resourcePreloadService = null;
+                    return;
+                }
 
                 _resourceWarmupGroup = result.Handle;
                 _resourceWarmupSummary = "Resource warmup: requested=" + result.RequestedCount +
@@ -317,6 +337,8 @@ namespace MxFramework.Demo
             {
                 _resourceWarmupSummary = "Resource warmup error: " + ex.Message;
                 LogEvent(_resourceWarmupSummary);
+                _resourceWarmupGroup = null;
+                _resourcePreloadService = null;
             }
         }
 
