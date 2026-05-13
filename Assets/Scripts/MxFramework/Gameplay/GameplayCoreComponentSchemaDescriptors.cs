@@ -288,14 +288,15 @@ namespace MxFramework.Gameplay
                 GameplayEntityId entityId,
                 in GameplayIdentityComponent component)
             {
-                return WritePayload(Schema, new IdentityPayload(component.DefinitionId, component.VariantId));
+                return GameplayComponentSchemaPayload.Write(Schema, new IdentityPayload(component.DefinitionId, component.VariantId));
             }
 
             public MxFramework.Runtime.RuntimeSaveStateResult<GameplayIdentityComponent> ReadSaveState(
                 GameplayEntityId entityId,
                 MxFramework.Runtime.RuntimeCustomState payload)
             {
-                MxFramework.Runtime.RuntimeSaveStateResult<IdentityPayload> result = ReadPayload<IdentityPayload>(Schema, payload);
+                MxFramework.Runtime.RuntimeSaveStateResult<IdentityPayload> result =
+                    GameplayComponentSchemaPayload.Read<IdentityPayload>(Schema, payload);
                 if (!result.Success)
                     return MxFramework.Runtime.RuntimeSaveStateResult<GameplayIdentityComponent>.Failed(result.Error);
 
@@ -306,7 +307,7 @@ namespace MxFramework.Gameplay
                 }
                 catch (System.Exception exception)
                 {
-                    return InvalidPayload<GameplayIdentityComponent>(Schema, payload, exception);
+                    return GameplayComponentSchemaPayload.Invalid<GameplayIdentityComponent>(Schema, payload, exception);
                 }
             }
         }
@@ -326,14 +327,15 @@ namespace MxFramework.Gameplay
                 GameplayEntityId entityId,
                 in GameplayTeamComponent component)
             {
-                return WritePayload(Schema, new TeamPayload(component.TeamId));
+                return GameplayComponentSchemaPayload.Write(Schema, new TeamPayload(component.TeamId));
             }
 
             public MxFramework.Runtime.RuntimeSaveStateResult<GameplayTeamComponent> ReadSaveState(
                 GameplayEntityId entityId,
                 MxFramework.Runtime.RuntimeCustomState payload)
             {
-                MxFramework.Runtime.RuntimeSaveStateResult<TeamPayload> result = ReadPayload<TeamPayload>(Schema, payload);
+                MxFramework.Runtime.RuntimeSaveStateResult<TeamPayload> result =
+                    GameplayComponentSchemaPayload.Read<TeamPayload>(Schema, payload);
                 if (!result.Success)
                     return MxFramework.Runtime.RuntimeSaveStateResult<GameplayTeamComponent>.Failed(result.Error);
 
@@ -344,7 +346,7 @@ namespace MxFramework.Gameplay
                 }
                 catch (System.Exception exception)
                 {
-                    return InvalidPayload<GameplayTeamComponent>(Schema, payload, exception);
+                    return GameplayComponentSchemaPayload.Invalid<GameplayTeamComponent>(Schema, payload, exception);
                 }
             }
         }
@@ -364,19 +366,20 @@ namespace MxFramework.Gameplay
                 GameplayEntityId entityId,
                 in GameplayLifecycleComponent component)
             {
-                return WritePayload(Schema, new LifecyclePayload((int)component.State));
+                return GameplayComponentSchemaPayload.Write(Schema, new LifecyclePayload((int)component.State));
             }
 
             public MxFramework.Runtime.RuntimeSaveStateResult<GameplayLifecycleComponent> ReadSaveState(
                 GameplayEntityId entityId,
                 MxFramework.Runtime.RuntimeCustomState payload)
             {
-                MxFramework.Runtime.RuntimeSaveStateResult<LifecyclePayload> result = ReadPayload<LifecyclePayload>(Schema, payload);
+                MxFramework.Runtime.RuntimeSaveStateResult<LifecyclePayload> result =
+                    GameplayComponentSchemaPayload.Read<LifecyclePayload>(Schema, payload);
                 if (!result.Success)
                     return MxFramework.Runtime.RuntimeSaveStateResult<GameplayLifecycleComponent>.Failed(result.Error);
 
                 if (!System.Enum.IsDefined(typeof(GameplayLifecycleState), result.Value.State))
-                    return InvalidPayload<GameplayLifecycleComponent>(Schema, payload, "Lifecycle state is not defined: " + result.Value.State);
+                    return GameplayComponentSchemaPayload.Invalid<GameplayLifecycleComponent>(Schema, payload, "Lifecycle state is not defined: " + result.Value.State);
 
                 try
                 {
@@ -385,7 +388,7 @@ namespace MxFramework.Gameplay
                 }
                 catch (System.Exception exception)
                 {
-                    return InvalidPayload<GameplayLifecycleComponent>(Schema, payload, exception);
+                    return GameplayComponentSchemaPayload.Invalid<GameplayLifecycleComponent>(Schema, payload, exception);
                 }
             }
         }
@@ -410,14 +413,15 @@ namespace MxFramework.Gameplay
                 for (int i = 0; i < ids.Length; i++)
                     values[i] = ids[i].Value;
 
-                return WritePayload(Schema, new IdListPayload(values));
+                return GameplayComponentSchemaPayload.Write(Schema, new IdListPayload(values));
             }
 
             public MxFramework.Runtime.RuntimeSaveStateResult<GameplayTagComponent> ReadSaveState(
                 GameplayEntityId entityId,
                 MxFramework.Runtime.RuntimeCustomState payload)
             {
-                MxFramework.Runtime.RuntimeSaveStateResult<IdListPayload> result = ReadPayload<IdListPayload>(Schema, payload);
+                MxFramework.Runtime.RuntimeSaveStateResult<IdListPayload> result =
+                    GameplayComponentSchemaPayload.Read<IdListPayload>(Schema, payload);
                 if (!result.Success)
                     return MxFramework.Runtime.RuntimeSaveStateResult<GameplayTagComponent>.Failed(result.Error);
 
@@ -433,7 +437,7 @@ namespace MxFramework.Gameplay
                 }
                 catch (System.Exception exception)
                 {
-                    return InvalidPayload<GameplayTagComponent>(Schema, payload, exception);
+                    return GameplayComponentSchemaPayload.Invalid<GameplayTagComponent>(Schema, payload, exception);
                 }
             }
         }
@@ -458,14 +462,15 @@ namespace MxFramework.Gameplay
                 for (int i = 0; i < ids.Length; i++)
                     values[i] = ids[i].Value;
 
-                return WritePayload(Schema, new IdListPayload(values));
+                return GameplayComponentSchemaPayload.Write(Schema, new IdListPayload(values));
             }
 
             public MxFramework.Runtime.RuntimeSaveStateResult<GameplayStatusComponent> ReadSaveState(
                 GameplayEntityId entityId,
                 MxFramework.Runtime.RuntimeCustomState payload)
             {
-                MxFramework.Runtime.RuntimeSaveStateResult<IdListPayload> result = ReadPayload<IdListPayload>(Schema, payload);
+                MxFramework.Runtime.RuntimeSaveStateResult<IdListPayload> result =
+                    GameplayComponentSchemaPayload.Read<IdListPayload>(Schema, payload);
                 if (!result.Success)
                     return MxFramework.Runtime.RuntimeSaveStateResult<GameplayStatusComponent>.Failed(result.Error);
 
@@ -481,97 +486,9 @@ namespace MxFramework.Gameplay
                 }
                 catch (System.Exception exception)
                 {
-                    return InvalidPayload<GameplayStatusComponent>(Schema, payload, exception);
+                    return GameplayComponentSchemaPayload.Invalid<GameplayStatusComponent>(Schema, payload, exception);
                 }
             }
-        }
-
-        private static MxFramework.Runtime.RuntimeCustomState WritePayload<TPayload>(
-            GameplayComponentSchema schema,
-            TPayload payload)
-        {
-            string json = Newtonsoft.Json.JsonConvert.SerializeObject(
-                payload,
-                new Newtonsoft.Json.JsonSerializerSettings
-                {
-                    ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
-                    Formatting = Newtonsoft.Json.Formatting.None,
-                    NullValueHandling = Newtonsoft.Json.NullValueHandling.Include
-                });
-            return new MxFramework.Runtime.RuntimeCustomState(schema.StableId, schema.Version, json);
-        }
-
-        private static MxFramework.Runtime.RuntimeSaveStateResult<TPayload> ReadPayload<TPayload>(
-            GameplayComponentSchema schema,
-            MxFramework.Runtime.RuntimeCustomState payload)
-        {
-            if (payload == null)
-                return FailedPayload<TPayload>(schema, "payload", "Component payload is missing.");
-            if (!string.Equals(payload.TypeId, schema.StableId, System.StringComparison.Ordinal))
-                return FailedPayload<TPayload>(schema, "typeId", "Component payload type id does not match schema id.");
-            if (payload.SchemaVersion != schema.Version)
-                return MxFramework.Runtime.RuntimeSaveStateResult<TPayload>.Failed(new MxFramework.Runtime.RuntimeSaveStateError(
-                    MxFramework.Runtime.RuntimeSaveStateErrorCode.UnsupportedVersion,
-                    "payload.schemaVersion",
-                    "Component payload schema version is not supported.",
-                    payload.SchemaVersion,
-                    schema.Version));
-
-            try
-            {
-                TPayload value = Newtonsoft.Json.JsonConvert.DeserializeObject<TPayload>(payload.PayloadJson);
-                return MxFramework.Runtime.RuntimeSaveStateResult<TPayload>.Succeeded(value);
-            }
-            catch (System.Exception exception)
-            {
-                return MxFramework.Runtime.RuntimeSaveStateResult<TPayload>.Failed(new MxFramework.Runtime.RuntimeSaveStateError(
-                    MxFramework.Runtime.RuntimeSaveStateErrorCode.InvalidDocument,
-                    "payload.payloadJson",
-                    "Component payload json could not be parsed: " + exception.Message,
-                    payload.SchemaVersion,
-                    schema.Version,
-                    exception));
-            }
-        }
-
-        private static MxFramework.Runtime.RuntimeSaveStateResult<TPayload> FailedPayload<TPayload>(
-            GameplayComponentSchema schema,
-            string path,
-            string message)
-        {
-            return MxFramework.Runtime.RuntimeSaveStateResult<TPayload>.Failed(new MxFramework.Runtime.RuntimeSaveStateError(
-                MxFramework.Runtime.RuntimeSaveStateErrorCode.CustomStateMismatch,
-                path,
-                message,
-                -1,
-                schema.Version));
-        }
-
-        private static MxFramework.Runtime.RuntimeSaveStateResult<TComponent> InvalidPayload<TComponent>(
-            GameplayComponentSchema schema,
-            MxFramework.Runtime.RuntimeCustomState payload,
-            System.Exception exception)
-        {
-            return MxFramework.Runtime.RuntimeSaveStateResult<TComponent>.Failed(new MxFramework.Runtime.RuntimeSaveStateError(
-                MxFramework.Runtime.RuntimeSaveStateErrorCode.InvalidDocument,
-                "payload.payloadJson",
-                "Component payload contains invalid value: " + exception.Message,
-                payload != null ? payload.SchemaVersion : -1,
-                schema.Version,
-                exception));
-        }
-
-        private static MxFramework.Runtime.RuntimeSaveStateResult<TComponent> InvalidPayload<TComponent>(
-            GameplayComponentSchema schema,
-            MxFramework.Runtime.RuntimeCustomState payload,
-            string message)
-        {
-            return MxFramework.Runtime.RuntimeSaveStateResult<TComponent>.Failed(new MxFramework.Runtime.RuntimeSaveStateError(
-                MxFramework.Runtime.RuntimeSaveStateErrorCode.InvalidDocument,
-                "payload.payloadJson",
-                "Component payload contains invalid value: " + message,
-                payload != null ? payload.SchemaVersion : -1,
-                schema.Version));
         }
 
         private readonly struct IdentityPayload
