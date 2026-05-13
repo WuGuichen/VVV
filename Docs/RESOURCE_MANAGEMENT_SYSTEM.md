@@ -203,6 +203,7 @@ Provider 实现约束：
 - `assetBundle`：禁止卸载仍被已加载 asset 或其他 bundle 引用的依赖 bundle；依赖递减必须晚于依赖者 release。
 - `assetBundle`：manifest 依赖查询会分配数组，应在初始化或预热阶段缓存结果，不在高频加载路径反复调用。
 - `streamingFile`：所有路径从 `Application.streamingAssetsPath` 解析，不硬编码平台路径；Android 和 WebGL 等平台不能假设可用同步 `System.IO.File`，Provider 需要走 `UnityWebRequest` 或平台专用读取流程。
+- `memory` 在 Demo / Editor Play Mode 中也可以作为 Catalog-backed serialized reference provider 使用；这类 entry 应写入 `providerData.assetPath`，由 Editor validator 校验项目内资源存在和主资源类型。它不替代播放器主路径的 AssetBundle / Streaming catalog。
 
 ### 5.4 ResourceHandle
 

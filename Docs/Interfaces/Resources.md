@@ -65,6 +65,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - M5 提供 `ResourceDebugSource`，可把 `IResourceManager.CreateDebugSnapshot()` 输出为通用 `FrameworkDebugSnapshot`。
 - `ResourceCatalogValidator` 可在无 Unity 环境下校验 key、provider、address、重复项和依赖图。
 - `ResourceCatalogEditorValidator` 位于 `MxFramework.Editor`，使用 `AssetDatabase` 校验 `resources` / `assetBundle` 入口资源存在和主资源类型。
+- `ResourceCatalogEditorValidator` 会额外校验 `memory` entry 的 `providerData.assetPath`，用于 Demo / Editor Play Mode 将已序列化 Unity 对象纳入 Catalog 和 warmup。
 - Editor 校验只报告问题，不自动修改 Catalog 或导入设置。
 - M6A 已新增 Preload Group + Scene Warmup，作为独立策略服务，不把 PreloadGroup 做成 Provider，也不修改 `IResourceManager` 签名。
 - `ResourcePreloadService` 会先按 `ResourcePreloadPlan.ExplicitKeys` 和 `Labels` 收集 key，去重后调用现有 `LoadAsync<object>`。
@@ -83,6 +84,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - RemoteBundle address 继续使用 `bundleName|assetName`；`providerData.url` 指向 bundle source，`providerData.cacheKey` 控制缓存文件名。
 - RemoteBundle hash 使用 `ResourceCatalogEntry.Hash`，支持 `sha256:<hex>` 或裸 hex；hash mismatch 返回 `ProviderFailed`。
 - RemoteBundle 当前支持 file URL 和同步 UnityWebRequest 下载；不做重试、断点续传、签名、权限授权或 CDN 发布工具。
+- Runtime Showcase M7 使用 `warmup.runtime_vertical_slice` label 预热 `RuntimeVerticalSlice` 的配置 / HUD 资源；当前第一段通过 `MemoryResourceProvider` 绑定序列化引用，不改变默认 AssetBundle / Resources Provider 路线。
 
 ## 测试入口
 

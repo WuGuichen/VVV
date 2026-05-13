@@ -807,7 +807,7 @@ namespace MxFramework.Demo.Breakout
                 return;
             }
 
-            _runtimeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _runtimeFont = UnityEngine.Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (_runtimeFont == null)
             {
                 _runtimeFont = Font.CreateDynamicFontFromOSFont(new[] { "Helvetica Neue", "Helvetica", "Arial" }, 14);

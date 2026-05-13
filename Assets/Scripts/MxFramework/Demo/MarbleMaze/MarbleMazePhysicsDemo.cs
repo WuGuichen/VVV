@@ -405,7 +405,7 @@ namespace MxFramework.Demo.MarbleMaze
         private void ApplyRuntimeTextStyles(VisualElement root)
         {
             if (_runtimeFont == null)
-                _runtimeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                _runtimeFont = UnityEngine.Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             var labels = root.Query<Label>().ToList();
             for (int i = 0; i < labels.Count; i++)

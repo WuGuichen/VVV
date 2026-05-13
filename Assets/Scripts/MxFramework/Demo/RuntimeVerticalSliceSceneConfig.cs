@@ -22,6 +22,9 @@ namespace MxFramework.Demo
         [SerializeField] private StyleSheet _hudStyleSheet;
         [SerializeField] private Font _hudFont;
 
+        [Header("Resource Warmup")]
+        [SerializeField] private bool _useResourceCatalogWarmup = true;
+
         [Header("Runtime Slice")]
         [SerializeField] private bool _useConfigDriven;
         [SerializeField] private bool _usePatchFile;
@@ -52,6 +55,7 @@ namespace MxFramework.Demo
         public VisualTreeAsset HudVisualTree => _hudVisualTree;
         public StyleSheet HudStyleSheet => _hudStyleSheet;
         public Font HudFont => _hudFont;
+        public bool UseResourceCatalogWarmup => _useResourceCatalogWarmup;
         public bool UseConfigDriven => _useConfigDriven;
         public bool UsePatchFile => _usePatchFile;
         public string PatchFilePath => _patchFilePath;

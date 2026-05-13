@@ -1,6 +1,6 @@
 # Resource Management M7: Runtime Asset Catalog Binding
 
-> 状态：Planned
+> 状态：Implemented / First Slice
 > 日期：2026-05-10
 > 优先级：P1
 > 前置任务：M6A Preload Group + Scene Warmup、M6B Variant Catalog + Retain Policy、Runtime Resource Migration 01
@@ -30,6 +30,18 @@ M7 把资源系统从“核心可用”推进到“Demo 场景真实使用”：
 - Catalog 校验能发现非法 provider、非法 address、重复 `id + type + variant`、缺失依赖。
 - M6A/M6B 资源测试继续通过。
 - Unity Console 无编译错误、测试清理错误。
+
+## 实现记录
+
+- 新增 `RuntimeVerticalSliceResourceCatalog`，把 Runtime Showcase 的配置 / HUD 序列化引用映射为 `ResourceCatalogEntry`，并通过 `MemoryResourceProvider`、`ResourcePreloadService`、`ResourceVariantProfile` 和 `ResourceRetainPolicy.Timed` 在 `RuntimeVerticalSliceRunner` 启动时预热，销毁时释放 group。
+- 新增 `MxFramework/Runtime Showcase/Generate Resource Catalog` Editor 菜单，确定性生成 `Assets/Config/MxFramework/Demo/runtime_vertical_slice_resource_catalog.json`。Catalog schema v1 entry 显式包含 `variant`、`labels`、`providerData.assetPath`。
+- `ResourceCatalogEditorValidator` 现在会校验 `memory` provider entry 的 `providerData.assetPath` 是否存在，并复用 Unity 主资源类型校验。
+- 第一段不引入 Addressables，不把 Demo 资产移回 `Assets/Resources`，也不手写 Unity 场景 / prefab / ScriptableObject YAML。
+
+## 剩余增量
+
+- 当前 Runtime warmup 使用 `MemoryResourceProvider` 绑定已序列化或已加载的 Unity 对象，适合 Editor Play Mode 和 Demo 组合根；真正播放器主路径仍应由后续 AssetBundle / Streaming catalog 构建接管。
+- `Assets/UI/MxFramework/Showcase/` 当前不存在可扫描资产；生成器会在目录存在后自动纳入 UI catalog entry。
 
 ## 建议测试
 

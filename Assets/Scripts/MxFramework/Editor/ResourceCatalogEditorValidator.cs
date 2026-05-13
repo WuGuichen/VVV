@@ -37,6 +37,10 @@ namespace MxFramework.Editor
                 {
                     ValidateStreamingFileEntry(entry, key, report);
                 }
+                else if (string.Equals(entry.ProviderId, "memory", StringComparison.Ordinal))
+                {
+                    ValidateMemoryEntry(entry, key, report);
+                }
             }
 
             return report;
@@ -127,6 +131,23 @@ namespace MxFramework.Editor
                 report.AddError("FileMissing", key, "StreamingAssets file was not found: " + entry.Address + ".");
         }
 
+        private static void ValidateMemoryEntry(
+            ResourceCatalogEntry entry,
+            ResourceKey key,
+            ResourceCatalogValidationReport report)
+        {
+            if (!entry.ProviderData.TryGetValue("assetPath", out string assetPath) || string.IsNullOrWhiteSpace(assetPath))
+                return;
+
+            if (!assetPath.StartsWith("Assets/", StringComparison.Ordinal) || AssetDatabase.GetMainAssetTypeAtPath(assetPath) == null)
+            {
+                report.AddError("AssetMissing", key, "Memory catalog asset path was not found: " + assetPath + ".");
+                return;
+            }
+
+            ValidateMainAssetType(assetPath, entry.TypeId, key, report);
+        }
+
         private static void ValidateMainAssetType(
             string assetPath,
             string typeId,
@@ -142,7 +163,19 @@ namespace MxFramework.Editor
             }
 
             if (expectedType == typeof(UnityEngine.Object))
+            {
+                if (!string.IsNullOrWhiteSpace(typeId) &&
+                    !string.Equals(typeId, ResourceTypeIds.Object, StringComparison.Ordinal) &&
+                    !string.Equals(typeId, actualType.Name, StringComparison.Ordinal))
+                {
+                    report.AddError(
+                        "TypeMismatch",
+                        key,
+                        "Asset type '" + actualType.Name + "' does not match catalog type '" + typeId + "' at " + assetPath + ".");
+                }
+
                 return;
+            }
 
             if (!expectedType.IsAssignableFrom(actualType))
             {
