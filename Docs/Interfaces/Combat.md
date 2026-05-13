@@ -16,6 +16,11 @@ Combat 模块提供 noEngine 的确定性战斗基础，包括固定帧、动作
 | `ActionStateToHitTargetAdapter` | 将 `CombatActionRunner` 的无敌 / 振刀 / 霸体窗口查询桥接为 `HitTargetStateFlags` |
 | `CombatWeaponTraceEvaluator` | 读取 active action，构造 capsule query，调用 `CombatPhysicsWorld` 并输出 `HitCandidate` |
 | `CombatHitCollector` | 基于 `WeaponHitOnceKey` 去重并按 `HitCandidate.CompareTo` 稳定排序候选 |
+| `ICombatAnimationContext` / `CombatAnimationContext` | RuntimeHost 模块间共享 ActionRunner、上一帧 hit candidates 和 diagnostics snapshot 的组合根上下文 |
+| `CombatActionRuntimeModule` | RuntimeHost `Simulation` 阶段模块，创建并推进 `CombatActionRunner` |
+| `CombatWeaponTraceRuntimeModule` | RuntimeHost `PostSimulation` 阶段模块，调用 `CombatWeaponTraceEvaluator` 和 `CombatHitCollector` 输出上一帧候选 |
+| `CombatAnimationDiagnosticsModule` | RuntimeHost `Diagnostics` 阶段模块，输出 `CombatAnimationSnapshot` |
+| `CombatAnimationSnapshot` | 动作运行时诊断摘要，包含 running action、active phase、hit candidate 计数和 frame index |
 
 `StartAction(entityId, actionId, currentFrame)` 在实体没有动作时直接启动；实体已有动作时只在当前动作的 `Cancel` window 允许 `nextActionId` 时替换，否则返回失败并发布拒绝事件。`ForceStartAction` 和 `ForceCancel` 是调试或外部强制状态切换入口，不参与普通取消规则。
 
@@ -38,6 +43,9 @@ CombatActionState[] GetRunningActions();
 - `CombatActionRunner.TickActions` 由调用方按固定帧推进；表现层只能消费状态和事件。
 - `ActionInstanceId` 是每次启动动作递增的运行时 id，可用于后续 `WeaponHitOnceKey` 去重。
 - `CombatWeaponTraceEvaluator` 默认把目标状态写为 `HitTargetStateFlags.Alive`，避免后续 `HitResolveSystem` 将未注入状态的候选误判为 dead；游戏层可通过构造函数注入目标状态解析函数。
+- RuntimeHost 集成使用预注册服务模式：调用方在创建 Host 前通过 `RuntimeHostOptions.Services.Register<T>()` 注册 `ICombatAnimationContext`、`CombatPhysicsWorld`、`CombatActionRegistry` 和 `ICombatActionTraceProvider`；模块 `Initialize` 阶段只通过 `context.Services.Get<T>()` 获取依赖，不修改 Runtime service registry 接口。
+- `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` 分别使用 `Simulation` / `PostSimulation` / `Diagnostics`，依靠 RuntimeHost stage + priority 稳定排序，不要求单个模块跨 stage tick。
+- Combat Animation RuntimeHost 模块按标准 Host 生命周期使用：`Initialize -> Start -> Tick* -> Stop -> Dispose`。`Stop` 用于取消当前运行动作并清空本模块帧缓存；如果需要重新开始一轮 combat animation runtime，应重新创建 Host 或重新执行组合根初始化流程，而不是在 `Dispose` 后继续 tick 同一组模块。
 
 ## Hit Resolve
 
