@@ -313,6 +313,7 @@
 | Broadphase v0 | ✅ v1 | Grid / spatial hash candidate 裁剪，debug report 输出 raw / dedup / post-filter / hit 计数 |
 | Hit Query Debug Report | ✅ accepted | `CombatPhysicsQueryDebugReport`、Showcase 摘要、Play Mode hit / miss explain 和 authoring 测试已验收 |
 | Hit Resolve Bridge v0 | ✅ v0.1 | `HitResolveSystem` 支持 hit-once 去重、owner 防护、阵营过滤、动态目标状态解析、blocked/resolved 事件派发和 Action window state adapter |
+| Combat Animation RuntimeHost Modules | ✅ v0.1 | `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` 使用 RuntimeHost stage + priority 推进动作、武器轨迹和诊断快照 |
 | Runtime World Lifecycle | ✅ accepted | `Revision`、`CreateStats()`、`MoveBody()`、`RemoveBody()`、`RemoveCollider()`、`Clear()`、`CopyBodiesTo()`、`CopyAabbCollidersTo()` 已验收 |
 | Combat Motion v0 | ✅ accepted | 固定帧移动、重力、跳跃、grounded、静态 AABB 阻挡、Motion -> Physics World 同步和 Play Mode smoke 已验收 |
 | Combat Motion v1 Capsule Proxy | ✅ accepted | `CombatMotionCapsuleProxy`、capsule narrow-phase sweep、skin width / no penetration、Showcase capsule summary 和 Combat regression 已验收 |
