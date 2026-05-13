@@ -9,6 +9,11 @@ namespace MxFramework.Resources
         public const string Sprite = "Sprite";
         public const string AudioClip = "AudioClip";
         public const string TextAsset = "TextAsset";
+        public const string Material = "Material";
+        public const string PanelSettings = "PanelSettings";
+        public const string VisualTreeAsset = "VisualTreeAsset";
+        public const string StyleSheet = "StyleSheet";
+        public const string Font = "Font";
         public const string String = "String";
         public const string Object = "Object";
 

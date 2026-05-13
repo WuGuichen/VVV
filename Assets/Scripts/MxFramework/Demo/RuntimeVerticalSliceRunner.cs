@@ -145,7 +145,7 @@ namespace MxFramework.Demo
         private string _loadoutSummary = "";
         private string _snapshotSummary = "";
         private string _snapshotFilePath = "";
-        private string _resourceWarmupSummary = "";
+        private string _resourceWarmupSummary = string.Empty;
         private RuntimeVerticalSliceSceneConfig _sceneConfig;
         private ResourcePreloadService _resourcePreloadService;
         private ResourceGroupHandle _resourceWarmupGroup;
@@ -299,6 +299,7 @@ namespace MxFramework.Demo
                 manager.ValidateCatalogs();
 
                 _resourcePreloadService = new ResourcePreloadService(manager);
+                // M7 warmup uses the current immediate provider path; player-main async loading should move this to a coroutine or async startup.
                 ResourcePreloadResult result = _resourcePreloadService.PreloadAsync(new ResourcePreloadPlan(
                     RuntimeVerticalSliceResourceCatalog.WarmupGroupId,
                     labels: new[] { RuntimeVerticalSliceResourceCatalog.WarmupLabel })).Result.Value;
@@ -326,6 +327,7 @@ namespace MxFramework.Demo
 
             _resourcePreloadService.ReleaseGroup(_resourceWarmupGroup);
             _resourceWarmupGroup = null;
+            _resourcePreloadService = null;
         }
 
         private void StartHardcoded() { /* unchanged from previous implementation */ 

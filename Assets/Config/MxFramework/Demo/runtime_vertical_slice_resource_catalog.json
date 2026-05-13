@@ -10,12 +10,17 @@
       "packageId": "mxframework.demo.runtime_vertical_slice",
       "provider": "memory",
       "address": "runtime_vertical_slice/art/mxframework/showcase/materials/combatdebug_enemy",
-      "labels": ["warmup.runtime_vertical_slice", "art"],
+      "labels": [
+        "warmup.runtime_vertical_slice",
+        "art"
+      ],
       "dependencies": [],
       "hash": "",
       "size": 0,
       "allowOverride": false,
-      "providerData": {"assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Enemy.mat"}
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Enemy.mat"
+      }
     },
     {
       "id": "mxframework.art.mxframework.showcase.materials.combatdebug_ground",
@@ -24,12 +29,17 @@
       "packageId": "mxframework.demo.runtime_vertical_slice",
       "provider": "memory",
       "address": "runtime_vertical_slice/art/mxframework/showcase/materials/combatdebug_ground",
-      "labels": ["warmup.runtime_vertical_slice", "art"],
+      "labels": [
+        "warmup.runtime_vertical_slice",
+        "art"
+      ],
       "dependencies": [],
       "hash": "",
       "size": 0,
       "allowOverride": false,
-      "providerData": {"assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Ground.mat"}
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Ground.mat"
+      }
     },
     {
       "id": "mxframework.art.mxframework.showcase.materials.combatdebug_player",
@@ -38,12 +48,17 @@
       "packageId": "mxframework.demo.runtime_vertical_slice",
       "provider": "memory",
       "address": "runtime_vertical_slice/art/mxframework/showcase/materials/combatdebug_player",
-      "labels": ["warmup.runtime_vertical_slice", "art"],
+      "labels": [
+        "warmup.runtime_vertical_slice",
+        "art"
+      ],
       "dependencies": [],
       "hash": "",
       "size": 0,
       "allowOverride": false,
-      "providerData": {"assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Player.mat"}
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Player.mat"
+      }
     },
     {
       "id": "mxframework.art.mxframework.showcase.materials.combatdebug_trace",
@@ -52,12 +67,17 @@
       "packageId": "mxframework.demo.runtime_vertical_slice",
       "provider": "memory",
       "address": "runtime_vertical_slice/art/mxframework/showcase/materials/combatdebug_trace",
-      "labels": ["warmup.runtime_vertical_slice", "art"],
+      "labels": [
+        "warmup.runtime_vertical_slice",
+        "art"
+      ],
       "dependencies": [],
       "hash": "",
       "size": 0,
       "allowOverride": false,
-      "providerData": {"assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Trace.mat"}
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Showcase/Materials/CombatDebug_Trace.mat"
+      }
     },
     {
       "id": "mxframework.config.mxframework.demo.runtimeverticalslicesceneconfig",
@@ -66,12 +86,17 @@
       "packageId": "mxframework.demo.runtime_vertical_slice",
       "provider": "memory",
       "address": "runtime_vertical_slice/config/mxframework/demo/runtimeverticalslicesceneconfig",
-      "labels": ["warmup.runtime_vertical_slice", "config"],
+      "labels": [
+        "warmup.runtime_vertical_slice",
+        "config"
+      ],
       "dependencies": [],
       "hash": "",
       "size": 0,
       "allowOverride": false,
-      "providerData": {"assetPath": "Assets/Config/MxFramework/Demo/RuntimeVerticalSliceSceneConfig.asset"}
+      "providerData": {
+        "assetPath": "Assets/Config/MxFramework/Demo/RuntimeVerticalSliceSceneConfig.asset"
+      }
     }
   ]
 }

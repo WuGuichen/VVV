@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using MxFramework.Editor;
 using MxFramework.Resources;
+using Newtonsoft.Json;
 using UnityEditor;
 using UnityEngine;
 
@@ -29,7 +29,7 @@ namespace MxFramework.Demo
             ResourceCatalog catalog = RuntimeVerticalSliceResourceCatalog.CreateCatalog(assets);
             ResourceCatalogValidationReport report = ResourceCatalogEditorValidator.ValidateCatalog(
                 catalog,
-                new[] { "memory" });
+                new[] { RuntimeVerticalSliceResourceCatalog.MemoryProviderId });
 
             if (report.HasErrors)
             {
@@ -85,54 +85,34 @@ namespace MxFramework.Demo
 
         private static string WriteCatalogJson(ResourceCatalog catalog)
         {
-            var builder = new StringBuilder();
-            builder.Append("{\n");
-            builder.Append("  \"schemaVersion\": 1,\n");
-            builder.Append("  \"catalogId\": \"").Append(Escape(catalog.CatalogId)).Append("\",\n");
-            builder.Append("  \"packageId\": \"").Append(Escape(catalog.PackageId)).Append("\",\n");
-            builder.Append("  \"entries\": [\n");
-
+            var entries = new List<ResourceCatalogEntryDto>();
             for (int i = 0; i < catalog.Entries.Count; i++)
             {
                 ResourceCatalogEntry entry = catalog.Entries[i];
-                builder.Append("    {\n");
-                builder.Append("      \"id\": \"").Append(Escape(entry.Id)).Append("\",\n");
-                builder.Append("      \"type\": \"").Append(Escape(entry.TypeId)).Append("\",\n");
-                builder.Append("      \"variant\": \"").Append(Escape(entry.Variant)).Append("\",\n");
-                builder.Append("      \"packageId\": \"").Append(Escape(entry.PackageId)).Append("\",\n");
-                builder.Append("      \"provider\": \"").Append(Escape(entry.ProviderId)).Append("\",\n");
-                builder.Append("      \"address\": \"").Append(Escape(entry.Address)).Append("\",\n");
-                builder.Append("      \"labels\": [");
-                for (int j = 0; j < entry.Labels.Count; j++)
+                entries.Add(new ResourceCatalogEntryDto
                 {
-                    if (j > 0)
-                        builder.Append(", ");
-                    builder.Append("\"").Append(Escape(entry.Labels[j])).Append("\"");
-                }
-                builder.Append("],\n");
-                builder.Append("      \"dependencies\": [],\n");
-                builder.Append("      \"hash\": \"\",\n");
-                builder.Append("      \"size\": ").Append(entry.Size).Append(",\n");
-                builder.Append("      \"allowOverride\": false,\n");
-                builder.Append("      \"providerData\": {");
-                if (entry.ProviderData.TryGetValue(RuntimeVerticalSliceResourceCatalog.ProviderDataAssetPathKey, out string assetPath))
-                {
-                    builder.Append("\"")
-                        .Append(RuntimeVerticalSliceResourceCatalog.ProviderDataAssetPathKey)
-                        .Append("\": \"")
-                        .Append(Escape(assetPath))
-                        .Append("\"");
-                }
-                builder.Append("}\n");
-                builder.Append("    }");
-                if (i + 1 < catalog.Entries.Count)
-                    builder.Append(",");
-                builder.Append("\n");
+                    id = entry.Id,
+                    type = entry.TypeId,
+                    variant = entry.Variant,
+                    packageId = entry.PackageId,
+                    provider = entry.ProviderId,
+                    address = entry.Address,
+                    labels = Copy(entry.Labels),
+                    dependencies = new object[0],
+                    hash = entry.Hash,
+                    size = entry.Size,
+                    allowOverride = entry.AllowOverride,
+                    providerData = new Dictionary<string, string>(entry.ProviderData)
+                });
             }
 
-            builder.Append("  ]\n");
-            builder.Append("}\n");
-            return builder.ToString();
+            return JsonConvert.SerializeObject(new ResourceCatalogDto
+            {
+                schemaVersion = 1,
+                catalogId = catalog.CatalogId,
+                packageId = catalog.PackageId,
+                entries = entries.ToArray()
+            }, Formatting.Indented) + "\n";
         }
 
         private static string CreateId(string assetPath)
@@ -162,6 +142,7 @@ namespace MxFramework.Demo
                 return RuntimeVerticalSliceResourceCatalog.UiLabel;
             if (assetPath.StartsWith("Assets/Art/", System.StringComparison.Ordinal))
                 return RuntimeVerticalSliceResourceCatalog.ArtLabel;
+            // Catalog roots are limited to Config/UI/Art; the fallback covers Config assets.
             return RuntimeVerticalSliceResourceCatalog.ConfigLabel;
         }
 
@@ -177,11 +158,39 @@ namespace MxFramework.Demo
             AssetDatabase.CreateFolder(parent, name);
         }
 
-        private static string Escape(string value)
+        private static string[] Copy(IReadOnlyList<string> values)
         {
-            return (value ?? string.Empty)
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"");
+            if (values == null || values.Count == 0)
+                return new string[0];
+
+            var copy = new string[values.Count];
+            for (int i = 0; i < values.Count; i++)
+                copy[i] = values[i];
+            return copy;
+        }
+
+        private sealed class ResourceCatalogDto
+        {
+            public int schemaVersion;
+            public string catalogId;
+            public string packageId;
+            public ResourceCatalogEntryDto[] entries;
+        }
+
+        private sealed class ResourceCatalogEntryDto
+        {
+            public string id;
+            public string type;
+            public string variant;
+            public string packageId;
+            public string provider;
+            public string address;
+            public string[] labels;
+            public object[] dependencies;
+            public string hash;
+            public long size;
+            public bool allowOverride;
+            public Dictionary<string, string> providerData;
         }
     }
 }

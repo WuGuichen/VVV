@@ -11,6 +11,7 @@ namespace MxFramework.Demo
         public const string PackageId = "mxframework.demo.runtime_vertical_slice";
         public const string WarmupGroupId = "runtime_vertical_slice";
         public const string WarmupLabel = "warmup.runtime_vertical_slice";
+        public const string MemoryProviderId = "memory";
         public const string UiLabel = "ui";
         public const string ConfigLabel = "config";
         public const string ArtLabel = "art";
@@ -77,15 +78,15 @@ namespace MxFramework.Demo
             if (asset is TextAsset)
                 return ResourceTypeIds.TextAsset;
             if (asset is Material)
-                return "Material";
+                return ResourceTypeIds.Material;
             if (asset is PanelSettings)
-                return "PanelSettings";
+                return ResourceTypeIds.PanelSettings;
             if (asset is VisualTreeAsset)
-                return "VisualTreeAsset";
+                return ResourceTypeIds.VisualTreeAsset;
             if (asset is StyleSheet)
-                return "StyleSheet";
+                return ResourceTypeIds.StyleSheet;
             if (asset is Font)
-                return "Font";
+                return ResourceTypeIds.Font;
             if (asset is RuntimeVerticalSliceSceneConfig)
                 return nameof(RuntimeVerticalSliceSceneConfig);
             return ResourceTypeIds.Object;
@@ -150,7 +151,7 @@ namespace MxFramework.Demo
             return new ResourceCatalogEntry(
                 Id,
                 TypeId,
-                "memory",
+                RuntimeVerticalSliceResourceCatalog.MemoryProviderId,
                 Address,
                 variant: string.Empty,
                 packageId: RuntimeVerticalSliceResourceCatalog.PackageId,
