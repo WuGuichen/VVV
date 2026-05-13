@@ -82,3 +82,6 @@ out/
 *.log
 start-gitnexus-ui.sh
 package.json
+
+# Machine-local Unity authoring configuration
+Assets/CombatActionAuthoringAsset.asset
