@@ -1,6 +1,6 @@
 # MxFramework 能力清单
 
-> 框架当前（2026-05-12 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
+> 框架当前（2026-05-13 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
 >
 > 状态标记：✅ v1 可用 | ✅ v0.x 部分可用 | 🔄 设计中 | 📋 规划中
 
@@ -312,6 +312,7 @@
 | Combat Physics Query v0 | ✅ v1 | `CombatPhysicsWorld` 支持 Ray / AABB / Sphere / Capsule / Sector 查询和稳定排序 |
 | Broadphase v0 | ✅ v1 | Grid / spatial hash candidate 裁剪，debug report 输出 raw / dedup / post-filter / hit 计数 |
 | Hit Query Debug Report | ✅ accepted | `CombatPhysicsQueryDebugReport`、Showcase 摘要、Play Mode hit / miss explain 和 authoring 测试已验收 |
+| Hit Resolve Bridge v0 | ✅ v0.1 | `HitResolveSystem` 支持 hit-once 去重、owner 防护、阵营过滤、动态目标状态解析、blocked/resolved 事件派发和 Action window state adapter |
 | Runtime World Lifecycle | ✅ accepted | `Revision`、`CreateStats()`、`MoveBody()`、`RemoveBody()`、`RemoveCollider()`、`Clear()`、`CopyBodiesTo()`、`CopyAabbCollidersTo()` 已验收 |
 | Combat Motion v0 | ✅ accepted | 固定帧移动、重力、跳跃、grounded、静态 AABB 阻挡、Motion -> Physics World 同步和 Play Mode smoke 已验收 |
 | Combat Motion v1 Capsule Proxy | ✅ accepted | `CombatMotionCapsuleProxy`、capsule narrow-phase sweep、skin width / no penetration、Showcase capsule summary 和 Combat regression 已验收 |

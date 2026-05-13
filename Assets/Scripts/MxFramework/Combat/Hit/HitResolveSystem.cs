@@ -8,11 +8,65 @@ namespace MxFramework.Combat.Hit
     public sealed class HitResolveSystem
     {
         private readonly List<HitCandidate> _sortedCandidates = new List<HitCandidate>();
+        private ICombatEventDispatcher _eventDispatcher;
+
+        public void SetEventDispatcher(ICombatEventDispatcher eventDispatcher)
+        {
+            _eventDispatcher = eventDispatcher;
+        }
 
         public int Resolve(
             IReadOnlyList<HitCandidate> candidates,
             ISet<WeaponHitOnceKey> consumedHitOnceKeys,
             List<HitResolveResult> results)
+        {
+            return Resolve(
+                candidates,
+                consumedHitOnceKeys,
+                results,
+                teamRelationProvider: null,
+                targetStateResolver: null,
+                allowFriendlyFire: false);
+        }
+
+        public int Resolve(
+            IReadOnlyList<HitCandidate> candidates,
+            ISet<WeaponHitOnceKey> consumedHitOnceKeys,
+            List<HitResolveResult> results,
+            ITeamRelationProvider teamRelationProvider,
+            bool allowFriendlyFire = false)
+        {
+            return Resolve(
+                candidates,
+                consumedHitOnceKeys,
+                results,
+                teamRelationProvider,
+                targetStateResolver: null,
+                allowFriendlyFire);
+        }
+
+        public int Resolve(
+            IReadOnlyList<HitCandidate> candidates,
+            ISet<WeaponHitOnceKey> consumedHitOnceKeys,
+            List<HitResolveResult> results,
+            IHitTargetStateResolver targetStateResolver)
+        {
+            return Resolve(
+                candidates,
+                consumedHitOnceKeys,
+                results,
+                teamRelationProvider: null,
+                targetStateResolver,
+                allowFriendlyFire: false);
+        }
+
+        public int Resolve(
+            IReadOnlyList<HitCandidate> candidates,
+            ISet<WeaponHitOnceKey> consumedHitOnceKeys,
+            List<HitResolveResult> results,
+            ITeamRelationProvider teamRelationProvider,
+            IHitTargetStateResolver targetStateResolver,
+            bool allowFriendlyFire = false)
         {
             if (candidates == null)
             {
@@ -44,19 +98,40 @@ namespace MxFramework.Combat.Hit
                 WeaponHitOnceKey hitOnceKey = candidate.HitOnceKey;
                 if (!consumedHitOnceKeys.Add(hitOnceKey))
                 {
-                    results.Add(CreateResult(candidate, HitResolveKind.Duplicate, 0, 0, FixVector3.Zero));
+                    AddResult(results, CreateResult(candidate, HitResolveKind.Duplicate, 0, 0, FixVector3.Zero));
                     continue;
                 }
 
-                results.Add(ResolveSingle(candidate));
+                AddResult(results, ResolveSingle(candidate, teamRelationProvider, targetStateResolver, allowFriendlyFire));
             }
 
             return results.Count - startCount;
         }
 
-        private static HitResolveResult ResolveSingle(HitCandidate candidate)
+        private HitResolveResult ResolveSingle(
+            HitCandidate candidate,
+            ITeamRelationProvider teamRelationProvider,
+            IHitTargetStateResolver targetStateResolver,
+            bool allowFriendlyFire)
         {
-            HitTargetStateFlags state = candidate.TargetState;
+            if (candidate.AttackerId.Equals(candidate.TargetId))
+            {
+                return CreateResult(candidate, HitResolveKind.SelfDamage, 0, 0, FixVector3.Zero);
+            }
+
+            if (!allowFriendlyFire
+                && teamRelationProvider != null
+                && !teamRelationProvider.AreHostile(candidate.AttackerId, candidate.TargetId)
+                && (teamRelationProvider.IsSameTeam(candidate.AttackerId, candidate.TargetId)
+                    || teamRelationProvider.AreFriendly(candidate.AttackerId, candidate.TargetId)))
+            {
+                return CreateResult(candidate, HitResolveKind.Friendly, 0, 0, FixVector3.Zero);
+            }
+
+            HitTargetStateFlags state = targetStateResolver == null
+                ? candidate.TargetState
+                : targetStateResolver.ResolveTargetState(candidate.TargetId);
+
             if ((state & HitTargetStateFlags.Alive) == 0)
             {
                 return CreateResult(candidate, HitResolveKind.TargetDead, 0, 0, FixVector3.Zero);
@@ -79,6 +154,16 @@ namespace MxFramework.Combat.Hit
 
             int staggerFrames = (state & HitTargetStateFlags.SuperArmor) != 0 ? 0 : candidate.StaggerFrames;
             return CreateResult(candidate, HitResolveKind.Damage, candidate.Damage, staggerFrames, candidate.Knockback);
+        }
+
+        private void AddResult(List<HitResolveResult> results, HitResolveResult result)
+        {
+            results.Add(result);
+            _eventDispatcher?.DispatchHitResolved(result);
+            if (result.Kind == HitResolveKind.Blocked)
+            {
+                _eventDispatcher?.DispatchHitBlocked(result.AttackerId, result.TargetId, result.ActionId, result.Frame);
+            }
         }
 
         private static HitResolveResult CreateResult(
