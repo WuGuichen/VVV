@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.33 | 2026-05-13
+> 版本 0.6.36 | 2026-05-13
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -201,6 +201,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.36 | 2026-05-13 | 新增 Combat Hit Resolve Bridge v0，补齐 owner 防护、阵营过滤、动态目标状态解析、事件派发和 Action window state adapter |
 | 0.6.35 | 2026-05-13 | 新增 Gameplay Component Playable + Combat Bridge 规划文档，明确 Playable 场景升级、Combat bridge source-of-truth 边界和后续 implementation slices |
 | 0.6.34 | 2026-05-13 | 新增 Gameplay Component Buff / Modifier v0，支持 component-native buff/modifier state、过期 buff cleanup、schema-backed hash 和 SaveState |
 | 0.6.33 | 2026-05-13 | 收口 Agent Control Plane 文档：统一 WGameFramework / MxFramework 命名，明确人工/Agent 状态标签语义，将 `status/approved` 改为 `status/ready-to-merge`，并要求备份恢复测试包含 Git LFS 拉取验证 |

@@ -8,5 +8,7 @@ namespace MxFramework.Combat.Hit
         Parried = 4,
         Blocked = 5,
         Duplicate = 6,
+        SelfDamage = 7,
+        Friendly = 8,
     }
 }
