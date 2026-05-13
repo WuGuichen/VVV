@@ -119,6 +119,7 @@
 | `Tasks/GAMEPLAY_ECS_STYLE_14_COMPONENT_SPAWN_DEFINITIONS.md` | Gameplay ECS-style 14：实现 component spawn definitions、spawn registry 和 SpawnComponentEntity command system。 |
 | `Tasks/GAMEPLAY_ECS_STYLE_15_COMPONENT_ATTRIBUTE_RUNTIME.md` | Gameplay ECS-style 15：实现 component-native attribute set、attribute commands、attribute changed event 和 schema-backed hash / SaveState。 |
 | `Tasks/GAMEPLAY_COMPONENT_RUNTIME_SHOWCASE_01.md` | Gameplay Component Runtime Showcase 01：把 v0 component runtime 收口能力组合成可观察 Runtime Slice，提供 Unity runner、UI Toolkit 视图和 Editor 场景生成菜单。 |
+| `Tasks/GAMEPLAY_COMPONENT_PLAYABLE_COMBAT_BRIDGE_PLAN_01.md` | Gameplay Component Playable + Combat Bridge Plan：规划将 Gameplay Component Runtime Showcase 升级为提交的 Unity Playable 入口，并固定 component-native Combat bridge 的 source-of-truth 边界和后续实施切片。 |
 | `Tasks/GAMEPLAY_COMPONENT_BUFF_MODIFIER_01.md` | Gameplay Component Buff / Modifier 01：新增 component-native buff / additive modifier state、cleanup system、diagnostics、hash 和 SaveState。 |
 | `Tasks/GAMEPLAY_ABILITY_03_COMMAND_SYSTEM.md` | Gameplay Ability 03：将 CastAbility / DespawnEntity 迁入 command systems，让 GameplayRuntimeModule 只负责 drain、pipeline、event queue 和 world tick。 |
 | `Tasks/GAMEPLAY_ABILITY_04_COMMAND_HANDLED_STATE.md` | Gameplay Ability 04：新增 command handled 状态，让 unsupported system 基于 handled 判断，支持 default pipeline 上扩展自定义 command system。 |
@@ -200,6 +201,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.35 | 2026-05-13 | 新增 Gameplay Component Playable + Combat Bridge 规划文档，明确 Playable 场景升级、Combat bridge source-of-truth 边界和后续 implementation slices |
 | 0.6.34 | 2026-05-13 | 新增 Gameplay Component Buff / Modifier v0，支持 component-native buff/modifier state、过期 buff cleanup、schema-backed hash 和 SaveState |
 | 0.6.33 | 2026-05-13 | 收口 Agent Control Plane 文档：统一 WGameFramework / MxFramework 命名，明确人工/Agent 状态标签语义，将 `status/approved` 改为 `status/ready-to-merge`，并要求备份恢复测试包含 Git LFS 拉取验证 |
 | 0.6.32 | 2026-05-13 | 调整 Agent Control Plane 可执行性：新增 S0-S3 任务等级，补齐 `status/spec-draft`，精简默认 Context Pack，允许 GitNexus 失败时替代影响面分析，并把 Harness 检查脚本化列为后续任务 |
