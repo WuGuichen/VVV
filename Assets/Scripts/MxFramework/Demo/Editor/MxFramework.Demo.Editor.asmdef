@@ -9,6 +9,8 @@
         "MxFramework.Attributes",
         "MxFramework.Buffs",
         "MxFramework.Modifiers",
+        "MxFramework.Combat",
+        "MxFramework.Runtime.Unity",
         "MxFramework.Input",
         "MxFramework.Preview.Runtime",
         "MxFramework.Resources",

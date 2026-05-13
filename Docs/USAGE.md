@@ -515,7 +515,36 @@ Combat Physics Playground 约定：
 - 场景 marker 只负责给 Demo 提供输入和表现；Runtime Combat Physics / Motion 仍保持纯运行时模块边界。
 - 该入口是制作人手测和验收入口，不承载 WGame 具体角色、关卡或业务配置。
 
-### 6.6 Marble Maze Runtime Showcase
+### 6.6 Combat Animation Playable Demo
+
+Combat Animation 的可玩验证入口用于串联输入、`RuntimeHost` 三模块管线、WeaponTrace、HitResolve、Unity 表现驱动和 UI Toolkit HUD。
+
+代码入口：
+
+- Demo runtime：`Assets/Scripts/MxFramework/Demo/CombatAnimation/CombatAnimationDemoBootstrap.cs`
+- 输入桥接：`Assets/Scripts/MxFramework/Demo/CombatAnimation/DemoInputToActionAdapter.cs`
+- 位姿适配：`Assets/Scripts/MxFramework/Demo/CombatAnimation/CombatDemoPoseSource.cs`
+- HUD：`Assets/Scripts/MxFramework/Demo/CombatAnimation/CombatAnimationHudController.cs`
+- 场景生成：`Assets/Scripts/MxFramework/Demo/Editor/CreateCombatAnimationDemoScene.cs`
+- 可玩场景：`Assets/Scenes/CombatAnimationDemo.unity`
+- UI Toolkit：`Assets/UI/MxFramework/CombatAnimationHud.uxml` / `.uss`
+
+手测方式：
+
+1. 如需重新生成场景，执行 `MxFramework / Combat / Generate Animation Demo Scene`。
+2. 打开 `Assets/Scenes/CombatAnimationDemo.unity`，直接 Play。
+3. 用 `WASD` 移动 Player；位姿由 `CombatDemoPoseSource` 提供给 `CombatTransformDriver`。
+4. 按 `J` 启动 LightAttack，按 `K` 启动 HeavyAttack，按 `Space` 启动 DodgeRoll。
+5. HUD 显示 Player 当前动作、阶段、localFrame、Player/Dummy HP、WeaponTrace candidate 数和最近命中事件。
+6. 当前 Demo 不生成 AnimatorController；`DemoCombatAnimatorDriver` 收到 action lifecycle 事件后输出 `[CombatAnimatorDriver] Entity ... ActionStarted ...` 日志。未来绑定 AnimatorController 后可直接按 mapping state name 走 CrossFade。
+
+Combat Animation Playable 约定：
+
+- 权威动作推进来自 `CombatActionRuntimeModule`，WeaponTrace 来自 `CombatWeaponTraceRuntimeModule`，诊断来自 `CombatAnimationDiagnosticsModule`。
+- 当前没有通用 RuntimeCommand 到 CombatActionRunner 的正式桥接；Demo 使用 `DemoInputToActionAdapter` 从 `InputCommandQueue` 消费输入并调用 `CombatActionRunner`。
+- Demo 的 HP 扣减是手测反馈层固定伤害，不代表正式 Gameplay / Attribute / Buff 集成。
+
+### 6.7 Marble Maze Runtime Showcase
 
 Marble Maze 用于验证框架物理与 MxFramework Runtime 的边界：球体移动、墙体阻挡、GEM 拾取和 EXIT 判定必须由框架 runtime / physics 模块负责，`MarbleMazeRuntimeModule` 负责命令、计时、checkpoint、diagnostics、Replay hash 和 SaveState。Unity 场景对象只作为显示和输入适配，不使用 `Rigidbody` / `Collider` / trigger 作为玩法权威。
 
