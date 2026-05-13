@@ -58,6 +58,16 @@ namespace MxFramework.Combat.Animation
 
         public int EventCount => _events.Length;
 
+        public CombatActionWindow GetWindow(int index)
+        {
+            if (index < 0 || index >= _windows.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index), "Window index is out of range.");
+            }
+
+            return _windows[index];
+        }
+
         public CombatActionPhase GetPhase(int localFrame)
         {
             if (localFrame < 0)
