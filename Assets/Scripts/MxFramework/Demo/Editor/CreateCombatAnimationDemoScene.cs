@@ -119,9 +119,9 @@ namespace MxFramework.Demo
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.08f, 0.09f, 0.1f);
-            camera.transform.position = new Vector3(3.8f, 4.2f, -6.2f);
-            camera.transform.rotation = Quaternion.Euler(55f, -34f, 0f);
-            camera.fieldOfView = 45f;
+            camera.transform.position = new Vector3(0.8f, 2.9f, -5.2f);
+            camera.transform.LookAt(new Vector3(0.8f, 0.65f, 0f), Vector3.up);
+            camera.fieldOfView = 50f;
         }
 
         private static void CreateLight()
