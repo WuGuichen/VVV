@@ -22,7 +22,7 @@ while IFS= read -r path; do
       echo "forbidden local tool/cache path changed: $path" >&2
       FAILED=1
       ;;
-    *.ds_store|.ds_store|*/.ds_store)
+    *.ds_store)
       echo "forbidden OS metadata changed: $path" >&2
       FAILED=1
       ;;

@@ -14,6 +14,10 @@ def is_unity_asset(path: pathlib.Path) -> bool:
         return False
     if path.name.startswith("."):
         return False
+    if path.is_symlink():
+        return False
+    if not path.is_file():
+        return False
     return True
 
 
@@ -30,9 +34,6 @@ def main() -> int:
         if not is_unity_asset(path):
             continue
 
-        if not path.exists():
-            continue
-
         meta_path = pathlib.Path(f"{raw_path}.meta")
         if not meta_path.exists():
             print(f"Unity asset is missing .meta file: {raw_path}", file=sys.stderr)
@@ -46,4 +47,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

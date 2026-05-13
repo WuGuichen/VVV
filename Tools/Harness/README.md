@@ -26,11 +26,13 @@ HARNESS_BASE_REF=main Tools/Harness/run_lightweight_checks.sh
   project files.
 - `check_unity_meta.py`: fails when changed files under `Assets/` introduce
   Unity assets without matching `.meta` files.
-- `git diff --check`: runs for the base comparison, unstaged changes, and
-  staged changes to catch whitespace errors.
+- `bash -n`: validates the Harness shell scripts themselves.
+- `git diff --check`: runs against the committed range from the merge base to
+  `HEAD`, then separately checks unstaged and staged local changes.
 
-The checks are deterministic from the repository root and return non-zero on
-failure.
+The checks are deterministic from the repository root. The entrypoint runs all
+checks it can, reports every failure it sees, and then returns non-zero if any
+check failed.
 
 ## Intended Gitea Actions Usage
 
