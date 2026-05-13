@@ -17,6 +17,7 @@ namespace MxFramework.Demo.CombatAnimation
     [AddComponentMenu("MxFramework/Demo/Combat Animation Demo Bootstrap")]
     public sealed class CombatAnimationDemoBootstrap : MonoBehaviour
     {
+        // Combat timelines are authored in action frames; 30 Hz keeps the demo attack durations readable in Play Mode.
         private const float FixedDeltaTime = 1f / 30f;
         private const float MoveSpeed = 3.2f;
         private const int PlayerMaxHp = 100;

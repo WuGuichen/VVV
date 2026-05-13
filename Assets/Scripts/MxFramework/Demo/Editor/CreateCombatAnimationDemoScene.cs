@@ -96,10 +96,6 @@ namespace MxFramework.Demo
             animator.EntityId = new MxFramework.Combat.Core.CombatEntityId(entityId);
             animator.Mapping = mapping;
 
-            var frameworkAnimator = actor.AddComponent<CombatAnimatorDriver>();
-            frameworkAnimator.EntityId = new MxFramework.Combat.Core.CombatEntityId(entityId);
-            frameworkAnimator.Mapping = mapping;
-
             var transformDriver = actor.AddComponent<CombatTransformDriver>();
             transformDriver.EntityId = new MxFramework.Combat.Core.CombatEntityId(entityId);
             transformDriver.InterpolationSpeed = 18f;

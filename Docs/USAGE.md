@@ -542,6 +542,7 @@ Combat Animation Playable 约定：
 
 - 权威动作推进来自 `CombatActionRuntimeModule`，WeaponTrace 来自 `CombatWeaponTraceRuntimeModule`，诊断来自 `CombatAnimationDiagnosticsModule`。
 - 当前没有通用 RuntimeCommand 到 CombatActionRunner 的正式桥接；Demo 使用 `DemoInputToActionAdapter` 从 `InputCommandQueue` 消费输入并调用 `CombatActionRunner`。
+- `J` / `Space` 来自默认输入配置；`K` 是本 Demo 在 `CombatAnimationDemoBootstrap.EnqueueDemoKeyboardCommands` 中补充写入 `InputCommandQueue` 的临时绑定。
 - Demo 的 HP 扣减是手测反馈层固定伤害，不代表正式 Gameplay / Attribute / Buff 集成。
 
 ### 6.7 Marble Maze Runtime Showcase
