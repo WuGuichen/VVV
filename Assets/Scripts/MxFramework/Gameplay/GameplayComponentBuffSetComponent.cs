@@ -3,17 +3,33 @@ using MxFramework.Runtime;
 
 namespace MxFramework.Gameplay
 {
+    /// <summary>
+    /// Stores a deterministic sorted set of component-native buff entries.
+    /// </summary>
     public readonly struct GameplayComponentBuffSetComponent : IGameplayComponent, IEquatable<GameplayComponentBuffSetComponent>
     {
         private readonly GameplayComponentBuffEntry[] _entries;
 
+        /// <summary>
+        /// Creates a buff set from entries sorted by buff id.
+        /// </summary>
+        /// <param name="entries">Entries to copy into the set.</param>
         public GameplayComponentBuffSetComponent(params GameplayComponentBuffEntry[] entries)
         {
             _entries = CopySorted(entries);
         }
 
+        /// <summary>
+        /// Gets the number of buff entries in the set.
+        /// </summary>
         public int Count => _entries == null ? 0 : _entries.Length;
 
+        /// <summary>
+        /// Tries to get a buff entry by buff id.
+        /// </summary>
+        /// <param name="buffId">The buff id to find.</param>
+        /// <param name="entry">The found entry, or default when not found.</param>
+        /// <returns><c>true</c> when the buff id exists in the set.</returns>
         public bool TryGet(int buffId, out GameplayComponentBuffEntry entry)
         {
             int index = FindIndex(buffId);
@@ -27,6 +43,11 @@ namespace MxFramework.Gameplay
             return false;
         }
 
+        /// <summary>
+        /// Adds or replaces a buff entry by buff id.
+        /// </summary>
+        /// <param name="entry">The buff entry to add or replace.</param>
+        /// <returns>A new sorted buff set with the entry applied.</returns>
         public GameplayComponentBuffSetComponent Upsert(GameplayComponentBuffEntry entry)
         {
             int count = Count;
@@ -63,6 +84,11 @@ namespace MxFramework.Gameplay
             return new GameplayComponentBuffSetComponent(entries);
         }
 
+        /// <summary>
+        /// Removes a buff entry by buff id.
+        /// </summary>
+        /// <param name="buffId">The buff id to remove.</param>
+        /// <returns>A new buff set without the entry, or this set when the id is not present.</returns>
         public GameplayComponentBuffSetComponent Remove(int buffId)
         {
             int count = Count;
@@ -86,6 +112,12 @@ namespace MxFramework.Gameplay
             return new GameplayComponentBuffSetComponent(entries);
         }
 
+        /// <summary>
+        /// Removes all buffs that have expired at the supplied frame.
+        /// </summary>
+        /// <param name="frame">The runtime frame used for expiration checks.</param>
+        /// <param name="removedBuffIds">Receives the ids removed from the set.</param>
+        /// <returns>A new buff set without expired entries, or this set when nothing expired.</returns>
         public GameplayComponentBuffSetComponent RemoveExpired(RuntimeFrame frame, out int[] removedBuffIds)
         {
             int count = Count;
@@ -126,6 +158,10 @@ namespace MxFramework.Gameplay
             return kept == 0 ? default : new GameplayComponentBuffSetComponent(entries);
         }
 
+        /// <summary>
+        /// Copies the sorted buff entries to a new array.
+        /// </summary>
+        /// <returns>A new array containing the current entries.</returns>
         public GameplayComponentBuffEntry[] ToArray()
         {
             if (_entries == null || _entries.Length == 0)
@@ -136,6 +172,11 @@ namespace MxFramework.Gameplay
             return copy;
         }
 
+        /// <summary>
+        /// Compares this set with another set.
+        /// </summary>
+        /// <param name="other">The set to compare.</param>
+        /// <returns><c>true</c> when both sets contain equal entries in the same order.</returns>
         public bool Equals(GameplayComponentBuffSetComponent other)
         {
             int count = Count;
@@ -150,11 +191,20 @@ namespace MxFramework.Gameplay
             return true;
         }
 
+        /// <summary>
+        /// Compares this set with another object.
+        /// </summary>
+        /// <param name="obj">The object to compare.</param>
+        /// <returns><c>true</c> when the object is an equal buff set.</returns>
         public override bool Equals(object obj)
         {
             return obj is GameplayComponentBuffSetComponent other && Equals(other);
         }
 
+        /// <summary>
+        /// Returns a hash code for this set.
+        /// </summary>
+        /// <returns>A hash code built from the ordered entries.</returns>
         public override int GetHashCode()
         {
             unchecked
