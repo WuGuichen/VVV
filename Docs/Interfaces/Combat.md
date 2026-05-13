@@ -21,6 +21,9 @@ Combat 模块提供 noEngine 的确定性战斗基础，包括固定帧、动作
 | `CombatWeaponTraceRuntimeModule` | RuntimeHost `PostSimulation` 阶段模块，调用 `CombatWeaponTraceEvaluator` 和 `CombatHitCollector` 输出上一帧候选 |
 | `CombatAnimationDiagnosticsModule` | RuntimeHost `Diagnostics` 阶段模块，输出 `CombatAnimationSnapshot` |
 | `CombatAnimationSnapshot` | 动作运行时诊断摘要，包含 running action、active phase、hit candidate 计数和 frame index |
+| `ICombatAnimatorDriver` / `CombatAnimationUnityModule` | Runtime.Unity 表现适配入口，订阅 `CombatActionRunner` 事件并按 `CombatEntityId` 路由到 Unity driver |
+| `CombatAnimatorDriver` / `CombatAnimatorMapping` | Unity Animator 表现驱动和 ActionId 到 Animator state 的 ScriptableObject 映射 |
+| `ICombatEntityPoseSource` / `CombatTransformDriver` | Unity Transform 跟随适配；pose source 由游戏层或组合根注入，不由 Combat Runtime Core 提供 |
 
 `StartAction(entityId, actionId, currentFrame)` 在实体没有动作时直接启动；实体已有动作时只在当前动作的 `Cancel` window 允许 `nextActionId` 时替换，否则返回失败并发布拒绝事件。`ForceStartAction` 和 `ForceCancel` 是调试或外部强制状态切换入口，不参与普通取消规则。
 
@@ -46,6 +49,7 @@ CombatActionState[] GetRunningActions();
 - RuntimeHost 集成使用预注册服务模式：调用方在创建 Host 前通过 `RuntimeHostOptions.Services.Register<T>()` 注册 `ICombatAnimationContext`、`CombatPhysicsWorld`、`CombatActionRegistry` 和 `ICombatActionTraceProvider`；模块 `Initialize` 阶段只通过 `context.Services.Get<T>()` 获取依赖，不修改 Runtime service registry 接口。
 - `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` 分别使用 `Simulation` / `PostSimulation` / `Diagnostics`，依靠 RuntimeHost stage + priority 稳定排序，不要求单个模块跨 stage tick。
 - Combat Animation RuntimeHost 模块按标准 Host 生命周期使用：`Initialize -> Start -> Tick* -> Stop -> Dispose`。`Stop` 用于取消当前运行动作并清空本模块帧缓存；如果需要重新开始一轮 combat animation runtime，应重新创建 Host 或重新执行组合根初始化流程，而不是在 `Dispose` 后继续 tick 同一组模块。
+- Runtime.Unity 的 Combat 表现适配只消费 action lifecycle 事件和外部注入的 pose；它可以驱动 Animator / Transform，但不得把 Animator 时间或 Transform 位置反向写回权威 Combat Runtime。
 
 ## Hit Resolve
 

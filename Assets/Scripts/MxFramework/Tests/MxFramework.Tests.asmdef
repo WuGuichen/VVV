@@ -24,6 +24,7 @@
         "MxFramework.Editor",
         "MxFramework.Diagnostics",
         "MxFramework.Runtime",
+        "MxFramework.Runtime.Unity",
         "MxFramework.Input",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
