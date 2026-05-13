@@ -20,6 +20,12 @@ Date: 2026-05-13
 
 - Configure Gitea protected `main`.
 - Create labels from `Docs/WORKFLOW.md`.
-- Add Gitea Actions lightweight checks by first creating scripts under `Tools/Harness/`.
+- Wire the new `Tools/Harness/run_lightweight_checks.sh` command into Gitea Actions after the runner target branch fetch behavior is confirmed.
 - Wire webhook / Hermes as a notification and summary layer, not an auto-merge layer.
 - Add backup restore checks that verify Git LFS objects can be pulled, not just Git pointer files.
+
+## Harness State
+
+- `Tools/Harness/` now contains the first local lightweight check entrypoint.
+- Current coverage: forbidden generated/cache path changes, root Unity project file churn, Unity `.meta` pairing for changed `Assets/` files, and `git diff --check`.
+- Unity batchmode, PR template linting, public API documentation detection, and Gitea workflow wiring remain future Harness increments.
