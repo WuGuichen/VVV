@@ -1,5 +1,4 @@
 using System;
-using MxFramework.Combat.Core;
 using MxFramework.Runtime;
 
 namespace MxFramework.Combat.Animation
@@ -37,7 +36,7 @@ namespace MxFramework.Combat.Animation
                 return;
             }
 
-            _runner.TickActions(ToCombatFrame(context.FrameIndex));
+            _runner.TickActions(CombatRuntimeFrameUtility.ToCombatFrame(context.FrameIndex));
         }
 
         public override void Stop(RuntimeHostContext context)
@@ -60,14 +59,5 @@ namespace MxFramework.Combat.Animation
             _animationContext = null;
         }
 
-        private static CombatFrame ToCombatFrame(long frameIndex)
-        {
-            if (frameIndex > int.MaxValue)
-            {
-                throw new ArgumentOutOfRangeException(nameof(frameIndex), "Combat frame cannot exceed Int32.MaxValue.");
-            }
-
-            return new CombatFrame((int)frameIndex);
-        }
     }
 }

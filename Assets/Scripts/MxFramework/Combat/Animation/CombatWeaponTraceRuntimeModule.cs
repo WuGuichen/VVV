@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using MxFramework.Combat.Core;
 using MxFramework.Combat.Hit;
 using MxFramework.Combat.Physics;
 using MxFramework.Runtime;
@@ -47,7 +46,7 @@ namespace MxFramework.Combat.Animation
 
             _rawCandidates.Clear();
             _deduplicatedCandidates.Clear();
-            _evaluator.EvaluateAll(ToCombatFrame(context.FrameIndex), _rawCandidates);
+            _evaluator.EvaluateAll(CombatRuntimeFrameUtility.ToCombatFrame(context.FrameIndex), _rawCandidates);
             _hitCollector.Collect(_rawCandidates, _deduplicatedCandidates);
             _animationContext.SetLastFrameHitCandidates(_deduplicatedCandidates);
         }
@@ -68,14 +67,5 @@ namespace MxFramework.Combat.Animation
             _deduplicatedCandidates.Clear();
         }
 
-        private static CombatFrame ToCombatFrame(long frameIndex)
-        {
-            if (frameIndex > int.MaxValue)
-            {
-                throw new ArgumentOutOfRangeException(nameof(frameIndex), "Combat frame cannot exceed Int32.MaxValue.");
-            }
-
-            return new CombatFrame((int)frameIndex);
-        }
     }
 }

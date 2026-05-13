@@ -45,6 +45,7 @@ CombatActionState[] GetRunningActions();
 - `CombatWeaponTraceEvaluator` 默认把目标状态写为 `HitTargetStateFlags.Alive`，避免后续 `HitResolveSystem` 将未注入状态的候选误判为 dead；游戏层可通过构造函数注入目标状态解析函数。
 - RuntimeHost 集成使用预注册服务模式：调用方在创建 Host 前通过 `RuntimeHostOptions.Services.Register<T>()` 注册 `ICombatAnimationContext`、`CombatPhysicsWorld`、`CombatActionRegistry` 和 `ICombatActionTraceProvider`；模块 `Initialize` 阶段只通过 `context.Services.Get<T>()` 获取依赖，不修改 Runtime service registry 接口。
 - `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` 分别使用 `Simulation` / `PostSimulation` / `Diagnostics`，依靠 RuntimeHost stage + priority 稳定排序，不要求单个模块跨 stage tick。
+- Combat Animation RuntimeHost 模块按标准 Host 生命周期使用：`Initialize -> Start -> Tick* -> Stop -> Dispose`。`Stop` 用于取消当前运行动作并清空本模块帧缓存；如果需要重新开始一轮 combat animation runtime，应重新创建 Host 或重新执行组合根初始化流程，而不是在 `Dispose` 后继续 tick 同一组模块。
 
 ## Hit Resolve
 
