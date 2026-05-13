@@ -10,7 +10,9 @@
         "MxFramework.Buffs",
         "MxFramework.Modifiers",
         "MxFramework.Input",
-        "MxFramework.Preview.Runtime"
+        "MxFramework.Preview.Runtime",
+        "MxFramework.Resources",
+        "MxFramework.Editor"
     ],
     "includePlatforms": [
         "Editor"

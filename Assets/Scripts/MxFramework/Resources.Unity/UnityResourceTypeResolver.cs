@@ -18,15 +18,15 @@ namespace MxFramework.Resources.Unity
                     return typeof(Sprite);
                 case ResourceTypeIds.AudioClip:
                     return typeof(AudioClip);
-                case "Material":
+                case ResourceTypeIds.Material:
                     return typeof(Material);
-                case "PanelSettings":
+                case ResourceTypeIds.PanelSettings:
                     return typeof(PanelSettings);
-                case "VisualTreeAsset":
+                case ResourceTypeIds.VisualTreeAsset:
                     return typeof(VisualTreeAsset);
-                case "StyleSheet":
+                case ResourceTypeIds.StyleSheet:
                     return typeof(StyleSheet);
-                case "Font":
+                case ResourceTypeIds.Font:
                     return typeof(Font);
                 case ResourceTypeIds.TextAsset:
                 case ResourceTypeIds.String:

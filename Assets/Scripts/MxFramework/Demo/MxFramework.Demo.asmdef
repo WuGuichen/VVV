@@ -16,6 +16,7 @@
         "MxFramework.Audio.FMOD",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
+        "MxFramework.Resources",
         "MxFramework.UI.Toolkit"
     ],
     "includePlatforms": [],

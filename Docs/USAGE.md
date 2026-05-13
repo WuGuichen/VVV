@@ -1304,6 +1304,7 @@ ResourceCatalogValidationReport validation =
 - Addressables Adapter 后置为可选项，不进入 `MxFramework.Resources.Unity` 默认依赖。
 - Catalog labels 可用于 warmup 分组，例如 `warmup.combat`、`scene.demo`、`ui`。
 - Preload group 只持有并释放 asset handles，不负责场景激活、进度 UI 或实例销毁。
+- Runtime Showcase 可通过 `MxFramework / Runtime Showcase / Generate Resource Catalog` 生成 `Assets/Config/MxFramework/Demo/runtime_vertical_slice_resource_catalog.json`；`RuntimeVerticalSliceRunner` 使用 `warmup.runtime_vertical_slice` label 预热已序列化的 Demo 资源并在销毁时释放 group。
 - `GameObject` 实例由调用方销毁，资源系统只管理 prefab asset handle。
 
 ## 14. Input 输入系统

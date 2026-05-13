@@ -4,12 +4,13 @@ using UnityEngine;
 namespace MxFramework.Demo
 {
     [CustomEditor(typeof(RuntimeVerticalSliceRunner))]
-    public sealed class RuntimeVerticalSliceRunnerEditor : Editor
+    public sealed class RuntimeVerticalSliceRunnerEditor : UnityEditor.Editor
     {
         private SerializedProperty _useAbilitySlice;
         private SerializedProperty _useConfigDrivenAbility;
         private SerializedProperty _enableShowcaseUi;
         private SerializedProperty _showLegacyOnGui;
+        private SerializedProperty _useResourceCatalogWarmup;
         private SerializedProperty _useConfigDriven;
         private SerializedProperty _usePatchFile;
         private SerializedProperty _patchFilePath;
@@ -31,6 +32,7 @@ namespace MxFramework.Demo
             _useConfigDrivenAbility = serializedObject.FindProperty("_useConfigDrivenAbility");
             _enableShowcaseUi = serializedObject.FindProperty("_enableShowcaseUi");
             _showLegacyOnGui = serializedObject.FindProperty("_showLegacyOnGui");
+            _useResourceCatalogWarmup = serializedObject.FindProperty("_useResourceCatalogWarmup");
             _useConfigDriven = serializedObject.FindProperty("_useConfigDriven");
             _usePatchFile = serializedObject.FindProperty("_usePatchFile");
             _patchFilePath = serializedObject.FindProperty("_patchFilePath");
@@ -78,6 +80,7 @@ namespace MxFramework.Demo
             }
 
             EditorGUILayout.PropertyField(_showLegacyOnGui, new GUIContent("显示 Legacy OnGUI", "临时后备调试文本。Ability Showcase 且 HUD 开启时会自动隐藏，其他旧模式默认依赖它显示状态。"));
+            EditorGUILayout.PropertyField(_useResourceCatalogWarmup, new GUIContent("启用资源 Catalog Warmup", "用 ResourceManager / ResourcePreloadService 预热 Runtime Showcase 资源。"));
 
             if (_useAbilitySlice.boolValue && !_enableShowcaseUi.boolValue && !_showLegacyOnGui.boolValue)
                 EditorGUILayout.HelpBox("当前 Ability Showcase 没有任何可见 UI。建议开启 UI Toolkit HUD。", MessageType.Warning);

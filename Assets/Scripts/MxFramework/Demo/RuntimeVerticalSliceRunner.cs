@@ -5,6 +5,7 @@ using MxFramework.Config;
 using MxFramework.Config.Runtime;
 using MxFramework.Events;
 using MxFramework.Modifiers;
+using MxFramework.Resources;
 using MxFramework.UI.Toolkit;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -113,6 +114,7 @@ namespace MxFramework.Demo
         [SerializeField] private VisualTreeAsset _hudVisualTree;
         [SerializeField] private StyleSheet _hudStyleSheet;
         [SerializeField] private Font _hudFont;
+        [SerializeField] private bool _useResourceCatalogWarmup = true;
         [SerializeField] private bool _useConfigDriven;
         [SerializeField] private bool _usePatchFile;
         [SerializeField] private string _patchFilePath = "MxFramework/Demo/runtime_config_patch.json";
@@ -143,6 +145,10 @@ namespace MxFramework.Demo
         private string _loadoutSummary = "";
         private string _snapshotSummary = "";
         private string _snapshotFilePath = "";
+        private string _resourceWarmupSummary = string.Empty;
+        private RuntimeVerticalSliceSceneConfig _sceneConfig;
+        private ResourcePreloadService _resourcePreloadService;
+        private ResourceGroupHandle _resourceWarmupGroup;
         private readonly List<string> _loadoutWarnings = new List<string>();
         private readonly List<string> _orderedPackageKeys = new List<string>();
         private readonly List<string> _skippedPackageKeys = new List<string>();
@@ -165,6 +171,8 @@ namespace MxFramework.Demo
             _enableShowcaseUi = config.EnableShowcaseUi;
             _showLegacyOnGui = config.ShowLegacyOnGui;
             ConfigureHudAssets(config.HudPanelSettings, config.HudVisualTree, config.HudStyleSheet, config.HudFont);
+            _useResourceCatalogWarmup = config.UseResourceCatalogWarmup;
+            _sceneConfig = config;
             _useConfigDriven = config.UseConfigDriven;
             _usePatchFile = config.UsePatchFile;
             _patchFilePath = config.PatchFilePath;
@@ -208,6 +216,8 @@ namespace MxFramework.Demo
 
         private void Start()
         {
+            WarmupRuntimeResources();
+
             if (_useAbilitySlice)
             {
                 StartAbilitySlice();
@@ -232,6 +242,11 @@ namespace MxFramework.Demo
                 StartHardcoded();
         }
 
+        private void OnDestroy()
+        {
+            ReleaseRuntimeResources();
+        }
+
         private void StartAbilitySlice()
         {
             var abilityRunner = GetComponent<RuntimeAbilitySliceRunner>();
@@ -250,6 +265,91 @@ namespace MxFramework.Demo
                 if (GetComponent<RuntimeAbilitySliceShowcaseUi>() == null)
                     gameObject.AddComponent<RuntimeAbilitySliceShowcaseUi>();
             }
+        }
+
+        private void WarmupRuntimeResources()
+        {
+            if (!_useResourceCatalogWarmup)
+                return;
+
+            IReadOnlyList<RuntimeVerticalSliceResourceAsset> assets =
+                RuntimeVerticalSliceResourceCatalog.CreateRuntimeAssets(
+                    _sceneConfig,
+                    _hudPanelSettings,
+                    _hudVisualTree,
+                    _hudStyleSheet,
+                    _hudFont);
+
+            ResourceCatalog catalog = RuntimeVerticalSliceResourceCatalog.CreateCatalog(assets);
+            if (catalog.Entries.Count == 0)
+            {
+                _resourceWarmupSummary = "Resource warmup: 0 entries";
+                LogEvent(_resourceWarmupSummary);
+                return;
+            }
+
+            try
+            {
+                var manager = new ResourceManager();
+                manager.RegisterProvider(RuntimeVerticalSliceResourceCatalog.CreateMemoryProvider(assets));
+                manager
+                    .SetVariantProfile(new ResourceVariantProfile(string.Empty, new[] { string.Empty }))
+                    .SetRetainPolicy(ResourceRetainPolicy.Timed(frameCount: 2));
+                manager.AddCatalog(catalog);
+                manager.ValidateCatalogs();
+
+                _resourcePreloadService = new ResourcePreloadService(manager);
+                // M7 warmup uses the current immediate provider path; player-main async loading should move this to a coroutine or async startup.
+                IResourceOperation<ResourcePreloadResult> operation = _resourcePreloadService.PreloadAsync(new ResourcePreloadPlan(
+                    RuntimeVerticalSliceResourceCatalog.WarmupGroupId,
+                    labels: new[] { RuntimeVerticalSliceResourceCatalog.WarmupLabel }));
+                ResourceLoadResult<ResourcePreloadResult> loadResult = operation.Result;
+                if (!loadResult.Success)
+                {
+                    string message = string.IsNullOrWhiteSpace(loadResult.Error.Message)
+                        ? loadResult.Error.ToString()
+                        : loadResult.Error.Message;
+                    _resourceWarmupSummary = "Resource warmup error: " + message;
+                    LogEvent(_resourceWarmupSummary);
+                    _resourcePreloadService = null;
+                    return;
+                }
+
+                ResourcePreloadResult result = loadResult.Value;
+                if (result == null)
+                {
+                    _resourceWarmupSummary = "Resource warmup error: preload result is missing.";
+                    LogEvent(_resourceWarmupSummary);
+                    _resourcePreloadService = null;
+                    return;
+                }
+
+                _resourceWarmupGroup = result.Handle;
+                _resourceWarmupSummary = "Resource warmup: requested=" + result.RequestedCount +
+                    " loaded=" + result.LoadedCount +
+                    " failed=" + result.FailedCount;
+                LogEvent(_resourceWarmupSummary);
+
+                for (int i = 0; i < result.Errors.Count; i++)
+                    LogEvent("Resource warmup error: " + result.Errors[i].Message);
+            }
+            catch (System.Exception ex)
+            {
+                _resourceWarmupSummary = "Resource warmup error: " + ex.Message;
+                LogEvent(_resourceWarmupSummary);
+                _resourceWarmupGroup = null;
+                _resourcePreloadService = null;
+            }
+        }
+
+        private void ReleaseRuntimeResources()
+        {
+            if (_resourcePreloadService == null || _resourceWarmupGroup == null)
+                return;
+
+            _resourcePreloadService.ReleaseGroup(_resourceWarmupGroup);
+            _resourceWarmupGroup = null;
+            _resourcePreloadService = null;
         }
 
         private void StartHardcoded() { /* unchanged from previous implementation */ 
@@ -643,6 +743,11 @@ namespace MxFramework.Demo
             if (_showCatalog && !string.IsNullOrEmpty(_catalogSummary))
             {
                 GUI.Label(new Rect(x, y, w, h), _catalogSummary);
+                y += h + gap;
+            }
+            if (!string.IsNullOrEmpty(_resourceWarmupSummary))
+            {
+                GUI.Label(new Rect(x, y, w, h), _resourceWarmupSummary);
                 y += h + gap;
             }
 

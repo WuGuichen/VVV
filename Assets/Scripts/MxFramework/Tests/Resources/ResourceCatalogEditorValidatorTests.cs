@@ -64,6 +64,59 @@ namespace MxFramework.Tests.Resources
             StringAssert.Contains("AssetMissing", ResourceCatalogEditorValidator.CreateReportText(catalog, report));
         }
 
+        [Test]
+        public void ValidateCatalog_MemoryProviderDataAssetPathExists_ReturnsNoErrors()
+        {
+            var catalog = new ResourceCatalog(
+                "editor.memory",
+                "editor.package",
+                new[]
+                {
+                    new ResourceCatalogEntry(
+                        "demo.config.runtime_vertical_slice",
+                        ResourceTypeIds.Object,
+                        "memory",
+                        "runtime_vertical_slice/config",
+                        providerData: new System.Collections.Generic.Dictionary<string, string>
+                        {
+                            { "assetPath", "Assets/Config/MxFramework/Demo/RuntimeVerticalSliceSceneConfig.asset" }
+                        })
+                });
+
+            ResourceCatalogValidationReport report = ResourceCatalogEditorValidator.ValidateCatalog(
+                catalog,
+                new[] { "memory" });
+
+            Assert.IsFalse(report.HasErrors, ResourceCatalogEditorValidator.CreateReportText(catalog, report));
+        }
+
+        [Test]
+        public void ValidateCatalog_MemoryProviderDataAssetPathMissing_ReturnsAssetMissing()
+        {
+            var catalog = new ResourceCatalog(
+                "editor.memory",
+                "editor.package",
+                new[]
+                {
+                    new ResourceCatalogEntry(
+                        "demo.config.missing",
+                        ResourceTypeIds.Object,
+                        "memory",
+                        "runtime_vertical_slice/missing",
+                        providerData: new System.Collections.Generic.Dictionary<string, string>
+                        {
+                            { "assetPath", "Assets/Config/MxFramework/Demo/Missing.asset" }
+                        })
+                });
+
+            ResourceCatalogValidationReport report = ResourceCatalogEditorValidator.ValidateCatalog(
+                catalog,
+                new[] { "memory" });
+
+            Assert.IsTrue(report.HasErrors);
+            AssertIssue(report, "AssetMissing");
+        }
+
         private static void AssertIssue(ResourceCatalogValidationReport report, string code)
         {
             for (int i = 0; i < report.Issues.Count; i++)
