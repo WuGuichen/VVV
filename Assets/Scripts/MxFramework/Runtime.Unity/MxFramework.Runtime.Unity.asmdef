@@ -2,7 +2,8 @@
     "name": "MxFramework.Runtime.Unity",
     "rootNamespace": "MxFramework.Runtime.Unity",
     "references": [
-        "MxFramework.Runtime"
+        "MxFramework.Runtime",
+        "MxFramework.Combat"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
