@@ -1,0 +1,51 @@
+.combat-hud {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: 420px;
+    padding: 14px;
+    background-color: rgba(18, 20, 24, 0.88);
+    border-left-width: 4px;
+    border-left-color: rgb(202, 67, 62);
+    color: rgb(238, 241, 244);
+}
+
+.hud-title {
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.hud-instructions {
+    color: rgb(190, 206, 214);
+    margin-bottom: 10px;
+}
+
+.hud-grid {
+    flex-direction: row;
+}
+
+.hud-panel {
+    flex-grow: 1;
+    padding: 10px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    background-color: rgba(42, 48, 56, 0.78);
+    border-radius: 4px;
+}
+
+.event-panel {
+    margin-right: 0;
+}
+
+.panel-title {
+    -unity-font-style: bold;
+    color: rgb(255, 213, 120);
+    margin-bottom: 4px;
+}
+
+#event-row, #event-empty {
+    white-space: normal;
+    color: rgb(220, 228, 232);
+    margin-bottom: 2px;
+}

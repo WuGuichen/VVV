@@ -1,0 +1,24 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="combat-animation-hud" class="combat-hud">
+        <ui:Label name="title" class="hud-title" text="Combat Animation Demo" />
+        <ui:Label name="instructions" class="hud-instructions" text="WASD move | J light | K heavy | Space dodge" />
+        <ui:VisualElement class="hud-grid">
+            <ui:VisualElement class="hud-panel">
+                <ui:Label class="panel-title" text="Player" />
+                <ui:Label name="player-action" text="Idle" />
+                <ui:Label name="player-phase" text="None" />
+                <ui:Label name="player-frame" text="-" />
+                <ui:Label name="player-hp" text="100/100" />
+            </ui:VisualElement>
+            <ui:VisualElement class="hud-panel">
+                <ui:Label class="panel-title" text="Dummy" />
+                <ui:Label name="dummy-hp" text="100/100" />
+                <ui:Label name="weapon-trace" text="waiting" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement class="hud-panel event-panel">
+            <ui:Label class="panel-title" text="Recent Events" />
+            <ui:VisualElement name="event-list" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
