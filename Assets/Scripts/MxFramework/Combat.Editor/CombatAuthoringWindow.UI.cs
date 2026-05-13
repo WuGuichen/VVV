@@ -65,19 +65,30 @@ namespace MxFramework.Combat.Editor
 
         private void CreateTimelineGui()
         {
+            var scroll = new ScrollView(ScrollViewMode.VerticalAndHorizontal);
+            scroll.style.flexGrow = 1;
+            scroll.style.minHeight = 0;
+            scroll.style.minWidth = 0;
+            scroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            rootVisualElement.Add(scroll);
+
             var content = new VisualElement();
             content.style.flexGrow = 1;
             content.style.minHeight = 0;
+            content.style.minWidth = 0;
             content.style.paddingLeft = 12;
             content.style.paddingRight = 12;
             content.style.paddingTop = 10;
             content.style.paddingBottom = 10;
-            rootVisualElement.Add(content);
+            scroll.Add(content);
 
             content.Add(CreateContextBar());
             content.Add(CreateTimelineBody());
         }
 
+        // ================================================================
+        //  Context Bar — asset selection + status summary
+        // ================================================================
         private VisualElement CreateContextBar()
         {
             var root = new VisualElement();
@@ -93,11 +104,16 @@ namespace MxFramework.Combat.Editor
             root.style.paddingTop = 8;
             root.style.paddingBottom = 8;
 
-            var headerRow = new VisualElement();
-            headerRow.style.flexDirection = FlexDirection.Row;
-            headerRow.style.alignItems = Align.Center;
-            headerRow.style.marginBottom = 6;
+            // Top accent bar
+            var accentBar = new VisualElement();
+            accentBar.style.height = 2.5f;
+            accentBar.style.marginBottom = 6;
+            accentBar.style.backgroundColor = UiColors.TimelineActive;
+            accentBar.style.borderBottomLeftRadius = 2;
+            accentBar.style.borderBottomRightRadius = 2;
+            root.Add(accentBar);
 
+            // Asset fields row
             var assetRow = new VisualElement();
             assetRow.style.flexDirection = FlexDirection.Row;
             assetRow.style.flexWrap = Wrap.Wrap;
@@ -112,80 +128,182 @@ namespace MxFramework.Combat.Editor
             assetRow.Add(_bindingField);
             root.Add(assetRow);
 
+            // Status context label with subtle top separator
             _contextLabel = new Label();
             _contextLabel.style.minWidth = 460;
-            _contextLabel.style.marginTop = 4;
+            _contextLabel.style.marginTop = 6;
             _contextLabel.style.whiteSpace = WhiteSpace.Normal;
             _contextLabel.style.fontSize = 11;
             _contextLabel.style.color = UiColors.TextSecondary;
+            _contextLabel.style.paddingTop = 5;
+            _contextLabel.style.borderTopWidth = 1;
+            _contextLabel.style.borderTopColor = UiColors.Border;
             root.Add(_contextLabel);
 
             return root;
         }
 
+        // ================================================================
+        //  Toolbar — action buttons organized by category
+        // ================================================================
         private VisualElement CreateToolbar()
         {
             var root = new VisualElement();
             _toolbarRoot = root;
             root.style.marginBottom = 8;
 
-            root.Add(CreateToolbarGroup("Asset",
-                CreateButton("使用当前选择", UseSelection),
-                CreateButton("创建 Action Asset", CreateActionAsset),
-                CreateButton("打开 Timeline", () => OpenTimelineWindow()),
-                CreateButton("定位 Action", () => PingObject(_actionAsset)),
-                CreateButton("定位 Binding", () => PingObject(_sceneBindingAsset))));
+            // --- Layer 1: 常用操作（大按钮，带图标） ---
+            root.Add(CreateToolbarSection("常用操作",
+                CreateButtonWithIcon("⚡ 使用当前选择", UseSelection, isPrimary: false),
+                CreateButtonWithIcon("✨ 创建 Action Asset", CreateActionAsset, isPrimary: true),
+                CreateButtonWithIcon("🎬 打开 Timeline", () => OpenTimelineWindow(), isPrimary: false),
+                CreateButtonWithIcon("📍 定位 Action", () => PingObject(_actionAsset), isPrimary: false),
+                CreateButtonWithIcon("📍 定位 Binding", () => PingObject(_sceneBindingAsset), isPrimary: false)));
 
-            root.Add(CreateToolbarGroup("创建",
-                CreateButton("创建 Binding", CreateBindingAsset),
-                CreateButton("从当前场景生成", GenerateBindingFromCurrentScene),
-                CreateButton("重连选中对象", RelinkSelectedTransform),
-                CreateButton("添加 Hitbox", () => AddShape("Hitbox", "hitboxes")),
-                CreateButton("添加 Hurtbox", () => AddShape("Hurtbox", "hurtboxes"))));
+            // --- Layer 2: 创建与编辑 ---
+            root.Add(CreateToolbarSection("创建与编辑",
+                CreateButtonWithIcon("➕ 创建 Binding", CreateBindingAsset, isPrimary: false),
+                CreateButtonWithIcon("🔍 从当前场景生成", GenerateBindingFromCurrentScene, isPrimary: false),
+                CreateButtonWithIcon("🔗 重连选中对象", RelinkSelectedTransform, isPrimary: false),
+                CreateButtonWithIcon("🗡️ 添加 Hitbox", () => AddShape("Hitbox", "hitboxes"), isPrimary: false),
+                CreateButtonWithIcon("🛡️ 添加 Hurtbox", () => AddShape("Hurtbox", "hurtboxes"), isPrimary: false)));
 
-            root.Add(CreateToolbarGroup("工具",
-                CreateButton("执行验证", RefreshValidation),
-                CreateButton("运行 Showcase 预览", RunShowcasePreview),
-                CreateButton("清除预览会话", ClearShowcasePreviewSession),
-                CreateButton("复制报告", CopyReport),
-                CreateButton("导出 JSON", ExportJson),
-                CreateButton("复制导出报告", CopyExportReport),
-                CreateButton("预览 Explain", PreviewExplain),
-                CreateButton("复制 Explain", CopyExplain)));
+            // --- Layer 3: 高级工具（折叠面板） ---
+            var advancedSection = CreateToolbarSection("高级工具",
+                CreateButtonWithIcon("✅ 执行验证", RefreshValidation, isPrimary: true),
+                CreateButtonWithIcon("▶️ 运行 Showcase 预览", RunShowcasePreview, isPrimary: false),
+                CreateButtonWithIcon("🧹 清除预览会话", ClearShowcasePreviewSession, isPrimary: false),
+                CreateButtonWithIcon("📋 复制报告", CopyReport, isPrimary: false),
+                CreateButtonWithIcon("📦 导出 JSON", ExportJson, isPrimary: false),
+                CreateButtonWithIcon("📄 复制导出报告", CopyExportReport, isPrimary: false),
+                CreateButtonWithIcon("💡 预览 Explain", PreviewExplain, isPrimary: false),
+                CreateButtonWithIcon("📝 复制 Explain", CopyExplain, isPrimary: false));
+            advancedSection.style.marginBottom = 0;
 
-            var statusRow = new VisualElement();
-            statusRow.style.flexDirection = FlexDirection.Row;
-            statusRow.style.alignItems = Align.Center;
-            statusRow.style.marginTop = 4;
-
-            _validationLabel = new Label();
-            _validationLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            _validationLabel.style.fontSize = 12;
-            statusRow.Add(_validationLabel);
-
-            _quickActionStatusLabel = new Label();
-            _quickActionStatusLabel.style.marginLeft = 12;
-            _quickActionStatusLabel.style.fontSize = 11;
-            _quickActionStatusLabel.style.color = UiColors.TextSecondary;
-            _quickActionStatusLabel.style.whiteSpace = WhiteSpace.Normal;
-            _quickActionStatusLabel.style.flexGrow = 1;
-            statusRow.Add(_quickActionStatusLabel);
+            // Validation status row — 增强版
+            var statusRow = CreateValidationStatusRow();
             root.Add(statusRow);
 
             return root;
         }
 
+        // ================================================================
+        //  Toolbar Section — modern card with icon prefix support
+        // ================================================================
+        private static VisualElement CreateToolbarSection(string title, params VisualElement[] buttons)
+        {
+            var section = new VisualElement();
+            section.style.marginBottom = 6;
+
+            // Section header
+            var header = new VisualElement();
+            header.style.flexDirection = FlexDirection.Row;
+            header.style.alignItems = Align.Center;
+            header.style.marginBottom = 4;
+
+            var titleIcon = new Label("▸");
+            titleIcon.style.fontSize = 10;
+            titleIcon.style.color = UiColors.TimelineActive;
+            titleIcon.style.marginRight = 4;
+            titleIcon.style.width = 14;
+            titleIcon.style.unityTextAlign = TextAnchor.MiddleCenter;
+            header.Add(titleIcon);
+
+            var titleLabel = new Label(title);
+            titleLabel.style.fontSize = 11;
+            titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            titleLabel.style.color = UiColors.TextPrimary;
+            header.Add(titleLabel);
+
+            section.Add(header);
+
+            // Button grid
+            var grid = new VisualElement();
+            grid.style.flexDirection = FlexDirection.Row;
+            grid.style.flexWrap = Wrap.Wrap;
+            foreach (var button in buttons)
+            {
+                grid.Add(button);
+            }
+            section.Add(grid);
+
+            return section;
+        }
+
+        // ================================================================
+        //  Validation Status Row — enhanced with color bar + summary
+        // ================================================================
+        private VisualElement CreateValidationStatusRow()
+        {
+            var statusRow = new VisualElement();
+            statusRow.style.flexDirection = FlexDirection.Row;
+            statusRow.style.alignItems = Align.Center;
+            statusRow.style.marginTop = 6;
+            statusRow.style.paddingTop = 6;
+            statusRow.style.paddingLeft = 8;
+            statusRow.style.paddingRight = 8;
+            statusRow.style.backgroundColor = UiColors.SurfaceDeep;
+            statusRow.style.borderBottomLeftRadius = 4;
+            statusRow.style.borderBottomRightRadius = 4;
+            statusRow.style.borderTopLeftRadius = 4;
+            statusRow.style.borderTopRightRadius = 4;
+
+            // Status indicator bar (color-coded)
+            var statusIndicator = new VisualElement();
+            statusIndicator.style.width = 4;
+            statusIndicator.style.height = 18;
+            statusIndicator.style.marginRight = 8;
+            statusIndicator.style.borderBottomLeftRadius = 2;
+            statusIndicator.style.borderTopLeftRadius = 2;
+            statusIndicator.style.backgroundColor = UiColors.SuccessGreen; // default
+            _validationStatusIndicator = statusIndicator;
+            statusRow.Add(statusIndicator);
+
+            _validationLabel = new Label();
+            _validationLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            _validationLabel.style.fontSize = 12;
+            _validationLabel.style.color = UiColors.TextPrimary;
+            _validationLabel.style.paddingLeft = 2;
+            statusRow.Add(_validationLabel);
+
+            _quickActionStatusLabel = new Label();
+            _quickActionStatusLabel.style.marginLeft = 10;
+            _quickActionStatusLabel.style.fontSize = 11;
+            _quickActionStatusLabel.style.color = UiColors.TextSecondary;
+            _quickActionStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            _quickActionStatusLabel.style.flexGrow = 1;
+            statusRow.Add(_quickActionStatusLabel);
+
+            return statusRow;
+        }
+
+        // ================================================================
+        //  Toolbar Group — card with left accent bar
+        // ================================================================
         private static VisualElement CreateToolbarGroup(string title, params VisualElement[] buttons)
         {
             var group = new VisualElement();
             group.style.marginBottom = 6;
+            group.style.backgroundColor = UiColors.SurfaceDeep;
+            group.style.borderBottomLeftRadius = 6;
+            group.style.borderBottomRightRadius = 6;
+            group.style.borderTopLeftRadius = 6;
+            group.style.borderTopRightRadius = 6;
+            group.style.paddingLeft = 8;
+            group.style.paddingRight = 8;
+            group.style.paddingTop = 6;
+            group.style.paddingBottom = 6;
+
+            // Left accent bar
+            group.style.borderLeftWidth = 3;
+            group.style.borderLeftColor = UiColors.TimelineActive;
 
             var label = new Label(title);
             label.style.unityFontStyleAndWeight = FontStyle.Bold;
             label.style.fontSize = 10;
             label.style.color = UiColors.TextSecondary;
             label.style.unityTextAlign = TextAnchor.MiddleLeft;
-            label.style.marginBottom = 2;
+            label.style.marginBottom = 4;
             group.Add(label);
 
             var row = new VisualElement();
@@ -201,97 +319,181 @@ namespace MxFramework.Combat.Editor
             return group;
         }
 
+        // ================================================================
+        //  Empty State — hero + welcome + quick action cards
+        // ================================================================
         private VisualElement CreateEmptyState()
         {
-            _emptyStateRoot = CreatePanel("快速开始");
+            _emptyStateRoot = CreatePanel("🎯 快速开始");
             _emptyStateRoot.style.marginBottom = 8;
 
+            // Hero section
             var hero = new VisualElement();
             hero.style.alignItems = Align.Center;
             hero.style.paddingTop = 16;
             hero.style.paddingBottom = 12;
 
-            var heroIcon = new Label("\u2694");
-            heroIcon.style.fontSize = 32;
+            var heroIcon = new Label("⚔️");
+            heroIcon.style.fontSize = 40;
             heroIcon.style.marginBottom = 8;
             hero.Add(heroIcon);
 
             var heroTitle = new Label("Combat Authoring");
-            heroTitle.style.fontSize = 16;
+            heroTitle.style.fontSize = 20;
             heroTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
             heroTitle.style.color = UiColors.TextPrimary;
-            heroTitle.style.marginBottom = 4;
+            heroTitle.style.marginBottom = 6;
             hero.Add(heroTitle);
 
             var heroDesc = new Label("选择或创建 Action Asset 开始编辑战斗动作。Scene Binding 可选，选择后可以校验 marker。");
             heroDesc.style.whiteSpace = WhiteSpace.Normal;
             heroDesc.style.color = UiColors.TextSecondary;
-            heroDesc.style.maxWidth = 480;
+            heroDesc.style.maxWidth = 520;
             heroDesc.style.unityTextAlign = TextAnchor.MiddleCenter;
+            heroDesc.style.fontSize = 11;
             hero.Add(heroDesc);
             _emptyStateRoot.Add(hero);
 
+            // Step cards row
             var stepsRow = new VisualElement();
             stepsRow.style.flexDirection = FlexDirection.Row;
             stepsRow.style.justifyContent = Justify.Center;
             stepsRow.style.flexWrap = Wrap.Wrap;
-            stepsRow.style.marginTop = 4;
+            stepsRow.style.marginTop = 12;
+            stepsRow.style.paddingLeft = 4;
+            stepsRow.style.paddingRight = 4;
 
-            stepsRow.Add(CreateStepCard("1", "选择 Action", "从 Project 窗口拖入、使用当前选择或新建资产", CreateButton("创建 Action Asset", CreateActionAsset)));
-            stepsRow.Add(CreateStepCard("2", "创建 Binding", "绑定场景对象到 marker", CreateButton("创建 Binding", CreateBindingAsset)));
-            stepsRow.Add(CreateStepCard("3", "编辑 & 验证", "添加 Hitbox、调整帧范围、执行验证", CreateButton("执行验证", RefreshValidation)));
+            stepsRow.Add(CreateStepCard("1", "选择 Action", "从 Project 窗口拖入、使用当前选择或新建资产",
+                CreateButtonWithIcon("✨ 创建 Action Asset", CreateActionAsset, isPrimary: true)));
+            stepsRow.Add(CreateStepCard("2", "创建 Binding", "绑定场景对象到 marker",
+                CreateButtonWithIcon("➕ 创建 Binding", CreateBindingAsset, isPrimary: false)));
+            stepsRow.Add(CreateStepCard("3", "编辑 & 验证", "添加 Hitbox、调整帧范围、执行验证",
+                CreateButtonWithIcon("✅ 执行验证", RefreshValidation, isPrimary: false)));
             _emptyStateRoot.Add(stepsRow);
 
-            var secondaryActions = new VisualElement();
-            secondaryActions.style.flexDirection = FlexDirection.Row;
-            secondaryActions.style.flexWrap = Wrap.Wrap;
-            secondaryActions.style.justifyContent = Justify.Center;
-            secondaryActions.style.marginTop = 8;
-            secondaryActions.style.paddingTop = 8;
-            secondaryActions.style.borderTopWidth = 1;
-            secondaryActions.style.borderTopColor = UiColors.Border;
+            // Quick actions section — compact grid
+            var quickActionsTitle = new Label("⚡ 快捷操作");
+            quickActionsTitle.style.fontSize = 11;
+            quickActionsTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
+            quickActionsTitle.style.color = UiColors.TextPrimary;
+            quickActionsTitle.style.marginTop = 12;
+            quickActionsTitle.style.marginBottom = 6;
+            quickActionsTitle.style.paddingLeft = 2;
+            _emptyStateRoot.Add(quickActionsTitle);
 
-            secondaryActions.Add(CreateButton("从当前场景生成 Binding", GenerateBindingFromCurrentScene));
-            secondaryActions.Add(CreateButton("使用当前选择", UseSelection));
-            secondaryActions.Add(CreateButton("重连选中对象", RelinkSelectedTransform));
-            secondaryActions.Add(CreateButton("添加 Hitbox", () => AddShape("Hitbox", "hitboxes")));
-            secondaryActions.Add(CreateButton("添加 Hurtbox", () => AddShape("Hurtbox", "hurtboxes")));
-            secondaryActions.Add(CreateButton("运行 Showcase 预览", RunShowcasePreview));
-            secondaryActions.Add(CreateButton("导出 JSON", ExportJson));
-            secondaryActions.Add(CreateButton("预览 Explain", PreviewExplain));
-            _emptyStateRoot.Add(secondaryActions);
+            var quickActionsGrid = new VisualElement();
+            quickActionsGrid.style.flexDirection = FlexDirection.Row;
+            quickActionsGrid.style.flexWrap = Wrap.Wrap;
+            quickActionsGrid.style.paddingTop = 2;
+            quickActionsGrid.style.paddingLeft = 4;
+            quickActionsGrid.style.paddingRight = 4;
+
+            quickActionsGrid.Add(CreateCompactActionChip("🔍 从场景生成", "扫描场景自动生成绑定草案", GenerateBindingFromCurrentScene));
+            quickActionsGrid.Add(CreateCompactActionChip("📌 使用当前选择", "从 Project 填入选中资产", UseSelection));
+            quickActionsGrid.Add(CreateCompactActionChip("🔗 重连选中对象", "把 Scene 选中写入 Binding", RelinkSelectedTransform));
+            quickActionsGrid.Add(CreateCompactActionChip("🗡️ 添加 Hitbox", "在当前帧添加攻击判定", () => AddShape("Hitbox", "hitboxes")));
+            quickActionsGrid.Add(CreateCompactActionChip("🛡️ 添加 Hurtbox", "在当前帧添加受击判定", () => AddShape("Hurtbox", "hurtboxes")));
+            quickActionsGrid.Add(CreateCompactActionChip("▶️ Showcase 预览", "进入测试场景预览效果", RunShowcasePreview));
+            quickActionsGrid.Add(CreateCompactActionChip("📦 导出 JSON", "生成 Runtime JSON 包", ExportJson));
+            quickActionsGrid.Add(CreateCompactActionChip("💡 预览 Explain", "生成判定解释报告", PreviewExplain));
+            _emptyStateRoot.Add(quickActionsGrid);
 
             return _emptyStateRoot;
         }
 
+        // ================================================================
+        //  Compact Action Chip — small icon + text button for quick actions
+        // ================================================================
+        private static Button CreateCompactActionChip(string text, string tooltip, Action action)
+        {
+            var button = new Button(action);
+            button.tooltip = tooltip;
+
+            // Extract icon (first non-space chars before the space)
+            int spaceIdx = text.IndexOf(' ');
+            var iconLabel = new Label(spaceIdx >= 0 ? text.Substring(0, spaceIdx) : text);
+            iconLabel.style.fontSize = 12;
+            iconLabel.style.marginRight = 3;
+
+            var textLabel = new Label(spaceIdx >= 0 ? text.Substring(spaceIdx + 1) : "");
+            textLabel.style.fontSize = 10;
+
+            button.Add(iconLabel);
+            button.Add(textLabel);
+
+            button.style.paddingLeft = 6;
+            button.style.paddingRight = 6;
+            button.style.paddingTop = 4;
+            button.style.paddingBottom = 4;
+            button.style.borderBottomLeftRadius = 4;
+            button.style.borderBottomRightRadius = 4;
+            button.style.borderTopLeftRadius = 4;
+            button.style.borderTopRightRadius = 4;
+            button.style.backgroundColor = UiColors.SurfaceAlt;
+            button.style.borderBottomWidth = 1;
+            button.style.borderLeftWidth = 1;
+            button.style.borderRightWidth = 1;
+            button.style.borderTopWidth = 1;
+            button.style.borderBottomColor = UiColors.PanelBorder;
+            button.style.borderLeftColor = UiColors.PanelBorder;
+            button.style.borderRightColor = UiColors.PanelBorder;
+            button.style.borderTopColor = UiColors.PanelBorder;
+            button.style.flexDirection = FlexDirection.Row;
+            button.style.alignItems = Align.Center;
+            button.style.minWidth = 80;
+
+            button.RegisterCallback<PointerEnterEvent>(_ => OnButtonHover(button, true, false));
+            button.RegisterCallback<PointerLeaveEvent>(_ => OnButtonHover(button, false, false));
+            return button;
+        }
+
+        // ================================================================
+        //  Step Card — numbered guidance card for quick start
+        // ================================================================
         private static VisualElement CreateStepCard(string number, string title, string desc, VisualElement button)
         {
             var card = new VisualElement();
-            card.style.width = 200;
+            card.style.width = 210;
             card.style.marginRight = 8;
             card.style.marginBottom = 8;
-            card.style.paddingLeft = 10;
-            card.style.paddingRight = 10;
-            card.style.paddingTop = 8;
-            card.style.paddingBottom = 8;
-            card.style.backgroundColor = UiColors.SurfaceAlt;
-            card.style.borderBottomLeftRadius = 6;
-            card.style.borderBottomRightRadius = 6;
-            card.style.borderTopLeftRadius = 6;
-            card.style.borderTopRightRadius = 6;
+            card.style.paddingLeft = 14;
+            card.style.paddingRight = 14;
+            card.style.paddingTop = 12;
+            card.style.paddingBottom = 12;
+            card.style.backgroundColor = UiColors.PanelSurfaceAlt;
+            card.style.borderBottomLeftRadius = 10;
+            card.style.borderBottomRightRadius = 10;
+            card.style.borderTopLeftRadius = 10;
+            card.style.borderTopRightRadius = 10;
+            card.style.borderBottomWidth = 1;
+            card.style.borderBottomColor = UiColors.PanelBorder;
 
             var header = new VisualElement();
             header.style.flexDirection = FlexDirection.Row;
             header.style.alignItems = Align.Center;
-            header.style.marginBottom = 4;
-            var num = new Label(number);
-            num.style.fontSize = 14;
-            num.style.unityFontStyleAndWeight = FontStyle.Bold;
-            num.style.color = UiColors.TimelineActive;
-            num.style.marginRight = 6;
-            header.Add(num);
+            header.style.marginBottom = 8;
+
+            // Number badge with gradient-like background
+            var numLabel = new Label(number);
+            numLabel.style.fontSize = 15;
+            numLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            numLabel.style.color = UiColors.TimelineActive;
+            numLabel.style.marginRight = 8;
+            numLabel.style.minWidth = 26;
+            numLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            numLabel.style.backgroundColor = new Color(0.15f, 0.15f, 0.18f);
+            numLabel.style.borderBottomLeftRadius = 12;
+            numLabel.style.borderBottomRightRadius = 12;
+            numLabel.style.borderTopLeftRadius = 12;
+            numLabel.style.borderTopRightRadius = 12;
+            numLabel.style.paddingLeft = 6;
+            numLabel.style.paddingRight = 6;
+            numLabel.style.paddingTop = 3;
+            numLabel.style.paddingBottom = 3;
+            header.Add(numLabel);
+
             var titleLabel = new Label(title);
-            titleLabel.style.fontSize = 11;
+            titleLabel.style.fontSize = 13;
             titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             titleLabel.style.color = UiColors.TextPrimary;
             header.Add(titleLabel);
@@ -301,12 +503,16 @@ namespace MxFramework.Combat.Editor
             descLabel.style.fontSize = 10;
             descLabel.style.color = UiColors.TextSecondary;
             descLabel.style.whiteSpace = WhiteSpace.Normal;
-            descLabel.style.marginBottom = 6;
+            descLabel.style.marginBottom = 10;
             card.Add(descLabel);
             card.Add(button);
+
             return card;
         }
 
+        // ================================================================
+        //  Inspector Body — field panels
+        // ================================================================
         private VisualElement CreateInspectorBody()
         {
             var body = new VisualElement();
@@ -332,12 +538,17 @@ namespace MxFramework.Combat.Editor
             _detailRoot.style.flexGrow = 1;
             _detailRoot.style.minHeight = 160;
             _detailRoot.style.maxHeight = 420;
+            _detailRoot.style.paddingLeft = 2;
+            _detailRoot.style.paddingRight = 2;
             selected.Add(_detailRoot);
             body.Add(selected);
 
             return body;
         }
 
+        // ================================================================
+        //  Timeline Body — horizontal strip + detail list
+        // ================================================================
         private VisualElement CreateTimelineBody()
         {
             var body = new VisualElement();
@@ -351,10 +562,11 @@ namespace MxFramework.Combat.Editor
             center.style.flexShrink = 1;
             center.style.minWidth = 0;
             center.style.minHeight = 0;
-            center.style.overflow = Overflow.Hidden;
+            // Remove overflow=Hidden so content can scroll vertically when window is small
             center.Add(CreateFrameScrubber());
             center.Add(CreateTimelineStripView());
             center.Add(SectionTitle("详细信息"));
+
             _timelineList = new ListView(_timelineRows, TimelineRowHeight, MakeTimelineRow, BindTimelineRow)
             {
                 selectionType = SelectionType.Single,
@@ -364,10 +576,12 @@ namespace MxFramework.Combat.Editor
             _timelineList.style.flexGrow = 0;
             _timelineList.style.flexShrink = 0;
             _timelineList.style.minHeight = TimelineDetailsHeight;
-            _timelineList.style.borderBottomLeftRadius = 4;
-            _timelineList.style.borderBottomRightRadius = 4;
-            _timelineList.style.borderTopLeftRadius = 4;
-            _timelineList.style.borderTopRightRadius = 4;
+            _timelineList.style.borderBottomLeftRadius = 6;
+            _timelineList.style.borderBottomRightRadius = 6;
+            _timelineList.style.borderTopLeftRadius = 6;
+            _timelineList.style.borderTopRightRadius = 6;
+            _timelineList.style.paddingLeft = 4;
+            _timelineList.style.paddingRight = 4;
             _timelineList.selectionChanged += OnTimelineSelectionChanged;
             _timelineList.selectedIndicesChanged += OnTimelineSelectedIndicesChanged;
             center.Add(_timelineList);
@@ -376,12 +590,104 @@ namespace MxFramework.Combat.Editor
             return body;
         }
 
+        // ================================================================
+        //  Frame Scrubber — frame slider with label + play controls
+        // ================================================================
         private VisualElement CreateFrameScrubber()
         {
             var root = new VisualElement();
             root.style.flexDirection = FlexDirection.Row;
             root.style.alignItems = Align.Center;
-            root.style.marginBottom = 6;
+            root.style.marginBottom = 8;
+            root.style.backgroundColor = UiColors.PanelSurfaceAlt;
+            root.style.borderBottomLeftRadius = 8;
+            root.style.borderBottomRightRadius = 8;
+            root.style.borderTopLeftRadius = 8;
+            root.style.borderTopRightRadius = 8;
+            root.style.paddingLeft = 10;
+            root.style.paddingRight = 10;
+            root.style.paddingTop = 6;
+            root.style.paddingBottom = 6;
+            root.style.minHeight = 34;
+
+            // Play/Pause toggle button
+            var playBtn = new Button(() => TogglePlay());
+            playBtn.tooltip = Tooltip("Frame");
+            playBtn.style.marginRight = 4;
+            playBtn.style.paddingLeft = 8;
+            playBtn.style.paddingRight = 8;
+            playBtn.style.paddingTop = 3;
+            playBtn.style.paddingBottom = 3;
+            playBtn.style.borderBottomLeftRadius = 4;
+            playBtn.style.borderBottomRightRadius = 4;
+            playBtn.style.borderTopLeftRadius = 4;
+            playBtn.style.borderTopRightRadius = 4;
+            playBtn.style.backgroundColor = UiColors.SurfaceDeep;
+            playBtn.style.borderBottomWidth = 1;
+            playBtn.style.borderLeftWidth = 1;
+            playBtn.style.borderRightWidth = 1;
+            playBtn.style.borderTopWidth = 1;
+            playBtn.style.borderBottomColor = UiColors.PanelBorder;
+            playBtn.style.borderLeftColor = UiColors.PanelBorder;
+            playBtn.style.borderRightColor = UiColors.PanelBorder;
+            playBtn.style.borderTopColor = UiColors.PanelBorder;
+            _playButton = playBtn;
+            UpdatePlayButton();
+            root.Add(playBtn);
+
+            // Speed button — cycles 0.5x → 1x → 2x → 4x
+            var speedBtn = new Button(() => CyclePlaybackSpeed())
+            {
+                tooltip = Tooltip("播放速度"),
+            };
+            speedBtn.style.marginRight = 4;
+            speedBtn.style.paddingLeft = 6;
+            speedBtn.style.paddingRight = 6;
+            speedBtn.style.paddingTop = 3;
+            speedBtn.style.paddingBottom = 3;
+            speedBtn.style.borderBottomLeftRadius = 4;
+            speedBtn.style.borderBottomRightRadius = 4;
+            speedBtn.style.borderTopLeftRadius = 4;
+            speedBtn.style.borderTopRightRadius = 4;
+            speedBtn.style.backgroundColor = UiColors.SurfaceDeep;
+            speedBtn.style.borderBottomWidth = 1;
+            speedBtn.style.borderLeftWidth = 1;
+            speedBtn.style.borderRightWidth = 1;
+            speedBtn.style.borderTopWidth = 1;
+            speedBtn.style.borderBottomColor = UiColors.PanelBorder;
+            speedBtn.style.borderLeftColor = UiColors.PanelBorder;
+            speedBtn.style.borderRightColor = UiColors.PanelBorder;
+            speedBtn.style.borderTopColor = UiColors.PanelBorder;
+            _speedButton = speedBtn;
+            UpdateSpeedButton();
+            root.Add(speedBtn);
+
+            // Mode button — cycles PingPong → Once → Reverse
+            var modeBtn = new Button(() => TogglePlayMode())
+            {
+                tooltip = Tooltip("播放模式"),
+            };
+            modeBtn.style.marginRight = 6;
+            modeBtn.style.paddingLeft = 6;
+            modeBtn.style.paddingRight = 6;
+            modeBtn.style.paddingTop = 3;
+            modeBtn.style.paddingBottom = 3;
+            modeBtn.style.borderBottomLeftRadius = 4;
+            modeBtn.style.borderBottomRightRadius = 4;
+            modeBtn.style.borderTopLeftRadius = 4;
+            modeBtn.style.borderTopRightRadius = 4;
+            modeBtn.style.backgroundColor = UiColors.SurfaceDeep;
+            modeBtn.style.borderBottomWidth = 1;
+            modeBtn.style.borderLeftWidth = 1;
+            modeBtn.style.borderRightWidth = 1;
+            modeBtn.style.borderTopWidth = 1;
+            modeBtn.style.borderBottomColor = UiColors.PanelBorder;
+            modeBtn.style.borderLeftColor = UiColors.PanelBorder;
+            modeBtn.style.borderRightColor = UiColors.PanelBorder;
+            modeBtn.style.borderTopColor = UiColors.PanelBorder;
+            _modeButton = modeBtn;
+            UpdateModeButton();
+            root.Add(modeBtn);
 
             _frameSlider = new SliderInt("Frame", 0, 0);
             _frameSlider.tooltip = Tooltip("Frame");
@@ -392,33 +698,51 @@ namespace MxFramework.Combat.Editor
             {
                 if (_frameLabel != null)
                 {
-                    _frameLabel.text = "当前帧 " + evt.newValue;
+                    _frameLabel.text = "⏱ 帧 " + evt.newValue;
                 }
 
                 CombatAuthoringSceneState.SetFrame(evt.newValue);
             });
             root.Add(_frameSlider);
 
-            _frameLabel = new Label("当前帧 0");
-            _frameLabel.style.width = 96;
+            _frameLabel = new Label("⏱ 帧 0");
+            _frameLabel.style.width = 80;
             _frameLabel.style.flexShrink = 0;
             _frameLabel.style.marginLeft = 8;
+            _frameLabel.style.fontSize = 12;
+            _frameLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            _frameLabel.style.color = UiColors.TimelineActive;
+            _frameLabel.style.unityTextAlign = TextAnchor.MiddleRight;
             root.Add(_frameLabel);
 
             return root;
         }
 
+        private void CyclePlaybackSpeed()
+        {
+            _playbackSpeed = _playbackSpeed >= 4f ? 0.5f :
+                             _playbackSpeed >= 2f ? 4f :
+                             _playbackSpeed >= 1f ? 2f :
+                             _playbackSpeed >= 0.5f ? 1f : 0.5f;
+            UpdateSpeedButton();
+        }
+
+        // ================================================================
+        //  Timeline Strip View — horizontal time-strip
+        // ================================================================
         private VisualElement CreateTimelineStripView()
         {
             var root = new VisualElement();
             root.style.flexGrow = 0;
             root.style.flexShrink = 0;
-            root.style.height = TimelineStripMinHeight;
-            root.style.minHeight = TimelineStripMinHeight;
-            root.style.marginBottom = 10;
+            root.style.minHeight = 0;
 
             _timelineStripEmptyRoot = new HelpBox("请选择 Action Asset 后查看横向时间轴。", HelpBoxMessageType.Info);
-            _timelineStripEmptyRoot.style.marginBottom = 4;
+            _timelineStripEmptyRoot.style.marginBottom = 6;
+            _timelineStripEmptyRoot.style.borderBottomLeftRadius = 4;
+            _timelineStripEmptyRoot.style.borderBottomRightRadius = 4;
+            _timelineStripEmptyRoot.style.borderTopLeftRadius = 4;
+            _timelineStripEmptyRoot.style.borderTopRightRadius = 4;
             root.Add(_timelineStripEmptyRoot);
 
             var timelineRow = new VisualElement();
@@ -438,26 +762,46 @@ namespace MxFramework.Combat.Editor
             _timelineStripScroll.style.borderLeftWidth = 1;
             _timelineStripScroll.style.borderRightWidth = 1;
             _timelineStripScroll.style.borderTopWidth = 1;
-            _timelineStripScroll.style.borderBottomLeftRadius = 4;
-            _timelineStripScroll.style.borderBottomRightRadius = 4;
-            _timelineStripScroll.style.borderTopLeftRadius = 4;
-            _timelineStripScroll.style.borderTopRightRadius = 4;
+            _timelineStripScroll.style.borderBottomLeftRadius = 6;
+            _timelineStripScroll.style.borderBottomRightRadius = 6;
+            _timelineStripScroll.style.borderTopLeftRadius = 6;
+            _timelineStripScroll.style.borderTopRightRadius = 6;
             _timelineStripContent = new VisualElement();
             _timelineStripContent.style.position = Position.Relative;
             _timelineStripScroll.Add(_timelineStripContent);
             timelineRow.Add(_timelineStripScroll);
             root.Add(timelineRow);
-            root.Add(CreateTimelineViewportControl());
+
+            // Viewport control — placed directly after the scroll with minimal gap
+            var viewportControl = CreateTimelineViewportControl();
+            viewportControl.style.marginTop = 0;
+            viewportControl.style.marginBottom = 0;
+            viewportControl.style.paddingLeft = 0;
+            viewportControl.style.paddingRight = 0;
+            root.Add(viewportControl);
 
             return root;
         }
 
+        // ================================================================
+        //  Timeline Viewport Control — view range slider
+        // ================================================================
         private VisualElement CreateTimelineViewportControl()
         {
             var root = new VisualElement();
             root.style.flexDirection = FlexDirection.Row;
             root.style.alignItems = Align.Center;
-            root.style.marginTop = 6;
+            root.style.marginTop = 0;
+            root.style.marginBottom = 0;
+            root.style.paddingLeft = 12;
+            root.style.paddingRight = 12;
+            root.style.paddingTop = 4;
+            root.style.paddingBottom = 4;
+            root.style.backgroundColor = UiColors.PanelDeep;
+            root.style.borderBottomLeftRadius = 4;
+            root.style.borderBottomRightRadius = 4;
+            root.style.borderTopLeftRadius = 4;
+            root.style.borderTopRightRadius = 4;
 
             var label = new Label("View");
             label.tooltip = Tooltip("Timeline View Range");
@@ -465,6 +809,7 @@ namespace MxFramework.Combat.Editor
             label.style.color = UiColors.TextSecondary;
             label.style.width = 44;
             label.style.flexShrink = 0;
+            label.style.unityFontStyleAndWeight = FontStyle.Bold;
             root.Add(label);
 
             _timelineViewportSlider = new MinMaxSlider(
@@ -486,17 +831,20 @@ namespace MxFramework.Combat.Editor
             root.Add(_timelineViewportSlider);
 
             _timelineViewportLabel = new Label();
-            _timelineViewportLabel.style.width = 112;
+            _timelineViewportLabel.style.width = 120;
             _timelineViewportLabel.style.flexShrink = 0;
             _timelineViewportLabel.style.marginLeft = 8;
             _timelineViewportLabel.style.fontSize = 10;
             _timelineViewportLabel.style.color = UiColors.TextSecondary;
+            _timelineViewportLabel.style.unityTextAlign = TextAnchor.MiddleRight;
             root.Add(_timelineViewportLabel);
 
-            UpdateTimelineViewportControl();
             return root;
         }
 
+        // ================================================================
+        //  Issue Drawer — validation report + preview
+        // ================================================================
         private VisualElement CreateIssueDrawer()
         {
             var drawer = CreatePanel("Validation Report");
@@ -534,6 +882,10 @@ namespace MxFramework.Combat.Editor
             _issueList.style.flexGrow = 1;
             _issueList.style.height = _mode == CombatAuthoringWindowMode.Inspector ? IssueRowHeight + 12f : StyleKeyword.Auto;
             _issueList.style.minHeight = _mode == CombatAuthoringWindowMode.Inspector ? IssueRowHeight + 12f : 0f;
+            _issueList.style.borderBottomLeftRadius = 4;
+            _issueList.style.borderBottomRightRadius = 4;
+            _issueList.style.borderTopLeftRadius = 4;
+            _issueList.style.borderTopRightRadius = 4;
             issueColumn.Add(_issueList);
             split.Add(issueColumn);
 
@@ -561,6 +913,10 @@ namespace MxFramework.Combat.Editor
             _reportPreview.tooltip = Tooltip("Report Preview");
             _reportPreview.style.flexGrow = 1;
             _reportPreview.style.minHeight = 0;
+            _reportPreview.style.borderBottomLeftRadius = 4;
+            _reportPreview.style.borderBottomRightRadius = 4;
+            _reportPreview.style.borderTopLeftRadius = 4;
+            _reportPreview.style.borderTopRightRadius = 4;
             previewColumn.Add(_reportPreview);
 
             previewColumn.Add(SectionTitle("Preview Explain"));
@@ -572,6 +928,10 @@ namespace MxFramework.Combat.Editor
             _previewExplain.tooltip = Tooltip("Preview Explain");
             _previewExplain.style.flexGrow = 1;
             _previewExplain.style.minHeight = 0;
+            _previewExplain.style.borderBottomLeftRadius = 4;
+            _previewExplain.style.borderBottomRightRadius = 4;
+            _previewExplain.style.borderTopLeftRadius = 4;
+            _previewExplain.style.borderTopRightRadius = 4;
             _previewExplain.value = "点击“预览 Explain”生成当前帧 query / candidate / resolve 解释。";
             previewColumn.Add(_previewExplain);
             split.Add(previewColumn);
@@ -580,6 +940,9 @@ namespace MxFramework.Combat.Editor
             return drawer;
         }
 
+        // ================================================================
+        //  Mini Button — compact size for secondary actions
+        // ================================================================
         private static Button CreateMiniButton(string text, string tooltip, Action action)
         {
             var button = new Button(action)
@@ -589,49 +952,326 @@ namespace MxFramework.Combat.Editor
             };
             button.style.marginLeft = 3;
             button.style.marginRight = 0;
-            button.style.marginBottom = 2;
-            button.style.minWidth = 26;
+            button.style.marginBottom = 3;
+            button.style.minWidth = 30;
+            button.style.fontSize = 10;
+            button.style.paddingLeft = 8;
+            button.style.paddingRight = 8;
+            button.style.paddingTop = 3;
+            button.style.paddingBottom = 3;
+            button.style.backgroundColor = UiColors.SurfaceAlt;
+            button.style.borderBottomWidth = 1;
+            button.style.borderLeftWidth = 1;
+            button.style.borderRightWidth = 1;
+            button.style.borderTopWidth = 1;
+            button.style.borderBottomColor = UiColors.PanelBorder;
+            button.style.borderLeftColor = UiColors.PanelBorder;
+            button.style.borderRightColor = UiColors.PanelBorder;
+            button.style.borderTopColor = UiColors.PanelBorder;
+            button.style.borderBottomLeftRadius = 4;
+            button.style.borderBottomRightRadius = 4;
+            button.style.borderTopLeftRadius = 4;
+            button.style.borderTopRightRadius = 4;
+            button.RegisterCallback<PointerEnterEvent>(_ => OnButtonHover(button, true, false));
+            button.RegisterCallback<PointerLeaveEvent>(_ => OnButtonHover(button, false, false));
             return button;
         }
 
+        // ================================================================
+        //  Panel — card container with optional accent bar
+        // ================================================================
         private static VisualElement CreatePanel(string title)
         {
+            return CreatePanel(title, UiColors.TimelineActive);
+        }
+
+        private static VisualElement CreatePanel(string title, Color accentColor)
+        {
             var panel = new VisualElement();
-            panel.style.backgroundColor = UiColors.Surface;
-            panel.style.borderBottomColor = UiColors.Border;
-            panel.style.borderLeftColor = UiColors.Border;
-            panel.style.borderRightColor = UiColors.Border;
-            panel.style.borderTopColor = UiColors.Border;
+            panel.style.backgroundColor = UiColors.PanelSurface;
+            panel.style.borderBottomColor = UiColors.PanelBorder;
+            panel.style.borderLeftColor = UiColors.PanelBorder;
+            panel.style.borderRightColor = UiColors.PanelBorder;
+            panel.style.borderTopColor = UiColors.PanelBorder;
             panel.style.borderBottomWidth = 1;
             panel.style.borderLeftWidth = 1;
             panel.style.borderRightWidth = 1;
             panel.style.borderTopWidth = 1;
-            panel.style.borderBottomLeftRadius = 6;
-            panel.style.borderBottomRightRadius = 6;
-            panel.style.borderTopLeftRadius = 6;
-            panel.style.borderTopRightRadius = 6;
-            panel.style.paddingBottom = 8;
-            panel.style.paddingLeft = 10;
-            panel.style.paddingRight = 10;
-            panel.style.paddingTop = 8;
+            panel.style.borderBottomLeftRadius = 8;
+            panel.style.borderBottomRightRadius = 8;
+            panel.style.borderTopLeftRadius = 8;
+            panel.style.borderTopRightRadius = 8;
+            panel.style.paddingBottom = 10;
+            panel.style.paddingLeft = 12;
+            panel.style.paddingRight = 12;
+            panel.style.paddingTop = 10;
+
+            // Top accent bar — slightly thicker for better visual hierarchy
+            var accentBar = new VisualElement();
+            accentBar.style.height = 3f;
+            accentBar.style.marginBottom = 8;
+            accentBar.style.backgroundColor = accentColor;
+            accentBar.style.borderBottomLeftRadius = 3;
+            accentBar.style.borderBottomRightRadius = 3;
+            panel.Add(accentBar);
 
             panel.Add(SectionTitle(title));
             return panel;
         }
 
-        private static Label SectionTitle(string text)
+        // ================================================================
+        //  Section Title — label + thin divider line
+        // ================================================================
+        private static VisualElement SectionTitle(string text)
         {
+            var container = new VisualElement();
+            container.style.marginBottom = 8;
+
             var label = new Label(text);
             label.tooltip = Tooltip(text);
             label.style.unityFontStyleAndWeight = FontStyle.Bold;
             label.style.color = UiColors.TextPrimary;
             label.style.fontSize = 12;
-            label.style.marginTop = 2;
-            label.style.marginBottom = 6;
             label.style.paddingBottom = 4;
-            label.style.borderBottomWidth = 1;
-            label.style.borderBottomColor = UiColors.Border;
-            return label;
+            container.Add(label);
+
+            // Subtle divider line — slightly more visible
+            var divider = new VisualElement();
+            divider.style.height = 1.5f;
+            divider.style.backgroundColor = UiColors.PanelBorder;
+            divider.style.opacity = 0.7f;
+            container.Add(divider);
+
+            return container;
+        }
+
+        // ================================================================
+        //  Button — standard action button with hover
+        // ================================================================
+        private static Button CreateButton(string text, Action action, bool isPrimary = false)
+        {
+            var button = new Button(action) { text = text };
+            button.tooltip = Tooltip(text);
+            button.style.marginRight = 4;
+            button.style.marginBottom = 4;
+            button.style.paddingLeft = 12;
+            button.style.paddingRight = 12;
+            button.style.paddingTop = 5;
+            button.style.paddingBottom = 5;
+            button.style.borderBottomLeftRadius = 6;
+            button.style.borderBottomRightRadius = 6;
+            button.style.borderTopLeftRadius = 6;
+            button.style.borderTopRightRadius = 6;
+            button.style.fontSize = 11;
+            button.style.borderBottomWidth = 1;
+            button.style.borderLeftWidth = 1;
+            button.style.borderRightWidth = 1;
+            button.style.borderTopWidth = 1;
+
+            if (isPrimary)
+            {
+                button.style.backgroundColor = UiColors.ButtonPrimaryBg;
+                button.style.borderBottomColor = UiColors.ButtonPrimaryBorder;
+                button.style.borderLeftColor = new Color(0.35f, 0.35f, 0.40f);
+                button.style.borderRightColor = new Color(0.35f, 0.35f, 0.40f);
+                button.style.borderTopColor = new Color(0.35f, 0.35f, 0.40f);
+            }
+            else
+            {
+                button.style.backgroundColor = UiColors.SurfaceAlt;
+                button.style.borderBottomColor = UiColors.PanelBorder;
+                button.style.borderLeftColor = UiColors.PanelBorder;
+                button.style.borderRightColor = UiColors.PanelBorder;
+                button.style.borderTopColor = UiColors.PanelBorder;
+            }
+
+            button.RegisterCallback<PointerEnterEvent>(_ => OnButtonHover(button, true, isPrimary));
+            button.RegisterCallback<PointerLeaveEvent>(_ => OnButtonHover(button, false, isPrimary));
+            return button;
+        }
+
+        // ================================================================
+        //  Button With Icon — button with emoji/unicode icon prefix
+        // ================================================================
+        private static Button CreateButtonWithIcon(string text, Action action, bool isPrimary = false)
+        {
+            var button = new Button(action);
+            button.tooltip = text.StartsWith("⚡") ? Tooltip("使用当前选择")
+                : text.StartsWith("✨") ? Tooltip("创建 Action Asset")
+                : text.StartsWith("🎬") ? Tooltip("打开 Timeline")
+                : text.StartsWith("📍") ? (text.Contains("Action") ? Tooltip("定位 Action") : Tooltip("定位 Binding"))
+                : text.StartsWith("➕") ? Tooltip("创建 Binding")
+                : text.StartsWith("🔍") ? Tooltip("从当前场景生成")
+                : text.StartsWith("🔗") ? Tooltip("重连选中对象")
+                : text.StartsWith("🗡") ? Tooltip("添加 Hitbox")
+                : text.StartsWith("🛡") ? Tooltip("添加 Hurtbox")
+                : text.StartsWith("✅") ? Tooltip("执行验证")
+                : text.StartsWith("▶") ? Tooltip("运行 Showcase 预览")
+                : text.StartsWith("🧹") ? Tooltip("清除预览会话")
+                : text.StartsWith("📋") ? Tooltip("复制报告")
+                : text.StartsWith("📦") ? Tooltip("导出 JSON")
+                : text.StartsWith("📄") ? Tooltip("复制导出报告")
+                : text.StartsWith("💡") ? Tooltip("预览 Explain")
+                : text.StartsWith("📝") ? Tooltip("复制 Explain")
+                : Tooltip(text);
+
+            // Icon + text layout
+            var iconLabel = new Label(text.Substring(0, text.IndexOf(' ', 1)));
+            iconLabel.style.fontSize = 13;
+            iconLabel.style.marginRight = 4;
+            iconLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            iconLabel.style.width = 20;
+
+            var textLabel = new Label(text.Substring(text.IndexOf(' ', 1) + 1));
+            textLabel.style.fontSize = 11;
+
+            button.Add(iconLabel);
+            button.Add(textLabel);
+
+            button.style.marginRight = 4;
+            button.style.marginBottom = 4;
+            button.style.paddingLeft = 8;
+            button.style.paddingRight = 8;
+            button.style.paddingTop = 5;
+            button.style.paddingBottom = 5;
+            button.style.borderBottomLeftRadius = 6;
+            button.style.borderBottomRightRadius = 6;
+            button.style.borderTopLeftRadius = 6;
+            button.style.borderTopRightRadius = 6;
+            button.style.fontSize = 11;
+            button.style.flexDirection = FlexDirection.Row;
+            button.style.alignItems = Align.Center;
+            button.style.justifyContent = Justify.Center;
+            button.style.borderBottomWidth = 1;
+            button.style.borderLeftWidth = 1;
+            button.style.borderRightWidth = 1;
+            button.style.borderTopWidth = 1;
+
+            if (isPrimary)
+            {
+                button.style.backgroundColor = UiColors.ButtonPrimaryBg;
+                button.style.borderBottomColor = UiColors.ButtonPrimaryBorder;
+                button.style.borderLeftColor = new Color(0.35f, 0.35f, 0.40f);
+                button.style.borderRightColor = new Color(0.35f, 0.35f, 0.40f);
+                button.style.borderTopColor = new Color(0.35f, 0.35f, 0.40f);
+            }
+            else
+            {
+                button.style.backgroundColor = UiColors.SurfaceAlt;
+                button.style.borderBottomColor = UiColors.PanelBorder;
+                button.style.borderLeftColor = UiColors.PanelBorder;
+                button.style.borderRightColor = UiColors.PanelBorder;
+                button.style.borderTopColor = UiColors.PanelBorder;
+            }
+
+            button.RegisterCallback<PointerEnterEvent>(_ => OnButtonHoverWithIcon(button, true, isPrimary));
+            button.RegisterCallback<PointerLeaveEvent>(_ => OnButtonHoverWithIcon(button, false, isPrimary));
+            return button;
+        }
+
+        // ================================================================
+        //  Button Hover — visual feedback on pointer enter / leave
+        // ================================================================
+        private static void OnButtonHover(VisualElement button, bool hover, bool isPrimary = false)
+        {
+            if (hover)
+            {
+                button.style.backgroundColor = isPrimary
+                    ? UiColors.ButtonPrimaryHover
+                    : UiColors.ButtonHover;
+                button.style.borderBottomColor = UiColors.TextSecondary;
+                button.style.borderLeftColor = UiColors.TextSecondary;
+                button.style.borderRightColor = UiColors.TextSecondary;
+                button.style.borderTopColor = UiColors.TextSecondary;
+            }
+            else
+            {
+                if (isPrimary)
+                {
+                    button.style.backgroundColor = UiColors.ButtonPrimaryBg;
+                    button.style.borderBottomColor = UiColors.ButtonPrimaryBorder;
+                    button.style.borderLeftColor = new Color(0.35f, 0.35f, 0.40f);
+                    button.style.borderRightColor = new Color(0.35f, 0.35f, 0.40f);
+                    button.style.borderTopColor = new Color(0.35f, 0.35f, 0.40f);
+                }
+                else
+                {
+                    button.style.backgroundColor = UiColors.SurfaceAlt;
+                    button.style.borderBottomColor = UiColors.PanelBorder;
+                    button.style.borderLeftColor = UiColors.PanelBorder;
+                    button.style.borderRightColor = UiColors.PanelBorder;
+                    button.style.borderTopColor = UiColors.PanelBorder;
+                }
+            }
+        }
+
+        private static void OnButtonHoverWithIcon(VisualElement button, bool hover, bool isPrimary = false)
+        {
+            if (hover)
+            {
+                button.style.backgroundColor = isPrimary
+                    ? UiColors.ButtonPrimaryHover
+                    : UiColors.ButtonHover;
+                button.style.borderBottomColor = UiColors.TextSecondary;
+                button.style.borderLeftColor = UiColors.TextSecondary;
+                button.style.borderRightColor = UiColors.TextSecondary;
+                button.style.borderTopColor = UiColors.TextSecondary;
+            }
+            else
+            {
+                if (isPrimary)
+                {
+                    button.style.backgroundColor = UiColors.ButtonPrimaryBg;
+                    button.style.borderBottomColor = UiColors.ButtonPrimaryBorder;
+                    button.style.borderLeftColor = new Color(0.35f, 0.35f, 0.40f);
+                    button.style.borderRightColor = new Color(0.35f, 0.35f, 0.40f);
+                    button.style.borderTopColor = new Color(0.35f, 0.35f, 0.40f);
+                }
+                else
+                {
+                    button.style.backgroundColor = UiColors.SurfaceAlt;
+                    button.style.borderBottomColor = UiColors.PanelBorder;
+                    button.style.borderLeftColor = UiColors.PanelBorder;
+                    button.style.borderRightColor = UiColors.PanelBorder;
+                    button.style.borderTopColor = UiColors.PanelBorder;
+                }
+            }
+        }
+
+        // ================================================================
+        //  Shared helpers (unchanged)
+        // ================================================================
+
+        private static void AddProperty(VisualElement root, SerializedObject serialized, string propertyName, string label)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property == null)
+            {
+                root.Add(new HelpBox("缺少字段：" + propertyName, HelpBoxMessageType.Warning));
+                return;
+            }
+
+            var field = new PropertyField(property, label);
+            field.tooltip = Tooltip(label);
+            root.Add(field);
+        }
+
+        private static ObjectField CreateCompactObjectField(string label, Type objectType)
+        {
+            var field = new ObjectField(label)
+            {
+                objectType = objectType,
+                allowSceneObjects = false,
+            };
+            field.style.width = 360;
+            field.style.minWidth = 280;
+            field.style.height = 22;
+            field.style.marginRight = 8;
+            field.style.marginBottom = 4;
+            field.labelElement.style.minWidth = 88;
+            field.labelElement.style.width = 88;
+            field.tooltip = Tooltip(label);
+            return field;
         }
 
         private static string Tooltip(string key)
@@ -684,12 +1324,16 @@ namespace MxFramework.Combat.Editor
                 case "Action":
                     return "动作基础数据分组，包括动作编号、总帧数和三个阶段帧范围。";
                 case "基础字段":
+                case "\u2699 基础字段":
                     return "当前 Action 和 Scene Binding 的核心字段。数组字段可以展开查看，但复杂编辑优先通过时间轴和 Scene View。";
                 case "Timeline":
+                case "\u23F1 Timeline":
                     return "固定帧时间轴。横向条展示 Startup、Active、Recovery、Hitbox、Hurtbox 和 Trace 的生效帧。";
+                case "详细信息":
                 case "详情列表":
                     return "当前时间轴条目的列表视图。选择一行后，右侧会显示可轻编辑字段。";
                 case "选中项":
+                case "\u25B6 选中项":
                     return "当前选中时间轴条目的字段详情。Shape 字段可配合 Scene View 手柄一起调整。";
                 case "Validation Report":
                     return "验证报告区域。左侧是问题列表，右侧是可复制的完整报告和预览解释。";
@@ -701,6 +1345,14 @@ namespace MxFramework.Combat.Editor
                     return "当前帧的战斗判定解释，包括 query、candidate、resolve 和稳定 hash。";
                 case "Frame":
                     return "当前预览帧。拖动后会同步 Scene View 的 Authoring 预览。";
+                case "暂停播放":
+                    return "暂停帧播放。";
+                case "播放帧":
+                    return "自动播放帧，在 Startup / Active / Recovery 范围内来回扫描。";
+                case "播放速度":
+                    return "循环切换播放速度：0.5x → 1x → 2x → 4x。";
+                case "播放模式":
+                    return "循环切换播放模式：🔁 来回 → 🔚 单次 → ◀️ 倒放。";
                 case "Frame Width":
                     return "每一帧在 Timeline 中占用的像素宽度。调大后可以横向滚动，调小后仍会至少填满当前窗口宽度。";
                 case "Timeline View Range":
@@ -799,76 +1451,6 @@ namespace MxFramework.Combat.Editor
             }
         }
 
-        private static ObjectField CreateCompactObjectField(string label, Type objectType)
-        {
-            var field = new ObjectField(label)
-            {
-                objectType = objectType,
-                allowSceneObjects = false,
-            };
-            field.style.width = 360;
-            field.style.minWidth = 280;
-            field.style.height = 22;
-            field.style.marginRight = 8;
-            field.style.marginBottom = 4;
-            field.labelElement.style.minWidth = 88;
-            field.labelElement.style.width = 88;
-            field.tooltip = Tooltip(label);
-            return field;
-        }
-
-        private static Button CreateButton(string text, Action action)
-        {
-            var button = new Button(action) { text = text };
-            button.tooltip = Tooltip(text);
-            button.style.marginRight = 4;
-            button.style.marginBottom = 4;
-            button.style.paddingLeft = 10;
-            button.style.paddingRight = 10;
-            button.style.paddingTop = 4;
-            button.style.paddingBottom = 4;
-            button.style.borderBottomLeftRadius = 4;
-            button.style.borderBottomRightRadius = 4;
-            button.style.borderTopLeftRadius = 4;
-            button.style.borderTopRightRadius = 4;
-            button.style.fontSize = 11;
-            button.style.backgroundColor = UiColors.SurfaceAlt;
-            button.style.borderBottomColor = UiColors.Border;
-            button.style.borderLeftColor = UiColors.Border;
-            button.style.borderRightColor = UiColors.Border;
-            button.style.borderTopColor = UiColors.Border;
-            button.style.borderBottomWidth = 1;
-            button.style.borderLeftWidth = 1;
-            button.style.borderRightWidth = 1;
-            button.style.borderTopWidth = 1;
-            button.RegisterCallback<PointerEnterEvent>(_ => OnButtonHover(button, true));
-            button.RegisterCallback<PointerLeaveEvent>(_ => OnButtonHover(button, false));
-            return button;
-        }
-
-        private static void OnButtonHover(VisualElement button, bool hover)
-        {
-            button.style.backgroundColor = hover ? UiColors.ButtonHover : UiColors.SurfaceAlt;
-            button.style.borderBottomColor = hover ? UiColors.TextSecondary : UiColors.Border;
-            button.style.borderLeftColor = hover ? UiColors.TextSecondary : UiColors.Border;
-            button.style.borderRightColor = hover ? UiColors.TextSecondary : UiColors.Border;
-            button.style.borderTopColor = hover ? UiColors.TextSecondary : UiColors.Border;
-        }
-
-        private static void AddProperty(VisualElement root, SerializedObject serialized, string propertyName, string label)
-        {
-            SerializedProperty property = serialized.FindProperty(propertyName);
-            if (property == null)
-            {
-                root.Add(new HelpBox("缺少字段：" + propertyName, HelpBoxMessageType.Warning));
-                return;
-            }
-
-            var field = new PropertyField(property, label);
-            field.tooltip = Tooltip(label);
-            root.Add(field);
-        }
-
         private static Label CreateTimelineCell(string text, float left, float top, float width, float height, Color backgroundColor)
         {
             var label = new Label(text);
@@ -963,6 +1545,169 @@ namespace MxFramework.Combat.Editor
             }
 
             return UiColors.BarTrace;
+        }
+
+        // ================================================================
+        //  Play/Pause Control — frame animation with speed & mode
+        // ================================================================
+        private bool _isPlaying;
+        private int _playDirection = 1;
+        private float _playbackSpeed = 1f;
+        private PlayMode _playMode = PlayMode.PingPong;
+        private float _playAccumulator = 0f;
+        private double _lastPlayTime = 0;
+        private const float BaseFrameInterval = 1f / 60f; // 1x = 60 FPS, ~16.67ms per frame
+
+        private enum PlayMode
+        {
+            PingPong,  // 来回循环
+            Once,      // 单次播放，到终点停止
+            Reverse,   // 倒放，到起点停止
+        }
+
+        private void TogglePlay()
+        {
+            _isPlaying = !_isPlaying;
+            UpdatePlayButton();
+            if (_isPlaying)
+            {
+                _lastPlayTime = EditorApplication.timeSinceStartup;
+                _playAccumulator = 0f;
+                EditorApplication.update += OnPlayUpdate;
+            }
+            else
+            {
+                EditorApplication.update -= OnPlayUpdate;
+            }
+        }
+
+        private void SetPlaybackSpeed(float speed)
+        {
+            _playbackSpeed = speed;
+            UpdateSpeedButton();
+        }
+
+        private void TogglePlayMode()
+        {
+            _playMode = _playMode == PlayMode.PingPong ? PlayMode.Once :
+                        _playMode == PlayMode.Once ? PlayMode.Reverse : PlayMode.PingPong;
+            UpdateModeButton();
+        }
+
+        private void UpdatePlayButton()
+        {
+            if (_playButton != null)
+            {
+                _playButton.text = _isPlaying ? "⏸" : "▶";
+                _playButton.tooltip = _isPlaying ? Tooltip("暂停播放") : Tooltip("播放帧");
+            }
+        }
+
+        private void UpdateSpeedButton()
+        {
+            if (_speedButton != null)
+            {
+                string label = _playbackSpeed == 0.5f ? "⏪ 0.5x" :
+                               _playbackSpeed == 1f ? "⏩ 1x" :
+                               _playbackSpeed == 2f ? "⏩ 2x" : "⏩ 4x";
+                _speedButton.text = label;
+                _speedButton.tooltip = Tooltip("播放速度");
+            }
+        }
+
+        private void UpdateModeButton()
+        {
+            if (_modeButton != null)
+            {
+                string label = _playMode == PlayMode.PingPong ? "🔁 来回" :
+                               _playMode == PlayMode.Once ? "🔚 单次" : "◀️ 倒放";
+                _modeButton.text = label;
+                _modeButton.tooltip = Tooltip("播放模式");
+            }
+        }
+
+        private void OnPlayUpdate()
+        {
+            if (!_isPlaying || _actionAsset == null)
+            {
+                return;
+            }
+
+            // Calculate delta time for consistent frame advancement
+            double currentTime = EditorApplication.timeSinceStartup;
+            float deltaTime = (float)(currentTime - _lastPlayTime);
+            _lastPlayTime = currentTime;
+
+            int currentFrame = CombatAuthoringSceneState.Frame;
+            int totalFrames = _actionAsset.TotalFrames;
+
+            if (totalFrames <= 1)
+            {
+                _isPlaying = false;
+                UpdatePlayButton();
+                EditorApplication.update -= OnPlayUpdate;
+                return;
+            }
+
+            // Accumulate time to control frame advance rate based on speed
+            _playAccumulator += deltaTime;
+            float frameInterval = BaseFrameInterval / _playbackSpeed;
+
+            if (_playAccumulator < frameInterval)
+            {
+                return;
+            }
+            _playAccumulator -= frameInterval;
+
+            // Advance frame based on mode
+            switch (_playMode)
+            {
+                case PlayMode.PingPong:
+                    currentFrame += _playDirection;
+                    if (currentFrame >= totalFrames - 1)
+                    {
+                        currentFrame = totalFrames - 1;
+                        _playDirection = -1;
+                    }
+                    else if (currentFrame <= 0)
+                    {
+                        currentFrame = 0;
+                        _playDirection = 1;
+                    }
+                    break;
+
+                case PlayMode.Once:
+                    currentFrame += 1;
+                    if (currentFrame >= totalFrames - 1)
+                    {
+                        currentFrame = totalFrames - 1;
+                        _isPlaying = false;
+                        UpdatePlayButton();
+                        EditorApplication.update -= OnPlayUpdate;
+                    }
+                    break;
+
+                case PlayMode.Reverse:
+                    currentFrame -= 1;
+                    if (currentFrame <= 0)
+                    {
+                        currentFrame = 0;
+                        _isPlaying = false;
+                        UpdatePlayButton();
+                        EditorApplication.update -= OnPlayUpdate;
+                    }
+                    break;
+            }
+
+            CombatAuthoringSceneState.SetFrame(currentFrame);
+            if (_frameSlider != null)
+            {
+                _frameSlider.SetValueWithoutNotify(currentFrame);
+            }
+            if (_frameLabel != null)
+            {
+                _frameLabel.text = "⏱ 帧 " + currentFrame;
+            }
         }
     }
 }

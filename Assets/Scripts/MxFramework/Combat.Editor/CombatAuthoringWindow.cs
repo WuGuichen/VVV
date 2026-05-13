@@ -57,6 +57,28 @@ namespace MxFramework.Combat.Editor
 
         // Interactive States
         public static readonly Color ButtonHover = new Color(0.24f, 0.24f, 0.24f);
+        public static readonly Color ButtonActive = new Color(0.30f, 0.30f, 0.35f);
+        public static readonly Color ButtonPrimaryBg = new Color(0.22f, 0.22f, 0.28f);
+        public static readonly Color ButtonPrimaryBorder = new Color(0.82f, 0.3f, 0.24f);
+        public static readonly Color ButtonPrimaryHover = new Color(0.28f, 0.28f, 0.35f);
+
+        // Status Indicators
+        public static readonly Color StatusSuccessBg = new Color(0.15f, 0.35f, 0.18f);
+        public static readonly Color StatusWarnBg = new Color(0.35f, 0.28f, 0.10f);
+        public static readonly Color StatusErrorBg = new Color(0.35f, 0.15f, 0.12f);
+        public static readonly Color StatusInfoBg = new Color(0.15f, 0.25f, 0.35f);
+
+        // Timeline Enhancements (new additions only)
+        public static readonly Color TimelineEmptyLane = new Color(0.12f, 0.12f, 0.12f, 0.5f);
+
+        // Panel & Card
+        public static readonly Color PanelSurface = new Color(0.18f, 0.18f, 0.18f);
+        public static readonly Color PanelSurfaceAlt = new Color(0.16f, 0.16f, 0.16f);
+        public static readonly Color PanelDeep = new Color(0.12f, 0.12f, 0.12f);
+        public static readonly Color PanelBorder = new Color(0.26f, 0.26f, 0.26f);
+
+        // Icons (emoji/unicode rendered as labels)
+        // Icon constants are defined inline where used for flexibility
     }
 
     internal enum CombatAuthoringWindowMode
@@ -129,7 +151,11 @@ namespace MxFramework.Combat.Editor
         private Label _frameLabel;
         private Label _validationLabel;
         private Label _quickActionStatusLabel;
+        private VisualElement _validationStatusIndicator;
         private SliderInt _frameSlider;
+        private Button _playButton;
+        private Button _speedButton;
+        private Button _modeButton;
         private VisualElement _toolbarRoot;
         private VisualElement _emptyStateRoot;
         private VisualElement _actionFieldsRoot;
@@ -907,7 +933,8 @@ namespace MxFramework.Combat.Editor
             _timelinePlayhead.style.backgroundColor = UiColors.TimelinePlayhead;
             _timelineStripContent.Add(_timelinePlayhead);
             UpdateTimelinePlayhead();
-            UpdateTimelineViewportControl();
+            // Delay viewport update to ensure ScrollView layout is complete
+            EditorApplication.delayCall += () => UpdateTimelineViewportControl();
         }
 
         private float GetTimelineTrackWidth(int totalFrames)
