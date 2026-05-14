@@ -1,6 +1,6 @@
 # MxFramework 使用手册
 
-> 版本 0.3.1 | 2026-05-09
+> 版本 0.3.2 | 2026-05-14
 >
 > 本文面向业务开发和 AI 辅助开发。目标是“先看这里就能接入”，不要靠通读源码理解基础模块。
 
@@ -1405,7 +1405,401 @@ fake.SetSnapshot(new InputSnapshot(
 - 本地多人使用 `LocalUserInputAdapter` 读取 `PlayerInput.actions` 的私有副本。
 - 重绑定通过 `IInputRebindingService.StartRebind("Gameplay/Jump", bindingIndex)` 触发，结果保存到 `PlayerPrefs`。
 
-## 15. 推荐组合根
+## 15. Audio 音频系统
+
+Audio 模块的业务入口是 `IAudioService` / `AudioService`。普通测试、服务器和未安装 FMOD 的环境使用 `NullAudioBackend`，不会依赖 Unity 或 FMOD。
+
+```csharp
+using System.Collections.Generic;
+using MxFramework.Audio;
+
+const int BusSfx = 10;
+const int EventClick = 1001;
+const int EventAura = 2001;
+const int ParamIntensity = 1;
+
+var definitions = new MemoryAudioDefinitions();
+definitions.AddBus(new AudioBusDefinition(BusSfx, "SFX", "bus:/SFX"));
+definitions.AddEvent(new AudioEventDefinition(
+    EventClick,
+    "ui.click",
+    "event:/ui/click",
+    string.Empty,
+    AudioEventKind.Event,
+    BusSfx,
+    is3D: false,
+    isLoop: false,
+    maxDistance: 0f));
+definitions.AddEvent(new AudioEventDefinition(
+    EventAura,
+    "combat.aura",
+    "event:/combat/aura",
+    string.Empty,
+    AudioEventKind.Event,
+    BusSfx,
+    is3D: true,
+    isLoop: true,
+    maxDistance: 30f,
+    parameters: new[]
+    {
+        new AudioParameterDefinition(ParamIntensity, "Intensity")
+    }));
+
+using (var audio = new AudioService(definitions, new NullAudioBackend()))
+{
+    AudioPlayResult oneShot = audio.PlayOneShot(AudioPlayRequest.Create2D(EventClick));
+
+    AudioPlayResult started = audio.StartEvent(
+        AudioPlayRequest.Create2D(EventAura),
+        out AudioHandle auraHandle);
+    if (started.Success)
+    {
+        audio.SetParameter(auraHandle, ParamIntensity, 0.75f);
+        audio.SetBusVolume(BusSfx, 0.8f);
+        audio.Tick(1f / 60f);
+        audio.Stop(auraHandle, AudioStopMode.AllowFadeout);
+    }
+
+    AudioDebugSnapshot snapshot = audio.CaptureSnapshot();
+}
+
+public sealed class MemoryAudioDefinitions : IAudioDefinitionProvider
+{
+    private readonly Dictionary<int, AudioEventDefinition> _events =
+        new Dictionary<int, AudioEventDefinition>();
+
+    private readonly Dictionary<int, AudioBusDefinition> _buses =
+        new Dictionary<int, AudioBusDefinition>();
+
+    public void AddEvent(AudioEventDefinition definition)
+    {
+        _events[definition.Id] = definition;
+    }
+
+    public void AddBus(AudioBusDefinition definition)
+    {
+        _buses[definition.Id] = definition;
+    }
+
+    public bool TryGetEvent(int eventId, out AudioEventDefinition definition)
+    {
+        return _events.TryGetValue(eventId, out definition);
+    }
+
+    public bool TryGetBus(int busId, out AudioBusDefinition definition)
+    {
+        return _buses.TryGetValue(busId, out definition);
+    }
+
+    public bool TryGetParameter(int eventId, int parameterId, out AudioParameterDefinition definition)
+    {
+        definition = default;
+        if (!_events.TryGetValue(eventId, out AudioEventDefinition audioEvent))
+            return false;
+
+        AudioParameterDefinition[] parameters =
+            audioEvent.Parameters ?? AudioEventDefinition.EmptyParameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].Id == parameterId)
+            {
+                definition = parameters[i];
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+```
+
+约定：
+
+- One-shot 使用 `PlayOneShot`，循环或需要后续控制的声音使用 `StartEvent` 并保存 `AudioHandle`。
+- `SetBusVolume` 使用稳定 bus id，范围由后端 clamp 到 `0..1`。
+- `NullAudioBackend` 只验证意图、句柄和诊断，不声明真实出声。
+
+## 16. Combat 战斗模块
+
+Combat 当前落地的是确定性战斗物理查询和 kinematic motion。不要假定存在未实现的 `CombatWorld` 或完整动作系统；组合根应直接装配 `CombatPhysicsWorld`、查询对象和 `CombatKinematicMotor`。
+
+Physics Query 最小示例：
+
+```csharp
+using System.Collections.Generic;
+using MxFramework.Combat.Core;
+using MxFramework.Combat.Physics;
+using MxFramework.Core.Math;
+
+var world = new CombatPhysicsWorld();
+world.UpsertBody(new CombatPhysicsBody(
+    new CombatEntityId(1),
+    new CombatBodyId(1),
+    FixVector3.Zero));
+world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+    new CombatBodyId(1),
+    new CombatColliderId(1),
+    layer: 1,
+    localMin: new FixVector3(-Fix64.Half, -Fix64.Half, -Fix64.Half),
+    localMax: new FixVector3(Fix64.Half, Fix64.Half, Fix64.Half)));
+
+var header = new CombatQueryHeader(
+    queryId: 1,
+    kind: CombatQueryKind.Aabb,
+    sourceEntityId: CombatEntityId.None,
+    traceId: 0,
+    actionId: 0,
+    sourceOrder: 0,
+    layerMask: CombatPhysicsLayerMask.FromLayer(1));
+var query = new CombatAabbQuery(
+    header,
+    new FixVector3(Fix64.FromInt(-2), Fix64.FromInt(-2), Fix64.FromInt(-2)),
+    new FixVector3(Fix64.FromInt(2), Fix64.FromInt(2), Fix64.FromInt(2)));
+
+var hits = new List<CombatQueryResult>();
+int hitCount = world.Query(CombatPhysicsQuery.From(query), hits);
+```
+
+Motion 最小示例：
+
+```csharp
+using MxFramework.Combat.Core;
+using MxFramework.Combat.Motion;
+using MxFramework.Core.Math;
+
+var motor = new CombatKinematicMotor(CombatMotionConfig.Default);
+var state = new CombatMotionState(
+    CombatFrame.Zero,
+    FixVector3.Zero,
+    FixVector3.Zero,
+    grounded: true,
+    lastCollisionNormal: FixVector3.Zero,
+    collisionFlags: CombatMotionCollisionFlags.None);
+var input = new CombatMotionInput(
+    new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+    jumpPressed: false);
+
+CombatMotionStepResult step = motor.Step(state, input);
+CombatMotionState nextState = step.State;
+```
+
+约定：
+
+- `CombatPhysicsWorld` 只注册已落地的 body 和 AABB collider；查询结果按确定性规则排序。
+- `CombatKinematicMotor.Step(world, bodyId, state, input)` 可把移动结果同步回已注册 body。
+- Combat 使用 `Fix64` / `FixVector3`，不要在核心战斗逻辑中直接读 Unity Physics。
+
+## 17. App / Scene Flow
+
+AppFlow 表达 App 状态流转；SceneFlow 串行编排场景加载。Runtime 层只使用稳定字符串 key，Unity 场景名或 path 由 Unity adapter / 项目组合根映射。
+
+AppFlow 状态注册和切换：
+
+```csharp
+using MxFramework.Runtime;
+
+var appFlow = new AppFlowController();
+appFlow.RegisterState(new SimpleAppState("Boot", tick =>
+{
+    tick.RequestTransition("Gameplay", "boot-complete");
+}));
+appFlow.RegisterState(new SimpleAppState("Gameplay"));
+
+AppFlowTransitionResult start = appFlow.Start("Boot", "launch");
+appFlow.Tick(frameIndex: 1, deltaTime: 1d / 60d, elapsedTime: 1d / 60d);
+appFlow.Tick(frameIndex: 2, deltaTime: 1d / 60d, elapsedTime: 2d / 60d);
+
+AppFlowSnapshot appSnapshot = appFlow.CaptureSnapshot();
+
+public sealed class SimpleAppState : IAppFlowState
+{
+    private readonly System.Action<AppFlowTickContext> _onTick;
+
+    public SimpleAppState(string stateId, System.Action<AppFlowTickContext> onTick = null)
+    {
+        StateId = stateId;
+        _onTick = onTick;
+    }
+
+    public string StateId { get; }
+    public void Enter(AppFlowStateContext context, AppFlowTransition transition) { }
+    public void Tick(AppFlowTickContext context) { _onTick?.Invoke(context); }
+    public void Exit(AppFlowStateContext context, AppFlowTransition transition) { }
+}
+```
+
+SceneFlow 加载示例：
+
+```csharp
+using MxFramework.Runtime;
+
+var sceneFlow = new SceneFlowController(new ImmediateSceneFlowDriver(), "Boot");
+SceneFlowResult accepted = sceneFlow.RequestLoad(new SceneFlowRequest(
+    "Gameplay",
+    SceneFlowLoadMode.Single,
+    unloadPreviousScene: true));
+sceneFlow.Tick();
+SceneFlowSnapshot sceneSnapshot = sceneFlow.CaptureSnapshot();
+
+public sealed class ImmediateSceneFlowDriver : ISceneFlowDriver
+{
+    public ISceneFlowOperation LoadScene(SceneFlowRequest request)
+    {
+        return new DoneSceneFlowOperation(request.SceneKey);
+    }
+
+    public ISceneFlowOperation UnloadScene(string sceneKey)
+    {
+        return new DoneSceneFlowOperation(sceneKey);
+    }
+}
+
+public sealed class DoneSceneFlowOperation : ISceneFlowOperation
+{
+    public DoneSceneFlowOperation(string sceneKey)
+    {
+        SceneKey = sceneKey;
+    }
+
+    public string SceneKey { get; }
+    public bool IsDone => true;
+    public float Progress => 1f;
+    public bool Success => true;
+    public SceneFlowError Error => SceneFlowError.None;
+}
+```
+
+约定：
+
+- 状态在自身 `Tick` 中只请求 pending transition，真正 `Exit` / `Enter` 在下一次 `Tick` 开始执行。
+- SceneFlow busy 时会拒绝新的 load request；调用方读取 `SceneFlowResult.Error` 做 UI 或日志。
+- Unity 项目中使用 `UnitySceneFlowDriver`，但 `MxFramework.Runtime` 本身不引用 `SceneManager`。
+
+## 18. Diagnostics 诊断
+
+Diagnostics 模块用 `IFrameworkDebugSource` 暴露只读快照。Editor、工具和运行时 HUD 读取 snapshot，不直接读模块私有字段。
+
+```csharp
+using System.Collections.Generic;
+using MxFramework.Diagnostics;
+
+IFrameworkDebugSource source = new RuntimeCounterDebugSource("runtime-counter", 42);
+if (source.IsAvailable)
+{
+    FrameworkDebugSnapshot snapshot = source.CreateSnapshot();
+    string report = FrameworkDebugReportExporter.ExportText(snapshot);
+}
+
+public sealed class RuntimeCounterDebugSource : IFrameworkDebugSource
+{
+    private readonly int _value;
+
+    public RuntimeCounterDebugSource(string name, int value)
+    {
+        Name = name;
+        _value = value;
+    }
+
+    public string Name { get; }
+    public FrameworkDebugMode Mode => FrameworkDebugMode.Runtime;
+    public bool IsAvailable => true;
+
+    public FrameworkDebugSnapshot CreateSnapshot()
+    {
+        return new FrameworkDebugSnapshot(
+            Name,
+            Mode,
+            new List<FrameworkDebugSection>
+            {
+                new FrameworkDebugSection("Counters", "Value=" + _value)
+            });
+    }
+}
+```
+
+约定：
+
+- Snapshot 是只读调试报告，不是 SaveState、网络协议或可写命令入口。
+- 可写调试操作要另设 command API，不要塞进 `FrameworkDebugSection.Body`。
+- 游戏层在组合根中持有 debug source 列表，框架不提供全局 registry。
+
+## 19. Gameplay Component Runtime
+
+Gameplay Component Runtime 使用 generation-safe `GameplayEntityId`、`GameplayComponentWorld`、component store 和 system pipeline。下面示例用 spawn definition 创建实体，并注册一个自定义 system 读取同一个 `ComponentWorld`。
+
+```csharp
+using System.Collections.Generic;
+using MxFramework.Gameplay;
+using MxFramework.Runtime;
+
+const int ActorDefinitionId = 1001;
+
+var world = new GameplayComponentWorld();
+GameplayCoreComponentSchemaDescriptors.RegisterDiagnostics(world.Schemas);
+
+var spawnRegistry = new GameplayComponentSpawnRegistry();
+spawnRegistry.Register(new GameplayComponentSpawnDefinition(
+    ActorDefinitionId,
+    "example.actor",
+    schemaVersion: 1,
+    initializers: new IGameplayComponentSpawnInitializer[]
+    {
+        new GameplayComponentSpawnInitializer<GameplayIdentityComponent>(
+            GameplayCoreComponentSchemaDescriptors.IdentityStableId,
+            new GameplayIdentityComponent(ActorDefinitionId)),
+        new GameplayComponentSpawnInitializer<GameplayTeamComponent>(
+            GameplayCoreComponentSchemaDescriptors.TeamStableId,
+            new GameplayTeamComponent(1)),
+        new GameplayComponentSpawnInitializer<GameplayLifecycleComponent>(
+            GameplayCoreComponentSchemaDescriptors.LifecycleStableId,
+            GameplayLifecycleComponent.Alive)
+    }));
+
+var commandBuffer = new RuntimeCommandBuffer();
+var module = new GameplayRuntimeModule(
+    new GameplayWorld(),
+    new GameplayAbilityRegistry(),
+    commandBuffer,
+    tickWorldAutomatically: false,
+    configureDefaultPipeline: pipeline =>
+    {
+        pipeline.Add(new GameplayComponentSpawnCommandSystem(spawnRegistry));
+        pipeline.Add(new CountAliveSystem());
+    },
+    componentWorld: world);
+
+commandBuffer.Enqueue(GameplayRuntimeCommandFactory.SpawnComponentEntity(
+    RuntimeFrame.Zero,
+    ActorDefinitionId,
+    traceId: "spawn-actor"));
+module.Tick(new RuntimeTickContext(0, 0d, 0d, RuntimeTickStage.Simulation));
+
+GameplayEntityId entity = world.CreateEntitySnapshot()[0];
+GameplayComponentStore<GameplayTeamComponent> teams =
+    world.GetOrCreateStore<GameplayTeamComponent>();
+bool hasTeam = teams.TryGet(entity, out GameplayTeamComponent team);
+
+public sealed class CountAliveSystem : IGameplaySystem
+{
+    public string SystemId => "example.count-alive";
+    public GameplaySystemPhase Phase => GameplaySystemPhase.Diagnostics;
+    public int Priority => 0;
+    public bool IsEnabled => true;
+
+    public void Tick(GameplaySystemContext context)
+    {
+        int alive = context.ComponentWorld.CountAlive;
+    }
+}
+```
+
+约定：
+
+- Component store 只接受 `GameplayEntityId`，不要用裸 int entity id 当 key。
+- Spawn definition 是组合根输入，不是 world state；SaveState 保存 spawn 后的实体和组件结果。
+- 自定义 system 通过 `GameplaySystemContext.ComponentWorld` 访问 component runtime，不直接 drain `RuntimeCommandBuffer`。
+
+## 20. 推荐组合根
 
 游戏层可以集中装配框架模块：
 
@@ -1431,7 +1825,7 @@ public sealed class GameFrameworkBootstrap
 
 组合根可以在 Unity `MonoBehaviour`、服务器入口或测试里创建。框架本身不提供全局单例。
 
-## 16. AI Agent 如何找文档
+## 21. AI Agent 如何找文档
 
 AI agent 进入项目后应按这个顺序读取：
 
@@ -1455,7 +1849,7 @@ AI agent 进入项目后应按这个顺序读取：
 - 不把运行时对象反向写回配置表。
 - 所有验证和沙盒结果都应能复制或导出报告。
 
-## 17. 提交前检查
+## 22. 提交前检查
 
 项目通用提交前流程见 `Docs/WORKFLOW.md`。每次改框架基础能力后至少确认：
 
