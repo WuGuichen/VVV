@@ -21,6 +21,7 @@ External package / vendor drop
   -> Assets/<Domain>/MxFramework/Samples/...     formal Unity project source assets
   -> Assets/Config/MxFramework/ResourceCatalogs/ generated or reviewed catalog JSON
   -> Generated runtime outputs                   bundles, catalogs, hashes, manifests
+  -> Assets/StreamingAssets/                     runtime file mirrors, including FMOD banks
   -> Runtime composition root                    ResourceManager + providers + preload
 ```
 
@@ -67,7 +68,7 @@ Directory roles:
 | `Assets/VFX/MxFramework/Samples/` | Formal authored VFX prefabs and support materials/textures. | VFX prefabs are direct `GameObject` entries; support assets dependency-only. |
 | `Assets/Audio/MxFramework/Samples/` | Formal Unity `AudioClip` samples. | Direct `AudioClip` entries for generic resource samples. |
 | `Assets/Config/MxFramework/ResourceCatalogs/` | Catalog JSON source/generated output reviewed by Editor validation. | Catalog files, not resources loaded as ordinary assets. |
-| `Assets/Config/MxFramework/ResourceProfiles/` | Variant/preload/resource profile config. | Config references `ResourceKey`, labels, and variants. |
+| `Assets/Config/MxFramework/ResourceProfiles/` | Variant fallback, preload group, retain policy, and provider profile config. These files reference Catalog entries by `ResourceKey`, labels, variants, and package IDs instead of duplicating Catalog address data. | Config references `ResourceKey`, labels, and variants. |
 | `FMOD/.../Build/Desktop/` | FMOD Studio authoring build output for desktop banks. | Audio/FMOD pipeline input/output, not generic `ResourceCatalogEntry` samples. |
 | `Assets/StreamingAssets/Master*.bank` | Unity runtime mirror for FMOD banks. | Loaded by FMOD runtime/settings, not by generic Resource Catalog in #63-#67. |
 | `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | FMOD Unity editor cache/generated metadata. | Versioning/refresh policy deferred to #68. |
@@ -96,7 +97,9 @@ Rules:
 - `domain` is one of the broad roots such as `art`, `ui`, `vfx`, or `audio`.
 - `category` describes the stable use group, such as `weapon`, `character`, `start_screen`, `status_aura`, or `magic_effect`.
 - `asset_name` is semantic and does not need to preserve source prefixes like `tex_` or `menu_` if they are only authoring noise.
-- Use `variant` for semantic variants (`normal`, `hover`, `burn`, `lightning`, `loop`) and still write the Catalog `variant` field when platform/quality/localization fallback is needed.
+- `asset_name` may include stable version or serial suffixes such as `generic_01`. These suffixes remain part of `ResourceKey.Id`.
+- Use the Catalog `variant` field only for runtime-resolved platform, quality, locale, or comparable fallback variants. Do not split stable asset names such as `generic_01` into the `variant` field.
+- Semantic state names such as `normal`, `hover`, `burn`, `lightning`, or `loop` may appear in `ResourceKey.Id` when they identify distinct authored assets. Use the Catalog `variant` field only when the resource manager should select among interchangeable variants of the same asset.
 - Type suffix is expressed by `ResourceKey.TypeId` / Catalog `type`, not by duplicating `.prefab`, `.texture`, or `.clip` into the key unless two resources would otherwise collide.
 
 Examples:
@@ -130,7 +133,7 @@ mxframework.samples.vfx.status_auras
 mxframework.samples.audio.magic_effects
 ```
 
-`providerData` should be provider-specific. For Editor Play Mode / serialized-reference demos, `providerData.assetPath` may point to a Unity asset path for validation. For bundles, use fields such as `bundleName`, `assetName`, `url`, or `cacheKey` according to the provider.
+`providerData` should be provider-specific. For Editor Play Mode / serialized-reference demos, `providerData.assetPath` may point to a Unity asset path for validation. For `assetBundle`, use `bundleName` and optionally `assetName` if the provider address does not already encode it. For `remoteBundle`, use `url`, `bundleName`, and `cacheKey`, with `hash` carrying the content checksum. For `streamingFile`, use a provider-owned relative path field such as `relativePath`; never store an absolute local machine path.
 
 ## Direct Keys vs Dependencies
 
@@ -179,45 +182,56 @@ This is FMOD Unity editor cache/generated metadata. #63 records it as current st
 
 ## Temporary Asset Mapping
 
-`Next issue` means the first issue that should act on the row. Later issues may validate the output.
+`Action` describes #64 behavior. `move` keeps the filename, `move+rename` changes path and filename, and `audit+rename` requires checking file content/import state before deciding the final filename.
 
-| Current path | Recommended formal path | ResourceKey / label | Type | Direct? | Next issue |
-| --- | --- | --- | --- | --- | --- |
-| `Assets/_TempImportedResources/Art/Models/Characters/Skeleton.fbx` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/Models/Skeleton.fbx` | `art.character.skeleton` if used as direct model-viewer sample; labels `package.mxframework.samples`, `domain.art`, `sample.characters` | `GameObject` / model asset | Conditional | #64 |
-| `Assets/_TempImportedResources/Art/Models/Characters/Materials/Skeleton.mat` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/Materials/Skeleton.mat` | Dependency of `art.character.skeleton` or future prefab | `Material` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Meshes/katana.fbx` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Meshes/katana.fbx` | Dependency of `art.weapon.katana.generic_01` | model asset | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Materials/mat_sword_generic01.mat` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/mat_sword_generic_01.mat` | Dependency of `art.weapon.katana.generic_01` | `Material` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Materials/phys_MetalSword.physicMaterial` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/phys_metal_sword.physicMaterial` | Dependency of `art.weapon.katana.generic_01` | `PhysicMaterial` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Textures/tex_sword_generic01_dif.png` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Textures/sword_generic_01_albedo.png` | Dependency of `art.weapon.katana.generic_01` | `Texture2D` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Textures/tex_sword_generic01_msk.png` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Textures/sword_generic_01_mask.png` | Dependency of `art.weapon.katana.generic_01` | `Texture2D` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Textures/tex_sword_generic01_nrm.png` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Textures/sword_generic_01_normal.png` | Dependency of `art.weapon.katana.generic_01` | `Texture2D` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Prefabs/Katana_Generic01.prefab` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Prefabs/Katana_Generic01.prefab` | `art.weapon.katana.generic_01`; labels `sample.katana`, `domain.art` | `GameObject` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/menu_button_normal.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png` | `ui.start_screen.button.normal`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/menu_button_hover.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/button_hover.png` | `ui.start_screen.button.hover`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/separator_diamond_line.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/separator_diamond_line.png` | `ui.start_screen.separator.diamond_line`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_archive_book.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_archive_book.png` | `ui.start_screen.icon.archive_book`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_continue_hourglass.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_continue_hourglass.png` | `ui.start_screen.icon.continue_hourglass`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_exit_door.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_exit_door.png` | `ui.start_screen.icon.exit_door`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_settings_cog.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_settings_cog.png` | `ui.start_screen.icon.settings_cog`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Aura Burn.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Burn.prefab` | `vfx.status_aura.burn`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Aura Lightning.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Lightning.prefab` | `vfx.status_aura.lightning`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Aura Smoke.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Smoke.prefab` | `vfx.status_aura.smoke`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Stun.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Stun.prefab` | `vfx.status_aura.stun`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | #64 |
-| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Materials/**` | `Assets/VFX/MxFramework/Samples/StatusAuras/Materials/**` | Dependencies of `vfx.status_aura.*` | `Material` | No by default | #64 |
-| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Textures/**` | `Assets/VFX/MxFramework/Samples/StatusAuras/Textures/**` | Dependencies of `vfx.status_aura.*`; audit `3-Trail_ 1.tiff` | `Texture2D` | No by default | #64 |
-| `Assets/_TempImportedResources/Audio/MagicEffects/ExplosionFire1.ogg` | `Assets/Audio/MxFramework/Samples/MagicEffects/explosion_fire_1.ogg` | `audio.magic_effect.explosion_fire_1`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | #64 |
-| `Assets/_TempImportedResources/Audio/MagicEffects/ExplosionLightning3.wav` | `Assets/Audio/MxFramework/Samples/MagicEffects/explosion_lightning_3.wav` | `audio.magic_effect.explosion_lightning_3`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | #64 |
-| `Assets/_TempImportedResources/Audio/MagicEffects/LoopFire2.ogg` | `Assets/Audio/MxFramework/Samples/MagicEffects/loop_fire_2.ogg` | `audio.magic_effect.loop_fire_2`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | #64 |
-| `Assets/_TempImportedResources/Audio/MagicEffects/Wind.wav` | `Assets/Audio/MxFramework/Samples/MagicEffects/wind.wav` | `audio.magic_effect.wind`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | #64 |
-| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank` | Same path until #68 decides FMOD build output policy | FMOD bank, no generic ResourceKey in #63-#67 | FMOD bank | No | #68 |
-| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.strings.bank` | Same path until #68 decides FMOD build output policy | FMOD strings bank, no generic ResourceKey in #63-#67 | FMOD bank | No | #68 |
-| `Assets/StreamingAssets/Master.bank` | Same path as current runtime mirror until #68 | Runtime FMOD bank mirror, loaded by FMOD integration/backend | FMOD bank | No | #68 |
-| `Assets/StreamingAssets/Master.strings.bank` | Same path as current runtime mirror until #68 | Runtime FMOD strings bank mirror, loaded by FMOD integration/backend | FMOD bank | No | #68 |
-| `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | Same path until #68 decides cache/generated metadata policy | FMOD editor cache/generated metadata | Editor metadata | No | #68 |
+| Current path | Recommended formal path | ResourceKey / label | Type | Direct? | Action | Next issue |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Assets/_TempImportedResources/Art/Models/Characters/Skeleton.fbx` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/Models/Skeleton.fbx` | `art.character.skeleton` if used as direct model-viewer sample; labels `package.mxframework.samples`, `domain.art`, `sample.characters` | `GameObject` / model asset | Conditional | move | #64 |
+| `Assets/_TempImportedResources/Art/Models/Characters/Materials/Skeleton.mat` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/Materials/Skeleton.mat` | Dependency of `art.character.skeleton` or future prefab | `Material` | No by default | move | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Meshes/katana.fbx` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Meshes/katana.fbx` | Dependency of `art.weapon.katana.generic_01` | model asset | No by default | move | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Materials/mat_sword_generic01.mat` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/mat_sword_generic_01.mat` | Dependency of `art.weapon.katana.generic_01` | `Material` | No by default | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Materials/phys_MetalSword.physicMaterial` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/phys_metal_sword.physicMaterial` | Dependency of `art.weapon.katana.generic_01` | `PhysicMaterial` | No by default | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Textures/tex_sword_generic01_dif.png` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Textures/sword_generic_01_albedo.png` | Dependency of `art.weapon.katana.generic_01` | `Texture2D` | No by default | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Textures/tex_sword_generic01_msk.png` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Textures/sword_generic_01_mask.png` | Dependency of `art.weapon.katana.generic_01` | `Texture2D` | No by default | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Textures/tex_sword_generic01_nrm.png` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Textures/sword_generic_01_normal.png` | Dependency of `art.weapon.katana.generic_01` | `Texture2D` | No by default | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Prefabs/Katana_Generic01.prefab` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Prefabs/Katana_Generic01.prefab` | `art.weapon.katana.generic_01`; labels `sample.katana`, `domain.art` | `GameObject` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/menu_button_normal.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png` | `ui.start_screen.button.normal`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/menu_button_hover.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/button_hover.png` | `ui.start_screen.button.hover`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/separator_diamond_line.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/separator_diamond_line.png` | `ui.start_screen.separator.diamond_line`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_archive_book.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_archive_book.png` | `ui.start_screen.icon.archive_book`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_continue_hourglass.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_continue_hourglass.png` | `ui.start_screen.icon.continue_hourglass`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_exit_door.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_exit_door.png` | `ui.start_screen.icon.exit_door`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/Textures/UI/StartScreen/icon_settings_cog.png` | `Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_settings_cog.png` | `ui.start_screen.icon.settings_cog`; labels `sample.start_screen`, `domain.ui` | `Texture2D` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Aura Burn.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Burn.prefab` | `vfx.status_aura.burn`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Aura Lightning.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Lightning.prefab` | `vfx.status_aura.lightning`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Aura Smoke.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Smoke.prefab` | `vfx.status_aura.smoke`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Prefabs/Stun.prefab` | `Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Stun.prefab` | `vfx.status_aura.stun`; labels `sample.status_auras`, `domain.vfx` | `GameObject` | Yes | move | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Materials/**` | `Assets/VFX/MxFramework/Samples/StatusAuras/Materials/**` | Dependencies of `vfx.status_aura.*` | `Material` | No by default | move | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Textures/**` | `Assets/VFX/MxFramework/Samples/StatusAuras/Textures/**` excluding `3-Trail_ 1.tiff` | Dependencies of `vfx.status_aura.*` | `Texture2D` | No by default | move | #64 |
+| `Assets/_TempImportedResources/Art/VFX/StatusAuras/Textures/3-Trail_ 1.tiff` | `Assets/VFX/MxFramework/Samples/StatusAuras/Textures/trail_01.<verified-extension>` | Dependency of `vfx.status_aura.*`; audit extension/content mismatch before final path | `Texture2D` | No by default | audit+rename | #64 |
+| `Assets/_TempImportedResources/Audio/MagicEffects/ExplosionFire1.ogg` | `Assets/Audio/MxFramework/Samples/MagicEffects/explosion_fire_1.ogg` | `audio.magic_effect.explosion_fire_1`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Audio/MagicEffects/ExplosionLightning3.wav` | `Assets/Audio/MxFramework/Samples/MagicEffects/explosion_lightning_3.wav` | `audio.magic_effect.explosion_lightning_3`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Audio/MagicEffects/LoopFire2.ogg` | `Assets/Audio/MxFramework/Samples/MagicEffects/loop_fire_2.ogg` | `audio.magic_effect.loop_fire_2`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
+| `Assets/_TempImportedResources/Audio/MagicEffects/Wind.wav` | `Assets/Audio/MxFramework/Samples/MagicEffects/wind.wav` | `audio.magic_effect.wind`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
+| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank` | Same path until #68 decides FMOD build output policy | FMOD bank, no generic ResourceKey in #63-#67 | FMOD bank | No | keep/audit | #68 |
+| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.strings.bank` | Same path until #68 decides FMOD build output policy | FMOD strings bank, no generic ResourceKey in #63-#67 | FMOD bank | No | keep/audit | #68 |
+| `Assets/StreamingAssets/Master.bank` | Same path as current runtime mirror until #68 | Runtime FMOD bank mirror, loaded by FMOD integration/backend | FMOD bank | No | keep/audit | #68 |
+| `Assets/StreamingAssets/Master.strings.bank` | Same path as current runtime mirror until #68 | Runtime FMOD strings bank mirror, loaded by FMOD integration/backend | FMOD bank | No | keep/audit | #68 |
+| `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | Same path until #68 decides cache/generated metadata policy | FMOD editor cache/generated metadata | Editor metadata | No | keep/audit | #68 |
 
 ## Catalog Entry Shape
 
-Issue #65 should generate or hand-author Catalog entries only after #64 has moved/audited import settings. Example shape:
+Issue #65 should generate or hand-author Catalog entries only after #64 has moved/audited import settings.
+
+Address conventions:
+
+- `assetBundle` and `remoteBundle` entries use `bundleName|assetPath` unless a provider implementation explicitly documents a different address parser.
+- `memory` entries may use any stable in-memory address, but Editor Play Mode sample entries should also include `providerData.assetPath` for `AssetDatabase` validation.
+- `streamingFile` entries should use a provider-owned relative path under `Application.streamingAssetsPath`, not an absolute path.
+- `hash` and `size` are generated/build-report fields. Hand-authored draft entries may leave `hash` empty and `size` as `0`; bundle/remote build tools should fill them before release validation.
+- `allowOverride=false` means this entry cannot silently replace a lower-layer entry with the same `id + type + variant`. Set it to `true` only for explicit package override scenarios, and keep the type stable.
+
+Example shape:
 
 ```json
 {
@@ -240,10 +254,60 @@ Issue #65 should generate or hand-author Catalog entries only after #64 has move
       "providerData": {
         "bundleName": "mxframework.samples.art.weapons.katana"
       }
+    },
+    {
+      "id": "ui.start_screen.button.normal",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "assetBundle",
+      "address": "mxframework.samples.ui.start_screen|Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
+      "labels": ["package.mxframework.samples", "domain.ui", "sample.start_screen"],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "bundleName": "mxframework.samples.ui.start_screen"
+      }
+    },
+    {
+      "id": "audio.magic_effect.explosion_fire_1",
+      "type": "AudioClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "assetBundle",
+      "address": "mxframework.samples.audio.magic_effects|Assets/Audio/MxFramework/Samples/MagicEffects/explosion_fire_1.ogg",
+      "labels": ["package.mxframework.samples", "domain.audio", "sample.magic_effects"],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "bundleName": "mxframework.samples.audio.magic_effects"
+      }
+    },
+    {
+      "id": "debug.material.katana.sword_generic_01",
+      "type": "Material",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "debug/material/katana/sword_generic_01",
+      "labels": ["package.mxframework.samples", "domain.art", "debug.authoring"],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/mat_sword_generic_01.mat"
+      }
     }
   ]
 }
 ```
+
+The `Material` entry above is intentionally marked as a debug/authoring example. Katana runtime gameplay should normally request the prefab and let materials/textures load as dependencies.
 
 Editor Play Mode demos may use `memory` provider plus `providerData.assetPath` when they bind serialized Unity objects. Player-facing samples should move toward AssetBundle / Streaming / RemoteBundle providers instead of relying on `memory` or `resources`.
 
