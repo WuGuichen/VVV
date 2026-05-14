@@ -20,7 +20,9 @@ WGame 当前配置数据不是单一来源，至少包含：
 - bytes 运行时或资源产物。
 - SaveData JSON/bytes 存档数据。
 
-这些来源混合了“权威编辑源”“运行时导出产物”“存档数据”和“工具缓存”。下一步不能直接选择一种格式覆盖全部数据，必须先区分数据职责。
+这些来源混合了"权威编辑源""运行时导出产物""存档数据"和"工具缓存"。下一步不能直接选择一种格式覆盖全部数据，必须先区分数据职责。
+
+> **本文涉及的 AI 概念属于 AIAction Config 域**（旧 WGame AI 行为配置数据的审计），部分涉及 Runtime AI Planner（WGame GOAP 行为树的来源分析）。详见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
 
 下一轮关系审计见 `Docs/WGAME_DATA_RELATION_AUDIT.md`。当前最关键的结论是：WGame 的真实配置结构依赖跨源引用链路，尤其是 `TbAIAction -> SplitAIActionData -> SplitAbilityData`、`TbCharacterAI -> SplitAIConfigData -> SplitAIActionData`、`TbBuff -> SplitBuffData` 和 `TbTalentTree.param1/param2` 多态引用。
 

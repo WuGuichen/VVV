@@ -380,7 +380,9 @@ namespace MxFramework.Editor
 └──────────────────────────────────────────┘
 ```
 
-### 4.4 AIEditor
+### 4.4 Runtime AI Planner Editor（AIEditor）
+
+> **本文的 AI 指 Runtime AI Planner**。不包含 AIAction Config、Authoring AI Assist 或 Development Agent。
 
 ```
 [Interfaces Tab]

@@ -1,5 +1,8 @@
 # AIAction Migration Pilot 03: Dry-Run Field Map
 
+> **域**: AIAction Config — 旧 WGame AI 行为配置的 dry-run 字段映射验证。
+> **不包含**: Runtime AI Planner、Authoring AI Assist、Development Agent。
+
 > **Status**: Implemented / Compile checked
 > **Priority**: P1
 > **Parent**: `AI_ACTION_MIGRATION_PILOT_02_REAL_DATA_ENTRY.md`

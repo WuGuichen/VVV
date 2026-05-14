@@ -191,7 +191,7 @@ Unity asmdef 不能被外部 dotnet SDK 项目直接 `ProjectReference`，而 Ru
 --containers A,B
 ```
 
-### 4. AI Agent 友好
+### 4. Development Agent 友好
 
 命令成功后建议输出一行机器可读摘要：
 

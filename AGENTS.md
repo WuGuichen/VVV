@@ -38,6 +38,12 @@
 - Runtime 代码不引用 `UnityEditor`。
 - 纯 C# Core / Config / Events / Attributes / Modifiers / Buffs 默认不引用 `UnityEngine`。
 - 外部主创工具、CLI、AI 接入层不能被 Unity Editor 绑死。
+- **AI 命名约束**：不允许单独使用 "AI" 一词作为可交付物、文档标题或任务名称。必须带以下限定词之一：
+  - **Runtime AI Planner** — `MxFramework.AI` 模块的游戏内行为决策引擎
+  - **AIAction Config** — 旧 WGame AI 行为配置数据迁移
+  - **Authoring AI Assist** — LLM 辅助创作编辑功能
+  - **Development Agent** — Gitea Issue / 分支 / PR 工作流
+  四域定义见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
 - 不提交本地工具缓存、个人插件状态、分析临时脚本，除非用户明确要求。
 
 ## 推荐工作流

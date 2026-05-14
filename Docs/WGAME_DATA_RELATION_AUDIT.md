@@ -4,6 +4,8 @@
 > Owner: Framework Producer / Codex Review
 > Last Verified: 2026-05-09
 >
+> **本文涉及的 AI 概念属于 AIAction Config 域**（旧 WGame AI 行为配置数据的跨源引用审计）。不包含 Runtime AI Planner、Authoring AI Assist 或 Development Agent。详见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
+>
 > Fact Conclusions: 本文冻结跨源引用链路和关系校验结果，尤其是 `TbAIAction -> AIActionGraph -> AbilityGraph`、`TbCharacterAI -> AIConfig`、`TbBuff -> BuffGraph` 与 `TalentTree(effectType,effectId)` 多态引用。
 >
 > Pending Confirmation: `FatOgre_3` 缺失、Skill/Buff Graph-only 分类、MapGraph 拆分和字符串 AI 配置名治理仍需迁移试点或 WGame 项目层确认；本文不把这些待确认项静默视为通过。

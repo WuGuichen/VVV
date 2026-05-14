@@ -251,7 +251,7 @@ catalog + loadout + loadPlan + mergeResult -> snapshot
 - overrides: configType + id 升序。
 - errors/warnings: source + message 升序。
 
-### 3. AI 友好字段
+### 3. Authoring AI Assist 友好字段
 
 字段名要直接，不要依赖 UI 文本：
 

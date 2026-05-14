@@ -1,5 +1,8 @@
 # AIAction Migration Pilot 02: Real Data Entry Design
 
+> **域**: AIAction Config — 旧 WGame AI 行为配置数据的真实数据迁移入口设计。
+> **不包含**: Runtime AI Planner、Authoring AI Assist、Development Agent。
+
 > Status: Planned / Ready for implementation
 > Owner: Framework Producer / Codex
 > Created: 2026-05-09

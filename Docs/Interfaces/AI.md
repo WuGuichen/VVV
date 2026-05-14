@@ -1,4 +1,8 @@
-# AI 接口
+# Runtime AI Planner 接口
+
+> **本文的 AI 指 Runtime AI Planner**，即 `MxFramework.AI` 模块的游戏内轻量行为决策引擎。
+> 不包含 AIAction 配置数据迁移（AIAction Config）、LLM 辅助创作（Authoring AI Assist）或开发 Agent 工作流（Development Agent）。
+> 参见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
 
 ## 职责
 

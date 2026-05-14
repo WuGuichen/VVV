@@ -1,5 +1,8 @@
 # AIAction Migration Pilot 04: Dry-Run Reference Report
 
+> **域**: AIAction Config — 旧 WGame AI 行为配置的 dry-run 引用验证报告。
+> **不包含**: Runtime AI Planner、Authoring AI Assist、Development Agent。
+
 > **Status**: Implemented / Target compile checked
 > **Priority**: P1
 > **Parent**: `AI_ACTION_MIGRATION_PILOT_02_REAL_DATA_ENTRY.md`

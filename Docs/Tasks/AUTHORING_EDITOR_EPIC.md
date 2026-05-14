@@ -1,5 +1,12 @@
 # 大开发需求：外部主创编辑器体系
 
+> **本文涉及两个 AI 域**：
+> - **Authoring AI Assist**（所有"AI 辅助"、"AI 建议"、"AI 上下文"相关描述）—— LLM 辅助编辑配置数据的功能
+> - **Development Agent**（"AI agent"、"CI 和 AI agent"相关描述）—— Gitea Issue / 分支 / PR 工作流中的自动化代理
+> 
+> 不包含 Runtime AI Planner（游戏内 NPC 决策引擎）或 AIAction Config（WGame 配置数据迁移）。
+> 四域定义见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
+
 > **状态**: 🟢 持续推进中（子需求清单见下方）
 
 ## 背景

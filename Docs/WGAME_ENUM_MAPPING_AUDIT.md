@@ -1,5 +1,7 @@
 # WGame 枚举映射审计
 
+> **本文涉及的 AI 概念属于 AIAction Config 域**（GOAPWorldKey/GOAPCompareType/GOAPEffectType 等 AI 行为配置枚举的审计）。详见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
+
 > Status: Frozen for Phase 9 closeout input
 > Owner: Framework Producer / Codex Review
 > Last Verified: 2026-05-09
@@ -57,7 +59,7 @@ enumId
 - `weapon.Type` 和 `AI.FunctionTag` 是 flags，编辑器应使用多选，而不是普通下拉框。
 - `auto` 值必须在迁移器中显式展开，否则不同工具可能计算不一致。
 
-## 3. Ability / AI / Buff 常量域
+## 3. Ability / AIAction Config / Buff 常量域
 
 | Domain | Kind | Source | Items |
 |---|---|---|---|

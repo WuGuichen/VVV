@@ -279,7 +279,7 @@ DamageEffect
 ApplyBuffEffect
 ```
 
-### 4. API 必须 AI 友好
+### 4. Development Agent 友好：API 必须 AI 友好
 
 类型名、字段名和文档必须让 AI Agent 不读实现也能判断用途。
 

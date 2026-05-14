@@ -133,7 +133,7 @@
 - 新增 `IAttributeModifierOwner`，让 Buff 通过接口清理属性修改器。
 - 去除 WGame 绑定：不依赖 `BuffIDs`、`WAttrType`、`BuffOwner`、Entitas、Luban、具体技能或状态类型。
 
-### 批次 6: AI 抽象
+### 批次 6: Runtime AI Planner 抽象
 **来源**: `WGame/Client/Assets/Scripts/ECS/GOAPAI/`
 **目标**: `MxFramework/AI/`
 **状态**: 📋 待开始
@@ -182,7 +182,7 @@
 - 支持把 `ConfigTableValidationReport` 转成 Editor/AI 友好的结构化问题列表。
 - 不绑定 Excel、CSV、Json、Luban 或 ScriptableObject，后续具体导入器只需适配到 `ConfigTable<T>`。
 
-### 批次 7: AI 轻量 Planner
+### 批次 7: Runtime AI Planner（AI 轻量 Planner）
 **目标**: `MxFramework/AI/`
 **状态**: ✅ 完成 v1
 

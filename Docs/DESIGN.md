@@ -83,7 +83,7 @@ MxFramework/
 │   ├── BuffBase            —— 通用 Buff 基类
 │   └── IBuffStackingPolicy —— 堆叠策略接口
 │
-├── AI/                AI 抽象层
+├── AI/                Runtime AI Planner 抽象层
 │   ├── IAiGoal             —— 目标接口
 │   ├── IAiAction           —— 行为接口
 │   ├── IAiSensor           —— 感知器接口
@@ -301,7 +301,7 @@ Editor      ← 所有模块（仅 Editor 程序集）
 - 属性修改器添加/移除 → `IAttributeModifierOwner`
 - 具体状态类型、技能效果、表现特效由游戏层实现，不进入框架层
 
-### 4.6 AI 层
+### 4.6 Runtime AI Planner 层
 
 **职责**: 轻量 AI 基础设施。提供事实、目标、动作、效果和规划器，不依赖第三方 AI 插件。
 

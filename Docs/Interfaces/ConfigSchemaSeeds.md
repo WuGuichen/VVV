@@ -1,6 +1,9 @@
-# Phase 9 Config Schema Seeds
+# Config Schema Seeds — AIAction Config 篇
 
-> Status: Phase 9 seed contract
+> **本文涉及的 AI 概念属于 AIAction Config 域**：即旧 WGame 的 AI 行为配置数据迁移（`AIActionIndex`/`AIActionGraph`/`AIConfig`/`AIConfigDefense`/`AIGoals`/`TbCharacterAI`）。
+> 不包含 Runtime AI Planner、Authoring AI Assist 或 Development Agent。
+
+> 版本 1.0 | Phase 9 seed contract
 > Owner: Framework Producer / Codex Review
 > Last Verified: 2026-05-09
 

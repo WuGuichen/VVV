@@ -724,7 +724,10 @@ dotnet run --project src/MxFramework.Authoring.Cli -- mod diagnose -c /path/to/M
 返回：`mx.modDiagnosticSnapshot.v1` JSON。
 实现上，CLI `mod diagnose` 与 EditorServer API 复用同一 `ModDiagnosticService.BuildSnapshot(...)`，避免双份诊断逻辑漂移。
 
-## 8. 配置编辑和 AI 辅助
+## 8. 配置编辑和 Authoring AI Assist（AI 辅助）
+
+> **本文的 AI 指 Authoring AI Assist**，即 LLM 辅助编辑配置数据的功能。
+> 不包含 Runtime AI Planner（游戏内 NPC 决策引擎）或 Development Agent（Gitea 自动化工作流）。
 
 `ConfigAuthoring` 是后续 Unity ConfigEditor 和 AI 生成配置表时的统一入口。
 
@@ -1102,7 +1105,9 @@ pipeline.TryAddModifier(200001, out IModifier modifier);
 
 如果游戏需要条件、效果或属性公式，仍然在游戏层创建具体 `IModifierCondition` / `IModifierEffect`，不要把业务逻辑写进框架配置类。
 
-## 12. AI 轻量 Planner
+## 12. Runtime AI Planner（AI 轻量 Planner）
+
+> **本文的 AI 指 Runtime AI Planner**。不包含 AIAction 配置数据、Authoring AI Assist 或 Development Agent 工作流。
 
 AI v1 是内置轻量基础设施，不需要第三方插件。
 
@@ -1827,7 +1832,7 @@ public sealed class GameFrameworkBootstrap
 
 组合根可以在 Unity `MonoBehaviour`、服务器入口或测试里创建。框架本身不提供全局单例。
 
-## 21. AI Agent 如何找文档
+## 21. Development Agent：AI Agent 如何找文档
 
 AI agent 进入项目后应按这个顺序读取：
 

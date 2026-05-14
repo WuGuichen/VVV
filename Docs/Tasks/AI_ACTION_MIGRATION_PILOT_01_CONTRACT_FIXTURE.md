@@ -1,5 +1,8 @@
 # AIAction Migration Pilot 01: Contract + Synthetic Fixture
 
+> **域**: AIAction Config — 旧 WGame AI 行为配置数据的迁移契约验证。
+> **不包含**: Runtime AI Planner、Authoring AI Assist、Development Agent。
+
 > Status: Implemented / Verified
 > Owner: Framework Producer / Codex
 > Last Verified: 2026-05-09

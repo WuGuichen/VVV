@@ -271,7 +271,9 @@
 
 **状态**: ✅ 完成 v1
 
-## Phase 7: AI 轻量 Planner
+## Phase 7: Runtime AI Planner（AI 轻量 Planner）
+
+> 本文的 AI 指 Runtime AI Planner。不包含 AIAction 配置迁移或 Authoring AI Assist 或 Development Agent。
 
 目标：提供不依赖插件的轻量 AI 基础设施，供游戏层参考 WGame GOAP 思路扩展。
 
@@ -413,7 +415,7 @@
 
 **状态**: ✅ 完成 v1
 
-## Phase 8.5: Config Issue List / AI Fix Context
+## Phase 8.5: Config Issue List / Authoring AI Assist Fix Context
 
 目标：把健康检测发现的问题变成可处理的明细，并生成 AI 可直接使用的修复上下文。
 

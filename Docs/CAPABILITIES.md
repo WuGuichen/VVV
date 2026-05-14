@@ -154,7 +154,7 @@
 
 ---
 
-## 3. AI 轻量规划系统
+## 3. Runtime AI Planner（运行时 AI 规划系统）
 
 | 能力 | 状态 | 关键 API | 对应模块 |
 |------|------|----------|----------|
@@ -386,8 +386,8 @@
 | App / Scene Flow 01 Foundation | ✅ v0.1 Foundation | `Tasks/APP_SCENE_FLOW_01_FOUNDATION.md` |
 | Breakout Runtime Showcase 01 | ✅ Runtime Validation v0.3 | `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md`；当前仓库未提交 Breakout 场景资产，不标记为 Playable |
 | Marble Maze Unity Physics Showcase 01 | ✅ playable | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` |
-| AI Assist 闭环 | 📋 | `Tasks/AUTHORING_EDITOR_04_AI_ASSIST.md` |
+| AI Assist 闭环（Authoring AI Assist） | 📋 | `Tasks/AUTHORING_EDITOR_04_AI_ASSIST.md` |
 | Mod/Dev 双模式 | 📋 | `Tasks/AUTHORING_EDITOR_05_MOD_DEV_MODES.md` |
 | Unity Bridge 导出 | 📋 | `Tasks/AUTHORING_EDITOR_06_UNITY_BRIDGE.md` |
 | Runtime Preview 03.5 closeout | 🔄 | `Tasks/AUTHORING_EDITOR_10_RUNTIME_PREVIEW_03_5_REAL_GAMEPLAY_LOOP.md` |
-| AIAction 迁移试点准备 | 🔄 Pilot 01 verified, Pilot 02 planned | `Tasks/AI_ACTION_MIGRATION_PILOT_02_REAL_DATA_ENTRY.md` |
+| AIAction 迁移试点准备（AIAction Config） | 🔄 Pilot 01 verified, Pilot 02 planned | `Tasks/AI_ACTION_MIGRATION_PILOT_02_REAL_DATA_ENTRY.md` |

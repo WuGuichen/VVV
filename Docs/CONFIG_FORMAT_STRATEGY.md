@@ -1,5 +1,7 @@
 # 配置源与运行时格式策略
 
+> **本文涉及的 AI 概念属于 AIAction Config 域**（AIAction/AIConfig/Buff 的配置格式策略）。详见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
+
 > Status: Frozen for Phase 9 closeout input
 > Owner: Framework Producer / Codex Review
 > Last Verified: 2026-05-09
@@ -343,7 +345,7 @@ scan source
 - `config_precommit.txt`
 - `config_report_index.txt`
 
-## 10. AI Agent 修改流程
+## 10. Development Agent：AI Agent 修改流程
 
 AI Agent 修改配置时必须遵循：
 

@@ -1,4 +1,7 @@
-# 子需求 04：AI 辅助闭环
+# 子需求 04：Authoring AI Assist（AI 辅助闭环）
+
+> **本文的 AI 指 Authoring AI Assist**，即大语言模型辅助编辑配置数据的工具功能。
+> 不包含 Runtime AI Planner（游戏内 NPC 决策引擎）、AIAction Config 迁移或 Development Agent 工作流。
 
 > **状态**: 📋 规划中（详情见 `Docs/CAPABILITIES.md`）
 
@@ -15,7 +18,7 @@ AI 只读取当前步骤所需上下文：
 - 引用摘要。
 - 运行时预览日志。
 
-## AI 能力
+## Authoring AI Assist 能力
 
 必须支持：
 
@@ -35,7 +38,7 @@ AI 只读取当前步骤所需上下文：
 - 要求完整 Unity 项目源码。
 - 输出大段与当前步骤无关的架构分析。
 
-## AI 上下文包
+## Authoring AI Assist 上下文包
 
 建议包含：
 
