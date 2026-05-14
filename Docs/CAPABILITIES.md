@@ -254,11 +254,11 @@
 | Runtime Foundation Showcase Path | ✅ v0.1 | `RuntimeAbilitySliceRunner` 通过 `RuntimeHost` 驱动 command drain、simulation tick、diagnostics/replay hash；HUD 手动按钮走 `RuntimeCommandBuffer`；Ability Slice 支持 SaveState 恢复 |
 | Tetris Runtime Validation | ✅ v0.1 | 纯 C# Tetris validation fixture 覆盖固定帧输入、gravity/lock/line clear、replay playback hash、hash mismatch 和 SaveState JSON roundtrip |
 | Tetris Playable Demo | ✅ v0.1 | `Assets/Scenes/TetrisRuntimeValidation.unity`，UI Toolkit UXML/USS 棋盘；键盘输入经 `RuntimeCommandBuffer` 进入 `RuntimeHost` 后推进 Tetris |
-| Breakout Runtime Showcase | ✅ v0.3 | 纯 C# Breakout validation fixture 覆盖连续运动、AABB 碰撞、关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、预发球滚动、按球拍位置发射方向、Replay hash、hash mismatch 和 SaveState JSON roundtrip |
-| Breakout Playable Demo | ✅ v0.3 | `Assets/Scenes/BreakoutBoot.unity` / `Assets/Scenes/BreakoutGameplay.unity`，UI Toolkit 菜单/HUD/GameOver；渲染砖块类型和多球；AppFlow 表达 Boot/Menu/Loading/Gameplay/GameOver，SceneFlow 提供加载进度诊断 |
+| Breakout Runtime Validation | ✅ v0.3 | 纯 C# Breakout validation fixture 覆盖连续运动、AABB 碰撞、关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、预发球滚动、按球拍位置发射方向、Replay hash、hash mismatch 和 SaveState JSON roundtrip |
+| Breakout Playable Demo | 待补齐场景 | 当前仓库保留 `BreakoutPlayableDemo` / `BreakoutAppFlowDemo` / UI Toolkit 资产，但 Breakout 场景资产尚未提交，因此不标记为 Playable |
 | Marble Maze Playable Demo | ✅ v0.1 playable | `Assets/Scenes/MarbleMazeBoot.unity` / `Assets/Scenes/MarbleMazeGameplay.unity`，Unity Physics 作为 Rigidbody/Collider 边界权威；输入经 `DefaultInputService` / `InputSnapshot` 转为 `RuntimeCommandBuffer` tilt 命令；RuntimeHost 记录 physics sample/checkpoint、计时、诊断 hash、Replay playback 和 SaveState JSON roundtrip |
 
-→ 场景：`Assets/Scenes/RuntimeVerticalSlice.unity`, `Assets/Scenes/TetrisRuntimeValidation.unity`, `Assets/Scenes/BreakoutBoot.unity`, `Assets/Scenes/BreakoutGameplay.unity`
+→ 场景：`Assets/Scenes/RuntimeVerticalSlice.unity`, `Assets/Scenes/TetrisRuntimeValidation.unity`
 → 运行器：`Demo/RuntimeVerticalSliceRunner.cs`, `Demo/GameplayComponentRuntime/GameplayComponentRuntimeShowcaseRunner.cs`, `Demo/Tetris/TetrisPlayableDemo.cs`, `Demo/Breakout/BreakoutPlayableDemo.cs`, `Demo/Breakout/BreakoutAppFlowDemo.cs`
 → UI：`Assets/UI/MxFramework/Showcase/GameplayShowcase.uxml`, `Assets/UI/MxFramework/Tetris/TetrisPlayableDemo.uxml`, `Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uxml`
 
