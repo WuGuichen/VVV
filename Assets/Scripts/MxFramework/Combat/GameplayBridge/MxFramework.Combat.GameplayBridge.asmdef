@@ -4,7 +4,8 @@
     "references": [
         "MxFramework.Combat",
         "MxFramework.Gameplay",
-        "MxFramework.Buffs"
+        "MxFramework.Buffs",
+        "MxFramework.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
