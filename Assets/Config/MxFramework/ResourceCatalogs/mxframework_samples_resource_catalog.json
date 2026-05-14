@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "mxframework.samples",
+  "packageId": "mxframework.samples",
+  "entries": [
+    {
+      "id": "art.weapon.katana.generic_01",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/weapon/katana/generic_01",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.katana",
+        "warmup.demo.combat"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Weapons/Katana/Prefabs/Katana_Generic01.prefab"
+      }
+    },
+    {
+      "id": "vfx.status_aura.burn",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/vfx/status_aura/burn",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.vfx",
+        "sample.status_auras",
+        "warmup.demo.combat",
+        "warmup.demo.status_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Burn.prefab"
+      }
+    },
+    {
+      "id": "vfx.status_aura.lightning",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/vfx/status_aura/lightning",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.vfx",
+        "sample.status_auras",
+        "warmup.demo.combat",
+        "warmup.demo.status_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Lightning.prefab"
+      }
+    },
+    {
+      "id": "vfx.status_aura.smoke",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/vfx/status_aura/smoke",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.vfx",
+        "sample.status_auras",
+        "warmup.demo.combat",
+        "warmup.demo.status_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Smoke.prefab"
+      }
+    },
+    {
+      "id": "vfx.status_aura.stun",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/vfx/status_aura/stun",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.vfx",
+        "sample.status_auras",
+        "warmup.demo.combat",
+        "warmup.demo.status_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Stun.prefab"
+      }
+    },
+    {
+      "id": "ui.start_screen.button.normal",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/button/normal",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png"
+      }
+    },
+    {
+      "id": "ui.start_screen.button.hover",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/button/hover",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_hover.png"
+      }
+    },
+    {
+      "id": "ui.start_screen.separator.diamond_line",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/separator/diamond_line",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/separator_diamond_line.png"
+      }
+    },
+    {
+      "id": "ui.start_screen.icon.archive_book",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/icon/archive_book",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_archive_book.png"
+      }
+    },
+    {
+      "id": "ui.start_screen.icon.continue_hourglass",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/icon/continue_hourglass",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_continue_hourglass.png"
+      }
+    },
+    {
+      "id": "ui.start_screen.icon.exit_door",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/icon/exit_door",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_exit_door.png"
+      }
+    },
+    {
+      "id": "ui.start_screen.icon.settings_cog",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/ui/start_screen/icon/settings_cog",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_settings_cog.png"
+      }
+    },
+    {
+      "id": "audio.magic_effect.explosion_fire_1",
+      "type": "AudioClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/audio/magic_effect/explosion_fire_1",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.audio",
+        "sample.magic_effects",
+        "warmup.demo.combat",
+        "warmup.demo.magic_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/explosion_fire_1.ogg"
+      }
+    },
+    {
+      "id": "audio.magic_effect.explosion_lightning_3",
+      "type": "AudioClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/audio/magic_effect/explosion_lightning_3",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.audio",
+        "sample.magic_effects",
+        "warmup.demo.combat",
+        "warmup.demo.magic_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/explosion_lightning_3.wav"
+      }
+    },
+    {
+      "id": "audio.magic_effect.loop_fire_2",
+      "type": "AudioClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/audio/magic_effect/loop_fire_2",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.audio",
+        "sample.magic_effects",
+        "warmup.demo.combat",
+        "warmup.demo.magic_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/loop_fire_2.ogg"
+      }
+    },
+    {
+      "id": "audio.magic_effect.wind",
+      "type": "AudioClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/audio/magic_effect/wind",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.audio",
+        "sample.magic_effects",
+        "warmup.demo.combat",
+        "warmup.demo.magic_effects"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/wind.wav"
+      }
+    }
+  ]
+}
