@@ -97,7 +97,7 @@
 | Goal | 说明 |
 |------|------|
 | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` | Marble Maze Framework Physics Showcase：已重构为框架物理权威，RuntimeHost 负责命令、计时、checkpoint、诊断 hash、Replay 和 SaveState JSON；Unity 场景对象只作为 view / input adapter。 |
-| `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Showcase：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState，并提供 `Assets/Scenes/BreakoutBoot.unity` / `Assets/Scenes/BreakoutGameplay.unity` 试玩入口。 |
+| `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Validation：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState。当前仓库未提交 Breakout 场景资产，因此不标记为 Playable。 |
 | `Tasks/TETRIS_RUNTIME_VALIDATION_01.md` | Tetris Runtime Validation：用纯 C# 经典小游戏验证 RuntimeHost、CommandBuffer、Replay playback hash、SaveState JSON roundtrip，并提供 `Assets/Scenes/TetrisRuntimeValidation.unity` 手动试玩入口。 |
 | `Tasks/APP_SCENE_FLOW_01_FOUNDATION.md` | App / Scene Flow Foundation：新增 App 状态流转、SceneFlow 串行加载、Unity SceneManager 适配和 RuntimeHost 模块入口。 |
 | `Tasks/PHASE11_RUNTIME_GAMEPLAY_GOAL.md` | Runtime Gameplay Foundation 已 Accepted / Closed；M1-M5 公共 API、配置驱动、诊断快照、配置变更和 Ability authoring contract 已收口。 |
@@ -228,7 +228,7 @@
 | 0.6.13 | 2026-05-11 | 新增 Input v0.1：Unity Input System 采集层上封装 `IInputProvider`、`InputSnapshot`、`InputCommandQueue`、上下文栈、重绑定和本地多人 `LocalUserInputAdapter` |
 | 0.6.11 | 2026-05-11 | Breakout Runtime Showcase 升级 v0.3：新增关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、反馈事件和 UI Toolkit 多球/砖块类型渲染 |
 | 0.6.10 | 2026-05-11 | Breakout Runtime Showcase 升级 v0.2：未发球时球在球拍上滚动，发球方向由球相对球拍位置决定，并补充 runtime 测试 |
-| 0.6.9 | 2026-05-11 | 新增 Breakout Runtime Showcase v0.1，用纯 C# 打砖块验证连续运动、AABB 碰撞、道具、Replay hash、SaveState JSON roundtrip，并新增 AppFlow / SceneFlow UI Toolkit 试玩场景 |
+| 0.6.9 | 2026-05-11 | 新增 Breakout Runtime Showcase v0.1，用纯 C# 打砖块验证连续运动、AABB 碰撞、道具、Replay hash、SaveState JSON roundtrip，并新增 AppFlow / SceneFlow UI Toolkit 试玩层代码；当前仓库未提交 Breakout 场景资产 |
 | 0.6.8 | 2026-05-11 | 新增 Tetris Runtime Validation v0.1，用纯 C# Tetris 验证 RuntimeHost、CommandBuffer、Replay playback hash、hash mismatch 和 SaveState JSON roundtrip，并新增 PlayMode 试玩场景 |
 | 0.6.7 | 2026-05-11 | 完成 App / Scene Flow v0.1 foundation，新增 noEngine AppFlow / SceneFlow 契约、RuntimeHost 模块和 Unity SceneManager 适配 |
 | 0.6.6 | 2026-05-10 | 完成 Runtime Foundation Core v0.1：新增 MxFramework.Runtime Host、Frame/Command/Replay、SaveState 契约、迁移管线、JSON roundtrip 和 Runtime 接口文档 |

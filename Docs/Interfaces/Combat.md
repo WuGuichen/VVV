@@ -1,66 +1,155 @@
 # Combat 接口
 
-Combat 模块提供 noEngine 的确定性战斗基础，包括固定帧、动作时间轴、动作运行态、物理查询和后续命中结算桥接。Runtime 逻辑不读取 Unity Animator、Unity Physics 或 `Time.deltaTime` 作为权威输入。
+> 状态：Combat Physics / Motion / Hit Resolve / RuntimeHost animation modules 已实现并有测试覆盖。本文记录当前源码中已经存在的 `MxFramework.Combat` 公开契约，不收录设计文档中尚未落地的 `CombatWorld`、`ActionSystem` 等草案类型。
 
-## Animation / Action Runtime
+## 职责
 
-| 类型 | 语义 |
-|------|------|
-| `CombatActionTimeline` | 静态动作时间轴，定义 `TotalFrames`、Startup / Active / Recovery 阶段、窗口和帧事件 |
-| `CombatActionRegistry` | 低频 timeline 注册表，按 action id 注册、查询和移除动作配置 |
-| `CombatActionRunner` | 动作运行时状态机，维护每个 `CombatEntityId` 当前动作、local frame、phase 和单调 `ActionInstanceId` |
-| `ActionResult` | 可恢复操作结果；成功路径返回 instance id，失败路径提供诊断 reason |
-| `ActionStartedEvent` / `ActionPhaseChangedEvent` / `ActionFinishedEvent` / `ActionCanceledEvent` / `ActionCancelRejectedEvent` | runner 显式回调事件 payload |
-| `ICombatActionTraceProvider` | 动作状态到外部 `WeaponTraceFrame` 配置的查询接口 |
-| `CombatActionTimelineTraceProvider` | 默认 trace 注册表，按 `(actionId, localFrame)` 注册和查询武器轨迹 |
-| `ActionStateToHitTargetAdapter` | 将 `CombatActionRunner` 的无敌 / 振刀 / 霸体窗口查询桥接为 `HitTargetStateFlags` |
-| `CombatWeaponTraceEvaluator` | 读取 active action，构造 capsule query，调用 `CombatPhysicsWorld` 并输出 `HitCandidate` |
-| `CombatHitCollector` | 基于 `WeaponHitOnceKey` 去重并按 `HitCandidate.CompareTo` 稳定排序候选 |
-| `ICombatAnimationContext` / `CombatAnimationContext` | RuntimeHost 模块间共享 ActionRunner、上一帧 hit candidates 和 diagnostics snapshot 的组合根上下文 |
-| `CombatActionRuntimeModule` | RuntimeHost `Simulation` 阶段模块，创建并推进 `CombatActionRunner` |
-| `CombatWeaponTraceRuntimeModule` | RuntimeHost `PostSimulation` 阶段模块，调用 `CombatWeaponTraceEvaluator` 和 `CombatHitCollector` 输出上一帧候选 |
-| `CombatAnimationDiagnosticsModule` | RuntimeHost `Diagnostics` 阶段模块，输出 `CombatAnimationSnapshot` |
-| `CombatAnimationSnapshot` | 动作运行时诊断摘要，包含 running action、active phase、hit candidate 计数和 frame index |
-| `ICombatAnimatorDriver` / `CombatAnimationUnityModule` | Runtime.Unity 表现适配入口，订阅 `CombatActionRunner` 事件并按 `CombatEntityId` 路由到 Unity driver |
-| `CombatAnimatorDriver` / `CombatAnimatorMapping` | Unity Animator 表现驱动和 ActionId 到 Animator state 的 ScriptableObject 映射 |
-| `ICombatEntityPoseSource` / `CombatTransformDriver` | Unity Transform 跟随适配；pose source 由游戏层或组合根注入，不由 Combat Runtime Core 提供 |
+Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算、角色运动和诊断能力。它不依赖 `UnityEngine.Physics`、`Animator` 或场景对象；Unity 侧只能作为表现、authoring 或调试入口。
 
-`StartAction(entityId, actionId, currentFrame)` 在实体没有动作时直接启动；实体已有动作时只在当前动作的 `Cancel` window 允许 `nextActionId` 时替换，否则返回失败并发布拒绝事件。`ForceStartAction` 和 `ForceCancel` 是调试或外部强制状态切换入口，不参与普通取消规则。
+核心边界：
+- `MxFramework.Combat` 引用 `MxFramework.Core` 和 `MxFramework.Runtime`，`noEngineReferences=true`。
+- `MxFramework.Combat.GameplayBridge` 是独立桥接层，负责把命中结果转成 Gameplay / Buff 侧可消费的事件。
+- `Combat.Authoring` 和 `Combat.Editor` 不属于运行时契约；本文只在测试入口中标注它们的验证路径。
 
-查询 API：
+## 公开接口概览
+
+| 分组 | 公开类型 | 用途 |
+|------|----------|------|
+| Core | `CombatFrame` / `CombatFrameClock` / `CombatStepConfig` | 固定帧时钟、步进配置和帧推进 |
+| Core | `CombatEntityId` / `CombatBodyId` / `CombatColliderId` | 稳定 ID 值对象 |
+| Core | `CombatSortKey` / `CombatHash` | 稳定排序和诊断 hash |
+| Physics | `CombatPhysicsWorld` | noEngine 战斗物理世界，管理 body / AABB collider / query |
+| Physics | `CombatPhysicsBody` / `CombatPhysicsAabbCollider` / `CombatPhysicsWorldStats` | 物理世界状态和统计 |
+| Physics | `CombatPhysicsShape` / `CombatPhysicsShapeKind` / `CombatPhysicsLayerMask` | 查询形状和层过滤 |
+| Physics | `CombatRayQuery` / `CombatSphereQuery` / `CombatCapsuleQuery` / `CombatAabbQuery` / `CombatSectorQuery` | 已落地的查询 DTO |
+| Physics | `CombatPhysicsQuery` / `CombatQueryHeader` / `CombatPhysicsQueryFilter` / `CombatQueryKind` / `CombatQueryResult` | 统一查询契约和稳定结果 |
+| Physics | `CombatPhysicsQueryBatch` / `CombatPhysicsQueryBatchResult` | 批量查询输入和结果 |
+| Physics Diagnostics | `CombatPhysicsQueryDebugReport` / `CombatPhysicsQueryDebugSummary` / `CombatPhysicsQueryDebugRow` / `CombatPhysicsQueryDebugRowStatus` | 查询 explain / broadphase / filter / hit 诊断 |
+| Motion | `CombatKinematicMotor` | 固定帧运动、重力、跳跃、碰撞阻挡和可选物理世界同步 |
+| Motion | `CombatMotionState` / `CombatMotionInput` / `CombatMotionConfig` / `CombatMotionStepResult` | 运动状态、输入、配置和步进结果 |
+| Motion | `CombatMotionCapsuleProxy` / `CombatMotionCollision` / `CombatMotionCollisionFlags` | capsule proxy 与运动碰撞摘要 |
+| Hit | `HitResolveSystem` | 对命中候选执行稳定排序、hit-once、防友伤和目标状态过滤 |
+| Hit | `HitCandidate` / `HitResolveResult` / `HitResolveKind` / `HitTargetStateFlags` | 命中候选、结算结果、结果类型和目标状态 flags |
+| Hit | `ITeamRelationProvider` / `IHitTargetStateResolver` / `ICombatEventDispatcher` | 队伍关系、目标状态和命中事件派发扩展点 |
+| Animation | `CombatActionTimeline` / `CombatActionWindow` / `CombatFrameRange` / `CombatActionWindowKind` | 动作时间轴、窗口和帧范围 |
+| Animation | `CombatActionRunner` / `CombatActionRegistry` / `CombatActionInstance` / `CombatActionState` / `CombatActionPhase` | 动作注册、运行、状态和阶段 |
+| Animation | `ActionResult` / `ActionStartedEvent` / `ActionPhaseChangedEvent` / `ActionFinishedEvent` / `ActionCanceledEvent` / `ActionCancelRejectedEvent` | 动作运行结果和生命周期事件 |
+| Animation | `ICombatAnimationContext` / `CombatAnimationContext` / `CombatAnimationSnapshot` | 动作系统可读写上下文和快照 |
+| Animation Runtime | `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` | `RuntimeHost` 模块化动作、武器轨迹和诊断推进 |
+| Weapon Trace | `WeaponTraceFrame` / `WeaponTraceSegment` / `WeaponHitOnceKey` / `CombatWeaponTraceEvaluator` / `WeaponTraceQueryBuilder` | 武器轨迹采样、查询构建和 hit-once key |
+| Trace Provider | `ICombatActionTraceProvider` / `CombatActionTimelineTraceProvider` | 从动作时间轴读取 weapon trace |
+| Diagnostics | `CombatDebugSnapshot` / `CombatDebugSnapshotBuilder` / `CombatHitExplain` / `CombatQueryTrace` | 运行时可读诊断快照和命中 explain |
+| Replay | `CombatReplayInput` / `CombatReplayRecorder` / `CombatDesyncDump` | replay 输入记录和 desync dump |
+| Gameplay Bridge | `CombatGameplayEventBridge` | 将 Combat 命中结果桥接到 Gameplay / Buff 侧 |
+
+## Physics v0
+
+`CombatPhysicsWorld` 是当前战斗物理权威入口。已实现能力：
+- `UpsertBody` / `RemoveBody` / `TryGetBody` / `MoveBody` / `SetBodyPosition` / `Clear`。
+- `UpsertAabbCollider` / `RemoveCollider` / `TryGetAabbCollider`。
+- `Query` 支持 Ray、Sphere、Capsule、AABB、Sector；OBB 当前显式返回不支持。
+- `QueryBatch` 按 query header 和 source index 稳定排序。
+- `ExplainQuery` 输出 raw candidate、dedup、post-filter、hit / miss / filtered row 和 broadphase cell 统计。
+- `CopyBodiesTo` / `CopyAabbCollidersTo` 提供稳定排序快照。
+- `Revision` / `CreateStats()` 用于生命周期和诊断变更检测。
+
+查询结果排序遵守源码中的稳定比较：query header、distance、target entity、body、collider 等字段确定性排序，避免依赖集合插入顺序。
+
+## Motion v1
+
+`CombatKinematicMotor` 是当前 noEngine 角色运动入口。它消费 `CombatMotionState` 和 `CombatMotionInput`，输出 `CombatMotionStepResult`。
+
+已实现能力：
+- 固定帧水平移动、重力、跳跃、最大下落速度和 grounded 判定。
+- `CombatMotionCapsuleProxy` 作为 capsule 角色代理。
+- 通过 `CombatPhysicsWorld` 查询障碍，并按 `CombatMotionCollisionFlags` 报告 Grounded、Wall、Ceiling、BlockedX/Y/Z、IterationLimit。
+- 可选把运动结果同步回 `CombatPhysicsWorld.SetBodyPosition`。
+
+## Hit Resolve v0
+
+`HitResolveSystem` 对 `HitCandidate` 执行结算，调用方提供 consumed hit-once key set 和结果列表。
+
+已实现能力：
+- hit-once 去重，重复命中输出 `HitResolveKind.Duplicate`。
+- owner / self damage 防护。
+- `ITeamRelationProvider` 支持 same-team / friendly / hostile 判定和 friendly fire 配置。
+- `IHitTargetStateResolver` 支持动态目标状态覆盖候选状态。
+- `HitTargetStateFlags` 支持 Alive、Invincible、Parrying、Blocking、SuperArmor 等状态过滤。
+- `ICombatEventDispatcher` 可接收 resolved / blocked 事件。
+
+## Action / RuntimeHost 模块
+
+动作运行时使用 `CombatActionTimeline`、`CombatActionRunner` 和 `CombatAnimationContext`，并通过 RuntimeHost 模块接入统一 tick：
+- `CombatActionRuntimeModule` 推进动作状态。
+- `CombatWeaponTraceRuntimeModule` 根据动作时间轴和 trace provider 生成武器轨迹查询。
+- `CombatAnimationDiagnosticsModule` 输出动作 / trace / hit 诊断快照。
+
+默认模块位于 RuntimeHost 阶段中运行，具体 priority 和组合根由 Demo / 项目层配置。动作系统不读取 Unity Animator 状态作为权威。
+
+## 最小使用示例
 
 ```csharp
-CombatActionState? GetActionState(CombatEntityId entityId);
-CombatActionPhase GetCurrentPhase(CombatEntityId entityId);
-int GetActionInstanceId(CombatEntityId entityId);
-bool IsInCancelWindow(CombatEntityId entityId, int nextActionId);
-bool IsInInvincibleWindow(CombatEntityId entityId);
-bool IsInParryWindow(CombatEntityId entityId);
-bool IsInSuperArmorWindow(CombatEntityId entityId);
-CombatActionState[] GetRunningActions();
+using System.Collections.Generic;
+using MxFramework.Combat.Core;
+using MxFramework.Combat.Physics;
+using MxFramework.Core.Math;
+
+var world = new CombatPhysicsWorld();
+var entityId = new CombatEntityId(1);
+var bodyId = new CombatBodyId(10);
+var colliderId = new CombatColliderId(100);
+
+world.UpsertBody(new CombatPhysicsBody(entityId, bodyId, FixVector3.Zero));
+world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+    bodyId,
+    colliderId,
+    layer: 0,
+    new FixVector3(Fix64.FromInt(-1), Fix64.Zero, Fix64.FromInt(-1)),
+    new FixVector3(Fix64.One, Fix64.FromInt(2), Fix64.One)));
+
+var header = new CombatQueryHeader(
+    queryId: 1,
+    kind: CombatQueryKind.Ray,
+    sourceEntityId: CombatEntityId.None,
+    traceId: 0,
+    actionId: 0,
+    sourceOrder: 0,
+    layerMask: CombatPhysicsLayerMask.All);
+
+var query = CombatPhysicsQuery.From(new CombatRayQuery(
+    header,
+    new FixVector3(Fix64.FromInt(-4), Fix64.One, Fix64.Zero),
+    new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+    Fix64.FromInt(10)));
+
+var results = new List<CombatQueryResult>();
+world.Query(query, results);
 ```
 
-## 约束
+## 测试入口
 
-- `MxFramework.Combat` 保持 `noEngineReferences=true`。
-- `CombatActionRunner.TickActions` 由调用方按固定帧推进；表现层只能消费状态和事件。
-- `ActionInstanceId` 是每次启动动作递增的运行时 id，可用于后续 `WeaponHitOnceKey` 去重。
-- `CombatWeaponTraceEvaluator` 默认把目标状态写为 `HitTargetStateFlags.Alive`，避免后续 `HitResolveSystem` 将未注入状态的候选误判为 dead；游戏层可通过构造函数注入目标状态解析函数。
-- RuntimeHost 集成使用预注册服务模式：调用方在创建 Host 前通过 `RuntimeHostOptions.Services.Register<T>()` 注册 `ICombatAnimationContext`、`CombatPhysicsWorld`、`CombatActionRegistry` 和 `ICombatActionTraceProvider`；模块 `Initialize` 阶段只通过 `context.Services.Get<T>()` 获取依赖，不修改 Runtime service registry 接口。
-- `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` 分别使用 `Simulation` / `PostSimulation` / `Diagnostics`，依靠 RuntimeHost stage + priority 稳定排序，不要求单个模块跨 stage tick。
-- Combat Animation RuntimeHost 模块按标准 Host 生命周期使用：`Initialize -> Start -> Tick* -> Stop -> Dispose`。`Stop` 用于取消当前运行动作并清空本模块帧缓存；如果需要重新开始一轮 combat animation runtime，应重新创建 Host 或重新执行组合根初始化流程，而不是在 `Dispose` 后继续 tick 同一组模块。
-- Runtime.Unity 的 Combat 表现适配只消费 action lifecycle 事件和外部注入的 pose；它可以驱动 Animator / Transform，但不得把 Animator 时间或 Transform 位置反向写回权威 Combat Runtime。
+主要测试目录：`Assets/Scripts/MxFramework/Tests/Combat/`
 
-## Hit Resolve
+当前已存在的测试入口包括：
+- `Tests/Combat/Core/CombatFrameClockTests.cs`
+- `Tests/Combat/Core/CombatHashTests.cs`
+- `Tests/Combat/Core/CombatSortKeyTests.cs`
+- `Tests/Combat/Physics/CombatPhysicsWorldTests.cs`
+- `Tests/Combat/Physics/CombatPhysicsBroadphaseTests.cs`
+- `Tests/Combat/Physics/CombatQueryContractTests.cs`
+- `Tests/Combat/Motion/CombatKinematicMotorTests.cs`
+- `Tests/Combat/Animation/CombatActionRunnerTests.cs`
+- `Tests/Combat/Animation/CombatActionTimelineTests.cs`
+- `Tests/Combat/Animation/CombatAnimationRuntimeModuleTests.cs`
+- `Tests/Combat/Animation/CombatWeaponTraceEvaluatorTests.cs`
+- `Tests/Combat/Diagnostics/CombatDiagnosticsTests.cs`
+- `Tests/Combat/GameplayBridge/CombatGameplayEventBridgeTests.cs`
 
-| 类型 | 语义 |
-|------|------|
-| `HitCandidate` | 武器轨迹 / 物理查询产出的命中候选，携带 attacker / target / action / trace / frame / target state 和结算排序权重 |
-| `HitResolveSystem` | 稳定排序候选，执行 hit-once 去重、owner 防护、阵营过滤、动态目标状态过滤和伤害结果生成 |
-| `HitResolveResult` | 结构化结算结果，包含 attacker / target / action / trace / frame、`HitResolveKind`、damage、stagger 和 knockback |
-| `HitResolveKind` | 结算结果枚举；`SelfDamage` 表示 attacker 命中自身，`Friendly` 表示友方 / 同队且未开启友伤 |
-| `ITeamRelationProvider` | 游戏层阵营关系查询接口，提供 hostile / friendly / same-team 判断 |
-| `IHitTargetStateResolver` | 动态目标状态解析接口，用于结算时从运行时状态覆盖 `HitCandidate.TargetState` |
-| `ICombatEventDispatcher` | 命中结算事件派发接口，接收所有 resolved result，并对 blocked result 提供独立回调 |
+Authoring / Editor 相关测试位于 `Tests/Combat/Authoring/`，但不改变运行时接口边界。
 
-`HitResolveSystem.Resolve(candidates, consumedHitOnceKeys, results)` 保持旧签名不变。新增重载允许传入 `ITeamRelationProvider`、`IHitTargetStateResolver`，以及 `allowFriendlyFire`。默认不允许 friendly fire；当 provider 判定双方非 hostile 且 same-team / friendly 时输出 `HitResolveKind.Friendly`。`SetEventDispatcher` 是可选注入点，未设置时结算保持纯结果列表输出。
+## 不支持
+
+- 不提供通用 3D rigidbody、摩擦、堆叠、弹性、关节或布娃娃模拟。
+- 不把 Unity Animator、AnimationClip、Timeline、Physics.Raycast 或 Rigidbody 作为权威运行时输入。
+- 不迁移 WGame 具体角色、技能、元素体系或真实 Buff 配置。
+- 不声明 `Docs/COMBAT_ANIMATION_PHYSICS.md` 中尚未落地的草案 API 为当前接口。

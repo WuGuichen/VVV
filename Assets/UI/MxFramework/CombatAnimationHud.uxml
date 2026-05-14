@@ -20,5 +20,34 @@
             <ui:Label class="panel-title" text="Recent Events" />
             <ui:VisualElement name="event-list" />
         </ui:VisualElement>
+        <ui:VisualElement name="runtime-diagnostic-panel" class="hud-panel diagnostic-panel">
+            <ui:Label class="panel-title" text="Runtime Diagnostic" />
+            <ui:VisualElement class="diagnostic-grid">
+                <ui:VisualElement class="diagnostic-section">
+                    <ui:Label class="diagnostic-title" text="Action State" />
+                    <ui:VisualElement name="diagnostic-action-state-list" />
+                </ui:VisualElement>
+                <ui:VisualElement class="diagnostic-section">
+                    <ui:Label class="diagnostic-title" text="Hit Application" />
+                    <ui:VisualElement name="diagnostic-hit-application-list" />
+                </ui:VisualElement>
+                <ui:VisualElement class="diagnostic-section">
+                    <ui:Label class="diagnostic-title" text="Gameplay Attributes" />
+                    <ui:VisualElement name="diagnostic-gameplay-attribute-list" />
+                </ui:VisualElement>
+                <ui:VisualElement class="diagnostic-section">
+                    <ui:Label class="diagnostic-title" text="Bridge Map" />
+                    <ui:VisualElement name="diagnostic-bridge-map-list" />
+                </ui:VisualElement>
+                <ui:VisualElement class="diagnostic-section">
+                    <ui:Label class="diagnostic-title" text="Runtime Hash" />
+                    <ui:VisualElement name="diagnostic-runtime-hash-list" />
+                </ui:VisualElement>
+                <ui:VisualElement class="diagnostic-section">
+                    <ui:Label class="diagnostic-title" text="Event Queue" />
+                    <ui:VisualElement name="diagnostic-event-queue-list" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

@@ -194,7 +194,29 @@
 
 ---
 
-## 5. 运行时 Demo：打开 Unity 按 Play 就能看到效果
+## 5. Audio / FMOD 音频系统
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| noEngine 音频服务契约 | ✅ v0.1 | `IAudioService` / `AudioService` | Audio |
+| 可替换音频后端 | ✅ v0.1 | `IAudioBackend` / `NullAudioBackend` | Audio |
+| 稳定音频定义查询 | ✅ v0.1 | `IAudioDefinitionProvider` / `AudioEventDefinition` / `AudioBusDefinition` / `AudioParameterDefinition` | Audio |
+| 播放请求、句柄和结构化结果 | ✅ v0.1 | `AudioPlayRequest` / `AudioHandle` / `AudioResult` / `AudioPlayResult` | Audio |
+| 参数、Bus 音量和静音控制 | ✅ v0.1 | `SetParameter()` / `SetBusVolume()` / `SetBusMuted()` | Audio |
+| 音频诊断快照 | ✅ v0.1 | `AudioDebugSnapshot` / `AudioDebugActiveEvent` / `AudioDebugBusState` | Audio |
+| FMOD 后端运行时脚手架 | ✅ Runtime Scaffold | `FmodAudioBackend` / `FmodAudioBackendOptions` | Audio.FMOD |
+| RuntimeHost 音频 Tick 模块 | ✅ v0.1 | `AudioRuntimeModule` / `RuntimeTickStage.PostSimulation` | Audio.FMOD + Runtime |
+| FMOD 设置和 bank 校验工具 | ✅ v0.1 | `FmodAudioSetupValidator` / `FmodAudioSetupReport` | Audio.FMOD.Editor |
+
+→ 接口：`Interfaces/Audio.md`
+→ 设计：`AUDIO_SYSTEM_FMOD.md`
+→ 任务：`Tasks/AUDIO_FMOD_M1_CONTRACT.md`, `Tasks/AUDIO_FMOD_M2_BACKEND.md`, `Tasks/AUDIO_FMOD_M3_VALIDATION.md`
+→ 测试：`Tests/Audio/`
+→ **边界**: `MxFramework.Audio` 不依赖 `UnityEngine`、`UnityEditor`、`FMODUnity` 或 `FMOD.Studio`；FMOD 真实播放仍依赖项目提供 FMOD bank / event / bus 配置。
+
+---
+
+## 6. 运行时 Demo：打开 Unity 按 Play 就能看到效果
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -232,17 +254,17 @@
 | Runtime Foundation Showcase Path | ✅ v0.1 | `RuntimeAbilitySliceRunner` 通过 `RuntimeHost` 驱动 command drain、simulation tick、diagnostics/replay hash；HUD 手动按钮走 `RuntimeCommandBuffer`；Ability Slice 支持 SaveState 恢复 |
 | Tetris Runtime Validation | ✅ v0.1 | 纯 C# Tetris validation fixture 覆盖固定帧输入、gravity/lock/line clear、replay playback hash、hash mismatch 和 SaveState JSON roundtrip |
 | Tetris Playable Demo | ✅ v0.1 | `Assets/Scenes/TetrisRuntimeValidation.unity`，UI Toolkit UXML/USS 棋盘；键盘输入经 `RuntimeCommandBuffer` 进入 `RuntimeHost` 后推进 Tetris |
-| Breakout Runtime Showcase | ✅ v0.3 | 纯 C# Breakout validation fixture 覆盖连续运动、AABB 碰撞、关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、预发球滚动、按球拍位置发射方向、Replay hash、hash mismatch 和 SaveState JSON roundtrip |
-| Breakout Playable Demo | ✅ v0.3 | `Assets/Scenes/BreakoutBoot.unity` / `Assets/Scenes/BreakoutGameplay.unity`，UI Toolkit 菜单/HUD/GameOver；渲染砖块类型和多球；AppFlow 表达 Boot/Menu/Loading/Gameplay/GameOver，SceneFlow 提供加载进度诊断 |
+| Breakout Runtime Validation | ✅ v0.3 | 纯 C# Breakout validation fixture 覆盖连续运动、AABB 碰撞、关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、预发球滚动、按球拍位置发射方向、Replay hash、hash mismatch 和 SaveState JSON roundtrip |
+| Breakout Playable Demo | 待补齐场景 | 当前仓库保留 `BreakoutPlayableDemo` / `BreakoutAppFlowDemo` / UI Toolkit 资产，但 Breakout 场景资产尚未提交，因此不标记为 Playable |
 | Marble Maze Playable Demo | ✅ v0.1 playable | `Assets/Scenes/MarbleMazeBoot.unity` / `Assets/Scenes/MarbleMazeGameplay.unity`，Unity Physics 作为 Rigidbody/Collider 边界权威；输入经 `DefaultInputService` / `InputSnapshot` 转为 `RuntimeCommandBuffer` tilt 命令；RuntimeHost 记录 physics sample/checkpoint、计时、诊断 hash、Replay playback 和 SaveState JSON roundtrip |
 
-→ 场景：`Assets/Scenes/RuntimeVerticalSlice.unity`, `Assets/Scenes/TetrisRuntimeValidation.unity`, `Assets/Scenes/BreakoutBoot.unity`, `Assets/Scenes/BreakoutGameplay.unity`
+→ 场景：`Assets/Scenes/RuntimeVerticalSlice.unity`, `Assets/Scenes/TetrisRuntimeValidation.unity`
 → 运行器：`Demo/RuntimeVerticalSliceRunner.cs`, `Demo/GameplayComponentRuntime/GameplayComponentRuntimeShowcaseRunner.cs`, `Demo/Tetris/TetrisPlayableDemo.cs`, `Demo/Breakout/BreakoutPlayableDemo.cs`, `Demo/Breakout/BreakoutAppFlowDemo.cs`
 → UI：`Assets/UI/MxFramework/Showcase/GameplayShowcase.uxml`, `Assets/UI/MxFramework/Tetris/TetrisPlayableDemo.uxml`, `Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uxml`
 
 ---
 
-## 6. Unity Editor 工具
+## 7. Unity Editor 工具
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -256,9 +278,9 @@
 
 ---
 
-## 7. 外部 Buff 创作（独立于 Unity）
+## 8. 外部 Buff 创作（独立于 Unity）
 
-### 6.1 Authoring Core / CLI
+### 8.1 Authoring Core / CLI
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -278,7 +300,7 @@
 | Mod Diagnostic CLI | ✅ v0.1 | `mod diagnose` — 包发现/加载计划/合并诊断 → JSON 快照；支持 `--container`/`-c`、`--loadout`、`--output`、`--pretty`、`--fail-on-warning`；退出码 0/2/5/1 |
 | Mod Diagnostic Service | ✅ v0.2 | `ModDiagnosticService.BuildSnapshot(...)` 由 CLI 与 EditorServer 共用 |
 
-### 6.2 Buff 编辑器 Web UI
+### 8.2 Buff 编辑器 Web UI
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -294,7 +316,7 @@
 → 使用说明：`AUTHORING_EDITOR_USAGE.md`
 → 目录：`Tools/MxFramework.Authoring/samples/buff-preview/`
 
-### 6.3 Unity Preview Server
+### 8.3 Unity Preview Server
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -305,7 +327,7 @@
 
 ---
 
-## 8. Combat 确定性物理 / 动作运行时
+## 9. Combat 确定性物理 / 动作运行时
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -320,7 +342,7 @@
 
 ---
 
-## 9. WGame 数据审计（框架设计依据）
+## 10. WGame 数据审计（框架设计依据）
 
 | 文档 | 状态 | 覆盖内容 |
 |------|------|----------|
@@ -337,7 +359,7 @@
 
 ---
 
-## 9. Core 工具层
+## 11. Core 工具层
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -362,7 +384,7 @@
 | Runtime Foundation 03 SaveState | ✅ v0.1 Contract + Ability Showcase restore + SaveState orchestration；通用 Gameplay restore 接入待办 | `Tasks/RUNTIME_FOUNDATION_03_SAVE_STATE_SERIALIZATION.md`, `Tasks/RUNTIME_FOUNDATION_04C_SAVE_STATE_ORCHESTRATION.md` |
 | Runtime Foundation 04 v1 parallel closeout | ✅ Completed / Verified | `Tasks/RUNTIME_FOUNDATION_04_V1_PARALLEL_CLOSEOUT.md` |
 | App / Scene Flow 01 Foundation | ✅ v0.1 Foundation | `Tasks/APP_SCENE_FLOW_01_FOUNDATION.md` |
-| Breakout Runtime Showcase 01 | ✅ v0.3 Verified | `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` |
+| Breakout Runtime Showcase 01 | ✅ Runtime Validation v0.3 | `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md`；当前仓库未提交 Breakout 场景资产，不标记为 Playable |
 | Marble Maze Unity Physics Showcase 01 | ✅ playable | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` |
 | AI Assist 闭环 | 📋 | `Tasks/AUTHORING_EDITOR_04_AI_ASSIST.md` |
 | Mod/Dev 双模式 | 📋 | `Tasks/AUTHORING_EDITOR_05_MOD_DEV_MODES.md` |

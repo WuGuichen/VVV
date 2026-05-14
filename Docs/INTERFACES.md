@@ -1,6 +1,6 @@
 # MxFramework 接口索引
 
-> 版本 0.3.0 | 2026-05-05
+> 版本 0.3.1 | 2026-05-14
 >
 > 本文件只做接口导航、跨模块规则和依赖矩阵。具体模块接口不要继续堆在这里，必须拆到 `Docs/Interfaces/`。
 
@@ -25,6 +25,7 @@
 | Audio | `Docs/Interfaces/Audio.md` | `Assets/Scripts/MxFramework/Audio*/` | `Assets/Scripts/MxFramework/Tests/Audio/` |
 | AI | `Docs/Interfaces/AI.md` | `Assets/Scripts/MxFramework/AI/` | `Assets/Scripts/MxFramework/Tests/AI/` |
 | Diagnostics | `Docs/Interfaces/Diagnostics.md` | `Assets/Scripts/MxFramework/Diagnostics/` | `Assets/Scripts/MxFramework/Tests/Diagnostics/` |
+| Logging | `Docs/Interfaces/Logging.md` | `Assets/Scripts/MxFramework/Logging*/` | `Assets/Scripts/MxFramework/Tests/Logging/` |
 | Runtime | `Docs/Interfaces/Runtime.md` | `Assets/Scripts/MxFramework/Runtime/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
 | App / Scene Flow | `Docs/Interfaces/AppFlow.md` | `Assets/Scripts/MxFramework/Runtime*/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
 | Input | `Docs/Interfaces/Input.md` | `Assets/Scripts/MxFramework/Input/` | `Assets/Scripts/MxFramework/Tests/Input/` |
@@ -44,22 +45,25 @@
 `MxFramework.Input` 是 Unity 适配模块，依赖 Unity Input System；它不进入 noEngine 依赖矩阵，也不应被 Core / Runtime / Gameplay 等内层模块反向引用。游戏层、Demo 或本地多人组合根按需引用 `IInputProvider`。
 
 ```text
-                    Core  Events  Attr  Modif  Buffs  AI    Config  Resources  Diag  Runtime  Gameplay
-          Core      -     -       -     -      -      -     -       -          -     -        -
-          Events    ✓     -       -     -      -      -     -       -          -     -        -
-          Attr      ✓     ✓       -     -      -      -     -       -          -     -        -
-          Buffs     ✓     ✓       ✓     -      -      -     -       -          -     -        -
-          Modif     ✓     ✓       ✓     -      ✓*     -     -       -          -     -        -
-          AI        ✓     -       -     -      -      -     -       -          -     -        -
-          Config    ✓     -       -     -      -      -     -       -          -     -        -
-          Resources ✓     -       -     -      -      -     -       -          -     -        -
-          Diag      ✓     -       -     -      -      -     -       -          -     -        -
-          Runtime   -     -       -     -      -      -     -       -          -     -        -
-          Gameplay  ✓     ✓       ✓     ✓      ✓      -     -       -          -     -        -
-          Editor    ✓     ✓       ✓     ✓      ✓      ✓     ✓       ✓          ✓     ✓        ✓
+                    Core  Events  Attr  Modif  Buffs  AI    Config  Resources  Diag  Logging  Runtime  Gameplay
+          Core      -     -       -     -      -      -     -       -          -     -        -        -
+          Events    ✓     -       -     -      -      -     -       -          -     -        -        -
+          Attr      ✓     ✓       -     -      -      -     -       -          -     -        -        -
+          Buffs     ✓     ✓       ✓     -      -      -     -       -          -     -        -        -
+          Modif     ✓     ✓       ✓     -      ✓*     -     -       -          -     -        -        -
+          AI        ✓     -       -     -      -      -     -       -          -     -        -        -
+          Config    ✓     -       -     -      -      -     -       -          -     -        -        -
+          Resources ✓     -       -     -      -      -     -       -          -     -        -        -
+          Diag      ✓     -       -     -      -      -     -       -          -     -        -        -
+          Logging   ✓     -       -     -      -      -     -       -          -     -        -        -
+          Runtime   -     -       -     -      -      -     -       -          -     -        -        -
+          Gameplay  ✓     ✓       ✓     ✓      ✓      -     -       -          -     -        -        -
+          Editor    ✓     ✓       ✓     ✓      ✓      ✓     ✓       ✓          ✓     ✓        ✓        ✓
 
           ✓* = Modifiers → Buffs 只允许通过 IBuffPipeline 等接口访问。
 ```
+
+`MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。
 
 ## 总原则
 
