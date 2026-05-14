@@ -1,10 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using MxFramework.Combat.Animation;
 using MxFramework.Combat.Core;
+using MxFramework.Combat.GameplayBridge;
 using MxFramework.Combat.Hit;
 using MxFramework.Combat.Physics;
 using MxFramework.Core.Math;
+using MxFramework.Gameplay;
 using MxFramework.Input;
 using MxFramework.Runtime;
 using MxFramework.Runtime.Unity;
@@ -20,8 +23,6 @@ namespace MxFramework.Demo.CombatAnimation
         // Combat timelines are authored in action frames; 30 Hz keeps the demo attack durations readable in Play Mode.
         private const float FixedDeltaTime = 1f / 30f;
         private const float MoveSpeed = 3.2f;
-        private const int PlayerMaxHp = 100;
-        private const int DummyMaxHp = 100;
         private const int LightDamage = 15;
         private const int HeavyDamage = 30;
         private const int DodgeDamage = 0;
@@ -38,10 +39,21 @@ namespace MxFramework.Demo.CombatAnimation
 
         private readonly HashSet<WeaponHitOnceKey> _consumedHitOnceKeys = new HashSet<WeaponHitOnceKey>();
         private readonly List<HitResolveResult> _hitResults = new List<HitResolveResult>();
+        private readonly List<RuntimeCommand> _bridgeOutputCommands = new List<RuntimeCommand>();
+        private readonly List<GameplayRuntimeEvent> _gameplayEvents = new List<GameplayRuntimeEvent>();
         private readonly List<string> _eventLog = new List<string>();
         private readonly CombatAnimationHudModel _hudModel = new CombatAnimationHudModel();
 
         private RuntimeHost _host;
+        private GameplayWorld _gameplayWorld;
+        private GameplayComponentWorld _componentWorld;
+        private CombatEntityGameplayMap _entityMap;
+        private CombatTargetStateProvider _targetStateProvider;
+        private GameplayBridgeTargetStateResolver _targetStateResolver;
+        private GameplaySystemPipeline _bridgePipeline;
+        private GameplaySystemPipeline _attributeCommandPipeline;
+        private GameplayEntityId _playerGameplayId;
+        private GameplayEntityId _dummyGameplayId;
         private ICombatAnimationContext _animationContext;
         private CombatPhysicsWorld _physicsWorld;
         private CombatActionRegistry _actionRegistry;
@@ -50,8 +62,6 @@ namespace MxFramework.Demo.CombatAnimation
         private CombatDemoPoseSource _poseSource;
         private DemoInputToActionAdapter _inputAdapter;
         private HitResolveSystem _hitResolve;
-        private int _playerHp;
-        private int _dummyHp;
         private double _elapsed;
 
         public bool IsInitialized { get; private set; }
@@ -122,10 +132,14 @@ namespace MxFramework.Demo.CombatAnimation
             _traceProvider = new CombatActionTimelineTraceProvider();
             _poseSource = new CombatDemoPoseSource();
             _hitResolve = new HitResolveSystem();
-            _playerHp = PlayerMaxHp;
-            _dummyHp = DummyMaxHp;
+            _gameplayWorld = new GameplayWorld();
+            _componentWorld = new GameplayComponentWorld();
+            _entityMap = new CombatEntityGameplayMap();
+            _targetStateProvider = new CombatTargetStateProvider();
+            _targetStateResolver = new GameplayBridgeTargetStateResolver(_entityMap, _componentWorld, _targetStateProvider);
 
             RegisterActions(_actionRegistry, _traceProvider);
+            ConfigureGameplayBridge();
             ConfigureInitialPoses();
             RegisterPhysicsBodies();
 
@@ -154,8 +168,64 @@ namespace MxFramework.Demo.CombatAnimation
 
             _hud?.ConfigureAssets(_document, _visualTree, _styleSheet);
             IsInitialized = true;
-            AddEvent("Combat Animation demo initialized.");
+            AddEvent("Combat Animation bridge demo initialized.");
             RefreshHud();
+        }
+
+        private void ConfigureGameplayBridge()
+        {
+            _playerGameplayId = _componentWorld.CreateEntity();
+            _dummyGameplayId = _componentWorld.CreateEntity();
+
+            _entityMap.Register(CombatAnimationDemoIds.PlayerEntityId, _playerGameplayId);
+            _entityMap.Register(CombatAnimationDemoIds.DummyEntityId, _dummyGameplayId);
+
+            GameplayComponentStore<GameplayIdentityComponent> identityStore = _componentWorld.GetOrCreateStore<GameplayIdentityComponent>();
+            identityStore.Set(_playerGameplayId, new GameplayIdentityComponent(CombatAnimationDemoIds.PlayerDefinitionId));
+            identityStore.Set(_dummyGameplayId, new GameplayIdentityComponent(CombatAnimationDemoIds.DummyDefinitionId));
+
+            GameplayComponentStore<GameplayTeamComponent> teamStore = _componentWorld.GetOrCreateStore<GameplayTeamComponent>();
+            teamStore.Set(_playerGameplayId, new GameplayTeamComponent(CombatAnimationDemoIds.PlayerTeamId));
+            teamStore.Set(_dummyGameplayId, new GameplayTeamComponent(CombatAnimationDemoIds.DummyTeamId));
+
+            GameplayComponentStore<GameplayLifecycleComponent> lifecycleStore = _componentWorld.GetOrCreateStore<GameplayLifecycleComponent>();
+            lifecycleStore.Set(_playerGameplayId, GameplayLifecycleComponent.Alive);
+            lifecycleStore.Set(_dummyGameplayId, GameplayLifecycleComponent.Alive);
+
+            GameplayComponentStore<GameplayStatusComponent> statusStore = _componentWorld.GetOrCreateStore<GameplayStatusComponent>();
+            statusStore.Set(_playerGameplayId, new GameplayStatusComponent());
+            statusStore.Set(_dummyGameplayId, new GameplayStatusComponent());
+
+            GameplayComponentStore<GameplayAttributeSetComponent> attributeStore = _componentWorld.GetOrCreateStore<GameplayAttributeSetComponent>();
+            attributeStore.Set(
+                _playerGameplayId,
+                new GameplayAttributeSetComponent(new GameplayAttributeValue(
+                    CombatAnimationDemoIds.HpAttributeId,
+                    CombatAnimationDemoIds.PlayerMaxHp,
+                    CombatAnimationDemoIds.PlayerMaxHp)));
+            attributeStore.Set(
+                _dummyGameplayId,
+                new GameplayAttributeSetComponent(new GameplayAttributeValue(
+                    CombatAnimationDemoIds.HpAttributeId,
+                    CombatAnimationDemoIds.DummyMaxHp,
+                    CombatAnimationDemoIds.DummyMaxHp)));
+
+            _bridgePipeline = new GameplaySystemPipeline();
+            _bridgePipeline.Add(new CombatActionStateSyncSystem(
+                _entityMap,
+                _componentWorld,
+                QueryCombatActionState));
+            _bridgePipeline.Add(new CombatHitApplicationSystem(
+                _entityMap,
+                _componentWorld,
+                () => _hitResults,
+                CombatAnimationDemoIds.HpAttributeId,
+                _bridgeOutputCommands));
+
+            _attributeCommandPipeline = new GameplaySystemPipeline();
+            _attributeCommandPipeline.Add(new GameplayAttributeCommandSystem());
+
+            AddEvent($"Bridge map: player {_playerGameplayId} dummy {_dummyGameplayId}.");
         }
 
         private void ConfigureInitialPoses()
@@ -232,19 +302,95 @@ namespace MxFramework.Demo.CombatAnimation
         private void ResolveHits()
         {
             _hitResults.Clear();
-            _hitResolve.Resolve(_animationContext.LastFrameHitCandidates, _consumedHitOnceKeys, _hitResults);
+            _hitResolve.Resolve(_animationContext.LastFrameHitCandidates, _consumedHitOnceKeys, _hitResults, _targetStateResolver);
+            ApplyDemoActionDamage(_hitResults);
+            TickGameplayBridge(_inputService.Commands.CurrentFrame);
+
             for (int i = 0; i < _hitResults.Count; i++)
             {
                 HitResolveResult result = _hitResults[i];
-                if (result.Kind != HitResolveKind.Damage || !result.TargetId.Equals(CombatAnimationDemoIds.DummyEntityId))
+                string damage = result.IsAcceptedDamage ? $" damage={result.Damage}" : string.Empty;
+                AddEvent($"Hit {result.Kind}: action={ActionName(result.ActionId)} target={result.TargetId.Value}{damage}");
+            }
+        }
+
+        private void TickGameplayBridge(long frame)
+        {
+            _bridgeOutputCommands.Clear();
+            GameplaySystemContext bridgeContext = CreateGameplayContext(frame, Array.Empty<RuntimeCommand>());
+            _bridgePipeline.Tick(bridgeContext);
+
+            if (_bridgeOutputCommands.Count > 0)
+            {
+                GameplaySystemContext commandContext = CreateGameplayContext(frame, _bridgeOutputCommands);
+                _attributeCommandPipeline.Tick(commandContext);
+            }
+
+            DrainGameplayEvents(frame);
+        }
+
+        private GameplaySystemContext CreateGameplayContext(long frame, IReadOnlyList<RuntimeCommand> commands)
+        {
+            return new GameplaySystemContext(
+                new RuntimeFrame(frame),
+                FixedDeltaTime,
+                _elapsed,
+                _gameplayWorld,
+                commands,
+                _componentWorld.Events,
+                new GameplayCommandExecutionState(),
+                _componentWorld);
+        }
+
+        private void DrainGameplayEvents(long frame)
+        {
+            _gameplayEvents.Clear();
+            _componentWorld.DrainEvents(new RuntimeFrame(frame), _gameplayEvents);
+            for (int i = 0; i < _gameplayEvents.Count; i++)
+            {
+                GameplayRuntimeEvent evt = _gameplayEvents[i];
+                if (evt.Type == GameplayRuntimeEventType.ComponentAttributeChanged
+                    && evt.AttributeId == CombatAnimationDemoIds.HpAttributeId)
                 {
-                    AddEvent($"Hit {result.Kind}: action={ActionName(result.ActionId)} target={result.TargetId.Value}");
+                    string entityName = ResolveGameplayName(evt.ComponentEntityId);
+                    AddEvent($"Bridge HP: {entityName} {evt.OldAttributeValue}->{evt.NewAttributeValue} ({evt.AttributeDelta})");
+                    continue;
+                }
+
+                if (evt.Type == GameplayRuntimeEventType.CommandRejected)
+                {
+                    AddEvent($"Bridge rejected: {evt.Reason} trace={evt.TraceId}");
+                }
+            }
+        }
+
+        private static void ApplyDemoActionDamage(List<HitResolveResult> results)
+        {
+            for (int i = 0; i < results.Count; i++)
+            {
+                HitResolveResult result = results[i];
+                if (result.Kind != HitResolveKind.Damage || result.Damage > 0)
+                {
                     continue;
                 }
 
                 int damage = GetDamage(result.ActionId);
-                _dummyHp = Mathf.Max(0, _dummyHp - damage);
-                AddEvent($"Hit Damage: {ActionName(result.ActionId)} dealt {damage}. Dummy HP {_dummyHp}/{DummyMaxHp}");
+                if (damage <= 0)
+                {
+                    continue;
+                }
+
+                results[i] = new HitResolveResult(
+                    result.AttackerId,
+                    result.TargetId,
+                    result.ActionId,
+                    result.ActionInstanceId,
+                    result.TraceId,
+                    result.Frame,
+                    result.Kind,
+                    damage,
+                    result.StaggerFrames,
+                    result.Knockback);
             }
         }
 
@@ -255,19 +401,54 @@ namespace MxFramework.Demo.CombatAnimation
                 return;
             }
 
-            CombatActionState? state = _animationContext?.ActionRunner.GetActionState(CombatAnimationDemoIds.PlayerEntityId);
             CombatAnimationSnapshot? snapshot = _animationContext?.LastSnapshot;
-            _hudModel.PlayerAction = state.HasValue ? ActionName(state.Value.ActionId) : "Idle";
-            _hudModel.PlayerPhase = state.HasValue ? state.Value.Phase.ToString() : "None";
-            _hudModel.PlayerLocalFrame = state.HasValue ? state.Value.LocalFrame.ToString() : "-";
-            _hudModel.PlayerHp = $"{_playerHp}/{PlayerMaxHp}";
-            _hudModel.DummyHp = $"{_dummyHp}/{DummyMaxHp}";
+            CombatActionStateComponent actionState = ReadActionState(_playerGameplayId);
+            _hudModel.PlayerAction = actionState.IsActive ? ActionName(actionState.ActionId) : "Idle";
+            _hudModel.PlayerPhase = actionState.IsActive ? actionState.Phase.ToString() : "None";
+            _hudModel.PlayerLocalFrame = actionState.IsActive ? actionState.LocalFrame.ToString() : "-";
+            _hudModel.PlayerHp = FormatHp(_playerGameplayId, CombatAnimationDemoIds.PlayerMaxHp);
+            _hudModel.DummyHp = FormatHp(_dummyGameplayId, CombatAnimationDemoIds.DummyMaxHp);
             _hudModel.WeaponTrace = snapshot.HasValue
                 ? $"active={snapshot.Value.ActivePhaseCount} candidates={snapshot.Value.HitCandidateCount} frame={snapshot.Value.FrameIndex}"
                 : "waiting";
             _hudModel.Instructions = "WASD move | J light | K heavy | Space dodge";
             _hudModel.RecentEvents = _eventLog;
             _hud.Refresh(_hudModel);
+        }
+
+        private CombatActionState? QueryCombatActionState(CombatEntityId combatId)
+        {
+            if (_animationContext == null)
+            {
+                return null;
+            }
+
+            return _animationContext.ActionRunner.GetActionState(combatId);
+        }
+
+        private CombatActionStateComponent ReadActionState(GameplayEntityId entityId)
+        {
+            if (_componentWorld != null
+                && _componentWorld.TryGetStore(out GameplayComponentStore<CombatActionStateComponent> store)
+                && store.TryGet(entityId, out CombatActionStateComponent component))
+            {
+                return component;
+            }
+
+            return CombatActionStateComponent.Inactive();
+        }
+
+        private string FormatHp(GameplayEntityId entityId, int maxValue)
+        {
+            int currentValue = 0;
+            if (_componentWorld != null
+                && _componentWorld.TryGetStore(out GameplayComponentStore<GameplayAttributeSetComponent> store)
+                && store.TryGet(entityId, out GameplayAttributeSetComponent attributes))
+            {
+                currentValue = attributes.GetCurrentValueOrDefault(CombatAnimationDemoIds.HpAttributeId);
+            }
+
+            return $"{currentValue}/{maxValue}";
         }
 
         private void RegisterPhysicsBodies()
@@ -392,6 +573,50 @@ namespace MxFramework.Demo.CombatAnimation
         private static Fix64 ToFix(float value)
         {
             return Fix64.FromRatio(Mathf.RoundToInt(value * 1000f), 1000);
+        }
+
+        private string ResolveGameplayName(GameplayEntityId entityId)
+        {
+            if (_entityMap != null && _entityMap.TryGetCombatId(entityId, out CombatEntityId combatId))
+            {
+                if (combatId.Equals(CombatAnimationDemoIds.PlayerEntityId))
+                {
+                    return "Player";
+                }
+
+                if (combatId.Equals(CombatAnimationDemoIds.DummyEntityId))
+                {
+                    return "Dummy";
+                }
+
+                return "Combat " + combatId.Value;
+            }
+
+            return "Gameplay " + entityId;
+        }
+
+        private sealed class GameplayBridgeTargetStateResolver : IHitTargetStateResolver
+        {
+            private readonly CombatEntityGameplayMap _entityMap;
+            private readonly GameplayComponentWorld _componentWorld;
+            private readonly CombatTargetStateProvider _stateProvider;
+
+            public GameplayBridgeTargetStateResolver(
+                CombatEntityGameplayMap entityMap,
+                GameplayComponentWorld componentWorld,
+                CombatTargetStateProvider stateProvider)
+            {
+                _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+                _componentWorld = componentWorld ?? throw new ArgumentNullException(nameof(componentWorld));
+                _stateProvider = stateProvider ?? throw new ArgumentNullException(nameof(stateProvider));
+            }
+
+            public HitTargetStateFlags ResolveTargetState(CombatEntityId targetId)
+            {
+                return _entityMap.TryGetGameplayId(targetId, out GameplayEntityId gameplayId)
+                    ? _stateProvider.Evaluate(_componentWorld, gameplayId)
+                    : HitTargetStateFlags.None;
+            }
         }
     }
 }

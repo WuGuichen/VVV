@@ -44,6 +44,41 @@ namespace MxFramework.Tests.Combat.GameplayBridge
         }
 
         [Test]
+        public void Tick_AcceptedDamageCommandCanBeConsumedByAttributeCommandSystem()
+        {
+            var outputCommands = new List<RuntimeCommand>();
+            var world = new GameplayComponentWorld();
+            var map = new CombatEntityGameplayMap();
+            GameplayEntityId entityId = world.CreateEntity();
+            map.Register(Combat(20), entityId);
+            world.GetOrCreateStore<GameplayAttributeSetComponent>().Set(
+                entityId,
+                new GameplayAttributeSetComponent(new GameplayAttributeValue(HpAttributeId, 100, 100)));
+            var hitApplication = new CombatHitApplicationSystem(
+                map,
+                world,
+                () => new[] { Result(HitResolveKind.Damage, targetId: 20, damage: 12, traceId: 701) },
+                HpAttributeId,
+                outputCommands);
+            var attributeSystem = new GameplayAttributeCommandSystem();
+
+            hitApplication.Tick(CreateContext(world, frame: 7));
+            attributeSystem.Tick(CreateContext(world, outputCommands, frame: 7));
+
+            Assert.IsTrue(world.TryGetStore(out GameplayComponentStore<GameplayAttributeSetComponent> store));
+            Assert.IsTrue(store.TryGet(entityId, out GameplayAttributeSetComponent attributes));
+            Assert.AreEqual(88, attributes.GetCurrentValueOrDefault(HpAttributeId));
+            var events = new List<GameplayRuntimeEvent>();
+            Assert.AreEqual(1, world.DrainEvents(new RuntimeFrame(7), events));
+            Assert.AreEqual(GameplayRuntimeEventType.ComponentAttributeChanged, events[0].Type);
+            Assert.AreEqual(entityId, events[0].ComponentEntityId);
+            Assert.AreEqual(HpAttributeId, events[0].AttributeId);
+            Assert.AreEqual(100, events[0].OldAttributeValue);
+            Assert.AreEqual(88, events[0].NewAttributeValue);
+            Assert.AreEqual(-12, events[0].AttributeDelta);
+        }
+
+        [Test]
         public void Tick_DamageZeroSkips()
         {
             var outputCommands = new List<RuntimeCommand>();
@@ -239,12 +274,20 @@ namespace MxFramework.Tests.Combat.GameplayBridge
 
         private static GameplaySystemContext CreateContext(GameplayComponentWorld world, long frame = 0)
         {
+            return CreateContext(world, Array.Empty<RuntimeCommand>(), frame);
+        }
+
+        private static GameplaySystemContext CreateContext(
+            GameplayComponentWorld world,
+            IReadOnlyList<RuntimeCommand> commands,
+            long frame = 0)
+        {
             return new GameplaySystemContext(
                 new RuntimeFrame(frame),
                 0d,
                 0d,
                 new GameplayWorld(),
-                Array.Empty<RuntimeCommand>(),
+                commands,
                 world.Events,
                 componentWorld: world);
         }

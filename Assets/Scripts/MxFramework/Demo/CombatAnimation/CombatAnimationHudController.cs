@@ -19,6 +19,7 @@ namespace MxFramework.Demo.CombatAnimation
         private Label _dummyHp;
         private Label _weaponTrace;
         private Label _instructions;
+        private VisualElement _hudRoot;
         private VisualElement _eventList;
         private bool _built;
 
@@ -55,6 +56,7 @@ namespace MxFramework.Demo.CombatAnimation
             SetText(_weaponTrace, model.WeaponTrace);
             SetText(_instructions, model.Instructions);
             RefreshEvents(model.RecentEvents);
+            ApplyRuntimeStyleFallback();
         }
 
         private void EnsureBuilt()
@@ -86,6 +88,7 @@ namespace MxFramework.Demo.CombatAnimation
                 root.styleSheets.Add(_styleSheet);
             }
 
+            _hudRoot = root.Q<VisualElement>("combat-animation-hud") ?? root;
             _playerAction = root.Q<Label>("player-action");
             _playerPhase = root.Q<Label>("player-phase");
             _playerFrame = root.Q<Label>("player-frame");
@@ -95,6 +98,10 @@ namespace MxFramework.Demo.CombatAnimation
             _instructions = root.Q<Label>("instructions");
             _eventList = root.Q<VisualElement>("event-list");
             _built = _playerAction != null && _eventList != null;
+            if (_built)
+            {
+                ApplyRuntimeStyleFallback();
+            }
         }
 
         private void RefreshEvents(IReadOnlyList<string> events)
@@ -102,14 +109,118 @@ namespace MxFramework.Demo.CombatAnimation
             _eventList.Clear();
             if (events == null || events.Count == 0)
             {
-                _eventList.Add(new Label("No hit events yet.") { name = "event-empty" });
+                Label empty = new Label("No hit events yet.") { name = "event-empty" };
+                ApplyEventLabelFallback(empty);
+                _eventList.Add(empty);
                 return;
             }
 
             int start = Mathf.Max(0, events.Count - 5);
             for (int i = start; i < events.Count; i++)
             {
-                _eventList.Add(new Label(events[i]) { name = "event-row" });
+                Label row = new Label(events[i]) { name = "event-row" };
+                ApplyEventLabelFallback(row);
+                _eventList.Add(row);
+            }
+        }
+
+        private void ApplyRuntimeStyleFallback()
+        {
+            if (_hudRoot == null)
+            {
+                return;
+            }
+
+            _hudRoot.style.position = Position.Absolute;
+            _hudRoot.style.left = 18f;
+            _hudRoot.style.top = 18f;
+            _hudRoot.style.width = 430f;
+            _hudRoot.style.paddingLeft = 14f;
+            _hudRoot.style.paddingRight = 14f;
+            _hudRoot.style.paddingTop = 14f;
+            _hudRoot.style.paddingBottom = 14f;
+            _hudRoot.style.backgroundColor = new Color(0.05f, 0.06f, 0.08f, 0.94f);
+            _hudRoot.style.borderLeftWidth = 4f;
+            _hudRoot.style.borderLeftColor = new Color(0.95f, 0.24f, 0.20f, 1f);
+
+            VisualElement grid = _hudRoot.Q<VisualElement>(className: "hud-grid");
+            if (grid != null)
+            {
+                grid.style.flexDirection = FlexDirection.Row;
+            }
+
+            List<VisualElement> panels = _hudRoot.Query<VisualElement>(className: "hud-panel").ToList();
+            for (int i = 0; i < panels.Count; i++)
+            {
+                ApplyPanelFallback(panels[i]);
+            }
+
+            ApplyLabelFallback(_hudRoot.Q<Label>("title"), 22f, new Color(1f, 1f, 1f, 1f), FontStyle.Bold);
+            ApplyLabelFallback(_instructions, 14f, new Color(0.82f, 0.90f, 0.96f, 1f), FontStyle.Normal);
+            ApplyLabelFallback(_playerAction, 15f, new Color(0.96f, 0.98f, 1f, 1f), FontStyle.Normal);
+            ApplyLabelFallback(_playerPhase, 15f, new Color(0.96f, 0.98f, 1f, 1f), FontStyle.Normal);
+            ApplyLabelFallback(_playerFrame, 15f, new Color(0.96f, 0.98f, 1f, 1f), FontStyle.Normal);
+            ApplyLabelFallback(_playerHp, 16f, new Color(1f, 0.96f, 0.74f, 1f), FontStyle.Bold);
+            ApplyLabelFallback(_dummyHp, 16f, new Color(1f, 0.96f, 0.74f, 1f), FontStyle.Bold);
+            ApplyLabelFallback(_weaponTrace, 14f, new Color(0.86f, 0.94f, 1f, 1f), FontStyle.Normal);
+
+            List<Label> panelTitles = _hudRoot.Query<Label>(className: "panel-title").ToList();
+            for (int i = 0; i < panelTitles.Count; i++)
+            {
+                ApplyLabelFallback(panelTitles[i], 14f, new Color(1f, 0.82f, 0.36f, 1f), FontStyle.Bold);
+            }
+
+            if (_eventList != null)
+            {
+                for (int i = 0; i < _eventList.childCount; i++)
+                {
+                    ApplyEventLabelFallback(_eventList[i] as Label);
+                }
+            }
+        }
+
+        private static void ApplyPanelFallback(VisualElement panel)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            panel.style.flexGrow = 1f;
+            panel.style.marginRight = 8f;
+            panel.style.marginBottom = 8f;
+            panel.style.paddingLeft = 10f;
+            panel.style.paddingRight = 10f;
+            panel.style.paddingTop = 10f;
+            panel.style.paddingBottom = 10f;
+            panel.style.backgroundColor = new Color(0.14f, 0.17f, 0.22f, 0.96f);
+            panel.style.borderTopLeftRadius = 4f;
+            panel.style.borderTopRightRadius = 4f;
+            panel.style.borderBottomLeftRadius = 4f;
+            panel.style.borderBottomRightRadius = 4f;
+        }
+
+        private static void ApplyLabelFallback(Label label, float fontSize, Color color, FontStyle fontStyle)
+        {
+            if (label == null)
+            {
+                return;
+            }
+
+            label.style.color = color;
+            label.style.fontSize = fontSize;
+            label.style.unityFontStyleAndWeight = fontStyle;
+            label.style.whiteSpace = WhiteSpace.Normal;
+            label.style.unityTextAlign = TextAnchor.MiddleLeft;
+            label.style.marginBottom = 3f;
+        }
+
+        private static void ApplyEventLabelFallback(Label label)
+        {
+            ApplyLabelFallback(label, 13f, new Color(0.88f, 0.94f, 0.98f, 1f), FontStyle.Normal);
+            if (label != null)
+            {
+                label.style.marginBottom = 2f;
             }
         }
 
