@@ -11,7 +11,7 @@ This document turns the current temporary imported resources into an executable 
 - Keep import staging separate from runtime/catalog provider roots.
 - Decide which assets receive direct `ResourceKey` entries and which remain dependency-only.
 - Provide a migration table that Issues #64-#67 can execute without rediscovering paths or names.
-- Record the current FMOD bank split enough for #64-#67 to avoid mixing Unity `AudioClip` samples with FMOD bank runtime data. Full FMOD bank strategy remains #68.
+- Record the current FMOD bank split enough for #64-#67 to avoid mixing Unity `AudioClip` samples with FMOD bank runtime data. Issue #68 now owns the detailed FMOD bank policy in `Docs/Tasks/ISSUE_68_FMOD_BANK_RESOURCE_POLICY.md`.
 
 ## Resource Pipeline
 
@@ -71,7 +71,7 @@ Directory roles:
 | `Assets/Config/MxFramework/ResourceProfiles/` | Variant fallback, preload group, retain policy, and provider profile config. These files reference Catalog entries by `ResourceKey`, labels, variants, and package IDs instead of duplicating Catalog address data. | Config references `ResourceKey`, labels, and variants. |
 | `FMOD/.../Build/Desktop/` | FMOD Studio authoring build output for desktop banks. | Audio/FMOD pipeline input/output, not generic `ResourceCatalogEntry` samples. |
 | `Assets/StreamingAssets/Master*.bank` | Unity runtime mirror for FMOD banks. | Loaded by FMOD runtime/settings, not by generic Resource Catalog in #63-#67. |
-| `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | FMOD Unity editor cache/generated metadata. | Versioning/refresh policy deferred to #68. |
+| `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | FMOD Unity editor cache/generated metadata. | Versioned generated metadata; refresh through FMOD tooling, do not hand-author. |
 
 ## Naming
 
@@ -146,7 +146,7 @@ Only assets that runtime/config/gameplay code should request by identity receive
 | StartScreen UI | Button, separator, and icon textures as `Texture2D` when UI Toolkit references them through config/catalog. | Sprite variants are deferred until a SpriteRenderer/uGUI use case exists. |
 | Skeleton | Prefer a future character sample prefab as the direct `GameObject`. The raw `Skeleton.fbx` can be direct only for a model-viewer/import-validation sample. | `Skeleton.mat` and embedded/imported model dependencies. |
 | MagicEffects | Current decision: Unity `AudioClip` sample entries. | If later imported into FMOD Studio, the source audio moves to the FMOD authoring pipeline and stops being a generic AudioClip sample. |
-| FMOD banks | No generic `ResourceKey` in #63-#67. | Banks are FMOD runtime data loaded by FMOD settings/backend; #68 may define bank-specific keys or validation IDs. |
+| FMOD banks | No generic `ResourceKey` in #63-#67. | Banks are FMOD runtime data loaded by FMOD settings/backend; future bank-specific keys require a separate S2 issue. |
 
 ## Import Type Policy
 
@@ -178,7 +178,7 @@ These are the Unity runtime bank mirror currently available to FMOD Unity Integr
 
 - `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset`
 
-This is FMOD Unity editor cache/generated metadata. #63 records it as current state only. #68 must decide whether it is versioned metadata or regenerated local cache, and define refresh/commit rules.
+This is FMOD Unity editor cache/generated metadata. Issue #68 classifies it as versioned generated metadata: refresh it through FMOD/Refresh Banks when bank/event metadata changes, commit intentional changes, and do not treat it as hand-authored audio config.
 
 ## Temporary Asset Mapping
 
@@ -213,11 +213,11 @@ This is FMOD Unity editor cache/generated metadata. #63 records it as current st
 | `Assets/_TempImportedResources/Audio/MagicEffects/ExplosionLightning3.wav` | `Assets/Audio/MxFramework/Samples/MagicEffects/explosion_lightning_3.wav` | `audio.magic_effect.explosion_lightning_3`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
 | `Assets/_TempImportedResources/Audio/MagicEffects/LoopFire2.ogg` | `Assets/Audio/MxFramework/Samples/MagicEffects/loop_fire_2.ogg` | `audio.magic_effect.loop_fire_2`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
 | `Assets/_TempImportedResources/Audio/MagicEffects/Wind.wav` | `Assets/Audio/MxFramework/Samples/MagicEffects/wind.wav` | `audio.magic_effect.wind`; labels `sample.magic_effects`, `domain.audio` | `AudioClip` | Yes | move+rename | #64 |
-| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank` | Same path until #68 decides FMOD build output policy | FMOD bank, no generic ResourceKey in #63-#67 | FMOD bank | No | keep/audit | #68 |
-| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.strings.bank` | Same path until #68 decides FMOD build output policy | FMOD strings bank, no generic ResourceKey in #63-#67 | FMOD bank | No | keep/audit | #68 |
-| `Assets/StreamingAssets/Master.bank` | Same path as current runtime mirror until #68 | Runtime FMOD bank mirror, loaded by FMOD integration/backend | FMOD bank | No | keep/audit | #68 |
-| `Assets/StreamingAssets/Master.strings.bank` | Same path as current runtime mirror until #68 | Runtime FMOD strings bank mirror, loaded by FMOD integration/backend | FMOD bank | No | keep/audit | #68 |
-| `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | Same path until #68 decides cache/generated metadata policy | FMOD editor cache/generated metadata | Editor metadata | No | keep/audit | #68 |
+| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank` | Same path; versioned FMOD Studio demo build output / release input | FMOD bank, no generic ResourceKey in #63-#67 | FMOD bank | No | keep/audit | #68 |
+| `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.strings.bank` | Same path; versioned FMOD Studio demo build output / release input | FMOD strings bank, no generic ResourceKey in #63-#67 | FMOD bank | No | keep/audit | #68 |
+| `Assets/StreamingAssets/Master.bank` | Same path; versioned Unity runtime mirror | Runtime FMOD bank mirror, loaded by FMOD integration/backend | FMOD bank | No | keep/audit | #68 |
+| `Assets/StreamingAssets/Master.strings.bank` | Same path; versioned Unity runtime mirror | Runtime FMOD strings bank mirror, loaded by FMOD integration/backend | FMOD bank | No | keep/audit | #68 |
+| `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` | Same path; versioned generated FMOD Unity metadata | FMOD editor cache/generated metadata | Editor metadata | No | keep/audit | #68 |
 
 ## Catalog Entry Shape
 
@@ -319,7 +319,7 @@ Editor Play Mode demos may use `memory` provider plus `providerData.assetPath` w
 | #65 | Generate or author Resource Catalog directories and entries for the formal sample assets. Validate provider, type, address, labels, dependencies, and direct/dependency-only split. |
 | #66 | Add config examples that reference these resources by `ResourceKey`, plus validation for missing/wrong-type keys. Config examples must not use Unity paths. |
 | #67 | Runtime loading validation: preload labels, load/release direct keys, verify UI/VFX/prefab/audio sample behavior through `IResourceManager` and provider setup. |
-| #68 | FMOD bank strategy: authoring project layout, bank build output policy, StreamingAssets mirror policy, generated editor cache policy, bank validation, and any future bank-specific catalog or audio definition mapping. |
+| #68 | Resolved by `Docs/Tasks/ISSUE_68_FMOD_BANK_RESOURCE_POLICY.md`: FMOD Build/Desktop bank output and StreamingAssets runtime mirror remain versioned, FMODStudioCache is versioned generated metadata, and FMOD bank/event data stays under Audio.FMOD rather than the ordinary Resource Catalog until a later S2 bank-provider issue. |
 
 ## Validation Checklist
 
@@ -327,4 +327,4 @@ Editor Play Mode demos may use `memory` provider plus `providerData.assetPath` w
 - `_TempImportedResources` does not appear as a formal `providerData.assetPath`, Catalog address, or config target.
 - The formal naming uses `Samples`, not `TempSamples`.
 - MagicEffects are Unity `AudioClip` samples for #63-#67.
-- FMOD build output, StreamingAssets mirror, and FMOD editor cache are listed separately and deferred to #68 for final strategy.
+- FMOD build output, StreamingAssets mirror, and FMOD editor cache are listed separately and follow the #68 policy. Ordinary Catalog examples here must not add `.bank` files or FMOD event paths as `AudioClip` / `Texture2D` / `GameObject` entries.
