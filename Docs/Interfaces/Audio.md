@@ -99,8 +99,10 @@ public interface IAudioDefinitionProvider
 ## 使用约定
 
 - `AudioEventDefinition.Id` 使用稳定 int，建议 ID 空间为 `500000-599999`；`Name` 只用于调试。
-- 配置保存 event id、FMOD event path / guid、bus path、参数名和资源 key，不保存场景对象引用。
+- 音频配置保存 `AudioEventDefinition.Id`、FMOD event path / guid、bus path、参数名和必要的 Unity 资源 key，不保存场景对象引用。
 - `FmodEventGuid` 优先用于运行时解析；`FmodEventPath` 用于 Editor 可读性和 fallback。
+- FMOD event path / guid 不是 generic `ResourceKey`；Gameplay、Combat、Ability、Buff、UI 等模块通过 audio event id 或项目层 cue mapper 引用声音。
+- Unity `AudioClip` 样例可使用普通 Resource Catalog 和 `ResourceTypeIds.AudioClip`；FMOD bank `.bank` 文件不作为普通 `ResourceCatalogEntry`，也不伪装成 `AudioClip`。
 - `IsLoop=true` 的 event 必须通过 `StartEvent` 返回 handle，并通过 `Stop` 释放。
 - `PlayOneShot` 默认不返回可持有 handle；需要后续控制时使用 `StartEvent`。
 - `Stop(handle, stopMode)` 幂等；重复停止或释放应返回结构化结果并写入诊断，不抛异常。
@@ -119,7 +121,8 @@ public interface IAudioDefinitionProvider
 - Loop、蓄力、引导、aura、环境声等可控事件使用 `CreateInstance -> start -> handle table -> Stop -> release`。
 - `AudioHandle.Id` 由后端分配，映射到内部 `EventInstance` 表。
 - `AudioRuntimeModule` 默认运行在 `RuntimeTickStage.PostSimulation`，使同一帧 gameplay 先产生命令，再统一转为音频输出。
-- Bank 首期可使用 FMOD Settings 自动加载 + 显式 warmup；Catalog 化 bank 后续再接入 Resources。
+- Bank 首期使用 FMOD Settings 自动加载 + 显式 warmup。当前 demo 的 `FMOD/.../Build/Desktop/Master*.bank` 是版本化 authoring build output / release input，`Assets/StreamingAssets/Master*.bank` 是版本化 runtime mirror；Catalog 化 bank 后续再接入 Resources。
+- `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` 当前是版本化的 FMOD Unity generated metadata，用于记录 Editor 可见 bank、event、guid 和路径；刷新后可提交，但不能把它当作手写配置源。
 - `Audio.FMOD` 可以依赖 Runtime 以提供 `AudioRuntimeModule`，但 `Audio` contract 不依赖 Runtime。
 
 ## 诊断约定

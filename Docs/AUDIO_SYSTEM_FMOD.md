@@ -18,7 +18,7 @@ MxFramework.Audio.Editor   FMOD event validation, bank manifest import, config a
 
 - 框架核心不直接依赖 `FMODUnity`、`FMOD.Studio`、`UnityEngine` 或 `UnityEditor`。
 - Gameplay / Combat / Ability 只发音频意图，不持有 FMOD `EventInstance`。
-- 配置只保存稳定 ID、FMOD event path / guid、bus path、参数名和资源 key，不保存场景对象引用。
+- 音频配置只保存稳定 audio event id、FMOD event path / guid、bus path、参数名和必要的 Unity 资源 key，不保存场景对象引用。
 - FMOD 相关生命周期集中在 `MxFramework.Audio.FMOD`，由 Unity composition root 注入到 `RuntimeHost` 的 service registry。
 - 高频播放路径以 struct command 和 handle id 为主，避免每帧分配。
 - 音频不参与确定性战斗结果 hash；Replay 只记录可复现的 audio command 摘要或完全忽略音频输出。
@@ -349,6 +349,15 @@ address = "Combat"
 providerData.loadSamples = true
 ```
 
+Issue #68 当前策略：
+
+- `FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank` 和 `Master.strings.bank` 是 FMOD Studio demo project 的 desktop bank build output。它们在框架 demo 中作为可审计的 authoring build output / release input 保留版本化，方便没有 FMOD Studio 的检出环境仍能检查现有 demo bank。
+- `Assets/StreamingAssets/Master.bank` 和 `Master.strings.bank` 是 Unity runtime bank mirror，由 FMOD Unity Integration 和 `MxFramework.Audio.FMOD` 在运行时使用。它们也保留版本化，作为当前 player/runtime 输入，而不是由普通 Resource Catalog 复制或加载。
+- Build/Desktop 与 StreamingAssets mirror 必须表达同一组 demo bank 内容。重新构建或刷新 bank 时，提交者应一起检查 FMOD build output、StreamingAssets mirror、FMOD settings/cache 和 validator 结果；不要只更新其中一侧。
+- `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset` 当前按 versioned generated metadata 处理：它可由 FMOD/Refresh Banks 刷新，但被提交用于记录 Unity Editor 可见的 bank、event、guid 和路径元数据。它不是普通本地机器 cache，不加入 `.gitignore`；也不是权威音频配置，不能手写修复 event 语义。
+- 当前 `.gitignore` 策略保持不变：允许 `FMOD/.../Build/**` 进入版本控制，忽略 FMOD Studio project 的 `.cache/buildrecords/` 和 `.cache/fsbcache/` 机器缓存，不忽略 `Assets/Plugins/FMOD/Cache/Editor/FMODStudioCache.asset`。
+- `FmodAudioSetupValidator` 的职责是校验 runtime bank mirror 和 FMOD Settings 的基础一致性，包括 bank root、`.bank` 文件、`Master.bank`、`Master.strings.bank` 和 `BankLoadType`。Resource Catalog validator 不校验 FMOD bank 内容。
+
 ### 7.6 Bus / VCA
 
 `FmodAudioBackend` 初始化时根据 `AudioBusDefinition` 缓存 bus / VCA：
@@ -478,6 +487,9 @@ FMOD bank 本质上更接近平台构建产物，不应由普通 `AudioClip` 路
 - FMOD Unity Integration 管理 bank 路径和自动加载。
 - MxFramework 只保存 event/bus/parameter 配置。
 - Demo 使用少量本地 bank 验证。
+- FMOD event 通过 `AudioEventDefinition.Id`、`FmodEventGuid` 和 `FmodEventPath` 暴露给配置和运行时，不暴露成 generic `ResourceKey`。
+- `Master*.bank` 不写成普通 `ResourceCatalogEntry`，也不使用 `ResourceTypeIds.AudioClip`。
+- `Assets/Audio/MxFramework/Samples/MagicEffects/**` 是 Unity `AudioClip` 样例，可由普通 Resource Catalog 覆盖；若未来把这些源音频导入 FMOD Studio，它们应转入 FMOD authoring pipeline 并停止作为普通 `AudioClip` Catalog 样例。
 
 ### Phase B：Catalog 化
 
@@ -485,6 +497,7 @@ FMOD bank 本质上更接近平台构建产物，不应由普通 `AudioClip` 路
 - Mod/DLC 包可声明额外 bank catalog。
 - `FmodBankProvider` 负责加载 bank 文件和 strings bank。
 - Editor 构建报告输出 bank hash、size、platform、event 列表。
+- 只有后续单独 S2 设计批准后，才新增 `FmodBank`、`AudioEvent` 或 `FmodEventManifest` 这类 ResourceTypeId。未批准前，普通 `ResourceCatalogEntry` 只覆盖 Unity `AudioClip`、`Texture2D`、`GameObject` 等常规资源，不代表 FMOD event 或 bank。
 
 Mod 约束：
 

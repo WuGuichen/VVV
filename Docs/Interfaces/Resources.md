@@ -42,6 +42,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 ## 使用约定
 
 - 配置和 Gameplay 只保存 `ResourceKey`，不保存 Unity 路径或 `UnityEngine.Object`。
+- 普通 Resource Catalog 覆盖 Unity 资产和 provider 资源，例如 `AudioClip`、`Texture2D`、`GameObject`、AssetBundle 和 RemoteBundle。FMOD bank `.bank` 文件和 FMOD event path/guid 不进入普通 Catalog；它们通过 Audio/FMOD 设置、`AudioEventDefinition` 和后续单独批准的 bank manifest/provider 管理。
 - `ResourceKey.Id` 使用小写命名空间，允许小写字母、数字、`.`、`_`、`-`。
 - 常用类型使用 `ResourceTypeIds`，调用方优先通过 `Load<T>` 获得类型检查。
 - 同一 Catalog 内 `id + type + variant` 必须唯一。
