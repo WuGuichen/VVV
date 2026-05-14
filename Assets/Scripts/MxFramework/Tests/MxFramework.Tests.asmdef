@@ -23,6 +23,8 @@
         "FMODUnity",
         "MxFramework.Editor",
         "MxFramework.Diagnostics",
+        "MxFramework.Logging",
+        "MxFramework.Logging.Diagnostics",
         "MxFramework.Runtime",
         "MxFramework.Runtime.Unity",
         "MxFramework.Input",

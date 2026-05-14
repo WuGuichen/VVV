@@ -1,0 +1,16 @@
+{
+    "name": "MxFramework.Logging",
+    "rootNamespace": "MxFramework.Logging",
+    "references": [
+        "MxFramework.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
