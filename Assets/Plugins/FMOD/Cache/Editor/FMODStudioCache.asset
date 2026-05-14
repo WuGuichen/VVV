@@ -62,7 +62,7 @@ MonoBehaviour:
   Path: FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank
   Name: Master
   StudioPath: bank:/Master
-  lastModified: 639143808708099049
+  lastModified: 639143811611246420
   FileSizes:
   - Name: Desktop
     Value: 3904
@@ -102,7 +102,7 @@ MonoBehaviour:
   Path: FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.strings.bank
   Name: Master.strings
   StudioPath: bank:/Master.strings
-  lastModified: 639143808708133625
+  lastModified: 639143811611267639
   FileSizes:
   - Name: Desktop
     Value: 832
@@ -131,7 +131,7 @@ MonoBehaviour:
   StringsBanks:
   - {fileID: -240117629413215018}
   cacheVersion: 131859
-  cacheTime: 639143808708133625
+  cacheTime: 639143811611267639
   SerializableEventsDict:
   - key: event:/MxFramework/Demo/Loop
     index: 0
