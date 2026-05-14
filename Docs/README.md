@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.37 | 2026-05-13
+> 版本 0.6.38 | 2026-05-14
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -30,6 +30,7 @@
 | `DESIGN.md` | 框架为什么存在、包含什么、不包含什么。 |
 | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 的运行时底座规划。 |
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、模块边界、加载契约和阶段切片。 |
+| `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、命名、Catalog、临时资产归档和 FMOD 边界规范。 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画/物理协作方案和落地阶段。 |
 | `API_STANDARDS.md` | API 命名、兼容性、GC、Unity 依赖标准。 |
 | `WORKFLOW.md` | 项目日常开发、验收、提交和推送流程。 |
@@ -167,6 +168,7 @@
 | `ARCHITECTURE.md` | 模块如何协作、依赖如何约束、生命周期如何运行 | 新增模块或改变依赖方向 |
 | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 如何协作 | 开发运行时底座、回放、存档前 |
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源引用、加载、释放、Catalog、Provider 和 Mod 资源包如何协作 | 开发资源管理模块前 |
+| `RESOURCE_DIRECTORY_LAYOUT.md` | 框架样例资源正式目录、ResourceKey 命名、Catalog 归档和 FMOD bank 边界 | 迁移或新增正式样例资源前 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 确定性战斗动画、物理查询、命中结算和工具链如何协作 | 开发 Combat/动作/物理/联网战斗前 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 制作小游戏 / Demo 时如何优先复用框架模块 | 开发小游戏、Playable Demo、Runtime Showcase 或场景验证前 |
 | `USAGE.md` | 如何直接接入和组合模块 | 新增基础功能或改变推荐用法 |
@@ -201,6 +203,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.38 | 2026-05-14 | 新增资源目录规范文档，明确临时导入资源到正式 Samples 根、ResourceKey/label 命名、direct/dependency-only 划分、MagicEffects 身份和 FMOD bank 边界 |
 | 0.6.37 | 2026-05-13 | 新增 Combat Animation RuntimeHost 集成模块，使用预注册服务模式和 Simulation / PostSimulation / Diagnostics 三阶段模块推进动作、武器轨迹和诊断快照 |
 | 0.6.36 | 2026-05-13 | 新增 Combat Hit Resolve Bridge v0，补齐 owner 防护、阵营过滤、动态目标状态解析、事件派发和 Action window state adapter |
 | 0.6.35 | 2026-05-13 | 新增 Gameplay Component Playable + Combat Bridge 规划文档，明确 Playable 场景升级、Combat bridge source-of-truth 边界和后续 implementation slices |
