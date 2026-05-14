@@ -17,6 +17,7 @@
         "MxFramework.Audio.FMOD",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
+        "MxFramework.Combat.GameplayBridge",
         "MxFramework.Resources",
         "MxFramework.UI.Toolkit"
     ],
