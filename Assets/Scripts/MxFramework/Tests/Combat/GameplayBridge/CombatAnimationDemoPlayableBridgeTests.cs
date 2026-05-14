@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using MxFramework.Combat.Animation;
@@ -11,6 +12,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 
 namespace MxFramework.Tests.Combat.GameplayBridge
@@ -114,6 +116,16 @@ namespace MxFramework.Tests.Combat.GameplayBridge
             Assert.AreEqual("85/100", root.Q<Label>("dummy-hp").text);
             Assert.That(root.Q<Label>("weapon-trace").text, Does.Contain("candidates=1"));
             Assert.That(root.Q<VisualElement>("event-list").Q<Label>("event-row").text, Does.Contain("Bridge HP"));
+
+            VisualElement hudRoot = root.Q<VisualElement>("combat-animation-hud");
+            Assert.IsNotNull(hudRoot);
+            Assert.Greater(hudRoot.style.backgroundColor.value.a, 0.9f);
+            Assert.Greater(hudRoot.style.width.value.value, 300f);
+            AssertReadableInlineStyle(root.Q<Label>("title"));
+            AssertReadableInlineStyle(root.Q<Label>("instructions"));
+            AssertReadableInlineStyle(root.Q<Label>("player-hp"));
+            AssertReadableInlineStyle(root.Q<Label>("dummy-hp"));
+            AssertReadableInlineStyle(root.Q<VisualElement>("event-list").Q<Label>("event-row"));
         }
 
         [Test]
@@ -169,6 +181,34 @@ namespace MxFramework.Tests.Combat.GameplayBridge
             Assert.IsTrue(results[0].IsAcceptedDamage);
         }
 
+        [UnityTest]
+        public IEnumerator CombatAnimationDemo_PlayModeHudFallback_RendersReadableHudInGameView()
+        {
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+            yield return new EnterPlayMode();
+            yield return null;
+            yield return null;
+
+            GameObject rootObject = GameObject.Find("CombatAnimationDemoRoot");
+            Assert.IsNotNull(rootObject);
+            Assert.IsTrue(rootObject.GetComponent<CombatAnimationDemoBootstrap>().IsInitialized);
+
+            UIDocument document = rootObject.GetComponent<UIDocument>();
+            Assert.IsNotNull(document);
+            VisualElement root = document.rootVisualElement;
+            AssertReadableResolvedHud(root, expectedDummyHp: "100/100");
+            VisualElement eventList = root.Q<VisualElement>("event-list");
+            Assert.IsNotNull(eventList);
+            Assert.Greater(eventList.childCount, 0);
+            for (int i = 0; i < eventList.childCount; i++)
+            {
+                AssertReadableResolvedLabel(eventList[i] as Label, null);
+            }
+
+            yield return new ExitPlayMode();
+        }
+
         private static void InvokeRegisterActions(
             CombatActionRegistry registry,
             CombatActionTimelineTraceProvider traceProvider)
@@ -187,6 +227,50 @@ namespace MxFramework.Tests.Combat.GameplayBridge
                 BindingFlags.NonPublic | BindingFlags.Static);
             Assert.IsNotNull(method);
             method.Invoke(null, new object[] { results });
+        }
+
+        private static void AssertReadableInlineStyle(Label label)
+        {
+            Assert.IsNotNull(label);
+            Assert.Greater(label.style.color.value.a, 0.99f, label.name);
+            Assert.Greater(label.style.fontSize.value.value, 12f, label.name);
+        }
+
+        private static void AssertReadableResolvedHud(VisualElement root, string expectedDummyHp)
+        {
+            VisualElement hudRoot = root.Q<VisualElement>("combat-animation-hud");
+            Assert.IsNotNull(hudRoot);
+            Assert.AreEqual(DisplayStyle.Flex, hudRoot.resolvedStyle.display);
+            Assert.Greater(hudRoot.resolvedStyle.backgroundColor.a, 0.9f);
+            Assert.Greater(hudRoot.resolvedStyle.width, 300f);
+
+            AssertReadableResolvedLabel(root.Q<Label>("title"), "Combat Animation Demo");
+            AssertReadableResolvedLabel(root.Q<Label>("instructions"), "WASD");
+            AssertReadableResolvedLabel(root.Q<Label>("player-action"), null);
+            AssertReadableResolvedLabel(root.Q<Label>("player-phase"), null);
+            AssertReadableResolvedLabel(root.Q<Label>("player-hp"), "100/100");
+            AssertReadableResolvedLabel(root.Q<Label>("dummy-hp"), expectedDummyHp);
+            AssertReadableResolvedLabel(root.Q<Label>("weapon-trace"), null);
+
+            List<Label> panelTitles = root.Query<Label>(className: "panel-title").ToList();
+            Assert.GreaterOrEqual(panelTitles.Count, 3);
+            for (int i = 0; i < panelTitles.Count; i++)
+            {
+                AssertReadableResolvedLabel(panelTitles[i], null);
+            }
+        }
+
+        private static void AssertReadableResolvedLabel(Label label, string expectedText)
+        {
+            Assert.IsNotNull(label);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(label.text), label.name);
+            if (!string.IsNullOrEmpty(expectedText))
+            {
+                Assert.That(label.text, Does.Contain(expectedText), label.name);
+            }
+
+            Assert.Greater(label.resolvedStyle.color.a, 0.99f, label.name);
+            Assert.Greater(label.resolvedStyle.fontSize, 12f, label.name);
         }
     }
 }
