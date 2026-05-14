@@ -1,5 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
+using System.Text;
 using MxFramework.Demo;
 using MxFramework.Resources;
 using NUnit.Framework;
@@ -15,6 +19,18 @@ namespace MxFramework.Tests.Config
         public void CreateSample_ReferencesExistingCatalogKeysWithExpectedTypesPackageAndVariant()
         {
             ResourceKeyConfigProfile profile = ResourceKeyConfigProfile.CreateSample();
+            ResourceCatalog catalog = TempImportedResourceCatalog.CreateCatalog();
+
+            ResourceKeyConfigProfileValidationReport report =
+                ResourceKeyConfigProfileValidator.Validate(profile, catalog);
+
+            Assert.IsFalse(report.HasErrors, CreateReportText(report));
+        }
+
+        [Test]
+        public void SampleProfileFile_ReferencesExistingCatalogKeysWithExpectedTypesPackageAndVariant()
+        {
+            ResourceKeyConfigProfile profile = LoadSampleProfile();
             ResourceCatalog catalog = TempImportedResourceCatalog.CreateCatalog();
 
             ResourceKeyConfigProfileValidationReport report =
@@ -101,7 +117,7 @@ namespace MxFramework.Tests.Config
             var profile = new ResourceKeyConfigProfile(
                 660001,
                 "test.source",
-                SampleKey("ui.start_screen.button.normal", ResourceTypeIds.Texture2D),
+                SampleKey("ui.start_screen.button.normal", ResourceTypeIds.GameObject),
                 SampleKey("ui.start_screen.button.hover", ResourceTypeIds.Texture2D),
                 SampleKey("ui.start_screen.separator.diamond_line", ResourceTypeIds.Texture2D),
                 SampleKey("ui.start_screen.icon.archive_book", ResourceTypeIds.Texture2D),
@@ -218,6 +234,48 @@ namespace MxFramework.Tests.Config
             return new ResourceKey(id, typeId, string.Empty, TempImportedResourceCatalog.PackageId);
         }
 
+        private static ResourceKeyConfigProfile LoadSampleProfile()
+        {
+            string json = File.ReadAllText(SampleProfilePath);
+            ResourceProfileDto dto = DeserializeProfile(json);
+            Assert.NotNull(dto);
+
+            return new ResourceKeyConfigProfile(
+                dto.ProfileId,
+                dto.Source,
+                dto.StartScreen.ButtonNormalTexture.ToKey(),
+                dto.StartScreen.ButtonHoverTexture.ToKey(),
+                dto.StartScreen.SeparatorTexture.ToKey(),
+                dto.StartScreen.Icons.Archive.ToKey(),
+                dto.StartScreen.Icons.Continue.ToKey(),
+                dto.StartScreen.Icons.Exit.ToKey(),
+                dto.StartScreen.Icons.Settings.ToKey(),
+                ConvertKeys(dto.StatusAura.Prefabs),
+                dto.Weapon.Prefab.ToKey(),
+                ConvertKeys(dto.MagicEffects.AudioClips));
+        }
+
+        private static ResourceProfileDto DeserializeProfile(string json)
+        {
+            var serializer = new DataContractJsonSerializer(typeof(ResourceProfileDto));
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+            {
+                return (ResourceProfileDto)serializer.ReadObject(stream);
+            }
+        }
+
+        private static ResourceKey[] ConvertKeys(ResourceKeyDto[] keys)
+        {
+            if (keys == null)
+                return new ResourceKey[0];
+
+            var converted = new ResourceKey[keys.Length];
+            for (int i = 0; i < keys.Length; i++)
+                converted[i] = keys[i].ToKey();
+
+            return converted;
+        }
+
         private static ResourceKey[] SampleStatusAuraPrefabs()
         {
             return new[]
@@ -242,14 +300,20 @@ namespace MxFramework.Tests.Config
 
         private static void AssertSampleFilePolicy(string text)
         {
-            Assert.IsFalse(text.Contains("Assets/"), text);
-            Assert.IsFalse(text.Contains("_TempImportedResources"), text);
-            Assert.IsFalse(text.Contains(".bundle"), text);
-            Assert.IsFalse(text.Contains(".bank"), text);
-            Assert.IsFalse(text.Contains("event:/"), text);
-            Assert.IsFalse(text.Contains("bank:/"), text);
-            Assert.IsFalse(text.Contains("UnityEngine.Object"), text);
+            Assert.IsFalse(Contains(text, "Assets/"), text);
+            Assert.IsFalse(Contains(text, "Assets\\"), text);
+            Assert.IsFalse(Contains(text, "_TempImportedResources"), text);
+            Assert.IsFalse(Contains(text, ".bundle"), text);
+            Assert.IsFalse(Contains(text, ".bank"), text);
+            Assert.IsFalse(Contains(text, "event:/"), text);
+            Assert.IsFalse(Contains(text, "bank:/"), text);
+            Assert.IsFalse(Contains(text, "UnityEngine.Object"), text);
             Assert.IsFalse(ContainsGuidLikeToken(text), text);
+        }
+
+        private static bool Contains(string text, string value)
+        {
+            return text.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static void AssertIssue(ResourceKeyConfigProfileValidationReport report, string code)
@@ -290,6 +354,9 @@ namespace MxFramework.Tests.Config
                 if (count == 32)
                     return true;
 
+                if (count == 8 && ContainsHyphenatedGuidToken(value, i))
+                    return true;
+
                 i = j;
             }
 
@@ -301,6 +368,135 @@ namespace MxFramework.Tests.Config
             return (c >= '0' && c <= '9')
                 || (c >= 'a' && c <= 'f')
                 || (c >= 'A' && c <= 'F');
+        }
+
+        private static bool ContainsHyphenatedGuidToken(string value, int start)
+        {
+            int[] groups = { 8, 4, 4, 4, 12 };
+            int index = start;
+            for (int groupIndex = 0; groupIndex < groups.Length; groupIndex++)
+            {
+                for (int i = 0; i < groups[groupIndex]; i++)
+                {
+                    if (index >= value.Length || !IsHex(value[index]))
+                        return false;
+
+                    index++;
+                }
+
+                if (groupIndex == groups.Length - 1)
+                    return true;
+
+                if (index >= value.Length || value[index] != '-')
+                    return false;
+
+                index++;
+            }
+
+            return false;
+        }
+
+        [DataContract]
+        [Serializable]
+        private sealed class ResourceProfileDto
+        {
+            [DataMember(Name = "source")]
+            public string Source { get; set; }
+
+            [DataMember(Name = "profileId")]
+            public int ProfileId { get; set; }
+
+            [DataMember(Name = "startScreen")]
+            public StartScreenDto StartScreen { get; set; }
+
+            [DataMember(Name = "statusAura")]
+            public StatusAuraDto StatusAura { get; set; }
+
+            [DataMember(Name = "weapon")]
+            public WeaponDto Weapon { get; set; }
+
+            [DataMember(Name = "magicEffects")]
+            public MagicEffectsDto MagicEffects { get; set; }
+        }
+
+        [DataContract]
+        [Serializable]
+        private sealed class StartScreenDto
+        {
+            [DataMember(Name = "buttonNormalTexture")]
+            public ResourceKeyDto ButtonNormalTexture { get; set; }
+
+            [DataMember(Name = "buttonHoverTexture")]
+            public ResourceKeyDto ButtonHoverTexture { get; set; }
+
+            [DataMember(Name = "separatorTexture")]
+            public ResourceKeyDto SeparatorTexture { get; set; }
+
+            [DataMember(Name = "icons")]
+            public StartScreenIconsDto Icons { get; set; }
+        }
+
+        [DataContract]
+        [Serializable]
+        private sealed class StartScreenIconsDto
+        {
+            [DataMember(Name = "archive")]
+            public ResourceKeyDto Archive { get; set; }
+
+            [DataMember(Name = "continue")]
+            public ResourceKeyDto Continue { get; set; }
+
+            [DataMember(Name = "exit")]
+            public ResourceKeyDto Exit { get; set; }
+
+            [DataMember(Name = "settings")]
+            public ResourceKeyDto Settings { get; set; }
+        }
+
+        [DataContract]
+        [Serializable]
+        private sealed class StatusAuraDto
+        {
+            [DataMember(Name = "prefabs")]
+            public ResourceKeyDto[] Prefabs { get; set; }
+        }
+
+        [DataContract]
+        [Serializable]
+        private sealed class WeaponDto
+        {
+            [DataMember(Name = "prefab")]
+            public ResourceKeyDto Prefab { get; set; }
+        }
+
+        [DataContract]
+        [Serializable]
+        private sealed class MagicEffectsDto
+        {
+            [DataMember(Name = "audioClips")]
+            public ResourceKeyDto[] AudioClips { get; set; }
+        }
+
+        [DataContract]
+        [Serializable]
+        private struct ResourceKeyDto
+        {
+            [DataMember(Name = "id")]
+            public string Id { get; set; }
+
+            [DataMember(Name = "type")]
+            public string Type { get; set; }
+
+            [DataMember(Name = "variant")]
+            public string Variant { get; set; }
+
+            [DataMember(Name = "packageId")]
+            public string PackageId { get; set; }
+
+            public ResourceKey ToKey()
+            {
+                return new ResourceKey(Id, Type, Variant, PackageId);
+            }
         }
     }
 }

@@ -76,7 +76,7 @@ namespace MxFramework.Demo
             if (!string.Equals(key.TypeId, expectedType, StringComparison.Ordinal))
                 report.Add("ExpectedTypeMismatch", source, field, expectedType, key, CatalogContext(catalog, field));
 
-            ResourceCatalogEntry entry = FindEntry(catalog, key.Id, key.PackageId, key.Variant);
+            ResourceCatalogEntry entry = FindEntry(catalog, key.Id, key.TypeId, key.PackageId, key.Variant);
             if (entry == null)
             {
                 report.Add("ResourceKeyMissing", source, field, expectedType, key, CatalogContext(catalog, field));
@@ -148,6 +148,7 @@ namespace MxFramework.Demo
         private static ResourceCatalogEntry FindEntry(
             ResourceCatalog catalog,
             string id,
+            string typeId,
             string packageId,
             string variant)
         {
@@ -162,6 +163,7 @@ namespace MxFramework.Demo
 
                 ResourceKey entryKey = entry.CreateKey(catalog.PackageId);
                 if (string.Equals(entryKey.Id, id, StringComparison.Ordinal)
+                    && string.Equals(entryKey.TypeId, typeId, StringComparison.Ordinal)
                     && string.Equals(entryKey.PackageId, packageId, StringComparison.Ordinal)
                     && string.Equals(entryKey.Variant, variant, StringComparison.Ordinal))
                     return entry;
