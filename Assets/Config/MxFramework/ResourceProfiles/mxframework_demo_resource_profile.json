@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "source": "mxframework.demo.resource_profile",
+  "profileId": 660001,
+  "packageId": "mxframework.samples",
+  "variant": "",
+  "startScreen": {
+    "buttonNormalTexture": {
+      "id": "ui.start_screen.button.normal",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples"
+    },
+    "buttonHoverTexture": {
+      "id": "ui.start_screen.button.hover",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples"
+    },
+    "separatorTexture": {
+      "id": "ui.start_screen.separator.diamond_line",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples"
+    },
+    "icons": {
+      "archive": {
+        "id": "ui.start_screen.icon.archive_book",
+        "type": "Texture2D",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "continue": {
+        "id": "ui.start_screen.icon.continue_hourglass",
+        "type": "Texture2D",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "exit": {
+        "id": "ui.start_screen.icon.exit_door",
+        "type": "Texture2D",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "settings": {
+        "id": "ui.start_screen.icon.settings_cog",
+        "type": "Texture2D",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      }
+    }
+  },
+  "statusAura": {
+    "prefabs": [
+      {
+        "id": "vfx.status_aura.burn",
+        "type": "GameObject",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      {
+        "id": "vfx.status_aura.lightning",
+        "type": "GameObject",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      {
+        "id": "vfx.status_aura.smoke",
+        "type": "GameObject",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      {
+        "id": "vfx.status_aura.stun",
+        "type": "GameObject",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      }
+    ]
+  },
+  "weapon": {
+    "prefab": {
+      "id": "art.weapon.katana.generic_01",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples"
+    }
+  },
+  "magicEffects": {
+    "audioClips": [
+      {
+        "id": "audio.magic_effect.explosion_fire_1",
+        "type": "AudioClip",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      {
+        "id": "audio.magic_effect.explosion_lightning_3",
+        "type": "AudioClip",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      {
+        "id": "audio.magic_effect.loop_fire_2",
+        "type": "AudioClip",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      {
+        "id": "audio.magic_effect.wind",
+        "type": "AudioClip",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      }
+    ]
+  }
+}
