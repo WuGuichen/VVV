@@ -1,6 +1,6 @@
 # MxFramework 路线图
 
-> 版本 0.3.0 | 2026-05-05
+> 版本 0.6.37 | 2026-05-13
 >
 > 路线图按“先稳定边界，再迁移实现，再做工具化”的顺序推进。
 
@@ -972,3 +972,46 @@
 - 当前未接真实 BuffFactory 时，`applyBuff` 返回结构化 2003 错误，作为 03.5 前的已知边界。
 
 **状态**: ✅ 完成 03.4
+
+## Phase 11: Runtime Gameplay Foundation
+
+目标：把 Gameplay 从 Demo 逻辑推进为可复用运行时能力，固定公共 API、配置驱动、诊断、配置变更和 Ability authoring contract。
+
+完成记录：
+- M1-M5 已收口：公共 API、配置驱动 Ability、诊断快照、运行时配置变更处理和 Ability authoring contract。
+- `GameplayRuntimeModule` 已接入 `RuntimeHost` / `RuntimeCommandBuffer` / `RuntimeEventQueue` 主线。
+- Ability Graph v0 已完成定义、执行、阶段时间线、配置映射、诊断 trace 和 runtime hash。
+
+**状态**: ✅ Accepted / Closed（2026-05-09）
+
+## Phase 11.1: Gameplay Component Runtime（ECS-style v0）
+
+目标：沉淀 command-driven、component-native 的 Gameplay 运行时，验证 entity/component/store/system/event/hash/SaveState 的最小闭环。
+
+完成记录：
+- `GAMEPLAY_ECS_STYLE_00`-`19` 已形成 v0 component runtime 链路：design contract、component store、system pipeline、v0 API bridge、core components、query、component world、entity commands、diagnostics、schema registry、runtime hash、SaveState、state systems、spawn definitions、attribute runtime、ability command bridge、ability targeting、ability rules 和 vertical slice。
+- `GameplayComponentRuntimeShowcase` 已作为可观察 Runtime Slice 展示 spawn、target、ability rules、cleanup、events、hash 和 SaveState；Editor 菜单可生成 Unity 场景。
+- `GameplayComponentBuffSetComponent` / `GameplayComponentModifierSetComponent` 已提供 component-native buff / additive modifier state、cleanup、diagnostics、hash 和 SaveState。
+
+**状态**: ✅ v0.1 / Runtime Slice
+
+## Phase 11.2: Runtime Foundation 与运行时工具层
+
+目标：补齐 RuntimeHost、Frame/Command/Replay、SaveState 之外的高频运行时工具，支撑 Demo、Ability、UI、Combat、SceneFlow 和 Resources 的稳定验证。
+
+完成记录：
+- Runtime Foundation 01-03 已完成 Host Core、Frame/Command/Replay 和 SaveState contract / orchestration。
+- Runtime Foundation 04 v1 parallel closeout 已 `Completed / Verified`。
+- Runtime 工具层已记录并沉淀 `StableHandleTable`、`RingBuffer<T>`、`ObjectPool<T>` / `ReferencePool<T>`、`TimerScheduler`、`DeterministicRandom`、`RuntimeEventQueue<T>`、Cooldown / Dirty / Version / Operation / RateLimiter / Debouncer / CommandRegistry 等能力路线。
+
+**状态**: ✅ Completed / Verified
+
+## Phase 12: UI Toolkit Runtime Showcase
+
+目标：把 Runtime Vertical Slice 的 HUD 和配置窗口沉淀为可复用 UI Toolkit 控件、主题 token 和运行时展示路径。
+
+完成记录：
+- M1-M5 已验收，Runtime Showcase 已覆盖手动控制、Patch / Mod Package 加载、Ability 重建、Old/New 配置对比、Diagnostic View 和 Mini Game Feedback。
+- M6 已从 Showcase 沉淀 `MxStatBar`、`MxCommandButton`、`MxStatusBadge`、`MxEventLog`、`MxPanelTabs` 等可复用控件和主题 token。
+
+**状态**: ✅ M6 accepted
