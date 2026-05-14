@@ -194,7 +194,29 @@
 
 ---
 
-## 5. 运行时 Demo：打开 Unity 按 Play 就能看到效果
+## 5. Audio / FMOD 音频系统
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| noEngine 音频服务契约 | ✅ v0.1 | `IAudioService` / `AudioService` | Audio |
+| 可替换音频后端 | ✅ v0.1 | `IAudioBackend` / `NullAudioBackend` | Audio |
+| 稳定音频定义查询 | ✅ v0.1 | `IAudioDefinitionProvider` / `AudioEventDefinition` / `AudioBusDefinition` / `AudioParameterDefinition` | Audio |
+| 播放请求、句柄和结构化结果 | ✅ v0.1 | `AudioPlayRequest` / `AudioHandle` / `AudioResult` / `AudioPlayResult` | Audio |
+| 参数、Bus 音量和静音控制 | ✅ v0.1 | `SetParameter()` / `SetBusVolume()` / `SetBusMuted()` | Audio |
+| 音频诊断快照 | ✅ v0.1 | `AudioDebugSnapshot` / `AudioDebugActiveEvent` / `AudioDebugBusState` | Audio |
+| FMOD 后端运行时脚手架 | ✅ Runtime Scaffold | `FmodAudioBackend` / `FmodAudioBackendOptions` | Audio.FMOD |
+| RuntimeHost 音频 Tick 模块 | ✅ v0.1 | `AudioRuntimeModule` / `RuntimeTickStage.PostSimulation` | Audio.FMOD + Runtime |
+| FMOD 设置和 bank 校验工具 | ✅ v0.1 | `FmodAudioSetupValidator` / `FmodAudioSetupReport` | Audio.FMOD.Editor |
+
+→ 接口：`Interfaces/Audio.md`
+→ 设计：`AUDIO_SYSTEM_FMOD.md`
+→ 任务：`Tasks/AUDIO_FMOD_M1_CONTRACT.md`, `Tasks/AUDIO_FMOD_M2_BACKEND.md`, `Tasks/AUDIO_FMOD_M3_VALIDATION.md`
+→ 测试：`Tests/Audio/`
+→ **边界**: `MxFramework.Audio` 不依赖 `UnityEngine`、`UnityEditor`、`FMODUnity` 或 `FMOD.Studio`；FMOD 真实播放仍依赖项目提供 FMOD bank / event / bus 配置。
+
+---
+
+## 6. 运行时 Demo：打开 Unity 按 Play 就能看到效果
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -242,7 +264,7 @@
 
 ---
 
-## 6. Unity Editor 工具
+## 7. Unity Editor 工具
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -256,9 +278,9 @@
 
 ---
 
-## 7. 外部 Buff 创作（独立于 Unity）
+## 8. 外部 Buff 创作（独立于 Unity）
 
-### 6.1 Authoring Core / CLI
+### 8.1 Authoring Core / CLI
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -278,7 +300,7 @@
 | Mod Diagnostic CLI | ✅ v0.1 | `mod diagnose` — 包发现/加载计划/合并诊断 → JSON 快照；支持 `--container`/`-c`、`--loadout`、`--output`、`--pretty`、`--fail-on-warning`；退出码 0/2/5/1 |
 | Mod Diagnostic Service | ✅ v0.2 | `ModDiagnosticService.BuildSnapshot(...)` 由 CLI 与 EditorServer 共用 |
 
-### 6.2 Buff 编辑器 Web UI
+### 8.2 Buff 编辑器 Web UI
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -294,7 +316,7 @@
 → 使用说明：`AUTHORING_EDITOR_USAGE.md`
 → 目录：`Tools/MxFramework.Authoring/samples/buff-preview/`
 
-### 6.3 Unity Preview Server
+### 8.3 Unity Preview Server
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -305,7 +327,7 @@
 
 ---
 
-## 8. Combat 确定性物理 / 动作运行时
+## 9. Combat 确定性物理 / 动作运行时
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -320,7 +342,7 @@
 
 ---
 
-## 9. WGame 数据审计（框架设计依据）
+## 10. WGame 数据审计（框架设计依据）
 
 | 文档 | 状态 | 覆盖内容 |
 |------|------|----------|
@@ -337,7 +359,7 @@
 
 ---
 
-## 10. Core 工具层
+## 11. Core 工具层
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
