@@ -228,7 +228,7 @@
 | 0.6.13 | 2026-05-11 | 新增 Input v0.1：Unity Input System 采集层上封装 `IInputProvider`、`InputSnapshot`、`InputCommandQueue`、上下文栈、重绑定和本地多人 `LocalUserInputAdapter` |
 | 0.6.11 | 2026-05-11 | Breakout Runtime Showcase 升级 v0.3：新增关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、反馈事件和 UI Toolkit 多球/砖块类型渲染 |
 | 0.6.10 | 2026-05-11 | Breakout Runtime Showcase 升级 v0.2：未发球时球在球拍上滚动，发球方向由球相对球拍位置决定，并补充 runtime 测试 |
-| 0.6.9 | 2026-05-11 | 新增 Breakout Runtime Showcase v0.1，用纯 C# 打砖块验证连续运动、AABB 碰撞、道具、Replay hash、SaveState JSON roundtrip，并新增 AppFlow / SceneFlow UI Toolkit 试玩场景 |
+| 0.6.9 | 2026-05-11 | 新增 Breakout Runtime Showcase v0.1，用纯 C# 打砖块验证连续运动、AABB 碰撞、道具、Replay hash、SaveState JSON roundtrip，并新增 AppFlow / SceneFlow UI Toolkit 试玩层代码；当前仓库未提交 Breakout 场景资产 |
 | 0.6.8 | 2026-05-11 | 新增 Tetris Runtime Validation v0.1，用纯 C# Tetris 验证 RuntimeHost、CommandBuffer、Replay playback hash、hash mismatch 和 SaveState JSON roundtrip，并新增 PlayMode 试玩场景 |
 | 0.6.7 | 2026-05-11 | 完成 App / Scene Flow v0.1 foundation，新增 noEngine AppFlow / SceneFlow 契约、RuntimeHost 模块和 Unity SceneManager 适配 |
 | 0.6.6 | 2026-05-10 | 完成 Runtime Foundation Core v0.1：新增 MxFramework.Runtime Host、Frame/Command/Replay、SaveState 契约、迁移管线、JSON roundtrip 和 Runtime 接口文档 |

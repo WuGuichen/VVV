@@ -1,9 +1,11 @@
 # Breakout Runtime Showcase 01
 
-> 状态：Implemented / Verified
+> 状态：Runtime Validation Implemented / Verified；Playable 场景资产未提交
 > 日期：2026-05-11
 > 优先级：P0
 > 前置：`APP_SCENE_FLOW_01_FOUNDATION.md`、`TETRIS_RUNTIME_VALIDATION_01.md`
+>
+> 现状校准（2026-05-14）：当前仓库没有 Breakout 场景资产。本任务文档保留 Breakout runtime、AppFlow、SceneFlow 和 UI Toolkit 试玩层代码的设计记录，但能力状态以 Runtime Validation 为准，不能标记为 Playable。
 
 ## 目标
 
@@ -29,7 +31,7 @@
 - 一个能力/道具验证点：Wide Paddle 或 Slow Ball，走简单状态计时。
 - Runtime module 封装 command drain、simulation tick、replay recorder、save state custom payload。
 - EditMode 测试覆盖 core、replay hash、save state roundtrip。
-- Unity UI Toolkit playable demo：主菜单 -> loading -> gameplay -> game over。
+- Unity UI Toolkit 试玩层代码：主菜单 -> loading -> gameplay -> game over；提交 Playable 状态前仍需要补齐 Unity 场景资产。
 
 ### 不做
 
@@ -97,7 +99,7 @@ Assets/UI/MxFramework/Breakout/
 
 - `dotnet build MxFramework.Tests.csproj --no-restore` 通过。
 - Unity 刷新后 Console 无 Breakout 编译错误。
-- Play Mode 可从 Boot 进入 Gameplay 并操作。
+- 当前仓库缺少 Breakout 场景资产；补齐场景前不以 Play Mode 入口作为当前验收条件。
 - `Tools/GitNexus/gitnexus.sh detect-changes` 风险符合 Demo 范围。
 - 更新 `Docs/CAPABILITIES.md` 和 `Docs/README.md` 的 Demo 入口。
 
@@ -114,7 +116,7 @@ Assets/UI/MxFramework/Breakout/
 边界：
 
 - `BreakoutGame.cs` / `BreakoutRuntimeValidation.cs` 不引用 `UnityEngine` / `UnityEditor`。
-- Playable demo 使用 UI Toolkit，不使用 `OnGUI`。
+- 试玩层代码使用 UI Toolkit，不使用 `OnGUI`。
 - v0.1 默认用 timed SceneFlow driver 展示 loading / progress / result 诊断；Unity SceneManager driver 保留为可切换实现，避免试玩入口对象在单场景加载时被卸载。
 - v0.2：未发球时球会在球拍上左右滚动；发球时按球相对球拍中心的位置决定水平速度和发射方向。
 - v0.3：新增 3 个内建关卡、Normal/Strong/Unbreakable/PowerUp 砖块类型、砖块 HP、Wide/Slow/Multi/ExtraLife/Laser 道具、多球动态实体、下一关流程和反馈事件；SaveState payload 升级到 v2，保存砖块类型/HP/道具、多球、关卡和事件计数。
