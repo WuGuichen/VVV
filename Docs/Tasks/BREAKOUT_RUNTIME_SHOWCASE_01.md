@@ -54,10 +54,6 @@ Assets/Scripts/MxFramework/Tests/Demo/Breakout/
 Assets/UI/MxFramework/Breakout/
   BreakoutPlayableDemo.uxml
   BreakoutPlayableDemo.uss
-
-Assets/Scenes/
-  BreakoutBoot.unity
-  BreakoutGameplay.unity
 ```
 
 ## 拆分任务
@@ -88,8 +84,6 @@ Assets/Scenes/
 - `Assets/Scripts/MxFramework/Demo/Breakout/BreakoutPlayableDemo.cs`
 - `Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uxml`
 - `Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uss`
-- `Assets/Scenes/BreakoutBoot.unity`
-- `Assets/Scenes/BreakoutGameplay.unity`
 
 验收：
 
@@ -115,7 +109,7 @@ Assets/Scenes/
 - Unity 试玩层：`Assets/Scripts/MxFramework/Demo/Breakout/BreakoutPlayableDemo.cs`
 - App / Scene Flow 展示：`Assets/Scripts/MxFramework/Demo/Breakout/BreakoutAppFlowDemo.cs`
 - UI Toolkit 资产：`Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uxml`、`Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uss`
-- 场景入口：`Assets/Scenes/BreakoutBoot.unity`、`Assets/Scenes/BreakoutGameplay.unity`
+- 场景入口：当前仓库未提交 Breakout 场景资产，因此该切片当前只能标记为 Runtime Validation，不能标记为 Playable。
 
 边界：
 
@@ -129,7 +123,7 @@ Assets/Scenes/
 
 - `dotnet build MxFramework.Tests.csproj --no-restore` 通过。
 - Unity refresh / compile 通过，无 Breakout 编译错误。
-- Play Mode 加载 `Assets/Scenes/BreakoutBoot.unity` 后，UIDocument 绑定 `BreakoutPlayableDemo.uxml`，visual tree 正常生成，brick layer 为 32 个砖块。
+- 历史 Play Mode 记录引用过 Breakout 场景资产，但当前仓库缺少该场景文件；以 `Assets/Scenes/` 实际内容和 `CAPABILITIES.md` 当前能力状态为准。
 - Play Mode runtime bridge 检查：`runtimeReady=True score=0 lives=3 bricks=32`。
 - Play Mode AppFlow 手动推进检查：`state=Menu pending=False tick=4 last=None target=Menu`。
 - Breakout 边界检查：核心 runtime 文件无 Unity 引用，试玩层无 `OnGUI` / `GUILayout` / `GUI.*`。

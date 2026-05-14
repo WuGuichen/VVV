@@ -97,7 +97,7 @@
 | Goal | 说明 |
 |------|------|
 | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` | Marble Maze Framework Physics Showcase：已重构为框架物理权威，RuntimeHost 负责命令、计时、checkpoint、诊断 hash、Replay 和 SaveState JSON；Unity 场景对象只作为 view / input adapter。 |
-| `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Showcase：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState，并提供 `Assets/Scenes/BreakoutBoot.unity` / `Assets/Scenes/BreakoutGameplay.unity` 试玩入口。 |
+| `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Validation：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState。当前仓库未提交 Breakout 场景资产，因此不标记为 Playable。 |
 | `Tasks/TETRIS_RUNTIME_VALIDATION_01.md` | Tetris Runtime Validation：用纯 C# 经典小游戏验证 RuntimeHost、CommandBuffer、Replay playback hash、SaveState JSON roundtrip，并提供 `Assets/Scenes/TetrisRuntimeValidation.unity` 手动试玩入口。 |
 | `Tasks/APP_SCENE_FLOW_01_FOUNDATION.md` | App / Scene Flow Foundation：新增 App 状态流转、SceneFlow 串行加载、Unity SceneManager 适配和 RuntimeHost 模块入口。 |
 | `Tasks/PHASE11_RUNTIME_GAMEPLAY_GOAL.md` | Runtime Gameplay Foundation 已 Accepted / Closed；M1-M5 公共 API、配置驱动、诊断快照、配置变更和 Ability authoring contract 已收口。 |
