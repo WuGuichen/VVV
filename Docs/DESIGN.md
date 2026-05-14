@@ -1,6 +1,6 @@
 # MxFramework 总体设计规范
 
-> 版本 0.3.0 | 2026-05-05
+> 版本 0.3.1 | 2026-05-14
 > 
 > 目标：从 WGame 提取通用的、低耦合的 Unity 游戏框架。
 > 当前阶段：**需求规范 + 总设计**，为后续开发铺路。
@@ -583,7 +583,7 @@ MxFramework.Editor         → 所有模块 + UnityEditor
 | 6.2 | Config-backed Factories | ✅ 完成 v1 | - |
 | 6.3 | Config Authoring | ✅ 完成 v1 | - |
 | 7 | AI 轻量 Planner | ✅ 完成 v1 | - |
-| 8 | Editor 编辑器 | 📋 待开始 | - |
+| 8 | Editor 编辑器 | ✅ 完成 | - |
 | 9 | GitNexus 工作流规范 | ✅ 已接入 | `GITNEXUS.md` |
 | 10 | 框架自测 + 示例项目 | 📋 待开始 | - |
 
