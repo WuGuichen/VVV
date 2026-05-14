@@ -364,7 +364,7 @@ namespace MxFramework.Demo.CombatAnimation
             }
         }
 
-        private void ApplyDemoActionDamage(List<HitResolveResult> results)
+        private static void ApplyDemoActionDamage(List<HitResolveResult> results)
         {
             for (int i = 0; i < results.Count; i++)
             {
