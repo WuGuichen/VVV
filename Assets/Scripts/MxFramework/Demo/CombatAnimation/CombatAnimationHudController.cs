@@ -21,6 +21,13 @@ namespace MxFramework.Demo.CombatAnimation
         private Label _instructions;
         private VisualElement _hudRoot;
         private VisualElement _eventList;
+        private VisualElement _diagnosticPanel;
+        private VisualElement _actionStateList;
+        private VisualElement _hitApplicationList;
+        private VisualElement _gameplayAttributeList;
+        private VisualElement _bridgeMapList;
+        private VisualElement _runtimeHashList;
+        private VisualElement _eventQueueList;
         private bool _built;
 
         public void ConfigureAssets(UIDocument document, VisualTreeAsset visualTree, StyleSheet styleSheet)
@@ -56,6 +63,7 @@ namespace MxFramework.Demo.CombatAnimation
             SetText(_weaponTrace, model.WeaponTrace);
             SetText(_instructions, model.Instructions);
             RefreshEvents(model.RecentEvents);
+            RefreshDiagnostics(model.Diagnostics);
             ApplyRuntimeStyleFallback();
         }
 
@@ -97,6 +105,13 @@ namespace MxFramework.Demo.CombatAnimation
             _weaponTrace = root.Q<Label>("weapon-trace");
             _instructions = root.Q<Label>("instructions");
             _eventList = root.Q<VisualElement>("event-list");
+            _diagnosticPanel = root.Q<VisualElement>("runtime-diagnostic-panel");
+            _actionStateList = root.Q<VisualElement>("diagnostic-action-state-list");
+            _hitApplicationList = root.Q<VisualElement>("diagnostic-hit-application-list");
+            _gameplayAttributeList = root.Q<VisualElement>("diagnostic-gameplay-attribute-list");
+            _bridgeMapList = root.Q<VisualElement>("diagnostic-bridge-map-list");
+            _runtimeHashList = root.Q<VisualElement>("diagnostic-runtime-hash-list");
+            _eventQueueList = root.Q<VisualElement>("diagnostic-event-queue-list");
             _built = _playerAction != null && _eventList != null;
             if (_built)
             {
@@ -124,6 +139,45 @@ namespace MxFramework.Demo.CombatAnimation
             }
         }
 
+        private void RefreshDiagnostics(CombatRuntimeDiagnosticHudModel diagnostics)
+        {
+            if (_diagnosticPanel == null)
+            {
+                return;
+            }
+
+            RefreshDiagnosticRows(_actionStateList, diagnostics == null ? null : diagnostics.ActionStateRows);
+            RefreshDiagnosticRows(_hitApplicationList, diagnostics == null ? null : diagnostics.HitApplicationRows);
+            RefreshDiagnosticRows(_gameplayAttributeList, diagnostics == null ? null : diagnostics.GameplayAttributeRows);
+            RefreshDiagnosticRows(_bridgeMapList, diagnostics == null ? null : diagnostics.BridgeMapRows);
+            RefreshDiagnosticRows(_runtimeHashList, diagnostics == null ? null : diagnostics.RuntimeHashRows);
+            RefreshDiagnosticRows(_eventQueueList, diagnostics == null ? null : diagnostics.EventQueueRows);
+        }
+
+        private static void RefreshDiagnosticRows(VisualElement list, IReadOnlyList<string> rows)
+        {
+            if (list == null)
+            {
+                return;
+            }
+
+            list.Clear();
+            if (rows == null || rows.Count == 0)
+            {
+                Label empty = new Label("-") { name = "diagnostic-row" };
+                ApplyDiagnosticLabelFallback(empty);
+                list.Add(empty);
+                return;
+            }
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                Label row = new Label(rows[i]) { name = "diagnostic-row" };
+                ApplyDiagnosticLabelFallback(row);
+                list.Add(row);
+            }
+        }
+
         private void ApplyRuntimeStyleFallback()
         {
             if (_hudRoot == null)
@@ -134,7 +188,7 @@ namespace MxFramework.Demo.CombatAnimation
             _hudRoot.style.position = Position.Absolute;
             _hudRoot.style.left = 18f;
             _hudRoot.style.top = 18f;
-            _hudRoot.style.width = 430f;
+            _hudRoot.style.width = 560f;
             _hudRoot.style.paddingLeft = 14f;
             _hudRoot.style.paddingRight = 14f;
             _hudRoot.style.paddingTop = 14f;
@@ -177,6 +231,13 @@ namespace MxFramework.Demo.CombatAnimation
                     ApplyEventLabelFallback(_eventList[i] as Label);
                 }
             }
+
+            ApplyDiagnosticListFallback(_actionStateList);
+            ApplyDiagnosticListFallback(_hitApplicationList);
+            ApplyDiagnosticListFallback(_gameplayAttributeList);
+            ApplyDiagnosticListFallback(_bridgeMapList);
+            ApplyDiagnosticListFallback(_runtimeHashList);
+            ApplyDiagnosticListFallback(_eventQueueList);
         }
 
         private static void ApplyPanelFallback(VisualElement panel)
@@ -224,6 +285,28 @@ namespace MxFramework.Demo.CombatAnimation
             }
         }
 
+        private static void ApplyDiagnosticListFallback(VisualElement list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < list.childCount; i++)
+            {
+                ApplyDiagnosticLabelFallback(list[i] as Label);
+            }
+        }
+
+        private static void ApplyDiagnosticLabelFallback(Label label)
+        {
+            ApplyLabelFallback(label, 13f, new Color(0.84f, 0.91f, 0.95f, 1f), FontStyle.Normal);
+            if (label != null)
+            {
+                label.style.marginBottom = 1f;
+            }
+        }
+
         private static void SetText(Label label, string text)
         {
             if (label != null)
@@ -243,5 +326,6 @@ namespace MxFramework.Demo.CombatAnimation
         public string WeaponTrace { get; set; }
         public string Instructions { get; set; }
         public IReadOnlyList<string> RecentEvents { get; set; }
+        public CombatRuntimeDiagnosticHudModel Diagnostics { get; set; }
     }
 }

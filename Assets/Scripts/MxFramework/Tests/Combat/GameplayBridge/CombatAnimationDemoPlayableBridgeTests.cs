@@ -83,6 +83,13 @@ namespace MxFramework.Tests.Combat.GameplayBridge
             }
 
             Assert.IsNotNull(root.Q<VisualElement>("event-list"));
+            Assert.IsNotNull(root.Q<VisualElement>("runtime-diagnostic-panel"));
+            Assert.IsNotNull(root.Q<VisualElement>("diagnostic-action-state-list"));
+            Assert.IsNotNull(root.Q<VisualElement>("diagnostic-hit-application-list"));
+            Assert.IsNotNull(root.Q<VisualElement>("diagnostic-gameplay-attribute-list"));
+            Assert.IsNotNull(root.Q<VisualElement>("diagnostic-bridge-map-list"));
+            Assert.IsNotNull(root.Q<VisualElement>("diagnostic-runtime-hash-list"));
+            Assert.IsNotNull(root.Q<VisualElement>("diagnostic-event-queue-list"));
         }
 
         [Test]
@@ -106,6 +113,15 @@ namespace MxFramework.Tests.Combat.GameplayBridge
                 WeaponTrace = "active=1 candidates=1 frame=12",
                 Instructions = "WASD move | J light | K heavy | Space dodge",
                 RecentEvents = new[] { "Bridge HP: Dummy 100->85 (-15)" },
+                Diagnostics = new CombatRuntimeDiagnosticHudModel
+                {
+                    ActionStateRows = new[] { "Entity 1:1 action=1001 phase=Active localFrame=12" },
+                    HitApplicationRows = new[] { "Command frame=12 entity=2:1 attribute=100 delta=-15 trace=201" },
+                    GameplayAttributeRows = new[] { "Entity 2:1 attribute=100 current=85" },
+                    BridgeMapRows = new[] { "Combat 2 <-> Gameplay 2:1" },
+                    RuntimeHashRows = new[] { "Demo diagnostic hash frame=12 value=123", "Contributors: mxframework.gameplay.component-world" },
+                    EventQueueRows = new[] { "Pending=0 type=MxFramework.Gameplay.GameplayRuntimeEvent nextSequence=1" },
+                },
             });
 
             VisualElement root = document.rootVisualElement;
@@ -116,16 +132,20 @@ namespace MxFramework.Tests.Combat.GameplayBridge
             Assert.AreEqual("85/100", root.Q<Label>("dummy-hp").text);
             Assert.That(root.Q<Label>("weapon-trace").text, Does.Contain("candidates=1"));
             Assert.That(root.Q<VisualElement>("event-list").Q<Label>("event-row").text, Does.Contain("Bridge HP"));
+            Assert.That(root.Q<VisualElement>("diagnostic-action-state-list").Q<Label>("diagnostic-row").text, Does.Contain("action=1001"));
+            Assert.That(root.Q<VisualElement>("diagnostic-hit-application-list").Q<Label>("diagnostic-row").text, Does.Contain("delta=-15"));
+            Assert.That(root.Q<VisualElement>("diagnostic-runtime-hash-list").Q<Label>("diagnostic-row").text, Does.Contain("Demo diagnostic hash"));
 
             VisualElement hudRoot = root.Q<VisualElement>("combat-animation-hud");
             Assert.IsNotNull(hudRoot);
             Assert.Greater(hudRoot.style.backgroundColor.value.a, 0.9f);
-            Assert.Greater(hudRoot.style.width.value.value, 300f);
+            Assert.Greater(hudRoot.style.width.value.value, 500f);
             AssertReadableInlineStyle(root.Q<Label>("title"));
             AssertReadableInlineStyle(root.Q<Label>("instructions"));
             AssertReadableInlineStyle(root.Q<Label>("player-hp"));
             AssertReadableInlineStyle(root.Q<Label>("dummy-hp"));
             AssertReadableInlineStyle(root.Q<VisualElement>("event-list").Q<Label>("event-row"));
+            AssertReadableInlineStyle(root.Q<VisualElement>("diagnostic-runtime-hash-list").Q<Label>("diagnostic-row"));
         }
 
         [Test]
@@ -251,6 +271,13 @@ namespace MxFramework.Tests.Combat.GameplayBridge
             AssertReadableResolvedLabel(root.Q<Label>("player-hp"), "100/100");
             AssertReadableResolvedLabel(root.Q<Label>("dummy-hp"), expectedDummyHp);
             AssertReadableResolvedLabel(root.Q<Label>("weapon-trace"), null);
+            Assert.IsNotNull(root.Q<VisualElement>("runtime-diagnostic-panel"));
+            AssertReadableResolvedLabel(root.Q<VisualElement>("diagnostic-action-state-list").Q<Label>("diagnostic-row"), null);
+            AssertReadableResolvedLabel(root.Q<VisualElement>("diagnostic-hit-application-list").Q<Label>("diagnostic-row"), null);
+            AssertReadableResolvedLabel(root.Q<VisualElement>("diagnostic-gameplay-attribute-list").Q<Label>("diagnostic-row"), null);
+            AssertReadableResolvedLabel(root.Q<VisualElement>("diagnostic-bridge-map-list").Q<Label>("diagnostic-row"), null);
+            AssertReadableResolvedLabel(root.Q<VisualElement>("diagnostic-runtime-hash-list").Q<Label>("diagnostic-row"), "Demo diagnostic hash");
+            AssertReadableResolvedLabel(root.Q<VisualElement>("diagnostic-event-queue-list").Q<Label>("diagnostic-row"), "Pending=");
 
             List<Label> panelTitles = root.Query<Label>(className: "panel-title").ToList();
             Assert.GreaterOrEqual(panelTitles.Count, 3);

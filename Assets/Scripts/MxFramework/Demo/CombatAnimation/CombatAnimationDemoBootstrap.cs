@@ -43,6 +43,8 @@ namespace MxFramework.Demo.CombatAnimation
         private readonly List<GameplayRuntimeEvent> _gameplayEvents = new List<GameplayRuntimeEvent>();
         private readonly List<string> _eventLog = new List<string>();
         private readonly CombatAnimationHudModel _hudModel = new CombatAnimationHudModel();
+        private readonly CombatRuntimeDiagnosticHudPresenter _diagnosticPresenter = new CombatRuntimeDiagnosticHudPresenter();
+        private readonly List<IRuntimeHashContributor> _diagnosticHashContributors = new List<IRuntimeHashContributor>();
 
         private RuntimeHost _host;
         private GameplayWorld _gameplayWorld;
@@ -138,6 +140,7 @@ namespace MxFramework.Demo.CombatAnimation
             _targetStateProvider = new CombatTargetStateProvider();
             _targetStateResolver = new GameplayBridgeTargetStateResolver(_entityMap, _componentWorld, _targetStateProvider);
 
+            ConfigureDiagnosticSchemas();
             RegisterActions(_actionRegistry, _traceProvider);
             ConfigureGameplayBridge();
             ConfigureInitialPoses();
@@ -224,6 +227,9 @@ namespace MxFramework.Demo.CombatAnimation
 
             _attributeCommandPipeline = new GameplaySystemPipeline();
             _attributeCommandPipeline.Add(new GameplayAttributeCommandSystem());
+
+            _diagnosticHashContributors.Clear();
+            _diagnosticHashContributors.Add(new GameplayComponentWorldHashContributor(_componentWorld));
 
             AddEvent($"Bridge map: player {_playerGameplayId} dummy {_dummyGameplayId}.");
         }
@@ -413,7 +419,20 @@ namespace MxFramework.Demo.CombatAnimation
                 : "waiting";
             _hudModel.Instructions = "WASD move | J light | K heavy | Space dodge";
             _hudModel.RecentEvents = _eventLog;
+            _hudModel.Diagnostics = _diagnosticPresenter.Build(
+                new RuntimeFrame(_inputService != null ? _inputService.Commands.CurrentFrame : 0L),
+                _componentWorld,
+                _entityMap,
+                _bridgeOutputCommands,
+                _hitResults,
+                _diagnosticHashContributors);
             _hud.Refresh(_hudModel);
+        }
+
+        private void ConfigureDiagnosticSchemas()
+        {
+            GameplayCoreComponentSchemaDescriptors.RegisterRuntimeHash(_componentWorld.Schemas);
+            GameplayAttributeComponentSchemaDescriptors.RegisterRuntimeHash(_componentWorld.Schemas);
         }
 
         private CombatActionState? QueryCombatActionState(CombatEntityId combatId)
