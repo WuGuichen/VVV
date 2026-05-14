@@ -81,7 +81,11 @@ dist/
 out/
 *.log
 start-gitnexus-ui.sh
-package.json
+/package.json
+
+# Embedded Unity packages may contain source folders named Build.
+!Packages/com.coplaydev.unity-mcp/Editor/Tools/Build/
+!Packages/com.coplaydev.unity-mcp/Editor/Tools/Build/**
 
 # Machine-local Unity authoring configuration
 Assets/CombatActionAuthoringAsset.asset
