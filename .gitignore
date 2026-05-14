@@ -87,5 +87,11 @@ start-gitnexus-ui.sh
 !Packages/com.coplaydev.unity-mcp/Editor/Tools/Build/
 !Packages/com.coplaydev.unity-mcp/Editor/Tools/Build/**
 
+# FMOD authored demo banks are shared assets; keep machine-local Studio caches out.
+!FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/
+!FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/**
+FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/.cache/buildrecords/
+FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/.cache/fsbcache/
+
 # Machine-local Unity authoring configuration
 Assets/CombatActionAuthoringAsset.asset

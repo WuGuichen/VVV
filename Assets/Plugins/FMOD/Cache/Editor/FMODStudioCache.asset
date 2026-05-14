@@ -47,6 +47,26 @@ MonoBehaviour:
   MinDistance: 1
   MaxDistance: 20
   Length: 450
+--- !u!114 &-6676397366680613787
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c18180ecb35941f4682ae60107b85b7c, type: 3}
+  m_Name: bank:/Master.bank
+  m_EditorClassIdentifier: 
+  Path: FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.bank
+  Name: Master
+  StudioPath: bank:/Master
+  lastModified: 639143808708099049
+  FileSizes:
+  - Name: Desktop
+    Value: 3904
+  Exists: 1
 --- !u!114 &-1140354995057219321
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -67,6 +87,26 @@ MonoBehaviour:
   - Name: Desktop
     Value: 3904
   Exists: 1
+--- !u!114 &-240117629413215018
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c18180ecb35941f4682ae60107b85b7c, type: 3}
+  m_Name: bank:/Master.strings.bank
+  m_EditorClassIdentifier: 
+  Path: FMOD/MxFrameworkAudioDemo/MxFrameworkAudioDemo/Build/Desktop/Master.strings.bank
+  Name: Master.strings
+  StudioPath: bank:/Master.strings
+  lastModified: 639143808708133625
+  FileSizes:
+  - Name: Desktop
+    Value: 832
+  Exists: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -80,18 +120,18 @@ MonoBehaviour:
   m_Name: FMODStudioCache
   m_EditorClassIdentifier: 
   EditorBanks:
-  - {fileID: -8481349859168590790}
-  - {fileID: -1140354995057219321}
+  - {fileID: -240117629413215018}
+  - {fileID: -6676397366680613787}
   EditorEvents:
-  - {fileID: 821759828538728028}
-  - {fileID: -7289833256433823884}
+  - {fileID: 8319552413668855947}
+  - {fileID: 4584876359571784608}
   EditorParameters: []
   MasterBanks:
-  - {fileID: -1140354995057219321}
+  - {fileID: -6676397366680613787}
   StringsBanks:
-  - {fileID: -8481349859168590790}
+  - {fileID: -240117629413215018}
   cacheVersion: 131859
-  cacheTime: 639140577823465675
+  cacheTime: 639143808708133625
   SerializableEventsDict:
   - key: event:/MxFramework/Demo/Loop
     index: 0
@@ -117,6 +157,60 @@ MonoBehaviour:
     Data4: 285023549
   Banks:
   - {fileID: -1140354995057219321}
+  IsStream: 0
+  Is3D: 0
+  IsOneShot: 1
+  Parameters: []
+  MinDistance: 1
+  MaxDistance: 20
+  Length: 450
+--- !u!114 &4584876359571784608
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ceb653cd98e289a4e8697a1af55201f2, type: 3}
+  m_Name: event:/MxFramework/Demo/OneShot
+  m_EditorClassIdentifier: 
+  Path: event:/MxFramework/Demo/OneShot
+  Guid:
+    Data1: 1395482850
+    Data2: 1183819883
+    Data3: 1767766178
+    Data4: 124964847
+  Banks:
+  - {fileID: -6676397366680613787}
+  IsStream: 0
+  Is3D: 0
+  IsOneShot: 1
+  Parameters: []
+  MinDistance: 1
+  MaxDistance: 20
+  Length: 450
+--- !u!114 &8319552413668855947
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ceb653cd98e289a4e8697a1af55201f2, type: 3}
+  m_Name: event:/MxFramework/Demo/Loop
+  m_EditorClassIdentifier: 
+  Path: event:/MxFramework/Demo/Loop
+  Guid:
+    Data1: 2098307439
+    Data2: 1160505266
+    Data3: 1433321612
+    Data4: 285023549
+  Banks:
+  - {fileID: -6676397366680613787}
   IsStream: 0
   Is3D: 0
   IsOneShot: 1
