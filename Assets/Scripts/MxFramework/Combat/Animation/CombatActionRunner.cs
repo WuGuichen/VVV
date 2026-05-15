@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MxFramework.Combat.Core;
+using MxFramework.Core.Pooling;
 
 namespace MxFramework.Combat.Animation
 {
@@ -26,6 +27,8 @@ namespace MxFramework.Combat.Animation
         public event Action<ActionStartedEvent> ActionStarted;
 
         public event Action<ActionPhaseChangedEvent> ActionPhaseChanged;
+
+        public event Action<ActionFrameEventRaisedEvent> ActionFrameEventRaised;
 
         public event Action<ActionFinishedEvent> ActionFinished;
 
@@ -93,6 +96,7 @@ namespace MxFramework.Combat.Animation
                 }
 
                 _runningActions[entityId] = running;
+                PublishFrameEvents(entityId, running, currentFrame);
                 i++;
             }
         }
@@ -199,7 +203,32 @@ namespace MxFramework.Combat.Animation
             _runningActions[entityId] = running;
             AddEntityOrder(entityId);
             ActionStarted?.Invoke(new ActionStartedEvent(entityId, timeline.ActionId, instanceId, currentFrame));
+            PublishFrameEvents(entityId, running, currentFrame);
             return ActionResult.Succeeded(instanceId);
+        }
+
+        private void PublishFrameEvents(CombatEntityId entityId, RunningAction running, CombatFrame worldFrame)
+        {
+            Action<ActionFrameEventRaisedEvent> handler = ActionFrameEventRaised;
+            if (handler == null)
+            {
+                return;
+            }
+
+            using (PooledList<CombatActionFrameEvent> pooled = ListPool<CombatActionFrameEvent>.Get(out List<CombatActionFrameEvent> frameEvents))
+            {
+                running.Timeline.CollectEvents(running.LocalFrame, frameEvents);
+                for (int i = 0; i < frameEvents.Count; i++)
+                {
+                    handler(new ActionFrameEventRaisedEvent(
+                        entityId,
+                        running.Timeline.ActionId,
+                        running.ActionInstanceId,
+                        worldFrame,
+                        running.LocalFrame,
+                        frameEvents[i]));
+                }
+            }
         }
 
         private void CancelRunning(CombatEntityId entityId, RunningAction running, string reason)

@@ -40,6 +40,37 @@ namespace MxFramework.Combat.Animation
         public int LocalFrame { get; }
     }
 
+    public readonly struct ActionFrameEventRaisedEvent
+    {
+        public ActionFrameEventRaisedEvent(
+            CombatEntityId entityId,
+            int actionId,
+            int actionInstanceId,
+            CombatFrame worldFrame,
+            int localFrame,
+            CombatActionFrameEvent frameEvent)
+        {
+            EntityId = entityId;
+            ActionId = actionId;
+            ActionInstanceId = actionInstanceId;
+            WorldFrame = worldFrame;
+            LocalFrame = localFrame;
+            FrameEvent = frameEvent;
+        }
+
+        public CombatEntityId EntityId { get; }
+
+        public int ActionId { get; }
+
+        public int ActionInstanceId { get; }
+
+        public CombatFrame WorldFrame { get; }
+
+        public int LocalFrame { get; }
+
+        public CombatActionFrameEvent FrameEvent { get; }
+    }
+
     public readonly struct ActionFinishedEvent
     {
         public ActionFinishedEvent(CombatEntityId entityId, int actionId, int actionInstanceId)

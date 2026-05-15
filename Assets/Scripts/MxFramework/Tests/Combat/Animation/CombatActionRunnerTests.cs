@@ -59,6 +59,178 @@ namespace MxFramework.Tests.Combat.Animation
         }
 
         [Test]
+        public void StartAction_PublishesFrameZeroEventsAfterStarted()
+        {
+            var registry = new CombatActionRegistry();
+            registry.RegisterTimeline(5005, TimelineWithEvents(
+                5005,
+                4,
+                new[]
+                {
+                    new CombatActionFrameEvent(0, 100, sourceOrder: 2),
+                    new CombatActionFrameEvent(0, 50, sourceOrder: 1, intPayload: 7),
+                }));
+            var runner = new CombatActionRunner(registry);
+            var order = new List<string>();
+            var raised = new List<ActionFrameEventRaisedEvent>();
+            var entity = new CombatEntityId(21);
+            runner.ActionStarted += evt => order.Add("started:" + evt.ActionId);
+            runner.ActionFrameEventRaised += evt =>
+            {
+                order.Add("frame:" + evt.FrameEvent.EventId);
+                raised.Add(evt);
+            };
+
+            ActionResult result = runner.StartAction(entity, 5005, new CombatFrame(10));
+
+            Assert.IsTrue(result.Success);
+            CollectionAssert.AreEqual(new[] { "started:5005", "frame:50", "frame:100" }, order);
+            Assert.AreEqual(2, raised.Count);
+            Assert.AreEqual(entity, raised[0].EntityId);
+            Assert.AreEqual(5005, raised[0].ActionId);
+            Assert.AreEqual(result.ActionInstanceId, raised[0].ActionInstanceId);
+            Assert.AreEqual(new CombatFrame(10), raised[0].WorldFrame);
+            Assert.AreEqual(0, raised[0].LocalFrame);
+            Assert.AreEqual(new CombatActionFrameEvent(0, 50, sourceOrder: 1, intPayload: 7), raised[0].FrameEvent);
+        }
+
+        [Test]
+        public void TickActions_PublishesFrameEventsForAdvancedLocalFrame()
+        {
+            var registry = new CombatActionRegistry();
+            registry.RegisterTimeline(5101, TimelineWithEvents(
+                5101,
+                5,
+                new[]
+                {
+                    new CombatActionFrameEvent(1, 11),
+                    new CombatActionFrameEvent(2, 12),
+                }));
+            var runner = new CombatActionRunner(registry);
+            var raised = new List<ActionFrameEventRaisedEvent>();
+            var entity = new CombatEntityId(22);
+            runner.ActionFrameEventRaised += raised.Add;
+
+            ActionResult result = runner.StartAction(entity, 5101, new CombatFrame(4));
+            runner.TickActions(new CombatFrame(5));
+            runner.TickActions(new CombatFrame(6));
+
+            Assert.IsTrue(result.Success);
+            Assert.AreEqual(2, raised.Count);
+            Assert.AreEqual(entity, raised[0].EntityId);
+            Assert.AreEqual(5101, raised[0].ActionId);
+            Assert.AreEqual(result.ActionInstanceId, raised[0].ActionInstanceId);
+            Assert.AreEqual(new CombatFrame(5), raised[0].WorldFrame);
+            Assert.AreEqual(1, raised[0].LocalFrame);
+            Assert.AreEqual(new CombatActionFrameEvent(1, 11), raised[0].FrameEvent);
+            Assert.AreEqual(new CombatFrame(6), raised[1].WorldFrame);
+            Assert.AreEqual(2, raised[1].LocalFrame);
+            Assert.AreEqual(new CombatActionFrameEvent(2, 12), raised[1].FrameEvent);
+        }
+
+        [Test]
+        public void TickActions_PublishesFrameEventsInDeterministicEntityOrder()
+        {
+            var registry = new CombatActionRegistry();
+            registry.RegisterTimeline(5201, TimelineWithEvents(
+                5201,
+                4,
+                new[] { new CombatActionFrameEvent(1, 1) }));
+            var runner = new CombatActionRunner(registry);
+            var raised = new List<ActionFrameEventRaisedEvent>();
+            var highEntity = new CombatEntityId(30);
+            var lowEntity = new CombatEntityId(3);
+            runner.ActionFrameEventRaised += raised.Add;
+
+            runner.StartAction(highEntity, 5201, CombatFrame.Zero);
+            runner.StartAction(lowEntity, 5201, CombatFrame.Zero);
+            runner.TickActions(new CombatFrame(1));
+
+            Assert.AreEqual(2, raised.Count);
+            Assert.AreEqual(lowEntity, raised[0].EntityId);
+            Assert.AreEqual(highEntity, raised[1].EntityId);
+        }
+
+        [Test]
+        public void TickActions_PublishesSameFrameEventsUsingTimelineSortOrder()
+        {
+            var registry = new CombatActionRegistry();
+            registry.RegisterTimeline(5301, TimelineWithEvents(
+                5301,
+                4,
+                new[]
+                {
+                    new CombatActionFrameEvent(1, 20, sourceOrder: 2),
+                    new CombatActionFrameEvent(1, 10, sourceOrder: 1),
+                    new CombatActionFrameEvent(1, 5, sourceOrder: 1),
+                }));
+            var runner = new CombatActionRunner(registry);
+            var raised = new List<ActionFrameEventRaisedEvent>();
+            runner.ActionFrameEventRaised += raised.Add;
+
+            runner.StartAction(new CombatEntityId(23), 5301, CombatFrame.Zero);
+            runner.TickActions(new CombatFrame(1));
+
+            Assert.AreEqual(3, raised.Count);
+            Assert.AreEqual(5, raised[0].FrameEvent.EventId);
+            Assert.AreEqual(10, raised[1].FrameEvent.EventId);
+            Assert.AreEqual(20, raised[2].FrameEvent.EventId);
+        }
+
+        [Test]
+        public void ForceCanceledAction_DoesNotPublishSubsequentFrameEvents()
+        {
+            var registry = new CombatActionRegistry();
+            registry.RegisterTimeline(5401, TimelineWithEvents(
+                5401,
+                5,
+                new[]
+                {
+                    new CombatActionFrameEvent(1, 101),
+                    new CombatActionFrameEvent(2, 102),
+                }));
+            var runner = new CombatActionRunner(registry);
+            var raised = new List<ActionFrameEventRaisedEvent>();
+            var entity = new CombatEntityId(24);
+            runner.ActionFrameEventRaised += raised.Add;
+
+            runner.StartAction(entity, 5401, CombatFrame.Zero);
+            runner.TickActions(new CombatFrame(1));
+            bool canceled = runner.ForceCancel(entity);
+            runner.TickActions(new CombatFrame(2));
+
+            Assert.IsTrue(canceled);
+            Assert.AreEqual(1, raised.Count);
+            Assert.AreEqual(101, raised[0].FrameEvent.EventId);
+            Assert.IsNull(runner.GetActionState(entity));
+        }
+
+        [Test]
+        public void FinishedAction_DoesNotPublishFrameEventsPastTotalFrames()
+        {
+            var registry = new CombatActionRegistry();
+            registry.RegisterTimeline(5501, TimelineWithEvents(
+                5501,
+                2,
+                new[] { new CombatActionFrameEvent(1, 201) }));
+            var runner = new CombatActionRunner(registry);
+            var raised = new List<ActionFrameEventRaisedEvent>();
+            var finished = new List<ActionFinishedEvent>();
+            var entity = new CombatEntityId(25);
+            runner.ActionFrameEventRaised += raised.Add;
+            runner.ActionFinished += finished.Add;
+
+            runner.StartAction(entity, 5501, CombatFrame.Zero);
+            runner.TickActions(new CombatFrame(1));
+            runner.TickActions(new CombatFrame(2));
+
+            Assert.AreEqual(1, raised.Count);
+            Assert.AreEqual(201, raised[0].FrameEvent.EventId);
+            Assert.AreEqual(1, finished.Count);
+            Assert.IsNull(runner.GetActionState(entity));
+        }
+
+        [Test]
         public void StartAction_UsesCancelWindowsForRunningAction()
         {
             CombatActionRunner runner = CreateRunner(out _);
@@ -225,6 +397,22 @@ namespace MxFramework.Tests.Combat.Animation
                     new CombatActionWindow(CombatActionWindowKind.Parry, new CombatFrameRange(3, 3)),
                 },
                 null);
+        }
+
+        private static CombatActionTimeline TimelineWithEvents(
+            int actionId,
+            int totalFrames,
+            CombatActionFrameEvent[] events,
+            CombatActionWindow[] windows = null)
+        {
+            return new CombatActionTimeline(
+                actionId,
+                totalFrames,
+                new CombatFrameRange(0, 0),
+                totalFrames > 2 ? new CombatFrameRange(1, totalFrames - 2) : CombatFrameRange.Empty,
+                new CombatFrameRange(totalFrames - 1, totalFrames - 1),
+                windows,
+                events);
         }
 
         private static CombatActionTimeline HeavyAttack()
