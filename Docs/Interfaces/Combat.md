@@ -32,9 +32,9 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Hit | `HitResolveSystem` | 对命中候选执行稳定排序、hit-once、防友伤和目标状态过滤 |
 | Hit | `HitCandidate` / `HitResolveResult` / `HitResolveKind` / `HitTargetStateFlags` | 命中候选、结算结果、结果类型和目标状态 flags |
 | Hit | `ITeamRelationProvider` / `IHitTargetStateResolver` / `ICombatEventDispatcher` | 队伍关系、目标状态和命中事件派发扩展点 |
-| Animation | `CombatActionTimeline` / `CombatActionWindow` / `CombatFrameRange` / `CombatActionWindowKind` | 动作时间轴、窗口和帧范围 |
+| Animation | `CombatActionTimeline` / `CombatActionFrameEvent` / `CombatActionWindow` / `CombatFrameRange` / `CombatActionWindowKind` | 动作时间轴、表现关联事件、窗口和帧范围 |
 | Animation | `CombatActionRunner` / `CombatActionRegistry` / `CombatActionInstance` / `CombatActionState` / `CombatActionPhase` | 动作注册、运行、状态和阶段 |
-| Animation | `ActionResult` / `ActionStartedEvent` / `ActionPhaseChangedEvent` / `ActionFinishedEvent` / `ActionCanceledEvent` / `ActionCancelRejectedEvent` | 动作运行结果和生命周期事件 |
+| Animation | `ActionResult` / `ActionStartedEvent` / `ActionPhaseChangedEvent` / `ActionFrameEventRaisedEvent` / `ActionFinishedEvent` / `ActionCanceledEvent` / `ActionCancelRejectedEvent` | 动作运行结果和生命周期事件 |
 | Animation | `ICombatAnimationContext` / `CombatAnimationContext` / `CombatAnimationSnapshot` | 动作系统可读写上下文和快照 |
 | Animation Runtime | `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` | `RuntimeHost` 模块化动作、武器轨迹和诊断推进 |
 | Weapon Trace | `WeaponTraceFrame` / `WeaponTraceSegment` / `WeaponHitOnceKey` / `CombatWeaponTraceEvaluator` / `WeaponTraceQueryBuilder` | 武器轨迹采样、查询构建和 hit-once key |
@@ -100,6 +100,10 @@ Bridge 语义：zero-step 不推进 `CombatFrameClock`；multi-step 每个 step 
 - `CombatActionRuntimeModule` 推进动作状态。
 - `CombatWeaponTraceRuntimeModule` 根据动作时间轴和 trace provider 生成武器轨迹查询。
 - `CombatAnimationDiagnosticsModule` 输出动作 / trace / hit 诊断快照。
+
+`CombatActionRunner.ActionFrameEventRaised` 发布 noEngine 的固定帧表现关联事件。`StartAction` / `ForceStartAction` 成功时先发布 `ActionStartedEvent`，再发布 local frame 0 的 `CombatActionFrameEvent`；`TickActions` 每次推进 running action 后，按稳定 entity id 顺序和 `CombatActionFrameEvent.CompareTo` 顺序发布该 local frame 的事件。payload `ActionFrameEventRaisedEvent` 包含 entity、action、action instance、world frame、local frame 和原始 frame event。
+
+frame event 只提供 deterministic presentation correlation，不承载 VFX / SFX / Camera / Footstep / UI kind，也不承载 `ResourceKey`。Unity 或 MxAnimation bridge 需要从 animation binding、bridge 配置或其他表现层配置解析资源和表现类型；该事件不得反向驱动取消窗口、命中、伤害、replay hash 或 Combat 权威状态。
 
 `CombatActionState` 包含 `ActionInstanceId`，用于在 multi-step Runtime tick 内保留每个动作实例的 hit-once 身份；RuntimeHost weapon trace 模块基于每个 fixed step 后的动作状态快照计算候选，不从 Runtime frame 直接推导 Combat frame。
 
