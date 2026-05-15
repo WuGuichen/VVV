@@ -1,6 +1,6 @@
 # MxFramework 接口索引
 
-> 版本 0.3.1 | 2026-05-14
+> 版本 0.3.2 | 2026-05-15
 >
 > 本文件只做接口导航、跨模块规则和依赖矩阵。具体模块接口不要继续堆在这里，必须拆到 `Docs/Interfaces/`。
 
@@ -22,6 +22,7 @@
 | Modifiers | `Docs/Interfaces/Modifiers.md` | `Assets/Scripts/MxFramework/Modifiers/` | `Assets/Scripts/MxFramework/Tests/Modifiers/` |
 | Config | `Docs/Interfaces/Config.md` | `Assets/Scripts/MxFramework/Config*/` | `Assets/Scripts/MxFramework/Tests/Config/` |
 | Resources | `Docs/Interfaces/Resources.md` | `Assets/Scripts/MxFramework/Resources/` | `Assets/Scripts/MxFramework/Tests/Resources/` |
+| Animation | `Docs/Interfaces/Animation.md` | `Assets/Scripts/MxFramework/Animation*/` | `Assets/Scripts/MxFramework/Tests/Animation/` |
 | Audio | `Docs/Interfaces/Audio.md` | `Assets/Scripts/MxFramework/Audio*/` | `Assets/Scripts/MxFramework/Tests/Audio/` |
 | AI | `Docs/Interfaces/AI.md` | `Assets/Scripts/MxFramework/AI/` | `Assets/Scripts/MxFramework/Tests/AI/` |
 | Diagnostics | `Docs/Interfaces/Diagnostics.md` | `Assets/Scripts/MxFramework/Diagnostics/` | `Assets/Scripts/MxFramework/Tests/Diagnostics/` |
@@ -45,20 +46,21 @@
 `MxFramework.Input` 是 Unity 适配模块，依赖 Unity Input System；它不进入 noEngine 依赖矩阵，也不应被 Core / Runtime / Gameplay 等内层模块反向引用。游戏层、Demo 或本地多人组合根按需引用 `IInputProvider`。
 
 ```text
-                    Core  Events  Attr  Modif  Buffs  AI    Config  Resources  Diag  Logging  Runtime  Gameplay
-          Core      -     -       -     -      -      -     -       -          -     -        -        -
-          Events    ✓     -       -     -      -      -     -       -          -     -        -        -
-          Attr      ✓     ✓       -     -      -      -     -       -          -     -        -        -
-          Buffs     ✓     ✓       ✓     -      -      -     -       -          -     -        -        -
-          Modif     ✓     ✓       ✓     -      ✓*     -     -       -          -     -        -        -
-          AI        ✓     -       -     -      -      -     -       -          -     -        -        -
-          Config    ✓     -       -     -      -      -     -       -          -     -        -        -
-          Resources ✓     -       -     -      -      -     -       -          -     -        -        -
-          Diag      ✓     -       -     -      -      -     -       -          -     -        -        -
-          Logging   ✓     -       -     -      -      -     -       -          -     -        -        -
-          Runtime   -     -       -     -      -      -     -       -          -     -        -        -
-          Gameplay  ✓     ✓       ✓     ✓      ✓      -     -       -          -     -        -        -
-          Editor    ✓     ✓       ✓     ✓      ✓      ✓     ✓       ✓          ✓     ✓        ✓        ✓
+                    Core  Events  Attr  Modif  Buffs  AI    Config  Resources  Anim  Diag  Logging  Runtime  Gameplay
+          Core      -     -       -     -      -      -     -       -          -     -     -        -        -
+          Events    ✓     -       -     -      -      -     -       -          -     -     -        -        -
+          Attr      ✓     ✓       -     -      -      -     -       -          -     -     -        -        -
+          Buffs     ✓     ✓       ✓     -      -      -     -       -          -     -     -        -        -
+          Modif     ✓     ✓       ✓     -      ✓*     -     -       -          -     -     -        -        -
+          AI        ✓     -       -     -      -      -     -       -          -     -     -        -        -
+          Config    ✓     -       -     -      -      -     -       -          -     -     -        -        -
+          Resources ✓     -       -     -      -      -     -       -          -     -     -        -        -
+          Anim      -     -       -     -      -      -     -       ✓          -     -     -        -        -
+          Diag      ✓     -       -     -      -      -     -       -          -     -     -        -        -
+          Logging   ✓     -       -     -      -      -     -       -          -     -     -        -        -
+          Runtime   -     -       -     -      -      -     -       -          -     -     -        -        -
+          Gameplay  ✓     ✓       ✓     ✓      ✓      -     -       -          -     -     -        -        -
+          Editor    ✓     ✓       ✓     ✓      ✓      ✓     ✓       ✓          ✓     ✓     ✓        ✓        ✓
 
           ✓* = Modifiers → Buffs 只允许通过 IBuffPipeline 等接口访问。
 ```
@@ -74,7 +76,7 @@
 | **Runtime AI Planner** | 运行时规划器 | `MxFramework.AI` 模块：`AiWorldState`、`IAiGoal`、`IAiAction`、`IAiPlanner`、`SequentialPlanner`。游戏内 NPC 的轻量行为决策引擎。 | LLM、Agent 工作流、配置数据 |
 | **AIAction Config** | AIAction 配置迁移 | 旧 WGame 的 AI 行为配置数据：`AIActionIndex`/`AIActionGraph`、`AIConfig`/`AIConfigDefense`/`AIGoals`、`TbCharacterAI` 以及 `TalentTree→AIAction` 多态引用。所有属于 Config 体系的 AI 数据迁移。 | 运行时 Planner 本身、LLM |
 | **Authoring AI Assist** | 创作 AI 辅助 | `AiStepContext`、LLM 辅助编辑功能。读取当前编辑步骤上下文，解释字段、推荐值、生成修复建议。 | 游戏内 NPC AI 决策 |
-| **Development Agent** | 开发 Agent | Gitea Issue Context Pack、分支/PR/审计、`Docs/USAGE.md §21` 中的 AI Agent 文档导航。 | Runtime AI 或 Authoring AI |
+| **Development Agent** | 开发 Agent | Gitea Issue Context Pack、分支/PR/审计、`Docs/USAGE.md §22` 中的 AI Agent 文档导航。 | Runtime AI 或 Authoring AI |
 
 ### 命名约束
 

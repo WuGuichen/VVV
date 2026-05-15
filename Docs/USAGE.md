@@ -1,6 +1,6 @@
 # MxFramework 使用手册
 
-> 版本 0.3.2 | 2026-05-14
+> 版本 0.3.3 | 2026-05-15
 >
 > 本文面向业务开发和 AI 辅助开发。目标是“先看这里就能接入”，不要靠通读源码理解基础模块。
 
@@ -1344,7 +1344,46 @@ ResourceCatalogValidationReport validation =
 - Runtime Showcase 的资源测试直接使用 `mxframework.samples`：`RuntimeVerticalSliceRunner` 会在 Play Mode 预热 package / StartScreen / Combat / StatusEffects / MagicEffects labels，按 `ResourceKeyConfigProfile.CreateSample()` 直接加载 Katana、StatusAura Prefab、StartScreen 贴图和 MagicEffects AudioClip，并输出加载 / 引用计数 / 释放后的诊断结果。
 - `GameObject` 实例由调用方销毁，资源系统只管理 prefab asset handle。
 
-## 14. Input 输入系统
+## 14. Animation 表现层
+
+Animation 模块把业务侧 presentation 意图转换为动画播放请求。noEngine 层只保存 `ResourceKey`、layer id、request DTO 和 diagnostics；Unity 播放由 `MxFramework.Animation.Unity` 的 Playables backend 负责。
+
+```csharp
+using MxFramework.Animation;
+using MxFramework.Animation.Unity;
+using MxFramework.Resources;
+using UnityEngine;
+
+var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+var fallback = new ResourceKey("demo.animation.fallback", ResourceTypeIds.AnimationClip);
+var set = new MxAnimationSetDefinition(
+    "demo.actor",
+    version: 1,
+    defaultClip: idle,
+    fallbackClip: fallback);
+
+// resources 由组合根注册 provider + catalog；clip 必须通过 ResourceKey 解析。
+var backend = new UnityPlayablesAnimationBackend(animator, resources, set, "actor.demo");
+backend.Play(new MxAnimationPlayRequest { ClipKey = idle });
+backend.Tick(Time.deltaTime);
+
+MxAnimationDiagnosticSnapshot snapshot = backend.CreateSnapshot();
+backend.Release();
+```
+
+约定：
+
+- `MxFramework.Animation` 不引用 Unity，不保存 `AnimationClip`、GUID 或 `Assets/...` path。
+- `MxFramework.Animation.Unity` 通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 backend 自己拥有的 handle。
+- default / fallback clip 按 backend 生命周期常驻，并在 diagnostics 中显示 resident 状态。
+- crossfade outgoing clip 在权重归零且 playable 从 graph 断开后释放。
+- 加载失败会记录 `ResourceError`，先尝试 actor fallback；fallback 也失败时 layer 进入 failed state。
+- `Tick(deltaTime)` 由外部传入 presentation delta。这个时间源只用于表现层，不进入 Combat authority、Replay hash 或命中/取消判定。
+- Combat bridge 不在首版范围；旧 `CombatAnimatorDriver` 未被替换。
+
+详细接口见 `Docs/Interfaces/Animation.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/Animation/`。
+
+## 15. Input 输入系统
 
 Input 模块把 Unity Input System 的 Action/Binding 封装成业务意图。角色、相机、UI 和自动化测试依赖 `IInputProvider`，不直接读设备或 `InputAction`。
 
@@ -1412,7 +1451,7 @@ fake.SetSnapshot(new InputSnapshot(
 - 本地多人使用 `LocalUserInputAdapter` 读取 `PlayerInput.actions` 的私有副本。
 - 重绑定通过 `IInputRebindingService.StartRebind("Gameplay/Jump", bindingIndex)` 触发，结果保存到 `PlayerPrefs`。
 
-## 15. Audio 音频系统
+## 16. Audio 音频系统
 
 Audio 模块的业务入口是 `IAudioService` / `AudioService`。普通测试、服务器和未安装 FMOD 的环境使用 `NullAudioBackend`，不会依赖 Unity 或 FMOD。
 
@@ -1526,7 +1565,7 @@ public sealed class MemoryAudioDefinitions : IAudioDefinitionProvider
 - `SetBusVolume` 使用稳定 bus id，范围由后端 clamp 到 `0..1`。
 - `NullAudioBackend` 只验证意图、句柄和诊断，不声明真实出声。
 
-## 16. Combat 战斗模块
+## 17. Combat 战斗模块
 
 Combat 当前落地的是确定性战斗物理查询和 kinematic motion。不要假定存在未实现的 `CombatWorld` 或完整动作系统；组合根应直接装配 `CombatPhysicsWorld`、查询对象和 `CombatKinematicMotor`。
 
@@ -1596,7 +1635,7 @@ CombatMotionState nextState = step.State;
 - `CombatKinematicMotor.Step(world, bodyId, state, input)` 可把移动结果同步回已注册 body。
 - Combat 使用 `Fix64` / `FixVector3`，不要在核心战斗逻辑中直接读 Unity Physics。
 
-## 17. App / Scene Flow
+## 18. App / Scene Flow
 
 AppFlow 表达 App 状态流转；SceneFlow 串行编排场景加载。Runtime 层只使用稳定字符串 key，Unity 场景名或 path 由 Unity adapter / 项目组合根映射。
 
@@ -1682,7 +1721,7 @@ public sealed class DoneSceneFlowOperation : ISceneFlowOperation
 - SceneFlow busy 时会拒绝新的 load request；调用方读取 `SceneFlowResult.Error` 做 UI 或日志。
 - Unity 项目中使用 `UnitySceneFlowDriver`，但 `MxFramework.Runtime` 本身不引用 `SceneManager`。
 
-## 18. Diagnostics 诊断
+## 19. Diagnostics 诊断
 
 Diagnostics 模块用 `IFrameworkDebugSource` 暴露只读快照。Editor、工具和运行时 HUD 读取 snapshot，不直接读模块私有字段。
 
@@ -1730,7 +1769,7 @@ public sealed class RuntimeCounterDebugSource : IFrameworkDebugSource
 - 可写调试操作要另设 command API，不要塞进 `FrameworkDebugSection.Body`。
 - 游戏层在组合根中持有 debug source 列表，框架不提供全局 registry。
 
-## 19. Gameplay Component Runtime
+## 20. Gameplay Component Runtime
 
 Gameplay Component Runtime 使用 generation-safe `GameplayEntityId`、`GameplayComponentWorld`、component store 和 system pipeline。下面示例用 spawn definition 创建实体，并注册一个自定义 system 读取同一个 `ComponentWorld`。
 
@@ -1806,7 +1845,7 @@ public sealed class CountAliveSystem : IGameplaySystem
 - Spawn definition 是组合根输入，不是 world state；SaveState 保存 spawn 后的实体和组件结果。
 - 自定义 system 通过 `GameplaySystemContext.ComponentWorld` 访问 component runtime，不直接 drain `RuntimeCommandBuffer`。
 
-## 20. 推荐组合根
+## 21. 推荐组合根
 
 游戏层可以集中装配框架模块：
 
@@ -1832,7 +1871,7 @@ public sealed class GameFrameworkBootstrap
 
 组合根可以在 Unity `MonoBehaviour`、服务器入口或测试里创建。框架本身不提供全局单例。
 
-## 21. Development Agent：AI Agent 如何找文档
+## 22. Development Agent：AI Agent 如何找文档
 
 AI agent 进入项目后应按这个顺序读取：
 
@@ -1856,7 +1895,7 @@ AI agent 进入项目后应按这个顺序读取：
 - 不把运行时对象反向写回配置表。
 - 所有验证和沙盒结果都应能复制或导出报告。
 
-## 22. 提交前检查
+## 23. 提交前检查
 
 项目通用提交前流程见 `Docs/WORKFLOW.md`。每次改框架基础能力后至少确认：
 
