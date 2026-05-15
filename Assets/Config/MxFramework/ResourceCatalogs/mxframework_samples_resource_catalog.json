@@ -25,6 +25,379 @@
       }
     },
     {
+      "id": "art.character.skeleton.model",
+      "type": "GameObject",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/model",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/Models/Skeleton.fbx"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_idle",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_idle",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_walk_forward",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_forward",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_run_forward",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_run_forward",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_jump",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_jump",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_jump_running",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_jump_running",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_jump_running_landing",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_jump_running_landing",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_land_to_standing_idle",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_land_to_standing_idle",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_run_back",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_run_back",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_run_left",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_run_left",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_run_right",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_run_right",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_sprint_forward",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_sprint_forward",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_turn_left_90",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_turn_left_90",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_turn_right_90",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_turn_right_90",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_walk_back",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_back",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_walk_left",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_left",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim"
+      }
+    },
+    {
+      "id": "art.character.skeleton.animation.standing_walk_right",
+      "type": "AnimationClip",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_right",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "sample.skeleton.animation_clip",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim"
+      }
+    },
+    {
       "id": "vfx.status_aura.burn",
       "type": "GameObject",
       "variant": "",

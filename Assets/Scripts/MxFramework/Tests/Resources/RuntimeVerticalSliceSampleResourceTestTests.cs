@@ -29,26 +29,27 @@ namespace MxFramework.Tests.Resources
                 Assert.AreEqual(5, result.DestroyedPrefabCount);
 
                 Assert.NotNull(result.AfterWarmupSnapshot);
-                Assert.AreEqual(16, result.AfterWarmupSnapshot.LoadedCount);
-                Assert.AreEqual(40, result.AfterWarmupSnapshot.TotalRefCount);
+                Assert.AreEqual(33, result.AfterWarmupSnapshot.LoadedCount);
+                Assert.AreEqual(74, result.AfterWarmupSnapshot.TotalRefCount);
 
                 Assert.NotNull(result.AfterDirectLoadSnapshot);
-                Assert.AreEqual(16, result.AfterDirectLoadSnapshot.LoadedCount);
-                Assert.AreEqual(56, result.AfterDirectLoadSnapshot.TotalRefCount);
+                Assert.AreEqual(33, result.AfterDirectLoadSnapshot.LoadedCount);
+                Assert.AreEqual(90, result.AfterDirectLoadSnapshot.TotalRefCount);
                 Assert.AreEqual(0, result.AfterDirectLoadSnapshot.FailedCount);
 
                 Assert.NotNull(result.AfterDirectReleaseSnapshot);
-                Assert.AreEqual(16, result.AfterDirectReleaseSnapshot.LoadedCount);
-                Assert.AreEqual(40, result.AfterDirectReleaseSnapshot.TotalRefCount);
+                Assert.AreEqual(33, result.AfterDirectReleaseSnapshot.LoadedCount);
+                Assert.AreEqual(74, result.AfterDirectReleaseSnapshot.TotalRefCount);
 
                 Assert.NotNull(result.AfterFullReleaseSnapshot);
                 Assert.AreEqual(0, result.AfterFullReleaseSnapshot.LoadedCount);
                 Assert.AreEqual(0, result.AfterFullReleaseSnapshot.TotalRefCount);
                 Assert.AreEqual(0, result.AfterFullReleaseSnapshot.FailedCount);
 
-                Assert.AreEqual(16, result.ProviderLoadCount);
-                Assert.AreEqual(16, result.ProviderReleaseCount);
-                StringAssert.Contains("Samples warmup: package 16/16", string.Join("\n", result.LogLines));
+                Assert.AreEqual(33, result.ProviderLoadCount);
+                Assert.AreEqual(33, result.ProviderReleaseCount);
+                StringAssert.Contains("Samples warmup: package 33/33", string.Join("\n", result.LogLines));
+                StringAssert.Contains("MxAnimation 17/17", string.Join("\n", result.LogLines));
                 StringAssert.Contains("Samples direct: Katana=1, StatusAura prefabs=4", string.Join("\n", result.LogLines));
                 StringAssert.Contains("fullRelease loaded=0 refs=0 failed=0", string.Join("\n", result.LogLines));
             }
@@ -77,7 +78,8 @@ namespace MxFramework.Tests.Resources
                 string log = string.Join("\n", lines);
 
                 StringAssert.Contains("Samples resources ok", summary);
-                StringAssert.Contains("Samples warmup: package 16/16", log);
+                StringAssert.Contains("Samples warmup: package 33/33", log);
+                StringAssert.Contains("MxAnimation 17/17", log);
                 StringAssert.Contains("StartScreen 7/7", log);
                 StringAssert.Contains("Combat 9/9", log);
                 StringAssert.Contains("StatusEffects 4/4", log);

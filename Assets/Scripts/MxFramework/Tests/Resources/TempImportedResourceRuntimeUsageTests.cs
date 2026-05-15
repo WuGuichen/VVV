@@ -10,7 +10,8 @@ namespace MxFramework.Tests.Resources
 {
     public class TempImportedResourceRuntimeUsageTests
     {
-        [TestCase(TempImportedResourceCatalog.PackageLabel, 16)]
+        [TestCase(TempImportedResourceCatalog.PackageLabel, 33)]
+        [TestCase(TempImportedResourceCatalog.WarmupMxAnimationLabel, 17)]
         [TestCase(TempImportedResourceCatalog.WarmupStartScreenLabel, 7)]
         [TestCase(TempImportedResourceCatalog.WarmupCombatLabel, 9)]
         [TestCase(TempImportedResourceCatalog.WarmupStatusEffectsLabel, 4)]
@@ -35,7 +36,7 @@ namespace MxFramework.Tests.Resources
             Assert.AreEqual(TempImportedResourceCatalog.CatalogId, loaded.Catalogs[0].CatalogId);
             Assert.AreEqual(TempImportedResourceCatalog.PackageId, loaded.Catalogs[0].PackageId);
             Assert.AreEqual(1, loaded.CatalogCount);
-            Assert.AreEqual(16, loaded.EntryCount);
+            Assert.AreEqual(33, loaded.EntryCount);
             Assert.AreEqual(1, loaded.ProviderCount);
             Assert.AreEqual(expectedCount, loaded.LoadedCount);
             Assert.AreEqual(expectedCount, loaded.TotalRefCount);
@@ -104,6 +105,38 @@ namespace MxFramework.Tests.Resources
         }
 
         [Test]
+        public void LoadAnimationClips_FromSamplesCatalog_UsesResourceManagerHandles()
+        {
+            SampleRuntimeFixture fixture = CreateFixture();
+            var handles = new List<ResourceHandle<AnimationClip>>();
+
+            try
+            {
+                handles.Add(Load<AnimationClip>(fixture.Manager, AnimationKey(TempImportedResourceCatalog.SkeletonIdleAnimationId)));
+                handles.Add(Load<AnimationClip>(fixture.Manager, AnimationKey(TempImportedResourceCatalog.SkeletonWalkForwardAnimationId)));
+                handles.Add(Load<AnimationClip>(fixture.Manager, AnimationKey(TempImportedResourceCatalog.SkeletonRunForwardAnimationId)));
+                handles.Add(Load<AnimationClip>(fixture.Manager, AnimationKey(TempImportedResourceCatalog.SkeletonJumpAnimationId)));
+
+                ResourceDebugSnapshot loaded = fixture.Manager.CreateDebugSnapshot();
+                Assert.AreEqual(4, loaded.LoadedCount);
+                Assert.AreEqual(4, loaded.TotalRefCount);
+                Assert.AreEqual(0, loaded.FailedCount);
+
+                for (int i = 0; i < handles.Count; i++)
+                    Assert.NotNull(handles[i].Value);
+            }
+            finally
+            {
+                ReleaseAll(fixture.Manager, handles);
+            }
+
+            ResourceDebugSnapshot released = fixture.Manager.CreateDebugSnapshot();
+            Assert.AreEqual(0, released.LoadedCount);
+            Assert.AreEqual(0, released.TotalRefCount);
+            Assert.AreEqual(4, fixture.Provider.ReleaseCount);
+        }
+
+        [Test]
         public void Load_WhenSampleKeyMissing_ReturnsNotFoundAndRecordsDiagnostics()
         {
             SampleRuntimeFixture fixture = CreateFixture();
@@ -145,11 +178,20 @@ namespace MxFramework.Tests.Resources
 
             ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
             Assert.AreEqual(1, snapshot.CatalogCount);
-            Assert.AreEqual(16, snapshot.EntryCount);
+            Assert.AreEqual(33, snapshot.EntryCount);
             Assert.AreEqual(1, snapshot.ProviderCount);
             Assert.AreEqual(0, snapshot.LoadedCount);
 
             return new SampleRuntimeFixture(manager, provider);
+        }
+
+        private static ResourceKey AnimationKey(string id)
+        {
+            return new ResourceKey(
+                id,
+                ResourceTypeIds.AnimationClip,
+                string.Empty,
+                TempImportedResourceCatalog.PackageId);
         }
 
         private static ResourceHandle<T> Load<T>(ResourceManager manager, ResourceKey key)

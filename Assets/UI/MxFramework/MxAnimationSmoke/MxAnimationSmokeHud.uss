@@ -1,0 +1,46 @@
+.smoke-hud {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: 520px;
+    padding: 14px;
+    background-color: rgba(16, 18, 20, 0.9);
+    border-left-width: 4px;
+    border-left-color: rgb(82, 176, 136);
+    color: rgb(238, 242, 244);
+}
+
+.hud-title {
+    font-size: 20px;
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+}
+
+.hud-instructions {
+    color: rgb(184, 205, 214);
+    margin-bottom: 10px;
+}
+
+.hud-panel {
+    padding: 10px;
+    margin-bottom: 8px;
+    background-color: rgba(42, 48, 54, 0.82);
+    border-radius: 4px;
+}
+
+.panel-title {
+    -unity-font-style: bold;
+    color: rgb(255, 218, 132);
+    margin-bottom: 4px;
+}
+
+.error {
+    color: rgb(255, 138, 116);
+    -unity-font-style: bold;
+}
+
+#events Label {
+    white-space: normal;
+    color: rgb(218, 228, 232);
+    margin-bottom: 2px;
+}
