@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 using MxFramework.Demo;
 using NUnit.Framework;
 using UnityEditor;
@@ -10,8 +13,8 @@ namespace MxFramework.Tests.Resources
         [Test]
         public void Run_CompletesSamplesResourceChainAndReleasesAllResources()
         {
-            System.Func<string, Object> previousLoader = RuntimeVerticalSliceSampleResourceTest.AssetPathLoader;
-            RuntimeVerticalSliceSampleResourceTest.AssetPathLoader = AssetDatabase.LoadAssetAtPath<Object>;
+            System.Func<string, UnityEngine.Object> previousLoader = RuntimeVerticalSliceSampleResourceTest.AssetPathLoader;
+            RuntimeVerticalSliceSampleResourceTest.AssetPathLoader = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>;
             var resourceTest = new RuntimeVerticalSliceSampleResourceTest();
 
             try
@@ -54,6 +57,59 @@ namespace MxFramework.Tests.Resources
                 resourceTest.Dispose();
                 RuntimeVerticalSliceSampleResourceTest.AssetPathLoader = previousLoader;
             }
+        }
+
+        [Test]
+        public void RuntimeVerticalSliceRunner_WarmupRuntimeResources_RunsSamplesChainWithoutManualWiring()
+        {
+            System.Func<string, UnityEngine.Object> previousLoader = RuntimeVerticalSliceSampleResourceTest.AssetPathLoader;
+            RuntimeVerticalSliceSampleResourceTest.AssetPathLoader = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>;
+            GameObject go = new GameObject("RuntimeVerticalSliceRunnerResourceTest");
+
+            try
+            {
+                RuntimeVerticalSliceRunner runner = go.AddComponent<RuntimeVerticalSliceRunner>();
+
+                InvokePrivate(runner, "WarmupRuntimeResources");
+
+                string summary = (string)GetPrivateField(runner, "_resourceWarmupSummary");
+                IReadOnlyList<string> lines = (IReadOnlyList<string>)GetPrivateField(runner, "_resourceTestLines");
+                string log = string.Join("\n", lines);
+
+                StringAssert.Contains("Samples resources ok", summary);
+                StringAssert.Contains("Samples warmup: package 16/16", log);
+                StringAssert.Contains("StartScreen 7/7", log);
+                StringAssert.Contains("Combat 9/9", log);
+                StringAssert.Contains("StatusEffects 4/4", log);
+                StringAssert.Contains("MagicEffects 4/4", log);
+                StringAssert.Contains("Samples direct: Katana=1, StatusAura prefabs=4", log);
+                StringAssert.Contains("fullRelease loaded=0 refs=0 failed=0", log);
+
+                InvokePrivate(runner, "ReleaseRuntimeResources");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                RuntimeVerticalSliceSampleResourceTest.AssetPathLoader = previousLoader;
+            }
+        }
+
+        private static void InvokePrivate(RuntimeVerticalSliceRunner runner, string methodName)
+        {
+            MethodInfo method = typeof(RuntimeVerticalSliceRunner).GetMethod(
+                methodName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(runner, Array.Empty<object>());
+        }
+
+        private static object GetPrivateField(RuntimeVerticalSliceRunner runner, string fieldName)
+        {
+            FieldInfo field = typeof(RuntimeVerticalSliceRunner).GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            return field.GetValue(runner);
         }
     }
 }
