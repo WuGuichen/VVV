@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.38 | 2026-05-14
+> 版本 0.6.39 | 2026-05-15
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -97,6 +97,7 @@
 
 | Goal | 说明 |
 |------|------|
+| `Tasks/RUNTIME_DEBUG_UI_FRAMEWORK_01_DESIGN.md` | Runtime Debug UI Framework 01：Issue #85 通用运行时调试界面框架设计，规划 source registry、snapshot aggregation、Hidden / Collapsed / Expanded UX、DebugUI noEngine core / Toolkit / Input 拆分和 M1-M5 实施切片。 |
 | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` | Marble Maze Framework Physics Showcase：已重构为框架物理权威，RuntimeHost 负责命令、计时、checkpoint、诊断 hash、Replay 和 SaveState JSON；Unity 场景对象只作为 view / input adapter。 |
 | `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Validation：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState。当前仓库未提交 Breakout 场景资产，因此不标记为 Playable。 |
 | `Tasks/TETRIS_RUNTIME_VALIDATION_01.md` | Tetris Runtime Validation：用纯 C# 经典小游戏验证 RuntimeHost、CommandBuffer、Replay playback hash、SaveState JSON roundtrip，并提供 `Assets/Scenes/TetrisRuntimeValidation.unity` 手动试玩入口。 |
@@ -203,6 +204,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.39 | 2026-05-15 | 新增 Runtime Debug UI Framework 01 设计文档，明确通用运行时调试 overlay 与现有 Showcase HUD 边界、DebugUI 程序集拆分、snapshot 聚合、输入/焦点行为和 M1-M5 实施切片 |
 | 0.6.38 | 2026-05-14 | 新增资源目录规范文档，明确临时导入资源到正式 Samples 根、ResourceKey/label 命名、direct/dependency-only 划分、MagicEffects 身份和 FMOD bank 边界 |
 | 0.6.37 | 2026-05-13 | 新增 Combat Animation RuntimeHost 集成模块，使用预注册服务模式和 Simulation / PostSimulation / Diagnostics 三阶段模块推进动作、武器轨迹和诊断快照 |
 | 0.6.36 | 2026-05-13 | 新增 Combat Hit Resolve Bridge v0，补齐 owner 防护、阵营过滤、动态目标状态解析、事件派发和 Action window state adapter |
