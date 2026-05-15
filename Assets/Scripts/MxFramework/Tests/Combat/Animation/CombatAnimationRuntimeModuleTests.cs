@@ -52,6 +52,7 @@ namespace MxFramework.Tests.Combat.Animation
             var animationContext = new CombatAnimationContext();
             var registry = new CombatActionRegistry();
             RegisterTimeline(registry);
+            services.Register(new CombatFixedStepDriver());
             services.Register<ICombatAnimationContext>(animationContext);
             services.Register(registry);
             var host = new RuntimeHost(new RuntimeHostOptions { Services = services });
@@ -65,6 +66,131 @@ namespace MxFramework.Tests.Combat.Animation
             CombatActionState state = animationContext.ActionRunner.GetActionState(new CombatEntityId(1)).Value;
             Assert.AreEqual(0, state.LocalFrame);
             Assert.AreEqual(CombatActionPhase.Startup, state.Phase);
+
+            host.Dispose();
+        }
+
+        [Test]
+        public void RuntimeHost_ZeroFixedStepBatchDoesNotAdvanceActionOrTrace()
+        {
+            CombatAnimationContext animationContext = CreateRuntime(
+                new CombatStepConfig(10, 4),
+                out RuntimeHost host,
+                out CombatFixedStepDriver driver,
+                out CombatActionRegistry registry,
+                out CombatActionTimelineTraceProvider traceProvider,
+                out CombatPhysicsWorld physicsWorld);
+            RegisterTimeline(registry);
+            RegisterBodyWithAabb(physicsWorld, entity: 1, body: 1, collider: 1, layer: 1, x: 0);
+            RegisterBodyWithAabb(physicsWorld, entity: 2, body: 2, collider: 1, layer: 1, x: 3);
+
+            host.RegisterModule(new CombatActionRuntimeModule());
+            host.RegisterModule(new CombatWeaponTraceRuntimeModule());
+            host.Initialize();
+            host.Start();
+            animationContext.ActionRunner.StartAction(new CombatEntityId(1), 1001, CombatFrame.Zero);
+            traceProvider.RegisterTrace(1001, localFrame: 1, Trace(traceId: 7, radius: Fix64.Half));
+
+            host.Tick(0, 0.05d, 0.05d);
+
+            CombatActionState state = animationContext.ActionRunner.GetActionState(new CombatEntityId(1)).Value;
+            Assert.AreEqual(0, state.LocalFrame);
+            Assert.AreEqual(0, animationContext.LastFrameHitCandidates.Count);
+            Assert.AreEqual(0, driver.CurrentBatch.StepCount);
+            Assert.AreEqual(CombatFrame.Zero, driver.CurrentFrame);
+
+            host.Dispose();
+        }
+
+        [Test]
+        public void RuntimeHost_MultiStepBatchAdvancesActionOncePerCombatStep()
+        {
+            CombatAnimationContext animationContext = CreateRuntime(
+                new CombatStepConfig(10, 4),
+                out RuntimeHost host,
+                out CombatFixedStepDriver driver,
+                out CombatActionRegistry registry,
+                out _,
+                out _);
+            RegisterTimeline(registry);
+            host.RegisterModule(new CombatActionRuntimeModule());
+            host.Initialize();
+            host.Start();
+            animationContext.ActionRunner.StartAction(new CombatEntityId(1), 1001, CombatFrame.Zero);
+
+            host.Tick(0, 0.3d, 0.3d);
+
+            CombatActionState state = animationContext.ActionRunner.GetActionState(new CombatEntityId(1)).Value;
+            Assert.AreEqual(3, state.LocalFrame);
+            Assert.AreEqual(CombatActionPhase.Recovery, state.Phase);
+            Assert.AreEqual(3, driver.CurrentBatch.StepCount);
+            Assert.AreEqual(new CombatFrame(3), driver.CurrentFrame);
+
+            host.Dispose();
+        }
+
+        [Test]
+        public void RuntimeHost_MultiStepBatchEvaluatesWeaponTraceSnapshotsPerCombatStep()
+        {
+            CombatAnimationContext animationContext = CreateRuntime(
+                new CombatStepConfig(10, 4),
+                out RuntimeHost host,
+                out CombatFixedStepDriver driver,
+                out CombatActionRegistry registry,
+                out CombatActionTimelineTraceProvider traceProvider,
+                out CombatPhysicsWorld physicsWorld);
+            RegisterTimeline(registry);
+            RegisterBodyWithAabb(physicsWorld, entity: 1, body: 1, collider: 1, layer: 1, x: 0);
+            RegisterBodyWithAabb(physicsWorld, entity: 2, body: 2, collider: 1, layer: 1, x: 3);
+            host.RegisterModule(new CombatActionRuntimeModule());
+            host.RegisterModule(new CombatWeaponTraceRuntimeModule());
+            host.Initialize();
+            host.Start();
+            animationContext.ActionRunner.StartAction(new CombatEntityId(1), 1001, CombatFrame.Zero);
+            traceProvider.RegisterTrace(1001, localFrame: 1, Trace(traceId: 7, radius: Fix64.Half));
+            traceProvider.RegisterTrace(1001, localFrame: 2, Trace(traceId: 8, radius: Fix64.Half));
+
+            host.Tick(0, 0.3d, 0.3d);
+
+            Assert.AreEqual(3, driver.CurrentBatch.StepCount);
+            Assert.AreEqual(2, animationContext.LastFrameHitCandidates.Count);
+            var frames = new List<int>();
+            var traceIds = new List<int>();
+            for (int i = 0; i < animationContext.LastFrameHitCandidates.Count; i++)
+            {
+                frames.Add(animationContext.LastFrameHitCandidates[i].Frame.Value);
+                traceIds.Add(animationContext.LastFrameHitCandidates[i].TraceId);
+            }
+
+            CollectionAssert.AreEquivalent(new[] { 1, 2 }, frames);
+            CollectionAssert.AreEquivalent(new[] { 7, 8 }, traceIds);
+
+            host.Dispose();
+        }
+
+        [Test]
+        public void RuntimeHost_MaxStepBatchCapsActionAdvancement()
+        {
+            CombatAnimationContext animationContext = CreateRuntime(
+                new CombatStepConfig(10, 2),
+                out RuntimeHost host,
+                out CombatFixedStepDriver driver,
+                out CombatActionRegistry registry,
+                out _,
+                out _);
+            RegisterTimeline(registry);
+            host.RegisterModule(new CombatActionRuntimeModule());
+            host.Initialize();
+            host.Start();
+            animationContext.ActionRunner.StartAction(new CombatEntityId(1), 1001, CombatFrame.Zero);
+
+            host.Tick(0, 0.35d, 0.35d);
+
+            CombatActionState state = animationContext.ActionRunner.GetActionState(new CombatEntityId(1)).Value;
+            Assert.AreEqual(2, state.LocalFrame);
+            Assert.AreEqual(2, driver.CurrentBatch.StepCount);
+            Assert.IsTrue(driver.CurrentBatch.MaxStepLimitReached);
+            Assert.AreEqual(new CombatFrame(2), driver.CurrentFrame);
 
             host.Dispose();
         }
@@ -136,15 +262,34 @@ namespace MxFramework.Tests.Combat.Animation
             out CombatActionTimelineTraceProvider traceProvider,
             out CombatPhysicsWorld physicsWorld)
         {
+            return CreateRuntime(
+                CombatStepConfig.Default,
+                out host,
+                out _,
+                out registry,
+                out traceProvider,
+                out physicsWorld);
+        }
+
+        private static CombatAnimationContext CreateRuntime(
+            CombatStepConfig stepConfig,
+            out RuntimeHost host,
+            out CombatFixedStepDriver fixedStepDriver,
+            out CombatActionRegistry registry,
+            out CombatActionTimelineTraceProvider traceProvider,
+            out CombatPhysicsWorld physicsWorld)
+        {
             var animationContext = new CombatAnimationContext();
             registry = new CombatActionRegistry();
             traceProvider = new CombatActionTimelineTraceProvider();
             physicsWorld = new CombatPhysicsWorld();
+            fixedStepDriver = new CombatFixedStepDriver(stepConfig);
             var services = new RuntimeServiceRegistry();
             services.Register<ICombatAnimationContext>(animationContext);
             services.Register(registry);
             services.Register<CombatPhysicsWorld>(physicsWorld);
             services.Register<ICombatActionTraceProvider>(traceProvider);
+            services.Register(fixedStepDriver);
             host = new RuntimeHost(new RuntimeHostOptions { Services = services });
             return animationContext;
         }

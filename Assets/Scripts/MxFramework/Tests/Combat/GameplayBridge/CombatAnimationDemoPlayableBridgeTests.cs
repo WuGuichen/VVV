@@ -178,6 +178,25 @@ namespace MxFramework.Tests.Combat.GameplayBridge
         }
 
         [Test]
+        public void BootstrapStepConfig_MatchesDemoRuntimeDelta()
+        {
+            FieldInfo configField = typeof(CombatAnimationDemoBootstrap).GetField(
+                "DemoStepConfig",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            FieldInfo deltaField = typeof(CombatAnimationDemoBootstrap).GetField(
+                "FixedDeltaTime",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(configField);
+            Assert.IsNotNull(deltaField);
+
+            var stepConfig = (CombatStepConfig)configField.GetValue(null);
+            var fixedDeltaTime = (float)deltaField.GetRawConstantValue();
+
+            Assert.AreEqual(30, stepConfig.TicksPerSecond);
+            Assert.AreEqual(1f / stepConfig.TicksPerSecond, fixedDeltaTime, 0.000001f);
+        }
+
+        [Test]
         public void BootstrapZeroDamageShim_ConvertsWeaponTraceCandidateDamageToDemoActionDamage()
         {
             var results = new List<HitResolveResult>

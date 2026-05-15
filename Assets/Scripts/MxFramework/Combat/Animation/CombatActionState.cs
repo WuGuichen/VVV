@@ -11,6 +11,17 @@ namespace MxFramework.Combat.Animation
             int localFrame,
             CombatFrame startedAtFrame,
             CombatActionPhase phase)
+            : this(entityId, actionId, localFrame, startedAtFrame, phase, actionInstanceId: 0)
+        {
+        }
+
+        public CombatActionState(
+            CombatEntityId entityId,
+            int actionId,
+            int localFrame,
+            CombatFrame startedAtFrame,
+            CombatActionPhase phase,
+            int actionInstanceId)
         {
             if (actionId < 0)
             {
@@ -22,11 +33,17 @@ namespace MxFramework.Combat.Animation
                 throw new ArgumentOutOfRangeException(nameof(localFrame), "Local frame cannot be negative.");
             }
 
+            if (actionInstanceId < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(actionInstanceId), "Action instance id cannot be negative.");
+            }
+
             EntityId = entityId;
             ActionId = actionId;
             LocalFrame = localFrame;
             StartedAtFrame = startedAtFrame;
             Phase = phase;
+            ActionInstanceId = actionInstanceId;
         }
 
         public CombatEntityId EntityId { get; }
@@ -39,6 +56,8 @@ namespace MxFramework.Combat.Animation
 
         public CombatActionPhase Phase { get; }
 
+        public int ActionInstanceId { get; }
+
         public bool IsFinished => Phase == CombatActionPhase.Finished;
 
         public bool Equals(CombatActionState other)
@@ -47,7 +66,8 @@ namespace MxFramework.Combat.Animation
                 && ActionId == other.ActionId
                 && LocalFrame == other.LocalFrame
                 && StartedAtFrame.Equals(other.StartedAtFrame)
-                && Phase == other.Phase;
+                && Phase == other.Phase
+                && ActionInstanceId == other.ActionInstanceId;
         }
 
         public override bool Equals(object obj)
@@ -64,6 +84,7 @@ namespace MxFramework.Combat.Animation
                 hash = (hash * 397) ^ LocalFrame;
                 hash = (hash * 397) ^ StartedAtFrame.Value;
                 hash = (hash * 397) ^ (int)Phase;
+                hash = (hash * 397) ^ ActionInstanceId;
                 return hash;
             }
         }

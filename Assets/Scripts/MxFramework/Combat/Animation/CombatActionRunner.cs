@@ -309,7 +309,8 @@ namespace MxFramework.Combat.Animation
                     Timeline.ActionId,
                     LocalFrame,
                     Instance.StartedAtFrame,
-                    Phase);
+                    Phase,
+                    ActionInstanceId);
             }
         }
     }

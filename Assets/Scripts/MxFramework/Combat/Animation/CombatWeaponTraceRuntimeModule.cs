@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MxFramework.Combat.Core;
 using MxFramework.Combat.Hit;
 using MxFramework.Combat.Physics;
 using MxFramework.Runtime;
@@ -16,6 +17,8 @@ namespace MxFramework.Combat.Animation
         private ICombatAnimationContext _animationContext;
         private CombatWeaponTraceEvaluator _evaluator;
         private CombatHitCollector _hitCollector;
+        private CombatFixedStepDriver _fixedStepDriver;
+        private CombatFixedStepActionHistory _actionHistory;
 
         public CombatWeaponTraceRuntimeModule(int priority = DefaultPriority)
             : base(DefaultModuleId, RuntimeTickStage.PostSimulation, priority)
@@ -30,6 +33,8 @@ namespace MxFramework.Combat.Animation
             }
 
             _animationContext = context.Services.Get<ICombatAnimationContext>();
+            _fixedStepDriver = CombatFixedStepDriverServices.GetOrCreate(context);
+            _actionHistory = CombatFixedStepDriverServices.GetOrCreateActionHistory(context);
             CombatActionRunner runner = _animationContext.ActionRunner;
             var physicsWorld = context.Services.Get<CombatPhysicsWorld>();
             var traceProvider = context.Services.Get<ICombatActionTraceProvider>();
@@ -46,7 +51,18 @@ namespace MxFramework.Combat.Animation
 
             _rawCandidates.Clear();
             _deduplicatedCandidates.Clear();
-            _evaluator.EvaluateAll(CombatRuntimeFrameUtility.ToCombatFrame(context.FrameIndex), _rawCandidates);
+            CombatFixedStepBatch batch = _fixedStepDriver.Advance(context);
+            if (!batch.HasSteps || !_actionHistory.TryGetSnapshots(context.FrameIndex, out IReadOnlyList<CombatActionStepSnapshot> snapshots))
+            {
+                _animationContext.SetLastFrameHitCandidates(_deduplicatedCandidates);
+                return;
+            }
+
+            for (int i = 0; i < snapshots.Count; i++)
+            {
+                CombatActionStepSnapshot snapshot = snapshots[i];
+                _evaluator.EvaluateAll(snapshot.Frame, snapshot.ActionStates, _rawCandidates);
+            }
             _hitCollector.Collect(_rawCandidates, _deduplicatedCandidates);
             _animationContext.SetLastFrameHitCandidates(_deduplicatedCandidates);
         }
@@ -63,6 +79,8 @@ namespace MxFramework.Combat.Animation
             _evaluator = null;
             _hitCollector = null;
             _animationContext = null;
+            _fixedStepDriver = null;
+            _actionHistory = null;
             _rawCandidates.Clear();
             _deduplicatedCandidates.Clear();
         }

@@ -21,7 +21,11 @@ namespace MxFramework.Demo.CombatAnimation
     public sealed class CombatAnimationDemoBootstrap : MonoBehaviour
     {
         // Combat timelines are authored in action frames; 30 Hz keeps the demo attack durations readable in Play Mode.
-        private const float FixedDeltaTime = 1f / 30f;
+        private const int DemoTicksPerSecond = 30;
+        private const float FixedDeltaTime = 1f / DemoTicksPerSecond;
+        private static readonly CombatStepConfig DemoStepConfig = new CombatStepConfig(
+            DemoTicksPerSecond,
+            CombatStepConfig.DefaultMaxStepsPerUpdate);
         private const float MoveSpeed = 3.2f;
         private const int LightDamage = 15;
         private const int HeavyDamage = 30;
@@ -151,6 +155,7 @@ namespace MxFramework.Demo.CombatAnimation
             options.Services.Register(_physicsWorld);
             options.Services.Register(_actionRegistry);
             options.Services.Register<ICombatActionTraceProvider>(_traceProvider);
+            options.Services.Register(new CombatFixedStepDriver(DemoStepConfig));
 
             _host = new RuntimeHost(options);
             _host.RegisterModule(new CombatActionRuntimeModule());
