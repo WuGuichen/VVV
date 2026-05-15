@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Combat.Animation.Unity",
+    "rootNamespace": "MxFramework.Combat.Animation.Unity",
+    "references": [
+        "MxFramework.Combat",
+        "MxFramework.Animation",
+        "MxFramework.Animation.Unity",
+        "MxFramework.Resources"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
