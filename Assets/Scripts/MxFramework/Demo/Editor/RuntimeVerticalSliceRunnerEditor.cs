@@ -80,7 +80,7 @@ namespace MxFramework.Demo
             }
 
             EditorGUILayout.PropertyField(_showLegacyOnGui, new GUIContent("显示 Legacy OnGUI", "临时后备调试文本。Ability Showcase 且 HUD 开启时会自动隐藏，其他旧模式默认依赖它显示状态。"));
-            EditorGUILayout.PropertyField(_useResourceCatalogWarmup, new GUIContent("启用资源 Catalog Warmup", "用 ResourceManager / ResourcePreloadService 预热 Runtime Showcase 资源。"));
+            EditorGUILayout.PropertyField(_useResourceCatalogWarmup, new GUIContent("启用 Samples 资源链路测试", "用 mxframework.samples catalog 跑预热、直接加载、Prefab 实例化和释放诊断。"));
 
             if (_useAbilitySlice.boolValue && !_enableShowcaseUi.boolValue && !_showLegacyOnGui.boolValue)
                 EditorGUILayout.HelpBox("当前 Ability Showcase 没有任何可见 UI。建议开启 UI Toolkit HUD。", MessageType.Warning);

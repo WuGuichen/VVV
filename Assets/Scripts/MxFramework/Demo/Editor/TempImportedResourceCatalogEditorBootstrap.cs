@@ -4,8 +4,14 @@ using UnityEngine;
 
 namespace MxFramework.Demo
 {
+    [InitializeOnLoad]
     public static class TempImportedResourceCatalogEditorBootstrap
     {
+        static TempImportedResourceCatalogEditorBootstrap()
+        {
+            RuntimeVerticalSliceSampleResourceTest.AssetPathLoader = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>;
+        }
+
         public static MemoryResourceProvider CreateMemoryProvider(ResourceCatalog catalog = null)
         {
             return TempImportedResourceCatalog.CreateMemoryProvider(

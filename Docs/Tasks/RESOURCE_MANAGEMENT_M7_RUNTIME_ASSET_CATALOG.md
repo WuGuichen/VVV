@@ -5,6 +5,8 @@
 > 优先级：P1
 > 前置任务：M6A Preload Group + Scene Warmup、M6B Variant Catalog + Retain Policy、Runtime Resource Migration 01
 
+> 2026-05-15 更新：该第一段 Runtime Showcase 专用 catalog 已被 #82 的 `mxframework.samples` 资源链路测试取代。当前 RuntimeVerticalSlice 不再使用 `RuntimeVerticalSliceResourceCatalog`、`warmup.runtime_vertical_slice` 或生成的 `runtime_vertical_slice_resource_catalog.json`。
+
 ## 目标
 
 M7 把资源系统从“核心可用”推进到“Demo 场景真实使用”：为运行时 UI、调试材质、配置和未来 prefab 建立可生成、可校验、可预加载的 Catalog，并用 M6A/M6B 的 warmup、variant 和 retain 策略驱动 `RuntimeVerticalSlice`。
