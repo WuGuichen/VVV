@@ -347,6 +347,15 @@ Animator / AnimationClip normalizedTime / Playable state
 
 定义并实现 Editor 侧工作流：定位样例 clips、必要时从 FBX / model import 中导出 clips，并生成 Catalog-ready `ResourceKey` entry，且不让 runtime DTO 依赖 Unity asset path。
 
+Issue #93 implementation status:
+
+- Editor-only extractor lives under `Assets/Scripts/MxFramework/Editor/Animation/` and reuses the existing `MxFramework.Editor` assembly boundary.
+- Default input source is `Assets/_TempImportedResources/Art/Animations/`.
+- Default output root is `Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/`.
+- Extracted files use lowercase snake_case `<clip_name>.anim`; resource keys use `art.character.skeleton.animation.<clip_name>` with `ResourceTypeIds.AnimationClip`.
+- Default collision policy is `Skip`; existing `.anim` files are reported as `Skipped` and are not overwritten by the default menu or batch method.
+- The extractor copies float curves, object reference curves, AnimationEvents as presentation-only metadata, and available clip settings through Unity Editor APIs. It reports Catalog-ready key, labels, bundle name, target path, status, and reason/error, but does not generate or modify Resource Catalog JSON.
+
 主要文件范围：
 
 - `Assets/Scripts/MxFramework/Editor/Animation/` 或等价 Editor-only 目录

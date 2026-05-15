@@ -42,6 +42,8 @@ Recommended roots:
 Assets/
   Art/MxFramework/Samples/
     Characters/
+      Skeleton/
+        AnimationClips/
     Weapons/
   UI/MxFramework/Samples/
     StartScreen/
@@ -64,6 +66,7 @@ Directory roles:
 | Root | Role | Catalog status |
 | --- | --- | --- |
 | `Assets/Art/MxFramework/Samples/` | Formal authored model, material, texture, and prefab sample assets. | Direct top-level prefabs/models can be cataloged; support assets usually dependency-only. |
+| `Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/` | Formal skeleton sample `AnimationClip` assets extracted from temporary FBX source clips. | Direct `AnimationClip` entries after Catalog ownership issue; source FBX files stay dependency/input-only. |
 | `Assets/UI/MxFramework/Samples/` | Formal UI Toolkit textures, UXML, USS, themes, and UI sample support assets. | UI textures may be direct `Texture2D` entries when config/runtime UI references them. |
 | `Assets/VFX/MxFramework/Samples/` | Formal authored VFX prefabs and support materials/textures. | VFX prefabs are direct `GameObject` entries; support assets dependency-only. |
 | `Assets/Audio/MxFramework/Samples/` | Formal Unity `AudioClip` samples. | Direct `AudioClip` entries for generic resource samples. |
@@ -145,12 +148,17 @@ Only assets that runtime/config/gameplay code should request by identity receive
 | StatusAuras | Each top-level VFX prefab as `GameObject`. | Materials and textures under `Materials/` and `Textures/`. |
 | StartScreen UI | Button, separator, and icon textures as `Texture2D` when UI Toolkit references them through config/catalog. | Sprite variants are deferred until a SpriteRenderer/uGUI use case exists. |
 | Skeleton | Prefer a future character sample prefab as the direct `GameObject`. The raw `Skeleton.fbx` can be direct only for a model-viewer/import-validation sample. | `Skeleton.mat` and embedded/imported model dependencies. |
+| Skeleton AnimationClips | Extracted `.anim` clips under `Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/` use direct `ResourceKey` entries with `ResourceTypeIds.AnimationClip`. | FBX files under `Assets/_TempImportedResources/Art/Animations/` are source/import input only and are not direct Catalog resources. |
 | MagicEffects | Current decision: Unity `AudioClip` sample entries. | If later imported into FMOD Studio, the source audio moves to the FMOD authoring pipeline and stops being a generic AudioClip sample. |
 | FMOD banks | No generic `ResourceKey` in #63-#67. | Banks are FMOD runtime data loaded by FMOD settings/backend; future bank-specific keys require a separate S2 issue. |
 
 ## Import Type Policy
 
 - UI Toolkit background and icon images are formal `Texture2D` resources. Import settings in #64 should optimize for UI Toolkit usage and preserve alpha where needed.
+- Animation FBX files under `Assets/_TempImportedResources/Art/Animations/` are temporary extraction inputs. They are not formal runtime sample roots, Catalog provider roots, or config reference targets. Editor extraction writes `.anim` clips to `Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/`.
+- Extracted skeleton sample clips use lowercase snake_case file names, for example `standing_idle.anim`, and map to `ResourceKey.Id` values of the form `art.character.skeleton.animation.<clip_name>` with `ResourceTypeIds.AnimationClip`.
+- Recommended labels for extracted skeleton animation clips are `package.mxframework.samples`, `domain.art`, `sample.characters`, `sample.skeleton`, and `asset.animation_clip`. The recommended bundle name is `mxframework.samples.art.characters.skeleton.animations`.
+- Extracted `.anim` clips are Catalog-ready direct-load sample resources, but #93 does not generate or modify Resource Catalog JSON. Catalog entries remain owned by the later Catalog issue.
 - Do not create Sprite variants for StartScreen images in #63-#65 unless a SpriteRenderer/uGUI consumer is added. If that happens later, use separate Sprite-specific entries with `ResourceTypeIds.Sprite` and clear labels.
 - VFX textures remain texture dependencies of VFX materials/prefabs. Catalog entries should not expose each VFX texture as business-facing resources by default.
 - `3-Trail_ 1.tiff` currently has an odd extension/name. #64 should audit the imported image data and either re-export/rename to a truthful extension or document why Unity import accepts it. #63 only records the issue.
@@ -188,6 +196,7 @@ This is FMOD Unity editor cache/generated metadata. Issue #68 classifies it as v
 | --- | --- | --- | --- | --- | --- | --- |
 | `Assets/_TempImportedResources/Art/Models/Characters/Skeleton.fbx` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/Models/Skeleton.fbx` | `art.character.skeleton` if used as direct model-viewer sample; labels `package.mxframework.samples`, `domain.art`, `sample.characters` | `GameObject` / model asset | Conditional | move | #64 |
 | `Assets/_TempImportedResources/Art/Models/Characters/Materials/Skeleton.mat` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/Materials/Skeleton.mat` | Dependency of `art.character.skeleton` or future prefab | `Material` | No by default | move | #64 |
+| `Assets/_TempImportedResources/Art/Animations/*.fbx` | `Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/<normalized_clip_name>.anim` | `art.character.skeleton.animation.<normalized_clip_name>`; labels `package.mxframework.samples`, `domain.art`, `sample.characters`, `sample.skeleton`, `asset.animation_clip` | `AnimationClip` | Yes after extraction | extract | #93 |
 | `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Meshes/katana.fbx` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Meshes/katana.fbx` | Dependency of `art.weapon.katana.generic_01` | model asset | No by default | move | #64 |
 | `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Materials/mat_sword_generic01.mat` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/mat_sword_generic_01.mat` | Dependency of `art.weapon.katana.generic_01` | `Material` | No by default | move+rename | #64 |
 | `Assets/_TempImportedResources/Art/Models/Weapons/Katana/Materials/phys_MetalSword.physicMaterial` | `Assets/Art/MxFramework/Samples/Weapons/Katana/Materials/phys_metal_sword.physicMaterial` | Dependency of `art.weapon.katana.generic_01` | `PhysicMaterial` | No by default | move+rename | #64 |
@@ -320,6 +329,7 @@ Editor Play Mode demos may use `memory` provider plus `providerData.assetPath` w
 | #66 | Add config examples that reference these resources by `ResourceKey`, plus validation for missing/wrong-type keys. Config examples must not use Unity paths. |
 | #67 | Runtime loading validation: preload labels, load/release direct keys, verify UI/VFX/prefab/audio sample behavior through `IResourceManager` and provider setup. |
 | #68 | Resolved by `Docs/Tasks/ISSUE_68_FMOD_BANK_RESOURCE_POLICY.md`: FMOD Build/Desktop bank output and StreamingAssets runtime mirror remain versioned, FMODStudioCache is versioned generated metadata, and FMOD bank/event data stays under Audio.FMOD rather than the ordinary Resource Catalog until a later S2 bank-provider issue. |
+| #93 | Adds Editor-only FBX animation clip extraction from `Assets/_TempImportedResources/Art/Animations/` to formal skeleton sample `.anim` clips. Produces a Catalog-ready report only; it does not write Resource Catalog JSON. |
 
 ## Validation Checklist
 
