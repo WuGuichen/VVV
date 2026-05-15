@@ -10,12 +10,13 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 - `MxFramework.Combat` 引用 `MxFramework.Core` 和 `MxFramework.Runtime`，`noEngineReferences=true`。
 - `MxFramework.Combat.GameplayBridge` 是独立桥接层，负责把命中结果转成 Gameplay / Buff 侧可消费的事件。
 - `Combat.Authoring` 和 `Combat.Editor` 不属于运行时契约；本文只在测试入口中标注它们的验证路径。
+- Runtime source 保持 Combat-agnostic；RuntimeHost 只提供 `RuntimeTickContext`，不内置 Combat frame、固定步进 accumulator 或 Combat-aware service。
 
 ## 公开接口概览
 
 | 分组 | 公开类型 | 用途 |
 |------|----------|------|
-| Core | `CombatFrame` / `CombatFrameClock` / `CombatStepConfig` | 固定帧时钟、步进配置和帧推进 |
+| Core | `CombatFrame` / `CombatFrameClock` / `CombatStepConfig` / `CombatFixedStepDriver` / `CombatFixedStepBatch` | 固定帧时钟、步进配置、Runtime delta accumulator 和帧推进批次 |
 | Core | `CombatEntityId` / `CombatBodyId` / `CombatColliderId` | 稳定 ID 值对象 |
 | Core | `CombatSortKey` / `CombatHash` | 稳定排序和诊断 hash |
 | Physics | `CombatPhysicsWorld` | noEngine 战斗物理世界，管理 body / AABB collider / query |
@@ -41,6 +42,22 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Diagnostics | `CombatDebugSnapshot` / `CombatDebugSnapshotBuilder` / `CombatHitExplain` / `CombatQueryTrace` | 运行时可读诊断快照和命中 explain |
 | Replay | `CombatReplayInput` / `CombatReplayRecorder` / `CombatDesyncDump` | replay 输入记录和 desync dump |
 | Gameplay Bridge | `CombatGameplayEventBridge` | 将 Combat 命中结果桥接到 Gameplay / Buff 侧 |
+
+## 时间域与 RuntimeHost bridge
+
+Combat 的权威时间域是固定模拟步，而不是 Runtime frame。
+
+| 名称 | 所属域 | 契约 |
+|------|--------|------|
+| Runtime frame | `MxFramework.Runtime` | `RuntimeTickContext.FrameIndex`，只表示 Host tick 序号和 command / replay / diagnostics 通用帧键。 |
+| Runtime tick delta | `MxFramework.Runtime` | `RuntimeTickContext.DeltaTime`，只作为 Combat-owned bridge 的 accumulator 输入。 |
+| Fixed simulation step | `MxFramework.Combat` | `1 / CombatStepConfig.TicksPerSecond` 秒的固定逻辑步，每个 step 执行一次 Combat authority 推进。 |
+| Combat frame | `MxFramework.Combat` | `CombatFrameClock.Step()` 产生的权威战斗帧，驱动 action、weapon trace、motion、hit resolve、Combat hash 和 replay。 |
+| Ability timeline frame | `MxFramework.Gameplay` | Ability phase timeline 的整数帧；接入 Combat 时消费 Combat fixed step 数。 |
+
+Runtime `DeltaTime` 到 Combat fixed step 的 bridge 归 Combat 所有，可以注册进 `RuntimeHost`，但不能下沉到 `MxFramework.Runtime` 源码。Bridge 累计 Runtime tick delta，按 `CombatStepConfig.TicksPerSecond` 切 fixed step，并在单个 Runtime tick 内最多执行 `CombatStepConfig.MaxStepsPerUpdate` 个 step。
+
+Bridge 语义：zero-step 不推进 `CombatFrameClock`；multi-step 每个 step 都产生独立 Combat frame；超过 max-step 的剩余 accumulator 在没有显式 drop / clamp policy 前保留到后续 Runtime tick。`RuntimeTickContext.FrameIndex -> CombatFrame` 是 lossy / non-bijective 映射，不能作为 `CombatActionRuntimeModule`、`CombatWeaponTraceRuntimeModule` 等 RuntimeHost 集成模块的权威推进契约。
 
 ## Physics v0
 
@@ -83,6 +100,8 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 - `CombatActionRuntimeModule` 推进动作状态。
 - `CombatWeaponTraceRuntimeModule` 根据动作时间轴和 trace provider 生成武器轨迹查询。
 - `CombatAnimationDiagnosticsModule` 输出动作 / trace / hit 诊断快照。
+
+`CombatActionState` 包含 `ActionInstanceId`，用于在 multi-step Runtime tick 内保留每个动作实例的 hit-once 身份；RuntimeHost weapon trace 模块基于每个 fixed step 后的动作状态快照计算候选，不从 Runtime frame 直接推导 Combat frame。
 
 默认模块位于 RuntimeHost 阶段中运行，具体 priority 和组合根由 Demo / 项目层配置。动作系统不读取 Unity Animator 状态作为权威。
 
@@ -132,6 +151,7 @@ world.Query(query, results);
 
 当前已存在的测试入口包括：
 - `Tests/Combat/Core/CombatFrameClockTests.cs`
+- `Tests/Combat/Core/CombatFixedStepDriverTests.cs`
 - `Tests/Combat/Core/CombatHashTests.cs`
 - `Tests/Combat/Core/CombatSortKeyTests.cs`
 - `Tests/Combat/Physics/CombatPhysicsWorldTests.cs`

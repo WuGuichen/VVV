@@ -38,14 +38,23 @@ namespace MxFramework.Combat.Animation
 
         public void EvaluateAll(CombatFrame currentFrame, List<HitCandidate> results)
         {
+            EvaluateAll(currentFrame, _actionRunner.GetRunningActions(), results);
+        }
+
+        public void EvaluateAll(CombatFrame currentFrame, IReadOnlyList<CombatActionState> runningActions, List<HitCandidate> results)
+        {
+            if (runningActions == null)
+            {
+                throw new ArgumentNullException(nameof(runningActions));
+            }
+
             if (results == null)
             {
                 throw new ArgumentNullException(nameof(results));
             }
 
-            CombatActionState[] runningActions = _actionRunner.GetRunningActions();
             int queryId = 0;
-            for (int i = 0; i < runningActions.Length; i++)
+            for (int i = 0; i < runningActions.Count; i++)
             {
                 CombatActionState actionState = runningActions[i];
                 if (actionState.Phase != CombatActionPhase.Active)
@@ -53,10 +62,14 @@ namespace MxFramework.Combat.Animation
                     continue;
                 }
 
-                int actionInstanceId = _actionRunner.GetActionInstanceId(actionState.EntityId);
+                int actionInstanceId = actionState.ActionInstanceId;
                 if (actionInstanceId <= 0)
                 {
-                    continue;
+                    actionInstanceId = _actionRunner.GetActionInstanceId(actionState.EntityId);
+                    if (actionInstanceId <= 0)
+                    {
+                        continue;
+                    }
                 }
 
                 _traceBuffer.Clear();

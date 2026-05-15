@@ -1,4 +1,5 @@
 using System;
+using MxFramework.Combat.Core;
 using MxFramework.Runtime;
 
 namespace MxFramework.Combat.Animation
@@ -10,6 +11,8 @@ namespace MxFramework.Combat.Animation
 
         private ICombatAnimationContext _animationContext;
         private CombatActionRunner _runner;
+        private CombatFixedStepDriver _fixedStepDriver;
+        private CombatFixedStepActionHistory _actionHistory;
 
         public CombatActionRuntimeModule(int priority = DefaultPriority)
             : base(DefaultModuleId, RuntimeTickStage.Simulation, priority)
@@ -25,6 +28,8 @@ namespace MxFramework.Combat.Animation
 
             _animationContext = context.Services.Get<ICombatAnimationContext>();
             var registry = context.Services.Get<CombatActionRegistry>();
+            _fixedStepDriver = CombatFixedStepDriverServices.GetOrCreate(context);
+            _actionHistory = CombatFixedStepDriverServices.GetOrCreateActionHistory(context);
             _runner = new CombatActionRunner(registry);
             _animationContext.SetActionRunner(_runner);
         }
@@ -36,7 +41,14 @@ namespace MxFramework.Combat.Animation
                 return;
             }
 
-            _runner.TickActions(CombatRuntimeFrameUtility.ToCombatFrame(context.FrameIndex));
+            CombatFixedStepBatch batch = _fixedStepDriver.Advance(context);
+            _actionHistory.BeginFrame(context.FrameIndex);
+            for (int i = 0; i < batch.StepCount; i++)
+            {
+                CombatFrame frame = batch.GetStepFrame(i);
+                _runner.TickActions(frame);
+                _actionHistory.AddStep(frame, _runner.GetRunningActions());
+            }
         }
 
         public override void Stop(RuntimeHostContext context)
@@ -57,6 +69,8 @@ namespace MxFramework.Combat.Animation
         {
             _runner = null;
             _animationContext = null;
+            _fixedStepDriver = null;
+            _actionHistory = null;
         }
 
     }

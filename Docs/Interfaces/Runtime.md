@@ -39,7 +39,7 @@ Runtime 提供框架级运行时组合根和生命周期调度。它不承载业
 | `RuntimeModule` | 空实现基类，便于模块只重写需要的生命周期 |
 | `RuntimeLifecycleState` | Host 当前生命周期状态 |
 | `RuntimeTickStage` | Tick 分组：PreSimulation / Simulation / PostSimulation / Diagnostics |
-| `RuntimeTickContext` | 单帧 Tick 上下文，包含 frame、delta、elapsed 和当前 stage |
+| `RuntimeTickContext` | 单次 RuntimeHost Tick 上下文，包含 runtime frame、tick delta、elapsed 和当前 stage |
 | `RuntimeHostContext` | 生命周期上下文，暴露 Host 和 service registry |
 | `RuntimeServiceRegistry` / `IRuntimeServiceRegistry` | 组合根服务表 |
 | `RuntimeHostOptions` | Host 选项，当前包含错误策略和服务表 |
@@ -166,6 +166,14 @@ public sealed class MyGameplayModule : RuntimeModule
 
 `RuntimeFrame` 使用非负 `long` 值。`RuntimeClock.Step()` 只会从当前帧前进到下一帧；`Reset(frame)` 可把 clock 重置到任意合法帧，供测试、回放或会话重启使用。
 
+Runtime 时间域只表达 Host 调度和通用输入顺序：
+
+- Runtime frame：`RuntimeFrame` / `RuntimeTickContext.FrameIndex`，是外层组合根传给 `RuntimeHost.Tick(...)` 的非负调度序号，用于 command drain、Replay record、Hash context、SaveState frame 和模块排序诊断。
+- Runtime tick delta：`RuntimeTickContext.DeltaTime`，是本次 Host tick 的显式秒数输入。它可以是渲染帧 delta、固定更新 delta、测试脚本指定 delta 或 replay driver 指定 delta；Runtime 只校验非负并转交模块，不声明它等于任何固定模拟步长。
+- Runtime elapsed：`RuntimeTickContext.ElapsedTime`，是外层提供的会话累计时间，只作诊断、表现或模块自定义输入，不是固定模拟 authority。
+
+固定模拟 step 不属于 `MxFramework.Runtime` 公共契约。需要固定步进的模块必须在自己的程序集或组合根中拥有 clock / accumulator / step config，并把 `RuntimeTickContext.DeltaTime` 显式转换为本模块的 step。`MxFramework.Runtime` 源码保持 Combat / Gameplay agnostic，不引用 `CombatFrame`、`CombatStepConfig`、Ability timeline frame 或任何 Combat-owned bridge 类型。
+
 `RuntimeCommandBuffer.Enqueue(command)` 会在接受命令时分配 `Sequence`。`DrainForFrame(frame)` 返回目标帧命令，排序规则为：
 
 1. `Frame`。
@@ -264,7 +272,8 @@ if (loaded.Success)
 - Runtime Host 是组合根，不是全局单例。
 - Runtime 不读取 `Time.deltaTime`；frame 和 delta 由外层传入。
 - Runtime 不保存 Unity 对象实例。
-- Runtime 不知道 Ability、Buff、Combat、Resource 的具体类型；这些模块后续可以在自己的程序集里实现 `IRuntimeModule`。
+- Runtime 不知道 Ability、Buff、Combat、Resource 的具体类型；这些模块可以在自己的程序集里实现 `IRuntimeModule`，也可以在模块侧把 Runtime tick delta 桥接到自己的固定 step。
+- Runtime frame 不能被跨模块直接当作 Combat frame、Ability timeline frame 或其他固定模拟帧。任何这种映射都必须由目标模块拥有的上下文定义，并说明是否有 accumulator、丢帧、补帧、最大步数或重同步语义。
 - Runtime 只定义 SaveState 契约和迁移/序列化工具；具体 Gameplay 恢复由外层模块实现。目前 Ability Showcase 已实现一条 `RuntimeAbilitySliceRunner` 恢复路径。
 - `RuntimeServiceRegistry` 只用于组合根装配，不应成为业务代码随处拉服务的替代架构。
 
