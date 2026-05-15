@@ -31,6 +31,7 @@ public interface IFrameworkDebugSource
 - Editor 读取 Debug Source，不直接读运行时对象私有字段。
 - 游戏层在自己的组合根中注册 Debug Source，框架不提供全局单例。
 - Resources 模块可通过 `new ResourceDebugSource(resourceManager)` 接入同一诊断报告链路。
+- Issue #85 `Runtime Debug UI` 设计沿用该只读 Snapshot 契约；通用运行时调试 overlay 只做 source registry / snapshot aggregation，可写命令通过独立 provider 设计。
 
 ## 测试入口
 

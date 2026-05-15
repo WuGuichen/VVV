@@ -10,6 +10,7 @@ Input 模块把 Unity Input System 作为底层采集层，只向业务暴露意
 - 模块不依赖 WGame、Entitas、Luban、Gameplay、Runtime 或 Demo。
 - noEngine 模块不得反向引用 Input；需要输入时由游戏组合根把 `IInputProvider` 传给上层控制器。
 - 默认配置资产位于 `Assets/Input/MxFramework/Config/MxFrameworkInputActions.inputactions`，第一版包含 `Gameplay`、`UI` 和 `Debug` 三个 Action Map。
+- Issue #85 `Runtime Debug UI` 设计复用 `Debug` Action Map 和 `InputIntent.ToggleHud` / `ToggleConsole` / `DebugCycle` / `DebugStep`；通用运行时调试 overlay 不直接读取设备 API，输入路由放在可选 adapter 或项目组合根。
 
 ## 2. 公开契约
 
