@@ -8,6 +8,7 @@ namespace MxFramework.Resources
         public const string Texture2D = "Texture2D";
         public const string Sprite = "Sprite";
         public const string AudioClip = "AudioClip";
+        public const string AnimationClip = "AnimationClip";
         public const string TextAsset = "TextAsset";
         public const string Material = "Material";
         public const string PanelSettings = "PanelSettings";
