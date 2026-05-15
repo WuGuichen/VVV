@@ -1,0 +1,18 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="mxanimation-smoke-hud" class="smoke-hud">
+        <ui:Label name="title" class="hud-title" text="MxAnimation Play Mode Smoke" />
+        <ui:Label name="instructions" class="hud-instructions" text="I idle | O walk | P run | Space jump" />
+        <ui:VisualElement class="hud-panel">
+            <ui:Label name="action" text="Action: Initializing" />
+            <ui:Label name="clip" text="Clip: loading" />
+            <ui:Label name="backend" text="Backend: unavailable" />
+            <ui:Label name="resources" text="Resources: unavailable" />
+            <ui:Label name="bridge" text="Bridge: unavailable" />
+            <ui:Label name="error" class="error" text="" />
+        </ui:VisualElement>
+        <ui:VisualElement class="hud-panel">
+            <ui:Label class="panel-title" text="Recent Events" />
+            <ui:VisualElement name="events" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

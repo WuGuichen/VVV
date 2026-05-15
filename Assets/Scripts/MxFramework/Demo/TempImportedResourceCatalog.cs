@@ -19,14 +19,23 @@ namespace MxFramework.Demo
         public const string DomainAudioLabel = "domain.audio";
 
         public const string SampleKatanaLabel = "sample.katana";
+        public const string SampleSkeletonLabel = "sample.skeleton";
+        public const string SampleSkeletonAnimationClipLabel = "sample.skeleton.animation_clip";
         public const string SampleStartScreenLabel = "sample.start_screen";
         public const string SampleStatusAurasLabel = "sample.status_auras";
         public const string SampleMagicEffectsLabel = "sample.magic_effects";
 
+        public const string WarmupMxAnimationLabel = "warmup.demo.mxanimation";
         public const string WarmupStartScreenLabel = "warmup.demo.start_screen";
         public const string WarmupCombatLabel = "warmup.demo.combat";
         public const string WarmupStatusEffectsLabel = "warmup.demo.status_effects";
         public const string WarmupMagicEffectsLabel = "warmup.demo.magic_effects";
+
+        public const string SkeletonModelId = "art.character.skeleton.model";
+        public const string SkeletonIdleAnimationId = "art.character.skeleton.animation.standing_idle";
+        public const string SkeletonWalkForwardAnimationId = "art.character.skeleton.animation.standing_walk_forward";
+        public const string SkeletonRunForwardAnimationId = "art.character.skeleton.animation.standing_run_forward";
+        public const string SkeletonJumpAnimationId = "art.character.skeleton.animation.standing_jump";
 
         private static readonly TempImportedResourceCatalogAsset[] Assets =
         {
@@ -36,6 +45,109 @@ namespace MxFramework.Demo
                 "mxframework.samples/art/weapon/katana/generic_01",
                 "Assets/Art/MxFramework/Samples/Weapons/Katana/Prefabs/Katana_Generic01.prefab",
                 new[] { PackageLabel, DomainArtLabel, SampleKatanaLabel, WarmupCombatLabel }),
+
+            new TempImportedResourceCatalogAsset(
+                SkeletonModelId,
+                ResourceTypeIds.GameObject,
+                "mxframework.samples/art/character/skeleton/model",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/Models/Skeleton.fbx",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                SkeletonIdleAnimationId,
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_idle",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                SkeletonWalkForwardAnimationId,
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_walk_forward",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                SkeletonRunForwardAnimationId,
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_run_forward",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                SkeletonJumpAnimationId,
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_jump",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_jump_running",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_jump_running",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_jump_running_landing",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_jump_running_landing",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_land_to_standing_idle",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_land_to_standing_idle",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_run_back",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_run_back",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_run_left",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_run_left",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_run_right",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_run_right",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_sprint_forward",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_sprint_forward",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_turn_left_90",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_turn_left_90",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_turn_right_90",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_turn_right_90",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_walk_back",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_walk_back",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_walk_left",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_walk_left",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                "art.character.skeleton.animation.standing_walk_right",
+                ResourceTypeIds.AnimationClip,
+                "mxframework.samples/art/character/skeleton/animation/standing_walk_right",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
 
             new TempImportedResourceCatalogAsset(
                 "vfx.status_aura.burn",
@@ -223,7 +335,8 @@ namespace MxFramework.Demo
         {
             return string.Equals(typeId, ResourceTypeIds.GameObject, StringComparison.Ordinal)
                 || string.Equals(typeId, ResourceTypeIds.Texture2D, StringComparison.Ordinal)
-                || string.Equals(typeId, ResourceTypeIds.AudioClip, StringComparison.Ordinal);
+                || string.Equals(typeId, ResourceTypeIds.AudioClip, StringComparison.Ordinal)
+                || string.Equals(typeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal);
         }
 
         private static bool IsFmodCatalogValue(string value)

@@ -13,6 +13,23 @@ namespace MxFramework.Tests.Resources
         private static readonly string[] ExpectedIds =
         {
             "art.weapon.katana.generic_01",
+            TempImportedResourceCatalog.SkeletonModelId,
+            TempImportedResourceCatalog.SkeletonIdleAnimationId,
+            TempImportedResourceCatalog.SkeletonWalkForwardAnimationId,
+            TempImportedResourceCatalog.SkeletonRunForwardAnimationId,
+            TempImportedResourceCatalog.SkeletonJumpAnimationId,
+            "art.character.skeleton.animation.standing_jump_running",
+            "art.character.skeleton.animation.standing_jump_running_landing",
+            "art.character.skeleton.animation.standing_land_to_standing_idle",
+            "art.character.skeleton.animation.standing_run_back",
+            "art.character.skeleton.animation.standing_run_left",
+            "art.character.skeleton.animation.standing_run_right",
+            "art.character.skeleton.animation.standing_sprint_forward",
+            "art.character.skeleton.animation.standing_turn_left_90",
+            "art.character.skeleton.animation.standing_turn_right_90",
+            "art.character.skeleton.animation.standing_walk_back",
+            "art.character.skeleton.animation.standing_walk_left",
+            "art.character.skeleton.animation.standing_walk_right",
             "vfx.status_aura.burn",
             "vfx.status_aura.lightning",
             "vfx.status_aura.smoke",
@@ -53,6 +70,8 @@ namespace MxFramework.Tests.Resources
             }
 
             CollectionAssert.Contains(FindEntry(catalog, "art.weapon.katana.generic_01").Labels, TempImportedResourceCatalog.DomainArtLabel);
+            CollectionAssert.Contains(FindEntry(catalog, TempImportedResourceCatalog.SkeletonModelId).Labels, TempImportedResourceCatalog.SampleSkeletonLabel);
+            CollectionAssert.Contains(FindEntry(catalog, TempImportedResourceCatalog.SkeletonIdleAnimationId).Labels, TempImportedResourceCatalog.SampleSkeletonAnimationClipLabel);
             CollectionAssert.Contains(FindEntry(catalog, "ui.start_screen.button.normal").Labels, TempImportedResourceCatalog.DomainUiLabel);
             CollectionAssert.Contains(FindEntry(catalog, "vfx.status_aura.burn").Labels, TempImportedResourceCatalog.DomainVfxLabel);
             CollectionAssert.Contains(FindEntry(catalog, "audio.magic_effect.wind").Labels, TempImportedResourceCatalog.DomainAudioLabel);
@@ -91,14 +110,18 @@ namespace MxFramework.Tests.Resources
                 new ResourceKey("ui.start_screen.button.normal", ResourceTypeIds.Texture2D, string.Empty, TempImportedResourceCatalog.PackageId));
             ResourceLoadResult<ResourceHandle<AudioClip>> wind = manager.Load<AudioClip>(
                 new ResourceKey("audio.magic_effect.wind", ResourceTypeIds.AudioClip, string.Empty, TempImportedResourceCatalog.PackageId));
+            ResourceLoadResult<ResourceHandle<AnimationClip>> idle = manager.Load<AnimationClip>(
+                new ResourceKey(TempImportedResourceCatalog.SkeletonIdleAnimationId, ResourceTypeIds.AnimationClip, string.Empty, TempImportedResourceCatalog.PackageId));
 
             Assert.IsTrue(katana.Success, katana.Error.Message);
             Assert.IsTrue(button.Success, button.Error.Message);
             Assert.IsTrue(wind.Success, wind.Error.Message);
+            Assert.IsTrue(idle.Success, idle.Error.Message);
 
             manager.Release(katana.Value);
             manager.Release(button.Value);
             manager.Release(wind.Value);
+            manager.Release(idle.Value);
         }
 
         [Test]

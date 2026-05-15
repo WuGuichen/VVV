@@ -547,7 +547,32 @@ Combat Animation Playable 约定：
 - Runtime Diagnostic 面板只读展示 `CombatActionStateComponent`、hit application output commands、`GameplayAttributeSetComponent`、`CombatEntityGameplayMap`、Demo diagnostic hash 和 `RuntimeEventQueue<GameplayRuntimeEvent>.CreateSnapshot()` 摘要；它不 drain event queue，也不修改 Combat / Gameplay 状态。
 - Demo 的动作伤害仍是 `CombatAnimationDemoBootstrap` 内的手测动作配置；按钮或键盘输入只触发 Combat 动作，不直接修改 HP。
 
-### 6.7 Marble Maze Runtime Showcase
+### 6.7 MxAnimation Play Mode Smoke
+
+MxAnimation 的可视化 smoke 场景用于肉眼验证真实 Skeleton 模型通过正式 sample resource catalog 加载 `.anim` 并由 `UnityPlayablesAnimationBackend` 播放。
+
+代码入口：
+
+- Demo runtime：`Assets/Scripts/MxFramework/Demo/MxAnimationSmoke/MxAnimationSmokeDemoBootstrap.cs`
+- 场景生成：`Assets/Scripts/MxFramework/Demo/Editor/CreateMxAnimationSmokeScene.cs`
+- 可视化场景：`Assets/Scenes/MxAnimationPlayModeSmoke.unity`
+- HUD：`Assets/UI/MxFramework/MxAnimationSmoke/MxAnimationSmokeHud.uxml` / `.uss`
+
+手测方式：
+
+1. 如需重新生成场景，执行 `MxFramework / MxAnimation / Generate Play Mode Smoke Scene`。
+2. 打开 `Assets/Scenes/MxAnimationPlayModeSmoke.unity`，直接 Play。
+3. 按 `I` 播放 idle，`O` 播放 walk，`P` 播放 run，`Space` 播放 jump。
+4. 观察 Skeleton 模型动作切换；HUD 会显示当前 action、clip key、backend graph、resource loaded/ref count 和 Combat bridge 状态。
+
+资源加载约定：
+
+- Skeleton model 和 `.anim` clip 都先写入 `mxframework.samples` catalog，运行时只使用 `ResourceKey`。
+- Editor Play Mode smoke 使用 catalog-backed serialized reference provider 注册 Unity asset，再由 `ResourceManager.Load<GameObject>` / `LoadAsync<AnimationClip>` 加载。
+- `UnityPlayablesAnimationBackend` 只从 `IResourceManager` 获取 `AnimationClip` handle；demo 不直接把 `AnimationClip` 塞给 backend。
+- Combat action 通过 `CombatMxAnimationUnityBridge` 转成 `CrossFade` 请求，动画时间不反向写入 Combat 权威状态。
+
+### 6.8 Marble Maze Runtime Showcase
 
 Marble Maze 用于验证框架物理与 MxFramework Runtime 的边界：球体移动、墙体阻挡、GEM 拾取和 EXIT 判定必须由框架 runtime / physics 模块负责，`MarbleMazeRuntimeModule` 负责命令、计时、checkpoint、diagnostics、Replay hash 和 SaveState。Unity 场景对象只作为显示和输入适配，不使用 `Rigidbody` / `Collider` / trigger 作为玩法权威。
 

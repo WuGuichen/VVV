@@ -10,6 +10,8 @@
         "MxFramework.Modifiers",
         "MxFramework.Config",
         "MxFramework.Config.Runtime",
+        "MxFramework.Animation",
+        "MxFramework.Animation.Unity",
         "MxFramework.Runtime",
         "MxFramework.Runtime.Unity",
         "MxFramework.Input",
@@ -17,6 +19,7 @@
         "MxFramework.Audio.FMOD",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
+        "MxFramework.Combat.Animation.Unity",
         "MxFramework.Combat.GameplayBridge",
         "MxFramework.Resources",
         "MxFramework.UI.Toolkit"
