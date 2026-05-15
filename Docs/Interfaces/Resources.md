@@ -42,9 +42,9 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 ## 使用约定
 
 - 配置和 Gameplay 只保存 `ResourceKey`，不保存 Unity 路径或 `UnityEngine.Object`。
-- 普通 Resource Catalog 覆盖 Unity 资产和 provider 资源，例如 `AudioClip`、`Texture2D`、`GameObject`、AssetBundle 和 RemoteBundle。FMOD bank `.bank` 文件和 FMOD event path/guid 不进入普通 Catalog；它们通过 Audio/FMOD 设置、`AudioEventDefinition` 和后续单独批准的 bank manifest/provider 管理。
+- 普通 Resource Catalog 覆盖 Unity 资产和 provider 资源，例如 `AudioClip`、`AnimationClip`、`Texture2D`、`GameObject`、AssetBundle 和 RemoteBundle。FMOD bank `.bank` 文件和 FMOD event path/guid 不进入普通 Catalog；它们通过 Audio/FMOD 设置、`AudioEventDefinition` 和后续单独批准的 bank manifest/provider 管理。
 - `ResourceKey.Id` 使用小写命名空间，允许小写字母、数字、`.`、`_`、`-`。
-- 常用类型使用 `ResourceTypeIds`，调用方优先通过 `Load<T>` 获得类型检查。
+- 常用 Unity 资产类型使用 `ResourceTypeIds`，内置常量包括 `GameObject`、`Texture2D`、`Sprite`、`AudioClip`、`AnimationClip`、`TextAsset`、`Material`、UI Toolkit 资源类型和基础 `String` / `Object`；调用方优先通过 `Load<T>` 获得类型检查。
 - 同一 Catalog 内 `id + type + variant` 必须唯一。
 - 全局冲突默认失败；高层覆盖必须设置 `allowOverride`，并保持类型一致。
 - `PackageId` 非空时精确路由到指定包；为空时使用合并后的全局 entry。

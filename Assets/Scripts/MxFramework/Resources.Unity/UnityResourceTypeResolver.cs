@@ -18,6 +18,8 @@ namespace MxFramework.Resources.Unity
                     return typeof(Sprite);
                 case ResourceTypeIds.AudioClip:
                     return typeof(AudioClip);
+                case ResourceTypeIds.AnimationClip:
+                    return typeof(AnimationClip);
                 case ResourceTypeIds.Material:
                     return typeof(Material);
                 case ResourceTypeIds.PanelSettings:

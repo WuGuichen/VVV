@@ -90,7 +90,7 @@ Config
 | 字段 | 说明 |
 | --- | --- |
 | `Id` | 稳定资源 ID，例如 `demo.icon.fire_burst` |
-| `TypeId` | 资源类型字符串，例如 `Texture2D`、`GameObject`、`AudioClip` |
+| `TypeId` | 资源类型字符串，例如 `Texture2D`、`GameObject`、`AudioClip`、`AnimationClip` |
 | `Variant` | 可选变体，例如 locale、quality、platform |
 | `PackageId` | 可选包 ID，用于 Mod Package 或 DLC |
 
@@ -102,7 +102,7 @@ Config
 - 跨目录、跨包允许同名 `Id`，但全局加载时同层冲突必须失败；需要并存时通过 `PackageId` 精确路由。
 - 配置表只能保存 `ResourceKey` 或能转换为 `ResourceKey` 的字段，不直接绑定加载路径。
 - `PackageId` 为空时表示从当前 ResourceManager 的全局 Catalog 解析。
-- `TypeId` 不允许业务代码散写。框架内置常量类，例如 `ResourceTypeIds.GameObject`、`ResourceTypeIds.Texture2D`、`ResourceTypeIds.AudioClip`；项目层可追加自己的类型常量。
+- `TypeId` 不允许业务代码散写。框架内置常量类，例如 `ResourceTypeIds.GameObject`、`ResourceTypeIds.Texture2D`、`ResourceTypeIds.AudioClip`、`ResourceTypeIds.AnimationClip`；项目层可追加自己的类型常量。
 - 调用方优先使用 `Load<T>` / `LoadAsync<T>` 获得编译期类型检查；`TypeId` 主要用于 Catalog、Config 和 Editor 校验。
 - `Variant` 采用 `locale_platform_quality` 格式，缺省段可省略，例如 `zh_CN_android_hd`、`en_US_hd`、`android_low`。Catalog 构建器可以从目录结构或 import preset 生成多条 variant entry。
 
@@ -115,6 +115,7 @@ public static class ResourceTypeIds
     public const string Texture2D = "Texture2D";
     public const string Sprite = "Sprite";
     public const string AudioClip = "AudioClip";
+    public const string AnimationClip = "AnimationClip";
     public const string TextAsset = "TextAsset";
 }
 ```
