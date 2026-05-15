@@ -303,6 +303,14 @@ namespace MxFramework.Demo
         public RuntimeSaveState LastRuntimeSaveState => _lastRuntimeSaveState;
         public RuntimeReplaySnapshot RuntimeReplaySnapshot => _runtimeReplayRecorder != null ? _runtimeReplayRecorder.CreateSnapshot() : null;
 
+        public void AppendExternalEvent(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            LogEvent(message);
+        }
+
         private void Awake()
         {
             CreateRuntimeEntities();

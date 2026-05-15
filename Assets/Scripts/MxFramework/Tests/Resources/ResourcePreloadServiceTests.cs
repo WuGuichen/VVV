@@ -76,16 +76,16 @@ namespace MxFramework.Tests.Resources
                 .Register("demo/title/high", "High Title");
             ResourceManager manager = CreateManager(
                 provider,
-                Entry("demo.text.title", "demo/title/default", labels: new[] { "warmup.runtime_vertical_slice" }),
-                Entry("demo.text.title", "demo/title/high", "pc.high", labels: new[] { "warmup.runtime_vertical_slice" }));
+                Entry("demo.text.title", "demo/title/default", labels: new[] { "warmup.demo.unit_test" }),
+                Entry("demo.text.title", "demo/title/high", "pc.high", labels: new[] { "warmup.demo.unit_test" }));
             manager
                 .SetVariantProfile(new ResourceVariantProfile("pc.high", new[] { string.Empty }))
                 .SetRetainPolicy(ResourceRetainPolicy.Timed(frameCount: 2));
             var service = new ResourcePreloadService(manager);
 
             ResourcePreloadResult result = service.PreloadAsync(new ResourcePreloadPlan(
-                "runtime_vertical_slice",
-                labels: new[] { "warmup.runtime_vertical_slice" })).Result.Value;
+                "unit_test",
+                labels: new[] { "warmup.demo.unit_test" })).Result.Value;
 
             Assert.IsTrue(result.Success);
             Assert.AreEqual(1, result.RequestedCount);
@@ -103,8 +103,8 @@ namespace MxFramework.Tests.Resources
             Assert.AreEqual(0, provider.ReleaseCount);
 
             ResourcePreloadResult reused = service.PreloadAsync(new ResourcePreloadPlan(
-                "runtime_vertical_slice",
-                labels: new[] { "warmup.runtime_vertical_slice" })).Result.Value;
+                "unit_test",
+                labels: new[] { "warmup.demo.unit_test" })).Result.Value;
 
             Assert.IsTrue(reused.Success);
             Assert.AreEqual(1, reused.LoadedCount);

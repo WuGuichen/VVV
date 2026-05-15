@@ -85,7 +85,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - RemoteBundle address 继续使用 `bundleName|assetName`；`providerData.url` 指向 bundle source，`providerData.cacheKey` 控制缓存文件名。
 - RemoteBundle hash 使用 `ResourceCatalogEntry.Hash`，支持 `sha256:<hex>` 或裸 hex；hash mismatch 返回 `ProviderFailed`。
 - RemoteBundle 当前支持 file URL 和同步 UnityWebRequest 下载；不做重试、断点续传、签名、权限授权或 CDN 发布工具。
-- Runtime Showcase M7 使用 `warmup.runtime_vertical_slice` label 预热 `RuntimeVerticalSlice` 的配置 / HUD 资源；当前第一段通过 `MemoryResourceProvider` 绑定序列化引用，不改变默认 AssetBundle / Resources Provider 路线。
+- Runtime Showcase 资源测试已改用 `mxframework.samples` catalog：`RuntimeVerticalSliceRunner` 在 Editor Play Mode 通过 `TempImportedResourceCatalogEditorBootstrap` 注册的 `MemoryResourceProvider` 跑 package / StartScreen / Combat / StatusEffects / MagicEffects warmup，再用 `ResourceKeyConfigProfile.CreateSample()` 直接加载 Katana、StatusAura、StartScreen 贴图和 MagicEffects AudioClip，并在同一轮测试中释放 handles / groups。
 
 ## 测试入口
 

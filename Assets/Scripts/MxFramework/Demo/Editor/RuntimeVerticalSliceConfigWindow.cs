@@ -81,7 +81,7 @@ namespace MxFramework.Demo
             AddProperty(root, _runtimeSerialized, "_useConfigDrivenAbility", "Ability 使用配置驱动", "Strike / Ignite 由 BasicAbilityConfig 创建。");
             AddProperty(root, _runtimeSerialized, "_enableShowcaseUi", "启用 UI Toolkit HUD", "制作人手测推荐开启。关闭后可用 legacy OnGUI 兜底。");
             AddProperty(root, _runtimeSerialized, "_showLegacyOnGui", "显示 Legacy OnGUI", "调试兜底显示；HUD 开启时通常不需要。");
-            AddProperty(root, _runtimeSerialized, "_useResourceCatalogWarmup", "启用资源 Catalog Warmup", "用 ResourceManager / ResourcePreloadService 预热 Runtime Showcase 资源。");
+            AddProperty(root, _runtimeSerialized, "_useResourceCatalogWarmup", "启用 Samples 资源链路测试", "用 mxframework.samples catalog 跑预热、直接加载、Prefab 实例化和释放诊断。");
 
             root.Add(SectionTitle("旧 Runtime Slice 模式"));
             root.Add(new HelpBox("这些模式只在未启用 Ability Showcase 时作为底层功能验证入口。后续会逐步接入 UI Toolkit。", HelpBoxMessageType.None));

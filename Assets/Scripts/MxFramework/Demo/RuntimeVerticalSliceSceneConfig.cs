@@ -22,7 +22,7 @@ namespace MxFramework.Demo
         [SerializeField] private StyleSheet _hudStyleSheet;
         [SerializeField] private Font _hudFont;
 
-        [Header("Resource Warmup")]
+        [Header("Samples Resource Test")]
         [SerializeField] private bool _useResourceCatalogWarmup = true;
 
         [Header("Runtime Slice")]

@@ -185,7 +185,7 @@
 | Preload Group / Scene Warmup | ✅ v0.6.1 | `ResourcePreloadService` / `ResourcePreloadPlan` / `ResourceGroupHandle` | Resources |
 | Variant Catalog / Retain Policy | ✅ v0.6.2 | `ResourceVariantProfile` / `ResourceRetainPolicy` / retain diagnostics | Resources |
 | Remote Bundle Provider | ✅ v0.6.3 | `RemoteBundleProvider` / `providerData.url` / SHA-256 cache validation | Resources.Unity |
-| Runtime Asset Catalog Binding | ✅ v0.6.4 | `RuntimeVerticalSliceResourceCatalog` / `warmup.runtime_vertical_slice` / generated catalog JSON | Demo + Resources |
+| Runtime Samples Resource Chain | ✅ v0.6.4 | `RuntimeVerticalSliceSampleResourceTest` / `TempImportedResourceCatalog` / `ResourceKeyConfigProfile.CreateSample()` | Demo + Resources |
 | Addressables Adapter | Deferred / Optional | 独立 `MxFramework.Resources.Addressables`，仅在项目已采用 Addressables 时实现 | 不进入默认依赖 |
 
 → 接口：`Interfaces/Resources.md`

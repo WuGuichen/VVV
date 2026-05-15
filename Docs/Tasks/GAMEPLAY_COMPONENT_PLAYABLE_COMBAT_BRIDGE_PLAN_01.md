@@ -50,7 +50,7 @@ Combat already provides deterministic physics and motion primitives:
 | UI diagnostics | UI Toolkit, existing `MxFramework.UI.Toolkit` controls where useful | Required | HUD must show actionable state: frame, entities, HP/mana, cooldown, hash, SaveState, Combat explain summary. |
 | Replay / hash | `RuntimeReplayRecorder` where needed, `GameplayComponentWorldHashContributor`, Combat deterministic summaries | Required for validation | First playable can expose hash and command flow; full replay export can be a separate slice. |
 | Save / restore | `RuntimeSaveStateJson`, `GameplayComponentWorldSaveStateProvider` | Required | SaveState captures component world results, not transient request store or Unity view objects. |
-| Resources | `ResourceCatalog`, `ResourcePreloadService`, `RuntimeVerticalSliceResourceCatalog` pattern | Required for committed playable scene | UXML/USS and runtime assets should warm up through catalog-driven paths where stable assets are referenced. |
+| Resources | `ResourceCatalog`, `ResourcePreloadService`, `TempImportedResourceCatalog` / samples pattern | Required for committed playable scene | UXML/USS and runtime assets should warm up through catalog-driven paths where stable assets are referenced. |
 | Scene flow | `AppFlowController`, `SceneFlowController`, `UnitySceneFlowDriver` | Optional for first playable, required if Boot + Gameplay scenes are split | A single scene may skip AppFlow only if the spec records why. |
 
 No existing module is intentionally bypassed. The only missing area is a component-native Combat bridge API; the follow-up should add the smallest bridge layer instead of overloading the legacy `RuntimeEntity` bridge.

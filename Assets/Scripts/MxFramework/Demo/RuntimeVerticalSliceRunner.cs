@@ -5,7 +5,6 @@ using MxFramework.Config;
 using MxFramework.Config.Runtime;
 using MxFramework.Events;
 using MxFramework.Modifiers;
-using MxFramework.Resources;
 using MxFramework.UI.Toolkit;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -146,12 +145,11 @@ namespace MxFramework.Demo
         private string _snapshotSummary = "";
         private string _snapshotFilePath = "";
         private string _resourceWarmupSummary = string.Empty;
-        private RuntimeVerticalSliceSceneConfig _sceneConfig;
-        private ResourcePreloadService _resourcePreloadService;
-        private ResourceGroupHandle _resourceWarmupGroup;
+        private RuntimeVerticalSliceSampleResourceTest _resourceSampleTest;
         private readonly List<string> _loadoutWarnings = new List<string>();
         private readonly List<string> _orderedPackageKeys = new List<string>();
         private readonly List<string> _skippedPackageKeys = new List<string>();
+        private readonly List<string> _resourceTestLines = new List<string>();
 
         private readonly List<string> _eventLog = new List<string>();
         private const int MaxEventLog = 20;
@@ -172,7 +170,6 @@ namespace MxFramework.Demo
             _showLegacyOnGui = config.ShowLegacyOnGui;
             ConfigureHudAssets(config.HudPanelSettings, config.HudVisualTree, config.HudStyleSheet, config.HudFont);
             _useResourceCatalogWarmup = config.UseResourceCatalogWarmup;
-            _sceneConfig = config;
             _useConfigDriven = config.UseConfigDriven;
             _usePatchFile = config.UsePatchFile;
             _patchFilePath = config.PatchFilePath;
@@ -255,6 +252,7 @@ namespace MxFramework.Demo
 
             abilityRunner.UseConfigDriven = _useConfigDrivenAbility;
             abilityRunner.ShowLegacyOnGui = _showLegacyOnGui && !_enableShowcaseUi;
+            AppendResourceTestEvents(abilityRunner);
 
             if (_enableShowcaseUi)
             {
@@ -269,87 +267,55 @@ namespace MxFramework.Demo
 
         private void WarmupRuntimeResources()
         {
+            _resourceTestLines.Clear();
             if (!_useResourceCatalogWarmup)
                 return;
 
-            IReadOnlyList<RuntimeVerticalSliceResourceAsset> assets =
-                RuntimeVerticalSliceResourceCatalog.CreateRuntimeAssets(
-                    _sceneConfig,
-                    _hudPanelSettings,
-                    _hudVisualTree,
-                    _hudStyleSheet,
-                    _hudFont);
-
-            ResourceCatalog catalog = RuntimeVerticalSliceResourceCatalog.CreateCatalog(assets);
-            if (catalog.Entries.Count == 0)
-            {
-                _resourceWarmupSummary = "Resource warmup: 0 entries";
-                LogEvent(_resourceWarmupSummary);
-                return;
-            }
-
             try
             {
-                var manager = new ResourceManager();
-                manager.RegisterProvider(RuntimeVerticalSliceResourceCatalog.CreateMemoryProvider(assets));
-                manager
-                    .SetVariantProfile(new ResourceVariantProfile(string.Empty, new[] { string.Empty }))
-                    .SetRetainPolicy(ResourceRetainPolicy.Timed(frameCount: 2));
-                manager.AddCatalog(catalog);
-                manager.ValidateCatalogs();
-
-                _resourcePreloadService = new ResourcePreloadService(manager);
-                // M7 warmup uses the current immediate provider path; player-main async loading should move this to a coroutine or async startup.
-                IResourceOperation<ResourcePreloadResult> operation = _resourcePreloadService.PreloadAsync(new ResourcePreloadPlan(
-                    RuntimeVerticalSliceResourceCatalog.WarmupGroupId,
-                    labels: new[] { RuntimeVerticalSliceResourceCatalog.WarmupLabel }));
-                ResourceLoadResult<ResourcePreloadResult> loadResult = operation.Result;
-                if (!loadResult.Success)
-                {
-                    string message = string.IsNullOrWhiteSpace(loadResult.Error.Message)
-                        ? loadResult.Error.ToString()
-                        : loadResult.Error.Message;
-                    _resourceWarmupSummary = "Resource warmup error: " + message;
-                    LogEvent(_resourceWarmupSummary);
-                    _resourcePreloadService = null;
-                    return;
-                }
-
-                ResourcePreloadResult result = loadResult.Value;
-                if (result == null)
-                {
-                    _resourceWarmupSummary = "Resource warmup error: preload result is missing.";
-                    LogEvent(_resourceWarmupSummary);
-                    _resourcePreloadService = null;
-                    return;
-                }
-
-                _resourceWarmupGroup = result.Handle;
-                _resourceWarmupSummary = "Resource warmup: requested=" + result.RequestedCount +
-                    " loaded=" + result.LoadedCount +
-                    " failed=" + result.FailedCount;
+                _resourceSampleTest?.Release();
+                _resourceSampleTest = new RuntimeVerticalSliceSampleResourceTest();
+                RuntimeVerticalSliceSampleResourceTestResult result = _resourceSampleTest.Run();
+                _resourceWarmupSummary = result.Summary;
                 LogEvent(_resourceWarmupSummary);
+                for (int i = 0; i < result.LogLines.Count; i++)
+                {
+                    _resourceTestLines.Add(result.LogLines[i]);
+                    LogEvent(result.LogLines[i]);
+                }
 
-                for (int i = 0; i < result.Errors.Count; i++)
-                    LogEvent("Resource warmup error: " + result.Errors[i].Message);
+                if (!result.Success && !string.IsNullOrEmpty(result.FailureMessage))
+                {
+                    _resourceTestLines.Add(result.FailureMessage);
+                    LogEvent(result.FailureMessage);
+                }
             }
             catch (System.Exception ex)
             {
-                _resourceWarmupSummary = "Resource warmup error: " + ex.Message;
+                _resourceWarmupSummary = "Samples resource test error: " + ex.Message;
                 LogEvent(_resourceWarmupSummary);
-                _resourceWarmupGroup = null;
-                _resourcePreloadService = null;
             }
         }
 
         private void ReleaseRuntimeResources()
         {
-            if (_resourcePreloadService == null || _resourceWarmupGroup == null)
+            if (_resourceSampleTest == null)
                 return;
 
-            _resourcePreloadService.ReleaseGroup(_resourceWarmupGroup);
-            _resourceWarmupGroup = null;
-            _resourcePreloadService = null;
+            _resourceSampleTest.Release();
+            _resourceSampleTest = null;
+        }
+
+        private void AppendResourceTestEvents(RuntimeAbilitySliceRunner abilityRunner)
+        {
+            if (abilityRunner == null)
+                return;
+
+            if (!string.IsNullOrEmpty(_resourceWarmupSummary))
+                abilityRunner.AppendExternalEvent(_resourceWarmupSummary);
+
+            for (int i = 0; i < _resourceTestLines.Count; i++)
+                abilityRunner.AppendExternalEvent(_resourceTestLines[i]);
         }
 
         private void StartHardcoded() { /* unchanged from previous implementation */ 
