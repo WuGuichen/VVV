@@ -1379,7 +1379,7 @@ backend.Release();
 - crossfade outgoing clip 在权重归零且 playable 从 graph 断开后释放。
 - 加载失败会记录 `ResourceError`，先尝试 actor fallback；fallback 也失败时 layer 进入 failed state。
 - `Tick(deltaTime)` 由外部传入 presentation delta。这个时间源只用于表现层，不进入 Combat authority、Replay hash 或命中/取消判定。
-- Combat bridge 不在首版范围；旧 `CombatAnimatorDriver` 未被替换。
+- `MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的首版 Unity 表现桥；旧 `CombatAnimatorDriver` 仍保留为 opt-in 迁移路径，未被替换。
 
 详细接口见 `Docs/Interfaces/Animation.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/Animation/`。
 

@@ -105,6 +105,10 @@ Bridge 语义：zero-step 不推进 `CombatFrameClock`；multi-step 每个 step 
 
 frame event 只提供 deterministic presentation correlation，不承载 VFX / SFX / Camera / Footstep / UI kind，也不承载 `ResourceKey`。Unity 或 MxAnimation bridge 需要从 animation binding、bridge 配置或其他表现层配置解析资源和表现类型；该事件不得反向驱动取消窗口、命中、伤害、replay hash 或 Combat 权威状态。
 
+`MxFramework.Combat.Animation.Unity` 是独立 Unity bridge assembly。它消费 `CombatActionRunner` lifecycle events 和 `ActionFrameEventRaised`，按默认 `action:<ActionId>` key 或显式 bridge config 查找 `MxAnimationSetDefinition` / `MxAnimationActionBinding`，再向 `IMxAnimationBackend` 发 play / stop / crossfade 请求或向表现事件 sink dispatch `MxAnimationPresentationEvent`。bridge diagnostics 保留 entity、action、action instance、world frame、local frame 和原始 frame event correlation。
+
+旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 仍保留为 opt-in Animator 迁移路径。新 MxAnimation bridge 不自动注册旧 module；项目层 composition root 不应在同一 entity 上同时启用两套 bridge，以免同一 Combat event 双触发动画。
+
 `CombatActionState` 包含 `ActionInstanceId`，用于在 multi-step Runtime tick 内保留每个动作实例的 hit-once 身份；RuntimeHost weapon trace 模块基于每个 fixed step 后的动作状态快照计算候选，不从 Runtime frame 直接推导 Combat frame。
 
 默认模块位于 RuntimeHost 阶段中运行，具体 priority 和组合根由 Demo / 项目层配置。动作系统不读取 Unity Animator 状态作为权威。

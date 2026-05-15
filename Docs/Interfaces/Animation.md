@@ -1,8 +1,8 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、Gitea Issue #94
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend。Combat bridge 不在本接口范围。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、Gitea Issue #94、Gitea Issue #95
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥。
 
 ## 职责
 
@@ -18,7 +18,7 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 |------|------|------|------|
 | `MxFramework.Animation` | MVP | Resources | layer id、play / stop / crossfade request、animation set definition、fade state、diagnostics、backend interface |
 | `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、clip load、fallback、manual tick、graph shutdown、handle ownership |
-| `MxFramework.Combat.Animation.Unity` | Deferred | Combat、Animation、Animation.Unity | 后续 Issue 才实现 Combat event 到 presentation request 的 bridge |
+| `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
 
 依赖方向：
 
@@ -26,6 +26,10 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 MxFramework.Resources
   <- MxFramework.Animation
       <- MxFramework.Animation.Unity
+          <- MxFramework.Combat.Animation.Unity
+
+MxFramework.Combat
+  <- MxFramework.Combat.Animation.Unity
 ```
 
 Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat authority。
@@ -43,6 +47,38 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationDiagnosticSnapshot` | backend、graph、resident default/fallback、layer state、active fades、recent requests/errors |
 | `IMxAnimationBackend` | 最小 backend surface：play、stop、crossfade、tick、snapshot、release |
 | `UnityPlayablesAnimationBackend` | Unity Playables MVP backend，使用 manual `Tick(deltaTime)` 推进 |
+
+## Combat Presentation Bridge
+
+`MxFramework.Combat.Animation.Unity` 是独立 Unity bridge assembly，不放入 `MxFramework.Combat` noEngine assembly。它的默认 action key 策略是 `action:<combatActionId>`，并用该 key 查找 `MxAnimationSetDefinition` / `MxAnimationActionBinding`。
+
+公开类型：
+
+| 接口/类型 | 用途 |
+|-----------|------|
+| `CombatMxAnimationUnityBridge` | 订阅 `CombatActionRunner.ActionStarted`、`ActionCanceled`、`ActionFinished`、`ActionFrameEventRaised`，按 entity 路由到注册的 `IMxAnimationBackend` |
+| `CombatMxAnimationBridgeOptions` | 配置 start 使用 `Play` 或 `CrossFade`，cancel / finish 使用 `Stop` 或 `CrossFade`，以及 fade duration、action key prefix、frame event binding |
+| `CombatMxAnimationFrameEventBinding` | 可选 explicit bridge config，用 Combat event correlation keys 匹配并解析到表现事件 |
+| `ICombatMxAnimationPresentationEventSink` | 接收已解析的 presentation events，供 VFX / SFX / camera / footstep / UI feedback 层消费 |
+| `CombatMxAnimationPresentationEventDispatch` | presentation event dispatch payload，保留 Combat entity、action、action instance、world frame、local frame、原始 `CombatActionFrameEvent` 和 correlation id |
+| `CombatMxAnimationBridgeDiagnosticSnapshot` | bridge 最近请求 / dispatch diagnostics，用于排查 mapping 和 lifecycle |
+
+Lifecycle 策略：
+
+- action started 默认发 `MxAnimationCrossFadeRequest`，可通过 options 改为 `MxAnimationPlayRequest`。
+- action canceled / finished 默认发 `MxAnimationStopRequest`，可通过 options 改为 crossfade 到指定 binding 或 default clip。
+- bridge 只向表现 backend 发送请求，不把 backend state、Playable time、Animator state 或 normalized time 写回 Combat。
+
+Frame event mapping 策略：
+
+- 首选 `CombatMxAnimationFrameEventBinding` 显式配置；配置可以直接提供 `MxAnimationPresentationEvent`，也可以指向 animation set / action binding 中的 presentation event id。
+- 没有显式配置时，从当前 `MxAnimationActionBinding.PresentationEvents` 查找 `TimeDomain == CombatFrame` 或 `PresentationFrame`、`Time == localFrame`、`EventId == event:<CombatActionFrameEvent.EventId>` 或纯数字 event id 的事件。
+- `CombatActionFrameEvent.EventId`、`SourceOrder`、`IntPayload` 只作为 deterministic correlation / matching keys。VFX / SFX / Camera / Footstep / UI kind 与 `ResourceKey` payload 必须来自 `MxAnimationPresentationEvent` 或显式 bridge config。
+
+Legacy coexistence:
+
+- 旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 保持可用，但仍是 opt-in。
+- 新 `CombatMxAnimationUnityBridge` 不创建、不注册、不调用旧 driver。项目层 composition root 应在同一 entity 上选择 legacy Animator bridge 或 MxAnimation bridge 之一，避免同一 Combat event 双触发表现。
 
 ## 使用约定
 
@@ -70,3 +106,4 @@ Assets/Scripts/MxFramework/Tests/Animation/
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。
 - backend release destroy graph 并释放 default、fallback 和当前 clip handles。
+- Combat bridge action started -> play / crossfade、cancel / finish -> stop、frame event -> binding presentation event dispatch、correlation diagnostics、legacy opt-in coexistence、noEngine Combat asmdef 边界。
