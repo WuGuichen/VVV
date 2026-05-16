@@ -130,6 +130,152 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetLayerWeight_UpdatesRootLayerWeightAndKeepsClipFadeDiagnostics()
+        {
+            ResourceKey idleKey = ClipKey("demo.animation.idle");
+            ResourceKey attackKey = ClipKey("demo.animation.attack");
+            MxAnimationLayerId upperBody = new MxAnimationLayerId("upper_body");
+            AnimationClip idle = CreateClip("idle");
+            AnimationClip attack = CreateClip("attack");
+            var provider = new MemoryResourceProvider()
+                .Register("clips/idle", idle)
+                .Register("clips/attack", attack);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry(idleKey, "clips/idle"),
+                Entry(attackKey, "clips/attack"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                default,
+                default,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(MxAnimationLayerId.Base, defaultWeight: 1f),
+                    new MxAnimationLayerDefinition(upperBody, "humanoid.upper", 0.25f)
+                });
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
+            {
+                fixture.Backend.Play(new MxAnimationPlayRequest { ClipKey = idleKey, LayerId = MxAnimationLayerId.Base });
+                fixture.Backend.Play(new MxAnimationPlayRequest { ClipKey = attackKey, LayerId = upperBody });
+
+                MxAnimationLayerDiagnostic initialUpper = FindLayer(fixture.Backend.CreateSnapshot(), upperBody);
+                Assert.AreEqual(0.25f, initialUpper.LayerWeight);
+                Assert.AreEqual(0.25f, initialUpper.TargetLayerWeight);
+                Assert.AreEqual("humanoid.upper", initialUpper.LayerProfileId);
+
+                MxAnimationBackendResult clamp = fixture.Backend.SetLayerWeight(new MxAnimationLayerWeightRequest
+                {
+                    LayerId = upperBody,
+                    Weight = float.NaN,
+                    CorrelationId = "layer:clamp"
+                });
+                Assert.IsTrue(clamp.Success, clamp.Message);
+                Assert.AreEqual(0f, FindLayer(fixture.Backend.CreateSnapshot(), upperBody).LayerWeight);
+
+                MxAnimationBackendResult fade = fixture.Backend.SetLayerWeight(new MxAnimationLayerWeightRequest
+                {
+                    LayerId = upperBody,
+                    Weight = 1f,
+                    FadeDurationSeconds = 0.5f,
+                    TransitionPolicyId = "upper.fade_in",
+                    CorrelationId = "layer:fade"
+                });
+                Assert.IsTrue(fade.Success, fade.Message);
+
+                fixture.Backend.Tick(0.25f);
+
+                MxAnimationLayerDiagnostic midFade = FindLayer(fixture.Backend.CreateSnapshot(), upperBody);
+                Assert.Greater(midFade.LayerWeight, 0f);
+                Assert.Less(midFade.LayerWeight, 1f);
+                Assert.AreEqual(1f, midFade.TargetLayerWeight);
+                Assert.IsTrue(midFade.LayerSyncState.IsTransitioning);
+                Assert.AreEqual("upper.fade_in", midFade.LayerSyncState.TransitionPolicyId);
+                Assert.AreEqual(1, midFade.ActivePlayableCount);
+                Assert.AreEqual(attackKey, midFade.CurrentClipKey);
+            }
+
+            Object.DestroyImmediate(idle);
+            Object.DestroyImmediate(attack);
+        }
+
+        [Test]
+        public void AvatarMask_LoadsThroughResourceManagerAndReleasesWithBackend()
+        {
+            MxAnimationLayerId upperBody = new MxAnimationLayerId("upper_body");
+            ResourceKey maskKey = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
+            var mask = new AvatarMask { name = "upper_body" };
+            var provider = new MemoryResourceProvider().Register("masks/upper", mask);
+            ResourceManager manager = CreateManager(provider, Entry(maskKey, "masks/upper"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                default,
+                default,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(upperBody, "humanoid.upper", 1f, MxAnimationLayerBlendMode.Override, maskKey)
+                });
+
+            BackendFixture fixture = BackendFixture.Create(manager, definition);
+            MxAnimationLayerDiagnostic layer = FindLayer(fixture.Backend.CreateSnapshot(), upperBody);
+            Assert.AreEqual(MxAnimationLayerMaskStatus.Loaded, layer.MaskStatus);
+            Assert.AreEqual(maskKey, layer.MaskKey);
+            Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+            fixture.Dispose();
+
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.AreEqual(1, provider.ReleaseCount);
+            Object.DestroyImmediate(mask);
+        }
+
+        [Test]
+        public void AvatarMask_WhenMissing_ReportsDiagnosticsWithoutBlockingClipPlayback()
+        {
+            MxAnimationLayerId upperBody = new MxAnimationLayerId("upper_body");
+            ResourceKey maskKey = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
+            ResourceKey attackKey = ClipKey("demo.animation.attack");
+            AnimationClip attack = CreateClip("attack");
+            var provider = new MemoryResourceProvider().Register("clips/attack", attack);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry(maskKey, "masks/missing"),
+                Entry(attackKey, "clips/attack"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                default,
+                default,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(upperBody, "humanoid.upper", 1f, MxAnimationLayerBlendMode.Override, maskKey)
+                });
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
+            {
+                MxAnimationLayerDiagnostic failedMask = FindLayer(fixture.Backend.CreateSnapshot(), upperBody);
+                Assert.AreEqual(MxAnimationLayerMaskStatus.Failed, failedMask.MaskStatus);
+                Assert.AreEqual(ResourceErrorCode.NotFound, failedMask.LastError.Code);
+
+                MxAnimationBackendResult play = fixture.Backend.Play(new MxAnimationPlayRequest
+                {
+                    ClipKey = attackKey,
+                    LayerId = upperBody
+                });
+
+                Assert.IsTrue(play.Success, play.Message);
+                MxAnimationLayerDiagnostic playing = FindLayer(fixture.Backend.CreateSnapshot(), upperBody);
+                Assert.AreEqual(MxAnimationLayerStatus.Playing, playing.Status);
+                Assert.AreEqual(attackKey, playing.CurrentClipKey);
+                Assert.AreEqual(MxAnimationLayerMaskStatus.Failed, playing.MaskStatus);
+            }
+
+            Object.DestroyImmediate(attack);
+        }
+
+        [Test]
         public void Release_DestroysGraphAndReleasesAllOwnedHandles()
         {
             ResourceKey defaultKey = ClipKey("demo.animation.default");

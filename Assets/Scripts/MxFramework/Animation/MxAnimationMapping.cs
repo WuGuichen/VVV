@@ -183,6 +183,11 @@ namespace MxFramework.Animation
             AppendResourceKey(builder, "default", definition.DefaultClip);
             AppendResourceKey(builder, "fallback", definition.FallbackClip);
 
+            var layers = new List<MxAnimationLayerDefinition>(definition.Layers);
+            layers.Sort(CompareLayerDefinition);
+            for (int i = 0; i < layers.Count; i++)
+                AppendLayer(builder, layers[i], i);
+
             var actions = new List<MxAnimationActionBinding>(definition.Actions);
             actions.Sort(CompareActionBinding);
             for (int i = 0; i < actions.Count; i++)
@@ -194,6 +199,22 @@ namespace MxFramework.Animation
                 AppendEvent(builder, "setEvent", events[i], i);
 
             return builder.ToString();
+        }
+
+        private static void AppendLayer(StringBuilder builder, MxAnimationLayerDefinition layer, int index)
+        {
+            builder.Append("layer[").Append(index.ToString(CultureInfo.InvariantCulture)).Append("]").Append('\n');
+            if (layer == null)
+            {
+                builder.Append("null").Append('\n');
+                return;
+            }
+
+            builder.Append("id=").Append(layer.LayerId.Value).Append('\n');
+            builder.Append("profile=").Append(layer.ProfileId ?? string.Empty).Append('\n');
+            builder.Append("weight=").Append(layer.DefaultWeight.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            builder.Append("blend=").Append(((int)layer.BlendMode).ToString(CultureInfo.InvariantCulture)).Append('\n');
+            AppendResourceKey(builder, "mask", layer.AvatarMaskKey);
         }
 
         private static void AppendAction(StringBuilder builder, MxAnimationActionBinding binding, int index)
@@ -264,6 +285,26 @@ namespace MxFramework.Animation
                 return result;
 
             return string.CompareOrdinal(left.Clip.ToString(), right.Clip.ToString());
+        }
+
+        private static int CompareLayerDefinition(MxAnimationLayerDefinition left, MxAnimationLayerDefinition right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            int result = string.CompareOrdinal(left.LayerId.Value, right.LayerId.Value);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.ProfileId, right.ProfileId);
+            if (result != 0)
+                return result;
+
+            return CompareResourceKey(left.AvatarMaskKey, right.AvatarMaskKey);
         }
 
         private static int ComparePresentationEvent(MxAnimationPresentationEvent left, MxAnimationPresentationEvent right)
@@ -362,8 +403,36 @@ namespace MxFramework.Animation
             bool catalogMissingReported = false;
             ValidateClip(definition.DefaultClip, "DefaultClipMissing", "default clip", catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateClip(definition.FallbackClip, "FallbackClipMissing", "fallback clip", catalog, requireCatalog, report, ref catalogMissingReported);
+            ValidateLayers(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateActions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             return report;
+        }
+
+        private static void ValidateLayers(
+            MxAnimationSetDefinition definition,
+            ResourceCatalog catalog,
+            bool requireCatalog,
+            ResourceCatalogValidationReport report,
+            ref bool catalogMissingReported)
+        {
+            var layerIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < definition.Layers.Count; i++)
+            {
+                MxAnimationLayerDefinition layer = definition.Layers[i];
+                if (layer == null)
+                {
+                    report.AddError("LayerDefinitionMissing", default, "Animation layer definition at index " + i + " is null.");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(layer.LayerId.Value))
+                    report.AddError("LayerIdMissing", layer.AvatarMaskKey, "Animation layer id is missing.");
+                else if (!layerIds.Add(layer.LayerId.Value))
+                    report.AddError("DuplicateLayerId", layer.AvatarMaskKey, "Duplicate animation layer id: " + layer.LayerId.Value + ".");
+
+                if (layer.AvatarMaskKey.IsValid)
+                    ValidateAvatarMask(layer.AvatarMaskKey, catalog, requireCatalog, report, ref catalogMissingReported);
+            }
         }
 
         private static void ValidateActions(
@@ -442,6 +511,39 @@ namespace MxFramework.Animation
                 report.AddError("ClipCatalogTypeMismatch", key, "Catalog entry for animation clip key has typeId " + wrongTypeEntry.TypeId + ".");
             else
                 report.AddError("ClipCatalogEntryMissing", key, "Catalog entry is missing for animation clip key: " + key + ".");
+        }
+
+        private static void ValidateAvatarMask(
+            ResourceKey key,
+            ResourceCatalog catalog,
+            bool requireCatalog,
+            ResourceCatalogValidationReport report,
+            ref bool catalogMissingReported)
+        {
+            if (!string.Equals(key.TypeId, ResourceTypeIds.AvatarMask, StringComparison.Ordinal))
+            {
+                report.AddError("AvatarMaskTypeMismatch", key, "Animation layer AvatarMask must use typeId " + ResourceTypeIds.AvatarMask + ".");
+                return;
+            }
+
+            if (catalog == null)
+            {
+                if (requireCatalog && !catalogMissingReported)
+                {
+                    report.AddError("CatalogMissing", key, "Resource catalog is required to validate animation resource keys.");
+                    catalogMissingReported = true;
+                }
+
+                return;
+            }
+
+            if (TryFindExactCatalogEntry(catalog, key))
+                return;
+
+            if (TryFindCatalogEntryWithDifferentType(catalog, key, out ResourceCatalogEntry wrongTypeEntry))
+                report.AddError("AvatarMaskCatalogTypeMismatch", key, "Catalog entry for AvatarMask key has typeId " + wrongTypeEntry.TypeId + ".");
+            else
+                report.AddError("AvatarMaskCatalogEntryMissing", key, "Catalog entry is missing for AvatarMask key: " + key + ".");
         }
 
         private static bool TryFindExactCatalogEntry(ResourceCatalog catalog, ResourceKey key)

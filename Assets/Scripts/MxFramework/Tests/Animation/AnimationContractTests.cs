@@ -125,6 +125,43 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetDefinitionHash_IncludesLayerDefinitions()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var mask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
+            var first = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(new MxAnimationLayerId("upper_body"), "humanoid.upper", 0.25f, MxAnimationLayerBlendMode.Override, mask)
+                });
+            var second = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(new MxAnimationLayerId("upper_body"), "humanoid.upper", 0.25f, MxAnimationLayerBlendMode.Override, mask)
+                });
+            var changed = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(new MxAnimationLayerId("upper_body"), "humanoid.upper", 1f, MxAnimationLayerBlendMode.Override, mask)
+                });
+
+            Assert.AreEqual(first.DefinitionHash, second.DefinitionHash);
+            Assert.AreNotEqual(first.DefinitionHash, changed.DefinitionHash);
+        }
+
+        [Test]
         public void StaticMappingProvider_FindsDefinitionBySetId()
         {
             var definition = new MxAnimationSetDefinition(
@@ -264,6 +301,46 @@ namespace MxFramework.Tests.Animation
                 requireCatalog: false);
 
             Assert.IsFalse(report.HasErrors);
+        }
+
+        [Test]
+        public void SetDefinitionValidator_ValidatesAvatarMaskLayerKeys()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var wrongMask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.TextAsset);
+            var missingMask = new ResourceKey("demo.animation.mask.missing", ResourceTypeIds.AvatarMask);
+            var catalog = new ResourceCatalog(
+                "demo.catalog",
+                "demo.package",
+                new[]
+                {
+                    new ResourceCatalogEntry(idle.Id, idle.TypeId, "memory", "idle"),
+                    new ResourceCatalogEntry("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask, "memory", "mask")
+                });
+            var wrongType = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(new MxAnimationLayerId("upper_body"), avatarMaskKey: wrongMask)
+                });
+            var missing = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(new MxAnimationLayerId("upper_body"), avatarMaskKey: missingMask)
+                });
+
+            ResourceCatalogValidationReport wrongTypeReport = MxAnimationSetDefinitionValidator.Validate(wrongType, catalog);
+            ResourceCatalogValidationReport missingReport = MxAnimationSetDefinitionValidator.Validate(missing, catalog);
+
+            AssertIssue(wrongTypeReport, "AvatarMaskTypeMismatch");
+            AssertIssue(missingReport, "AvatarMaskCatalogEntryMissing");
         }
 
         private static void AssertIssue(ResourceCatalogValidationReport report, string code)

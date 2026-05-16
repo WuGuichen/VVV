@@ -1381,15 +1381,32 @@ using UnityEngine;
 
 var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
 var fallback = new ResourceKey("demo.animation.fallback", ResourceTypeIds.AnimationClip);
+var upperBodyMask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
 var set = new MxAnimationSetDefinition(
     "demo.actor",
     version: 1,
     defaultClip: idle,
-    fallbackClip: fallback);
+    fallbackClip: fallback,
+    layers: new[]
+    {
+        new MxAnimationLayerDefinition(MxAnimationLayerId.Base),
+        new MxAnimationLayerDefinition(
+            new MxAnimationLayerId("upper_body"),
+            profileId: "combat.upper_body",
+            defaultWeight: 0f,
+            blendMode: MxAnimationLayerBlendMode.Override,
+            avatarMaskKey: upperBodyMask)
+    });
 
-// resources 由组合根注册 provider + catalog；clip 必须通过 ResourceKey 解析。
+// resources 由组合根注册 provider + catalog；clip / AvatarMask 必须通过 ResourceKey 解析。
 var backend = new UnityPlayablesAnimationBackend(animator, resources, set, "actor.demo");
 backend.Play(new MxAnimationPlayRequest { ClipKey = idle });
+backend.SetLayerWeight(new MxAnimationLayerWeightRequest
+{
+    LayerId = new MxAnimationLayerId("upper_body"),
+    Weight = 1f,
+    FadeDurationSeconds = 0.12f
+});
 backend.Tick(Time.deltaTime);
 
 MxAnimationDiagnosticSnapshot snapshot = backend.CreateSnapshot();
@@ -1418,6 +1435,8 @@ Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 I
 
 - `MxFramework.Animation` 不引用 Unity，不保存 `AnimationClip`、GUID 或 `Assets/...` path。
 - `MxFramework.Animation.Unity` 通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 backend 自己拥有的 handle。
+- AvatarMask 与 clip 一样使用 `ResourceKey` 和 `ResourceManager` 加载；runtime definition 不直接保存 `AvatarMask` 引用。
+- layer weight 只影响 Unity Playables layer mixer 的表现权重，可用于上半身攻击、下半身移动这类视觉混合；它不改变 Combat authority。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
 - Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
 - default / fallback clip 按 backend 生命周期常驻，并在 diagnostics 中显示 resident 状态。

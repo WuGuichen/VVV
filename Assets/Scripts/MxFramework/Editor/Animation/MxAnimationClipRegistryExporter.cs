@@ -52,6 +52,7 @@ namespace MxFramework.Editor.Animation
             Dictionary<string, ResourceKey> clipKeys = CreateClipKeyMap(asset, report);
             ResourceKey defaultClip = ResolveRoleClip(asset, clipKeys, true, report);
             ResourceKey fallbackClip = ResolveRoleClip(asset, clipKeys, false, report);
+            MxAnimationLayerDefinition[] layers = CreateLayers(asset, report);
             MxAnimationActionBinding[] bindings = CreateBindings(asset, clipKeys, report);
             MxAnimationPresentationEvent[] events = CreateEvents(asset.Events);
 
@@ -61,7 +62,8 @@ namespace MxFramework.Editor.Animation
                 defaultClip,
                 fallbackClip,
                 bindings,
-                events);
+                events,
+                layers: layers);
             report.Merge(MxAnimationSetDefinitionValidator.Validate(definition, catalog, requireCatalog));
             return new MxAnimationClipRegistryExportResult(definition, report);
         }
@@ -169,6 +171,32 @@ namespace MxFramework.Editor.Animation
             }
 
             return resolved;
+        }
+
+        private static MxAnimationLayerDefinition[] CreateLayers(
+            MxAnimationClipRegistryAsset asset,
+            ResourceCatalogValidationReport report)
+        {
+            MxAnimationClipRegistryLayerEntry[] source = asset.Layers;
+            var layers = new MxAnimationLayerDefinition[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                MxAnimationClipRegistryLayerEntry layer = source[i];
+                ResourceKey avatarMaskKey = layer.CreateAvatarMaskKey(asset.PackageId);
+                if (string.IsNullOrWhiteSpace(layer.LayerId))
+                    report.AddError("LayerIdMissing", avatarMaskKey, "Layer registry entry at index " + i + " is missing a layer id.");
+                if (avatarMaskKey.IsValid && layer.AvatarMask == null)
+                    report.AddError("AvatarMaskReferenceMissing", avatarMaskKey, "Layer registry entry is missing an AvatarMask reference: " + layer.LayerId + ".");
+
+                layers[i] = new MxAnimationLayerDefinition(
+                    new MxAnimationLayerId(layer.LayerId),
+                    layer.ProfileId,
+                    layer.DefaultWeight,
+                    layer.BlendMode,
+                    avatarMaskKey);
+            }
+
+            return layers;
         }
 
         private static MxAnimationActionBinding[] CreateBindings(

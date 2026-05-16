@@ -20,6 +20,8 @@ namespace MxFramework.Resources.Unity
                     return typeof(AudioClip);
                 case ResourceTypeIds.AnimationClip:
                     return typeof(AnimationClip);
+                case ResourceTypeIds.AvatarMask:
+                    return typeof(AvatarMask);
                 case ResourceTypeIds.Material:
                     return typeof(Material);
                 case ResourceTypeIds.PanelSettings:

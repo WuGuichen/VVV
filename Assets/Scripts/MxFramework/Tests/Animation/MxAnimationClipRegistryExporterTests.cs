@@ -14,6 +14,7 @@ namespace MxFramework.Tests.Animation
             MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
             var idleClip = new AnimationClip { name = "Idle" };
             var fallbackClip = new AnimationClip { name = "Fallback" };
+            var upperMask = new AvatarMask { name = "UpperBody" };
             try
             {
                 asset.AnimationSetId = "demo.set";
@@ -36,6 +37,23 @@ namespace MxFramework.Tests.Animation
                         IsFallback = true
                     }
                 };
+                asset.Layers = new[]
+                {
+                    new MxAnimationClipRegistryLayerEntry
+                    {
+                        LayerId = "base",
+                        ProfileId = "humanoid.base",
+                        DefaultWeight = 1f
+                    },
+                    new MxAnimationClipRegistryLayerEntry
+                    {
+                        LayerId = "upper_body",
+                        ProfileId = "humanoid.upper",
+                        DefaultWeight = 0f,
+                        AvatarMask = upperMask,
+                        AvatarMaskResourceId = "demo.animation.mask.upper_body"
+                    }
+                };
                 asset.Bindings = new[]
                 {
                     new MxAnimationClipRegistryBindingEntry
@@ -55,7 +73,8 @@ namespace MxFramework.Tests.Animation
                     new[]
                     {
                         new ResourceCatalogEntry("demo.animation.idle", ResourceTypeIds.AnimationClip, "memory", "idle"),
-                        new ResourceCatalogEntry("demo.animation.fallback", ResourceTypeIds.AnimationClip, "memory", "fallback")
+                        new ResourceCatalogEntry("demo.animation.fallback", ResourceTypeIds.AnimationClip, "memory", "fallback"),
+                        new ResourceCatalogEntry("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask, "memory", "mask")
                     });
 
                 MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.Export(asset, catalog);
@@ -67,13 +86,18 @@ namespace MxFramework.Tests.Animation
                 Assert.AreEqual("demo.animation.idle", result.Definition.DefaultClip.Id);
                 Assert.AreEqual(ResourceTypeIds.AnimationClip, result.Definition.Actions[0].Clip.TypeId);
                 Assert.AreEqual("action:1", result.Definition.Actions[0].ActionKey);
+                Assert.AreEqual(2, result.Definition.Layers.Count);
+                Assert.AreEqual("humanoid.upper", result.Definition.Layers[1].ProfileId);
+                Assert.AreEqual(ResourceTypeIds.AvatarMask, result.Definition.Layers[1].AvatarMaskKey.TypeId);
                 Assert.AreEqual(0.2f, result.Definition.Actions[0].FadeDurationSeconds);
                 Assert.That(result.Definition.Actions[0].Clip.Id, Does.Not.Contain("Assets/"));
+                Assert.That(result.Definition.Layers[1].AvatarMaskKey.Id, Does.Not.Contain("Assets/"));
             }
             finally
             {
                 Object.DestroyImmediate(idleClip);
                 Object.DestroyImmediate(fallbackClip);
+                Object.DestroyImmediate(upperMask);
                 Object.DestroyImmediate(asset);
             }
         }
@@ -102,6 +126,14 @@ namespace MxFramework.Tests.Animation
                     {
                         ClipId = "attack",
                         ResourceId = "demo.animation.attack"
+                    }
+                };
+                asset.Layers = new[]
+                {
+                    new MxAnimationClipRegistryLayerEntry
+                    {
+                        LayerId = "upper_body",
+                        AvatarMaskResourceId = "demo.animation.mask.upper_body"
                     }
                 };
                 asset.Bindings = new[]
@@ -133,6 +165,8 @@ namespace MxFramework.Tests.Animation
                 Assert.IsFalse(result.Success);
                 AssertIssue(result.ValidationReport, "ClipReferenceMissing");
                 AssertIssue(result.ValidationReport, "ClipCatalogTypeMismatch");
+                AssertIssue(result.ValidationReport, "AvatarMaskReferenceMissing");
+                AssertIssue(result.ValidationReport, "AvatarMaskCatalogEntryMissing");
                 AssertIssue(result.ValidationReport, "DuplicateBindingId");
                 AssertIssue(result.ValidationReport, "DuplicateActionKey");
             }
