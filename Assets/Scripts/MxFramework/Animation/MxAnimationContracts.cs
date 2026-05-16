@@ -231,7 +231,7 @@ namespace MxFramework.Animation
         public string ParameterId { get; }
         public int QuantizedValue { get; }
         public int Scale { get; }
-        public float Value => QuantizedValue / (float)Scale;
+        public float Value => QuantizedValue / (float)(Scale <= 0 ? 1 : Scale);
 
         public bool Equals(MxAnimationQuantizedParameter other)
         {

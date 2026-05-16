@@ -106,6 +106,14 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void QuantizedParameter_DefaultValueIsZero()
+        {
+            var parameter = default(MxAnimationQuantizedParameter);
+
+            Assert.AreEqual(0f, parameter.Value);
+        }
+
+        [Test]
         public void PresentationEventDedupeKey_UsesStableEquality()
         {
             var first = new MxAnimationPresentationEventDedupeKey(
