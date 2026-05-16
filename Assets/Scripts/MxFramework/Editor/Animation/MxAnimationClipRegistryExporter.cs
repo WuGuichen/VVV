@@ -245,7 +245,8 @@ namespace MxFramework.Editor.Animation
                     item.EventKind,
                     item.CreatePayloadKey(),
                     item.Socket,
-                    item.Tag);
+                    item.Tag,
+                    item.ReplayPolicy);
             }
 
             return events;

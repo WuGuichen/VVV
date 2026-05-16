@@ -64,6 +64,12 @@ namespace MxFramework.Animation
         PresentationFrame
     }
 
+    public enum MxAnimationPresentationEventReplayPolicy
+    {
+        OneShot,
+        CatchUpSafe
+    }
+
     public enum MxAnimationLayerStatus
     {
         None,
@@ -146,6 +152,13 @@ namespace MxFramework.Animation
         AnimationSetHashMismatch,
         ResourceCatalogHashMismatch,
         ClipRegistryVersionMismatch
+    }
+
+    public enum MxAnimationPresentationEventDispatchStatus
+    {
+        Dispatched,
+        DuplicateDropped,
+        PayloadUnresolved
     }
 
     public readonly struct MxAnimationLayerSyncState : IEquatable<MxAnimationLayerSyncState>
@@ -348,6 +361,218 @@ namespace MxFramework.Animation
         public static bool operator !=(MxAnimationPresentationEventDedupeKey left, MxAnimationPresentationEventDedupeKey right)
         {
             return !left.Equals(right);
+        }
+    }
+
+    public sealed class MxAnimationPresentationEventDispatch
+    {
+        public MxAnimationPresentationEventDispatch(
+            string actorId,
+            string actionKey,
+            string bindingId,
+            int actionInstanceId,
+            int worldFrame,
+            int localFrame,
+            int sourceOrder,
+            MxAnimationPresentationEvent presentationEvent,
+            string correlationId = "",
+            MxAnimationPresentationEventDedupeKey dedupeKey = default)
+        {
+            ActorId = actorId ?? string.Empty;
+            ActionKey = actionKey ?? string.Empty;
+            BindingId = bindingId ?? string.Empty;
+            ActionInstanceId = Math.Max(0, actionInstanceId);
+            WorldFrame = Math.Max(0, worldFrame);
+            LocalFrame = Math.Max(0, localFrame);
+            SourceOrder = Math.Max(0, sourceOrder);
+            PresentationEvent = presentationEvent;
+            CorrelationId = correlationId ?? string.Empty;
+            DedupeKey = dedupeKey.IsValid
+                ? dedupeKey
+                : new MxAnimationPresentationEventDedupeKey(
+                    ActorId,
+                    ActionInstanceId,
+                    WorldFrame,
+                    LocalFrame,
+                    presentationEvent != null ? presentationEvent.EventId : string.Empty,
+                    SourceOrder);
+        }
+
+        public string ActorId { get; }
+        public string ActionKey { get; }
+        public string BindingId { get; }
+        public int ActionInstanceId { get; }
+        public int WorldFrame { get; }
+        public int LocalFrame { get; }
+        public int SourceOrder { get; }
+        public MxAnimationPresentationEvent PresentationEvent { get; }
+        public string CorrelationId { get; }
+        public MxAnimationPresentationEventDedupeKey DedupeKey { get; }
+    }
+
+    public interface IMxAnimationPresentationEventSink
+    {
+        void Dispatch(MxAnimationPresentationEventDispatch dispatch);
+    }
+
+    public sealed class MxAnimationNullPresentationEventSink : IMxAnimationPresentationEventSink
+    {
+        public static readonly MxAnimationNullPresentationEventSink Instance = new MxAnimationNullPresentationEventSink();
+
+        private MxAnimationNullPresentationEventSink()
+        {
+        }
+
+        public void Dispatch(MxAnimationPresentationEventDispatch dispatch)
+        {
+        }
+    }
+
+    public readonly struct MxAnimationPresentationEventDispatchDiagnostic
+    {
+        public MxAnimationPresentationEventDispatchDiagnostic(
+            MxAnimationPresentationEventDispatchStatus status,
+            MxAnimationPresentationEventDedupeKey dedupeKey,
+            string eventId,
+            string correlationId,
+            string message)
+        {
+            Status = status;
+            DedupeKey = dedupeKey;
+            EventId = eventId ?? string.Empty;
+            CorrelationId = correlationId ?? string.Empty;
+            Message = message ?? string.Empty;
+        }
+
+        public MxAnimationPresentationEventDispatchStatus Status { get; }
+        public MxAnimationPresentationEventDedupeKey DedupeKey { get; }
+        public string EventId { get; }
+        public string CorrelationId { get; }
+        public string Message { get; }
+    }
+
+    public sealed class MxAnimationPresentationEventDedupeWindow
+    {
+        private readonly HashSet<MxAnimationPresentationEventDedupeKey> _seen =
+            new HashSet<MxAnimationPresentationEventDedupeKey>();
+        private readonly Queue<MxAnimationPresentationEventDedupeKey> _order =
+            new Queue<MxAnimationPresentationEventDedupeKey>();
+
+        public MxAnimationPresentationEventDedupeWindow(int capacity = 128)
+        {
+            Capacity = Math.Max(1, capacity);
+        }
+
+        public int Capacity { get; }
+        public int Count => _seen.Count;
+
+        public bool TryRecord(MxAnimationPresentationEventDedupeKey key)
+        {
+            if (!key.IsValid)
+                return true;
+
+            if (_seen.Contains(key))
+                return false;
+
+            while (_order.Count >= Capacity)
+            {
+                MxAnimationPresentationEventDedupeKey evicted = _order.Dequeue();
+                _seen.Remove(evicted);
+            }
+
+            _seen.Add(key);
+            _order.Enqueue(key);
+            return true;
+        }
+
+        public void Clear()
+        {
+            _seen.Clear();
+            _order.Clear();
+        }
+    }
+
+    public sealed class MxAnimationPresentationEventDispatchSink
+    {
+        private readonly IMxAnimationPresentationEventSink _sink;
+        private readonly MxAnimationPresentationEventDedupeWindow _dedupeWindow;
+        private readonly Queue<MxAnimationPresentationEventDispatchDiagnostic> _recentDiagnostics =
+            new Queue<MxAnimationPresentationEventDispatchDiagnostic>();
+
+        public MxAnimationPresentationEventDispatchSink(
+            IMxAnimationPresentationEventSink sink = null,
+            int maxDedupeEntries = 128,
+            int maxRecentDiagnostics = 32)
+        {
+            _sink = sink ?? MxAnimationNullPresentationEventSink.Instance;
+            _dedupeWindow = new MxAnimationPresentationEventDedupeWindow(maxDedupeEntries);
+            MaxRecentDiagnostics = Math.Max(1, maxRecentDiagnostics);
+        }
+
+        public int MaxRecentDiagnostics { get; }
+        public IReadOnlyCollection<MxAnimationPresentationEventDispatchDiagnostic> RecentDiagnostics => _recentDiagnostics;
+
+        public bool TryDispatch(
+            MxAnimationPresentationEventDispatch dispatch,
+            bool payloadResolved,
+            out MxAnimationPresentationEventDispatchDiagnostic diagnostic)
+        {
+            if (dispatch == null)
+            {
+                diagnostic = new MxAnimationPresentationEventDispatchDiagnostic(
+                    MxAnimationPresentationEventDispatchStatus.PayloadUnresolved,
+                    default,
+                    string.Empty,
+                    string.Empty,
+                    "Presentation event dispatch payload is null.");
+                AddDiagnostic(diagnostic);
+                return false;
+            }
+
+            string eventId = dispatch.PresentationEvent != null ? dispatch.PresentationEvent.EventId : string.Empty;
+            if (!payloadResolved
+                && dispatch.PresentationEvent != null
+                && dispatch.PresentationEvent.PayloadKey.IsValid)
+            {
+                diagnostic = new MxAnimationPresentationEventDispatchDiagnostic(
+                    MxAnimationPresentationEventDispatchStatus.PayloadUnresolved,
+                    dispatch.DedupeKey,
+                    eventId,
+                    dispatch.CorrelationId,
+                    "Presentation event payload could not be resolved.");
+                AddDiagnostic(diagnostic);
+                return false;
+            }
+
+            if (!_dedupeWindow.TryRecord(dispatch.DedupeKey))
+            {
+                diagnostic = new MxAnimationPresentationEventDispatchDiagnostic(
+                    MxAnimationPresentationEventDispatchStatus.DuplicateDropped,
+                    dispatch.DedupeKey,
+                    eventId,
+                    dispatch.CorrelationId,
+                    "Duplicate presentation event dispatch dropped.");
+                AddDiagnostic(diagnostic);
+                return false;
+            }
+
+            _sink.Dispatch(dispatch);
+            diagnostic = new MxAnimationPresentationEventDispatchDiagnostic(
+                MxAnimationPresentationEventDispatchStatus.Dispatched,
+                dispatch.DedupeKey,
+                eventId,
+                dispatch.CorrelationId,
+                "Presentation event dispatched.");
+            AddDiagnostic(diagnostic);
+            return true;
+        }
+
+        private void AddDiagnostic(MxAnimationPresentationEventDispatchDiagnostic diagnostic)
+        {
+            while (_recentDiagnostics.Count >= MaxRecentDiagnostics)
+                _recentDiagnostics.Dequeue();
+
+            _recentDiagnostics.Enqueue(diagnostic);
         }
     }
 
@@ -629,7 +854,8 @@ namespace MxFramework.Animation
             string eventKind,
             ResourceKey payloadKey,
             string socket = "",
-            string tag = "")
+            string tag = "",
+            MxAnimationPresentationEventReplayPolicy replayPolicy = MxAnimationPresentationEventReplayPolicy.OneShot)
         {
             EventId = eventId ?? string.Empty;
             TimeDomain = timeDomain;
@@ -638,6 +864,7 @@ namespace MxFramework.Animation
             PayloadKey = payloadKey;
             Socket = socket ?? string.Empty;
             Tag = tag ?? string.Empty;
+            ReplayPolicy = replayPolicy;
         }
 
         public string EventId { get; }
@@ -647,6 +874,7 @@ namespace MxFramework.Animation
         public ResourceKey PayloadKey { get; }
         public string Socket { get; }
         public string Tag { get; }
+        public MxAnimationPresentationEventReplayPolicy ReplayPolicy { get; }
     }
 
     public sealed class MxAnimationActionBinding

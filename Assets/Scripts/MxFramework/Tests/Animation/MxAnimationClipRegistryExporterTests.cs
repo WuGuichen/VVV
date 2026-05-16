@@ -103,6 +103,92 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Export_PreservesPresentationEventsAsResourceKeyTimelineRows()
+        {
+            MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            var attackClip = new AnimationClip { name = "Attack" };
+            var fallbackClip = new AnimationClip { name = "Fallback" };
+            try
+            {
+                asset.AnimationSetId = "combat.demo";
+                asset.Version = 3;
+                asset.PackageId = "demo.package";
+                asset.Clips = new[]
+                {
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "attack",
+                        Clip = attackClip,
+                        ResourceId = "demo.animation.attack",
+                        IsDefault = true
+                    },
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "fallback",
+                        Clip = fallbackClip,
+                        ResourceId = "demo.animation.fallback",
+                        IsFallback = true
+                    }
+                };
+                asset.Bindings = new[]
+                {
+                    new MxAnimationClipRegistryBindingEntry
+                    {
+                        BindingId = "attack",
+                        ActionKey = "action:1001",
+                        ClipId = "attack",
+                        Events = new[]
+                        {
+                            new MxAnimationClipRegistryEventEntry
+                            {
+                                EventId = "event:77",
+                                TimeDomain = MxAnimationEventTimeDomain.CombatFrame,
+                                Time = 6f,
+                                EventKind = "VFX",
+                                PayloadResourceId = "demo.vfx.slash",
+                                PayloadTypeId = ResourceTypeIds.GameObject,
+                                Socket = "weapon",
+                                Tag = "slash"
+                            }
+                        }
+                    }
+                };
+                asset.Events = new[]
+                {
+                    new MxAnimationClipRegistryEventEntry
+                    {
+                        EventId = "event:intro",
+                        TimeDomain = MxAnimationEventTimeDomain.Seconds,
+                        Time = 0.15f,
+                        EventKind = "SFX",
+                        PayloadResourceId = "demo.sfx.swing",
+                        PayloadTypeId = ResourceTypeIds.AudioClip,
+                        ReplayPolicy = MxAnimationPresentationEventReplayPolicy.CatchUpSafe
+                    }
+                };
+
+                MxAnimationClipRegistryExportResult result =
+                    MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                System.Collections.Generic.IReadOnlyList<MxAnimationEventTimelineRow> rows =
+                    MxAnimationEventTimelineBuilder.BuildRows(result.Definition);
+
+                Assert.IsTrue(result.Success, MxAnimationClipRegistryExporter.CreateReportText(result));
+                Assert.AreEqual(2, rows.Count);
+                Assert.IsTrue(ContainsTimelineRow(rows, "event:77", true));
+                Assert.IsTrue(ContainsTimelineRow(rows, "event:intro", false));
+                Assert.AreEqual(ResourceTypeIds.GameObject, result.Definition.Actions[0].PresentationEvents[0].PayloadKey.TypeId);
+                Assert.That(result.Definition.Actions[0].PresentationEvents[0].PayloadKey.Id, Does.Not.Contain("Assets/"));
+                Assert.AreEqual(MxAnimationPresentationEventReplayPolicy.CatchUpSafe, result.Definition.Events[0].ReplayPolicy);
+            }
+            finally
+            {
+                Object.DestroyImmediate(attackClip);
+                Object.DestroyImmediate(fallbackClip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
         public void Export_ReportsDuplicateBindingWrongCatalogTypeAndMissingClipReference()
         {
             MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
@@ -228,6 +314,23 @@ namespace MxFramework.Tests.Animation
             }
 
             Assert.Fail("Expected clip registry validation issue: " + code);
+        }
+
+        private static bool ContainsTimelineRow(
+            System.Collections.Generic.IReadOnlyList<MxAnimationEventTimelineRow> rows,
+            string eventId,
+            bool hasDeterministicCorrelation)
+        {
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].EventId == eventId
+                    && rows[i].HasDeterministicCorrelation == hasDeterministicCorrelation)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -105,9 +105,9 @@ Bridge 语义：zero-step 不推进 `CombatFrameClock`；multi-step 每个 step 
 
 frame event 只提供 deterministic presentation correlation，不承载 VFX / SFX / Camera / Footstep / UI kind，也不承载 `ResourceKey`。Unity 或 MxAnimation bridge 需要从 animation binding、bridge 配置或其他表现层配置解析资源和表现类型；该事件不得反向驱动取消窗口、命中、伤害、replay hash 或 Combat 权威状态。
 
-`MxFramework.Combat.Animation.Unity` 是独立 Unity bridge assembly。它消费 `CombatActionRunner` lifecycle events 和 `ActionFrameEventRaised`，按默认 `action:<ActionId>` key 或显式 bridge config 查找 `MxAnimationSetDefinition` / `MxAnimationActionBinding`，再向 `IMxAnimationBackend` 发 play / stop / crossfade 请求或向表现事件 sink dispatch `MxAnimationPresentationEvent`。bridge diagnostics 保留 entity、action、action instance、world frame、local frame 和原始 frame event correlation。
+`MxFramework.Combat.Animation.Unity` 是独立 Unity bridge assembly。它消费 `CombatActionRunner` lifecycle events 和 `ActionFrameEventRaised`，按默认 `action:<ActionId>` key 或显式 bridge config 查找 `MxAnimationSetDefinition` / `MxAnimationActionBinding`，再向 `IMxAnimationBackend` 发 play / stop / crossfade 请求或向表现事件 sink dispatch `MxAnimationPresentationEvent`。dispatch 使用 actor/entity id、action instance、world/local frame、event id 和 source order 组成 `MxAnimationPresentationEventDedupeKey`，重复 key 会被 bridge 丢弃并写入 diagnostics。bridge diagnostics 保留 entity、action、action instance、world frame、local frame 和原始 frame event correlation。
 
-MxAnimation 的 presentation sync contract 可以把 Combat action lifecycle 复制为表现恢复状态：actor / entity id、action id 或 action key、action instance id、started-at Combat frame、current local frame、layer sync state、量化表现参数和 event dedupe key。该状态只用于 late join、补包和预测纠偏时恢复表现，不进入 Combat hash / replay / 命中 / 取消 / 伤害 / 权威移动，也不允许 Unity Playable / Animator / bone pose 反向写回 Combat。
+MxAnimation 的 presentation sync contract 可以把 Combat action lifecycle 复制为表现恢复状态：actor / entity id、action id 或 action key、action instance id、started-at Combat frame、current local frame、layer sync state、量化表现参数和 event dedupe key。该状态只用于 late join、补包和预测纠偏时恢复表现，不进入 Combat hash / replay / 命中 / 取消 / 伤害 / 权威移动，也不允许 Unity Playable / Animator / bone pose 反向写回 Combat。一次性表现事件默认不因 late join 补播；项目层只有在事件显式标记为 catch-up safe 时，才可以按自己的网络策略补发。
 
 旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 仍保留为 opt-in Animator 迁移路径。新 MxAnimation bridge 不自动注册旧 module；项目层 composition root 不应在同一 entity 上同时启用两套 bridge，以免同一 Combat event 双触发动画。
 

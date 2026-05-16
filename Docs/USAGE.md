@@ -1432,6 +1432,26 @@ if (provider.TryFindDefinition("demo.actor", out MxAnimationSetDefinition mapped
 }
 ```
 
+事件时间轴和 dispatch sink 使用同一份 noEngine DTO，不直接保存 Unity object：
+
+```csharp
+IReadOnlyList<MxAnimationEventTimelineRow> rows =
+    MxAnimationEventTimelineBuilder.BuildRows(mappedSet);
+
+var eventSink = new MxAnimationPresentationEventDispatchSink(mySink, maxDedupeEntries: 128);
+var dispatch = new MxAnimationPresentationEventDispatch(
+    actorId: "entity:7",
+    actionKey: "action:1001",
+    bindingId: "attack",
+    actionInstanceId: 3,
+    worldFrame: 120,
+    localFrame: 6,
+    sourceOrder: 0,
+    presentationEvent: rows[0].Event);
+
+eventSink.TryDispatch(dispatch, payloadResolved: true, out MxAnimationPresentationEventDispatchDiagnostic diagnostic);
+```
+
 进入战斗、生成角色或 late join 前可以先做 warmup / version validation：
 
 ```csharp
@@ -1455,7 +1475,7 @@ if (!warmup.Success)
 warmupService.Release(warmup);
 ```
 
-Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
+Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。Inspector 的 `Event Timeline Preview` 会显示 Seconds / NormalizedTime / CombatFrame / PresentationFrame 事件，并对 CombatFrame / PresentationFrame 输出 deterministic correlation 摘要。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
 
 约定：
 
@@ -1467,6 +1487,8 @@ Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 I
 - warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
 - warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。
 - Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
+- presentation event 是表现层事件，不驱动 Combat 命中、取消、伤害、无敌、移动或 replay hash。默认 late join 不补播一次性 VFX/SFX；需要补播时必须把事件标记为 `CatchUpSafe` 并由项目网络层显式执行策略。
+- runtime presentation event sink 使用 actor/action instance/frame/event/source-order dedupe key；重复 dispatch 会被丢弃并输出 diagnostics。
 - default / fallback clip 按 backend 生命周期常驻，并在 diagnostics 中显示 resident 状态。
 - crossfade outgoing clip 在权重归零且 playable 从 graph 断开后释放。
 - 加载失败会记录 `ResourceError`，先尝试 actor fallback；fallback 也失败时 layer 进入 failed state。

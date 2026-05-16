@@ -472,6 +472,102 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void PresentationEventDispatchSink_DropsDuplicateWithinActionInstance()
+        {
+            var recordingSink = new RecordingPresentationEventSink();
+            var dispatchSink = new MxAnimationPresentationEventDispatchSink(recordingSink, maxDedupeEntries: 8);
+            var evt = new MxAnimationPresentationEvent(
+                "event:footstep",
+                MxAnimationEventTimeDomain.PresentationFrame,
+                4f,
+                "SFX",
+                new ResourceKey("sfx.footstep", ResourceTypeIds.AudioClip));
+            var first = new MxAnimationPresentationEventDispatch(
+                "entity:7",
+                "action:12",
+                "walk",
+                actionInstanceId: 3,
+                worldFrame: 120,
+                localFrame: 4,
+                sourceOrder: 1,
+                evt,
+                "first");
+            var duplicate = new MxAnimationPresentationEventDispatch(
+                "entity:7",
+                "action:12",
+                "walk",
+                actionInstanceId: 3,
+                worldFrame: 120,
+                localFrame: 4,
+                sourceOrder: 1,
+                evt,
+                "duplicate");
+            var nextInstance = new MxAnimationPresentationEventDispatch(
+                "entity:7",
+                "action:12",
+                "walk",
+                actionInstanceId: 4,
+                worldFrame: 120,
+                localFrame: 4,
+                sourceOrder: 1,
+                evt,
+                "next");
+
+            Assert.IsTrue(dispatchSink.TryDispatch(first, payloadResolved: true, out MxAnimationPresentationEventDispatchDiagnostic firstDiagnostic));
+            Assert.IsFalse(dispatchSink.TryDispatch(duplicate, payloadResolved: true, out MxAnimationPresentationEventDispatchDiagnostic duplicateDiagnostic));
+            Assert.IsTrue(dispatchSink.TryDispatch(nextInstance, payloadResolved: true, out MxAnimationPresentationEventDispatchDiagnostic nextDiagnostic));
+
+            Assert.AreEqual(2, recordingSink.Dispatches.Count);
+            Assert.AreEqual(MxAnimationPresentationEventDispatchStatus.Dispatched, firstDiagnostic.Status);
+            Assert.AreEqual(MxAnimationPresentationEventDispatchStatus.DuplicateDropped, duplicateDiagnostic.Status);
+            Assert.AreEqual(MxAnimationPresentationEventDispatchStatus.Dispatched, nextDiagnostic.Status);
+        }
+
+        [Test]
+        public void EventTimelineBuilder_ListsCombatFrameAndPresentationTimeRows()
+        {
+            var clip = new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip);
+            var payload = new ResourceKey("fx.slash", ResourceTypeIds.GameObject);
+            var combatFrameEvent = new MxAnimationPresentationEvent(
+                "event:hit",
+                MxAnimationEventTimeDomain.CombatFrame,
+                6f,
+                "VFX",
+                payload,
+                "weapon",
+                "slash");
+            var secondsEvent = new MxAnimationPresentationEvent(
+                "event:swing",
+                MxAnimationEventTimeDomain.Seconds,
+                0.2f,
+                "SFX",
+                new ResourceKey("sfx.swing", ResourceTypeIds.AudioClip),
+                replayPolicy: MxAnimationPresentationEventReplayPolicy.CatchUpSafe);
+            var definition = new MxAnimationSetDefinition(
+                "combat.demo",
+                1,
+                clip,
+                clip,
+                new[]
+                {
+                    new MxAnimationActionBinding(
+                        "attack",
+                        "action:12",
+                        clip,
+                        MxAnimationLayerId.Base,
+                        presentationEvents: new[] { combatFrameEvent, secondsEvent })
+                });
+
+            IReadOnlyList<MxAnimationEventTimelineRow> rows =
+                MxAnimationEventTimelineBuilder.BuildRows(definition);
+
+            Assert.AreEqual(2, rows.Count);
+            Assert.IsTrue(ContainsRow(rows, "event:hit", MxAnimationEventTimeDomain.CombatFrame, true));
+            Assert.IsTrue(ContainsRow(rows, "event:swing", MxAnimationEventTimeDomain.Seconds, false));
+            Assert.AreEqual(MxAnimationPresentationEventReplayPolicy.CatchUpSafe, rows[0].ReplayPolicy);
+        }
+
+        [Test]
         public void PresentationSyncValidator_ReportsVersionMismatchDiagnostics()
         {
             var state = new MxAnimationPresentationSyncState(
@@ -560,6 +656,37 @@ namespace MxFramework.Tests.Animation
 
             Assert.IsTrue(result.Success);
             Assert.AreEqual(MxAnimationPresentationSyncValidationCode.Success, result.Code);
+        }
+
+        private static bool ContainsRow(
+            IReadOnlyList<MxAnimationEventTimelineRow> rows,
+            string eventId,
+            MxAnimationEventTimeDomain domain,
+            bool hasDeterministicCorrelation)
+        {
+            for (int i = 0; i < rows.Count; i++)
+            {
+                MxAnimationEventTimelineRow row = rows[i];
+                if (row.EventId == eventId
+                    && row.TimeDomain == domain
+                    && row.HasDeterministicCorrelation == hasDeterministicCorrelation)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private sealed class RecordingPresentationEventSink : IMxAnimationPresentationEventSink
+        {
+            public readonly List<MxAnimationPresentationEventDispatch> Dispatches =
+                new List<MxAnimationPresentationEventDispatch>();
+
+            public void Dispatch(MxAnimationPresentationEventDispatch dispatch)
+            {
+                Dispatches.Add(dispatch);
+            }
         }
     }
 }

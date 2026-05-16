@@ -24,7 +24,9 @@ namespace MxFramework.Combat.Animation.Unity
         ActionStarted,
         ActionCanceled,
         ActionFinished,
-        FramePresentationEvent
+        FramePresentationEvent,
+        FramePresentationEventDuplicateDropped,
+        FramePresentationEventPayloadUnresolved
     }
 
     public sealed class CombatMxAnimationBridgeOptions
@@ -53,6 +55,10 @@ namespace MxFramework.Combat.Animation.Unity
         public string FinishedCrossFadeBindingId { get; set; } = string.Empty;
 
         public int MaxRecentDiagnostics { get; set; } = 32;
+
+        public int MaxPresentationEventDedupeEntries { get; set; } = 128;
+
+        public bool EnablePresentationEventDedupe { get; set; } = true;
 
         public IList<CombatMxAnimationFrameEventBinding> FrameEventBindings => _frameEventBindings;
 
@@ -112,7 +118,8 @@ namespace MxFramework.Combat.Animation.Unity
             int localFrame,
             CombatActionFrameEvent frameEvent,
             MxAnimationPresentationEvent presentationEvent,
-            string correlationId)
+            string correlationId,
+            MxAnimationPresentationEventDedupeKey dedupeKey = default)
         {
             EntityId = entityId;
             TargetActorId = targetActorId ?? string.Empty;
@@ -125,6 +132,7 @@ namespace MxFramework.Combat.Animation.Unity
             FrameEvent = frameEvent;
             PresentationEvent = presentationEvent;
             CorrelationId = correlationId ?? string.Empty;
+            DedupeKey = dedupeKey;
         }
 
         public CombatEntityId EntityId { get; }
@@ -148,6 +156,8 @@ namespace MxFramework.Combat.Animation.Unity
         public MxAnimationPresentationEvent PresentationEvent { get; }
 
         public string CorrelationId { get; }
+
+        public MxAnimationPresentationEventDedupeKey DedupeKey { get; }
     }
 
     public interface ICombatMxAnimationPresentationEventSink
@@ -291,6 +301,7 @@ namespace MxFramework.Combat.Animation.Unity
             new Queue<CombatMxAnimationBridgeDiagnosticEntry>();
         private readonly List<MxAnimationPresentationEvent> _resolvedEvents =
             new List<MxAnimationPresentationEvent>();
+        private MxAnimationPresentationEventDedupeWindow _presentationEventDedupeWindow;
 
         private CombatActionRunner _subscribedRunner;
 
@@ -302,6 +313,8 @@ namespace MxFramework.Combat.Animation.Unity
             _animationContext = animationContext ?? throw new ArgumentNullException(nameof(animationContext));
             _options = options ?? new CombatMxAnimationBridgeOptions();
             _presentationEventSink = presentationEventSink ?? NullCombatMxAnimationPresentationEventSink.Instance;
+            _presentationEventDedupeWindow =
+                new MxAnimationPresentationEventDedupeWindow(_options.MaxPresentationEventDedupeEntries);
         }
 
         public bool IsInitialized => _subscribedRunner != null;
@@ -483,6 +496,35 @@ namespace MxFramework.Combat.Animation.Unity
             for (int i = 0; i < _resolvedEvents.Count; i++)
             {
                 MxAnimationPresentationEvent presentationEvent = _resolvedEvents[i];
+                var dedupeKey = new MxAnimationPresentationEventDedupeKey(
+                    BuildDefaultActorId(evt.EntityId),
+                    evt.ActionInstanceId,
+                    evt.WorldFrame.Value,
+                    evt.LocalFrame,
+                    presentationEvent != null ? presentationEvent.EventId : string.Empty,
+                    evt.FrameEvent.SourceOrder);
+
+                if (_options.EnablePresentationEventDedupe
+                    && !_presentationEventDedupeWindow.TryRecord(dedupeKey))
+                {
+                    RecordPresentationEvent(
+                        CombatMxAnimationBridgeEventKind.FramePresentationEventDuplicateDropped,
+                        actor,
+                        evt.ActionId,
+                        actionKey,
+                        bindingId,
+                        evt.ActionInstanceId,
+                        evt.WorldFrame,
+                        evt.LocalFrame,
+                        evt.FrameEvent,
+                        presentationEvent,
+                        dedupeKey,
+                        correlationId,
+                        false,
+                        "Duplicate presentation event dispatch dropped.");
+                    continue;
+                }
+
                 var dispatch = new CombatMxAnimationPresentationEventDispatch(
                     evt.EntityId,
                     actor.TargetActorId,
@@ -494,10 +536,12 @@ namespace MxFramework.Combat.Animation.Unity
                     evt.LocalFrame,
                     evt.FrameEvent,
                     presentationEvent,
-                    correlationId);
+                    correlationId,
+                    dedupeKey);
                 _presentationEventSink.Dispatch(dispatch);
 
                 RecordPresentationEvent(
+                    CombatMxAnimationBridgeEventKind.FramePresentationEvent,
                     actor,
                     evt.ActionId,
                     actionKey,
@@ -507,7 +551,10 @@ namespace MxFramework.Combat.Animation.Unity
                     evt.LocalFrame,
                     evt.FrameEvent,
                     presentationEvent,
-                    correlationId);
+                    dedupeKey,
+                    correlationId,
+                    true,
+                    "Presentation event dispatched.");
             }
 
             _resolvedEvents.Clear();
@@ -794,6 +841,7 @@ namespace MxFramework.Combat.Animation.Unity
         }
 
         private void RecordPresentationEvent(
+            CombatMxAnimationBridgeEventKind eventKind,
             ActorRuntime actor,
             int actionId,
             string actionKey,
@@ -803,10 +851,13 @@ namespace MxFramework.Combat.Animation.Unity
             int localFrame,
             CombatActionFrameEvent frameEvent,
             MxAnimationPresentationEvent presentationEvent,
-            string correlationId)
+            MxAnimationPresentationEventDedupeKey dedupeKey,
+            string correlationId,
+            bool success,
+            string message)
         {
             AddDiagnostic(new CombatMxAnimationBridgeDiagnosticEntry(
-                CombatMxAnimationBridgeEventKind.FramePresentationEvent,
+                eventKind,
                 actor.EntityId,
                 actor.TargetActorId,
                 actionId,
@@ -821,11 +872,11 @@ namespace MxFramework.Combat.Animation.Unity
                 frameEvent,
                 false,
                 default,
-                MxAnimationBackendResultCode.Success,
-                true,
+                success ? MxAnimationBackendResultCode.Success : MxAnimationBackendResultCode.InvalidRequest,
+                success,
                 presentationEvent != null ? presentationEvent.EventId : string.Empty,
-                correlationId,
-                "Presentation event dispatched."));
+                string.IsNullOrWhiteSpace(correlationId) ? BuildDedupeCorrelationId(dedupeKey) : correlationId,
+                message));
         }
 
         private void AddDiagnostic(CombatMxAnimationBridgeDiagnosticEntry entry)
@@ -842,6 +893,19 @@ namespace MxFramework.Combat.Animation.Unity
         private static string BuildDefaultActorId(CombatEntityId entityId)
         {
             return "entity:" + entityId.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string BuildDedupeCorrelationId(MxAnimationPresentationEventDedupeKey key)
+        {
+            if (!key.IsValid)
+                return string.Empty;
+
+            return key.ActorId
+                + "|instance:" + key.ActionInstanceId.ToString(CultureInfo.InvariantCulture)
+                + "|world:" + key.WorldFrame.ToString(CultureInfo.InvariantCulture)
+                + "|local:" + key.LocalFrame.ToString(CultureInfo.InvariantCulture)
+                + "|event:" + key.EventId
+                + "|order:" + key.SourceOrder.ToString(CultureInfo.InvariantCulture);
         }
 
         private static string BuildCorrelationId(

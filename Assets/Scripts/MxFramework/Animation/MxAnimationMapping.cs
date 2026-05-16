@@ -293,6 +293,7 @@ namespace MxFramework.Animation
             AppendResourceKey(builder, "payload", animationEvent.PayloadKey);
             builder.Append("socket=").Append(animationEvent.Socket ?? string.Empty).Append('\n');
             builder.Append("tag=").Append(animationEvent.Tag ?? string.Empty).Append('\n');
+            builder.Append("replay=").Append(((int)animationEvent.ReplayPolicy).ToString(CultureInfo.InvariantCulture)).Append('\n');
         }
 
         private static void AppendResourceKey(StringBuilder builder, string prefix, ResourceKey key)
@@ -376,7 +377,11 @@ namespace MxFramework.Animation
             if (result != 0)
                 return result;
 
-            return string.CompareOrdinal(left.Tag, right.Tag);
+            result = string.CompareOrdinal(left.Tag, right.Tag);
+            if (result != 0)
+                return result;
+
+            return ((int)left.ReplayPolicy).CompareTo((int)right.ReplayPolicy);
         }
 
         private static int CompareResourceKey(ResourceKey left, ResourceKey right)
@@ -402,6 +407,118 @@ namespace MxFramework.Animation
             for (int i = 0; i < bytes.Length; i++)
                 builder.Append(bytes[i].ToString("x2", CultureInfo.InvariantCulture));
             return builder.ToString();
+        }
+    }
+
+    public readonly struct MxAnimationEventTimelineRow
+    {
+        public MxAnimationEventTimelineRow(
+            string setId,
+            string bindingId,
+            string actionKey,
+            int sourceOrder,
+            bool setLevel,
+            MxAnimationPresentationEvent animationEvent)
+        {
+            SetId = setId ?? string.Empty;
+            BindingId = bindingId ?? string.Empty;
+            ActionKey = actionKey ?? string.Empty;
+            SourceOrder = Math.Max(0, sourceOrder);
+            SetLevel = setLevel;
+            Event = animationEvent;
+        }
+
+        public string SetId { get; }
+        public string BindingId { get; }
+        public string ActionKey { get; }
+        public int SourceOrder { get; }
+        public bool SetLevel { get; }
+        public MxAnimationPresentationEvent Event { get; }
+        public string EventId => Event != null ? Event.EventId : string.Empty;
+        public MxAnimationEventTimeDomain TimeDomain => Event != null ? Event.TimeDomain : MxAnimationEventTimeDomain.Seconds;
+        public float Time => Event != null ? Event.Time : 0f;
+        public string EventKind => Event != null ? Event.EventKind : string.Empty;
+        public ResourceKey PayloadKey => Event != null ? Event.PayloadKey : default;
+        public MxAnimationPresentationEventReplayPolicy ReplayPolicy =>
+            Event != null ? Event.ReplayPolicy : MxAnimationPresentationEventReplayPolicy.OneShot;
+        public bool HasDeterministicCorrelation =>
+            TimeDomain == MxAnimationEventTimeDomain.CombatFrame
+            || TimeDomain == MxAnimationEventTimeDomain.PresentationFrame;
+
+        public string CorrelationLabel
+        {
+            get
+            {
+                if (!HasDeterministicCorrelation)
+                    return string.Empty;
+
+                return "set=" + SetId
+                    + "|binding=" + BindingId
+                    + "|action=" + ActionKey
+                    + "|domain=" + TimeDomain
+                    + "|time=" + Time.ToString("R", CultureInfo.InvariantCulture)
+                    + "|event=" + EventId
+                    + "|order=" + SourceOrder.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+    }
+
+    public static class MxAnimationEventTimelineBuilder
+    {
+        public static IReadOnlyList<MxAnimationEventTimelineRow> BuildRows(MxAnimationSetDefinition definition)
+        {
+            if (definition == null)
+                return Array.Empty<MxAnimationEventTimelineRow>();
+
+            var rows = new List<MxAnimationEventTimelineRow>();
+            for (int i = 0; i < definition.Events.Count; i++)
+                rows.Add(new MxAnimationEventTimelineRow(definition.SetId, string.Empty, string.Empty, i, true, definition.Events[i]));
+
+            for (int bindingIndex = 0; bindingIndex < definition.Actions.Count; bindingIndex++)
+            {
+                MxAnimationActionBinding binding = definition.Actions[bindingIndex];
+                if (binding == null)
+                    continue;
+
+                for (int eventIndex = 0; eventIndex < binding.PresentationEvents.Count; eventIndex++)
+                {
+                    rows.Add(new MxAnimationEventTimelineRow(
+                        definition.SetId,
+                        binding.BindingId,
+                        binding.ActionKey,
+                        eventIndex,
+                        false,
+                        binding.PresentationEvents[eventIndex]));
+                }
+            }
+
+            rows.Sort(CompareRows);
+            return rows;
+        }
+
+        private static int CompareRows(MxAnimationEventTimelineRow left, MxAnimationEventTimelineRow right)
+        {
+            int result = string.CompareOrdinal(left.BindingId, right.BindingId);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.ActionKey, right.ActionKey);
+            if (result != 0)
+                return result;
+
+            result = ((int)left.TimeDomain).CompareTo((int)right.TimeDomain);
+            if (result != 0)
+                return result;
+
+            result = left.Time.CompareTo(right.Time);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.EventId, right.EventId);
+            if (result != 0)
+                return result;
+
+            return left.SourceOrder.CompareTo(right.SourceOrder);
         }
     }
 
