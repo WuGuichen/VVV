@@ -218,6 +218,7 @@ namespace MxFramework.Tests.Combat.Animation
             public readonly List<MxAnimationPlayRequest> Plays = new List<MxAnimationPlayRequest>();
             public readonly List<MxAnimationStopRequest> Stops = new List<MxAnimationStopRequest>();
             public readonly List<MxAnimationCrossFadeRequest> CrossFades = new List<MxAnimationCrossFadeRequest>();
+            public readonly List<MxAnimationLayerWeightRequest> LayerWeights = new List<MxAnimationLayerWeightRequest>();
 
             public string BackendName => "Recording";
 
@@ -237,6 +238,12 @@ namespace MxFramework.Tests.Combat.Animation
             {
                 CrossFades.Add(request);
                 return MxAnimationBackendResult.Succeeded(request != null ? request.ClipKey : default, "Recorded crossfade.");
+            }
+
+            public MxAnimationBackendResult SetLayerWeight(MxAnimationLayerWeightRequest request)
+            {
+                LayerWeights.Add(request);
+                return MxAnimationBackendResult.Succeeded(default, "Recorded layer weight.");
             }
 
             public void Tick(float deltaTime)

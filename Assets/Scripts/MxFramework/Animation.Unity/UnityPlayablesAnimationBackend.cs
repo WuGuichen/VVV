@@ -18,6 +18,7 @@ namespace MxFramework.Animation.Unity
         private readonly string _actorId;
         private readonly Dictionary<MxAnimationLayerId, LayerRuntime> _layers = new Dictionary<MxAnimationLayerId, LayerRuntime>();
         private readonly List<PendingLoad> _pendingLoads = new List<PendingLoad>();
+        private readonly List<PendingMaskLoad> _pendingMaskLoads = new List<PendingMaskLoad>();
         private readonly Queue<MxAnimationRequestDiagnostic> _recentRequests = new Queue<MxAnimationRequestDiagnostic>();
         private readonly Queue<ResourceError> _recentResourceErrors = new Queue<ResourceError>();
 
@@ -42,7 +43,9 @@ namespace MxFramework.Animation.Unity
             CreateGraph();
             _defaultClip = LoadResidentClip("default", _definition.DefaultClip);
             _fallbackClip = LoadResidentClip("fallback", _definition.FallbackClip);
+            InitializeConfiguredLayers();
             ProcessPendingLoads();
+            ProcessPendingMaskLoads();
         }
 
         public string BackendName => "UnityPlayables";
@@ -145,6 +148,49 @@ namespace MxFramework.Animation.Unity
             return BeginClipLoad(resolved, MxAnimationRequestKind.CrossFade, false);
         }
 
+        public MxAnimationBackendResult SetLayerWeight(MxAnimationLayerWeightRequest request)
+        {
+            if (_released)
+                return BackendReleasedResult(default);
+
+            if (request == null)
+                return InvalidRequest(MxAnimationRequestKind.SetLayerWeight, MxAnimationLayerId.Base, default, "Layer weight request is null.");
+
+            LayerRuntime layer = GetOrCreateLayer(request.LayerId);
+            float targetWeight = Clamp01(request.Weight);
+            float fadeDuration = Math.Max(0f, request.FadeDurationSeconds);
+            if (fadeDuration <= 0f)
+            {
+                layer.Weight = targetWeight;
+                layer.TargetWeight = targetWeight;
+                layer.WeightTransitionElapsedSeconds = 0f;
+                layer.WeightTransitionDurationSeconds = 0f;
+                layer.WeightTransitionPolicyId = request.TransitionPolicyId ?? string.Empty;
+                layer.WeightTransitionCorrelationId = request.CorrelationId ?? string.Empty;
+                ApplyLayerWeight(layer);
+            }
+            else
+            {
+                layer.StartWeight = layer.Weight;
+                layer.TargetWeight = targetWeight;
+                layer.WeightTransitionElapsedSeconds = 0f;
+                layer.WeightTransitionDurationSeconds = fadeDuration;
+                layer.WeightTransitionPolicyId = request.TransitionPolicyId ?? string.Empty;
+                layer.WeightTransitionCorrelationId = request.CorrelationId ?? string.Empty;
+            }
+
+            AddRequest(new MxAnimationRequestDiagnostic(
+                MxAnimationRequestKind.SetLayerWeight,
+                layer.LayerId,
+                default,
+                default,
+                false,
+                MxAnimationBackendResultCode.Success,
+                request.CorrelationId,
+                "Layer weight accepted."));
+            return MxAnimationBackendResult.Succeeded(default, "Layer weight accepted.");
+        }
+
         public void Tick(float deltaTime)
         {
             if (_released)
@@ -154,6 +200,7 @@ namespace MxFramework.Animation.Unity
                 deltaTime = 0f;
 
             ProcessPendingLoads();
+            ProcessPendingMaskLoads();
             foreach (LayerRuntime layer in _layers.Values)
                 TickLayer(layer, deltaTime);
 
@@ -181,7 +228,14 @@ namespace MxFramework.Animation.Unity
                     SumOutgoingWeight(layer),
                     CountActiveSlots(layer),
                     fade,
-                    layer.LastError));
+                    layer.LastError,
+                    layer.Weight,
+                    layer.TargetWeight,
+                    layer.MaskStatus,
+                    layer.MaskKey,
+                    layer.ProfileId,
+                    layer.BlendMode,
+                    CreateLayerSyncState(layer)));
             }
 
             return new MxAnimationDiagnosticSnapshot(
@@ -209,8 +263,15 @@ namespace MxFramework.Animation.Unity
                 _pendingLoads[i].Operation.Cancel();
             _pendingLoads.Clear();
 
+            for (int i = 0; i < _pendingMaskLoads.Count; i++)
+                _pendingMaskLoads[i].Operation.Cancel();
+            _pendingMaskLoads.Clear();
+
             foreach (LayerRuntime layer in _layers.Values)
+            {
                 ReleaseLayerSlots(layer);
+                ReleaseLayerMask(layer);
+            }
             _layers.Clear();
 
             ReleaseResidentClip(_defaultClip);
@@ -243,6 +304,18 @@ namespace MxFramework.Animation.Unity
             _output = AnimationPlayableOutput.Create(_graph, "Animation", _animator);
             _output.SetSourcePlayable(_rootMixer);
             _graph.Play();
+        }
+
+        private void InitializeConfiguredLayers()
+        {
+            for (int i = 0; i < _definition.Layers.Count; i++)
+            {
+                MxAnimationLayerDefinition layer = _definition.Layers[i];
+                if (layer == null)
+                    continue;
+
+                GetOrCreateLayer(layer.LayerId);
+            }
         }
 
         private ResidentClip LoadResidentClip(string role, ResourceKey key)
@@ -315,6 +388,45 @@ namespace MxFramework.Animation.Unity
                 else
                     CompleteRequestLoad(pending);
             }
+        }
+
+        private void ProcessPendingMaskLoads()
+        {
+            for (int i = _pendingMaskLoads.Count - 1; i >= 0; i--)
+            {
+                PendingMaskLoad pending = _pendingMaskLoads[i];
+                if (!pending.Operation.IsDone)
+                    continue;
+
+                _pendingMaskLoads.RemoveAt(i);
+                CompleteMaskLoad(pending);
+            }
+        }
+
+        private void CompleteMaskLoad(PendingMaskLoad pending)
+        {
+            if (!_layers.TryGetValue(pending.LayerId, out LayerRuntime layer))
+            {
+                ResourceLoadResult<ResourceHandle<AvatarMask>> orphaned = pending.Operation.Result;
+                if (orphaned.Success)
+                    _resourceManager.Release(orphaned.Value);
+                return;
+            }
+
+            ResourceLoadResult<ResourceHandle<AvatarMask>> result = pending.Operation.Result;
+            if (!result.Success)
+            {
+                layer.MaskStatus = MxAnimationLayerMaskStatus.Failed;
+                layer.LastError = result.Error;
+                TrackResourceError(result.Error);
+                return;
+            }
+
+            layer.MaskHandle = result.Value;
+            layer.MaskStatus = MxAnimationLayerMaskStatus.Loaded;
+            layer.LastError = ResourceError.None;
+            if (_rootMixer.IsValid())
+                _rootMixer.SetLayerMaskFromAvatarMask((uint)layer.RootInputIndex, result.Value.Value);
         }
 
         private void CompleteResidentLoad(PendingLoad pending)
@@ -503,6 +615,8 @@ namespace MxFramework.Animation.Unity
 
         private void TickLayer(LayerRuntime layer, float deltaTime)
         {
+            TickLayerWeight(layer, deltaTime);
+
             if (layer.Current != null && layer.Status == MxAnimationLayerStatus.CrossFading)
             {
                 layer.Current.FadeElapsedSeconds += deltaTime;
@@ -543,11 +657,94 @@ namespace MxFramework.Animation.Unity
             int inputIndex = _rootMixer.GetInputCount();
             _rootMixer.SetInputCount(inputIndex + 1);
             _graph.Connect(mixer, 0, _rootMixer, inputIndex);
-            _rootMixer.SetInputWeight(inputIndex, 1f);
 
-            layer = new LayerRuntime(layerId, mixer, inputIndex);
+            MxAnimationLayerDefinition definition = ResolveLayerDefinition(layerId);
+            float weight = definition != null ? definition.DefaultWeight : 1f;
+            layer = new LayerRuntime(
+                layerId,
+                mixer,
+                inputIndex,
+                weight,
+                definition != null ? definition.ProfileId : string.Empty,
+                definition != null ? definition.BlendMode : MxAnimationLayerBlendMode.Override,
+                definition != null ? definition.AvatarMaskKey : default);
             _layers.Add(layerId, layer);
+            ApplyLayerWeight(layer);
+            ApplyLayerBlendMode(layer);
+            BeginMaskLoad(layer);
             return layer;
+        }
+
+        private MxAnimationLayerDefinition ResolveLayerDefinition(MxAnimationLayerId layerId)
+        {
+            return _definition.TryFindLayerDefinition(layerId, out MxAnimationLayerDefinition layer)
+                ? layer
+                : null;
+        }
+
+        private void TickLayerWeight(LayerRuntime layer, float deltaTime)
+        {
+            if (layer.WeightTransitionDurationSeconds <= 0f)
+                return;
+
+            layer.WeightTransitionElapsedSeconds += deltaTime;
+            float progress = CalculateProgress(layer.WeightTransitionElapsedSeconds, layer.WeightTransitionDurationSeconds);
+            layer.Weight = Mathf.Lerp(layer.StartWeight, layer.TargetWeight, progress);
+            ApplyLayerWeight(layer);
+            if (progress < 1f)
+                return;
+
+            layer.Weight = layer.TargetWeight;
+            layer.WeightTransitionDurationSeconds = 0f;
+            layer.WeightTransitionElapsedSeconds = 0f;
+            ApplyLayerWeight(layer);
+        }
+
+        private void ApplyLayerWeight(LayerRuntime layer)
+        {
+            layer.Weight = Clamp01(layer.Weight);
+            if (_rootMixer.IsValid())
+                _rootMixer.SetInputWeight(layer.RootInputIndex, layer.Weight);
+        }
+
+        private void ApplyLayerBlendMode(LayerRuntime layer)
+        {
+            if (!_rootMixer.IsValid())
+                return;
+
+            _rootMixer.SetLayerAdditive((uint)layer.RootInputIndex, layer.BlendMode == MxAnimationLayerBlendMode.Additive);
+        }
+
+        private void BeginMaskLoad(LayerRuntime layer)
+        {
+            if (!layer.MaskKey.IsValid)
+            {
+                layer.MaskStatus = MxAnimationLayerMaskStatus.NotConfigured;
+                return;
+            }
+
+            if (!string.Equals(layer.MaskKey.TypeId, ResourceTypeIds.AvatarMask, StringComparison.Ordinal))
+            {
+                layer.MaskStatus = MxAnimationLayerMaskStatus.Failed;
+                layer.LastError = new ResourceError(
+                    ResourceErrorCode.TypeMismatch,
+                    layer.MaskKey,
+                    string.Empty,
+                    "Animation layer AvatarMask key must use typeId " + ResourceTypeIds.AvatarMask + ".");
+                TrackResourceError(layer.LastError);
+                return;
+            }
+
+            layer.MaskStatus = MxAnimationLayerMaskStatus.Loading;
+            IResourceOperation<ResourceHandle<AvatarMask>> operation = _resourceManager.LoadAsync<AvatarMask>(layer.MaskKey);
+            var pending = new PendingMaskLoad(layer.LayerId, operation);
+            if (operation.IsDone)
+            {
+                CompleteMaskLoad(pending);
+                return;
+            }
+
+            _pendingMaskLoads.Add(pending);
         }
 
         private void ConnectSlot(LayerRuntime layer, ClipSlot slot, float weight)
@@ -608,6 +805,17 @@ namespace MxFramework.Animation.Unity
                 _resourceManager.Release(resident.Handle);
             resident.Handle = null;
             resident.Status = resident.Key.IsValid ? MxAnimationResourceLoadStatus.Released : MxAnimationResourceLoadStatus.None;
+        }
+
+        private void ReleaseLayerMask(LayerRuntime layer)
+        {
+            if (layer == null)
+                return;
+
+            if (layer.MaskHandle != null && !layer.MaskHandle.IsReleased)
+                _resourceManager.Release(layer.MaskHandle);
+            layer.MaskHandle = null;
+            layer.MaskStatus = layer.MaskKey.IsValid ? MxAnimationLayerMaskStatus.Released : MxAnimationLayerMaskStatus.NotConfigured;
         }
 
         private bool TryResolvePlay(MxAnimationPlayRequest request, out ClipRequest resolved, out string error)
@@ -737,7 +945,7 @@ namespace MxFramework.Animation.Unity
 
         private static float Clamp01(float value)
         {
-            if (value <= 0f)
+            if (float.IsNaN(value) || value <= 0f)
                 return 0f;
             if (value >= 1f)
                 return 1f;
@@ -781,6 +989,37 @@ namespace MxFramework.Animation.Unity
             float duration = layer.Current != null ? layer.Current.FadeDurationSeconds : (layer.Outgoing.Count > 0 ? layer.Outgoing[0].FadeDurationSeconds : 0f);
             float weight = layer.Current != null ? layer.Current.Weight : SumOutgoingWeight(layer);
             return new MxAnimationFadeDiagnostic(layer.LayerId, current, next, elapsed, duration, weight, layer.Status);
+        }
+
+        private static MxAnimationLayerSyncState CreateLayerSyncState(LayerRuntime layer)
+        {
+            if (layer.WeightTransitionDurationSeconds <= 0f)
+            {
+                return new MxAnimationLayerSyncState(
+                    layer.LayerId,
+                    layer.Weight,
+                    layer.TargetWeight,
+                    correlationId: layer.WeightTransitionCorrelationId);
+            }
+
+            int durationFrames = SecondsToPresentationFrames(layer.WeightTransitionDurationSeconds);
+            int remainingFrames = SecondsToPresentationFrames(Math.Max(0f, layer.WeightTransitionDurationSeconds - layer.WeightTransitionElapsedSeconds));
+            return new MxAnimationLayerSyncState(
+                layer.LayerId,
+                layer.Weight,
+                layer.TargetWeight,
+                transitionDurationFrames: durationFrames,
+                transitionRemainingFrames: remainingFrames,
+                transitionPolicyId: layer.WeightTransitionPolicyId,
+                correlationId: layer.WeightTransitionCorrelationId);
+        }
+
+        private static int SecondsToPresentationFrames(float seconds)
+        {
+            if (seconds <= 0f)
+                return 0;
+
+            return Math.Max(1, Mathf.CeilToInt(seconds * 60f));
         }
 
         private enum LoadPurpose
@@ -868,6 +1107,20 @@ namespace MxFramework.Animation.Unity
             public ResidentClip Resident { get; }
         }
 
+        private sealed class PendingMaskLoad
+        {
+            public PendingMaskLoad(
+                MxAnimationLayerId layerId,
+                IResourceOperation<ResourceHandle<AvatarMask>> operation)
+            {
+                LayerId = layerId;
+                Operation = operation;
+            }
+
+            public MxAnimationLayerId LayerId { get; }
+            public IResourceOperation<ResourceHandle<AvatarMask>> Operation { get; }
+        }
+
         private sealed class ResidentClip
         {
             public ResidentClip(string role, ResourceKey key)
@@ -886,17 +1139,43 @@ namespace MxFramework.Animation.Unity
 
         private sealed class LayerRuntime
         {
-            public LayerRuntime(MxAnimationLayerId layerId, AnimationMixerPlayable mixer, int rootInputIndex)
+            public LayerRuntime(
+                MxAnimationLayerId layerId,
+                AnimationMixerPlayable mixer,
+                int rootInputIndex,
+                float weight,
+                string profileId,
+                MxAnimationLayerBlendMode blendMode,
+                ResourceKey maskKey)
             {
                 LayerId = layerId;
                 Mixer = mixer;
                 RootInputIndex = rootInputIndex;
                 Status = MxAnimationLayerStatus.Stopped;
+                Weight = Clamp01(weight);
+                StartWeight = Weight;
+                TargetWeight = Weight;
+                ProfileId = profileId ?? string.Empty;
+                BlendMode = blendMode;
+                MaskKey = maskKey;
+                MaskStatus = maskKey.IsValid ? MxAnimationLayerMaskStatus.Loading : MxAnimationLayerMaskStatus.NotConfigured;
             }
 
             public MxAnimationLayerId LayerId { get; }
             public AnimationMixerPlayable Mixer { get; }
             public int RootInputIndex { get; }
+            public float Weight { get; set; }
+            public float StartWeight { get; set; }
+            public float TargetWeight { get; set; }
+            public float WeightTransitionElapsedSeconds { get; set; }
+            public float WeightTransitionDurationSeconds { get; set; }
+            public string WeightTransitionPolicyId { get; set; }
+            public string WeightTransitionCorrelationId { get; set; }
+            public string ProfileId { get; }
+            public MxAnimationLayerBlendMode BlendMode { get; }
+            public ResourceKey MaskKey { get; }
+            public MxAnimationLayerMaskStatus MaskStatus { get; set; }
+            public ResourceHandle<AvatarMask> MaskHandle { get; set; }
             public ClipSlot Current { get; set; }
             public List<ClipSlot> Outgoing { get; } = new List<ClipSlot>();
             public MxAnimationLayerStatus Status { get; set; }

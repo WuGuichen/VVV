@@ -90,6 +90,7 @@ namespace MxFramework.Animation
         Play,
         Stop,
         CrossFade,
+        SetLayerWeight,
         Release
     }
 
@@ -106,6 +107,22 @@ namespace MxFramework.Animation
     public enum MxAnimationOutgoingReleasePolicy
     {
         ReleaseWhenGraphDetached
+    }
+
+    public enum MxAnimationLayerBlendMode
+    {
+        Override,
+        Additive
+    }
+
+    public enum MxAnimationLayerMaskStatus
+    {
+        None,
+        NotConfigured,
+        Loading,
+        Loaded,
+        Failed,
+        Released
     }
 
     public enum MxAnimationPresentationSyncStatus
@@ -671,10 +688,42 @@ namespace MxFramework.Animation
         public IReadOnlyList<MxAnimationPresentationEvent> PresentationEvents => _presentationEvents;
     }
 
+    public sealed class MxAnimationLayerDefinition
+    {
+        public MxAnimationLayerDefinition(
+            MxAnimationLayerId layerId,
+            string profileId = "",
+            float defaultWeight = 1f,
+            MxAnimationLayerBlendMode blendMode = MxAnimationLayerBlendMode.Override,
+            ResourceKey avatarMaskKey = default)
+        {
+            LayerId = layerId;
+            ProfileId = profileId ?? string.Empty;
+            DefaultWeight = Clamp01(defaultWeight);
+            BlendMode = blendMode;
+            AvatarMaskKey = avatarMaskKey;
+        }
+
+        public MxAnimationLayerId LayerId { get; }
+        public string ProfileId { get; }
+        public float DefaultWeight { get; }
+        public MxAnimationLayerBlendMode BlendMode { get; }
+        public ResourceKey AvatarMaskKey { get; }
+        public bool HasAvatarMask => AvatarMaskKey.IsValid;
+
+        private static float Clamp01(float value)
+        {
+            if (float.IsNaN(value) || value <= 0f)
+                return 0f;
+            return value >= 1f ? 1f : value;
+        }
+    }
+
     public sealed class MxAnimationSetDefinition
     {
         private readonly List<MxAnimationActionBinding> _actions;
         private readonly List<MxAnimationPresentationEvent> _events;
+        private readonly List<MxAnimationLayerDefinition> _layers;
 
         public MxAnimationSetDefinition(
             string setId,
@@ -683,7 +732,8 @@ namespace MxFramework.Animation
             ResourceKey fallbackClip,
             IEnumerable<MxAnimationActionBinding> actions = null,
             IEnumerable<MxAnimationPresentationEvent> events = null,
-            string definitionHash = "")
+            string definitionHash = "",
+            IEnumerable<MxAnimationLayerDefinition> layers = null)
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -695,6 +745,9 @@ namespace MxFramework.Animation
             _events = events != null
                 ? new List<MxAnimationPresentationEvent>(events)
                 : new List<MxAnimationPresentationEvent>();
+            _layers = layers != null
+                ? new List<MxAnimationLayerDefinition>(layers)
+                : new List<MxAnimationLayerDefinition>();
             DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
                 ? MxAnimationSetDefinitionHasher.ComputeHash(this)
                 : definitionHash;
@@ -707,6 +760,23 @@ namespace MxFramework.Animation
         public ResourceKey FallbackClip { get; }
         public IReadOnlyList<MxAnimationActionBinding> Actions => _actions;
         public IReadOnlyList<MxAnimationPresentationEvent> Events => _events;
+        public IReadOnlyList<MxAnimationLayerDefinition> Layers => _layers;
+
+        public bool TryFindLayerDefinition(MxAnimationLayerId layerId, out MxAnimationLayerDefinition layer)
+        {
+            for (int i = 0; i < _layers.Count; i++)
+            {
+                MxAnimationLayerDefinition candidate = _layers[i];
+                if (candidate == null || candidate.LayerId != layerId)
+                    continue;
+
+                layer = candidate;
+                return true;
+            }
+
+            layer = null;
+            return false;
+        }
 
         public bool TryFindBinding(string bindingId, string actionKey, out MxAnimationActionBinding binding)
         {
@@ -769,6 +839,16 @@ namespace MxFramework.Animation
         public string CorrelationId { get; set; } = string.Empty;
     }
 
+    public sealed class MxAnimationLayerWeightRequest
+    {
+        public string TargetActorId { get; set; } = string.Empty;
+        public MxAnimationLayerId LayerId { get; set; } = MxAnimationLayerId.Base;
+        public float Weight { get; set; } = 1f;
+        public float FadeDurationSeconds { get; set; }
+        public string TransitionPolicyId { get; set; } = string.Empty;
+        public string CorrelationId { get; set; } = string.Empty;
+    }
+
     public sealed class MxAnimationFadeDiagnostic
     {
         public MxAnimationFadeDiagnostic(
@@ -810,7 +890,14 @@ namespace MxFramework.Animation
             float outgoingWeight,
             int activePlayableCount,
             MxAnimationFadeDiagnostic fade,
-            ResourceError lastError)
+            ResourceError lastError,
+            float layerWeight = 1f,
+            float targetLayerWeight = 1f,
+            MxAnimationLayerMaskStatus maskStatus = MxAnimationLayerMaskStatus.NotConfigured,
+            ResourceKey maskKey = default,
+            string layerProfileId = "",
+            MxAnimationLayerBlendMode blendMode = MxAnimationLayerBlendMode.Override,
+            MxAnimationLayerSyncState layerSyncState = default)
         {
             LayerId = layerId;
             Status = status;
@@ -822,6 +909,13 @@ namespace MxFramework.Animation
             ActivePlayableCount = activePlayableCount;
             Fade = fade;
             LastError = lastError;
+            LayerWeight = Clamp01(layerWeight);
+            TargetLayerWeight = Clamp01(targetLayerWeight);
+            MaskStatus = maskStatus;
+            MaskKey = maskKey;
+            LayerProfileId = layerProfileId ?? string.Empty;
+            BlendMode = blendMode;
+            LayerSyncState = layerSyncState;
         }
 
         public MxAnimationLayerId LayerId { get; }
@@ -834,6 +928,20 @@ namespace MxFramework.Animation
         public int ActivePlayableCount { get; }
         public MxAnimationFadeDiagnostic Fade { get; }
         public ResourceError LastError { get; }
+        public float LayerWeight { get; }
+        public float TargetLayerWeight { get; }
+        public MxAnimationLayerMaskStatus MaskStatus { get; }
+        public ResourceKey MaskKey { get; }
+        public string LayerProfileId { get; }
+        public MxAnimationLayerBlendMode BlendMode { get; }
+        public MxAnimationLayerSyncState LayerSyncState { get; }
+
+        private static float Clamp01(float value)
+        {
+            if (float.IsNaN(value) || value <= 0f)
+                return 0f;
+            return value >= 1f ? 1f : value;
+        }
     }
 
     public sealed class MxAnimationResourceDiagnostic
@@ -997,6 +1105,7 @@ namespace MxFramework.Animation
         MxAnimationBackendResult Play(MxAnimationPlayRequest request);
         MxAnimationBackendResult Stop(MxAnimationStopRequest request);
         MxAnimationBackendResult CrossFade(MxAnimationCrossFadeRequest request);
+        MxAnimationBackendResult SetLayerWeight(MxAnimationLayerWeightRequest request);
         void Tick(float deltaTime);
         MxAnimationDiagnosticSnapshot CreateSnapshot();
         void Release();

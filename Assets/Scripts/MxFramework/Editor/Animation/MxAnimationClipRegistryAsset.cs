@@ -14,6 +14,7 @@ namespace MxFramework.Editor.Animation
         [SerializeField] private int version = 1;
         [SerializeField] private string packageId = string.Empty;
         [SerializeField] private MxAnimationClipRegistryClipEntry[] clips = Array.Empty<MxAnimationClipRegistryClipEntry>();
+        [SerializeField] private MxAnimationClipRegistryLayerEntry[] layers = Array.Empty<MxAnimationClipRegistryLayerEntry>();
         [SerializeField] private MxAnimationClipRegistryBindingEntry[] bindings = Array.Empty<MxAnimationClipRegistryBindingEntry>();
         [SerializeField] private MxAnimationClipRegistryEventEntry[] events = Array.Empty<MxAnimationClipRegistryEventEntry>();
 
@@ -41,6 +42,12 @@ namespace MxFramework.Editor.Animation
             set => clips = value ?? Array.Empty<MxAnimationClipRegistryClipEntry>();
         }
 
+        public MxAnimationClipRegistryLayerEntry[] Layers
+        {
+            get => layers;
+            set => layers = value ?? Array.Empty<MxAnimationClipRegistryLayerEntry>();
+        }
+
         public MxAnimationClipRegistryBindingEntry[] Bindings
         {
             get => bindings;
@@ -51,6 +58,81 @@ namespace MxFramework.Editor.Animation
         {
             get => events;
             set => events = value ?? Array.Empty<MxAnimationClipRegistryEventEntry>();
+        }
+    }
+
+    [Serializable]
+    public struct MxAnimationClipRegistryLayerEntry
+    {
+        [SerializeField] private string layerId;
+        [SerializeField] private string profileId;
+        [SerializeField] private float defaultWeight;
+        [SerializeField] private MxAnimationLayerBlendMode blendMode;
+        [SerializeField] private AvatarMask avatarMask;
+        [SerializeField] private string avatarMaskResourceId;
+        [SerializeField] private string avatarMaskVariant;
+        [SerializeField] private string avatarMaskPackageId;
+
+        public string LayerId
+        {
+            get => layerId;
+            set => layerId = value ?? string.Empty;
+        }
+
+        public string ProfileId
+        {
+            get => profileId;
+            set => profileId = value ?? string.Empty;
+        }
+
+        public float DefaultWeight
+        {
+            get
+            {
+                if (float.IsNaN(defaultWeight) || defaultWeight <= 0f)
+                    return 0f;
+                return defaultWeight >= 1f ? 1f : defaultWeight;
+            }
+            set => defaultWeight = value;
+        }
+
+        public MxAnimationLayerBlendMode BlendMode
+        {
+            get => blendMode;
+            set => blendMode = value;
+        }
+
+        public AvatarMask AvatarMask
+        {
+            get => avatarMask;
+            set => avatarMask = value;
+        }
+
+        public string AvatarMaskResourceId
+        {
+            get => avatarMaskResourceId;
+            set => avatarMaskResourceId = value ?? string.Empty;
+        }
+
+        public string AvatarMaskVariant
+        {
+            get => avatarMaskVariant;
+            set => avatarMaskVariant = value ?? string.Empty;
+        }
+
+        public string AvatarMaskPackageId
+        {
+            get => avatarMaskPackageId;
+            set => avatarMaskPackageId = value ?? string.Empty;
+        }
+
+        public ResourceKey CreateAvatarMaskKey(string fallbackPackageId)
+        {
+            if (string.IsNullOrWhiteSpace(avatarMaskResourceId))
+                return default;
+
+            string resolvedPackageId = string.IsNullOrWhiteSpace(avatarMaskPackageId) ? fallbackPackageId : avatarMaskPackageId;
+            return new ResourceKey(avatarMaskResourceId, ResourceTypeIds.AvatarMask, avatarMaskVariant, resolvedPackageId);
         }
     }
 
