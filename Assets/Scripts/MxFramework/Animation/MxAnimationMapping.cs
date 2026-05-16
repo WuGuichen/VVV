@@ -44,12 +44,22 @@ namespace MxFramework.Animation
 
         public bool Contains(ResourceKey clipKey)
         {
+            return TryFind(clipKey, out _);
+        }
+
+        public bool TryFind(ResourceKey clipKey, out MxAnimationClipRegistryEntry entry)
+        {
             for (int i = 0; i < _entries.Count; i++)
             {
-                if (MatchesClipKey(_entries[i].ClipKey, clipKey))
-                    return true;
+                MxAnimationClipRegistryEntry candidate = _entries[i];
+                if (!MatchesClipKey(candidate.ClipKey, clipKey))
+                    continue;
+
+                entry = candidate;
+                return true;
             }
 
+            entry = default;
             return false;
         }
 
@@ -188,6 +198,8 @@ namespace MxFramework.Animation
             for (int i = 0; i < layers.Count; i++)
                 AppendLayer(builder, layers[i], i);
 
+            AppendWarmup(builder, definition.Warmup);
+
             var actions = new List<MxAnimationActionBinding>(definition.Actions);
             actions.Sort(CompareActionBinding);
             for (int i = 0; i < actions.Count; i++)
@@ -215,6 +227,30 @@ namespace MxFramework.Animation
             builder.Append("weight=").Append(layer.DefaultWeight.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
             builder.Append("blend=").Append(((int)layer.BlendMode).ToString(CultureInfo.InvariantCulture)).Append('\n');
             AppendResourceKey(builder, "mask", layer.AvatarMaskKey);
+        }
+
+        private static void AppendWarmup(StringBuilder builder, MxAnimationWarmupDefinition warmup)
+        {
+            if (warmup == null || warmup.IsDefault)
+                return;
+
+            builder.Append("warmup").Append('\n');
+            builder.Append("group=").Append(warmup.GroupId ?? string.Empty).Append('\n');
+            builder.Append("failFast=").Append(warmup.FailFast ? "1" : "0").Append('\n');
+            builder.Append("includeDefault=").Append(warmup.IncludeDefaultClip ? "1" : "0").Append('\n');
+            builder.Append("includeFallback=").Append(warmup.IncludeFallbackClip ? "1" : "0").Append('\n');
+            builder.Append("includeActions=").Append(warmup.IncludeActionClips ? "1" : "0").Append('\n');
+            builder.Append("includeMasks=").Append(warmup.IncludeLayerMasks ? "1" : "0").Append('\n');
+
+            var keys = new List<ResourceKey>(warmup.RequiredKeys);
+            keys.Sort(CompareResourceKey);
+            for (int i = 0; i < keys.Count; i++)
+                AppendResourceKey(builder, "warmup.key[" + i.ToString(CultureInfo.InvariantCulture) + "]", keys[i]);
+
+            var labels = new List<string>(warmup.Labels);
+            labels.Sort(StringComparer.Ordinal);
+            for (int i = 0; i < labels.Count; i++)
+                builder.Append("warmup.label[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(labels[i] ?? string.Empty).Append('\n');
         }
 
         private static void AppendAction(StringBuilder builder, MxAnimationActionBinding binding, int index)

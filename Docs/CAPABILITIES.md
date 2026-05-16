@@ -194,7 +194,25 @@
 
 ---
 
-## 5. Audio / FMOD 音频系统
+## 5. MxAnimation 表现动画系统
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| noEngine 动画表现契约 | ✅ v0.1 | `MxAnimationSetDefinition` / `MxAnimationActionBinding` / `IMxAnimationBackend` | Animation |
+| Unity Playables Backend | ✅ v0.1 | `UnityPlayablesAnimationBackend` | Animation.Unity |
+| Combat 表现桥 | ✅ v0.1 | `CombatMxAnimationUnityBridge` / `ICombatMxAnimationPresentationEventSink` | Combat.Animation.Unity |
+| Clip Registry + Mapping | ✅ v0.2 | `MxAnimationClipRegistry` / `IMxAnimationMappingProvider` / `MxAnimationClipRegistryExporter` | Animation + Editor |
+| Presentation Sync Contract | ✅ v0.2 | `MxAnimationPresentationSyncState` / `MxAnimationPresentationEventDedupeKey` | Animation |
+| Layer Weight + AvatarMask | ✅ v0.2 | `MxAnimationLayerDefinition` / `MxAnimationLayerWeightRequest` / `ResourceTypeIds.AvatarMask` | Animation + Animation.Unity |
+| Warmup + Resource Version Validation | ✅ v0.2 | `MxAnimationWarmupService` / `MxAnimationWarmupDefinition` / `MxAnimationWarmupIssue` | Animation + Resources |
+
+→ 接口：`Interfaces/Animation.md`
+→ 测试：`Tests/Animation/`
+→ **边界**: MxAnimation 只负责表现状态和资源加载诊断；不进入 Combat authority、Replay hash、命中、取消、伤害或权威移动。
+
+---
+
+## 6. Audio / FMOD 音频系统
 
 | 能力 | 状态 | 关键 API | 对应模块 |
 |------|------|----------|----------|
@@ -216,7 +234,7 @@
 
 ---
 
-## 6. 运行时 Demo：打开 Unity 按 Play 就能看到效果
+## 7. 运行时 Demo：打开 Unity 按 Play 就能看到效果
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -264,7 +282,7 @@
 
 ---
 
-## 7. Unity Editor 工具
+## 8. Unity Editor 工具
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -278,7 +296,7 @@
 
 ---
 
-## 8. 外部 Buff 创作（独立于 Unity）
+## 9. 外部 Buff 创作（独立于 Unity）
 
 ### 8.1 Authoring Core / CLI
 
@@ -327,7 +345,7 @@
 
 ---
 
-## 9. Combat 确定性物理 / 动作运行时
+## 10. Combat 确定性物理 / 动作运行时
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -342,7 +360,7 @@
 
 ---
 
-## 10. WGame 数据审计（框架设计依据）
+## 11. WGame 数据审计（框架设计依据）
 
 | 文档 | 状态 | 覆盖内容 |
 |------|------|----------|
@@ -359,7 +377,7 @@
 
 ---
 
-## 11. Core 工具层
+## 12. Core 工具层
 
 | 能力 | 状态 | 说明 |
 |------|------|------|

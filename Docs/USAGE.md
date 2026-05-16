@@ -1396,7 +1396,10 @@ var set = new MxAnimationSetDefinition(
             defaultWeight: 0f,
             blendMode: MxAnimationLayerBlendMode.Override,
             avatarMaskKey: upperBodyMask)
-    });
+    },
+    warmup: new MxAnimationWarmupDefinition(
+        groupId: "combat.demo.actor",
+        labels: new[] { "warmup.combat" }));
 
 // resources 由组合根注册 provider + catalog；clip / AvatarMask 必须通过 ResourceKey 解析。
 var backend = new UnityPlayablesAnimationBackend(animator, resources, set, "actor.demo");
@@ -1429,6 +1432,29 @@ if (provider.TryFindDefinition("demo.actor", out MxAnimationSetDefinition mapped
 }
 ```
 
+进入战斗、生成角色或 late join 前可以先做 warmup / version validation：
+
+```csharp
+var preloadService = new ResourcePreloadService(resources);
+var warmupService = new MxAnimationWarmupService(preloadService);
+MxAnimationWarmupResult warmup = warmupService.Warmup(new MxAnimationWarmupRequest(
+    mappedSet,
+    registry,
+    catalog,
+    syncState));
+
+if (!warmup.Success)
+{
+    foreach (MxAnimationWarmupIssue issue in warmup.Issues)
+        Log(issue.Code, issue.Key, issue.Field, issue.Expected, issue.Actual, issue.Message);
+
+    // 不要把失败当作空播成功；由组合根选择 fallback、重试或阻断进入表现层。
+}
+
+// 战斗结束或 actor 销毁时释放 warmup group。
+warmupService.Release(warmup);
+```
+
 Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
 
 约定：
@@ -1438,6 +1464,8 @@ Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 I
 - AvatarMask 与 clip 一样使用 `ResourceKey` 和 `ResourceManager` 加载；runtime definition 不直接保存 `AvatarMask` 引用。
 - layer weight 只影响 Unity Playables layer mixer 的表现权重，可用于上半身攻击、下半身移动这类视觉混合；它不改变 Combat authority。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
+- warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
+- warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。
 - Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
 - default / fallback clip 按 backend 生命周期常驻，并在 diagnostics 中显示 resident 状态。
 - crossfade outgoing clip 在权重归零且 playable 从 graph 断开后释放。
