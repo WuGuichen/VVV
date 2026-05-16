@@ -287,7 +287,36 @@ namespace MxFramework.Animation
             if (result != 0)
                 return result;
 
-            return string.CompareOrdinal(left.EventKind, right.EventKind);
+            result = string.CompareOrdinal(left.EventKind, right.EventKind);
+            if (result != 0)
+                return result;
+
+            result = CompareResourceKey(left.PayloadKey, right.PayloadKey);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.Socket, right.Socket);
+            if (result != 0)
+                return result;
+
+            return string.CompareOrdinal(left.Tag, right.Tag);
+        }
+
+        private static int CompareResourceKey(ResourceKey left, ResourceKey right)
+        {
+            int result = string.CompareOrdinal(left.Id, right.Id);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.TypeId, right.TypeId);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.Variant, right.Variant);
+            if (result != 0)
+                return result;
+
+            return string.CompareOrdinal(left.PackageId, right.PackageId);
         }
 
         private static string ToHex(byte[] bytes)
@@ -303,7 +332,8 @@ namespace MxFramework.Animation
     {
         public static ResourceCatalogValidationReport Validate(
             MxAnimationSetDefinition definition,
-            ResourceCatalog catalog = null)
+            ResourceCatalog catalog = null,
+            bool requireCatalog = true)
         {
             var report = new ResourceCatalogValidationReport();
             if (definition == null)
@@ -330,15 +360,16 @@ namespace MxFramework.Animation
             }
 
             bool catalogMissingReported = false;
-            ValidateClip(definition.DefaultClip, "DefaultClipMissing", "default clip", catalog, report, ref catalogMissingReported);
-            ValidateClip(definition.FallbackClip, "FallbackClipMissing", "fallback clip", catalog, report, ref catalogMissingReported);
-            ValidateActions(definition, catalog, report, ref catalogMissingReported);
+            ValidateClip(definition.DefaultClip, "DefaultClipMissing", "default clip", catalog, requireCatalog, report, ref catalogMissingReported);
+            ValidateClip(definition.FallbackClip, "FallbackClipMissing", "fallback clip", catalog, requireCatalog, report, ref catalogMissingReported);
+            ValidateActions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             return report;
         }
 
         private static void ValidateActions(
             MxAnimationSetDefinition definition,
             ResourceCatalog catalog,
+            bool requireCatalog,
             ResourceCatalogValidationReport report,
             ref bool catalogMissingReported)
         {
@@ -368,7 +399,7 @@ namespace MxFramework.Animation
                         report.AddError("DuplicateActionKey", binding.Clip, "Duplicate animation action key: " + binding.ActionKey + ".");
                 }
 
-                ValidateClip(binding.Clip, "BindingClipMissing", "binding clip", catalog, report, ref catalogMissingReported);
+                ValidateClip(binding.Clip, "BindingClipMissing", "binding clip", catalog, requireCatalog, report, ref catalogMissingReported);
             }
         }
 
@@ -377,6 +408,7 @@ namespace MxFramework.Animation
             string missingCode,
             string role,
             ResourceCatalog catalog,
+            bool requireCatalog,
             ResourceCatalogValidationReport report,
             ref bool catalogMissingReported)
         {
@@ -394,7 +426,7 @@ namespace MxFramework.Animation
 
             if (catalog == null)
             {
-                if (!catalogMissingReported)
+                if (requireCatalog && !catalogMissingReported)
                 {
                     report.AddError("CatalogMissing", key, "Resource catalog is required to validate animation clip keys.");
                     catalogMissingReported = true;

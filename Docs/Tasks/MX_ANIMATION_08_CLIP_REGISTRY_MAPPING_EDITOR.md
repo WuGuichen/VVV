@@ -15,7 +15,7 @@
 - noEngine mapping provider 按 `animationSetId` 提供 `MxAnimationSetDefinition`。
 - `MxAnimationSetDefinition` 产出稳定 `DefinitionHash`。
 - Editor registry asset 可以引用 `AnimationClip`，但导出 runtime DTO 时只保留 `ResourceKey`。
-- Editor Inspector 提供最小 Validate Mapping 入口；完整搜索、预览、scrubber 和复杂 timeline UI 后续再做。
+- Editor Inspector 提供最小 Validate Mapping Structure 入口；完整 catalog 兼容性校验由 exporter / pipeline 传入 `ResourceCatalog` 后执行，完整搜索、预览、scrubber 和复杂 timeline UI 后续再做。
 
 ## 边界
 
@@ -60,6 +60,8 @@ Editor authoring 边界：
 - `AnimationSetHashMismatch`
 
 Catalog lookup 按 `ResourceKey` 的 id、type、variant 和 package 进行匹配；当 mapping key 没有 package 时，允许匹配 catalog fallback package。这样既支持 package-qualified catalog，也避免同 id 不同 type 的误判。
+
+Inspector 的结构校验不传 `ResourceCatalog`，因此只检查 authoring 结构、ResourceKey 形状、重复 binding/action key 和 definition hash。正式导出、CI 或资源 warmup 校验必须传入 `ResourceCatalog`，才能检查 catalog entry、typeId、variant 和 package。
 
 ## 与后续任务关系
 

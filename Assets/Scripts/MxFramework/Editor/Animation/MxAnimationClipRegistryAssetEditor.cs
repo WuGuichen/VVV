@@ -14,9 +14,9 @@ namespace MxFramework.Editor.Animation
 
             GUILayout.Space(8f);
             MxAnimationClipRegistryAsset registry = (MxAnimationClipRegistryAsset)target;
-            if (GUILayout.Button("Validate Mapping"))
+            if (GUILayout.Button("Validate Mapping Structure"))
             {
-                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.Export(registry);
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(registry);
                 _lastReport = MxAnimationClipRegistryExporter.CreateReportText(result);
                 Debug.Log(_lastReport, registry);
             }

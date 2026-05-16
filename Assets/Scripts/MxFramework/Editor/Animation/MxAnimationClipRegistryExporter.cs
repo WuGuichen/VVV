@@ -28,6 +28,20 @@ namespace MxFramework.Editor.Animation
             MxAnimationClipRegistryAsset asset,
             ResourceCatalog catalog = null)
         {
+            return Export(asset, catalog, requireCatalog: true);
+        }
+
+        public static MxAnimationClipRegistryExportResult ExportStructureOnly(
+            MxAnimationClipRegistryAsset asset)
+        {
+            return Export(asset, null, requireCatalog: false);
+        }
+
+        private static MxAnimationClipRegistryExportResult Export(
+            MxAnimationClipRegistryAsset asset,
+            ResourceCatalog catalog,
+            bool requireCatalog)
+        {
             var report = new ResourceCatalogValidationReport();
             if (asset == null)
             {
@@ -48,7 +62,7 @@ namespace MxFramework.Editor.Animation
                 fallbackClip,
                 bindings,
                 events);
-            report.Merge(MxAnimationSetDefinitionValidator.Validate(definition, catalog));
+            report.Merge(MxAnimationSetDefinitionValidator.Validate(definition, catalog, requireCatalog));
             return new MxAnimationClipRegistryExportResult(definition, report);
         }
 

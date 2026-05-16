@@ -78,6 +78,52 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetDefinitionHash_IsStableAcrossFullEventPayloadOrder()
+        {
+            var clip = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var firstPayload = new ResourceKey("demo.vfx.slash", ResourceTypeIds.GameObject, "blue", "demo.package");
+            var secondPayload = new ResourceKey("demo.sfx.slash", ResourceTypeIds.AudioClip, "short", "demo.package");
+            var first = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                clip,
+                clip,
+                new[]
+                {
+                    new MxAnimationActionBinding(
+                        "idle",
+                        "action:1",
+                        clip,
+                        MxAnimationLayerId.Base,
+                        presentationEvents: new[]
+                        {
+                            new MxAnimationPresentationEvent("event.hit", MxAnimationEventTimeDomain.CombatFrame, 4f, "vfx", firstPayload, "hand.r", "slash"),
+                            new MxAnimationPresentationEvent("event.hit", MxAnimationEventTimeDomain.CombatFrame, 4f, "vfx", secondPayload, "hand.l", "slash")
+                        })
+                });
+            var second = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                clip,
+                clip,
+                new[]
+                {
+                    new MxAnimationActionBinding(
+                        "idle",
+                        "action:1",
+                        clip,
+                        MxAnimationLayerId.Base,
+                        presentationEvents: new[]
+                        {
+                            new MxAnimationPresentationEvent("event.hit", MxAnimationEventTimeDomain.CombatFrame, 4f, "vfx", secondPayload, "hand.l", "slash"),
+                            new MxAnimationPresentationEvent("event.hit", MxAnimationEventTimeDomain.CombatFrame, 4f, "vfx", firstPayload, "hand.r", "slash")
+                        })
+                });
+
+            Assert.AreEqual(first.DefinitionHash, second.DefinitionHash);
+        }
+
+        [Test]
         public void StaticMappingProvider_FindsDefinitionBySetId()
         {
             var definition = new MxAnimationSetDefinition(
@@ -170,6 +216,53 @@ namespace MxFramework.Tests.Animation
             AssertIssue(report, "DuplicateActionKey");
             AssertIssue(report, "ActionKeyInvalid");
             AssertIssue(report, "ClipTypeMismatch");
+        }
+
+        [Test]
+        public void SetDefinitionValidator_CatalogLookupHonorsVariantAndPackage()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip, packageId: "demo.package");
+            var fallback = new ResourceKey("demo.animation.fallback", ResourceTypeIds.AnimationClip, "alt");
+            var wrongPackage = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip, packageId: "other.package");
+            var wrongVariant = new ResourceKey("demo.animation.fallback", ResourceTypeIds.AnimationClip, "missing");
+            var catalog = new ResourceCatalog(
+                "demo.catalog",
+                "demo.package",
+                new[]
+                {
+                    new ResourceCatalogEntry("demo.animation.idle", ResourceTypeIds.AnimationClip, "memory", "idle"),
+                    new ResourceCatalogEntry("demo.animation.fallback", ResourceTypeIds.AnimationClip, "memory", "fallback", variant: "alt")
+                });
+            var valid = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                fallback);
+            var invalid = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                wrongPackage,
+                wrongVariant);
+
+            ResourceCatalogValidationReport validReport = MxAnimationSetDefinitionValidator.Validate(valid, catalog);
+            ResourceCatalogValidationReport invalidReport = MxAnimationSetDefinitionValidator.Validate(invalid, catalog);
+
+            Assert.IsFalse(validReport.HasErrors);
+            AssertIssue(invalidReport, "ClipCatalogEntryMissing");
+        }
+
+        [Test]
+        public void SetDefinitionValidator_StructureOnlySkipsCatalogRequirement()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var definition = new MxAnimationSetDefinition("demo.set", 1, idle, idle);
+
+            ResourceCatalogValidationReport report = MxAnimationSetDefinitionValidator.Validate(
+                definition,
+                catalog: null,
+                requireCatalog: false);
+
+            Assert.IsFalse(report.HasErrors);
         }
 
         private static void AssertIssue(ResourceCatalogValidationReport report, string code)

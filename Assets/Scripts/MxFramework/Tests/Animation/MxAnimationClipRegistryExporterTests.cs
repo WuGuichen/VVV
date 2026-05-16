@@ -108,13 +108,13 @@ namespace MxFramework.Tests.Animation
                 {
                     new MxAnimationClipRegistryBindingEntry
                     {
-                        BindingId = "idle",
+                        BindingId = "shared",
                         ActionKey = "action:1",
                         ClipId = "idle"
                     },
                     new MxAnimationClipRegistryBindingEntry
                     {
-                        BindingId = "attack",
+                        BindingId = "shared",
                         ActionKey = "action:1",
                         ClipId = "attack"
                     }
@@ -133,7 +133,50 @@ namespace MxFramework.Tests.Animation
                 Assert.IsFalse(result.Success);
                 AssertIssue(result.ValidationReport, "ClipReferenceMissing");
                 AssertIssue(result.ValidationReport, "ClipCatalogTypeMismatch");
+                AssertIssue(result.ValidationReport, "DuplicateBindingId");
                 AssertIssue(result.ValidationReport, "DuplicateActionKey");
+            }
+            finally
+            {
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void ExportStructureOnly_AllowsInspectorValidationWithoutCatalog()
+        {
+            MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            var idleClip = new AnimationClip { name = "Idle" };
+            try
+            {
+                asset.AnimationSetId = "demo.set";
+                asset.Version = 1;
+                asset.Clips = new[]
+                {
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "idle",
+                        Clip = idleClip,
+                        ResourceId = "demo.animation.idle",
+                        IsDefault = true,
+                        IsFallback = true
+                    }
+                };
+                asset.Bindings = new[]
+                {
+                    new MxAnimationClipRegistryBindingEntry
+                    {
+                        BindingId = "idle",
+                        ActionKey = "action:1",
+                        ClipId = "idle"
+                    }
+                };
+
+                MxAnimationClipRegistryExportResult result =
+                    MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+
+                Assert.IsTrue(result.Success, MxAnimationClipRegistryExporter.CreateReportText(result));
             }
             finally
             {
