@@ -1,8 +1,8 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation。
 
 ## 职责
 
@@ -19,6 +19,7 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 | `MxFramework.Animation` | MVP | Resources | layer id、play / stop / crossfade request、animation set definition、fade state、diagnostics、backend interface |
 | `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、clip load、fallback、manual tick、graph shutdown、handle ownership |
 | `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
+| `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation |
 
 依赖方向：
 
@@ -41,6 +42,14 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationLayerId` | 稳定 layer id value object；默认 `base`，不等同 Unity Animator layer index |
 | `MxAnimationSetDefinition` | actor / archetype / skin 的 presentation binding 集合，clip 使用 `ResourceKey` |
 | `MxAnimationActionBinding` | action key 或 binding id 到 clip、layer、speed、loop 和 presentation events 的映射 |
+| `MxAnimationClipRegistry` | 从 `ResourceCatalog` 发现的 animation clip registry，只保存 `ResourceKey` 和 catalog entry hash |
+| `MxAnimationClipRegistryBuilder` | 从正式 `ResourceCatalog` 过滤 `ResourceTypeIds.AnimationClip` 并生成 registry |
+| `IMxAnimationMappingProvider` | 按 animation set id 提供 `MxAnimationSetDefinition` 的最小 provider surface |
+| `MxAnimationStaticMappingProvider` | code-only / early validation provider；仍只消费 noEngine definition，不绕过资源系统 |
+| `MxAnimationSetDefinitionHasher` | 对 set id、version、default/fallback、binding、events 生成稳定 `sha256:` definition hash |
+| `MxAnimationSetDefinitionValidator` | 校验 set id/version/hash、default/fallback、catalog entry、clip type、重复 binding/action key |
+| `MxAnimationClipRegistryAsset` | Editor-only registry authoring asset，可引用 `AnimationClip` 但不进入 runtime DTO |
+| `MxAnimationClipRegistryExporter` | 从 Editor registry 导出 noEngine `MxAnimationSetDefinition` 和 validation report |
 | `MxAnimationPlayRequest` | 播放请求，可指定 binding/action 或直接 clip key |
 | `MxAnimationStopRequest` | 停止请求，支持 layer 和 fade out duration |
 | `MxAnimationCrossFadeRequest` | crossfade 请求，支持 target clip、fade duration、start offset 和 outgoing release policy |
@@ -110,6 +119,9 @@ Legacy coexistence:
 
 - DTO 中的 clip、VFX、SFX、camera profile 等表现资源一律使用 `ResourceKey`。
 - clip key 的 `TypeId` 使用 `ResourceTypeIds.AnimationClip`。
+- `MxAnimationSetDefinition.DefinitionHash` 是 mapping 内容 hash，用于加载侧和 #109 warmup / resource validation 检测过期 mapping。
+- `MxAnimationClipRegistryAsset` 只属于 Unity Editor authoring。运行时和 Demo 不得从该 asset 直接取 `AnimationClip`，必须通过导出的 `MxAnimationSetDefinition` + `ResourceManager` 加载。
+- 当前 Mapping Editor 是最小 Inspector authoring / structure validation 入口；完整 catalog 校验由 exporter / pipeline 传入 `ResourceCatalog` 后执行，复杂搜索、预览和 timeline scrubber 不在 #107 范围内。
 - `MxAnimationSetDefinition.DefaultClip` 和 `FallbackClip` 是 backend 生命周期内的 resident clip。加载成功后常驻到 backend `Release`，并在 diagnostics 中标记为 resident。
 - 普通 play/crossfade clip 由 backend 自己通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 handle；stop、fade 完成、destroy 或 release 后释放。
 - 当前 `ResourceManager.LoadAsync<T>` 是 immediate operation wrapper；backend 仍以 operation 状态处理，diagnostics 可显示 loading / failure。
@@ -128,6 +140,8 @@ Assets/Scripts/MxFramework/Tests/Animation/
 当前 focused tests 覆盖：
 
 - noEngine layer id 和 animation set binding 查询。
+- animation set definition hash、clip registry builder、mapping provider 和 catalog validation。
+- presentation sync state、layer transition state、quantized parameter、event dedupe key 和 version diagnostics。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。

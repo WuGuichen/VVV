@@ -644,7 +644,8 @@ namespace MxFramework.Animation
             float playbackSpeed = 1f,
             bool loop = false,
             MxAnimationAlignmentPolicy alignmentPolicy = MxAnimationAlignmentPolicy.StartAtZero,
-            IEnumerable<MxAnimationPresentationEvent> presentationEvents = null)
+            IEnumerable<MxAnimationPresentationEvent> presentationEvents = null,
+            float fadeDurationSeconds = 0.15f)
         {
             BindingId = bindingId ?? string.Empty;
             ActionKey = actionKey ?? string.Empty;
@@ -653,6 +654,7 @@ namespace MxFramework.Animation
             PlaybackSpeed = playbackSpeed;
             Loop = loop;
             AlignmentPolicy = alignmentPolicy;
+            FadeDurationSeconds = fadeDurationSeconds < 0f ? 0f : fadeDurationSeconds;
             _presentationEvents = presentationEvents != null
                 ? new List<MxAnimationPresentationEvent>(presentationEvents)
                 : new List<MxAnimationPresentationEvent>();
@@ -665,6 +667,7 @@ namespace MxFramework.Animation
         public float PlaybackSpeed { get; }
         public bool Loop { get; }
         public MxAnimationAlignmentPolicy AlignmentPolicy { get; }
+        public float FadeDurationSeconds { get; }
         public IReadOnlyList<MxAnimationPresentationEvent> PresentationEvents => _presentationEvents;
     }
 
@@ -679,7 +682,8 @@ namespace MxFramework.Animation
             ResourceKey defaultClip,
             ResourceKey fallbackClip,
             IEnumerable<MxAnimationActionBinding> actions = null,
-            IEnumerable<MxAnimationPresentationEvent> events = null)
+            IEnumerable<MxAnimationPresentationEvent> events = null,
+            string definitionHash = "")
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -691,10 +695,14 @@ namespace MxFramework.Animation
             _events = events != null
                 ? new List<MxAnimationPresentationEvent>(events)
                 : new List<MxAnimationPresentationEvent>();
+            DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
+                ? MxAnimationSetDefinitionHasher.ComputeHash(this)
+                : definitionHash;
         }
 
         public string SetId { get; }
         public int Version { get; }
+        public string DefinitionHash { get; }
         public ResourceKey DefaultClip { get; }
         public ResourceKey FallbackClip { get; }
         public IReadOnlyList<MxAnimationActionBinding> Actions => _actions;
