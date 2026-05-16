@@ -200,6 +200,11 @@ namespace MxFramework.Animation
 
             AppendWarmup(builder, definition.Warmup);
 
+            var blends = new List<MxAnimationBlend1DDefinition>(definition.Blend1DDefinitions);
+            blends.Sort(CompareBlend1DDefinition);
+            for (int i = 0; i < blends.Count; i++)
+                AppendBlend1D(builder, blends[i], i);
+
             var actions = new List<MxAnimationActionBinding>(definition.Actions);
             actions.Sort(CompareActionBinding);
             for (int i = 0; i < actions.Count; i++)
@@ -251,6 +256,37 @@ namespace MxFramework.Animation
             labels.Sort(StringComparer.Ordinal);
             for (int i = 0; i < labels.Count; i++)
                 builder.Append("warmup.label[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(labels[i] ?? string.Empty).Append('\n');
+        }
+
+        private static void AppendBlend1D(StringBuilder builder, MxAnimationBlend1DDefinition blend, int index)
+        {
+            builder.Append("blend1d[").Append(index.ToString(CultureInfo.InvariantCulture)).Append("]").Append('\n');
+            if (blend == null)
+            {
+                builder.Append("null").Append('\n');
+                return;
+            }
+
+            builder.Append("id=").Append(blend.BlendId ?? string.Empty).Append('\n');
+            builder.Append("parameter=").Append(blend.ParameterId ?? string.Empty).Append('\n');
+            builder.Append("layer=").Append(blend.LayerId.Value).Append('\n');
+            builder.Append("scale=").Append(blend.ParameterScale.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            builder.Append("fade=").Append(blend.FadeDurationSeconds.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+
+            for (int i = 0; i < blend.Points.Count; i++)
+            {
+                MxAnimationBlend1DPoint point = blend.Points[i];
+                builder.Append("point[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].threshold=")
+                    .Append(point != null ? point.Threshold.ToString(CultureInfo.InvariantCulture) : string.Empty).Append('\n');
+                if (point == null)
+                    continue;
+
+                AppendResourceKey(builder, "point[" + i.ToString(CultureInfo.InvariantCulture) + "].clip", point.ClipKey);
+                builder.Append("point[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].speed=")
+                    .Append(point.PlaybackSpeed.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+                builder.Append("point[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].loop=")
+                    .Append(point.Loop ? "1" : "0").Append('\n');
+            }
         }
 
         private static void AppendAction(StringBuilder builder, MxAnimationActionBinding binding, int index)
@@ -342,6 +378,26 @@ namespace MxFramework.Animation
                 return result;
 
             return CompareResourceKey(left.AvatarMaskKey, right.AvatarMaskKey);
+        }
+
+        private static int CompareBlend1DDefinition(MxAnimationBlend1DDefinition left, MxAnimationBlend1DDefinition right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            int result = string.CompareOrdinal(left.BlendId, right.BlendId);
+            if (result != 0)
+                return result;
+
+            result = string.CompareOrdinal(left.ParameterId, right.ParameterId);
+            if (result != 0)
+                return result;
+
+            return string.CompareOrdinal(left.LayerId.Value, right.LayerId.Value);
         }
 
         private static int ComparePresentationEvent(MxAnimationPresentationEvent left, MxAnimationPresentationEvent right)
@@ -557,6 +613,7 @@ namespace MxFramework.Animation
             ValidateClip(definition.DefaultClip, "DefaultClipMissing", "default clip", catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateClip(definition.FallbackClip, "FallbackClipMissing", "fallback clip", catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateLayers(definition, catalog, requireCatalog, report, ref catalogMissingReported);
+            ValidateBlend1DDefinitions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateActions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             return report;
         }
@@ -585,6 +642,58 @@ namespace MxFramework.Animation
 
                 if (layer.AvatarMaskKey.IsValid)
                     ValidateAvatarMask(layer.AvatarMaskKey, catalog, requireCatalog, report, ref catalogMissingReported);
+            }
+        }
+
+        private static void ValidateBlend1DDefinitions(
+            MxAnimationSetDefinition definition,
+            ResourceCatalog catalog,
+            bool requireCatalog,
+            ResourceCatalogValidationReport report,
+            ref bool catalogMissingReported)
+        {
+            var blendIds = new HashSet<string>(StringComparer.Ordinal);
+            var parameterIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < definition.Blend1DDefinitions.Count; i++)
+            {
+                MxAnimationBlend1DDefinition blend = definition.Blend1DDefinitions[i];
+                if (blend == null)
+                {
+                    report.AddError("Blend1DDefinitionMissing", default, "1D blend definition at index " + i + " is null.");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(blend.BlendId))
+                    report.AddError("Blend1DIdMissing", default, "1D blend definition at index " + i + " is missing a blend id.");
+                else if (!blendIds.Add(blend.BlendId))
+                    report.AddError("DuplicateBlend1DId", default, "Duplicate 1D blend id: " + blend.BlendId + ".");
+
+                if (string.IsNullOrWhiteSpace(blend.ParameterId))
+                    report.AddError("Blend1DParameterMissing", default, "1D blend definition is missing a parameter id: " + blend.BlendId + ".");
+                else if (!parameterIds.Add(blend.ParameterId))
+                    report.AddWarning("DuplicateBlend1DParameter", default, "Multiple 1D blends share parameter id: " + blend.ParameterId + ".");
+
+                if (blend.Points.Count == 0)
+                {
+                    report.AddError("Blend1DPointMissing", default, "1D blend definition has no points: " + blend.BlendId + ".");
+                    continue;
+                }
+
+                var thresholds = new HashSet<int>();
+                for (int pointIndex = 0; pointIndex < blend.Points.Count; pointIndex++)
+                {
+                    MxAnimationBlend1DPoint point = blend.Points[pointIndex];
+                    if (point == null)
+                    {
+                        report.AddError("Blend1DPointMissing", default, "1D blend point is null in blend: " + blend.BlendId + ".");
+                        continue;
+                    }
+
+                    if (!thresholds.Add(point.Threshold))
+                        report.AddError("DuplicateBlend1DThreshold", point.ClipKey, "Duplicate 1D blend threshold in blend " + blend.BlendId + ": " + point.Threshold + ".");
+
+                    ValidateClip(point.ClipKey, "Blend1DClipMissing", "1D blend clip", catalog, requireCatalog, report, ref catalogMissingReported);
+                }
             }
         }
 

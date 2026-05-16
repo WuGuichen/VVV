@@ -36,6 +36,7 @@ namespace MxFramework.Demo
         public const string SkeletonWalkForwardAnimationId = "art.character.skeleton.animation.standing_walk_forward";
         public const string SkeletonRunForwardAnimationId = "art.character.skeleton.animation.standing_run_forward";
         public const string SkeletonJumpAnimationId = "art.character.skeleton.animation.standing_jump";
+        public const string SkeletonUpperBodyMaskId = "art.character.skeleton.mask.upper_body";
 
         private static readonly TempImportedResourceCatalogAsset[] Assets =
         {
@@ -76,6 +77,12 @@ namespace MxFramework.Demo
                 "mxframework.samples/art/character/skeleton/animation/standing_jump",
                 "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim",
                 new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, SampleSkeletonAnimationClipLabel, WarmupMxAnimationLabel }),
+            new TempImportedResourceCatalogAsset(
+                SkeletonUpperBodyMaskId,
+                ResourceTypeIds.AvatarMask,
+                "mxframework.samples/art/character/skeleton/mask/upper_body",
+                "Assets/Art/MxFramework/Samples/Characters/Skeleton/Masks/SkeletonUpperBody.mask",
+                new[] { PackageLabel, DomainArtLabel, SampleSkeletonLabel, WarmupMxAnimationLabel }),
             new TempImportedResourceCatalogAsset(
                 "art.character.skeleton.animation.standing_jump_running",
                 ResourceTypeIds.AnimationClip,

@@ -1,10 +1,13 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
     <ui:VisualElement name="mxanimation-smoke-hud" class="smoke-hud">
-        <ui:Label name="title" class="hud-title" text="MxAnimation Play Mode Smoke" />
-        <ui:Label name="instructions" class="hud-instructions" text="I idle | O walk | P run | Space jump" />
+        <ui:Label name="title" class="hud-title" text="MxAnimation 1D Locomotion Blend" />
+        <ui:Label name="instructions" class="hud-instructions" text="I idle | O walk | P run | Space upper attack" />
         <ui:VisualElement class="hud-panel">
             <ui:Label name="action" text="Action: Initializing" />
+            <ui:Label name="speed" text="Speed: unavailable" />
             <ui:Label name="clip" text="Clip: loading" />
+            <ui:Label name="layers" text="Layers: loading" />
+            <ui:Label name="warmup" text="Warmup: loading" />
             <ui:Label name="backend" text="Backend: unavailable" />
             <ui:Label name="resources" text="Resources: unavailable" />
             <ui:Label name="bridge" text="Bridge: unavailable" />

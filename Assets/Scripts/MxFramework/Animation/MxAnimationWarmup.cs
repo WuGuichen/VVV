@@ -449,6 +449,20 @@ namespace MxFramework.Animation
                     if (action != null)
                         AddKey(action.Clip, keys, unique);
                 }
+
+                for (int blendIndex = 0; blendIndex < definition.Blend1DDefinitions.Count; blendIndex++)
+                {
+                    MxAnimationBlend1DDefinition blend = definition.Blend1DDefinitions[blendIndex];
+                    if (blend == null)
+                        continue;
+
+                    for (int pointIndex = 0; pointIndex < blend.Points.Count; pointIndex++)
+                    {
+                        MxAnimationBlend1DPoint point = blend.Points[pointIndex];
+                        if (point != null)
+                            AddKey(point.ClipKey, keys, unique);
+                    }
+                }
             }
 
             if (warmup.IncludeLayerMasks)

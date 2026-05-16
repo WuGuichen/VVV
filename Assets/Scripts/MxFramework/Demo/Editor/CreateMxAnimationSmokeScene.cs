@@ -19,12 +19,14 @@ namespace MxFramework.Demo
         private const string WalkClipPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim";
         private const string RunClipPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim";
         private const string JumpClipPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim";
+        private const string UpperBodyMaskPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/Masks/SkeletonUpperBody.mask";
 
         [MenuItem("MxFramework/MxAnimation/Generate Play Mode Smoke Scene", priority = 124)]
         public static void Create()
         {
             EnsureFolder("Assets", "Scenes");
             EnsureFolder("Assets/UI/MxFramework", "MxAnimationSmoke");
+            EnsureFolder("Assets/Art/MxFramework/Samples/Characters/Skeleton", "Masks");
 
             PanelSettings panelSettings = LoadOrCreatePanelSettings();
             VisualTreeAsset visualTree = LoadRequired<VisualTreeAsset>(UxmlPath);
@@ -34,6 +36,7 @@ namespace MxFramework.Demo
             AnimationClip walkClip = LoadRequired<AnimationClip>(WalkClipPath);
             AnimationClip runClip = LoadRequired<AnimationClip>(RunClipPath);
             AnimationClip jumpClip = LoadRequired<AnimationClip>(JumpClipPath);
+            AvatarMask upperBodyMask = LoadOrCreateUpperBodyMask();
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.ambientLight = new Color(0.56f, 0.58f, 0.62f);
@@ -57,7 +60,8 @@ namespace MxFramework.Demo
                 idleClip,
                 walkClip,
                 runClip,
-                jumpClip);
+                jumpClip,
+                upperBodyMask);
             SetBootstrapReferences(
                 bootstrap,
                 input,
@@ -69,7 +73,8 @@ namespace MxFramework.Demo
                 idleClip,
                 walkClip,
                 runClip,
-                jumpClip);
+                jumpClip,
+                upperBodyMask);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             PersistSceneReferencesAfterInitialSave();
@@ -184,7 +189,8 @@ namespace MxFramework.Demo
             AnimationClip idleClip,
             AnimationClip walkClip,
             AnimationClip runClip,
-            AnimationClip jumpClip)
+            AnimationClip jumpClip,
+            AvatarMask upperBodyMask)
         {
             var serialized = new SerializedObject(bootstrap);
             Set(serialized, "_inputService", input);
@@ -197,6 +203,7 @@ namespace MxFramework.Demo
             Set(serialized, "_walkForwardClip", walkClip);
             Set(serialized, "_runForwardClip", runClip);
             Set(serialized, "_jumpClip", jumpClip);
+            Set(serialized, "_upperBodyMask", upperBodyMask);
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(bootstrap);
         }
@@ -215,6 +222,7 @@ namespace MxFramework.Demo
             if (input == null || document == null || bootstrap == null)
                 throw new System.InvalidOperationException("Generated smoke scene is missing required root components.");
 
+            PanelSettings panelSettings = LoadOrCreatePanelSettings();
             VisualTreeAsset visualTree = LoadRequired<VisualTreeAsset>(UxmlPath);
             StyleSheet styleSheet = LoadRequired<StyleSheet>(UssPath);
             GameObject skeletonModel = LoadRequired<GameObject>(SkeletonModelPath);
@@ -222,7 +230,9 @@ namespace MxFramework.Demo
             AnimationClip walkClip = LoadRequired<AnimationClip>(WalkClipPath);
             AnimationClip runClip = LoadRequired<AnimationClip>(RunClipPath);
             AnimationClip jumpClip = LoadRequired<AnimationClip>(JumpClipPath);
+            AvatarMask upperBodyMask = LoadOrCreateUpperBodyMask();
 
+            ConfigureDocument(document, panelSettings, visualTree);
             SetBootstrapReferences(
                 bootstrap,
                 input,
@@ -234,9 +244,46 @@ namespace MxFramework.Demo
                 idleClip,
                 walkClip,
                 runClip,
-                jumpClip);
+                jumpClip,
+                upperBodyMask);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
+        }
+
+        private static AvatarMask LoadOrCreateUpperBodyMask()
+        {
+            AvatarMask mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(UpperBodyMaskPath);
+            if (mask == null)
+            {
+                mask = new AvatarMask { name = "SkeletonUpperBody" };
+                AssetDatabase.CreateAsset(mask, UpperBodyMaskPath);
+            }
+
+            mask.name = "SkeletonUpperBody";
+            SetBodyPart(mask, AvatarMaskBodyPart.Root, false);
+            SetBodyPart(mask, AvatarMaskBodyPart.Body, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.Head, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.LeftArm, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.RightArm, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.LeftFingers, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.RightFingers, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.LeftLeg, false);
+            SetBodyPart(mask, AvatarMaskBodyPart.RightLeg, false);
+            SetBodyPart(mask, AvatarMaskBodyPart.LeftFootIK, false);
+            SetBodyPart(mask, AvatarMaskBodyPart.RightFootIK, false);
+            SetBodyPart(mask, AvatarMaskBodyPart.LeftHandIK, true);
+            SetBodyPart(mask, AvatarMaskBodyPart.RightHandIK, true);
+            EditorUtility.SetDirty(mask);
+            AssetDatabase.SaveAssets();
+            return mask;
+        }
+
+        private static void SetBodyPart(AvatarMask mask, AvatarMaskBodyPart part, bool active)
+        {
+            if (part >= AvatarMaskBodyPart.LastBodyPart)
+                return;
+
+            mask.SetHumanoidBodyPartActive(part, active);
         }
 
         private static T LoadRequired<T>(string path)
