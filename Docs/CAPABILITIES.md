@@ -206,6 +206,7 @@
 | Layer Weight + AvatarMask | ✅ v0.2 | `MxAnimationLayerDefinition` / `MxAnimationLayerWeightRequest` / `ResourceTypeIds.AvatarMask` | Animation + Animation.Unity |
 | Warmup + Resource Version Validation | ✅ v0.2 | `MxAnimationWarmupService` / `MxAnimationWarmupDefinition` / `MxAnimationWarmupIssue` | Animation + Resources |
 | 1D Locomotion Blend Demo | ✅ v0.2 | `MxAnimationBlend1DDefinition` / `MxAnimationBlend1DRequest` / `MxAnimationBlend1DCalculator` | Animation + Animation.Unity + Demo |
+| Bake MVP | ✅ v0.2 | `MxAnimationBakeArtifact` / `MxAnimationBakeArtifactValidator` / `CombatBakedWeaponTraceAdapter` | Animation + Editor + Combat |
 
 → 接口：`Interfaces/Animation.md`
 → 测试：`Tests/Animation/`

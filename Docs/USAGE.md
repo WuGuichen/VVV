@@ -1499,6 +1499,14 @@ warmupService.Release(warmup);
 
 Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。Inspector 的 `Event Timeline Preview` 会显示 Seconds / NormalizedTime / CombatFrame / PresentationFrame 事件，并对 CombatFrame / PresentationFrame 输出 deterministic correlation 摘要。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
 
+Bake MVP 入口用于把选中的 `AnimationClip` 转成 fixed-frame、量化的派生参考数据：
+
+```text
+MxFramework / MxAnimation / Bake Selected Animation Clip MVP
+```
+
+生成的 `.mxbake.txt` artifact 报告包含 source clip hash、bake profile hash、skeleton/avatar profile hash、artifact hash、root motion reference、weapon trace reference 和 event markers。它只用于 authoring / preview / Combat 参考数据输入；运行时 Combat 不读取 Animator、PlayableGraph 或 Unity bone pose 当前状态。
+
 约定：
 
 - `MxFramework.Animation` 不引用 Unity，不保存 `AnimationClip`、GUID 或 `Assets/...` path。
@@ -1506,6 +1514,7 @@ Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 I
 - AvatarMask 与 clip 一样使用 `ResourceKey` 和 `ResourceManager` 加载；runtime definition 不直接保存 `AvatarMask` 引用。
 - layer weight 只影响 Unity Playables layer mixer 的表现权重，可用于上半身攻击、下半身移动这类视觉混合；它不改变 Combat authority。
 - 1D locomotion blend 使用 `MxAnimationBlend1DDefinition` 和 `MxAnimationBlend1DRequest`；point clip key 进入 definition hash、mapping validation 和 warmup，实际 clip 仍由 backend 通过 `ResourceManager` 加载。
+- bake artifact 必须作为派生缓存处理。source/profile/skeleton/artifact hash mismatch 必须输出 diagnostics，不能静默使用过期数据。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
 - warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
 - warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。
@@ -1743,6 +1752,38 @@ var hits = new List<CombatQueryResult>();
 int hitCount = world.Query(CombatPhysicsQuery.From(query), hits);
 ```
 
+Baked weapon trace 参考数据转 Combat query 的最小示例：
+
+```csharp
+using MxFramework.Combat.Animation;
+using MxFramework.Combat.Core;
+using MxFramework.Combat.Physics;
+using MxFramework.Core.Math;
+
+var reference = new CombatBakedWeaponTraceReferenceFrame(
+    traceId: 7,
+    localFrame: 3,
+    socketPrev: FixVector3.Zero,
+    socketNow: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+    tipDirectionPrev: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
+    tipDirectionNow: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero));
+
+var profile = new CombatBakedWeaponRuntimeProfile(
+    characterScale: Fix64.One,
+    weaponLength: Fix64.FromInt(3),
+    weaponRadius: Fix64.Half,
+    socketOffset: FixVector3.Zero,
+    targetMask: CombatPhysicsLayerMask.FromLayer(1));
+
+CombatCapsuleQuery bakedQuery = CombatBakedWeaponTraceAdapter.BuildCurrentBladeCapsule(
+    reference,
+    profile,
+    new CombatEntityId(1),
+    actionId: 1001,
+    queryId: 42,
+    sourceOrder: 0);
+```
+
 Motion 最小示例：
 
 ```csharp
@@ -1771,6 +1812,7 @@ CombatMotionState nextState = step.State;
 - `CombatPhysicsWorld` 只注册已落地的 body 和 AABB collider；查询结果按确定性规则排序。
 - `CombatKinematicMotor.Step(world, bodyId, state, input)` 可把移动结果同步回已注册 body。
 - Combat 使用 `Fix64` / `FixVector3`，不要在核心战斗逻辑中直接读 Unity Physics。
+- 动画驱动命中应走 bake reference + runtime profile -> `WeaponTraceFrame` / `CombatCapsuleQuery`，不能在运行时读 Unity Animator、PlayableGraph 或 bone pose 当前状态。
 
 ## 18. App / Scene Flow
 

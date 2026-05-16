@@ -1,8 +1,8 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D blend DTO/weight evaluation 和资源版本校验；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend、layer weight、AvatarMask 加载和 1D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D blend DTO/weight evaluation、bake artifact/hash/diagnostics 和资源版本校验；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend、layer weight、AvatarMask 加载和 1D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / bake MVP tool。
 
 ## 职责
 
@@ -16,10 +16,10 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 
 | 模块 | 状态 | 依赖 | 职责 |
 |------|------|------|------|
-| `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight / set blend request、animation set definition、1D blend definition、warmup/version validation、fade state、diagnostics、backend interface |
+| `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight / set blend request、animation set definition、1D blend definition、warmup/version validation、bake profile/artifact/diagnostics、fade state、backend interface |
 | `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、clip load、AvatarMask load、layer mixer weight、1D clip blend、fallback、manual tick、graph shutdown、handle ownership |
 | `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
-| `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation |
+| `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation、AnimationClip bake MVP tool |
 
 依赖方向：
 
@@ -77,6 +77,11 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationPresentationEventDispatchSink` | noEngine dispatch wrapper，负责 dedupe、payload unresolved diagnostics 和转发到 sink |
 | `MxAnimationEventTimelineBuilder` / `MxAnimationEventTimelineRow` | 从 `MxAnimationSetDefinition` 生成 Editor / diagnostics 可读的事件时间轴行，显示 Seconds / NormalizedTime / CombatFrame / PresentationFrame 和 deterministic correlation |
 | `MxAnimationPresentationSyncValidator` | 校验 sync state 与本地 animation set / catalog / clip registry version 是否兼容，并输出结构化 diagnostics |
+| `MxAnimationBakeProfile` | bake 输入指纹；包含 source clip key/hash、skeleton/avatar profile id/hash、sample tick rate、quantization scale、coordinate space、rounding policy 和 import/settings fingerprint |
+| `MxAnimationBakeArtifact` | 派生 authoring artifact；保存 fixed-frame socket/root/weapon trace reference、root motion reference 和 event markers，并带 artifact hash |
+| `MxAnimationBakedWeaponTraceFrame` / `MxAnimationBakedRootMotionFrame` / `MxAnimationBakedEventMarker` | bake output 中的量化参考数据；只保存整数和 `ResourceKey`，不保存 Unity object 或运行时 pose |
+| `MxAnimationBakeArtifactValidator` / `MxAnimationBakeValidationReport` | 校验 source/profile/skeleton/artifact hash、profile 字段、重复 trace frame，并输出明确 diagnostics |
+| `MxAnimationBakeQuantizer` / `MxAnimationBakeHasher` | noEngine 量化和稳定 hash 工具，供 Editor bake、CI 校验和加载侧 stale-artifact 检测复用 |
 
 ## Presentation Sync Contract
 
@@ -133,6 +138,20 @@ Event timeline authoring / preview：
 - timeline row 支持 Seconds / NormalizedTime / CombatFrame / PresentationFrame。CombatFrame / PresentationFrame row 显示 deterministic correlation label，便于和 Combat fixed-frame event 对齐。
 - 该 preview 不是完整 Timeline/Scrubber；逐帧 scrub、真实 VFX/SFX/Camera 执行和 resource payload preview 留给后续任务或项目层工具。
 
+## Bake Artifact Contract
+
+MxAnimation bake output 是派生 authoring artifact，不是唯一事实来源。它用于把 Unity `AnimationClip` 中可采样的 root / socket / weapon trace / event marker 信息转换为 fixed-frame、量化、可复现的参考数据：
+
+- `MxAnimationBakeProfile.SourceClipHash` 记录源 clip 内容 hash。
+- `MxAnimationBakeProfile.ProfileHash` 记录 bake profile 设置 hash。
+- `MxAnimationBakeProfile.SkeletonProfileHash` 记录 skeleton/avatar/import 相关指纹。
+- `MxAnimationBakeArtifact.ArtifactHash` 记录最终 reference 数据 hash。
+- 加载侧或 CI 必须用 `MxAnimationBakeArtifactValidator` 检查 hash mismatch，不能静默使用明显过期 artifact。
+
+Runtime Combat 不读取 Unity Animator / Playable / bone pose 当前状态。若需要用动画姿态影响权威命中，必须走 `MxAnimationBakeArtifact` 这类可复现参考数据，再由 Combat noEngine 侧结合 weapon profile、character scale、socket offset 等显式运行时输入计算最终 query。
+
+Unity Editor MVP 入口是 `MxFramework/MxAnimation/Bake Selected Animation Clip MVP`。它从选中的 `AnimationClip` 采样 transform 曲线和 `AnimationEvent`，输出 `.mxbake.txt` 派生 artifact 报告；完整 Timeline/Scrubber、retargeting matrix 和远程 bundle bake 不在当前范围内。
+
 Legacy coexistence:
 
 - 旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 保持可用，但仍是 opt-in。
@@ -149,6 +168,7 @@ Legacy coexistence:
 - `MxAnimationSetDefinition.DefinitionHash` 是 mapping 内容 hash，用于加载侧和 #109 warmup / resource validation 检测过期 mapping。
 - `MxAnimationWarmupDefinition` 可以声明 preload group id、warmup labels 和额外 required keys。默认会把 default clip、fallback clip、action clips 和 layer AvatarMask key 纳入 required keys。
 - `MxAnimationBlend1DDefinition` 的 point clip 使用 `ResourceKey`，会进入 definition hash、mapping validation 和 warmup required keys。权重计算在 noEngine 层完成；Unity backend 只消费权重并加载对应 clip。
+- `MxAnimationBakeArtifact` 是派生缓存。它可以辅助 Combat authoring 和 preview，但 runtime authority 只能消费已量化 reference + 显式 runtime profile，不得直接读 Unity 当前动画状态。
 - `MxAnimationWarmupService` 不新增资源子系统，只把 required keys / labels 转成 `ResourcePreloadPlan`，并复用 `IResourcePreloadService` / `ResourceManager` / `ResourceCatalog`。
 - warmup 会校验 animation set hash、resource catalog hash、clip registry version 和可选 expected clip registry entry hash；mismatch 必须输出具体 field、expected、actual 和相关 resource key。
 - warmup partial failure 会把每个 `ResourceError` 转成 `PreloadResourceFailed` issue，保留失败 key、provider、address 和错误码。调用方不能把失败当作空播成功。
@@ -179,6 +199,7 @@ Assets/Scripts/MxFramework/Tests/Animation/
 - layer definition hash、layer weight request、AvatarMask key validation 和 mask load / release diagnostics。
 - warmup success、sync hash/version mismatch、catalog wrong type、preload partial failure、clip registry entry hash mismatch 和 release 后 ref-count 归还。
 - 1D locomotion blend 权重计算、definition hash、mapping validation、warmup clip 收集和 Unity Playables backend 多 clip 权重诊断。
+- bake profile/artifact hash 稳定性、source/profile/artifact mismatch diagnostics、Editor clip 曲线采样和 event marker bake。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。
