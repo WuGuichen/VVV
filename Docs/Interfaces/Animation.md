@@ -1,12 +1,12 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink 和资源版本校验；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend、layer weight 和 AvatarMask 加载；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D blend DTO/weight evaluation 和资源版本校验；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend、layer weight、AvatarMask 加载和 1D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview。
 
 ## 职责
 
-Animation 是表现层契约。它接收 play、stop、crossfade、set layer weight 这类 presentation 请求，通过 `ResourceKey` 引用动画资源和 AvatarMask，并输出只读 diagnostics。它不参与 Combat hash、replay、命中、取消、无敌、伤害或其他权威逻辑。
+Animation 是表现层契约。它接收 play、stop、crossfade、set layer weight、set blend 这类 presentation 请求，通过 `ResourceKey` 引用动画资源和 AvatarMask，并输出只读 diagnostics。它不参与 Combat hash、replay、命中、取消、无敌、伤害或其他权威逻辑。
 
 `MxFramework.Animation` 必须保持 `noEngineReferences=true`，不依赖 `UnityEngine` 或 `UnityEditor`，也不保存 Unity object、GUID 或 `Assets/...` path。
 
@@ -16,8 +16,8 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 
 | 模块 | 状态 | 依赖 | 职责 |
 |------|------|------|------|
-| `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight request、animation set definition、warmup/version validation、fade state、diagnostics、backend interface |
-| `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、clip load、AvatarMask load、layer mixer weight、fallback、manual tick、graph shutdown、handle ownership |
+| `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight / set blend request、animation set definition、1D blend definition、warmup/version validation、fade state、diagnostics、backend interface |
+| `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、clip load、AvatarMask load、layer mixer weight、1D clip blend、fallback、manual tick、graph shutdown、handle ownership |
 | `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
 | `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation |
 
@@ -45,6 +45,8 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationLayerMaskStatus` | diagnostics 中的 AvatarMask 生命周期状态：未配置、加载中、已加载、失败或已释放 |
 | `MxAnimationSetDefinition` | actor / archetype / skin 的 presentation binding 集合，clip 使用 `ResourceKey` |
 | `MxAnimationActionBinding` | action key 或 binding id 到 clip、layer、speed、loop 和 presentation events 的映射 |
+| `MxAnimationBlend1DDefinition` / `MxAnimationBlend1DPoint` | noEngine 1D blend 定义，按量化参数把 idle / walk / run 这类 clip key 映射成权重 |
+| `MxAnimationBlend1DCalculator` | 不依赖 Unity 的 1D 权重计算；输入 `MxAnimationQuantizedParameter`，输出每个 point 的稳定权重 |
 | `MxAnimationClipRegistry` | 从 `ResourceCatalog` 发现的 animation clip registry，只保存 `ResourceKey` 和 catalog entry hash |
 | `MxAnimationClipRegistryBuilder` | 从正式 `ResourceCatalog` 过滤 `ResourceTypeIds.AnimationClip` 并生成 registry |
 | `IMxAnimationMappingProvider` | 按 animation set id 提供 `MxAnimationSetDefinition` 的最小 provider surface |
@@ -61,8 +63,9 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationStopRequest` | 停止请求，支持 layer 和 fade out duration |
 | `MxAnimationCrossFadeRequest` | crossfade 请求，支持 target clip、fade duration、start offset 和 outgoing release policy |
 | `MxAnimationLayerWeightRequest` | layer weight correction / transition 请求，支持 immediate set 或按 presentation delta fade |
+| `MxAnimationBlend1DRequest` | 1D blend 播放请求，指定 actor、blend id、量化参数和可选 fade duration |
 | `MxAnimationDiagnosticSnapshot` | backend、graph、resident default/fallback、layer state、active fades、recent requests/errors |
-| `IMxAnimationBackend` | 最小 backend surface：play、stop、crossfade、set layer weight、tick、snapshot、release |
+| `IMxAnimationBackend` | 最小 backend surface：play、stop、crossfade、set layer weight、set blend 1D、tick、snapshot、release |
 | `UnityPlayablesAnimationBackend` | Unity Playables MVP backend，使用 manual `Tick(deltaTime)` 推进 |
 | `MxAnimationPresentationSyncState` | 多人 / late join / 补包场景的表现恢复状态；保存 actor、animation set version/hash、action instance、Combat frame anchor、layer state 和量化表现参数 |
 | `MxAnimationLayerSyncState` | layer weight / transition 恢复状态；包含 current / target weight、transition frame 信息和 correlation |
@@ -145,6 +148,7 @@ Legacy coexistence:
 - AvatarMask 加载失败只让该 layer 的 mask diagnostics 进入 failed，不阻断 clip 播放或 fallback 路径；缺失资源必须通过 diagnostics 暴露。
 - `MxAnimationSetDefinition.DefinitionHash` 是 mapping 内容 hash，用于加载侧和 #109 warmup / resource validation 检测过期 mapping。
 - `MxAnimationWarmupDefinition` 可以声明 preload group id、warmup labels 和额外 required keys。默认会把 default clip、fallback clip、action clips 和 layer AvatarMask key 纳入 required keys。
+- `MxAnimationBlend1DDefinition` 的 point clip 使用 `ResourceKey`，会进入 definition hash、mapping validation 和 warmup required keys。权重计算在 noEngine 层完成；Unity backend 只消费权重并加载对应 clip。
 - `MxAnimationWarmupService` 不新增资源子系统，只把 required keys / labels 转成 `ResourcePreloadPlan`，并复用 `IResourcePreloadService` / `ResourceManager` / `ResourceCatalog`。
 - warmup 会校验 animation set hash、resource catalog hash、clip registry version 和可选 expected clip registry entry hash；mismatch 必须输出具体 field、expected、actual 和相关 resource key。
 - warmup partial failure 会把每个 `ResourceError` 转成 `PreloadResourceFailed` issue，保留失败 key、provider、address 和错误码。调用方不能把失败当作空播成功。
@@ -174,6 +178,7 @@ Assets/Scripts/MxFramework/Tests/Animation/
 - presentation sync state、layer transition state、quantized parameter、event dedupe key、dispatch sink、timeline rows 和 version diagnostics。
 - layer definition hash、layer weight request、AvatarMask key validation 和 mask load / release diagnostics。
 - warmup success、sync hash/version mismatch、catalog wrong type、preload partial failure、clip registry entry hash mismatch 和 release 后 ref-count 归还。
+- 1D locomotion blend 权重计算、definition hash、mapping validation、warmup clip 收集和 Unity Playables backend 多 clip 权重诊断。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。

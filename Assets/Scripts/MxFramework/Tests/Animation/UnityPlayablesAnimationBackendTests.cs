@@ -201,6 +201,100 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetBlend1D_LoadsWeightedClipsAndCoexistsWithUpperBodyLayer()
+        {
+            ResourceKey idleKey = ClipKey("demo.animation.idle");
+            ResourceKey walkKey = ClipKey("demo.animation.walk");
+            ResourceKey runKey = ClipKey("demo.animation.run");
+            ResourceKey attackKey = ClipKey("demo.animation.attack");
+            MxAnimationLayerId upperBody = new MxAnimationLayerId("upper_body");
+            AnimationClip idle = CreateClip("idle");
+            AnimationClip walk = CreateClip("walk");
+            AnimationClip run = CreateClip("run");
+            AnimationClip attack = CreateClip("attack");
+            var provider = new MemoryResourceProvider()
+                .Register("clips/idle", idle)
+                .Register("clips/walk", walk)
+                .Register("clips/run", run)
+                .Register("clips/attack", attack);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry(idleKey, "clips/idle"),
+                Entry(walkKey, "clips/walk"),
+                Entry(runKey, "clips/run"),
+                Entry(attackKey, "clips/attack"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idleKey,
+                idleKey,
+                new[]
+                {
+                    new MxAnimationActionBinding("attack", "action:attack", attackKey, upperBody)
+                },
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(MxAnimationLayerId.Base, defaultWeight: 1f),
+                    new MxAnimationLayerDefinition(upperBody, "humanoid.upper", 0f)
+                },
+                blend1DDefinitions: new[]
+                {
+                    new MxAnimationBlend1DDefinition(
+                        "locomotion",
+                        "locomotion.speed",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend1DPoint(0, idleKey),
+                            new MxAnimationBlend1DPoint(500, walkKey),
+                            new MxAnimationBlend1DPoint(1000, runKey)
+                        })
+                });
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
+            {
+                MxAnimationBackendResult blendResult = fixture.Backend.SetBlend1D(new MxAnimationBlend1DRequest
+                {
+                    BlendId = "locomotion",
+                    Parameter = new MxAnimationQuantizedParameter("locomotion.speed", 750),
+                    CorrelationId = "speed:750"
+                });
+                Assert.IsTrue(blendResult.Success, blendResult.Message);
+
+                fixture.Backend.Play(new MxAnimationPlayRequest
+                {
+                    BindingId = "attack",
+                    LayerId = upperBody
+                });
+                fixture.Backend.SetLayerWeight(new MxAnimationLayerWeightRequest
+                {
+                    LayerId = upperBody,
+                    Weight = 1f,
+                    FadeDurationSeconds = 0f
+                });
+
+                MxAnimationDiagnosticSnapshot snapshot = fixture.Backend.CreateSnapshot();
+                MxAnimationLayerDiagnostic baseLayer = FindLayer(snapshot, MxAnimationLayerId.Base);
+                MxAnimationLayerDiagnostic upper = FindLayer(snapshot, upperBody);
+
+                Assert.AreEqual("locomotion", baseLayer.Blend1DId);
+                Assert.AreEqual(2, baseLayer.ActivePlayableCount);
+                Assert.AreEqual("locomotion.speed", baseLayer.BlendParameter.ParameterId);
+                Assert.AreEqual(750, baseLayer.BlendParameter.QuantizedValue);
+                Assert.AreEqual(3, baseLayer.Blend1DWeights.Count);
+                Assert.AreEqual(0.5f, baseLayer.Blend1DWeights[1].Weight, 0.0001f);
+                Assert.AreEqual(0.5f, baseLayer.Blend1DWeights[2].Weight, 0.0001f);
+                Assert.AreEqual(attackKey, upper.CurrentClipKey);
+                Assert.AreEqual(1f, upper.LayerWeight);
+            }
+
+            Object.DestroyImmediate(idle);
+            Object.DestroyImmediate(walk);
+            Object.DestroyImmediate(run);
+            Object.DestroyImmediate(attack);
+        }
+
+        [Test]
         public void AvatarMask_LoadsThroughResourceManagerAndReleasesWithBackend()
         {
             MxAnimationLayerId upperBody = new MxAnimationLayerId("upper_body");

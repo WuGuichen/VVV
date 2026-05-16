@@ -97,6 +97,7 @@ namespace MxFramework.Animation
         Stop,
         CrossFade,
         SetLayerWeight,
+        SetBlend1D,
         Release
     }
 
@@ -294,6 +295,190 @@ namespace MxFramework.Animation
         public static bool operator !=(MxAnimationQuantizedParameter left, MxAnimationQuantizedParameter right)
         {
             return !left.Equals(right);
+        }
+    }
+
+    public sealed class MxAnimationBlend1DPoint
+    {
+        public MxAnimationBlend1DPoint(
+            int threshold,
+            ResourceKey clipKey,
+            float playbackSpeed = 1f,
+            bool loop = true)
+        {
+            Threshold = threshold;
+            ClipKey = clipKey;
+            PlaybackSpeed = Math.Abs(playbackSpeed) < 0.0001f ? 1f : playbackSpeed;
+            Loop = loop;
+        }
+
+        public int Threshold { get; }
+        public ResourceKey ClipKey { get; }
+        public float PlaybackSpeed { get; }
+        public bool Loop { get; }
+    }
+
+    public sealed class MxAnimationBlend1DDefinition
+    {
+        private readonly List<MxAnimationBlend1DPoint> _points;
+
+        public MxAnimationBlend1DDefinition(
+            string blendId,
+            string parameterId,
+            MxAnimationLayerId layerId,
+            IEnumerable<MxAnimationBlend1DPoint> points,
+            int parameterScale = 1000,
+            float fadeDurationSeconds = 0.1f)
+        {
+            BlendId = blendId ?? string.Empty;
+            ParameterId = parameterId ?? string.Empty;
+            LayerId = layerId;
+            ParameterScale = parameterScale <= 0 ? 1 : parameterScale;
+            FadeDurationSeconds = fadeDurationSeconds < 0f ? 0f : fadeDurationSeconds;
+            _points = points != null
+                ? new List<MxAnimationBlend1DPoint>(points)
+                : new List<MxAnimationBlend1DPoint>();
+            _points.Sort(ComparePoints);
+        }
+
+        public string BlendId { get; }
+        public string ParameterId { get; }
+        public MxAnimationLayerId LayerId { get; }
+        public int ParameterScale { get; }
+        public float FadeDurationSeconds { get; }
+        public IReadOnlyList<MxAnimationBlend1DPoint> Points => _points;
+
+        private static int ComparePoints(MxAnimationBlend1DPoint left, MxAnimationBlend1DPoint right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            int result = left.Threshold.CompareTo(right.Threshold);
+            if (result != 0)
+                return result;
+
+            return string.CompareOrdinal(left.ClipKey.ToString(), right.ClipKey.ToString());
+        }
+    }
+
+    public readonly struct MxAnimationBlend1DWeight
+    {
+        public MxAnimationBlend1DWeight(
+            ResourceKey clipKey,
+            int threshold,
+            float weight,
+            float playbackSpeed,
+            bool loop)
+        {
+            ClipKey = clipKey;
+            Threshold = threshold;
+            Weight = Clamp01(weight);
+            PlaybackSpeed = Math.Abs(playbackSpeed) < 0.0001f ? 1f : playbackSpeed;
+            Loop = loop;
+        }
+
+        public ResourceKey ClipKey { get; }
+        public int Threshold { get; }
+        public float Weight { get; }
+        public float PlaybackSpeed { get; }
+        public bool Loop { get; }
+
+        private static float Clamp01(float value)
+        {
+            if (float.IsNaN(value) || value <= 0f)
+                return 0f;
+            return value >= 1f ? 1f : value;
+        }
+    }
+
+    public sealed class MxAnimationBlend1DWeights
+    {
+        private readonly List<MxAnimationBlend1DWeight> _weights;
+
+        public MxAnimationBlend1DWeights(
+            string blendId,
+            MxAnimationQuantizedParameter parameter,
+            IEnumerable<MxAnimationBlend1DWeight> weights)
+        {
+            BlendId = blendId ?? string.Empty;
+            Parameter = parameter;
+            _weights = weights != null
+                ? new List<MxAnimationBlend1DWeight>(weights)
+                : new List<MxAnimationBlend1DWeight>();
+        }
+
+        public string BlendId { get; }
+        public MxAnimationQuantizedParameter Parameter { get; }
+        public IReadOnlyList<MxAnimationBlend1DWeight> Weights => _weights;
+    }
+
+    public static class MxAnimationBlend1DCalculator
+    {
+        public static MxAnimationBlend1DWeights Evaluate(
+            MxAnimationBlend1DDefinition definition,
+            MxAnimationQuantizedParameter parameter)
+        {
+            if (definition == null || definition.Points.Count == 0)
+                return new MxAnimationBlend1DWeights(string.Empty, parameter, null);
+
+            var weights = new List<MxAnimationBlend1DWeight>(definition.Points.Count);
+            int value = string.Equals(parameter.ParameterId, definition.ParameterId, StringComparison.Ordinal)
+                ? parameter.QuantizedValue
+                : 0;
+
+            if (value <= definition.Points[0].Threshold)
+            {
+                AddWeights(definition.Points, 0, 1f, -1, 0f, weights);
+                return new MxAnimationBlend1DWeights(definition.BlendId, parameter, weights);
+            }
+
+            int last = definition.Points.Count - 1;
+            if (value >= definition.Points[last].Threshold)
+            {
+                AddWeights(definition.Points, last, 1f, -1, 0f, weights);
+                return new MxAnimationBlend1DWeights(definition.BlendId, parameter, weights);
+            }
+
+            for (int i = 0; i < last; i++)
+            {
+                MxAnimationBlend1DPoint lower = definition.Points[i];
+                MxAnimationBlend1DPoint upper = definition.Points[i + 1];
+                if (value < lower.Threshold || value > upper.Threshold)
+                    continue;
+
+                int span = Math.Max(1, upper.Threshold - lower.Threshold);
+                float t = (value - lower.Threshold) / (float)span;
+                AddWeights(definition.Points, i, 1f - t, i + 1, t, weights);
+                return new MxAnimationBlend1DWeights(definition.BlendId, parameter, weights);
+            }
+
+            AddWeights(definition.Points, 0, 1f, -1, 0f, weights);
+            return new MxAnimationBlend1DWeights(definition.BlendId, parameter, weights);
+        }
+
+        private static void AddWeights(
+            IReadOnlyList<MxAnimationBlend1DPoint> points,
+            int firstIndex,
+            float firstWeight,
+            int secondIndex,
+            float secondWeight,
+            List<MxAnimationBlend1DWeight> results)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                MxAnimationBlend1DPoint point = points[i];
+                float weight = i == firstIndex ? firstWeight : (i == secondIndex ? secondWeight : 0f);
+                results.Add(new MxAnimationBlend1DWeight(
+                    point.ClipKey,
+                    point.Threshold,
+                    weight,
+                    point.PlaybackSpeed,
+                    point.Loop));
+            }
         }
     }
 
@@ -952,6 +1137,7 @@ namespace MxFramework.Animation
         private readonly List<MxAnimationActionBinding> _actions;
         private readonly List<MxAnimationPresentationEvent> _events;
         private readonly List<MxAnimationLayerDefinition> _layers;
+        private readonly List<MxAnimationBlend1DDefinition> _blend1DDefinitions;
 
         public MxAnimationSetDefinition(
             string setId,
@@ -962,7 +1148,8 @@ namespace MxFramework.Animation
             IEnumerable<MxAnimationPresentationEvent> events = null,
             string definitionHash = "",
             IEnumerable<MxAnimationLayerDefinition> layers = null,
-            MxAnimationWarmupDefinition warmup = null)
+            MxAnimationWarmupDefinition warmup = null,
+            IEnumerable<MxAnimationBlend1DDefinition> blend1DDefinitions = null)
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -977,6 +1164,9 @@ namespace MxFramework.Animation
             _layers = layers != null
                 ? new List<MxAnimationLayerDefinition>(layers)
                 : new List<MxAnimationLayerDefinition>();
+            _blend1DDefinitions = blend1DDefinitions != null
+                ? new List<MxAnimationBlend1DDefinition>(blend1DDefinitions)
+                : new List<MxAnimationBlend1DDefinition>();
             Warmup = warmup ?? MxAnimationWarmupDefinition.Default;
             DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
                 ? MxAnimationSetDefinitionHasher.ComputeHash(this)
@@ -991,6 +1181,7 @@ namespace MxFramework.Animation
         public IReadOnlyList<MxAnimationActionBinding> Actions => _actions;
         public IReadOnlyList<MxAnimationPresentationEvent> Events => _events;
         public IReadOnlyList<MxAnimationLayerDefinition> Layers => _layers;
+        public IReadOnlyList<MxAnimationBlend1DDefinition> Blend1DDefinitions => _blend1DDefinitions;
         public MxAnimationWarmupDefinition Warmup { get; }
 
         public bool TryFindLayerDefinition(MxAnimationLayerId layerId, out MxAnimationLayerDefinition layer)
@@ -1026,6 +1217,26 @@ namespace MxFramework.Animation
             }
 
             binding = null;
+            return false;
+        }
+
+        public bool TryFindBlend1DDefinition(string blendId, string parameterId, out MxAnimationBlend1DDefinition definition)
+        {
+            for (int i = 0; i < _blend1DDefinitions.Count; i++)
+            {
+                MxAnimationBlend1DDefinition candidate = _blend1DDefinitions[i];
+                bool blendMatches = !string.IsNullOrWhiteSpace(blendId)
+                    && string.Equals(candidate.BlendId, blendId, StringComparison.Ordinal);
+                bool parameterMatches = !string.IsNullOrWhiteSpace(parameterId)
+                    && string.Equals(candidate.ParameterId, parameterId, StringComparison.Ordinal);
+                if (!blendMatches && !parameterMatches)
+                    continue;
+
+                definition = candidate;
+                return true;
+            }
+
+            definition = null;
             return false;
         }
     }
@@ -1080,6 +1291,15 @@ namespace MxFramework.Animation
         public string CorrelationId { get; set; } = string.Empty;
     }
 
+    public sealed class MxAnimationBlend1DRequest
+    {
+        public string TargetActorId { get; set; } = string.Empty;
+        public string BlendId { get; set; } = string.Empty;
+        public MxAnimationQuantizedParameter Parameter { get; set; }
+        public float FadeDurationSeconds { get; set; } = -1f;
+        public string CorrelationId { get; set; } = string.Empty;
+    }
+
     public sealed class MxAnimationFadeDiagnostic
     {
         public MxAnimationFadeDiagnostic(
@@ -1128,7 +1348,10 @@ namespace MxFramework.Animation
             ResourceKey maskKey = default,
             string layerProfileId = "",
             MxAnimationLayerBlendMode blendMode = MxAnimationLayerBlendMode.Override,
-            MxAnimationLayerSyncState layerSyncState = default)
+            MxAnimationLayerSyncState layerSyncState = default,
+            string blend1DId = "",
+            MxAnimationQuantizedParameter blendParameter = default,
+            IEnumerable<MxAnimationBlend1DWeight> blend1DWeights = null)
         {
             LayerId = layerId;
             Status = status;
@@ -1147,7 +1370,14 @@ namespace MxFramework.Animation
             LayerProfileId = layerProfileId ?? string.Empty;
             BlendMode = blendMode;
             LayerSyncState = layerSyncState;
+            Blend1DId = blend1DId ?? string.Empty;
+            BlendParameter = blendParameter;
+            _blend1DWeights = blend1DWeights != null
+                ? new List<MxAnimationBlend1DWeight>(blend1DWeights)
+                : new List<MxAnimationBlend1DWeight>();
         }
+
+        private readonly List<MxAnimationBlend1DWeight> _blend1DWeights;
 
         public MxAnimationLayerId LayerId { get; }
         public MxAnimationLayerStatus Status { get; }
@@ -1166,6 +1396,9 @@ namespace MxFramework.Animation
         public string LayerProfileId { get; }
         public MxAnimationLayerBlendMode BlendMode { get; }
         public MxAnimationLayerSyncState LayerSyncState { get; }
+        public string Blend1DId { get; }
+        public MxAnimationQuantizedParameter BlendParameter { get; }
+        public IReadOnlyList<MxAnimationBlend1DWeight> Blend1DWeights => _blend1DWeights;
 
         private static float Clamp01(float value)
         {
@@ -1337,6 +1570,7 @@ namespace MxFramework.Animation
         MxAnimationBackendResult Stop(MxAnimationStopRequest request);
         MxAnimationBackendResult CrossFade(MxAnimationCrossFadeRequest request);
         MxAnimationBackendResult SetLayerWeight(MxAnimationLayerWeightRequest request);
+        MxAnimationBackendResult SetBlend1D(MxAnimationBlend1DRequest request);
         void Tick(float deltaTime);
         MxAnimationDiagnosticSnapshot CreateSnapshot();
         void Release();

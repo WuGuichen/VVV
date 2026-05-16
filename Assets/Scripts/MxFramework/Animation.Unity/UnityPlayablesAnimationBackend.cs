@@ -191,6 +191,78 @@ namespace MxFramework.Animation.Unity
             return MxAnimationBackendResult.Succeeded(default, "Layer weight accepted.");
         }
 
+        public MxAnimationBackendResult SetBlend1D(MxAnimationBlend1DRequest request)
+        {
+            if (_released)
+                return BackendReleasedResult(default);
+
+            if (request == null)
+                return InvalidRequest(MxAnimationRequestKind.SetBlend1D, MxAnimationLayerId.Base, default, "1D blend request is null.");
+
+            if (!_definition.TryFindBlend1DDefinition(request.BlendId, request.Parameter.ParameterId, out MxAnimationBlend1DDefinition blend))
+                return InvalidRequest(MxAnimationRequestKind.SetBlend1D, MxAnimationLayerId.Base, default, "1D blend definition was not found.");
+
+            MxAnimationBlend1DWeights weights = MxAnimationBlend1DCalculator.Evaluate(blend, request.Parameter);
+            if (weights.Weights.Count == 0)
+                return InvalidRequest(MxAnimationRequestKind.SetBlend1D, blend.LayerId, default, "1D blend definition has no valid points.");
+
+            LayerRuntime layer = GetOrCreateLayer(blend.LayerId);
+            ReleaseLayerSlots(layer);
+            layer.ActiveBlendId = blend.BlendId;
+            layer.BlendParameter = request.Parameter;
+            layer.BlendWeights.AddRange(weights.Weights);
+
+            ResourceKey dominantKey = default;
+            float dominantWeight = 0f;
+            for (int i = 0; i < weights.Weights.Count; i++)
+            {
+                MxAnimationBlend1DWeight weight = weights.Weights[i];
+                if (weight.Weight > dominantWeight)
+                {
+                    dominantWeight = weight.Weight;
+                    dominantKey = weight.ClipKey;
+                }
+
+                if (weight.Weight <= 0f)
+                    continue;
+
+                if (!TryCreateBlendSlot(weight, out ClipSlot slot, out ResourceError error))
+                {
+                    layer.Status = MxAnimationLayerStatus.Failed;
+                    layer.LastError = error;
+                    TrackResourceError(error);
+                    ReleaseLayerSlots(layer);
+                    AddRequest(new MxAnimationRequestDiagnostic(
+                        MxAnimationRequestKind.SetBlend1D,
+                        blend.LayerId,
+                        weight.ClipKey,
+                        weight.ClipKey,
+                        false,
+                        MxAnimationBackendResultCode.LoadFailed,
+                        request.CorrelationId,
+                        "1D blend clip failed to load."));
+                    return MxAnimationBackendResult.Failed(MxAnimationBackendResultCode.LoadFailed, weight.ClipKey, error, "1D blend clip failed to load.");
+                }
+
+                ConnectSlot(layer, slot, weight.Weight);
+                layer.BlendSlots.Add(slot);
+            }
+
+            layer.Status = MxAnimationLayerStatus.Playing;
+            layer.LastError = ResourceError.None;
+            layer.NextClipKey = default;
+            AddRequest(new MxAnimationRequestDiagnostic(
+                MxAnimationRequestKind.SetBlend1D,
+                blend.LayerId,
+                dominantKey,
+                dominantKey,
+                false,
+                MxAnimationBackendResultCode.Success,
+                request.CorrelationId,
+                "1D blend weights applied."));
+            return MxAnimationBackendResult.Succeeded(dominantKey, "1D blend weights applied.");
+        }
+
         public void Tick(float deltaTime)
         {
             if (_released)
@@ -214,6 +286,8 @@ namespace MxFramework.Animation.Unity
             var fades = new List<MxAnimationFadeDiagnostic>();
             foreach (LayerRuntime layer in _layers.Values)
             {
+                ResourceKey currentClipKey = layer.Current != null ? layer.Current.Key : FindDominantBlendKey(layer);
+                float currentWeight = layer.Current != null ? layer.Current.Weight : FindDominantBlendWeight(layer);
                 MxAnimationFadeDiagnostic fade = CreateFadeDiagnostic(layer);
                 if (fade != null)
                     fades.Add(fade);
@@ -221,10 +295,10 @@ namespace MxFramework.Animation.Unity
                 layers.Add(new MxAnimationLayerDiagnostic(
                     layer.LayerId,
                     layer.Status,
-                    layer.Current != null ? layer.Current.Key : default,
+                    currentClipKey,
                     layer.NextClipKey,
                     layer.Current != null && layer.Current.IsFallback,
-                    layer.Current != null ? layer.Current.Weight : 0f,
+                    currentWeight,
                     SumOutgoingWeight(layer),
                     CountActiveSlots(layer),
                     fade,
@@ -235,7 +309,10 @@ namespace MxFramework.Animation.Unity
                     layer.MaskKey,
                     layer.ProfileId,
                     layer.BlendMode,
-                    CreateLayerSyncState(layer)));
+                    CreateLayerSyncState(layer),
+                    layer.ActiveBlendId,
+                    layer.BlendParameter,
+                    layer.BlendWeights));
             }
 
             return new MxAnimationDiagnosticSnapshot(
@@ -558,6 +635,43 @@ namespace MxFramework.Animation.Unity
             return true;
         }
 
+        private bool TryCreateBlendSlot(
+            MxAnimationBlend1DWeight weight,
+            out ClipSlot slot,
+            out ResourceError error)
+        {
+            slot = null;
+            error = ResourceError.None;
+
+            if (!weight.ClipKey.IsValid)
+            {
+                error = new ResourceError(ResourceErrorCode.InvalidKey, weight.ClipKey, string.Empty, "1D blend point clip key is invalid.");
+                return false;
+            }
+
+            var residentRequest = new ClipRequest(
+                MxAnimationLayerId.Base,
+                weight.ClipKey,
+                weight.ClipKey,
+                0f,
+                weight.PlaybackSpeed,
+                weight.Loop,
+                0f,
+                string.Empty);
+            if (TryCreateResidentSlot(residentRequest, false, out slot))
+                return true;
+
+            ResourceLoadResult<ResourceHandle<AnimationClip>> result = _resourceManager.Load<AnimationClip>(weight.ClipKey);
+            if (!result.Success)
+            {
+                error = result.Error;
+                return false;
+            }
+
+            slot = CreateSlot(weight.ClipKey, result.Value, true, false, weight.PlaybackSpeed, weight.Loop, 0f);
+            return true;
+        }
+
         private ClipSlot CreateSlot(
             ResourceKey key,
             ResourceHandle<AnimationClip> handle,
@@ -640,6 +754,10 @@ namespace MxFramework.Animation.Unity
             if (layer.Current != null && layer.Outgoing.Count == 0 && layer.Status != MxAnimationLayerStatus.Loading)
             {
                 SetSlotWeight(layer, layer.Current, 1f);
+                layer.Status = MxAnimationLayerStatus.Playing;
+            }
+            else if (layer.BlendSlots.Count > 0 && layer.Status != MxAnimationLayerStatus.Loading)
+            {
                 layer.Status = MxAnimationLayerStatus.Playing;
             }
             else if (layer.Current == null && layer.Outgoing.Count == 0 && layer.Status != MxAnimationLayerStatus.Loading && layer.Status != MxAnimationLayerStatus.Failed)
@@ -774,6 +892,13 @@ namespace MxFramework.Animation.Unity
             for (int i = layer.Outgoing.Count - 1; i >= 0; i--)
                 DetachAndReleaseSlot(layer, layer.Outgoing[i]);
             layer.Outgoing.Clear();
+
+            for (int i = layer.BlendSlots.Count - 1; i >= 0; i--)
+                DetachAndReleaseSlot(layer, layer.BlendSlots[i]);
+            layer.BlendSlots.Clear();
+            layer.BlendWeights.Clear();
+            layer.ActiveBlendId = string.Empty;
+            layer.BlendParameter = default;
             layer.NextClipKey = default;
         }
 
@@ -959,7 +1084,7 @@ namespace MxFramework.Animation.Unity
 
         private static int CountActiveSlots(LayerRuntime layer)
         {
-            return (layer.Current != null ? 1 : 0) + layer.Outgoing.Count;
+            return (layer.Current != null ? 1 : 0) + layer.Outgoing.Count + layer.BlendSlots.Count;
         }
 
         private static float SumOutgoingWeight(LayerRuntime layer)
@@ -968,6 +1093,35 @@ namespace MxFramework.Animation.Unity
             for (int i = 0; i < layer.Outgoing.Count; i++)
                 weight += layer.Outgoing[i].Weight;
             return weight;
+        }
+
+        private static ResourceKey FindDominantBlendKey(LayerRuntime layer)
+        {
+            int index = FindDominantBlendIndex(layer);
+            return index >= 0 ? layer.BlendWeights[index].ClipKey : default;
+        }
+
+        private static float FindDominantBlendWeight(LayerRuntime layer)
+        {
+            int index = FindDominantBlendIndex(layer);
+            return index >= 0 ? layer.BlendWeights[index].Weight : 0f;
+        }
+
+        private static int FindDominantBlendIndex(LayerRuntime layer)
+        {
+            int bestIndex = -1;
+            float bestWeight = 0f;
+            for (int i = 0; i < layer.BlendWeights.Count; i++)
+            {
+                MxAnimationBlend1DWeight weight = layer.BlendWeights[i];
+                if (weight.Weight <= bestWeight)
+                    continue;
+
+                bestWeight = weight.Weight;
+                bestIndex = i;
+            }
+
+            return bestIndex;
         }
 
         private static MxAnimationResourceDiagnostic CreateResourceDiagnostic(ResidentClip resident)
@@ -1178,6 +1332,10 @@ namespace MxFramework.Animation.Unity
             public ResourceHandle<AvatarMask> MaskHandle { get; set; }
             public ClipSlot Current { get; set; }
             public List<ClipSlot> Outgoing { get; } = new List<ClipSlot>();
+            public List<ClipSlot> BlendSlots { get; } = new List<ClipSlot>();
+            public List<MxAnimationBlend1DWeight> BlendWeights { get; } = new List<MxAnimationBlend1DWeight>();
+            public string ActiveBlendId { get; set; } = string.Empty;
+            public MxAnimationQuantizedParameter BlendParameter { get; set; }
             public MxAnimationLayerStatus Status { get; set; }
             public ResourceKey NextClipKey { get; set; }
             public ResourceError LastError { get; set; }

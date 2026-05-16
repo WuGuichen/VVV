@@ -32,34 +32,49 @@ namespace MxFramework.Tests.Animation
             ResourceLoadResult<ResourceHandle<GameObject>> model = manager.Load<GameObject>(
                 Key(TempImportedResourceCatalog.SkeletonModelId, ResourceTypeIds.GameObject));
             Assert.IsTrue(model.Success, model.Error.Message);
+            MxAnimationSetDefinition set = CreateAnimationSet();
+            MxAnimationClipRegistry registry = MxAnimationClipRegistryBuilder.FromCatalog(catalog, version: 1, catalogHash: "test-catalog");
+            var warmupService = new MxAnimationWarmupService(new ResourcePreloadService(manager));
+            MxAnimationWarmupResult warmup = warmupService.Warmup(new MxAnimationWarmupRequest(set, registry, catalog));
+            Assert.IsTrue(warmup.Success);
 
             GameObject instance = Object.Instantiate(model.Value.Value);
             UnityPlayablesAnimationBackend backend = null;
             try
             {
                 Animator animator = instance.GetComponentInChildren<Animator>() ?? instance.AddComponent<Animator>();
-                backend = new UnityPlayablesAnimationBackend(animator, manager, CreateAnimationSet(), "test.skeleton");
+                backend = new UnityPlayablesAnimationBackend(animator, manager, set, "test.skeleton");
 
-                Assert.AreEqual(2, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.GreaterOrEqual(manager.CreateDebugSnapshot().LoadedCount, 5);
 
-                MxAnimationBackendResult walk = backend.CrossFade(new MxAnimationCrossFadeRequest
+                MxAnimationBackendResult blend = backend.SetBlend1D(new MxAnimationBlend1DRequest
                 {
-                    BindingId = "walk",
+                    BlendId = MxAnimationSmokeDemoBootstrap.LocomotionBlendId,
+                    Parameter = new MxAnimationQuantizedParameter(MxAnimationSmokeDemoBootstrap.SpeedParameterId, 750)
+                });
+                Assert.IsTrue(blend.Success, blend.Message);
+
+                MxAnimationBackendResult attack = backend.CrossFade(new MxAnimationCrossFadeRequest
+                {
+                    BindingId = "upper_attack",
                     FadeDurationSeconds = 0.05f
                 });
-                Assert.IsTrue(walk.Success, walk.Message);
-
-                MxAnimationBackendResult run = backend.CrossFade(new MxAnimationCrossFadeRequest
+                Assert.IsTrue(attack.Success, attack.Message);
+                backend.SetLayerWeight(new MxAnimationLayerWeightRequest
                 {
-                    BindingId = "run",
-                    FadeDurationSeconds = 0.05f
+                    LayerId = new MxAnimationLayerId("upper_body"),
+                    Weight = 1f
                 });
-                Assert.IsTrue(run.Success, run.Message);
                 backend.Tick(0.1f);
 
                 MxAnimationLayerDiagnostic layer = FindBaseLayer(backend.CreateSnapshot());
                 Assert.AreEqual(MxAnimationLayerStatus.Playing, layer.Status);
-                Assert.AreEqual(Key(TempImportedResourceCatalog.SkeletonRunForwardAnimationId, ResourceTypeIds.AnimationClip), layer.CurrentClipKey);
+                Assert.AreEqual(MxAnimationSmokeDemoBootstrap.LocomotionBlendId, layer.Blend1DId);
+                Assert.AreEqual(3, layer.Blend1DWeights.Count);
+                Assert.AreEqual(0.5f, layer.Blend1DWeights[1].Weight, 0.0001f);
+                Assert.AreEqual(0.5f, layer.Blend1DWeights[2].Weight, 0.0001f);
+                MxAnimationLayerDiagnostic upper = FindLayer(backend.CreateSnapshot(), new MxAnimationLayerId("upper_body"));
+                Assert.AreEqual(1f, upper.LayerWeight);
                 Assert.AreEqual(0, manager.CreateDebugSnapshot().FailedCount);
             }
             finally
@@ -67,6 +82,7 @@ namespace MxFramework.Tests.Animation
                 backend?.Release();
                 if (instance != null)
                     Object.DestroyImmediate(instance);
+                warmupService.Release(warmup);
                 if (model.Success)
                     manager.Release(model.Value);
             }
@@ -96,6 +112,7 @@ namespace MxFramework.Tests.Animation
             AssertSerializedReference(serialized, "_walkForwardClip");
             AssertSerializedReference(serialized, "_runForwardClip");
             AssertSerializedReference(serialized, "_jumpClip");
+            AssertSerializedReference(serialized, "_upperBodyMask");
 
             var document = root.GetComponent<UIDocument>();
             Assert.IsNotNull(document.visualTreeAsset);
@@ -127,9 +144,12 @@ namespace MxFramework.Tests.Animation
             VisualElement hud = document.rootVisualElement.Q<VisualElement>("mxanimation-smoke-hud");
             Assert.IsNotNull(hud);
             Assert.AreEqual(DisplayStyle.Flex, hud.resolvedStyle.display);
-            AssertReadableLabel(document.rootVisualElement.Q<Label>("title"), "MxAnimation Play Mode Smoke");
+            AssertReadableLabel(document.rootVisualElement.Q<Label>("title"), "MxAnimation 1D Locomotion Blend");
             AssertReadableLabel(document.rootVisualElement.Q<Label>("action"), "Action:");
-            AssertReadableLabel(document.rootVisualElement.Q<Label>("clip"), "Clip:");
+            AssertReadableLabel(document.rootVisualElement.Q<Label>("speed"), "Speed:");
+            AssertReadableLabel(document.rootVisualElement.Q<Label>("clip"), "Blend:");
+            AssertReadableLabel(document.rootVisualElement.Q<Label>("layers"), "Layers:");
+            AssertReadableLabel(document.rootVisualElement.Q<Label>("warmup"), "Warmup:");
 
             yield return new ExitPlayMode();
         }
@@ -146,7 +166,35 @@ namespace MxFramework.Tests.Animation
                     Binding("idle", TempImportedResourceCatalog.SkeletonIdleAnimationId, loop: true),
                     Binding("walk", TempImportedResourceCatalog.SkeletonWalkForwardAnimationId, loop: true),
                     Binding("run", TempImportedResourceCatalog.SkeletonRunForwardAnimationId, loop: true),
-                    Binding("jump", TempImportedResourceCatalog.SkeletonJumpAnimationId, loop: false)
+                    new MxAnimationActionBinding(
+                        "upper_attack",
+                        "action:upper_attack",
+                        Key(TempImportedResourceCatalog.SkeletonJumpAnimationId, ResourceTypeIds.AnimationClip),
+                        new MxAnimationLayerId("upper_body"))
+                },
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(MxAnimationLayerId.Base, defaultWeight: 1f),
+                    new MxAnimationLayerDefinition(
+                        new MxAnimationLayerId("upper_body"),
+                        "humanoid.upper",
+                        0f,
+                        MxAnimationLayerBlendMode.Override,
+                        Key(TempImportedResourceCatalog.SkeletonUpperBodyMaskId, ResourceTypeIds.AvatarMask))
+                },
+                warmup: new MxAnimationWarmupDefinition("test.mxanimation.smoke"),
+                blend1DDefinitions: new[]
+                {
+                    new MxAnimationBlend1DDefinition(
+                        MxAnimationSmokeDemoBootstrap.LocomotionBlendId,
+                        MxAnimationSmokeDemoBootstrap.SpeedParameterId,
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend1DPoint(0, Key(TempImportedResourceCatalog.SkeletonIdleAnimationId, ResourceTypeIds.AnimationClip)),
+                            new MxAnimationBlend1DPoint(500, Key(TempImportedResourceCatalog.SkeletonWalkForwardAnimationId, ResourceTypeIds.AnimationClip)),
+                            new MxAnimationBlend1DPoint(1000, Key(TempImportedResourceCatalog.SkeletonRunForwardAnimationId, ResourceTypeIds.AnimationClip))
+                        })
                 });
         }
 
@@ -169,13 +217,18 @@ namespace MxFramework.Tests.Animation
 
         private static MxAnimationLayerDiagnostic FindBaseLayer(MxAnimationDiagnosticSnapshot snapshot)
         {
+            return FindLayer(snapshot, MxAnimationLayerId.Base);
+        }
+
+        private static MxAnimationLayerDiagnostic FindLayer(MxAnimationDiagnosticSnapshot snapshot, MxAnimationLayerId layerId)
+        {
             for (int i = 0; i < snapshot.LayerStates.Count; i++)
             {
-                if (snapshot.LayerStates[i].LayerId == MxAnimationLayerId.Base)
+                if (snapshot.LayerStates[i].LayerId == layerId)
                     return snapshot.LayerStates[i];
             }
 
-            Assert.Fail("Expected base layer diagnostic.");
+            Assert.Fail("Expected layer diagnostic: " + layerId + ".");
             return null;
         }
 

@@ -549,7 +549,7 @@ Combat Animation Playable 约定：
 
 ### 6.7 MxAnimation Play Mode Smoke
 
-MxAnimation 的可视化 smoke 场景用于肉眼验证真实 Skeleton 模型通过正式 sample resource catalog 加载 `.anim` 并由 `UnityPlayablesAnimationBackend` 播放。
+MxAnimation 的可视化 smoke 场景用于肉眼验证真实 Skeleton 模型通过正式 sample resource catalog 加载 `.anim` / `AvatarMask`，并由 `UnityPlayablesAnimationBackend` 播放 1D locomotion blend 和 upper body layer。
 
 代码入口：
 
@@ -562,14 +562,15 @@ MxAnimation 的可视化 smoke 场景用于肉眼验证真实 Skeleton 模型通
 
 1. 如需重新生成场景，执行 `MxFramework / MxAnimation / Generate Play Mode Smoke Scene`。
 2. 打开 `Assets/Scenes/MxAnimationPlayModeSmoke.unity`，直接 Play。
-3. 按 `I` 播放 idle，`O` 播放 walk，`P` 播放 run，`Space` 播放 jump。
-4. 观察 Skeleton 模型动作切换；HUD 会显示当前 action、clip key、backend graph、resource loaded/ref count 和 Combat bridge 状态。
+3. 按 `I` / `O` / `P` 把 locomotion speed 设置为 idle / walk / run，`Space` 播放 upper body attack。
+4. 观察 Skeleton 模型下半身持续响应 locomotion blend，上半身 layer 可叠加播放攻击；HUD 会显示 speed parameter、blend weights、layer weight、warmup、backend graph、resource loaded/ref count 和 Combat bridge 状态。
 
 资源加载约定：
 
-- Skeleton model 和 `.anim` clip 都先写入 `mxframework.samples` catalog，运行时只使用 `ResourceKey`。
-- Editor Play Mode smoke 使用 catalog-backed serialized reference provider 注册 Unity asset，再由 `ResourceManager.Load<GameObject>` / `LoadAsync<AnimationClip>` 加载。
+- Skeleton model、`.anim` clip 和 upper body `AvatarMask` 都先写入 `mxframework.samples` catalog，运行时只使用 `ResourceKey`。
+- Editor Play Mode smoke 使用 catalog-backed serialized reference provider 注册 Unity asset，再由 `ResourceManager.Load<GameObject>` / `LoadAsync<AnimationClip>` / `LoadAsync<AvatarMask>` 加载。
 - `UnityPlayablesAnimationBackend` 只从 `IResourceManager` 获取 `AnimationClip` handle；demo 不直接把 `AnimationClip` 塞给 backend。
+- 1D blend definition、warmup group 和 upper body layer 都来自 `MxAnimationSetDefinition`，不从场景脚本绕过正式 mapping / resource loading 流程。
 - Combat action 通过 `CombatMxAnimationUnityBridge` 转成 `CrossFade` 请求，动画时间不反向写入 Combat 权威状态。
 
 ### 6.8 Marble Maze Runtime Showcase
@@ -1380,6 +1381,8 @@ using MxFramework.Resources;
 using UnityEngine;
 
 var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+var walk = new ResourceKey("demo.animation.walk", ResourceTypeIds.AnimationClip);
+var run = new ResourceKey("demo.animation.run", ResourceTypeIds.AnimationClip);
 var fallback = new ResourceKey("demo.animation.fallback", ResourceTypeIds.AnimationClip);
 var upperBodyMask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
 var set = new MxAnimationSetDefinition(
@@ -1399,11 +1402,30 @@ var set = new MxAnimationSetDefinition(
     },
     warmup: new MxAnimationWarmupDefinition(
         groupId: "combat.demo.actor",
-        labels: new[] { "warmup.combat" }));
+        labels: new[] { "warmup.combat" }),
+    blend1DDefinitions: new[]
+    {
+        new MxAnimationBlend1DDefinition(
+            blendId: "locomotion",
+            parameterId: "locomotion.speed",
+            layerId: MxAnimationLayerId.Base,
+            points: new[]
+            {
+                new MxAnimationBlend1DPoint(0, idle),
+                new MxAnimationBlend1DPoint(500, walk),
+                new MxAnimationBlend1DPoint(1000, run)
+            },
+            parameterScale: 1000)
+    });
 
 // resources 由组合根注册 provider + catalog；clip / AvatarMask 必须通过 ResourceKey 解析。
 var backend = new UnityPlayablesAnimationBackend(animator, resources, set, "actor.demo");
 backend.Play(new MxAnimationPlayRequest { ClipKey = idle });
+backend.SetBlend1D(new MxAnimationBlend1DRequest
+{
+    BlendId = "locomotion",
+    Parameter = new MxAnimationQuantizedParameter("locomotion.speed", 750)
+});
 backend.SetLayerWeight(new MxAnimationLayerWeightRequest
 {
     LayerId = new MxAnimationLayerId("upper_body"),
@@ -1483,6 +1505,7 @@ Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 I
 - `MxFramework.Animation.Unity` 通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 backend 自己拥有的 handle。
 - AvatarMask 与 clip 一样使用 `ResourceKey` 和 `ResourceManager` 加载；runtime definition 不直接保存 `AvatarMask` 引用。
 - layer weight 只影响 Unity Playables layer mixer 的表现权重，可用于上半身攻击、下半身移动这类视觉混合；它不改变 Combat authority。
+- 1D locomotion blend 使用 `MxAnimationBlend1DDefinition` 和 `MxAnimationBlend1DRequest`；point clip key 进入 definition hash、mapping validation 和 warmup，实际 clip 仍由 backend 通过 `ResourceManager` 加载。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
 - warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
 - warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。

@@ -432,6 +432,84 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Blend1DCalculator_EvaluatesIdleWalkRunWeightsFromQuantizedSpeed()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var walk = new ResourceKey("demo.animation.walk", ResourceTypeIds.AnimationClip);
+            var run = new ResourceKey("demo.animation.run", ResourceTypeIds.AnimationClip);
+            var blend = new MxAnimationBlend1DDefinition(
+                "locomotion",
+                "locomotion.speed",
+                MxAnimationLayerId.Base,
+                new[]
+                {
+                    new MxAnimationBlend1DPoint(0, idle),
+                    new MxAnimationBlend1DPoint(500, walk),
+                    new MxAnimationBlend1DPoint(1000, run)
+                });
+
+            MxAnimationBlend1DWeights idleWeights =
+                MxAnimationBlend1DCalculator.Evaluate(blend, new MxAnimationQuantizedParameter("locomotion.speed", 0));
+            MxAnimationBlend1DWeights blendWeights =
+                MxAnimationBlend1DCalculator.Evaluate(blend, new MxAnimationQuantizedParameter("locomotion.speed", 750));
+            MxAnimationBlend1DWeights runWeights =
+                MxAnimationBlend1DCalculator.Evaluate(blend, new MxAnimationQuantizedParameter("locomotion.speed", 1200));
+
+            Assert.AreEqual(1f, idleWeights.Weights[0].Weight);
+            Assert.AreEqual(0.5f, blendWeights.Weights[1].Weight, 0.0001f);
+            Assert.AreEqual(0.5f, blendWeights.Weights[2].Weight, 0.0001f);
+            Assert.AreEqual(1f, runWeights.Weights[2].Weight);
+            Assert.AreEqual(0.75f, blendWeights.Parameter.Value, 0.0001f);
+        }
+
+        [Test]
+        public void SetDefinitionHash_IncludesBlend1DDefinition()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var walk = new ResourceKey("demo.animation.walk", ResourceTypeIds.AnimationClip);
+            var run = new ResourceKey("demo.animation.run", ResourceTypeIds.AnimationClip);
+            var first = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                blend1DDefinitions: new[]
+                {
+                    new MxAnimationBlend1DDefinition(
+                        "locomotion",
+                        "locomotion.speed",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend1DPoint(0, idle),
+                            new MxAnimationBlend1DPoint(500, walk),
+                            new MxAnimationBlend1DPoint(1000, run)
+                        })
+                });
+            var changed = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                blend1DDefinitions: new[]
+                {
+                    new MxAnimationBlend1DDefinition(
+                        "locomotion",
+                        "locomotion.speed",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend1DPoint(0, idle),
+                            new MxAnimationBlend1DPoint(400, walk),
+                            new MxAnimationBlend1DPoint(1000, run)
+                        })
+                });
+
+            Assert.That(first.DefinitionHash, Does.StartWith(MxAnimationSetDefinitionHasher.HashPrefix));
+            Assert.AreNotEqual(first.DefinitionHash, changed.DefinitionHash);
+        }
+
+        [Test]
         public void PresentationEventDedupeKey_UsesStableEquality()
         {
             var first = new MxAnimationPresentationEventDedupeKey(
