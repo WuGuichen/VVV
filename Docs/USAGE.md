@@ -1396,10 +1396,30 @@ MxAnimationDiagnosticSnapshot snapshot = backend.CreateSnapshot();
 backend.Release();
 ```
 
+从 catalog 构建 clip registry，并用 mapping provider 交给组合根：
+
+```csharp
+ResourceCatalog catalog = LoadCatalog();
+MxAnimationClipRegistry registry = MxAnimationClipRegistryBuilder.FromCatalog(
+    catalog,
+    version: 1,
+    catalogHash: "catalog-hash");
+
+var provider = new MxAnimationStaticMappingProvider(new[] { set });
+if (provider.TryFindDefinition("demo.actor", out MxAnimationSetDefinition mappedSet))
+{
+    string mappingHash = mappedSet.DefinitionHash;
+}
+```
+
+Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping` 导出并校验 noEngine `MxAnimationSetDefinition`。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
+
 约定：
 
 - `MxFramework.Animation` 不引用 Unity，不保存 `AnimationClip`、GUID 或 `Assets/...` path。
 - `MxFramework.Animation.Unity` 通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 backend 自己拥有的 handle。
+- `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
+- Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
 - default / fallback clip 按 backend 生命周期常驻，并在 diagnostics 中显示 resident 状态。
 - crossfade outgoing clip 在权重归零且 playable 从 graph 断开后释放。
 - 加载失败会记录 `ResourceError`，先尝试 actor fallback；fallback 也失败时 layer 进入 failed state。

@@ -13,7 +13,8 @@
         "MxFramework.AI",
         "MxFramework.Diagnostics",
         "MxFramework.Resources",
-        "MxFramework.Resources.Unity"
+        "MxFramework.Resources.Unity",
+        "MxFramework.Animation"
     ],
     "includePlatforms": [
         "Editor"
