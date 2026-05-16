@@ -1,8 +1,8 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend、layer weight 和 AvatarMask 加载；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup 和资源版本校验；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend、layer weight 和 AvatarMask 加载；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation。
 
 ## 职责
 
@@ -16,7 +16,7 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 
 | 模块 | 状态 | 依赖 | 职责 |
 |------|------|------|------|
-| `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight request、animation set definition、fade state、diagnostics、backend interface |
+| `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight request、animation set definition、warmup/version validation、fade state、diagnostics、backend interface |
 | `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、clip load、AvatarMask load、layer mixer weight、fallback、manual tick、graph shutdown、handle ownership |
 | `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
 | `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation |
@@ -51,6 +51,10 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationStaticMappingProvider` | code-only / early validation provider；仍只消费 noEngine definition，不绕过资源系统 |
 | `MxAnimationSetDefinitionHasher` | 对 set id、version、default/fallback、binding、events 生成稳定 `sha256:` definition hash |
 | `MxAnimationSetDefinitionValidator` | 校验 set id/version/hash、default/fallback、catalog entry、clip type、重复 binding/action key |
+| `MxAnimationWarmupDefinition` | animation set 的 warmup 声明：preload group id、required keys、labels、failFast 和是否包含 default/fallback/action/mask |
+| `MxAnimationWarmupService` | 复用 `IResourcePreloadService` 预热 animation set 资源，并输出版本 / hash / preload diagnostics |
+| `MxAnimationWarmupRequest` / `MxAnimationWarmupResult` | warmup 输入与结果；结果持有 `ResourcePreloadResult` / `ResourceGroupHandle`，释放必须走 service |
+| `MxAnimationWarmupIssue` | 结构化 warmup diagnostics，定位 animation set、catalog、clip registry、具体 clip / mask key 或 preload `ResourceError` |
 | `MxAnimationClipRegistryAsset` | Editor-only registry authoring asset，可引用 `AnimationClip` 但不进入 runtime DTO |
 | `MxAnimationClipRegistryExporter` | 从 Editor registry 导出 noEngine `MxAnimationSetDefinition` 和 validation report |
 | `MxAnimationPlayRequest` | 播放请求，可指定 binding/action 或直接 clip key |
@@ -128,6 +132,11 @@ Legacy coexistence:
 - `MxAnimationLayerDefinition.DefaultWeight` 和 `MxAnimationLayerWeightRequest.Weight` 会夹到 0..1；`NaN` 按 0 处理。
 - AvatarMask 加载失败只让该 layer 的 mask diagnostics 进入 failed，不阻断 clip 播放或 fallback 路径；缺失资源必须通过 diagnostics 暴露。
 - `MxAnimationSetDefinition.DefinitionHash` 是 mapping 内容 hash，用于加载侧和 #109 warmup / resource validation 检测过期 mapping。
+- `MxAnimationWarmupDefinition` 可以声明 preload group id、warmup labels 和额外 required keys。默认会把 default clip、fallback clip、action clips 和 layer AvatarMask key 纳入 required keys。
+- `MxAnimationWarmupService` 不新增资源子系统，只把 required keys / labels 转成 `ResourcePreloadPlan`，并复用 `IResourcePreloadService` / `ResourceManager` / `ResourceCatalog`。
+- warmup 会校验 animation set hash、resource catalog hash、clip registry version 和可选 expected clip registry entry hash；mismatch 必须输出具体 field、expected、actual 和相关 resource key。
+- warmup partial failure 会把每个 `ResourceError` 转成 `PreloadResourceFailed` issue，保留失败 key、provider、address 和错误码。调用方不能把失败当作空播成功。
+- warmup result 的 `ResourceGroupHandle` 只代表预热持有的 handles。释放 group 只归还这一组引用；如果其它 consumer 仍持有同一 clip，底层资源不会被卸载。
 - `MxAnimationClipRegistryAsset` 只属于 Unity Editor authoring。运行时和 Demo 不得从该 asset 直接取 `AnimationClip`，必须通过导出的 `MxAnimationSetDefinition` + `ResourceManager` 加载。
 - 当前 Mapping Editor 是最小 Inspector authoring / structure validation 入口；完整 catalog 校验由 exporter / pipeline 传入 `ResourceCatalog` 后执行，复杂搜索、预览和 timeline scrubber 不在 #107 范围内。
 - `MxAnimationSetDefinition.DefaultClip` 和 `FallbackClip` 是 backend 生命周期内的 resident clip。加载成功后常驻到 backend `Release`，并在 diagnostics 中标记为 resident。
@@ -151,6 +160,7 @@ Assets/Scripts/MxFramework/Tests/Animation/
 - animation set definition hash、clip registry builder、mapping provider 和 catalog validation。
 - presentation sync state、layer transition state、quantized parameter、event dedupe key 和 version diagnostics。
 - layer definition hash、layer weight request、AvatarMask key validation 和 mask load / release diagnostics。
+- warmup success、sync hash/version mismatch、catalog wrong type、preload partial failure、clip registry entry hash mismatch 和 release 后 ref-count 归还。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。

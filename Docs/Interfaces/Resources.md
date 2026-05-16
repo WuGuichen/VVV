@@ -74,6 +74,8 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - `ResourcePreloadPlan.MaxConcurrentLoads` 第一版保留字段，当前 noEngine immediate async 实现仍按顺序加载。
 - `ResourcePreloadPlan.FailFast=true` 时首个失败后停止继续加载；默认会收集所有失败并保留已成功加载的 handles。
 - `ResourcePreloadService.ReleaseGroup` 幂等；调用方释放 group 后，底层逐个调用 `IResourceManager.Release`。
+- MxAnimation warmup 直接复用 `ResourcePreloadService`。animation set 只声明 `ResourceKey` / label / group id；版本、hash 和 partial failure diagnostics 由 Animation 层包装，不新增 `MxFramework.Animation.Resources`。
+- 同一资源被 warmup group 和其它 consumer 同时持有时，释放 warmup group 只减少该 group 的引用；底层卸载仍由 `ResourceManager` ref-count / retain policy 决定。
 - M6A 诊断信息先放在 `ResourcePreloadResult` 和 `ResourceGroupHandle`，暂不扩展 `ResourceDebugSnapshot` group 列表。
 - M6B 已新增显式 Variant Profile 和 RetainPolicy；Variant 解析不写进 Provider，RetainPolicy 不改变 handle released 语义。
 - `ResourceManager.SetVariantProfile` 只影响 key 到 Catalog entry 的解析顺序；`PackageId` 非空时仍只在指定包内解析。

@@ -733,7 +733,8 @@ namespace MxFramework.Animation
             IEnumerable<MxAnimationActionBinding> actions = null,
             IEnumerable<MxAnimationPresentationEvent> events = null,
             string definitionHash = "",
-            IEnumerable<MxAnimationLayerDefinition> layers = null)
+            IEnumerable<MxAnimationLayerDefinition> layers = null,
+            MxAnimationWarmupDefinition warmup = null)
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -748,6 +749,7 @@ namespace MxFramework.Animation
             _layers = layers != null
                 ? new List<MxAnimationLayerDefinition>(layers)
                 : new List<MxAnimationLayerDefinition>();
+            Warmup = warmup ?? MxAnimationWarmupDefinition.Default;
             DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
                 ? MxAnimationSetDefinitionHasher.ComputeHash(this)
                 : definitionHash;
@@ -761,6 +763,7 @@ namespace MxFramework.Animation
         public IReadOnlyList<MxAnimationActionBinding> Actions => _actions;
         public IReadOnlyList<MxAnimationPresentationEvent> Events => _events;
         public IReadOnlyList<MxAnimationLayerDefinition> Layers => _layers;
+        public MxAnimationWarmupDefinition Warmup { get; }
 
         public bool TryFindLayerDefinition(MxAnimationLayerId layerId, out MxAnimationLayerDefinition layer)
         {
