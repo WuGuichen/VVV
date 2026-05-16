@@ -38,6 +38,7 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Animation | `ICombatAnimationContext` / `CombatAnimationContext` / `CombatAnimationSnapshot` | 动作系统可读写上下文和快照 |
 | Animation Runtime | `CombatActionRuntimeModule` / `CombatWeaponTraceRuntimeModule` / `CombatAnimationDiagnosticsModule` | `RuntimeHost` 模块化动作、武器轨迹和诊断推进 |
 | Weapon Trace | `WeaponTraceFrame` / `WeaponTraceSegment` / `WeaponHitOnceKey` / `CombatWeaponTraceEvaluator` / `WeaponTraceQueryBuilder` | 武器轨迹采样、查询构建和 hit-once key |
+| Baked Weapon Trace | `CombatBakedWeaponTraceReferenceFrame` / `CombatBakedWeaponRuntimeProfile` / `CombatBakedWeaponTraceAdapter` | 将 MxAnimation bake reference 与运行时 weapon / character profile 合成确定性 `WeaponTraceFrame` / `CombatCapsuleQuery` |
 | Trace Provider | `ICombatActionTraceProvider` / `CombatActionTimelineTraceProvider` | 从动作时间轴读取 weapon trace |
 | Diagnostics | `CombatDebugSnapshot` / `CombatDebugSnapshotBuilder` / `CombatHitExplain` / `CombatQueryTrace` | 运行时可读诊断快照和命中 explain |
 | Replay | `CombatReplayInput` / `CombatReplayRecorder` / `CombatDesyncDump` | replay 输入记录和 desync dump |
@@ -114,6 +115,17 @@ MxAnimation 的 presentation sync contract 可以把 Combat action lifecycle 复
 `CombatActionState` 包含 `ActionInstanceId`，用于在 multi-step Runtime tick 内保留每个动作实例的 hit-once 身份；RuntimeHost weapon trace 模块基于每个 fixed step 后的动作状态快照计算候选，不从 Runtime frame 直接推导 Combat frame。
 
 默认模块位于 RuntimeHost 阶段中运行，具体 priority 和组合根由 Demo / 项目层配置。动作系统不读取 Unity Animator 状态作为权威。
+
+## Baked Weapon Trace Adapter
+
+MxAnimation bake 产出的 socket / root / weapon reference 只能作为确定性参考数据进入 Combat。Combat noEngine 侧使用 `CombatBakedWeaponTraceAdapter` 将 reference 与显式 runtime profile 组合：
+
+- `CombatBakedWeaponTraceReferenceFrame` 保存 local frame、trace id、socket prev/now、tip direction prev/now，全部使用 `FixVector3`。
+- `CombatBakedWeaponRuntimeProfile` 保存 character scale、weapon length、weapon radius、socket offset 和 target layer mask。
+- `CombatBakedWeaponTraceAdapter.BuildFrame` 输出现有 `WeaponTraceFrame`。
+- `CombatBakedWeaponTraceAdapter.BuildCurrentBladeCapsule` 输出现有 `CombatCapsuleQuery`，后续仍走 `CombatPhysicsWorld` / `HitResolveSystem`。
+
+这条路径不引用 `MxFramework.Animation`、`AnimationClip`、Animator、PlayableGraph 或 Unity bone pose。动态武器、角色尺寸和 socket offset 都必须作为显式 profile 输入；如果 IK / 动态骨骼修正要影响权威命中，也必须先转成可复现 Combat 输入或确定性 solver 数据。
 
 ## 最小使用示例
 
