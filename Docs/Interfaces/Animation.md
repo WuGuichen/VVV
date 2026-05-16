@@ -1,7 +1,7 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #107
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107
 > 实现边界：`MxFramework.Animation` noEngine contract 已落地；`MxFramework.Animation.Unity` 提供首版 Unity Playables backend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation。
 
 ## 职责
@@ -56,6 +56,32 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationDiagnosticSnapshot` | backend、graph、resident default/fallback、layer state、active fades、recent requests/errors |
 | `IMxAnimationBackend` | 最小 backend surface：play、stop、crossfade、tick、snapshot、release |
 | `UnityPlayablesAnimationBackend` | Unity Playables MVP backend，使用 manual `Tick(deltaTime)` 推进 |
+| `MxAnimationPresentationSyncState` | 多人 / late join / 补包场景的表现恢复状态；保存 actor、animation set version/hash、action instance、Combat frame anchor、layer state 和量化表现参数 |
+| `MxAnimationLayerSyncState` | layer weight / transition 恢复状态；包含 current / target weight、transition frame 信息和 correlation |
+| `MxAnimationQuantizedParameter` | 表现层量化参数，例如 locomotion speed blend 参数 |
+| `MxAnimationPresentationEventDedupeKey` | 表现事件去重键，使用 actor、action instance、world/local frame、event id 和 source order |
+| `MxAnimationPresentationSyncValidator` | 校验 sync state 与本地 animation set / catalog / clip registry version 是否兼容，并输出结构化 diagnostics |
+
+## Presentation Sync Contract
+
+MxAnimation 的网络表现同步契约只恢复 presentation state，不实现网络协议，不进入 Combat authority。同步载荷应来自权威 Combat / Gameplay 状态或项目层网络层，MxAnimation 只消费稳定 id、时间锚点和量化参数：
+
+- actor / entity id。
+- animation set id / version / hash。
+- resource catalog hash。
+- clip registry version。
+- action id 或 action key。
+- action instance id。
+- started-at Combat frame 和 current local frame。
+- layer sync state：layer id、current weight、target weight、transition start/duration/remaining frames、transition policy/correlation。
+- quantized blend parameters。
+- presentation event dedupe key。
+
+`MxAnimationPresentationSyncVersionExpectation.None` 只校验必需 identity。强校验路径必须提供 expected animation set id/version/hash、resource catalog hash 和 clip registry version；`action instance id` 为 0 时仍允许用 actor + frame + event id + source order 进行 legacy 去重。
+
+该状态可用于 late join、delayed packet 和 prediction correction 下的 seek、crossfade、stop 或 layer weight correction。它不得把 Playable time、Animator state、Unity bone pose 或 normalized time 写回 Combat，也不得进入 replay hash。
+
+资源/版本不匹配必须以明确 diagnostics 失败：animation set id/version/hash、resource catalog hash 或 clip registry version 不一致时，加载侧不能静默 fallback 到空播。#109 的 warmup / resource validation 会复用这条契约。
 
 ## Combat Presentation Bridge
 
@@ -114,6 +140,8 @@ Assets/Scripts/MxFramework/Tests/Animation/
 当前 focused tests 覆盖：
 
 - noEngine layer id 和 animation set binding 查询。
+- animation set definition hash、clip registry builder、mapping provider 和 catalog validation。
+- presentation sync state、layer transition state、quantized parameter、event dedupe key 和 version diagnostics。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。
