@@ -124,6 +124,9 @@ namespace MxFramework.Tests.Combat.Animation
             Assert.AreEqual(payload, dispatch.PresentationEvent.PayloadKey);
             Assert.AreEqual("weapon", dispatch.PresentationEvent.Socket);
             Assert.AreEqual("entity:9|action:1001|instance:1|world:11|local:1|event:77|order:3|payload:23", dispatch.CorrelationId);
+            Assert.AreEqual(
+                new MxAnimationPresentationEventDedupeKey("entity:9", result.ActionInstanceId, 11, 1, "event:77", 3),
+                dispatch.DedupeKey);
 
             CombatMxAnimationBridgeDiagnosticSnapshot snapshot = bridge.CreateSnapshot();
             CombatMxAnimationBridgeDiagnosticEntry entry = snapshot.RecentEntries[snapshot.RecentEntries.Count - 1];
@@ -132,6 +135,45 @@ namespace MxFramework.Tests.Combat.Animation
             Assert.AreEqual(77, entry.FrameEvent.EventId);
             Assert.AreEqual(23, entry.FrameEvent.IntPayload);
             Assert.AreEqual("event:77", entry.PresentationEventId);
+        }
+
+        [Test]
+        public void FrameEvent_DropsDuplicatePresentationEventDispatch()
+        {
+            CombatActionRunner runner = CreateRunner(Timeline(
+                1001,
+                4,
+                new[]
+                {
+                    new CombatActionFrameEvent(1, 77, sourceOrder: 3, intPayload: 23),
+                    new CombatActionFrameEvent(1, 77, sourceOrder: 3, intPayload: 23)
+                }));
+            var context = new TestCombatAnimationContext(runner);
+            var backend = new RecordingAnimationBackend();
+            var sink = new RecordingPresentationEventSink();
+            var entity = new CombatEntityId(12);
+            var presentationEvent = new MxAnimationPresentationEvent(
+                "event:77",
+                MxAnimationEventTimeDomain.CombatFrame,
+                1f,
+                "VFX",
+                new ResourceKey("fx.slash", ResourceTypeIds.GameObject));
+            MxAnimationSetDefinition set = CreateAnimationSet(1001, "attack", presentationEvent);
+            var bridge = new CombatMxAnimationUnityBridge(context, presentationEventSink: sink);
+
+            bridge.RegisterActor(entity, backend, set);
+            bridge.Initialize();
+
+            runner.StartAction(entity, 1001, new CombatFrame(10));
+            runner.TickActions(new CombatFrame(11));
+
+            Assert.AreEqual(1, sink.Dispatches.Count);
+
+            CombatMxAnimationBridgeDiagnosticSnapshot snapshot = bridge.CreateSnapshot();
+            CombatMxAnimationBridgeDiagnosticEntry last = snapshot.RecentEntries[snapshot.RecentEntries.Count - 1];
+            Assert.AreEqual(CombatMxAnimationBridgeEventKind.FramePresentationEventDuplicateDropped, last.EventKind);
+            Assert.IsFalse(last.Success);
+            Assert.AreEqual("event:77", last.PresentationEventId);
         }
 
         [Test]

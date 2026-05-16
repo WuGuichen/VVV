@@ -292,6 +292,7 @@ namespace MxFramework.Editor.Animation
         [SerializeField] private string payloadPackageId;
         [SerializeField] private string socket;
         [SerializeField] private string tag;
+        [SerializeField] private MxAnimationPresentationEventReplayPolicy replayPolicy;
 
         public string EventId
         {
@@ -351,6 +352,12 @@ namespace MxFramework.Editor.Animation
         {
             get => tag;
             set => tag = value ?? string.Empty;
+        }
+
+        public MxAnimationPresentationEventReplayPolicy ReplayPolicy
+        {
+            get => replayPolicy;
+            set => replayPolicy = value;
         }
 
         public ResourceKey CreatePayloadKey()
