@@ -41,7 +41,8 @@ namespace MxFramework.Resources
                     new FrameworkDebugSection("Summary", CreateSummary(snapshot)),
                     new FrameworkDebugSection("Catalogs", CreateCatalogs(snapshot)),
                     new FrameworkDebugSection("Entry Origins", CreateEntryOrigins(snapshot)),
-                    new FrameworkDebugSection("Recent Errors", CreateRecentErrors(snapshot))
+                    new FrameworkDebugSection("Recent Errors", CreateRecentErrors(snapshot)),
+                    new FrameworkDebugSection("Recent Evictions", CreateRecentEvictions(snapshot))
                 });
         }
 
@@ -59,6 +60,10 @@ namespace MxFramework.Resources
             builder.Append("retained: ").Append(snapshot.RetainedCount).Append('\n');
             builder.Append("evictable: ").Append(snapshot.EvictableCount).Append('\n');
             builder.Append("pinned: ").Append(snapshot.PinnedCount).Append('\n');
+            builder.Append("retainedBytes: ").Append(snapshot.RetainedBytes).Append('\n');
+            builder.Append("retainBudgetBytes: ").Append(snapshot.RetainBudgetBytes).Append('\n');
+            builder.Append("retainBudgetOverageBytes: ").Append(snapshot.RetainBudgetOverageBytes).Append('\n');
+            builder.Append("retainBudgetExceeded: ").Append(snapshot.RetainBudgetExceeded ? "true" : "false").Append('\n');
             builder.Append("retainPolicies: ").Append(snapshot.RetainPolicyCount);
             return builder.ToString();
         }
@@ -126,6 +131,27 @@ namespace MxFramework.Resources
                     .Append(" message=")
                     .Append(error.Message);
                 if (i + 1 < snapshot.RecentErrors.Count)
+                    builder.Append('\n');
+            }
+
+            return builder.ToString();
+        }
+
+        private static string CreateRecentEvictions(ResourceDebugSnapshot snapshot)
+        {
+            if (snapshot.RecentEvictions == null || snapshot.RecentEvictions.Count == 0)
+                return "none";
+
+            var builder = new StringBuilder();
+            for (int i = 0; i < snapshot.RecentEvictions.Count; i++)
+            {
+                ResourceEvictionRecord eviction = snapshot.RecentEvictions[i];
+                builder.Append(eviction.Reason)
+                    .Append(" key=")
+                    .Append(eviction.Key)
+                    .Append(" provider=")
+                    .Append(eviction.ProviderId);
+                if (i + 1 < snapshot.RecentEvictions.Count)
                     builder.Append('\n');
             }
 

@@ -1270,6 +1270,15 @@ resources.Release(handle);
 resources.AdvanceRetainTime(3f);
 ```
 
+Retain policy 的选择边界：
+
+- `ResourceRetainPolicy.None`：默认策略，handle 引用计数归零后立即释放底层资源。
+- `ResourceRetainPolicy.Timed(...)`：适合短时间来回切换 UI、动画或小型场景 warmup，组合根必须显式推进时间或帧数。
+- `ResourceRetainPolicy.KeepAlive`：适合明确需要 pinned 的常驻资源，只通过 `EvictRetainedResources()` 显式清理。
+- `ResourceRetainPolicy.Budgeted(maxRetainedBytes)`：适合有 catalog size signal 的 Demo / Player 路径；预算只使用 `ResourceCatalogEntry.Size`，可选框架保留 metadata `providerData["retainPriority"]` 决定驱逐优先级，整数越大越晚驱逐。
+
+Budgeted policy 不启动后台卸载线程，也不访问平台内存 API。引用计数归零后，record 会先进入 retained 状态，再按低 priority、较早 retained、`ResourceKey` 字符串顺序驱逐，直到 `ResourceDebugSnapshot.RetainedBytes <= RetainBudgetBytes` 或只剩 pinned `KeepAlive` 记录。`KeepAlive` 记录不会被预算策略自动驱逐；手动调用 `EvictRetainedResources()` 表示显式清理。
+
 Remote Bundle Provider 使用 Catalog 的 `providerData` 指定 source 和 cache key：
 
 ```csharp
