@@ -13,6 +13,17 @@ namespace MxFramework.Combat.Animation
             FixVector3 socketPrev,
             FixVector3 socketNow,
             FixVector3 tipDirectionPrev,
+            FixVector3 tipDirectionNow)
+            : this(traceId, localFrame, socketPrev, socketNow, tipDirectionPrev, tipDirectionNow, string.Empty)
+        {
+        }
+
+        public CombatBakedWeaponTraceReferenceFrame(
+            int traceId,
+            int localFrame,
+            FixVector3 socketPrev,
+            FixVector3 socketNow,
+            FixVector3 tipDirectionPrev,
             FixVector3 tipDirectionNow,
             string socketId = "")
         {

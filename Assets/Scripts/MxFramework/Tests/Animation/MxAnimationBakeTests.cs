@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using MxFramework.Animation;
 using MxFramework.Editor.Animation;
@@ -56,6 +57,27 @@ namespace MxFramework.Tests.Animation
 
             Assert.AreNotEqual(socketA.ArtifactHash, socketB.ArtifactHash);
             Assert.AreNotEqual(socketA.ArtifactHash, eventB.ArtifactHash);
+        }
+
+        [Test]
+        public void BakePublicConstructors_PreserveLegacySignatures()
+        {
+            Assert.NotNull(typeof(MxAnimationBakedEventMarker).GetConstructor(new[]
+            {
+                typeof(int),
+                typeof(string),
+                typeof(MxAnimationBakeEventKind),
+                typeof(ResourceKey),
+                typeof(int)
+            }));
+            Assert.NotNull(typeof(MxAnimationBakeArtifact).GetConstructor(new[]
+            {
+                typeof(MxAnimationBakeProfile),
+                typeof(IEnumerable<MxAnimationBakedWeaponTraceFrame>),
+                typeof(IEnumerable<MxAnimationBakedRootMotionFrame>),
+                typeof(IEnumerable<MxAnimationBakedEventMarker>),
+                typeof(string)
+            }));
         }
 
         [Test]
@@ -137,10 +159,16 @@ namespace MxFramework.Tests.Animation
             Assert.Greater(first.Artifact.WeaponTraceFrames.Count, 0);
             Assert.Greater(first.Artifact.SocketFrames.Count, first.Artifact.RootMotionFrames.Count);
             Assert.AreEqual(2000, first.Artifact.RootMotionFrames[first.Artifact.RootMotionFrames.Count - 1].RootPosition.X);
+            Assert.AreEqual(3000, first.Artifact.SocketFrames.Last(frame => frame.SocketId == "weapon").Position.X);
+            Assert.AreEqual(3000, first.Artifact.WeaponTraceFrames[first.Artifact.WeaponTraceFrames.Count - 1].RootNow.X);
+            Assert.AreEqual(4000, first.Artifact.WeaponTraceFrames[first.Artifact.WeaponTraceFrames.Count - 1].TipNow.X);
             Assert.AreEqual(MxAnimationBakeEventKind.Footstep, first.Artifact.EventMarkers[0].Kind);
             Assert.AreEqual(first.Artifact.EventMarkers[0].LocalFrame, first.Artifact.EventMarkers[0].PresentationFrame);
             Assert.AreEqual(-1, first.Artifact.EventMarkers[0].CombatFrame);
             Assert.That(first.ReportText, Does.Contain("sourceClipHash: sha256:"));
+            Assert.That(first.ReportText, Does.Contain("profileId: mxanimation.bake.bake_test"));
+            Assert.That(first.ReportText, Does.Contain("skeletonProfileId: skeleton"));
+            Assert.That(first.ReportText, Does.Contain("importSettingsFingerprint:"));
             Assert.That(first.ReportText, Does.Contain("socketTrajectoryFrames:"));
             Assert.That(first.ReportText, Does.Contain("eventAlignment:"));
         }
@@ -324,7 +352,10 @@ namespace MxFramework.Tests.Animation
             SetCurve(clip, string.Empty, "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 2f));
             SetCurve(clip, string.Empty, "m_LocalPosition.y", AnimationCurve.Linear(0f, 0f, 1f, 0f));
             SetCurve(clip, string.Empty, "m_LocalPosition.z", AnimationCurve.Linear(0f, 0f, 1f, 0f));
-            SetCurve(clip, "WeaponTip", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 2f));
+            SetCurve(clip, "WeaponSocket", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 3f));
+            SetCurve(clip, "WeaponSocket", "m_LocalPosition.y", AnimationCurve.Linear(0f, 0f, 1f, 0f));
+            SetCurve(clip, "WeaponSocket", "m_LocalPosition.z", AnimationCurve.Linear(0f, 0f, 1f, 0f));
+            SetCurve(clip, "WeaponTip", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 4f));
             SetCurve(clip, "WeaponTip", "m_LocalPosition.y", AnimationCurve.Linear(0f, 0f, 1f, 0f));
             SetCurve(clip, "WeaponTip", "m_LocalPosition.z", AnimationCurve.Linear(0f, 1f, 1f, 1f));
             SetEvents(

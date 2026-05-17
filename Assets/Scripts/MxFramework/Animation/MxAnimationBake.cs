@@ -216,6 +216,16 @@ namespace MxFramework.Animation
             int localFrame,
             string eventId,
             MxAnimationBakeEventKind kind,
+            ResourceKey payloadKey,
+            int sourceOrder)
+            : this(localFrame, eventId, kind, payloadKey, sourceOrder, -1, -1)
+        {
+        }
+
+        public MxAnimationBakedEventMarker(
+            int localFrame,
+            string eventId,
+            MxAnimationBakeEventKind kind,
             ResourceKey payloadKey = default,
             int sourceOrder = 0,
             int presentationFrame = -1,
@@ -254,6 +264,16 @@ namespace MxFramework.Animation
         private readonly List<MxAnimationBakedRootMotionFrame> _rootMotionFrames;
         private readonly List<MxAnimationBakedSocketFrame> _socketFrames;
         private readonly List<MxAnimationBakedEventMarker> _eventMarkers;
+
+        public MxAnimationBakeArtifact(
+            MxAnimationBakeProfile profile,
+            IEnumerable<MxAnimationBakedWeaponTraceFrame> weaponTraceFrames,
+            IEnumerable<MxAnimationBakedRootMotionFrame> rootMotionFrames,
+            IEnumerable<MxAnimationBakedEventMarker> eventMarkers,
+            string artifactHash)
+            : this(profile, weaponTraceFrames, rootMotionFrames, eventMarkers, artifactHash, null)
+        {
+        }
 
         public MxAnimationBakeArtifact(
             MxAnimationBakeProfile profile,

@@ -42,6 +42,7 @@ namespace MxFramework.Editor.Animation
         private const string DefaultPackageId = "mxframework.samples";
         private const string RootSocketId = "root";
         private const string WeaponSocketId = "weapon";
+        private const string WeaponSocketPath = "WeaponSocket";
         private const string WeaponTipPath = "WeaponTip";
 
         [MenuItem(MenuPath, priority = 132)]
@@ -128,23 +129,26 @@ namespace MxFramework.Editor.Animation
             var socketFrames = new List<MxAnimationBakedSocketFrame>((frameCount + 1) * 2);
             var traceFrames = new List<MxAnimationBakedWeaponTraceFrame>(frameCount);
             MxAnimationBakedVector3 previousRoot = SampleVector(clip, string.Empty, 0f, profile);
-            MxAnimationBakedVector3 previousTip = SampleWeaponTip(clip, 0f, profile, previousRoot);
+            MxAnimationBakedVector3 previousSocket = SampleWeaponSocket(clip, 0f, profile, previousRoot);
+            MxAnimationBakedVector3 previousTip = SampleWeaponTip(clip, 0f, profile, previousSocket);
 
             rootFrames.Add(new MxAnimationBakedRootMotionFrame(0, previousRoot, MxAnimationBakedVector3.Zero));
             AddSocketFrame(socketFrames, 0, RootSocketId, string.Empty, previousRoot, MxAnimationBakedVector3.Zero);
-            AddSocketFrame(socketFrames, 0, WeaponSocketId, WeaponTipPath, previousTip, MxAnimationBakedVector3.Zero);
+            AddSocketFrame(socketFrames, 0, WeaponSocketId, WeaponSocketPath, previousSocket, MxAnimationBakedVector3.Zero);
             for (int frame = 1; frame <= frameCount; frame++)
             {
                 float time = Mathf.Min(clip.length, frame / (float)profile.SampleTickRate);
                 MxAnimationBakedVector3 root = SampleVector(clip, string.Empty, time, profile);
-                MxAnimationBakedVector3 tip = SampleWeaponTip(clip, time, profile, root);
+                MxAnimationBakedVector3 socket = SampleWeaponSocket(clip, time, profile, root);
+                MxAnimationBakedVector3 tip = SampleWeaponTip(clip, time, profile, socket);
                 MxAnimationBakedVector3 rootDelta = Delta(previousRoot, root);
-                MxAnimationBakedVector3 tipDelta = Delta(previousTip, tip);
+                MxAnimationBakedVector3 socketDelta = Delta(previousSocket, socket);
                 rootFrames.Add(new MxAnimationBakedRootMotionFrame(frame, root, rootDelta));
                 AddSocketFrame(socketFrames, frame, RootSocketId, string.Empty, root, rootDelta);
-                AddSocketFrame(socketFrames, frame, WeaponSocketId, WeaponTipPath, tip, tipDelta);
-                traceFrames.Add(new MxAnimationBakedWeaponTraceFrame(frame, 0, WeaponSocketId, previousRoot, previousTip, root, tip));
+                AddSocketFrame(socketFrames, frame, WeaponSocketId, WeaponSocketPath, socket, socketDelta);
+                traceFrames.Add(new MxAnimationBakedWeaponTraceFrame(frame, 0, WeaponSocketId, previousSocket, previousTip, socket, tip));
                 previousRoot = root;
+                previousSocket = socket;
                 previousTip = tip;
             }
 
@@ -164,12 +168,17 @@ namespace MxFramework.Editor.Animation
             if (artifact != null)
             {
                 builder.Append("artifactHash: ").Append(artifact.ArtifactHash).Append('\n');
+                builder.Append("profileId: ").Append(artifact.Profile.ProfileId).Append('\n');
                 builder.Append("profileHash: ").Append(artifact.Profile.ProfileHash).Append('\n');
                 builder.Append("sourceClip: ").Append(artifact.Profile.SourceClipKey).Append('\n');
                 builder.Append("sourceClipHash: ").Append(artifact.Profile.SourceClipHash).Append('\n');
+                builder.Append("skeletonProfileId: ").Append(artifact.Profile.SkeletonProfileId).Append('\n');
                 builder.Append("skeletonProfileHash: ").Append(artifact.Profile.SkeletonProfileHash).Append('\n');
                 builder.Append("sampleTickRate: ").Append(artifact.Profile.SampleTickRate).Append('\n');
                 builder.Append("quantizationScale: ").Append(artifact.Profile.QuantizationScale).Append('\n');
+                builder.Append("coordinateSpace: ").Append(artifact.Profile.CoordinateSpace).Append('\n');
+                builder.Append("roundingPolicy: ").Append(artifact.Profile.RoundingPolicy).Append('\n');
+                builder.Append("importSettingsFingerprint: ").Append(artifact.Profile.ImportSettingsFingerprint).Append('\n');
                 builder.Append("weaponTraceFrames: ").Append(artifact.WeaponTraceFrames.Count).Append('\n');
                 builder.Append("rootMotionFrames: ").Append(artifact.RootMotionFrames.Count).Append('\n');
                 builder.Append("socketTrajectoryFrames: ").Append(artifact.SocketFrames.Count).Append('\n');
@@ -244,13 +253,24 @@ namespace MxFramework.Editor.Animation
             AnimationClip clip,
             float time,
             MxAnimationBakeProfile profile,
-            MxAnimationBakedVector3 fallbackRoot)
+            MxAnimationBakedVector3 fallbackSocket)
         {
             if (TrySampleVector(clip, WeaponTipPath, time, profile, out MxAnimationBakedVector3 tip))
                 return tip;
 
             long forward = profile.QuantizationScale;
-            return new MxAnimationBakedVector3(fallbackRoot.X, fallbackRoot.Y, fallbackRoot.Z + forward);
+            return new MxAnimationBakedVector3(fallbackSocket.X, fallbackSocket.Y, fallbackSocket.Z + forward);
+        }
+
+        private static MxAnimationBakedVector3 SampleWeaponSocket(
+            AnimationClip clip,
+            float time,
+            MxAnimationBakeProfile profile,
+            MxAnimationBakedVector3 fallbackRoot)
+        {
+            return TrySampleVector(clip, WeaponSocketPath, time, profile, out MxAnimationBakedVector3 socket)
+                ? socket
+                : fallbackRoot;
         }
 
         private static MxAnimationBakedVector3 SampleVector(

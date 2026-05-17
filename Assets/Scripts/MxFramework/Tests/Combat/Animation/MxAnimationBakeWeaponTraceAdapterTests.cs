@@ -46,6 +46,20 @@ namespace MxFramework.Tests.Combat.Animation
         }
 
         [Test]
+        public void ReferenceFrameConstructor_PreservesLegacySignature()
+        {
+            Assert.NotNull(typeof(CombatBakedWeaponTraceReferenceFrame).GetConstructor(new[]
+            {
+                typeof(int),
+                typeof(int),
+                typeof(FixVector3),
+                typeof(FixVector3),
+                typeof(FixVector3),
+                typeof(FixVector3)
+            }));
+        }
+
+        [Test]
         public void BuildCurrentBladeCapsule_OutputsExistingCombatQueryShape()
         {
             CombatCapsuleQuery query = CombatBakedWeaponTraceAdapter.BuildCurrentBladeCapsule(
