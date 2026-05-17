@@ -57,11 +57,15 @@ namespace MxFramework.Tests.Ability
             GameplayCoreComponentSchemaDescriptors.RegisterDiagnostics(registry);
             GameplayCoreComponentSchemaDescriptors.RegisterRuntimeHash(registry);
 
-            Assert.AreEqual(5, registry.Count);
+            Assert.AreEqual(6, registry.Count);
             Assert.IsTrue(registry.TryGetDiagnosticWriter(out IGameplayComponentDiagnosticWriter<GameplayIdentityComponent> diagnosticWriter));
             Assert.IsTrue(registry.TryGetHashWriter(out IGameplayComponentHashWriter<GameplayIdentityComponent> hashWriter));
+            Assert.IsTrue(registry.TryGetDiagnosticWriter(out IGameplayComponentDiagnosticWriter<GameplayPosturePressureComponent> postureDiagnosticWriter));
+            Assert.IsTrue(registry.TryGetHashWriter(out IGameplayComponentHashWriter<GameplayPosturePressureComponent> postureHashWriter));
             Assert.IsNotNull(diagnosticWriter);
             Assert.IsNotNull(hashWriter);
+            Assert.IsNotNull(postureDiagnosticWriter);
+            Assert.IsNotNull(postureHashWriter);
         }
 
         private static GameplayComponentWorld CreateWorld(bool registerHashFirst)
