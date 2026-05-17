@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using MxFramework.Animation;
 using MxFramework.Animation.Unity;
@@ -46,6 +47,7 @@ namespace MxFramework.Demo.MxAnimationSmoke
         [SerializeField] private AnimationClip _walkForwardClip;
         [SerializeField] private AnimationClip _runForwardClip;
         [SerializeField] private AnimationClip _jumpClip;
+        [SerializeField] private AnimationClip[] _warmupAnimationClips = Array.Empty<AnimationClip>();
         [SerializeField] private AvatarMask _upperBodyMask;
 
         private readonly List<InputCommand> _drainedCommands = new List<InputCommand>();
@@ -149,6 +151,7 @@ namespace MxFramework.Demo.MxAnimationSmoke
             AnimationClip walkForwardClip,
             AnimationClip runForwardClip,
             AnimationClip jumpClip,
+            IEnumerable<AnimationClip> warmupAnimationClips,
             AvatarMask upperBodyMask)
         {
             _inputService = inputService;
@@ -161,6 +164,9 @@ namespace MxFramework.Demo.MxAnimationSmoke
             _walkForwardClip = walkForwardClip;
             _runForwardClip = runForwardClip;
             _jumpClip = jumpClip;
+            _warmupAnimationClips = warmupAnimationClips != null
+                ? new List<AnimationClip>(warmupAnimationClips).ToArray()
+                : Array.Empty<AnimationClip>();
             _upperBodyMask = upperBodyMask;
         }
 
@@ -179,6 +185,7 @@ namespace MxFramework.Demo.MxAnimationSmoke
                 RegisterSerializedAsset(catalog, TempImportedResourceCatalog.SkeletonRunForwardAnimationId, ResourceTypeIds.AnimationClip, _runForwardClip);
                 RegisterSerializedAsset(catalog, TempImportedResourceCatalog.SkeletonJumpAnimationId, ResourceTypeIds.AnimationClip, _jumpClip);
                 RegisterSerializedAsset(catalog, TempImportedResourceCatalog.SkeletonUpperBodyMaskId, ResourceTypeIds.AvatarMask, _upperBodyMask);
+                RegisterWarmupAnimationClips(catalog);
 
                 _resourceManager = new ResourceManager();
                 _resourceManager.RegisterProvider(_provider);
@@ -232,6 +239,59 @@ namespace MxFramework.Demo.MxAnimationSmoke
 
             ResourceCatalogEntry entry = FindEntry(catalog, id, typeId);
             _provider.Register(entry.Address, asset);
+        }
+
+        private void RegisterWarmupAnimationClips(ResourceCatalog catalog)
+        {
+            if (catalog == null || _warmupAnimationClips == null || _warmupAnimationClips.Length == 0)
+                return;
+
+            for (int i = 0; i < catalog.Entries.Count; i++)
+            {
+                ResourceCatalogEntry entry = catalog.Entries[i];
+                if (entry == null
+                    || entry.TypeId != ResourceTypeIds.AnimationClip
+                    || !HasLabel(entry, TempImportedResourceCatalog.WarmupMxAnimationLabel))
+                {
+                    continue;
+                }
+
+                if (!entry.ProviderData.TryGetValue(TempImportedResourceCatalog.ProviderDataAssetPathKey, out string assetPath))
+                    continue;
+
+                AnimationClip clip = FindWarmupAnimationClip(Path.GetFileNameWithoutExtension(assetPath));
+                if (clip != null)
+                    _provider.Register(entry.Address, clip);
+            }
+        }
+
+        private AnimationClip FindWarmupAnimationClip(string clipName)
+        {
+            if (string.IsNullOrWhiteSpace(clipName) || _warmupAnimationClips == null)
+                return null;
+
+            for (int i = 0; i < _warmupAnimationClips.Length; i++)
+            {
+                AnimationClip clip = _warmupAnimationClips[i];
+                if (clip != null && string.Equals(clip.name, clipName, StringComparison.Ordinal))
+                    return clip;
+            }
+
+            return null;
+        }
+
+        private static bool HasLabel(ResourceCatalogEntry entry, string label)
+        {
+            if (entry == null || string.IsNullOrEmpty(label))
+                return false;
+
+            for (int i = 0; i < entry.Labels.Count; i++)
+            {
+                if (string.Equals(entry.Labels[i], label, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
         }
 
         private void LoadModel()

@@ -1,5 +1,6 @@
 using MxFramework.Demo.MxAnimationSmoke;
 using MxFramework.Input;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -36,6 +37,7 @@ namespace MxFramework.Demo
             AnimationClip walkClip = LoadRequired<AnimationClip>(WalkClipPath);
             AnimationClip runClip = LoadRequired<AnimationClip>(RunClipPath);
             AnimationClip jumpClip = LoadRequired<AnimationClip>(JumpClipPath);
+            AnimationClip[] warmupClips = LoadWarmupAnimationClips();
             AvatarMask upperBodyMask = LoadOrCreateUpperBodyMask();
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -61,6 +63,7 @@ namespace MxFramework.Demo
                 walkClip,
                 runClip,
                 jumpClip,
+                warmupClips,
                 upperBodyMask);
             SetBootstrapReferences(
                 bootstrap,
@@ -74,6 +77,7 @@ namespace MxFramework.Demo
                 walkClip,
                 runClip,
                 jumpClip,
+                warmupClips,
                 upperBodyMask);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -190,6 +194,7 @@ namespace MxFramework.Demo
             AnimationClip walkClip,
             AnimationClip runClip,
             AnimationClip jumpClip,
+            AnimationClip[] warmupClips,
             AvatarMask upperBodyMask)
         {
             var serialized = new SerializedObject(bootstrap);
@@ -203,6 +208,7 @@ namespace MxFramework.Demo
             Set(serialized, "_walkForwardClip", walkClip);
             Set(serialized, "_runForwardClip", runClip);
             Set(serialized, "_jumpClip", jumpClip);
+            SetArray(serialized, "_warmupAnimationClips", warmupClips);
             Set(serialized, "_upperBodyMask", upperBodyMask);
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(bootstrap);
@@ -230,6 +236,7 @@ namespace MxFramework.Demo
             AnimationClip walkClip = LoadRequired<AnimationClip>(WalkClipPath);
             AnimationClip runClip = LoadRequired<AnimationClip>(RunClipPath);
             AnimationClip jumpClip = LoadRequired<AnimationClip>(JumpClipPath);
+            AnimationClip[] warmupClips = LoadWarmupAnimationClips();
             AvatarMask upperBodyMask = LoadOrCreateUpperBodyMask();
 
             ConfigureDocument(document, panelSettings, visualTree);
@@ -245,6 +252,7 @@ namespace MxFramework.Demo
                 walkClip,
                 runClip,
                 jumpClip,
+                warmupClips,
                 upperBodyMask);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -295,6 +303,24 @@ namespace MxFramework.Demo
             return asset;
         }
 
+        private static AnimationClip[] LoadWarmupAnimationClips()
+        {
+            string[] guids = AssetDatabase.FindAssets(
+                "t:AnimationClip",
+                new[] { "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips" });
+            var clips = new List<AnimationClip>(guids.Length);
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                AnimationClip clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+                if (clip != null)
+                    clips.Add(clip);
+            }
+
+            clips.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+            return clips.ToArray();
+        }
+
         private static void AssignMaterial(GameObject gameObject, Color color)
         {
             Renderer renderer = gameObject.GetComponent<Renderer>();
@@ -311,6 +337,18 @@ namespace MxFramework.Demo
             SerializedProperty property = serialized.FindProperty(propertyName);
             if (property != null)
                 property.objectReferenceValue = value;
+        }
+
+        private static void SetArray(SerializedObject serialized, string propertyName, Object[] values)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property == null)
+                return;
+
+            Object[] safeValues = values ?? new Object[0];
+            property.arraySize = safeValues.Length;
+            for (int i = 0; i < safeValues.Length; i++)
+                property.GetArrayElementAtIndex(i).objectReferenceValue = safeValues[i];
         }
 
         private static void EnsureFolder(string parent, string child)

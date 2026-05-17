@@ -136,9 +136,11 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
-  m_LockedProperties:
+  stringTagMap:
+    RenderType: Opaque
+  disabledShaderPasses:
+  - MOTIONVECTORS
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -233,7 +235,7 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.22, g: 0.25, b: 0.26, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0.21999997, g: 0.24999997, b: 0.25999996, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
@@ -267,8 +269,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0cb3013d3bb3c4c43ab6d641887a3ba1, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _inputService: {fileID: 292365685}
   _document: {fileID: 292365684}
   _visualTree: {fileID: 9197481963319205126, guid: 8d5d5f7a56a5f4714a9b42dfdc017458, type: 3}
@@ -279,6 +281,23 @@ MonoBehaviour:
   _walkForwardClip: {fileID: 7400000, guid: 4eef7141d26f441dcbec0bc6089646db, type: 2}
   _runForwardClip: {fileID: 7400000, guid: 8cc2c1f8bf0434ffb886f5b88bb89672, type: 2}
   _jumpClip: {fileID: 7400000, guid: ffb9ca9de8d324b61a91457b9aaed799, type: 2}
+  _warmupAnimationClips:
+  - {fileID: 7400000, guid: ab9c296f195f440a2baa0a40342854ba, type: 2}
+  - {fileID: 7400000, guid: ffb9ca9de8d324b61a91457b9aaed799, type: 2}
+  - {fileID: 7400000, guid: 6586f6ef9fdff4e07b8125844e49f5d8, type: 2}
+  - {fileID: 7400000, guid: 90b74032b903d45a38f6888730638012, type: 2}
+  - {fileID: 7400000, guid: 13aec9654552741e397a99d83ff40cf5, type: 2}
+  - {fileID: 7400000, guid: a4f18b388aca04d2294554cbc5e4f72d, type: 2}
+  - {fileID: 7400000, guid: 8cc2c1f8bf0434ffb886f5b88bb89672, type: 2}
+  - {fileID: 7400000, guid: 5881f053b086f4b76a2e595bc5aaf759, type: 2}
+  - {fileID: 7400000, guid: f20f990226df149a2af73d37d808735c, type: 2}
+  - {fileID: 7400000, guid: 790089555a5d34f63962ea909ef0dca8, type: 2}
+  - {fileID: 7400000, guid: 212f03ae45b654eaab873bf5c56757a2, type: 2}
+  - {fileID: 7400000, guid: 592a67f6f324d489cac410927b919419, type: 2}
+  - {fileID: 7400000, guid: 2d9cd00c988ae48dc81e4dedf0ff1e51, type: 2}
+  - {fileID: 7400000, guid: 4eef7141d26f441dcbec0bc6089646db, type: 2}
+  - {fileID: 7400000, guid: 2817e887deb1c4a83a22fad1a1c9496c, type: 2}
+  - {fileID: 7400000, guid: 97748acf33a2b4cddae0d1db7d238eb5, type: 2}
   _upperBodyMask: {fileID: 31900000, guid: 2c3595f1465154525a6b4955f8626c10, type: 2}
 --- !u!114 &292365684
 MonoBehaviour:
@@ -290,8 +309,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   m_PanelSettings: {fileID: 11400000, guid: 259b1a1eb27474c95b0839d636f077e6, type: 2}
   m_ParentUI: {fileID: 0}
   sourceAsset: {fileID: 9197481963319205126, guid: 8d5d5f7a56a5f4714a9b42dfdc017458, type: 3}
@@ -309,8 +328,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4d76f01160bb47a2927825fcf3197d8d, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _inputActions: {fileID: 0}
   _cloneActionAsset: 1
   _initialContext: 10
@@ -380,8 +399,8 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
-  far clip plane: 1000
+  near clip plane: 0.05
+  far clip plane: 100
   field of view: 44
   orthographic: 0
   orthographic size: 5

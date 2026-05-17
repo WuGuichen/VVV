@@ -112,6 +112,7 @@ namespace MxFramework.Tests.Animation
             AssertSerializedReference(serialized, "_walkForwardClip");
             AssertSerializedReference(serialized, "_runForwardClip");
             AssertSerializedReference(serialized, "_jumpClip");
+            AssertSerializedArrayReferences(serialized, "_warmupAnimationClips", 16);
             AssertSerializedReference(serialized, "_upperBodyMask");
 
             var document = root.GetComponent<UIDocument>();
@@ -137,6 +138,8 @@ namespace MxFramework.Tests.Animation
             Assert.IsNotNull(bootstrap.Animator);
             Assert.IsNotNull(bootstrap.Backend);
             Assert.IsNotNull(bootstrap.ResourceManager);
+            Assert.IsNotNull(bootstrap.WarmupResult);
+            Assert.IsTrue(bootstrap.WarmupResult.Success);
             Assert.GreaterOrEqual(bootstrap.ResourceManager.CreateDebugSnapshot().LoadedCount, 2);
 
             UIDocument document = root.GetComponent<UIDocument>();
@@ -237,6 +240,15 @@ namespace MxFramework.Tests.Animation
             SerializedProperty property = serialized.FindProperty(propertyName);
             Assert.IsNotNull(property, propertyName);
             Assert.IsNotNull(property.objectReferenceValue, propertyName);
+        }
+
+        private static void AssertSerializedArrayReferences(SerializedObject serialized, string propertyName, int minimumSize)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            Assert.IsNotNull(property, propertyName);
+            Assert.GreaterOrEqual(property.arraySize, minimumSize, propertyName);
+            for (int i = 0; i < property.arraySize; i++)
+                Assert.IsNotNull(property.GetArrayElementAtIndex(i).objectReferenceValue, propertyName + "[" + i + "]");
         }
 
         private static void AssertReadableLabel(Label label, string expectedText)
