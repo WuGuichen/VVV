@@ -146,6 +146,7 @@ namespace MxFramework.Demo
         private string _snapshotFilePath = "";
         private string _resourceWarmupSummary = string.Empty;
         private RuntimeVerticalSliceSampleResourceTest _resourceSampleTest;
+        private RuntimeVerticalSlicePlayerResourceTest _playerResourceTest;
         private readonly List<string> _loadoutWarnings = new List<string>();
         private readonly List<string> _orderedPackageKeys = new List<string>();
         private readonly List<string> _skippedPackageKeys = new List<string>();
@@ -289,6 +290,8 @@ namespace MxFramework.Demo
                     _resourceTestLines.Add(result.FailureMessage);
                     LogEvent(result.FailureMessage);
                 }
+
+                RunPlayerResourceSmoke();
             }
             catch (System.Exception ex)
             {
@@ -297,13 +300,40 @@ namespace MxFramework.Demo
             }
         }
 
+        private void RunPlayerResourceSmoke()
+        {
+            _playerResourceTest?.Release();
+            _playerResourceTest = new RuntimeVerticalSlicePlayerResourceTest();
+            RuntimeVerticalSlicePlayerResourceTestResult result = _playerResourceTest.Run();
+            _resourceWarmupSummary += " | " + result.Summary;
+            LogEvent(result.Summary);
+
+            for (int i = 0; i < result.LogLines.Count; i++)
+            {
+                _resourceTestLines.Add(result.LogLines[i]);
+                LogEvent(result.LogLines[i]);
+            }
+
+            if (!result.Success && !string.IsNullOrEmpty(result.FailureMessage))
+            {
+                _resourceTestLines.Add(result.FailureMessage);
+                LogEvent(result.FailureMessage);
+            }
+        }
+
         private void ReleaseRuntimeResources()
         {
-            if (_resourceSampleTest == null)
-                return;
+            if (_resourceSampleTest != null)
+            {
+                _resourceSampleTest.Release();
+                _resourceSampleTest = null;
+            }
 
-            _resourceSampleTest.Release();
-            _resourceSampleTest = null;
+            if (_playerResourceTest != null)
+            {
+                _playerResourceTest.Release();
+                _playerResourceTest = null;
+            }
         }
 
         private void AppendResourceTestEvents(RuntimeAbilitySliceRunner abilityRunner)

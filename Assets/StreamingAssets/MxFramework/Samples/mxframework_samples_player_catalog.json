@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "mxframework.samples",
+  "packageId": "mxframework.samples",
+  "entries": [
+    {
+      "id": "ui.start_screen.button.normal",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "assetBundle",
+      "address": "mxframework.samples.start_screen.assetbundle|Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "sample.start_screen",
+        "warmup.demo.start_screen",
+        "warmup.demo.player_smoke"
+      ],
+      "dependencies": [],
+      "hash": "sha256:510e81fb8c11fc5d461c59d2bd40963d629808763307ea5fd58f4e4b51669eec",
+      "size": 135936,
+      "allowOverride": false,
+      "providerData": {
+        "bundleName": "mxframework.samples.start_screen.assetbundle",
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png"
+      }
+    }
+  ]
+}

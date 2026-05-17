@@ -78,6 +78,7 @@ namespace MxFramework.Tests.Resources
                 string log = string.Join("\n", lines);
 
                 StringAssert.Contains("Samples resources ok", summary);
+                StringAssert.Contains("Player resources ok", summary);
                 StringAssert.Contains("Samples warmup: package 34/34", log);
                 StringAssert.Contains("MxAnimation 18/18", log);
                 StringAssert.Contains("StartScreen 7/7", log);
@@ -85,6 +86,8 @@ namespace MxFramework.Tests.Resources
                 StringAssert.Contains("StatusEffects 4/4", log);
                 StringAssert.Contains("MagicEffects 4/4", log);
                 StringAssert.Contains("Samples direct: Katana=1, StatusAura prefabs=4", log);
+                StringAssert.Contains("Player resources warmup: warmup.demo.start_screen 1/1", log);
+                StringAssert.Contains("Player resources direct: ui.start_screen.button.normal Texture2D", log);
                 StringAssert.Contains("fullRelease loaded=0 refs=0 failed=0", log);
 
                 InvokePrivate(runner, "ReleaseRuntimeResources");
