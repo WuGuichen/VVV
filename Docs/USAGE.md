@@ -575,7 +575,7 @@ MxAnimation 的可视化 smoke 场景用于肉眼验证真实 Skeleton 模型通
 
 ### 6.8 MxAnimation System Showcase
 
-MxAnimation System Showcase 是比 smoke 更完整的可视化验收场景。它在同一场景中放置四个 Skeleton actor，分别展示 1D locomotion blend、2D directional blend、upper-body layer + AvatarMask + Combat bridge、Mod override / fallback diagnostics，并在 UI Toolkit HUD 中展示 warmup、package validation、compatibility validation、bake artifact hash、Playable cache 和 resource handle 状态。
+MxAnimation System Showcase 是比 smoke 更完整的可视化验收场景。它在同一场景中放置四个 Skeleton actor，分别展示 1D locomotion blend、2D directional blend、upper-body layer + AvatarMask + Combat bridge、Mod override / fallback diagnostics，并在 UI Toolkit HUD 中展示 warmup、package validation、compatibility validation、bake artifact hash、Playable cache 和 resource handle 状态。详细手测流程和验收清单见 `Docs/Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md`。
 
 代码入口：
 
@@ -583,23 +583,6 @@ MxAnimation System Showcase 是比 smoke 更完整的可视化验收场景。它
 - 场景生成：`Assets/Scripts/MxFramework/Demo/Editor/CreateMxAnimationShowcaseScene.cs`
 - 可视化场景：`Assets/Scenes/MxAnimationSystemShowcase.unity`
 - HUD：`Assets/UI/MxFramework/MxAnimationShowcase/MxAnimationShowcaseHud.uxml` / `.uss`
-
-手测方式：
-
-1. 如需重新生成场景，执行 `MxFramework / MxAnimation / Generate System Showcase Scene`。
-2. 打开 `Assets/Scenes/MxAnimationSystemShowcase.unity`，直接 Play。
-3. 默认 auto cycle 会持续切换 1D locomotion speed、2D direction 参数，并周期性触发 upper-body action。
-4. 按 `I` / `O` / `P` 手动设置 1D idle / walk / run；按 `WASD` 或方向键驱动 2D directional blend。
-5. 按 `Space` 触发 `CombatMxAnimationUnityBridge` action，观察 upper layer weight、AvatarMask 状态和 presentation event log。
-6. 按 `M` 播放经过 `MxAnimationModOverrideMerger` 合并后的 override binding；按 `F` 请求缺失 clip，观察 fallback / recent request diagnostics；按 `H` 切换 auto cycle，按 `R` 重置。
-
-验收点：
-
-- 四个可见 actor 都必须是真实 Skeleton 模型，不是几何体替身。
-- HUD 中 `Package`、`Compatibility`、`Bake`、`Warmup` 应显示 OK / ready，不应出现初始化错误。
-- `Resources` 的 failed count 应为 0；`Cache` 的 hit/miss/resident/cached/active 会随切换变化。
-- 所有 clip、AvatarMask、bake report、compatibility profile 都通过 `ResourceCatalog` / `ResourceManager` / `MxAnimationWarmupService` 进入场景，不从 backend 直接读取 Unity object。
-- Mod override 只改变表现 mapping 和 package expectation，不修改 Combat hit、damage、cancel、invulnerability 或 authority。
 
 ### 6.9 Marble Maze Runtime Showcase
 
