@@ -16,6 +16,8 @@ namespace MxFramework.Editor.Animation
         [SerializeField] private MxAnimationClipRegistryClipEntry[] clips = Array.Empty<MxAnimationClipRegistryClipEntry>();
         [SerializeField] private MxAnimationClipRegistryLayerEntry[] layers = Array.Empty<MxAnimationClipRegistryLayerEntry>();
         [SerializeField] private MxAnimationClipRegistryBindingEntry[] bindings = Array.Empty<MxAnimationClipRegistryBindingEntry>();
+        [SerializeField] private MxAnimationClipRegistryBlend1DEntry[] blend1DDefinitions = Array.Empty<MxAnimationClipRegistryBlend1DEntry>();
+        [SerializeField] private MxAnimationClipRegistryBlend2DEntry[] blend2DDefinitions = Array.Empty<MxAnimationClipRegistryBlend2DEntry>();
         [SerializeField] private MxAnimationClipRegistryEventEntry[] events = Array.Empty<MxAnimationClipRegistryEventEntry>();
 
         public string AnimationSetId
@@ -52,6 +54,18 @@ namespace MxFramework.Editor.Animation
         {
             get => bindings;
             set => bindings = value ?? Array.Empty<MxAnimationClipRegistryBindingEntry>();
+        }
+
+        public MxAnimationClipRegistryBlend1DEntry[] Blend1DDefinitions
+        {
+            get => blend1DDefinitions;
+            set => blend1DDefinitions = value ?? Array.Empty<MxAnimationClipRegistryBlend1DEntry>();
+        }
+
+        public MxAnimationClipRegistryBlend2DEntry[] Blend2DDefinitions
+        {
+            get => blend2DDefinitions;
+            set => blend2DDefinitions = value ?? Array.Empty<MxAnimationClipRegistryBlend2DEntry>();
         }
 
         public MxAnimationClipRegistryEventEntry[] Events
@@ -276,6 +290,187 @@ namespace MxFramework.Editor.Animation
                 return actionKey;
 
             return actionId > 0 ? "action:" + actionId : string.Empty;
+        }
+    }
+
+    [Serializable]
+    public struct MxAnimationClipRegistryBlend1DEntry
+    {
+        [SerializeField] private string blendId;
+        [SerializeField] private string parameterId;
+        [SerializeField] private string layerId;
+        [SerializeField] private int parameterScale;
+        [SerializeField] private float fadeDurationSeconds;
+        [SerializeField] private MxAnimationClipRegistryBlend1DPointEntry[] points;
+
+        public string BlendId
+        {
+            get => blendId;
+            set => blendId = value ?? string.Empty;
+        }
+
+        public string ParameterId
+        {
+            get => parameterId;
+            set => parameterId = value ?? string.Empty;
+        }
+
+        public string LayerId
+        {
+            get => layerId;
+            set => layerId = value ?? string.Empty;
+        }
+
+        public int ParameterScale
+        {
+            get => parameterScale <= 0 ? 1000 : parameterScale;
+            set => parameterScale = value;
+        }
+
+        public float FadeDurationSeconds
+        {
+            get => fadeDurationSeconds < 0f ? 0f : fadeDurationSeconds;
+            set => fadeDurationSeconds = value;
+        }
+
+        public MxAnimationClipRegistryBlend1DPointEntry[] Points
+        {
+            get => points ?? Array.Empty<MxAnimationClipRegistryBlend1DPointEntry>();
+            set => points = value ?? Array.Empty<MxAnimationClipRegistryBlend1DPointEntry>();
+        }
+    }
+
+    [Serializable]
+    public struct MxAnimationClipRegistryBlend1DPointEntry
+    {
+        [SerializeField] private int threshold;
+        [SerializeField] private string clipId;
+        [SerializeField] private float playbackSpeed;
+        [SerializeField] private bool loop;
+
+        public int Threshold
+        {
+            get => threshold;
+            set => threshold = value;
+        }
+
+        public string ClipId
+        {
+            get => clipId;
+            set => clipId = value ?? string.Empty;
+        }
+
+        public float PlaybackSpeed
+        {
+            get => playbackSpeed <= 0f ? 1f : playbackSpeed;
+            set => playbackSpeed = value;
+        }
+
+        public bool Loop
+        {
+            get => loop;
+            set => loop = value;
+        }
+    }
+
+    [Serializable]
+    public struct MxAnimationClipRegistryBlend2DEntry
+    {
+        [SerializeField] private string blendId;
+        [SerializeField] private string parameterXId;
+        [SerializeField] private string parameterYId;
+        [SerializeField] private string layerId;
+        [SerializeField] private int parameterXScale;
+        [SerializeField] private int parameterYScale;
+        [SerializeField] private float fadeDurationSeconds;
+        [SerializeField] private MxAnimationClipRegistryBlend2DPointEntry[] points;
+
+        public string BlendId
+        {
+            get => blendId;
+            set => blendId = value ?? string.Empty;
+        }
+
+        public string ParameterXId
+        {
+            get => parameterXId;
+            set => parameterXId = value ?? string.Empty;
+        }
+
+        public string ParameterYId
+        {
+            get => parameterYId;
+            set => parameterYId = value ?? string.Empty;
+        }
+
+        public string LayerId
+        {
+            get => layerId;
+            set => layerId = value ?? string.Empty;
+        }
+
+        public int ParameterXScale
+        {
+            get => parameterXScale <= 0 ? 1000 : parameterXScale;
+            set => parameterXScale = value;
+        }
+
+        public int ParameterYScale
+        {
+            get => parameterYScale <= 0 ? 1000 : parameterYScale;
+            set => parameterYScale = value;
+        }
+
+        public float FadeDurationSeconds
+        {
+            get => fadeDurationSeconds < 0f ? 0f : fadeDurationSeconds;
+            set => fadeDurationSeconds = value;
+        }
+
+        public MxAnimationClipRegistryBlend2DPointEntry[] Points
+        {
+            get => points ?? Array.Empty<MxAnimationClipRegistryBlend2DPointEntry>();
+            set => points = value ?? Array.Empty<MxAnimationClipRegistryBlend2DPointEntry>();
+        }
+    }
+
+    [Serializable]
+    public struct MxAnimationClipRegistryBlend2DPointEntry
+    {
+        [SerializeField] private int x;
+        [SerializeField] private int y;
+        [SerializeField] private string clipId;
+        [SerializeField] private float playbackSpeed;
+        [SerializeField] private bool loop;
+
+        public int X
+        {
+            get => x;
+            set => x = value;
+        }
+
+        public int Y
+        {
+            get => y;
+            set => y = value;
+        }
+
+        public string ClipId
+        {
+            get => clipId;
+            set => clipId = value ?? string.Empty;
+        }
+
+        public float PlaybackSpeed
+        {
+            get => playbackSpeed <= 0f ? 1f : playbackSpeed;
+            set => playbackSpeed = value;
+        }
+
+        public bool Loop
+        {
+            get => loop;
+            set => loop = value;
         }
     }
 

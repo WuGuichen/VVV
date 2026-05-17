@@ -41,6 +41,9 @@ namespace MxFramework.Editor.Animation
 
             DrawEventTimeline(registry);
 
+            if (GUILayout.Button("Open Workstation"))
+                MxAnimationWorkstationWindow.Open(registry);
+
             if (GUILayout.Button("Open Timeline Scrubber Preview"))
                 MxAnimationTimelineScrubberPreviewWindow.Open(registry);
         }
@@ -133,6 +136,603 @@ namespace MxFramework.Editor.Animation
             }
 
             return builder.ToString();
+        }
+    }
+
+    internal sealed class MxAnimationWorkstationWindow : EditorWindow
+    {
+        private const string MenuPath = "MxFramework/MxAnimation/Workstation";
+
+        [SerializeField] private MxAnimationClipRegistryAsset _registry;
+        private SerializedObject _serializedRegistry;
+        private Vector2 _scroll;
+        private string _lastReport = string.Empty;
+        private bool _showClipRows = true;
+        private bool _showBindingRows = true;
+        private bool _showLayerRows = true;
+        private bool _showBlendRows = true;
+
+        [MenuItem(MenuPath, priority = 130)]
+        public static void Open()
+        {
+            Open(null);
+        }
+
+        public static void Open(MxAnimationClipRegistryAsset registry)
+        {
+            var window = GetWindow<MxAnimationWorkstationWindow>("MxAnimation Workstation");
+            if (registry != null)
+                window.SetRegistry(registry);
+            window.minSize = new Vector2(720f, 520f);
+            window.Show();
+        }
+
+        private void OnEnable()
+        {
+            if (_registry == null)
+                SetRegistry(Selection.activeObject as MxAnimationClipRegistryAsset);
+        }
+
+        private void OnSelectionChange()
+        {
+            if (_registry != null)
+                return;
+
+            MxAnimationClipRegistryAsset selected = Selection.activeObject as MxAnimationClipRegistryAsset;
+            if (selected != null)
+            {
+                SetRegistry(selected);
+                Repaint();
+            }
+        }
+
+        private void OnGUI()
+        {
+            DrawToolbar();
+            if (_registry == null)
+            {
+                EditorGUILayout.HelpBox("Select or create a MxAnimationClipRegistryAsset to begin editing.", MessageType.Info);
+                return;
+            }
+
+            EnsureSerializedObject();
+            _serializedRegistry.Update();
+
+            EditorGUI.BeginChangeCheck();
+            _scroll = EditorGUILayout.BeginScrollView(_scroll);
+            DrawRegistryHeader();
+            DrawClipRows();
+            DrawBindingRows();
+            DrawLayerRows();
+            DrawBlendRows();
+            DrawDiagnostics();
+            EditorGUILayout.EndScrollView();
+
+            if (EditorGUI.EndChangeCheck())
+                ApplySerializedChanges("Edit MxAnimation Registry");
+        }
+
+        private void DrawToolbar()
+        {
+            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            {
+                EditorGUI.BeginChangeCheck();
+                MxAnimationClipRegistryAsset selected = (MxAnimationClipRegistryAsset)EditorGUILayout.ObjectField(
+                    _registry,
+                    typeof(MxAnimationClipRegistryAsset),
+                    false,
+                    GUILayout.MinWidth(240f));
+                if (EditorGUI.EndChangeCheck())
+                    SetRegistry(selected);
+
+                if (GUILayout.Button("Create", EditorStyles.toolbarButton, GUILayout.Width(72f)))
+                    CreateRegistryAsset();
+
+                using (new EditorGUI.DisabledScope(_registry == null))
+                {
+                    if (GUILayout.Button("Ping", EditorStyles.toolbarButton, GUILayout.Width(52f)))
+                        EditorGUIUtility.PingObject(_registry);
+
+                    if (GUILayout.Button("Validate", EditorStyles.toolbarButton, GUILayout.Width(72f)))
+                        RefreshReport(logToConsole: true);
+
+                    if (GUILayout.Button("Copy Report", EditorStyles.toolbarButton, GUILayout.Width(92f)))
+                        EditorGUIUtility.systemCopyBuffer = _lastReport;
+                }
+            }
+        }
+
+        private void DrawRegistryHeader()
+        {
+            EditorGUILayout.LabelField("Registry", EditorStyles.boldLabel);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                DrawProperty("animationSetId", "Set Id");
+                DrawProperty("version", "Version");
+                DrawProperty("packageId", "Package Id");
+
+                string path = AssetDatabase.GetAssetPath(_registry);
+                EditorGUILayout.LabelField("Asset Path", string.IsNullOrEmpty(path) ? "(unsaved)" : path);
+            }
+        }
+
+        private void DrawClipRows()
+        {
+            SerializedProperty clips = _serializedRegistry.FindProperty("clips");
+            _showClipRows = DrawSectionHeader(_showClipRows, "Clip Registry", clips);
+            if (!_showClipRows || clips == null)
+                return;
+
+            if (clips.arraySize == 0)
+                EditorGUILayout.HelpBox("No clips are registered. Add clips before binding actions to clip ids.", MessageType.None);
+
+            for (int i = 0; i < clips.arraySize; i++)
+            {
+                SerializedProperty row = clips.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(clips, i, "Clip", InitializeClipRow);
+                    DrawRelative(row, "clipId", "Clip Id");
+                    DrawRelative(row, "clip", "Animation Clip");
+                    DrawRelative(row, "resourceId", "Resource Id");
+                    DrawRelative(row, "variant", "Variant");
+                    DrawRelative(row, "packageId", "Package Id");
+                    DrawRelative(row, "isDefault", "Default");
+                    DrawRelative(row, "isFallback", "Fallback");
+                }
+            }
+
+            if (GUILayout.Button("Add Clip"))
+                AddRow(clips, "Add MxAnimation Clip", InitializeClipRow);
+        }
+
+        private void DrawBindingRows()
+        {
+            SerializedProperty bindings = _serializedRegistry.FindProperty("bindings");
+            _showBindingRows = DrawSectionHeader(_showBindingRows, "Action Bindings", bindings);
+            if (!_showBindingRows || bindings == null)
+                return;
+
+            if (bindings.arraySize == 0)
+                EditorGUILayout.HelpBox("No action bindings are registered.", MessageType.None);
+
+            for (int i = 0; i < bindings.arraySize; i++)
+            {
+                SerializedProperty row = bindings.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(bindings, i, "Binding", InitializeBindingRow);
+                    DrawRelative(row, "bindingId", "Binding Id");
+                    DrawRelative(row, "actionId", "Action Id");
+                    DrawRelative(row, "actionKey", "Action Key");
+                    DrawRelative(row, "clipId", "Clip Id");
+                    DrawRelative(row, "layerId", "Layer Id");
+                    DrawRelative(row, "loop", "Loop");
+                    DrawRelative(row, "playbackSpeed", "Speed");
+                    DrawRelative(row, "fadeDurationSeconds", "Fade Seconds");
+                    DrawRelative(row, "alignmentPolicy", "Alignment Policy");
+                    DrawRelative(row, "events", "Binding Events", includeChildren: true);
+                }
+            }
+
+            if (GUILayout.Button("Add Binding"))
+                AddRow(bindings, "Add MxAnimation Binding", InitializeBindingRow);
+        }
+
+        private void DrawLayerRows()
+        {
+            SerializedProperty layers = _serializedRegistry.FindProperty("layers");
+            _showLayerRows = DrawSectionHeader(_showLayerRows, "Layers", layers);
+            if (!_showLayerRows || layers == null)
+                return;
+
+            if (layers.arraySize == 0)
+                EditorGUILayout.HelpBox("No explicit layers are registered. Bindings can still target the default base layer.", MessageType.None);
+
+            for (int i = 0; i < layers.arraySize; i++)
+            {
+                SerializedProperty row = layers.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(layers, i, "Layer", InitializeLayerRow);
+                    DrawRelative(row, "layerId", "Layer Id");
+                    DrawRelative(row, "profileId", "Profile Id");
+                    DrawRelative(row, "defaultWeight", "Default Weight");
+                    DrawRelative(row, "blendMode", "Blend Mode");
+                    DrawRelative(row, "avatarMask", "Avatar Mask");
+                    DrawRelative(row, "avatarMaskResourceId", "AvatarMask Resource Id");
+                    DrawRelative(row, "avatarMaskVariant", "AvatarMask Variant");
+                    DrawRelative(row, "avatarMaskPackageId", "AvatarMask Package Id");
+                }
+            }
+
+            if (GUILayout.Button("Add Layer"))
+                AddRow(layers, "Add MxAnimation Layer", InitializeLayerRow);
+        }
+
+        private void DrawBlendRows()
+        {
+            SerializedProperty blend1D = _serializedRegistry.FindProperty("blend1DDefinitions");
+            SerializedProperty blend2D = _serializedRegistry.FindProperty("blend2DDefinitions");
+            int blendCount = (blend1D != null ? blend1D.arraySize : 0) + (blend2D != null ? blend2D.arraySize : 0);
+            _showBlendRows = EditorGUILayout.Foldout(
+                _showBlendRows,
+                "Blend Definitions (" + blendCount.ToString(CultureInfo.InvariantCulture) + ")",
+                true);
+            if (!_showBlendRows || (blend1D == null && blend2D == null))
+                return;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                DrawBlend1DRows(blend1D);
+                DrawBlend2DRows(blend2D);
+            }
+        }
+
+        private void DrawBlend1DRows(SerializedProperty blends)
+        {
+            if (blends == null)
+                return;
+
+            EditorGUILayout.LabelField("1D Blends", EditorStyles.boldLabel);
+            if (blends.arraySize == 0)
+                EditorGUILayout.HelpBox("No 1D blends are registered.", MessageType.None);
+
+            for (int i = 0; i < blends.arraySize; i++)
+            {
+                SerializedProperty row = blends.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(blends, i, "1D Blend", InitializeBlend1DRow);
+                    DrawRelative(row, "blendId", "Blend Id");
+                    DrawRelative(row, "parameterId", "Parameter Id");
+                    DrawRelative(row, "layerId", "Layer Id");
+                    DrawRelative(row, "parameterScale", "Parameter Scale");
+                    DrawRelative(row, "fadeDurationSeconds", "Fade Seconds");
+                    DrawBlend1DPointRows(row.FindPropertyRelative("points"));
+                }
+            }
+
+            if (GUILayout.Button("Add 1D Blend"))
+                AddRow(blends, "Add MxAnimation 1D Blend", InitializeBlend1DRow);
+        }
+
+        private void DrawBlend1DPointRows(SerializedProperty points)
+        {
+            if (points == null)
+                return;
+
+            EditorGUILayout.LabelField("Points", EditorStyles.miniBoldLabel);
+            if (points.arraySize == 0)
+                EditorGUILayout.HelpBox("No 1D points are registered.", MessageType.None);
+
+            for (int i = 0; i < points.arraySize; i++)
+            {
+                SerializedProperty point = points.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(points, i, "1D Point", InitializeBlend1DPointRow);
+                    DrawRelative(point, "threshold", "Threshold");
+                    DrawRelative(point, "clipId", "Clip Id");
+                    DrawRelative(point, "playbackSpeed", "Speed");
+                    DrawRelative(point, "loop", "Loop");
+                }
+            }
+
+            if (GUILayout.Button("Add 1D Point"))
+                AddRow(points, "Add MxAnimation 1D Blend Point", InitializeBlend1DPointRow);
+        }
+
+        private void DrawBlend2DRows(SerializedProperty blends)
+        {
+            if (blends == null)
+                return;
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("2D Blends", EditorStyles.boldLabel);
+            if (blends.arraySize == 0)
+                EditorGUILayout.HelpBox("No 2D blends are registered.", MessageType.None);
+
+            for (int i = 0; i < blends.arraySize; i++)
+            {
+                SerializedProperty row = blends.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(blends, i, "2D Blend", InitializeBlend2DRow);
+                    DrawRelative(row, "blendId", "Blend Id");
+                    DrawRelative(row, "parameterXId", "Parameter X Id");
+                    DrawRelative(row, "parameterYId", "Parameter Y Id");
+                    DrawRelative(row, "layerId", "Layer Id");
+                    DrawRelative(row, "parameterXScale", "Parameter X Scale");
+                    DrawRelative(row, "parameterYScale", "Parameter Y Scale");
+                    DrawRelative(row, "fadeDurationSeconds", "Fade Seconds");
+                    DrawBlend2DPointRows(row.FindPropertyRelative("points"));
+                }
+            }
+
+            if (GUILayout.Button("Add 2D Blend"))
+                AddRow(blends, "Add MxAnimation 2D Blend", InitializeBlend2DRow);
+        }
+
+        private void DrawBlend2DPointRows(SerializedProperty points)
+        {
+            if (points == null)
+                return;
+
+            EditorGUILayout.LabelField("Points", EditorStyles.miniBoldLabel);
+            if (points.arraySize == 0)
+                EditorGUILayout.HelpBox("No 2D points are registered.", MessageType.None);
+
+            for (int i = 0; i < points.arraySize; i++)
+            {
+                SerializedProperty point = points.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(points, i, "2D Point", InitializeBlend2DPointRow);
+                    DrawRelative(point, "x", "X");
+                    DrawRelative(point, "y", "Y");
+                    DrawRelative(point, "clipId", "Clip Id");
+                    DrawRelative(point, "playbackSpeed", "Speed");
+                    DrawRelative(point, "loop", "Loop");
+                }
+            }
+
+            if (GUILayout.Button("Add 2D Point"))
+                AddRow(points, "Add MxAnimation 2D Blend Point", InitializeBlend2DPointRow);
+        }
+
+        private void DrawDiagnostics()
+        {
+            EditorGUILayout.LabelField("Validation / Export Diagnostics", EditorStyles.boldLabel);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (GUILayout.Button("Refresh Export Diagnostics"))
+                    RefreshReport(logToConsole: true);
+
+                if (string.IsNullOrEmpty(_lastReport))
+                    RefreshReport(logToConsole: false);
+
+                EditorGUILayout.HelpBox(_lastReport, MessageType.Info);
+
+                if (GUILayout.Button("Open Timeline Scrubber Preview"))
+                    MxAnimationTimelineScrubberPreviewWindow.Open(_registry);
+            }
+        }
+
+        private static bool DrawSectionHeader(bool expanded, string title, SerializedProperty array)
+        {
+            string count = array != null ? " (" + array.arraySize.ToString(CultureInfo.InvariantCulture) + ")" : " (unavailable)";
+            return EditorGUILayout.Foldout(expanded, title + count, true);
+        }
+
+        private void DrawRowActions(
+            SerializedProperty array,
+            int index,
+            string label,
+            Action<SerializedProperty, int> initializer)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(label + " " + index.ToString(CultureInfo.InvariantCulture), EditorStyles.boldLabel);
+                if (GUILayout.Button("Duplicate", GUILayout.Width(82f)))
+                    DuplicateRow(array, index, label, initializer);
+                if (GUILayout.Button("Remove", GUILayout.Width(72f)))
+                    RemoveRow(array, index, "Remove MxAnimation " + label);
+            }
+        }
+
+        private void DrawProperty(string propertyName, string label)
+        {
+            SerializedProperty property = _serializedRegistry.FindProperty(propertyName);
+            if (property != null)
+                EditorGUILayout.PropertyField(property, new GUIContent(label));
+        }
+
+        private static void DrawRelative(
+            SerializedProperty row,
+            string propertyName,
+            string label,
+            bool includeChildren = false)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                EditorGUILayout.PropertyField(property, new GUIContent(label), includeChildren);
+        }
+
+        private void AddRow(
+            SerializedProperty array,
+            string undoName,
+            Action<SerializedProperty, int> initializer)
+        {
+            Undo.RecordObject(_registry, undoName);
+            int index = array.arraySize;
+            array.InsertArrayElementAtIndex(index);
+            initializer?.Invoke(array.GetArrayElementAtIndex(index), index);
+            ApplySerializedChanges(undoName);
+            GUIUtility.ExitGUI();
+        }
+
+        private void DuplicateRow(
+            SerializedProperty array,
+            int index,
+            string label,
+            Action<SerializedProperty, int> initializer)
+        {
+            Undo.RecordObject(_registry, "Duplicate MxAnimation " + label);
+            int insertIndex = Mathf.Clamp(index + 1, 0, array.arraySize);
+            array.InsertArrayElementAtIndex(insertIndex);
+            if (insertIndex == index)
+                initializer?.Invoke(array.GetArrayElementAtIndex(insertIndex), insertIndex);
+            ApplySerializedChanges("Duplicate MxAnimation " + label);
+            GUIUtility.ExitGUI();
+        }
+
+        private void RemoveRow(SerializedProperty array, int index, string undoName)
+        {
+            Undo.RecordObject(_registry, undoName);
+            array.DeleteArrayElementAtIndex(index);
+            ApplySerializedChanges(undoName);
+            GUIUtility.ExitGUI();
+        }
+
+        private void ApplySerializedChanges(string undoName)
+        {
+            if (_serializedRegistry == null)
+                return;
+
+            if (_serializedRegistry.ApplyModifiedProperties())
+            {
+                EditorUtility.SetDirty(_registry);
+                RefreshReport(logToConsole: false);
+            }
+            Undo.SetCurrentGroupName(undoName);
+        }
+
+        private void SetRegistry(MxAnimationClipRegistryAsset registry)
+        {
+            _registry = registry;
+            _serializedRegistry = registry != null ? new SerializedObject(registry) : null;
+            _lastReport = string.Empty;
+            if (_registry != null)
+                RefreshReport(logToConsole: false);
+        }
+
+        private void EnsureSerializedObject()
+        {
+            if (_registry != null && (_serializedRegistry == null || _serializedRegistry.targetObject != _registry))
+                _serializedRegistry = new SerializedObject(_registry);
+        }
+
+        private void RefreshReport(bool logToConsole)
+        {
+            if (_registry == null)
+            {
+                _lastReport = string.Empty;
+                return;
+            }
+
+            MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(_registry);
+            _lastReport = MxAnimationClipRegistryExporter.CreateReportText(result);
+            if (logToConsole)
+                Debug.Log(_lastReport, _registry);
+        }
+
+        private void CreateRegistryAsset()
+        {
+            string path = EditorUtility.SaveFilePanelInProject(
+                "Create MxAnimation Clip Registry",
+                "MxAnimationClipRegistry",
+                "asset",
+                "Choose a project asset path for the new clip registry.");
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            AssetDatabase.CreateAsset(asset, AssetDatabase.GenerateUniqueAssetPath(path));
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            SetRegistry(asset);
+            Selection.activeObject = asset;
+            EditorGUIUtility.PingObject(asset);
+        }
+
+        private static void InitializeClipRow(SerializedProperty row, int index)
+        {
+            SetString(row, "clipId", "clip" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "resourceId", "animation.clip." + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetBool(row, "isDefault", index == 0);
+            SetBool(row, "isFallback", index == 0);
+        }
+
+        private static void InitializeBindingRow(SerializedProperty row, int index)
+        {
+            SetString(row, "bindingId", "binding" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "actionKey", "action:" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "clipId", "clip" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "layerId", index == 0 ? "base" : string.Empty);
+            SetFloat(row, "playbackSpeed", 1f);
+            SetBool(row, "loop", true);
+            SetFloat(row, "fadeDurationSeconds", 0.1f);
+        }
+
+        private static void InitializeLayerRow(SerializedProperty row, int index)
+        {
+            SetString(row, "layerId", index == 0 ? "base" : "layer" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetFloat(row, "defaultWeight", index == 0 ? 1f : 0f);
+        }
+
+        private static void InitializeBlend1DRow(SerializedProperty row, int index)
+        {
+            SetString(row, "blendId", "blend1d" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "parameterId", "locomotion.speed");
+            SetString(row, "layerId", "base");
+            SetInt(row, "parameterScale", 1000);
+            SetFloat(row, "fadeDurationSeconds", 0.1f);
+            ClearArray(row, "points");
+        }
+
+        private static void InitializeBlend1DPointRow(SerializedProperty row, int index)
+        {
+            SetInt(row, "threshold", index * 500);
+            SetString(row, "clipId", "clip" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetFloat(row, "playbackSpeed", 1f);
+            SetBool(row, "loop", true);
+        }
+
+        private static void InitializeBlend2DRow(SerializedProperty row, int index)
+        {
+            SetString(row, "blendId", "blend2d" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "parameterXId", "move.x");
+            SetString(row, "parameterYId", "move.y");
+            SetString(row, "layerId", "base");
+            SetInt(row, "parameterXScale", 1000);
+            SetInt(row, "parameterYScale", 1000);
+            SetFloat(row, "fadeDurationSeconds", 0.1f);
+            ClearArray(row, "points");
+        }
+
+        private static void InitializeBlend2DPointRow(SerializedProperty row, int index)
+        {
+            SetInt(row, "x", index % 2 == 0 ? 0 : 1000);
+            SetInt(row, "y", index < 2 ? 0 : 1000);
+            SetString(row, "clipId", "clip" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetFloat(row, "playbackSpeed", 1f);
+            SetBool(row, "loop", true);
+        }
+
+        private static void SetString(SerializedProperty row, string propertyName, string value)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                property.stringValue = value;
+        }
+
+        private static void SetFloat(SerializedProperty row, string propertyName, float value)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                property.floatValue = value;
+        }
+
+        private static void SetInt(SerializedProperty row, string propertyName, int value)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                property.intValue = value;
+        }
+
+        private static void SetBool(SerializedProperty row, string propertyName, bool value)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                property.boolValue = value;
+        }
+
+        private static void ClearArray(SerializedProperty row, string propertyName)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null && property.isArray)
+                property.ClearArray();
         }
     }
 

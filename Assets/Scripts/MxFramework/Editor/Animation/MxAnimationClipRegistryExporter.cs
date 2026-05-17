@@ -54,6 +54,8 @@ namespace MxFramework.Editor.Animation
             ResourceKey fallbackClip = ResolveRoleClip(asset, clipKeys, false, report);
             MxAnimationLayerDefinition[] layers = CreateLayers(asset, report);
             MxAnimationActionBinding[] bindings = CreateBindings(asset, clipKeys, report);
+            MxAnimationBlend1DDefinition[] blend1DDefinitions = CreateBlend1DDefinitions(asset, clipKeys, report);
+            MxAnimationBlend2DDefinition[] blend2DDefinitions = CreateBlend2DDefinitions(asset, clipKeys, report);
             MxAnimationPresentationEvent[] events = CreateEvents(asset.Events);
 
             var definition = new MxAnimationSetDefinition(
@@ -63,7 +65,9 @@ namespace MxFramework.Editor.Animation
                 fallbackClip,
                 bindings,
                 events,
-                layers: layers);
+                layers: layers,
+                blend1DDefinitions: blend1DDefinitions,
+                blend2DDefinitions: blend2DDefinitions);
             report.Merge(MxAnimationSetDefinitionValidator.Validate(definition, catalog, requireCatalog));
             return new MxAnimationClipRegistryExportResult(definition, report);
         }
@@ -226,6 +230,93 @@ namespace MxFramework.Editor.Animation
             }
 
             return bindings;
+        }
+
+        private static MxAnimationBlend1DDefinition[] CreateBlend1DDefinitions(
+            MxAnimationClipRegistryAsset asset,
+            IReadOnlyDictionary<string, ResourceKey> clipKeys,
+            ResourceCatalogValidationReport report)
+        {
+            MxAnimationClipRegistryBlend1DEntry[] source = asset.Blend1DDefinitions;
+            var definitions = new MxAnimationBlend1DDefinition[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                MxAnimationClipRegistryBlend1DEntry blend = source[i];
+                MxAnimationClipRegistryBlend1DPointEntry[] sourcePoints = blend.Points;
+                var points = new MxAnimationBlend1DPoint[sourcePoints.Length];
+                for (int pointIndex = 0; pointIndex < sourcePoints.Length; pointIndex++)
+                {
+                    MxAnimationClipRegistryBlend1DPointEntry point = sourcePoints[pointIndex];
+                    if (!clipKeys.TryGetValue(point.ClipId, out ResourceKey clipKey))
+                    {
+                        report.AddError(
+                            "Blend1DClipReferenceMissing",
+                            default,
+                            "1D blend references an unknown clip id: " + point.ClipId + ".");
+                    }
+
+                    points[pointIndex] = new MxAnimationBlend1DPoint(
+                        point.Threshold,
+                        clipKey,
+                        point.PlaybackSpeed,
+                        point.Loop);
+                }
+
+                definitions[i] = new MxAnimationBlend1DDefinition(
+                    blend.BlendId,
+                    blend.ParameterId,
+                    new MxAnimationLayerId(blend.LayerId),
+                    points,
+                    blend.ParameterScale,
+                    blend.FadeDurationSeconds);
+            }
+
+            return definitions;
+        }
+
+        private static MxAnimationBlend2DDefinition[] CreateBlend2DDefinitions(
+            MxAnimationClipRegistryAsset asset,
+            IReadOnlyDictionary<string, ResourceKey> clipKeys,
+            ResourceCatalogValidationReport report)
+        {
+            MxAnimationClipRegistryBlend2DEntry[] source = asset.Blend2DDefinitions;
+            var definitions = new MxAnimationBlend2DDefinition[source.Length];
+            for (int i = 0; i < source.Length; i++)
+            {
+                MxAnimationClipRegistryBlend2DEntry blend = source[i];
+                MxAnimationClipRegistryBlend2DPointEntry[] sourcePoints = blend.Points;
+                var points = new MxAnimationBlend2DPoint[sourcePoints.Length];
+                for (int pointIndex = 0; pointIndex < sourcePoints.Length; pointIndex++)
+                {
+                    MxAnimationClipRegistryBlend2DPointEntry point = sourcePoints[pointIndex];
+                    if (!clipKeys.TryGetValue(point.ClipId, out ResourceKey clipKey))
+                    {
+                        report.AddError(
+                            "Blend2DClipReferenceMissing",
+                            default,
+                            "2D blend references an unknown clip id: " + point.ClipId + ".");
+                    }
+
+                    points[pointIndex] = new MxAnimationBlend2DPoint(
+                        point.X,
+                        point.Y,
+                        clipKey,
+                        point.PlaybackSpeed,
+                        point.Loop);
+                }
+
+                definitions[i] = new MxAnimationBlend2DDefinition(
+                    blend.BlendId,
+                    blend.ParameterXId,
+                    blend.ParameterYId,
+                    new MxAnimationLayerId(blend.LayerId),
+                    points,
+                    blend.ParameterXScale,
+                    blend.ParameterYScale,
+                    blend.FadeDurationSeconds);
+            }
+
+            return definitions;
         }
 
         private static MxAnimationPresentationEvent[] CreateEvents(
