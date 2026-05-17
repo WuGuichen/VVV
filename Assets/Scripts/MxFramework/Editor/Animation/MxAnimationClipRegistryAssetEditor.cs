@@ -876,6 +876,7 @@ namespace MxFramework.Editor.Animation
                 _compatibilitySocketPaths = EditorGUILayout.TextArea(_compatibilitySocketPaths, GUILayout.MinHeight(48f));
                 if (EditorGUI.EndChangeCheck())
                 {
+                    _lastBatchBakeReport = null;
                     _lastCompatibilityReport = null;
                     _lastPackageBuildResult = null;
                 }
@@ -1405,6 +1406,7 @@ namespace MxFramework.Editor.Animation
             _registry = registry;
             _serializedRegistry = registry != null ? new SerializedObject(registry) : null;
             _lastReport = string.Empty;
+            _lastBatchBakeReport = null;
             _lastCompatibilityReport = null;
             _lastPackageBuildResult = null;
             if (_registry != null)

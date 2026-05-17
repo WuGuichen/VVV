@@ -173,6 +173,45 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Build_WithStaleBakeCompatibilityReport_FailsPackagePreview()
+        {
+            MxAnimationClipRegistryAsset asset = CreatePackageRegistry(out GameObject skeletonRoot);
+            try
+            {
+                MxAnimationBatchBakeReport staleBake =
+                    MxAnimationWorkstationBakeUtility.BakeRegistryClips(asset, new[] { 0 });
+                Assert.IsTrue(staleBake.Success, staleBake.ReportText);
+
+                MxAnimationCompatibilityWorkstationReport compatibilityReport =
+                    MxAnimationWorkstationBakeUtility.BuildCompatibilityReport(
+                        asset,
+                        skeletonRoot,
+                        "humanoid",
+                        new[] { "WeaponSocket" },
+                        staleBake);
+                Assert.IsFalse(compatibilityReport.Success, compatibilityReport.ReportText);
+
+                var options = new MxAnimationPackageBuilderOptions(
+                    packageVersion: 4,
+                    providerSampleKind: MxAnimationPackageProviderSampleKind.LocalAssetBundle,
+                    bundleName: "demo-animation-package");
+                MxAnimationPackageBuildResult result =
+                    MxAnimationPackageBuilder.Build(asset, options, staleBake, compatibilityReport);
+
+                Assert.IsFalse(result.Success, result.ReportText);
+                Assert.AreSame(compatibilityReport, result.CompatibilityReport);
+                Assert.That(result.ReportText, Does.Contain("success: false"));
+                Assert.That(result.ReportText, Does.Contain("compatibilityIssues:"));
+                Assert.That(result.ReportText, Does.Contain("bakeFreshnessIssues:"));
+                Assert.That(result.ReportText, Does.Contain("BakeSkeletonProfileHashMismatch"));
+            }
+            finally
+            {
+                DestroyPackageRegistry(asset, skeletonRoot);
+            }
+        }
+
+        [Test]
         public void BuildExpectation_WhenCatalogEntriesAreMissing_ReportsSpecificResourceDiagnostics()
         {
             MxAnimationClipRegistryAsset asset = CreatePackageRegistry(out GameObject skeletonRoot);

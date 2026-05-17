@@ -68,6 +68,27 @@ namespace MxFramework.Editor.Animation
             ResourceCatalogValidationReport catalogValidation,
             MxAnimationPackageValidationReport packageValidation,
             string reportText)
+            : this(
+                exportResult,
+                expectation,
+                catalogSnapshot,
+                packageCatalog,
+                catalogValidation,
+                packageValidation,
+                compatibilityReport: null,
+                reportText)
+        {
+        }
+
+        internal MxAnimationPackageBuildResult(
+            MxAnimationClipRegistryExportResult exportResult,
+            MxAnimationPackageExpectation expectation,
+            ResourceCatalog catalogSnapshot,
+            MxAnimationPackageCatalog packageCatalog,
+            ResourceCatalogValidationReport catalogValidation,
+            MxAnimationPackageValidationReport packageValidation,
+            MxAnimationCompatibilityWorkstationReport compatibilityReport,
+            string reportText)
         {
             ExportResult = exportResult;
             Expectation = expectation;
@@ -75,6 +96,7 @@ namespace MxFramework.Editor.Animation
             PackageCatalog = packageCatalog;
             CatalogValidation = catalogValidation ?? new ResourceCatalogValidationReport();
             PackageValidation = packageValidation ?? new MxAnimationPackageValidationReport();
+            CompatibilityReport = compatibilityReport;
             ReportText = reportText ?? string.Empty;
         }
 
@@ -84,12 +106,14 @@ namespace MxFramework.Editor.Animation
         public MxAnimationPackageCatalog PackageCatalog { get; }
         public ResourceCatalogValidationReport CatalogValidation { get; }
         public MxAnimationPackageValidationReport PackageValidation { get; }
+        internal MxAnimationCompatibilityWorkstationReport CompatibilityReport { get; }
         public string ReportText { get; }
         public bool Success =>
             ExportResult != null
             && ExportResult.Success
             && !CatalogValidation.HasErrors
             && PackageValidation.Success
+            && (CompatibilityReport == null || CompatibilityReport.Success)
             && Expectation != null
             && CatalogSnapshot != null;
     }
@@ -146,6 +170,7 @@ namespace MxFramework.Editor.Animation
                 packageCatalog,
                 catalogValidation,
                 packageValidation,
+                compatibilityReport,
                 options.ProviderSampleKind,
                 bundleName,
                 options);
@@ -157,6 +182,7 @@ namespace MxFramework.Editor.Animation
                 packageCatalog,
                 catalogValidation,
                 packageValidation,
+                compatibilityReport,
                 reportText);
         }
 
@@ -172,6 +198,7 @@ namespace MxFramework.Editor.Animation
                 result.PackageCatalog,
                 result.CatalogValidation,
                 result.PackageValidation,
+                result.CompatibilityReport,
                 ResolveSampleKind(result.CatalogSnapshot),
                 ResolveBundleName(result.CatalogSnapshot),
                 null);
@@ -819,6 +846,7 @@ namespace MxFramework.Editor.Animation
             MxAnimationPackageCatalog packageCatalog,
             ResourceCatalogValidationReport catalogValidation,
             MxAnimationPackageValidationReport packageValidation,
+            MxAnimationCompatibilityWorkstationReport compatibilityReport,
             MxAnimationPackageProviderSampleKind sampleKind,
             string bundleName,
             MxAnimationPackageBuilderOptions options)
@@ -831,7 +859,8 @@ namespace MxFramework.Editor.Animation
                     && catalogValidation != null
                     && !catalogValidation.HasErrors
                     && packageValidation != null
-                    && packageValidation.Success ? "true" : "false")
+                    && packageValidation.Success
+                    && (compatibilityReport == null || compatibilityReport.Success) ? "true" : "false")
                 .Append('\n');
             builder.Append("setId: ").Append(export != null && export.Definition != null ? export.Definition.SetId : string.Empty).Append('\n');
             builder.Append("definitionHash: ").Append(export != null && export.Definition != null ? export.Definition.DefinitionHash : string.Empty).Append('\n');
@@ -851,6 +880,7 @@ namespace MxFramework.Editor.Animation
             AppendCatalogIssues(builder, "exportIssues", export != null ? export.ValidationReport : null);
             AppendCatalogIssues(builder, "catalogIssues", catalogValidation);
             AppendPackageIssues(builder, packageValidation);
+            AppendCompatibilityIssues(builder, compatibilityReport);
             builder.Append("warmup: pass Expectation + PackageCatalog to MxAnimationWarmupRequest; RequiredForWarmup resources are added to the ResourcePreloadPlan.\n");
             return builder.ToString();
         }
@@ -948,6 +978,78 @@ namespace MxFramework.Editor.Animation
                     .Append(" message=")
                     .Append(issue.Message)
                     .Append('\n');
+            }
+        }
+
+        private static void AppendCompatibilityIssues(StringBuilder builder, MxAnimationCompatibilityWorkstationReport report)
+        {
+            builder.Append("compatibilityIssues:\n");
+            if (report == null)
+            {
+                builder.Append("- none\n");
+            }
+            else if (report.CompatibilityReport == null || report.CompatibilityReport.Issues.Count == 0)
+            {
+                builder.Append("- none\n");
+            }
+            else
+            {
+                for (int i = 0; i < report.CompatibilityReport.Issues.Count; i++)
+                {
+                    MxAnimationCompatibilityIssue issue = report.CompatibilityReport.Issues[i];
+                    builder.Append("- ")
+                        .Append(issue.Severity)
+                        .Append(' ')
+                        .Append(issue.Code)
+                        .Append(" key=")
+                        .Append(issue.Key)
+                        .Append(" field=")
+                        .Append(issue.Field)
+                        .Append(" expected=")
+                        .Append(issue.Expected)
+                        .Append(" actual=")
+                        .Append(issue.Actual)
+                        .Append(" message=")
+                        .Append(issue.Message)
+                        .Append('\n');
+                }
+            }
+
+            builder.Append("bakeFreshnessIssues:\n");
+            if (report == null || report.BakeValidationReports.Count == 0)
+            {
+                builder.Append("- none\n");
+                return;
+            }
+
+            for (int i = 0; i < report.BakeValidationReports.Count; i++)
+            {
+                MxAnimationBakeValidationReport bakeReport = report.BakeValidationReports[i];
+                if (bakeReport == null || bakeReport.Issues.Count == 0)
+                {
+                    builder.Append("- none\n");
+                    continue;
+                }
+
+                for (int issueIndex = 0; issueIndex < bakeReport.Issues.Count; issueIndex++)
+                {
+                    MxAnimationBakeIssue issue = bakeReport.Issues[issueIndex];
+                    builder.Append("- ")
+                        .Append(issue.Severity)
+                        .Append(' ')
+                        .Append(issue.Code)
+                        .Append(" field=")
+                        .Append(issue.Field)
+                        .Append(" expected=")
+                        .Append(issue.Expected)
+                        .Append(" actual=")
+                        .Append(issue.Actual)
+                        .Append(" location=")
+                        .Append(issue.Location)
+                        .Append(" message=")
+                        .Append(issue.Message)
+                        .Append('\n');
+                }
             }
         }
     }
