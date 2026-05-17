@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Reflection;
 using System.Text;
 using MxFramework.Animation;
@@ -151,6 +152,20 @@ namespace MxFramework.Editor.Animation
         private bool _showBindingRows = true;
         private bool _showLayerRows = true;
         private bool _showBlendRows = true;
+        private bool _showTimelineEditor = true;
+        private int _timelineBindingIndex;
+        private int _timelineFrame;
+        private int _timelineRangeStart;
+        private int _timelineRangeEnd = 30;
+        private UnityEngine.Object _timelineCombatSource;
+        private bool _timelineAutoBakeSelectedClip = true;
+        private MxAnimationTimelineScrubberPreview _timelinePreview;
+        private string _timelineSummary = string.Empty;
+        private MxAnimationClipRegistryExportResult _timelineExport;
+        private MxAnimationBakeArtifact _timelineBake;
+        private AnimationClip _timelineClip;
+        private string _timelineSelector = string.Empty;
+        private bool _timelinePreviewDirty = true;
 
         [MenuItem(MenuPath, priority = 130)]
         public static void Open()
@@ -203,6 +218,7 @@ namespace MxFramework.Editor.Animation
             DrawRegistryHeader();
             DrawClipRows();
             DrawBindingRows();
+            DrawTimelineEventEditor();
             DrawLayerRows();
             DrawBlendRows();
             DrawDiagnostics();
@@ -317,6 +333,237 @@ namespace MxFramework.Editor.Animation
 
             if (GUILayout.Button("Add Binding"))
                 AddRow(bindings, "Add MxAnimation Binding", InitializeBindingRow);
+        }
+
+        private void DrawTimelineEventEditor()
+        {
+            SerializedProperty bindings = _serializedRegistry.FindProperty("bindings");
+            int bindingCount = bindings != null ? bindings.arraySize : 0;
+            _showTimelineEditor = EditorGUILayout.Foldout(
+                _showTimelineEditor,
+                "Timeline Event Editor + Scrubber (" + bindingCount.ToString(CultureInfo.InvariantCulture) + ")",
+                true);
+            if (!_showTimelineEditor)
+                return;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (bindings == null || bindings.arraySize == 0)
+                {
+                    EditorGUILayout.HelpBox("Add an action binding before editing timeline presentation events.", MessageType.Info);
+                    return;
+                }
+
+                EditorGUI.BeginChangeCheck();
+                string[] labels = CreateTimelineBindingLabels(_registry.Bindings);
+                _timelineBindingIndex = Mathf.Clamp(
+                    EditorGUILayout.Popup("Action Binding", _timelineBindingIndex, labels),
+                    0,
+                    Math.Max(0, labels.Length - 1));
+                _timelineCombatSource = EditorGUILayout.ObjectField(
+                    "Read-only Combat Source",
+                    _timelineCombatSource,
+                    typeof(UnityEngine.Object),
+                    false);
+                _timelineAutoBakeSelectedClip = EditorGUILayout.Toggle(
+                    "Bake From Selected Clip",
+                    _timelineAutoBakeSelectedClip);
+                if (EditorGUI.EndChangeCheck())
+                    MarkTimelinePreviewDirty();
+
+                _timelineBindingIndex = Mathf.Clamp(_timelineBindingIndex, 0, bindings.arraySize - 1);
+                SerializedProperty binding = bindings.GetArrayElementAtIndex(_timelineBindingIndex);
+                string selector = ResolveTimelineBindingSelector(_registry.Bindings);
+                AnimationClip selectedClip = ResolveTimelineSelectedClip(_registry, selector);
+                int maxFrame = ResolveTimelineMaxFrame(selectedClip);
+
+                DrawTimelineFrameControls(maxFrame);
+                DrawTimelineSourceStatus(selectedClip);
+                DrawTimelineEventRows(binding.FindPropertyRelative("events"), maxFrame);
+                DrawTimelinePreview();
+            }
+        }
+
+        private void DrawTimelineFrameControls(int maxFrame)
+        {
+            _timelineRangeStart = Mathf.Max(0, _timelineRangeStart);
+            _timelineRangeEnd = Mathf.Max(_timelineRangeStart, _timelineRangeEnd <= 0 ? maxFrame : _timelineRangeEnd);
+            _timelineFrame = Mathf.Clamp(_timelineFrame, _timelineRangeStart, _timelineRangeEnd);
+
+            EditorGUILayout.LabelField("Scrubber", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUI.BeginChangeCheck();
+                _timelineRangeStart = Mathf.Max(0, EditorGUILayout.IntField("Range Start", _timelineRangeStart));
+                _timelineRangeEnd = Mathf.Max(_timelineRangeStart, EditorGUILayout.IntField("Range End", _timelineRangeEnd));
+                if (GUILayout.Button("Full", GUILayout.Width(52f)))
+                {
+                    _timelineRangeStart = 0;
+                    _timelineRangeEnd = Math.Max(1, maxFrame);
+                }
+
+                if (EditorGUI.EndChangeCheck())
+                    MarkTimelinePreviewDirty();
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                using (new EditorGUI.DisabledScope(_timelineFrame <= _timelineRangeStart))
+                {
+                    if (GUILayout.Button("Previous Frame", GUILayout.Width(116f)))
+                    {
+                        _timelineFrame = Mathf.Max(_timelineRangeStart, _timelineFrame - 1);
+                        MarkTimelinePreviewDirty();
+                    }
+                }
+
+                EditorGUI.BeginChangeCheck();
+                _timelineFrame = EditorGUILayout.IntSlider(
+                    "Frame",
+                    _timelineFrame,
+                    _timelineRangeStart,
+                    Math.Max(_timelineRangeStart, _timelineRangeEnd));
+                if (EditorGUI.EndChangeCheck())
+                    MarkTimelinePreviewDirty();
+
+                using (new EditorGUI.DisabledScope(_timelineFrame >= _timelineRangeEnd))
+                {
+                    if (GUILayout.Button("Next Frame", GUILayout.Width(96f)))
+                    {
+                        _timelineFrame = Mathf.Min(_timelineRangeEnd, _timelineFrame + 1);
+                        MarkTimelinePreviewDirty();
+                    }
+                }
+            }
+        }
+
+        private void DrawTimelineSourceStatus(AnimationClip selectedClip)
+        {
+            string clipStatus = selectedClip != null
+                ? selectedClip.name + " (" + selectedClip.length.ToString("0.###", CultureInfo.InvariantCulture) + "s)"
+                : "(missing clip reference)";
+            EditorGUILayout.LabelField("Selected Clip", clipStatus);
+            EditorGUILayout.LabelField(
+                "Bake Rows",
+                _timelineAutoBakeSelectedClip
+                    ? "Generated in memory from selected AnimationClip when available; no serialized bake artifact assignment in v1."
+                    : "Disabled; enable Bake From Selected Clip or assign a future bake artifact source.");
+            EditorGUILayout.LabelField(
+                "Combat Rows",
+                _timelineCombatSource != null
+                    ? "Reading reflected frame ranges, windows, traces, and frame events when exposed by the source."
+                    : "No read-only Combat source assigned.");
+        }
+
+        private void DrawTimelineEventRows(SerializedProperty events, int maxFrame)
+        {
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("Presentation Events", EditorStyles.boldLabel);
+            if (events == null)
+            {
+                EditorGUILayout.HelpBox("Selected binding does not expose a presentation event array.", MessageType.Warning);
+                return;
+            }
+
+            if (events.arraySize == 0)
+                EditorGUILayout.HelpBox("No presentation events are defined for this binding.", MessageType.None);
+
+            for (int i = 0; i < events.arraySize; i++)
+            {
+                SerializedProperty row = events.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.LabelField("Event " + i.ToString(CultureInfo.InvariantCulture), EditorStyles.boldLabel);
+                        if (GUILayout.Button("Set To Frame", GUILayout.Width(96f)))
+                            SetTimelineEventTime(row, maxFrame);
+                        if (GUILayout.Button("Duplicate", GUILayout.Width(82f)))
+                            DuplicateRow(events, i, "Presentation Event", InitializeTimelineEventRow);
+                        if (GUILayout.Button("Remove", GUILayout.Width(72f)))
+                            RemoveRow(events, i, "Remove MxAnimation Presentation Event");
+                    }
+
+                    DrawRelative(row, "eventId", "Event Id");
+                    DrawRelative(row, "timeDomain", "Time Domain");
+                    DrawRelative(row, "time", "Time");
+                    DrawRelative(row, "eventKind", "Kind");
+                    DrawRelative(row, "payloadResourceId", "Payload Resource Id");
+                    DrawRelative(row, "payloadTypeId", "Payload Type Id");
+                    DrawRelative(row, "payloadVariant", "Payload Variant");
+                    DrawRelative(row, "payloadPackageId", "Payload Package Id");
+                    DrawRelative(row, "socket", "Socket");
+                    DrawRelative(row, "tag", "Tag");
+                    DrawRelative(row, "replayPolicy", "Replay Policy");
+                }
+            }
+
+            if (GUILayout.Button("Add Presentation Event"))
+                AddTimelineEvent(events);
+        }
+
+        private void DrawTimelinePreview()
+        {
+            EnsureTimelinePreview();
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("Preview Rows", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Refresh Timeline Preview"))
+                    RefreshTimelinePreviewInputs();
+                using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_timelineSummary)))
+                {
+                    if (GUILayout.Button("Copy Timeline Text"))
+                        EditorGUIUtility.systemCopyBuffer = _timelineSummary;
+                    if (GUILayout.Button("Export Timeline Text"))
+                        ExportTimelineSummaryText();
+                }
+            }
+
+            if (_timelinePreview == null)
+            {
+                EditorGUILayout.HelpBox("Timeline preview is unavailable.", MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.LabelField("Set", _timelinePreview.SetId);
+            EditorGUILayout.LabelField("Binding", _timelinePreview.BindingId);
+            EditorGUILayout.LabelField("Clip Key", _timelinePreview.ClipKey);
+            EditorGUILayout.LabelField(
+                "Time",
+                _timelinePreview.Seconds.ToString("0.###", CultureInfo.InvariantCulture)
+                + "s / normalized "
+                + _timelinePreview.NormalizedTime.ToString("0.###", CultureInfo.InvariantCulture));
+
+            if (_timelinePreview.Rows.Count == 0)
+            {
+                EditorGUILayout.HelpBox("No presentation, Combat, or bake rows intersect the selected frame.", MessageType.None);
+            }
+            else
+            {
+                for (int i = 0; i < _timelinePreview.Rows.Count; i++)
+                {
+                    MxAnimationTimelineScrubberRow row = _timelinePreview.Rows[i];
+                    EditorGUILayout.LabelField(row.Kind + " | " + row.Label, row.Details);
+                }
+            }
+
+            EditorGUILayout.LabelField("Diagnostics", EditorStyles.boldLabel);
+            if (_timelinePreview.Diagnostics.Count == 0)
+            {
+                EditorGUILayout.LabelField("none");
+            }
+            else
+            {
+                for (int i = 0; i < _timelinePreview.Diagnostics.Count; i++)
+                {
+                    MxAnimationTimelineScrubberDiagnostic diagnostic = _timelinePreview.Diagnostics[i];
+                    EditorGUILayout.HelpBox(
+                        diagnostic.Code + ": " + diagnostic.Message,
+                        diagnostic.Severity == MxAnimationTimelineScrubberDiagnosticSeverity.Error ? MessageType.Error : MessageType.Warning);
+                }
+            }
         }
 
         private void DrawLayerRows()
@@ -499,6 +746,207 @@ namespace MxFramework.Editor.Animation
             }
         }
 
+        private void AddTimelineEvent(SerializedProperty events)
+        {
+            Undo.RecordObject(_registry, "Add MxAnimation Presentation Event");
+            int index = events.arraySize;
+            events.InsertArrayElementAtIndex(index);
+            SerializedProperty row = events.GetArrayElementAtIndex(index);
+            InitializeTimelineEventRow(row, index);
+            SetTimelineEventTime(row, Math.Max(1, _timelineRangeEnd), applyChanges: false);
+            ApplySerializedChanges("Add MxAnimation Presentation Event");
+            GUIUtility.ExitGUI();
+        }
+
+        private void SetTimelineEventTime(SerializedProperty row, int maxFrame, bool applyChanges = true)
+        {
+            if (row == null)
+                return;
+
+            Undo.RecordObject(_registry, "Set MxAnimation Presentation Event Frame");
+            SerializedProperty domain = row.FindPropertyRelative("timeDomain");
+            SerializedProperty time = row.FindPropertyRelative("time");
+            if (time != null)
+            {
+                MxAnimationEventTimeDomain timeDomain = domain != null
+                    ? (MxAnimationEventTimeDomain)domain.enumValueIndex
+                    : MxAnimationEventTimeDomain.PresentationFrame;
+                switch (timeDomain)
+                {
+                    case MxAnimationEventTimeDomain.Seconds:
+                        time.floatValue = _timelineFrame / (float)MxAnimationBakeEditorTool.DefaultSampleTickRate;
+                        break;
+                    case MxAnimationEventTimeDomain.NormalizedTime:
+                        time.floatValue = maxFrame > 0 ? _timelineFrame / (float)maxFrame : 0f;
+                        break;
+                    default:
+                        time.floatValue = _timelineFrame;
+                        break;
+                }
+            }
+
+            if (applyChanges)
+                ApplySerializedChanges("Set MxAnimation Presentation Event Frame");
+        }
+
+        private void EnsureTimelinePreview()
+        {
+            if (_timelinePreviewDirty || _timelinePreview == null)
+                RefreshTimelinePreviewInputs();
+        }
+
+        private void RefreshTimelinePreviewInputs()
+        {
+            if (_registry == null)
+            {
+                _timelineExport = null;
+                _timelineBake = null;
+                _timelineClip = null;
+                _timelineSelector = string.Empty;
+                _timelinePreview = null;
+                _timelineSummary = string.Empty;
+                _timelinePreviewDirty = false;
+                return;
+            }
+
+            _timelineExport = MxAnimationClipRegistryExporter.ExportStructureOnly(_registry);
+            _timelineSelector = ResolveTimelineBindingSelector(_registry.Bindings);
+            _timelineClip = ResolveTimelineSelectedClip(_registry, _timelineSelector);
+            _timelineBake = _timelineAutoBakeSelectedClip && _timelineClip != null
+                ? MxAnimationBakeEditorTool.BakeClip(_timelineClip).Artifact
+                : null;
+            RebuildTimelinePreview();
+            _timelinePreviewDirty = false;
+        }
+
+        private void RebuildTimelinePreview()
+        {
+            if (_timelineExport == null)
+            {
+                _timelinePreview = null;
+                _timelineSummary = string.Empty;
+                return;
+            }
+
+            _timelinePreview = MxAnimationTimelineScrubberPreviewBuilder.Build(
+                _timelineExport.Definition,
+                _timelineSelector,
+                _timelineFrame,
+                _timelineBake,
+                _timelineCombatSource,
+                _timelineExport.ValidationReport,
+                _timelineClip != null);
+            _timelineSummary = MxAnimationTimelineScrubberPreviewBuilder.CreateSummary(_timelinePreview);
+        }
+
+        private void MarkTimelinePreviewDirty()
+        {
+            _timelinePreviewDirty = true;
+        }
+
+        private int ResolveTimelineMaxFrame(AnimationClip selectedClip)
+        {
+            int maxFrame = Math.Max(1, _timelineRangeEnd);
+            if (selectedClip != null)
+            {
+                maxFrame = Math.Max(
+                    maxFrame,
+                    Mathf.CeilToInt(Mathf.Max(selectedClip.length, 0.0001f) * MxAnimationBakeEditorTool.DefaultSampleTickRate));
+            }
+
+            int combatTotalFrames = TryGetTimelineIntProperty(_timelineCombatSource, "TotalFrames", -1);
+            if (combatTotalFrames > 0)
+                maxFrame = Math.Max(maxFrame, combatTotalFrames - 1);
+
+            return maxFrame;
+        }
+
+        private void ExportTimelineSummaryText()
+        {
+            string path = EditorUtility.SaveFilePanel(
+                "Export MxAnimation Timeline Text",
+                Application.dataPath,
+                "MxAnimationTimeline.txt",
+                "txt");
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            File.WriteAllText(path, _timelineSummary ?? string.Empty, Encoding.UTF8);
+            AssetDatabase.Refresh();
+        }
+
+        private string ResolveTimelineBindingSelector(MxAnimationClipRegistryBindingEntry[] bindings)
+        {
+            if (bindings == null || bindings.Length == 0)
+                return string.Empty;
+
+            _timelineBindingIndex = Mathf.Clamp(_timelineBindingIndex, 0, bindings.Length - 1);
+            MxAnimationClipRegistryBindingEntry binding = bindings[_timelineBindingIndex];
+            return !string.IsNullOrWhiteSpace(binding.BindingId) ? binding.BindingId : binding.ResolveActionKey();
+        }
+
+        private static string[] CreateTimelineBindingLabels(MxAnimationClipRegistryBindingEntry[] bindings)
+        {
+            if (bindings == null || bindings.Length == 0)
+                return new[] { "(none)" };
+
+            var labels = new string[bindings.Length];
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                string action = bindings[i].ResolveActionKey();
+                labels[i] = (string.IsNullOrWhiteSpace(bindings[i].BindingId) ? action : bindings[i].BindingId)
+                    + " | "
+                    + bindings[i].ClipId;
+            }
+
+            return labels;
+        }
+
+        private static AnimationClip ResolveTimelineSelectedClip(MxAnimationClipRegistryAsset registry, string selector)
+        {
+            if (registry == null)
+                return null;
+
+            MxAnimationClipRegistryBindingEntry binding = default;
+            bool foundBinding = false;
+            MxAnimationClipRegistryBindingEntry[] bindings = registry.Bindings;
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                if (string.Equals(bindings[i].BindingId, selector, StringComparison.Ordinal)
+                    || string.Equals(bindings[i].ResolveActionKey(), selector, StringComparison.Ordinal))
+                {
+                    binding = bindings[i];
+                    foundBinding = true;
+                    break;
+                }
+            }
+
+            if (!foundBinding)
+                return null;
+
+            MxAnimationClipRegistryClipEntry[] clips = registry.Clips;
+            for (int i = 0; i < clips.Length; i++)
+            {
+                if (string.Equals(clips[i].ClipId, binding.ClipId, StringComparison.Ordinal))
+                    return clips[i].Clip;
+            }
+
+            return null;
+        }
+
+        private static int TryGetTimelineIntProperty(object target, string propertyName, int fallback)
+        {
+            if (target == null)
+                return fallback;
+
+            PropertyInfo property = target.GetType().GetProperty(propertyName);
+            if (property == null)
+                return fallback;
+
+            object value = property.GetValue(target, null);
+            return value is int intValue ? intValue : fallback;
+        }
+
         private static bool DrawSectionHeader(bool expanded, string title, SerializedProperty array)
         {
             string count = array != null ? " (" + array.arraySize.ToString(CultureInfo.InvariantCulture) + ")" : " (unavailable)";
@@ -584,6 +1032,7 @@ namespace MxFramework.Editor.Animation
             {
                 EditorUtility.SetDirty(_registry);
                 RefreshReport(logToConsole: false);
+                MarkTimelinePreviewDirty();
             }
             Undo.SetCurrentGroupName(undoName);
         }
@@ -700,6 +1149,21 @@ namespace MxFramework.Editor.Animation
             SetBool(row, "loop", true);
         }
 
+        private static void InitializeTimelineEventRow(SerializedProperty row, int index)
+        {
+            SetString(row, "eventId", "event:" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetEnum(row, "timeDomain", (int)MxAnimationEventTimeDomain.PresentationFrame);
+            SetFloat(row, "time", 0f);
+            SetString(row, "eventKind", "VFX");
+            SetString(row, "payloadResourceId", string.Empty);
+            SetString(row, "payloadTypeId", string.Empty);
+            SetString(row, "payloadVariant", string.Empty);
+            SetString(row, "payloadPackageId", string.Empty);
+            SetString(row, "socket", string.Empty);
+            SetString(row, "tag", string.Empty);
+            SetEnum(row, "replayPolicy", (int)MxAnimationPresentationEventReplayPolicy.OneShot);
+        }
+
         private static void SetString(SerializedProperty row, string propertyName, string value)
         {
             SerializedProperty property = row.FindPropertyRelative(propertyName);
@@ -726,6 +1190,13 @@ namespace MxFramework.Editor.Animation
             SerializedProperty property = row.FindPropertyRelative(propertyName);
             if (property != null)
                 property.boolValue = value;
+        }
+
+        private static void SetEnum(SerializedProperty row, string propertyName, int value)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                property.enumValueIndex = value;
         }
 
         private static void ClearArray(SerializedProperty row, string propertyName)

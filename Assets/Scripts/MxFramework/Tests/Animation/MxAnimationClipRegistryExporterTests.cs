@@ -560,6 +560,61 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void TimelineScrubberPreview_UsesEditedRegistryBindingEvents()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
+            var clip = new AnimationClip { name = "Attack" };
+            try
+            {
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].Clip = clip;
+                asset.Clips = clips;
+
+                MxAnimationClipRegistryBindingEntry[] bindings = asset.Bindings;
+                bindings[0].Events = new[]
+                {
+                    new MxAnimationClipRegistryEventEntry
+                    {
+                        EventId = "event:42",
+                        TimeDomain = MxAnimationEventTimeDomain.PresentationFrame,
+                        Time = 4f,
+                        EventKind = "SFX",
+                        PayloadResourceId = "demo.sfx.impact",
+                        PayloadTypeId = ResourceTypeIds.AudioClip,
+                        Socket = "weapon"
+                    }
+                };
+                asset.Bindings = bindings;
+
+                MxAnimationClipRegistryExportResult edited = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                MxAnimationTimelineScrubberPreview editedPreview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(edited.Definition, "attack", 4);
+
+                Assert.IsTrue(edited.Success, MxAnimationClipRegistryExporter.CreateReportText(edited));
+                Assert.AreEqual("event:42", edited.Definition.Actions[0].PresentationEvents[0].EventId);
+                Assert.IsTrue(ContainsScrubberRow(editedPreview, MxAnimationTimelineScrubberRowKind.PresentationEvent, "event:42"));
+                Assert.IsFalse(ContainsScrubberRow(editedPreview, MxAnimationTimelineScrubberRowKind.PresentationEvent, "event:77"));
+
+                bindings = asset.Bindings;
+                bindings[0].Events = System.Array.Empty<MxAnimationClipRegistryEventEntry>();
+                asset.Bindings = bindings;
+
+                MxAnimationClipRegistryExportResult removed = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                MxAnimationTimelineScrubberPreview removedPreview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(removed.Definition, "attack", 4);
+
+                Assert.IsTrue(removed.Success, MxAnimationClipRegistryExporter.CreateReportText(removed));
+                Assert.AreEqual(0, removed.Definition.Actions[0].PresentationEvents.Count);
+                Assert.IsFalse(ContainsScrubberRow(removedPreview, MxAnimationTimelineScrubberRowKind.PresentationEvent, "event:42"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
         public void TimelineScrubberPreview_ReadsCombatAuthoringAssetAsTimelineSource()
         {
             MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
