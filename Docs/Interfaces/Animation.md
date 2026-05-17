@@ -1,8 +1,8 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D blend DTO/weight evaluation、bake artifact/hash/diagnostics 和资源版本校验；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / 1D blend mixer / diagnostics 抽象、layer weight、AvatarMask 加载和 1D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / bake MVP tool。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112、Gitea Issue #123、Gitea Issue #124
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D blend DTO/weight evaluation、bake artifact/hash/diagnostics、backend cache diagnostics 和资源版本校验；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / 1D blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / bake MVP tool。
 
 ## 职责
 
@@ -64,7 +64,8 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationCrossFadeRequest` | crossfade 请求，支持 target clip、fade duration、start offset 和 outgoing release policy |
 | `MxAnimationLayerWeightRequest` | layer weight correction / transition 请求，支持 immediate set 或按 presentation delta fade |
 | `MxAnimationBlend1DRequest` | 1D blend 播放请求，指定 actor、blend id、量化参数和可选 fade duration |
-| `MxAnimationDiagnosticSnapshot` | backend、graph、resident default/fallback、layer state、active fades、recent requests/errors |
+| `MxAnimationDiagnosticSnapshot` | backend、graph、resident default/fallback、layer state、active fades、recent requests/errors 和 backend cache 摘要 |
+| `MxAnimationBackendCacheDiagnostic` | actor-scoped backend cache 摘要，暴露 cache hit/miss、resident clip、cached/active playable 和 ResourceManager loaded/ref count |
 | `IMxAnimationBackend` | 最小 backend surface：play、stop、crossfade、set layer weight、set blend 1D、tick、snapshot、release |
 | `UnityPlayablesAnimationBackend` | Unity Playables MVP backend，使用 manual `Tick(deltaTime)` 推进 |
 | `MxAnimationPresentationSyncState` | 多人 / late join / 补包场景的表现恢复状态；保存 actor、animation set version/hash、action instance、Combat frame anchor、layer state 和量化表现参数 |
@@ -197,6 +198,15 @@ Legacy coexistence:
 
 这些抽象是 Unity assembly 内部类型；测试通过 `MxFramework.Tests` 友元程序集覆盖职责边界。
 
+## Unity Playables State Cache
+
+第三阶段的 cache 范围限定在单个 `UnityPlayablesAnimationBackend` 实例，也就是 actor-scoped cache。它不做跨 actor 全局复用，不改变 `ResourceManager` handle 所有权，也不把 package / variant 不同的 clip 合并：
+
+- 重复 `Play` 当前 clip 时复用当前 clip playable，只重设 speed、loop 和 start offset，不重复加载资源。
+- 同一 `MxAnimationBlend1DDefinition` 在参数变化时保留该 blend 已加载过的 clip slots；已加载 slot 权重归零后仍可作为 cached playable 留在 graph 中，`ActivePlayableCount` 只统计权重大于 0 的 blend slot。
+- `Stop`、普通 `Play` 切出 blend、backend `Release`、actor destroy，以及 fade out 权重归零后的 outgoing slot detached 都会释放 backend 拥有的 handles；resident default/fallback 仍保持到 backend `Release`。
+- `MxAnimationDiagnosticSnapshot.Cache` 输出 cache hit/miss、resident clip 数量、cached/active playable 数量，以及当前 `ResourceManager` loaded/ref count，供 smoke demo、MCP 手测和回归测试观察资源是否持续增长。
+
 ## 测试入口
 
 ```text
@@ -212,6 +222,7 @@ Assets/Scripts/MxFramework/Tests/Animation/
 - warmup success、sync hash/version mismatch、catalog wrong type、preload partial failure、clip registry entry hash mismatch 和 release 后 ref-count 归还。
 - 1D locomotion blend 权重计算、definition hash、mapping validation、warmup clip 收集和 Unity Playables backend 多 clip 权重诊断。
 - Unity Playables backend 内部 graph lifecycle、clip playable factory、layer mixer、1D blend mixer 和 diagnostics buffer 职责边界。
+- Unity Playables actor-scoped cache 的 repeated play、locomotion blend 参数切换和 upper-body fade-out release。
 - bake profile/artifact hash 稳定性、source/profile/artifact mismatch diagnostics、Editor clip 曲线采样和 event marker bake。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
