@@ -318,6 +318,192 @@ namespace MxFramework.Tests.Animation
             Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
         }
 
+        [Test]
+        public void PackageValidator_AllowsSameMappingAcrossMemoryAndBundleProviders()
+        {
+            ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceKey mask = MaskKey("demo.animation.mask.upper_body");
+            var expectation = new MxAnimationPackageExpectation(
+                "mx.anim.demo",
+                version: 4,
+                catalogId: "mx.anim.demo.catalog",
+                catalogHash: "catalog-hash",
+                acceptedProviderIds: new[] { "memory", "assetBundle", "remoteBundle" },
+                resources: new[]
+                {
+                    new MxAnimationPackageResourceExpectation(clip, "clip-hash"),
+                    new MxAnimationPackageResourceExpectation(mask, "mask-hash")
+                });
+            ResourceCatalog memoryCatalog = Catalog(
+                "mx.anim.demo.catalog",
+                "mx.anim.demo",
+                Entry(clip, "clips/attack", hash: "clip-hash"),
+                Entry(mask, "masks/upper", hash: "mask-hash"));
+            ResourceCatalog bundleCatalog = Catalog(
+                "mx.anim.demo.catalog",
+                "mx.anim.demo",
+                Entry(clip, "mx-anim-demo|Assets/Animation/attack.anim", "assetBundle", hash: "clip-hash"),
+                Entry(mask, "mx-anim-demo|Assets/Animation/upper.mask", "assetBundle", hash: "mask-hash"));
+
+            MxAnimationPackageValidationReport memoryReport = MxAnimationPackageCatalogValidator.Validate(
+                new MxAnimationPackageCatalog(memoryCatalog, version: 4, catalogHash: "catalog-hash"),
+                expectation);
+            MxAnimationPackageValidationReport bundleReport = MxAnimationPackageCatalogValidator.Validate(
+                new MxAnimationPackageCatalog(bundleCatalog, version: 4, catalogHash: "catalog-hash"),
+                expectation);
+
+            Assert.IsTrue(memoryReport.Success, Describe(memoryReport));
+            Assert.IsTrue(bundleReport.Success, Describe(bundleReport));
+        }
+
+        [Test]
+        public void Warmup_WithPackageExpectation_PreloadsClipMaskBakeAndCompatibilityProfile()
+        {
+            ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceKey mask = MaskKey("demo.animation.mask.upper_body");
+            ResourceKey bake = BakeKey("demo.animation.bake.attack");
+            ResourceKey profile = ProfileKey("demo.animation.profile.humanoid");
+            var provider = new MemoryResourceProvider()
+                .Register("clips/attack", "Attack")
+                .Register("masks/upper", "UpperMask")
+                .Register("bake/attack", "BakeArtifact")
+                .Register("profiles/humanoid", "CompatibilityProfile");
+            ResourceCatalog catalog = Catalog(
+                "mx.anim.demo.catalog",
+                "mx.anim.demo",
+                Entry(clip, "clips/attack", hash: "clip-hash"),
+                Entry(mask, "masks/upper", hash: "mask-hash"),
+                Entry(bake, "bake/attack", hash: "bake-hash"),
+                Entry(profile, "profiles/humanoid", hash: "profile-hash"));
+            ResourceManager manager = CreateManager(provider, catalog);
+            var service = new MxAnimationWarmupService(new ResourcePreloadService(manager));
+            MxAnimationSetDefinition definition = CreateDefinition(clip, clip, mask: mask);
+            var expectation = new MxAnimationPackageExpectation(
+                "mx.anim.demo",
+                version: 2,
+                catalogId: "mx.anim.demo.catalog",
+                catalogHash: "catalog-hash",
+                acceptedProviderIds: new[] { "memory" },
+                resources: new[]
+                {
+                    new MxAnimationPackageResourceExpectation(clip, "clip-hash"),
+                    new MxAnimationPackageResourceExpectation(mask, "mask-hash"),
+                    new MxAnimationPackageResourceExpectation(bake, "bake-hash"),
+                    new MxAnimationPackageResourceExpectation(profile, "profile-hash")
+                });
+
+            MxAnimationWarmupResult result = service.Warmup(new MxAnimationWarmupRequest(
+                definition,
+                MxAnimationClipRegistryBuilder.FromCatalog(catalog, version: 1, catalogHash: "catalog-hash"),
+                catalog,
+                null,
+                null,
+                true,
+                null,
+                expectation,
+                new MxAnimationPackageCatalog(catalog, version: 2, catalogHash: "catalog-hash")));
+
+            Assert.IsTrue(result.Success, Describe(result));
+            Assert.AreEqual(4, result.RequiredKeys.Count);
+            Assert.AreEqual(4, result.PreloadResult.RequestedCount);
+            Assert.AreEqual(4, result.PreloadResult.LoadedCount);
+            Assert.AreEqual(4, manager.CreateDebugSnapshot().LoadedCount);
+
+            service.Release(result);
+
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void PackageValidator_WhenVersionCatalogHashAndResourceHashMismatch_ReportsDiagnostics()
+        {
+            ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceCatalog catalog = Catalog(
+                "mx.anim.demo.catalog",
+                "mx.anim.demo",
+                Entry(clip, "clips/attack", hash: "clip-hash-v2"));
+            var expectation = new MxAnimationPackageExpectation(
+                "mx.anim.demo",
+                version: 1,
+                catalogId: "mx.anim.demo.catalog",
+                catalogHash: "catalog-hash-v1",
+                acceptedProviderIds: new[] { "memory" },
+                resources: new[]
+                {
+                    new MxAnimationPackageResourceExpectation(clip, "clip-hash-v1")
+                });
+
+            MxAnimationPackageValidationReport report = MxAnimationPackageCatalogValidator.Validate(
+                new MxAnimationPackageCatalog(catalog, version: 2, catalogHash: "catalog-hash-v2"),
+                expectation);
+
+            Assert.IsFalse(report.Success);
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.PackageVersionMismatch, default, "version");
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.PackageCatalogHashMismatch, default, "catalogHash");
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.PackageResourceHashMismatch, clip, "catalogEntryHash");
+        }
+
+        [Test]
+        public void PackageValidator_WhenBakeArtifactMissing_ReportsSpecificDiagnostic()
+        {
+            ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceKey bake = BakeKey("demo.animation.bake.attack");
+            ResourceCatalog catalog = Catalog(Entry(clip, "clips/attack", hash: "clip-hash"));
+            var expectation = new MxAnimationPackageExpectation(
+                string.Empty,
+                resources: new[]
+                {
+                    new MxAnimationPackageResourceExpectation(bake, "bake-hash")
+                });
+
+            MxAnimationPackageValidationReport report = MxAnimationPackageCatalogValidator.Validate(
+                new MxAnimationPackageCatalog(catalog),
+                expectation);
+
+            Assert.IsFalse(report.Success);
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.BakeArtifactMissing, bake, "catalogEntry");
+        }
+
+        [Test]
+        public void Warmup_WhenPackageResourceLoadFails_ReportsPreloadResourceFailed()
+        {
+            ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceKey bake = BakeKey("demo.animation.bake.attack");
+            var provider = new MemoryResourceProvider().Register("clips/attack", "Attack");
+            ResourceCatalog catalog = Catalog(
+                Entry(clip, "clips/attack", hash: "clip-hash"),
+                Entry(bake, "bake/missing", hash: "bake-hash"));
+            ResourceManager manager = CreateManager(provider, catalog);
+            var service = new MxAnimationWarmupService(new ResourcePreloadService(manager));
+            MxAnimationSetDefinition definition = CreateDefinition(clip, clip);
+            var expectation = new MxAnimationPackageExpectation(
+                string.Empty,
+                acceptedProviderIds: new[] { "memory" },
+                resources: new[]
+                {
+                    new MxAnimationPackageResourceExpectation(bake, "bake-hash")
+                });
+
+            MxAnimationWarmupResult result = service.Warmup(new MxAnimationWarmupRequest(
+                definition,
+                MxAnimationClipRegistryBuilder.FromCatalog(catalog),
+                catalog,
+                null,
+                null,
+                true,
+                null,
+                expectation,
+                new MxAnimationPackageCatalog(catalog)));
+
+            Assert.IsFalse(result.Success);
+            Assert.IsNotNull(result.PreloadResult);
+            MxAnimationWarmupIssue issue = AssertIssue(result, MxAnimationWarmupIssueCodes.PreloadResourceFailed, bake, "resource");
+            Assert.AreEqual(ResourceErrorCode.NotFound, issue.ResourceError.Code);
+
+            service.Release(result);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
         private static MxAnimationSetDefinition CreateDefinition(
             ResourceKey defaultClip,
             ResourceKey fallbackClip,
@@ -354,12 +540,22 @@ namespace MxFramework.Tests.Animation
             return new ResourceCatalog("demo", string.Empty, entries);
         }
 
-        private static ResourceCatalogEntry Entry(ResourceKey key, string address, string hash = "", string[] labels = null)
+        private static ResourceCatalog Catalog(string catalogId, string packageId, params ResourceCatalogEntry[] entries)
+        {
+            return new ResourceCatalog(catalogId, packageId, entries);
+        }
+
+        private static ResourceCatalogEntry Entry(
+            ResourceKey key,
+            string address,
+            string providerId = "memory",
+            string hash = "",
+            string[] labels = null)
         {
             return new ResourceCatalogEntry(
                 key.Id,
                 key.TypeId,
-                "memory",
+                providerId,
                 address,
                 variant: key.Variant,
                 packageId: key.PackageId,
@@ -385,6 +581,16 @@ namespace MxFramework.Tests.Animation
             return new ResourceKey(id, ResourceTypeIds.AvatarMask);
         }
 
+        private static ResourceKey BakeKey(string id)
+        {
+            return new ResourceKey(id, MxAnimationResourceTypeIds.BakeArtifact);
+        }
+
+        private static ResourceKey ProfileKey(string id)
+        {
+            return new ResourceKey(id, MxAnimationResourceTypeIds.CompatibilityProfile);
+        }
+
         private static MxAnimationWarmupIssue AssertIssue(
             MxAnimationWarmupResult result,
             string code,
@@ -399,9 +605,29 @@ namespace MxFramework.Tests.Animation
             return issue;
         }
 
+        private static MxAnimationPackageValidationIssue AssertPackageIssue(
+            MxAnimationPackageValidationReport report,
+            string code,
+            ResourceKey key,
+            string field)
+        {
+            MxAnimationPackageValidationIssue issue = report.Issues.FirstOrDefault(candidate =>
+                candidate.Code == code
+                && candidate.Field == field
+                && (!key.IsValid || candidate.Key == key));
+            Assert.IsNotNull(issue, Describe(report));
+            return issue;
+        }
+
         private static string Describe(MxAnimationWarmupResult result)
         {
             return string.Join("\n", result.Issues.Select(issue =>
+                issue.Code + " " + issue.Field + " " + issue.Key + " expected=" + issue.Expected + " actual=" + issue.Actual + " " + issue.Message));
+        }
+
+        private static string Describe(MxAnimationPackageValidationReport report)
+        {
+            return string.Join("\n", report.Issues.Select(issue =>
                 issue.Code + " " + issue.Field + " " + issue.Key + " expected=" + issue.Expected + " actual=" + issue.Actual + " " + issue.Message));
         }
     }
