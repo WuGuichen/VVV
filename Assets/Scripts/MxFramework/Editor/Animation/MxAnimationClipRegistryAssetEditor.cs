@@ -203,6 +203,14 @@ namespace MxFramework.Editor.Animation
         private string _packageRemoteCacheKey = string.Empty;
         private string _packageRemoteHash = string.Empty;
         private MxAnimationPackageBuildResult _lastPackageBuildResult;
+        private bool _showModOverrideReview = true;
+        private MxAnimationClipRegistryAsset _modOverrideBaseRegistry;
+        private MxAnimationClipRegistryAsset _modOverrideRegistry;
+        private int _modOverrideVersion = 1;
+        private int _modOverrideResultVersion;
+        private int _modOverrideLoadOrder = 10;
+        private bool _modOverrideRunWarmupValidation = true;
+        private MxAnimationModOverrideWorkstationPreview _lastModOverridePreview;
         private bool _showTimelineEditor = true;
         private int _timelineBindingIndex;
         private int _timelineFrame;
@@ -275,6 +283,7 @@ namespace MxFramework.Editor.Animation
             DrawBlendRows();
             DrawCompatibilityPanel();
             DrawPackageBuilderPanel();
+            DrawModOverrideReviewPanel();
             DrawDiagnostics();
             EditorGUILayout.EndScrollView();
 
@@ -875,11 +884,7 @@ namespace MxFramework.Editor.Animation
                 EditorGUILayout.LabelField("Socket Paths");
                 _compatibilitySocketPaths = EditorGUILayout.TextArea(_compatibilitySocketPaths, GUILayout.MinHeight(48f));
                 if (EditorGUI.EndChangeCheck())
-                {
-                    _lastBatchBakeReport = null;
-                    _lastCompatibilityReport = null;
-                    _lastPackageBuildResult = null;
-                }
+                    ClearDerivedReports(clearBake: true);
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -932,7 +937,7 @@ namespace MxFramework.Editor.Animation
                     _packageRemoteHash = EditorGUILayout.TextField("Remote Bundle SHA-256", _packageRemoteHash);
                 }
                 if (EditorGUI.EndChangeCheck())
-                    _lastPackageBuildResult = null;
+                    ClearDerivedReports(clearBake: false);
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -961,6 +966,160 @@ namespace MxFramework.Editor.Animation
                     EditorGUILayout.TextArea(_lastPackageBuildResult.ReportText, GUILayout.MinHeight(150f));
                 }
             }
+        }
+
+        private void DrawModOverrideReviewPanel()
+        {
+            _showModOverrideReview = EditorGUILayout.Foldout(_showModOverrideReview, "Mod Override Review", true);
+            if (!_showModOverrideReview)
+                return;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (_modOverrideBaseRegistry == null)
+                    _modOverrideBaseRegistry = _registry;
+                if (_modOverrideRegistry == null)
+                    _modOverrideRegistry = _registry;
+
+                EditorGUI.BeginChangeCheck();
+                _modOverrideBaseRegistry = (MxAnimationClipRegistryAsset)EditorGUILayout.ObjectField(
+                    "Base Registry",
+                    _modOverrideBaseRegistry,
+                    typeof(MxAnimationClipRegistryAsset),
+                    false);
+                _modOverrideRegistry = (MxAnimationClipRegistryAsset)EditorGUILayout.ObjectField(
+                    "Override Registry",
+                    _modOverrideRegistry,
+                    typeof(MxAnimationClipRegistryAsset),
+                    false);
+                _modOverrideVersion = Math.Max(1, EditorGUILayout.IntField("Override Version", _modOverrideVersion <= 0 ? 1 : _modOverrideVersion));
+                _modOverrideResultVersion = Math.Max(0, EditorGUILayout.IntField("Result Version Override", _modOverrideResultVersion));
+                _modOverrideLoadOrder = EditorGUILayout.IntField("Load Order", _modOverrideLoadOrder);
+                _modOverrideRunWarmupValidation = EditorGUILayout.Toggle("Run Warmup Validation", _modOverrideRunWarmupValidation);
+                if (EditorGUI.EndChangeCheck())
+                    ClearModOverridePreview();
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Use Current As Base", GUILayout.Width(132f)))
+                    {
+                        _modOverrideBaseRegistry = _registry;
+                        ClearModOverridePreview();
+                    }
+
+                    if (GUILayout.Button("Use Current As Override", GUILayout.Width(152f)))
+                    {
+                        _modOverrideRegistry = _registry;
+                        ClearModOverridePreview();
+                    }
+                }
+
+                EditorGUILayout.HelpBox(
+                    "Review uses the selected base registry export, selected override registry export, and the current Workstation Package Builder / Compatibility Profile outputs.",
+                    MessageType.None);
+                if (_lastPackageBuildResult == null)
+                    EditorGUILayout.HelpBox("Preview Package Build has not been refreshed; Mod review will refresh it with current Package Builder settings.", MessageType.Info);
+                if (_lastCompatibilityReport == null)
+                    EditorGUILayout.HelpBox("Compatibility Profile has not been refreshed; Mod review will refresh it with current Compatibility Profile settings.", MessageType.Info);
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    using (new EditorGUI.DisabledScope(_modOverrideBaseRegistry == null || _modOverrideRegistry == null))
+                    {
+                        if (GUILayout.Button("Preview Mod Override Merge"))
+                            RefreshModOverridePreview(logToConsole: true);
+                    }
+
+                    using (new EditorGUI.DisabledScope(_lastModOverridePreview == null || string.IsNullOrEmpty(_lastModOverridePreview.ReportText)))
+                    {
+                        if (GUILayout.Button("Copy Merge Report"))
+                            EditorGUIUtility.systemCopyBuffer = _lastModOverridePreview.ReportText;
+                        if (GUILayout.Button("Export Merge Report"))
+                            ExportTextFile("Export MxAnimation Mod Override Merge Report", "MxAnimationModOverrideMergeReport.txt", _lastModOverridePreview.ReportText);
+                    }
+                }
+
+                if (_lastModOverridePreview == null && _modOverrideBaseRegistry != null && _modOverrideRegistry != null)
+                    RefreshModOverridePreview(logToConsole: false);
+
+                DrawModOverridePreviewResult();
+            }
+        }
+
+        private void DrawModOverridePreviewResult()
+        {
+            if (_lastModOverridePreview == null)
+                return;
+
+            MxAnimationModOverrideMergeResult merge = _lastModOverridePreview.MergeResult;
+            EditorGUILayout.HelpBox(
+                _lastModOverridePreview.Success
+                    ? "Merged definition/package expectation validate through the preview report."
+                    : "Merge, package, compatibility, or warmup diagnostics were found. Review the rows and copyable report.",
+                _lastModOverridePreview.Success ? MessageType.Info : MessageType.Warning);
+
+            EditorGUILayout.LabelField("Hashes / Versions", EditorStyles.boldLabel);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUILayout.LabelField("Base Version", merge != null ? merge.BaseVersion.ToString(CultureInfo.InvariantCulture) : "0");
+                EditorGUILayout.LabelField("Base Hash", merge != null ? merge.BaseDefinitionHash : string.Empty);
+                EditorGUILayout.LabelField("Override Version", merge != null ? merge.OverrideVersion.ToString(CultureInfo.InvariantCulture) : "0");
+                EditorGUILayout.LabelField("Override Hash", merge != null ? merge.OverrideHash : string.Empty);
+                EditorGUILayout.LabelField("Merged Definition Hash", merge != null && merge.MergedDefinition != null ? merge.MergedDefinition.DefinitionHash : string.Empty);
+                EditorGUILayout.LabelField(
+                    "Accepted / Rejected",
+                    (merge != null ? merge.AcceptedOverrideCount : 0).ToString(CultureInfo.InvariantCulture)
+                    + " / "
+                    + (merge != null ? merge.RejectedOverrideCount : 0).ToString(CultureInfo.InvariantCulture));
+            }
+
+            EditorGUILayout.LabelField("Accepted / Rejected Rows", EditorStyles.boldLabel);
+            if (_lastModOverridePreview.Rows.Count == 0)
+            {
+                EditorGUILayout.HelpBox("No override rows are available.", MessageType.None);
+            }
+            else
+            {
+                for (int i = 0; i < _lastModOverridePreview.Rows.Count; i++)
+                {
+                    MxAnimationModOverridePreviewRow row = _lastModOverridePreview.Rows[i];
+                    MessageType messageType = row.Status == MxAnimationModOverridePreviewRowStatus.Rejected
+                        ? MessageType.Error
+                        : row.Status == MxAnimationModOverridePreviewRowStatus.Accepted ? MessageType.Info : MessageType.Warning;
+                    EditorGUILayout.HelpBox(
+                        row.Status
+                        + " | "
+                        + row.Category
+                        + " | "
+                        + row.Target
+                        + " | code="
+                        + row.Code
+                        + " field="
+                        + row.Field
+                        + " | "
+                        + row.Message,
+                        messageType);
+                }
+            }
+
+            EditorGUILayout.LabelField("Validation Summary", EditorStyles.boldLabel);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUILayout.LabelField(
+                    "Package",
+                    _lastModOverridePreview.PackageValidation.Success
+                        ? "success"
+                        : "issues=" + _lastModOverridePreview.PackageValidation.Issues.Count.ToString(CultureInfo.InvariantCulture));
+                EditorGUILayout.LabelField(
+                    "Warmup",
+                    _lastModOverridePreview.WarmupResult == null
+                        ? "not run"
+                        : _lastModOverridePreview.WarmupResult.Success
+                            ? "success"
+                            : "issues=" + _lastModOverridePreview.WarmupResult.Issues.Count.ToString(CultureInfo.InvariantCulture));
+            }
+
+            EditorGUILayout.TextArea(_lastModOverridePreview.ReportText, GUILayout.MinHeight(180f));
         }
 
         private void DrawDiagnostics()
@@ -1080,8 +1239,7 @@ namespace MxFramework.Editor.Animation
                 selectedIndices,
                 _batchOutputRoot,
                 CreateCurrentSkeletonProfile());
-            _lastCompatibilityReport = null;
-            _lastPackageBuildResult = null;
+            ClearDerivedReports(clearBake: false);
             Debug.Log(_lastBatchBakeReport.ReportText, _registry);
         }
 
@@ -1095,6 +1253,7 @@ namespace MxFramework.Editor.Animation
                 _lastBatchBakeReport);
             if (logToConsole && _lastCompatibilityReport != null)
                 Debug.Log(_lastCompatibilityReport.ReportText, _registry);
+            ClearModOverridePreview();
         }
 
         private void RefreshPackageBuildReport(bool logToConsole)
@@ -1115,6 +1274,28 @@ namespace MxFramework.Editor.Animation
                 _lastCompatibilityReport);
             if (logToConsole && _lastPackageBuildResult != null)
                 Debug.Log(_lastPackageBuildResult.ReportText, _registry);
+            ClearModOverridePreview();
+        }
+
+        private void RefreshModOverridePreview(bool logToConsole)
+        {
+            if (_lastCompatibilityReport == null)
+                RefreshCompatibilityReport(logToConsole: false);
+            if (_lastPackageBuildResult == null)
+                RefreshPackageBuildReport(logToConsole: false);
+
+            _lastModOverridePreview = MxAnimationModOverrideWorkstationPreviewBuilder.BuildFromRegistries(
+                _modOverrideBaseRegistry,
+                _modOverrideRegistry,
+                _lastPackageBuildResult,
+                _lastCompatibilityReport,
+                _modOverrideVersion,
+                _modOverrideResultVersion,
+                _modOverrideLoadOrder,
+                _modOverrideRunWarmupValidation);
+
+            if (logToConsole && _lastModOverridePreview != null)
+                Debug.Log(_lastModOverridePreview.ReportText, _registry);
         }
 
         private MxAnimationSkeletonCompatibilityProfile CreateCurrentSkeletonProfile()
@@ -1394,9 +1575,7 @@ namespace MxFramework.Editor.Animation
                 EditorUtility.SetDirty(_registry);
                 RefreshReport(logToConsole: false);
                 MarkTimelinePreviewDirty();
-                _lastBatchBakeReport = null;
-                _lastCompatibilityReport = null;
-                _lastPackageBuildResult = null;
+                ClearDerivedReports(clearBake: true);
             }
             Undo.SetCurrentGroupName(undoName);
         }
@@ -1406,9 +1585,10 @@ namespace MxFramework.Editor.Animation
             _registry = registry;
             _serializedRegistry = registry != null ? new SerializedObject(registry) : null;
             _lastReport = string.Empty;
-            _lastBatchBakeReport = null;
-            _lastCompatibilityReport = null;
-            _lastPackageBuildResult = null;
+            ClearDerivedReports(clearBake: true);
+            _modOverrideBaseRegistry = registry;
+            if (_modOverrideRegistry == null)
+                _modOverrideRegistry = registry;
             if (_registry != null)
             {
                 _packageVersion = Math.Max(1, _registry.Version);
@@ -1434,6 +1614,20 @@ namespace MxFramework.Editor.Animation
             _lastReport = MxAnimationClipRegistryExporter.CreateReportText(result);
             if (logToConsole)
                 Debug.Log(_lastReport, _registry);
+        }
+
+        private void ClearDerivedReports(bool clearBake)
+        {
+            if (clearBake)
+                _lastBatchBakeReport = null;
+            _lastCompatibilityReport = null;
+            _lastPackageBuildResult = null;
+            ClearModOverridePreview();
+        }
+
+        private void ClearModOverridePreview()
+        {
+            _lastModOverridePreview = null;
         }
 
         private void CreateRegistryAsset()

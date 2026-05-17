@@ -162,6 +162,7 @@ Event timeline authoring / preview：
 - Scrubber diagnostics 覆盖 missing clip、missing bake、hash/source mismatch、event out of range、timeline frame mismatch 和 Combat source reflection limitations where available，并支持复制 / 导出为 text。Combat rows 和 bake rows均为参考 / 诊断，不改变 Combat authority、timeline semantics 或 runtime DTO。
 - Workstation Batch Bake 面板可以列出 registry clips，批量烘焙 selected / all clips 到 `.mxbake.txt` 派生报告，并输出每个 clip 的 source clip hash、profile hash、skeleton profile hash、artifact hash、validation issues 和 copy / export batch report。单 clip menu `MxFramework/MxAnimation/Bake Selected Animation Clip MVP` 保持可用。
 - Workstation Compatibility Profile 面板可以从 skeleton root、registry clips 和 layer AvatarMask 引用提取 compatibility profile，复用 `MxAnimationCompatibilityEditorExtractor` / `MxAnimationCompatibilityValidator` 输出 skeleton / clip / AvatarMask / bake artifact diagnostics。刷新 compatibility 时会把最近 batch bake artifact 与当前 clip source hash、profile hash、skeleton profile hash 对比，明确报告 source/profile/skeleton/artifact stale mismatch。
+- Workstation Mod Override Review 面板可以选择 base registry 和 override registry，复用当前 Package Builder 的 `MxAnimationPackageExpectation` / `MxAnimationPackageCatalog` 以及 Compatibility Profile 输出，调用 `MxAnimationModOverrideMerger` 预览 accepted / rejected rows、base / override / merged hash、version expectation、package diagnostics、compatibility diagnostics 和 warmup validation report。输入、package、compatibility 或 registry 内容变化会清空 stale preview；copy / export report 文本必须保留 merger `Issues` 的 code、field、expected、actual 和 message。
 
 ## Bake Artifact Contract
 

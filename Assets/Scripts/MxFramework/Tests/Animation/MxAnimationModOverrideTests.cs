@@ -1,5 +1,6 @@
 using System.Linq;
 using MxFramework.Animation;
+using MxFramework.Editor.Animation;
 using MxFramework.Resources;
 using NUnit.Framework;
 
@@ -320,6 +321,98 @@ namespace MxFramework.Tests.Animation
             Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
         }
 
+        [Test]
+        public void WorkstationPreview_ReportIncludesMergerCountsHashesPackageAndWarmupDiagnostics()
+        {
+            ResourceKey idle = Clip("demo.animation.idle");
+            ResourceKey baseAttack = Clip("demo.animation.attack.base");
+            ResourceKey modAttack = Clip("demo.animation.attack.mod", "mod.anim.demo");
+            ResourceKey baseRun = Clip("demo.animation.run.base");
+            ResourceKey modRun = Clip("demo.animation.run.mod", "mod.anim.demo");
+            ResourceKey baseMask = Mask("demo.animation.mask.base");
+            ResourceKey modMask = Mask("demo.animation.mask.mod", "mod.anim.demo");
+            ResourceKey bake = Bake("demo.animation.bake.attack.mod", "mod.anim.demo");
+            MxAnimationSetDefinition baseDefinition = CreateBaseDefinition(idle, baseAttack, baseRun, baseMask);
+            MxAnimationModOverrideDefinition overrideDefinition = CreateOverride(
+                baseDefinition,
+                modAttack,
+                modRun,
+                modMask,
+                bake);
+            ResourceCatalog catalog = Catalog(idle, baseAttack, modAttack, baseRun, modRun, baseMask, modMask, bake);
+            var packageCatalog = new MxAnimationPackageCatalog(catalog, version: 2, catalogHash: "mod-catalog-hash");
+
+            MxAnimationModOverrideWorkstationPreview preview =
+                MxAnimationModOverrideWorkstationPreviewBuilder.Build(
+                    baseDefinition,
+                    overrideDefinition,
+                    catalog,
+                    packageCatalog,
+                    null,
+                    CompatibilityProfile(new[] { baseAttack, modAttack, baseRun, modRun }, new[] { baseMask, modMask }),
+                    runWarmupValidation: true);
+
+            Assert.IsTrue(preview.Success, preview.ReportText);
+            Assert.IsTrue(preview.MergeResult.Success, Describe(preview.MergeResult));
+            Assert.AreEqual(3, preview.MergeResult.AcceptedOverrideCount);
+            Assert.AreEqual(0, preview.MergeResult.RejectedOverrideCount);
+            Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "action"));
+            Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "event"));
+            Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "layer"));
+            Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "blend1D"));
+            Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "packageResource"));
+            Assert.That(preview.ReportText, Does.Contain("acceptedOverrides: 3"));
+            Assert.That(preview.ReportText, Does.Contain("rejectedOverrides: 0"));
+            Assert.That(preview.ReportText, Does.Contain("baseHash: " + baseDefinition.DefinitionHash));
+            Assert.That(preview.ReportText, Does.Contain("overrideHash: " + overrideDefinition.OverrideHash));
+            Assert.That(preview.ReportText, Does.Contain("mergedDefinitionHash: " + preview.MergeResult.MergedDefinition.DefinitionHash));
+            Assert.That(preview.ReportText, Does.Contain("packageDiagnostics:"));
+            Assert.That(preview.ReportText, Does.Contain("compatibilityDiagnostics:"));
+            Assert.That(preview.ReportText, Does.Contain("warmupValidation:"));
+            Assert.That(preview.ReportText, Does.Contain("- success: true"));
+        }
+
+        [Test]
+        public void WorkstationPreview_RejectedDiagnosticsSurfaceMergerIssueFields()
+        {
+            ResourceKey idle = Clip("demo.animation.idle");
+            ResourceKey baseAttack = Clip("demo.animation.attack.base");
+            ResourceKey modAttack = Clip("demo.animation.attack.mod", "mod.anim.demo");
+            ResourceKey baseRun = Clip("demo.animation.run.base");
+            ResourceKey modRun = Clip("demo.animation.run.mod", "mod.anim.demo");
+            ResourceKey baseMask = Mask("demo.animation.mask.base");
+            ResourceKey modMask = Mask("demo.animation.mask.mod", "mod.anim.demo");
+            ResourceKey bake = Bake("demo.animation.bake.attack.mod", "mod.anim.demo");
+            MxAnimationSetDefinition baseDefinition = CreateBaseDefinition(idle, baseAttack, baseRun, baseMask);
+            MxAnimationModOverrideDefinition overrideDefinition = CreateOverride(
+                baseDefinition,
+                modAttack,
+                modRun,
+                modMask,
+                bake,
+                expectedBaseHash: "sha256:stale");
+
+            MxAnimationModOverrideWorkstationPreview preview =
+                MxAnimationModOverrideWorkstationPreviewBuilder.Build(
+                    baseDefinition,
+                    overrideDefinition,
+                    null,
+                    null,
+                    null,
+                    null);
+
+            Assert.IsFalse(preview.Success);
+            Assert.IsTrue(preview.Rows.Any(row =>
+                row.Status == MxAnimationModOverridePreviewRowStatus.Rejected
+                && row.Code == MxAnimationModOverrideIssueCodes.BaseHashMismatch
+                && row.Field == "baseHash"), preview.ReportText);
+            Assert.That(preview.ReportText, Does.Contain(MxAnimationModOverrideIssueCodes.BaseHashMismatch));
+            Assert.That(preview.ReportText, Does.Contain("field=baseHash"));
+            Assert.That(preview.ReportText, Does.Contain("expected=sha256:stale"));
+            Assert.That(preview.ReportText, Does.Contain("actual=" + baseDefinition.DefinitionHash));
+            Assert.That(preview.ReportText, Does.Contain("Mod animation override was authored for a different base mapping hash."));
+        }
+
         private static MxAnimationSetDefinition CreateBaseDefinition(
             ResourceKey idle,
             ResourceKey attack,
@@ -394,6 +487,16 @@ namespace MxFramework.Tests.Animation
                         "action:attack",
                         attack,
                         new MxAnimationLayerId("upper_body"),
+                        presentationEvents: new[]
+                        {
+                            new MxAnimationPresentationEvent(
+                                "event:attack.vfx",
+                                MxAnimationEventTimeDomain.PresentationFrame,
+                                3f,
+                                "VFX",
+                                default,
+                                "WeaponSocket")
+                        },
                         fadeDurationSeconds: 0.05f))
                 },
                 layerOverrides: new[]
