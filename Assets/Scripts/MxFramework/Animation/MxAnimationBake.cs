@@ -303,18 +303,865 @@ namespace MxFramework.Animation
             string sourceClipHash = "",
             string profileHash = "",
             string skeletonProfileHash = "",
-            string artifactHash = "")
+            string artifactHash = "",
+            MxAnimationCompatibilityExpectation compatibilityExpectation = null)
         {
             SourceClipHash = sourceClipHash ?? string.Empty;
             ProfileHash = profileHash ?? string.Empty;
             SkeletonProfileHash = skeletonProfileHash ?? string.Empty;
             ArtifactHash = artifactHash ?? string.Empty;
+            CompatibilityExpectation = compatibilityExpectation;
         }
 
         public string SourceClipHash { get; }
         public string ProfileHash { get; }
         public string SkeletonProfileHash { get; }
         public string ArtifactHash { get; }
+        public MxAnimationCompatibilityExpectation CompatibilityExpectation { get; }
+    }
+
+    public enum MxAnimationCompatibilityIssueSeverity
+    {
+        Error = 0,
+        Warning = 1
+    }
+
+    public static class MxAnimationCompatibilityIssueCodes
+    {
+        public const string CompatibilityProfileMissing = "CompatibilityProfileMissing";
+        public const string SkeletonProfileMissing = "SkeletonProfileMissing";
+        public const string SkeletonProfileIdMismatch = "SkeletonProfileIdMismatch";
+        public const string SkeletonProfileHashMismatch = "SkeletonProfileHashMismatch";
+        public const string BonePathMissing = "BonePathMissing";
+        public const string SocketPathMissing = "SocketPathMissing";
+        public const string ClipProfileMissing = "ClipProfileMissing";
+        public const string ClipKeyInvalid = "ClipKeyInvalid";
+        public const string ClipSkeletonProfileIdMismatch = "ClipSkeletonProfileIdMismatch";
+        public const string ClipSkeletonProfileHashMismatch = "ClipSkeletonProfileHashMismatch";
+        public const string ClipBindingPathMissing = "ClipBindingPathMissing";
+        public const string AvatarMaskProfileMissing = "AvatarMaskProfileMissing";
+        public const string AvatarMaskKeyInvalid = "AvatarMaskKeyInvalid";
+        public const string AvatarMaskSkeletonProfileIdMismatch = "AvatarMaskSkeletonProfileIdMismatch";
+        public const string AvatarMaskSkeletonProfileHashMismatch = "AvatarMaskSkeletonProfileHashMismatch";
+        public const string AvatarMaskPathMissing = "AvatarMaskPathMissing";
+        public const string BakeArtifactMissing = "BakeArtifactMissing";
+        public const string BakeArtifactSkeletonProfileIdMismatch = "BakeArtifactSkeletonProfileIdMismatch";
+        public const string BakeArtifactSkeletonProfileHashMismatch = "BakeArtifactSkeletonProfileHashMismatch";
+    }
+
+    public sealed class MxAnimationSkeletonCompatibilityProfile
+    {
+        private readonly List<string> _bonePaths;
+        private readonly List<string> _socketPaths;
+
+        public MxAnimationSkeletonCompatibilityProfile(
+            string profileId,
+            string profileHash = "",
+            IEnumerable<string> bonePaths = null,
+            IEnumerable<string> socketPaths = null)
+        {
+            ProfileId = profileId ?? string.Empty;
+            _bonePaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(bonePaths);
+            _socketPaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(socketPaths);
+            ProfileHash = string.IsNullOrWhiteSpace(profileHash)
+                ? MxAnimationCompatibilityHasher.ComputeSkeletonProfileHash(this)
+                : profileHash;
+        }
+
+        public string ProfileId { get; }
+        public string ProfileHash { get; }
+        public IReadOnlyList<string> BonePaths => _bonePaths;
+        public IReadOnlyList<string> SocketPaths => _socketPaths;
+
+        public bool ContainsBonePath(string path)
+        {
+            return MxAnimationCompatibilityPathUtility.ContainsPath(_bonePaths, path);
+        }
+
+        public bool ContainsSocketPath(string path)
+        {
+            return MxAnimationCompatibilityPathUtility.ContainsPath(_socketPaths, path);
+        }
+    }
+
+    public sealed class MxAnimationClipCompatibilityProfile
+    {
+        private readonly List<string> _bindingPaths;
+
+        public MxAnimationClipCompatibilityProfile(
+            ResourceKey clipKey,
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "",
+            IEnumerable<string> bindingPaths = null)
+        {
+            ClipKey = clipKey;
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            SkeletonProfileHash = skeletonProfileHash ?? string.Empty;
+            _bindingPaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(bindingPaths);
+        }
+
+        public ResourceKey ClipKey { get; }
+        public string SkeletonProfileId { get; }
+        public string SkeletonProfileHash { get; }
+        public IReadOnlyList<string> BindingPaths => _bindingPaths;
+
+        public bool ContainsBindingPath(string path)
+        {
+            return MxAnimationCompatibilityPathUtility.ContainsPath(_bindingPaths, path);
+        }
+    }
+
+    public sealed class MxAnimationAvatarMaskCompatibilityProfile
+    {
+        private readonly List<string> _activePaths;
+
+        public MxAnimationAvatarMaskCompatibilityProfile(
+            ResourceKey avatarMaskKey,
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "",
+            IEnumerable<string> activePaths = null)
+        {
+            AvatarMaskKey = avatarMaskKey;
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            SkeletonProfileHash = skeletonProfileHash ?? string.Empty;
+            _activePaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(activePaths);
+        }
+
+        public ResourceKey AvatarMaskKey { get; }
+        public string SkeletonProfileId { get; }
+        public string SkeletonProfileHash { get; }
+        public IReadOnlyList<string> ActivePaths => _activePaths;
+
+        public bool ContainsActivePath(string path)
+        {
+            return MxAnimationCompatibilityPathUtility.ContainsPath(_activePaths, path);
+        }
+    }
+
+    public sealed class MxAnimationClipCompatibilityExpectation
+    {
+        private readonly List<string> _requiredBindingPaths;
+
+        public MxAnimationClipCompatibilityExpectation(
+            ResourceKey clipKey,
+            IEnumerable<string> requiredBindingPaths = null,
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "")
+        {
+            ClipKey = clipKey;
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            SkeletonProfileHash = skeletonProfileHash ?? string.Empty;
+            _requiredBindingPaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(requiredBindingPaths);
+        }
+
+        public ResourceKey ClipKey { get; }
+        public string SkeletonProfileId { get; }
+        public string SkeletonProfileHash { get; }
+        public IReadOnlyList<string> RequiredBindingPaths => _requiredBindingPaths;
+    }
+
+    public sealed class MxAnimationAvatarMaskCompatibilityExpectation
+    {
+        private readonly List<string> _requiredActivePaths;
+
+        public MxAnimationAvatarMaskCompatibilityExpectation(
+            ResourceKey avatarMaskKey,
+            IEnumerable<string> requiredActivePaths = null,
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "")
+        {
+            AvatarMaskKey = avatarMaskKey;
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            SkeletonProfileHash = skeletonProfileHash ?? string.Empty;
+            _requiredActivePaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(requiredActivePaths);
+        }
+
+        public ResourceKey AvatarMaskKey { get; }
+        public string SkeletonProfileId { get; }
+        public string SkeletonProfileHash { get; }
+        public IReadOnlyList<string> RequiredActivePaths => _requiredActivePaths;
+    }
+
+    public sealed class MxAnimationCompatibilityExpectation
+    {
+        private readonly List<string> _requiredBonePaths;
+        private readonly List<string> _requiredSocketPaths;
+        private readonly List<MxAnimationClipCompatibilityExpectation> _clipExpectations;
+        private readonly List<MxAnimationAvatarMaskCompatibilityExpectation> _avatarMaskExpectations;
+
+        public MxAnimationCompatibilityExpectation(
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "",
+            IEnumerable<string> requiredBonePaths = null,
+            IEnumerable<string> requiredSocketPaths = null,
+            IEnumerable<MxAnimationClipCompatibilityExpectation> clipExpectations = null,
+            IEnumerable<MxAnimationAvatarMaskCompatibilityExpectation> avatarMaskExpectations = null)
+        {
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            SkeletonProfileHash = skeletonProfileHash ?? string.Empty;
+            _requiredBonePaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(requiredBonePaths);
+            _requiredSocketPaths = MxAnimationCompatibilityPathUtility.CopyUniqueSortedPaths(requiredSocketPaths);
+            _clipExpectations = CopyAndSort(clipExpectations, CompareClipExpectation);
+            _avatarMaskExpectations = CopyAndSort(avatarMaskExpectations, CompareAvatarMaskExpectation);
+        }
+
+        public string SkeletonProfileId { get; }
+        public string SkeletonProfileHash { get; }
+        public IReadOnlyList<string> RequiredBonePaths => _requiredBonePaths;
+        public IReadOnlyList<string> RequiredSocketPaths => _requiredSocketPaths;
+        public IReadOnlyList<MxAnimationClipCompatibilityExpectation> ClipExpectations => _clipExpectations;
+        public IReadOnlyList<MxAnimationAvatarMaskCompatibilityExpectation> AvatarMaskExpectations => _avatarMaskExpectations;
+
+        public bool IsDefault =>
+            string.IsNullOrWhiteSpace(SkeletonProfileId)
+            && string.IsNullOrWhiteSpace(SkeletonProfileHash)
+            && _requiredBonePaths.Count == 0
+            && _requiredSocketPaths.Count == 0
+            && _clipExpectations.Count == 0
+            && _avatarMaskExpectations.Count == 0;
+
+        private static List<T> CopyAndSort<T>(IEnumerable<T> source, Comparison<T> comparison)
+            where T : class
+        {
+            var list = new List<T>();
+            if (source != null)
+            {
+                foreach (T item in source)
+                {
+                    if (item != null)
+                        list.Add(item);
+                }
+            }
+
+            list.Sort(comparison);
+            return list;
+        }
+
+        private static int CompareClipExpectation(
+            MxAnimationClipCompatibilityExpectation left,
+            MxAnimationClipCompatibilityExpectation right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            return string.CompareOrdinal(left.ClipKey.ToString(), right.ClipKey.ToString());
+        }
+
+        private static int CompareAvatarMaskExpectation(
+            MxAnimationAvatarMaskCompatibilityExpectation left,
+            MxAnimationAvatarMaskCompatibilityExpectation right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            return string.CompareOrdinal(left.AvatarMaskKey.ToString(), right.AvatarMaskKey.ToString());
+        }
+    }
+
+    public sealed class MxAnimationCompatibilityProfile
+    {
+        private readonly List<MxAnimationClipCompatibilityProfile> _clipProfiles;
+        private readonly List<MxAnimationAvatarMaskCompatibilityProfile> _avatarMaskProfiles;
+        private readonly List<MxAnimationBakeArtifact> _bakeArtifacts;
+
+        public MxAnimationCompatibilityProfile(
+            MxAnimationSkeletonCompatibilityProfile skeletonProfile,
+            IEnumerable<MxAnimationClipCompatibilityProfile> clipProfiles = null,
+            IEnumerable<MxAnimationAvatarMaskCompatibilityProfile> avatarMaskProfiles = null,
+            IEnumerable<MxAnimationBakeArtifact> bakeArtifacts = null)
+        {
+            SkeletonProfile = skeletonProfile;
+            _clipProfiles = CopyAndSort(clipProfiles, CompareClipProfile);
+            _avatarMaskProfiles = CopyAndSort(avatarMaskProfiles, CompareAvatarMaskProfile);
+            _bakeArtifacts = CopyAndSort(bakeArtifacts, CompareBakeArtifact);
+        }
+
+        public MxAnimationSkeletonCompatibilityProfile SkeletonProfile { get; }
+        public IReadOnlyList<MxAnimationClipCompatibilityProfile> ClipProfiles => _clipProfiles;
+        public IReadOnlyList<MxAnimationAvatarMaskCompatibilityProfile> AvatarMaskProfiles => _avatarMaskProfiles;
+        public IReadOnlyList<MxAnimationBakeArtifact> BakeArtifacts => _bakeArtifacts;
+
+        private static List<T> CopyAndSort<T>(IEnumerable<T> source, Comparison<T> comparison)
+            where T : class
+        {
+            var list = new List<T>();
+            if (source != null)
+            {
+                foreach (T item in source)
+                {
+                    if (item != null)
+                        list.Add(item);
+                }
+            }
+
+            list.Sort(comparison);
+            return list;
+        }
+
+        private static int CompareClipProfile(
+            MxAnimationClipCompatibilityProfile left,
+            MxAnimationClipCompatibilityProfile right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            return string.CompareOrdinal(left.ClipKey.ToString(), right.ClipKey.ToString());
+        }
+
+        private static int CompareAvatarMaskProfile(
+            MxAnimationAvatarMaskCompatibilityProfile left,
+            MxAnimationAvatarMaskCompatibilityProfile right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            return string.CompareOrdinal(left.AvatarMaskKey.ToString(), right.AvatarMaskKey.ToString());
+        }
+
+        private static int CompareBakeArtifact(MxAnimationBakeArtifact left, MxAnimationBakeArtifact right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            return string.CompareOrdinal(left.Profile.SourceClipKey.ToString(), right.Profile.SourceClipKey.ToString());
+        }
+    }
+
+    public sealed class MxAnimationCompatibilityIssue
+    {
+        public MxAnimationCompatibilityIssue(
+            MxAnimationCompatibilityIssueSeverity severity,
+            string code,
+            ResourceKey key,
+            string field,
+            string expected,
+            string actual,
+            string message)
+        {
+            Severity = severity;
+            Code = code ?? string.Empty;
+            Key = key;
+            Field = field ?? string.Empty;
+            Expected = expected ?? string.Empty;
+            Actual = actual ?? string.Empty;
+            Message = message ?? string.Empty;
+        }
+
+        public MxAnimationCompatibilityIssueSeverity Severity { get; }
+        public string Code { get; }
+        public ResourceKey Key { get; }
+        public string Field { get; }
+        public string Expected { get; }
+        public string Actual { get; }
+        public string Message { get; }
+    }
+
+    public sealed class MxAnimationCompatibilityValidationReport
+    {
+        private readonly List<MxAnimationCompatibilityIssue> _issues = new List<MxAnimationCompatibilityIssue>();
+
+        public IReadOnlyList<MxAnimationCompatibilityIssue> Issues => _issues;
+        public int ErrorCount { get; private set; }
+        public int WarningCount { get; private set; }
+        public bool HasErrors => ErrorCount > 0;
+
+        public void AddError(string code, ResourceKey key, string field, string expected, string actual, string message)
+        {
+            Add(MxAnimationCompatibilityIssueSeverity.Error, code, key, field, expected, actual, message);
+        }
+
+        public void AddWarning(string code, ResourceKey key, string field, string expected, string actual, string message)
+        {
+            Add(MxAnimationCompatibilityIssueSeverity.Warning, code, key, field, expected, actual, message);
+        }
+
+        private void Add(
+            MxAnimationCompatibilityIssueSeverity severity,
+            string code,
+            ResourceKey key,
+            string field,
+            string expected,
+            string actual,
+            string message)
+        {
+            _issues.Add(new MxAnimationCompatibilityIssue(severity, code, key, field, expected, actual, message));
+            if (severity == MxAnimationCompatibilityIssueSeverity.Error)
+                ErrorCount++;
+            else
+                WarningCount++;
+        }
+    }
+
+    public static class MxAnimationCompatibilityValidator
+    {
+        public static MxAnimationCompatibilityValidationReport ValidateExpectation(
+            MxAnimationCompatibilityExpectation expectation)
+        {
+            var report = new MxAnimationCompatibilityValidationReport();
+            if (expectation == null || expectation.IsDefault)
+                return report;
+
+            for (int i = 0; i < expectation.ClipExpectations.Count; i++)
+            {
+                MxAnimationClipCompatibilityExpectation clip = expectation.ClipExpectations[i];
+                if (!clip.ClipKey.IsValid || !string.Equals(clip.ClipKey.TypeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal))
+                {
+                    report.AddError(
+                        MxAnimationCompatibilityIssueCodes.ClipKeyInvalid,
+                        clip.ClipKey,
+                        "clipKey",
+                        ResourceTypeIds.AnimationClip,
+                        clip.ClipKey.TypeId,
+                        "Clip compatibility expectation must use an animation clip ResourceKey.");
+                }
+            }
+
+            for (int i = 0; i < expectation.AvatarMaskExpectations.Count; i++)
+            {
+                MxAnimationAvatarMaskCompatibilityExpectation mask = expectation.AvatarMaskExpectations[i];
+                if (!mask.AvatarMaskKey.IsValid || !string.Equals(mask.AvatarMaskKey.TypeId, ResourceTypeIds.AvatarMask, StringComparison.Ordinal))
+                {
+                    report.AddError(
+                        MxAnimationCompatibilityIssueCodes.AvatarMaskKeyInvalid,
+                        mask.AvatarMaskKey,
+                        "avatarMaskKey",
+                        ResourceTypeIds.AvatarMask,
+                        mask.AvatarMaskKey.TypeId,
+                        "AvatarMask compatibility expectation must use an AvatarMask ResourceKey.");
+                }
+            }
+
+            return report;
+        }
+
+        public static MxAnimationCompatibilityValidationReport Validate(
+            MxAnimationCompatibilityProfile profile,
+            MxAnimationCompatibilityExpectation expectation)
+        {
+            var report = ValidateExpectation(expectation);
+            if (expectation == null || expectation.IsDefault)
+                return report;
+
+            if (profile == null)
+            {
+                report.AddError(
+                    MxAnimationCompatibilityIssueCodes.CompatibilityProfileMissing,
+                    default,
+                    "compatibilityProfile",
+                    "present",
+                    "missing",
+                    "Animation compatibility profile is required.");
+                return report;
+            }
+
+            ValidateSkeleton(profile.SkeletonProfile, expectation, report);
+            ValidateClips(profile, expectation, report);
+            ValidateAvatarMasks(profile, expectation, report);
+            ValidateBakeArtifacts(profile, expectation, report);
+            return report;
+        }
+
+        public static MxAnimationCompatibilityValidationReport ValidateBakeArtifact(
+            MxAnimationBakeArtifact artifact,
+            MxAnimationCompatibilityExpectation expectation)
+        {
+            var report = new MxAnimationCompatibilityValidationReport();
+            ValidateBakeArtifactInternal(artifact, expectation, report);
+            return report;
+        }
+
+        private static void ValidateSkeleton(
+            MxAnimationSkeletonCompatibilityProfile skeleton,
+            MxAnimationCompatibilityExpectation expectation,
+            MxAnimationCompatibilityValidationReport report)
+        {
+            if (skeleton == null)
+            {
+                report.AddError(
+                    MxAnimationCompatibilityIssueCodes.SkeletonProfileMissing,
+                    default,
+                    "skeletonProfile",
+                    "present",
+                    "missing",
+                    "Skeleton compatibility profile is required.");
+                return;
+            }
+
+            CompareExpected(
+                report,
+                MxAnimationCompatibilityIssueCodes.SkeletonProfileIdMismatch,
+                default,
+                "skeletonProfileId",
+                expectation.SkeletonProfileId,
+                skeleton.ProfileId,
+                "Skeleton profile id does not match compatibility expectation.");
+            CompareExpected(
+                report,
+                MxAnimationCompatibilityIssueCodes.SkeletonProfileHashMismatch,
+                default,
+                "skeletonProfileHash",
+                expectation.SkeletonProfileHash,
+                skeleton.ProfileHash,
+                "Skeleton profile hash does not match compatibility expectation.");
+
+            for (int i = 0; i < expectation.RequiredBonePaths.Count; i++)
+            {
+                string path = expectation.RequiredBonePaths[i];
+                if (!skeleton.ContainsBonePath(path))
+                {
+                    report.AddError(
+                        MxAnimationCompatibilityIssueCodes.BonePathMissing,
+                        default,
+                        "bonePath",
+                        path,
+                        "missing",
+                        "Required skeleton bone path is missing: " + path + ".");
+                }
+            }
+
+            for (int i = 0; i < expectation.RequiredSocketPaths.Count; i++)
+            {
+                string path = expectation.RequiredSocketPaths[i];
+                if (!skeleton.ContainsSocketPath(path))
+                {
+                    report.AddError(
+                        MxAnimationCompatibilityIssueCodes.SocketPathMissing,
+                        default,
+                        "socketPath",
+                        path,
+                        "missing",
+                        "Required skeleton socket path is missing: " + path + ".");
+                }
+            }
+        }
+
+        private static void ValidateClips(
+            MxAnimationCompatibilityProfile profile,
+            MxAnimationCompatibilityExpectation expectation,
+            MxAnimationCompatibilityValidationReport report)
+        {
+            for (int i = 0; i < expectation.ClipExpectations.Count; i++)
+            {
+                MxAnimationClipCompatibilityExpectation clipExpectation = expectation.ClipExpectations[i];
+                if (!TryFindClipProfile(profile, clipExpectation.ClipKey, out MxAnimationClipCompatibilityProfile clipProfile))
+                {
+                    report.AddError(
+                        MxAnimationCompatibilityIssueCodes.ClipProfileMissing,
+                        clipExpectation.ClipKey,
+                        "clipProfile",
+                        "present",
+                        "missing",
+                        "Clip compatibility profile is missing.");
+                    continue;
+                }
+
+                string expectedProfileId = ResolveExpected(clipExpectation.SkeletonProfileId, expectation.SkeletonProfileId);
+                string expectedProfileHash = ResolveExpected(clipExpectation.SkeletonProfileHash, expectation.SkeletonProfileHash);
+                CompareExpected(
+                    report,
+                    MxAnimationCompatibilityIssueCodes.ClipSkeletonProfileIdMismatch,
+                    clipExpectation.ClipKey,
+                    "clipSkeletonProfileId",
+                    expectedProfileId,
+                    clipProfile.SkeletonProfileId,
+                    "Clip skeleton profile id does not match compatibility expectation.");
+                CompareExpected(
+                    report,
+                    MxAnimationCompatibilityIssueCodes.ClipSkeletonProfileHashMismatch,
+                    clipExpectation.ClipKey,
+                    "clipSkeletonProfileHash",
+                    expectedProfileHash,
+                    clipProfile.SkeletonProfileHash,
+                    "Clip skeleton profile hash does not match compatibility expectation.");
+
+                for (int pathIndex = 0; pathIndex < clipExpectation.RequiredBindingPaths.Count; pathIndex++)
+                {
+                    string path = clipExpectation.RequiredBindingPaths[pathIndex];
+                    if (!clipProfile.ContainsBindingPath(path))
+                    {
+                        report.AddError(
+                            MxAnimationCompatibilityIssueCodes.ClipBindingPathMissing,
+                            clipExpectation.ClipKey,
+                            "clipBindingPath",
+                            path,
+                            "missing",
+                            "Required clip binding path is missing: " + path + ".");
+                    }
+                }
+            }
+        }
+
+        private static void ValidateAvatarMasks(
+            MxAnimationCompatibilityProfile profile,
+            MxAnimationCompatibilityExpectation expectation,
+            MxAnimationCompatibilityValidationReport report)
+        {
+            for (int i = 0; i < expectation.AvatarMaskExpectations.Count; i++)
+            {
+                MxAnimationAvatarMaskCompatibilityExpectation maskExpectation = expectation.AvatarMaskExpectations[i];
+                if (!TryFindAvatarMaskProfile(profile, maskExpectation.AvatarMaskKey, out MxAnimationAvatarMaskCompatibilityProfile maskProfile))
+                {
+                    report.AddError(
+                        MxAnimationCompatibilityIssueCodes.AvatarMaskProfileMissing,
+                        maskExpectation.AvatarMaskKey,
+                        "avatarMaskProfile",
+                        "present",
+                        "missing",
+                        "AvatarMask compatibility profile is missing.");
+                    continue;
+                }
+
+                string expectedProfileId = ResolveExpected(maskExpectation.SkeletonProfileId, expectation.SkeletonProfileId);
+                string expectedProfileHash = ResolveExpected(maskExpectation.SkeletonProfileHash, expectation.SkeletonProfileHash);
+                CompareExpected(
+                    report,
+                    MxAnimationCompatibilityIssueCodes.AvatarMaskSkeletonProfileIdMismatch,
+                    maskExpectation.AvatarMaskKey,
+                    "avatarMaskSkeletonProfileId",
+                    expectedProfileId,
+                    maskProfile.SkeletonProfileId,
+                    "AvatarMask skeleton profile id does not match compatibility expectation.");
+                CompareExpected(
+                    report,
+                    MxAnimationCompatibilityIssueCodes.AvatarMaskSkeletonProfileHashMismatch,
+                    maskExpectation.AvatarMaskKey,
+                    "avatarMaskSkeletonProfileHash",
+                    expectedProfileHash,
+                    maskProfile.SkeletonProfileHash,
+                    "AvatarMask skeleton profile hash does not match compatibility expectation.");
+
+                for (int pathIndex = 0; pathIndex < maskExpectation.RequiredActivePaths.Count; pathIndex++)
+                {
+                    string path = maskExpectation.RequiredActivePaths[pathIndex];
+                    if (!maskProfile.ContainsActivePath(path))
+                    {
+                        report.AddError(
+                            MxAnimationCompatibilityIssueCodes.AvatarMaskPathMissing,
+                            maskExpectation.AvatarMaskKey,
+                            "avatarMaskPath",
+                            path,
+                            "missing",
+                            "Required AvatarMask path is missing or inactive: " + path + ".");
+                    }
+                }
+            }
+        }
+
+        private static void ValidateBakeArtifacts(
+            MxAnimationCompatibilityProfile profile,
+            MxAnimationCompatibilityExpectation expectation,
+            MxAnimationCompatibilityValidationReport report)
+        {
+            for (int i = 0; i < profile.BakeArtifacts.Count; i++)
+                ValidateBakeArtifactInternal(profile.BakeArtifacts[i], expectation, report);
+        }
+
+        private static void ValidateBakeArtifactInternal(
+            MxAnimationBakeArtifact artifact,
+            MxAnimationCompatibilityExpectation expectation,
+            MxAnimationCompatibilityValidationReport report)
+        {
+            if (artifact == null)
+            {
+                report.AddError(
+                    MxAnimationCompatibilityIssueCodes.BakeArtifactMissing,
+                    default,
+                    "bakeArtifact",
+                    "present",
+                    "missing",
+                    "Bake artifact is missing.");
+                return;
+            }
+
+            ResourceKey key = artifact.Profile != null ? artifact.Profile.SourceClipKey : default;
+            string actualProfileId = artifact.Profile != null ? artifact.Profile.SkeletonProfileId : string.Empty;
+            string actualProfileHash = artifact.Profile != null ? artifact.Profile.SkeletonProfileHash : string.Empty;
+            CompareExpected(
+                report,
+                MxAnimationCompatibilityIssueCodes.BakeArtifactSkeletonProfileIdMismatch,
+                key,
+                "bakeSkeletonProfileId",
+                expectation != null ? expectation.SkeletonProfileId : string.Empty,
+                actualProfileId,
+                "Bake artifact skeleton profile id does not match compatibility expectation.");
+            CompareExpected(
+                report,
+                MxAnimationCompatibilityIssueCodes.BakeArtifactSkeletonProfileHashMismatch,
+                key,
+                "bakeSkeletonProfileHash",
+                expectation != null ? expectation.SkeletonProfileHash : string.Empty,
+                actualProfileHash,
+                "Bake artifact skeleton profile hash does not match compatibility expectation.");
+        }
+
+        private static bool TryFindClipProfile(
+            MxAnimationCompatibilityProfile profile,
+            ResourceKey key,
+            out MxAnimationClipCompatibilityProfile clipProfile)
+        {
+            for (int i = 0; i < profile.ClipProfiles.Count; i++)
+            {
+                MxAnimationClipCompatibilityProfile candidate = profile.ClipProfiles[i];
+                if (candidate != null && MatchesKey(candidate.ClipKey, key))
+                {
+                    clipProfile = candidate;
+                    return true;
+                }
+            }
+
+            clipProfile = null;
+            return false;
+        }
+
+        private static bool TryFindAvatarMaskProfile(
+            MxAnimationCompatibilityProfile profile,
+            ResourceKey key,
+            out MxAnimationAvatarMaskCompatibilityProfile maskProfile)
+        {
+            for (int i = 0; i < profile.AvatarMaskProfiles.Count; i++)
+            {
+                MxAnimationAvatarMaskCompatibilityProfile candidate = profile.AvatarMaskProfiles[i];
+                if (candidate != null && MatchesKey(candidate.AvatarMaskKey, key))
+                {
+                    maskProfile = candidate;
+                    return true;
+                }
+            }
+
+            maskProfile = null;
+            return false;
+        }
+
+        private static bool MatchesKey(ResourceKey left, ResourceKey right)
+        {
+            if (!string.Equals(left.Id, right.Id, StringComparison.Ordinal)
+                || !string.Equals(left.TypeId, right.TypeId, StringComparison.Ordinal)
+                || !string.Equals(left.Variant, right.Variant, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return string.IsNullOrWhiteSpace(right.PackageId)
+                || string.Equals(left.PackageId, right.PackageId, StringComparison.Ordinal);
+        }
+
+        private static string ResolveExpected(string overrideValue, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(overrideValue) ? fallback ?? string.Empty : overrideValue;
+        }
+
+        private static void CompareExpected(
+            MxAnimationCompatibilityValidationReport report,
+            string code,
+            ResourceKey key,
+            string field,
+            string expected,
+            string actual,
+            string message)
+        {
+            if (string.IsNullOrWhiteSpace(expected))
+                return;
+            if (string.Equals(expected, actual, StringComparison.Ordinal))
+                return;
+
+            report.AddError(code, key, field, expected, actual, message);
+        }
+    }
+
+    public static class MxAnimationCompatibilityHasher
+    {
+        public const string HashPrefix = "sha256:";
+
+        public static string ComputeSkeletonProfileHash(MxAnimationSkeletonCompatibilityProfile profile)
+        {
+            if (profile == null)
+                return HashPrefix + Sha256Hex(string.Empty);
+
+            var builder = new StringBuilder();
+            builder.Append("mxanimation.compatibility.skeleton.v1\n");
+            builder.Append("profileId=").Append(profile.ProfileId ?? string.Empty).Append('\n');
+            for (int i = 0; i < profile.BonePaths.Count; i++)
+                builder.Append("bone[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(profile.BonePaths[i]).Append('\n');
+            for (int i = 0; i < profile.SocketPaths.Count; i++)
+                builder.Append("socket[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(profile.SocketPaths[i]).Append('\n');
+            return HashPrefix + Sha256Hex(builder.ToString());
+        }
+
+        private static string Sha256Hex(string value)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] bytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
+                byte[] hash = sha.ComputeHash(bytes);
+                var builder = new StringBuilder(hash.Length * 2);
+                for (int i = 0; i < hash.Length; i++)
+                    builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
+                return builder.ToString();
+            }
+        }
+    }
+
+    internal static class MxAnimationCompatibilityPathUtility
+    {
+        public static List<string> CopyUniqueSortedPaths(IEnumerable<string> source)
+        {
+            var paths = new List<string>();
+            var unique = new HashSet<string>(StringComparer.Ordinal);
+            if (source != null)
+            {
+                foreach (string path in source)
+                {
+                    string normalized = NormalizePath(path);
+                    if (string.IsNullOrWhiteSpace(normalized) || !unique.Add(normalized))
+                        continue;
+
+                    paths.Add(normalized);
+                }
+            }
+
+            paths.Sort(StringComparer.Ordinal);
+            return paths;
+        }
+
+        public static bool ContainsPath(IReadOnlyList<string> paths, string path)
+        {
+            string normalized = NormalizePath(path);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+
+            for (int i = 0; i < paths.Count; i++)
+            {
+                if (string.Equals(paths[i], normalized, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return (path ?? string.Empty).Replace('\\', '/').Trim().Trim('/');
+        }
     }
 
     public sealed class MxAnimationBakeIssue
@@ -456,6 +1303,20 @@ namespace MxFramework.Animation
             CompareExpected("BakeProfileHashExpectedMismatch", "profileHash", expectation.ProfileHash, artifact.Profile.ProfileHash, report);
             CompareExpected("BakeSkeletonProfileHashMismatch", "skeletonProfileHash", expectation.SkeletonProfileHash, artifact.Profile.SkeletonProfileHash, report);
             CompareExpected("BakeArtifactHashExpectedMismatch", "artifactHash", expectation.ArtifactHash, artifact.ArtifactHash, report);
+
+            if (expectation.CompatibilityExpectation != null && !expectation.CompatibilityExpectation.IsDefault)
+            {
+                MxAnimationCompatibilityValidationReport compatibilityReport =
+                    MxAnimationCompatibilityValidator.ValidateBakeArtifact(artifact, expectation.CompatibilityExpectation);
+                for (int i = 0; i < compatibilityReport.Issues.Count; i++)
+                {
+                    MxAnimationCompatibilityIssue issue = compatibilityReport.Issues[i];
+                    if (issue.Severity == MxAnimationCompatibilityIssueSeverity.Error)
+                        report.AddError(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message);
+                    else
+                        report.AddWarning(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message);
+                }
+            }
         }
 
         private static void CompareExpected(

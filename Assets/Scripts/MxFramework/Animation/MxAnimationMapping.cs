@@ -199,6 +199,7 @@ namespace MxFramework.Animation
                 AppendLayer(builder, layers[i], i);
 
             AppendWarmup(builder, definition.Warmup);
+            AppendCompatibility(builder, definition.CompatibilityExpectation);
 
             var blends = new List<MxAnimationBlend1DDefinition>(definition.Blend1DDefinitions);
             blends.Sort(CompareBlend1DDefinition);
@@ -261,6 +262,56 @@ namespace MxFramework.Animation
             labels.Sort(StringComparer.Ordinal);
             for (int i = 0; i < labels.Count; i++)
                 builder.Append("warmup.label[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(labels[i] ?? string.Empty).Append('\n');
+        }
+
+        private static void AppendCompatibility(StringBuilder builder, MxAnimationCompatibilityExpectation expectation)
+        {
+            if (expectation == null || expectation.IsDefault)
+                return;
+
+            builder.Append("compatibility").Append('\n');
+            builder.Append("skeletonProfileId=").Append(expectation.SkeletonProfileId ?? string.Empty).Append('\n');
+            builder.Append("skeletonProfileHash=").Append(expectation.SkeletonProfileHash ?? string.Empty).Append('\n');
+
+            for (int i = 0; i < expectation.RequiredBonePaths.Count; i++)
+                builder.Append("compatibility.bone[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(expectation.RequiredBonePaths[i] ?? string.Empty).Append('\n');
+
+            for (int i = 0; i < expectation.RequiredSocketPaths.Count; i++)
+                builder.Append("compatibility.socket[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(expectation.RequiredSocketPaths[i] ?? string.Empty).Append('\n');
+
+            for (int i = 0; i < expectation.ClipExpectations.Count; i++)
+            {
+                MxAnimationClipCompatibilityExpectation clip = expectation.ClipExpectations[i];
+                builder.Append("compatibility.clip[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]").Append('\n');
+                if (clip == null)
+                {
+                    builder.Append("null").Append('\n');
+                    continue;
+                }
+
+                AppendResourceKey(builder, "compatibility.clip[" + i.ToString(CultureInfo.InvariantCulture) + "].key", clip.ClipKey);
+                builder.Append("compatibility.clip[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].skeletonProfileId=").Append(clip.SkeletonProfileId ?? string.Empty).Append('\n');
+                builder.Append("compatibility.clip[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].skeletonProfileHash=").Append(clip.SkeletonProfileHash ?? string.Empty).Append('\n');
+                for (int pathIndex = 0; pathIndex < clip.RequiredBindingPaths.Count; pathIndex++)
+                    builder.Append("compatibility.clip[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].binding[").Append(pathIndex.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(clip.RequiredBindingPaths[pathIndex] ?? string.Empty).Append('\n');
+            }
+
+            for (int i = 0; i < expectation.AvatarMaskExpectations.Count; i++)
+            {
+                MxAnimationAvatarMaskCompatibilityExpectation mask = expectation.AvatarMaskExpectations[i];
+                builder.Append("compatibility.mask[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]").Append('\n');
+                if (mask == null)
+                {
+                    builder.Append("null").Append('\n');
+                    continue;
+                }
+
+                AppendResourceKey(builder, "compatibility.mask[" + i.ToString(CultureInfo.InvariantCulture) + "].key", mask.AvatarMaskKey);
+                builder.Append("compatibility.mask[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].skeletonProfileId=").Append(mask.SkeletonProfileId ?? string.Empty).Append('\n');
+                builder.Append("compatibility.mask[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].skeletonProfileHash=").Append(mask.SkeletonProfileHash ?? string.Empty).Append('\n');
+                for (int pathIndex = 0; pathIndex < mask.RequiredActivePaths.Count; pathIndex++)
+                    builder.Append("compatibility.mask[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].active[").Append(pathIndex.ToString(CultureInfo.InvariantCulture)).Append("]=").Append(mask.RequiredActivePaths[pathIndex] ?? string.Empty).Append('\n');
+            }
         }
 
         private static void AppendBlend1D(StringBuilder builder, MxAnimationBlend1DDefinition blend, int index)
@@ -677,6 +728,7 @@ namespace MxFramework.Animation
             ValidateClip(definition.DefaultClip, "DefaultClipMissing", "default clip", catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateClip(definition.FallbackClip, "FallbackClipMissing", "fallback clip", catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateLayers(definition, catalog, requireCatalog, report, ref catalogMissingReported);
+            ValidateCompatibilityExpectation(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateBlend1DDefinitions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateBlend2DDefinitions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
             ValidateActions(definition, catalog, requireCatalog, report, ref catalogMissingReported);
@@ -707,6 +759,43 @@ namespace MxFramework.Animation
 
                 if (layer.AvatarMaskKey.IsValid)
                     ValidateAvatarMask(layer.AvatarMaskKey, catalog, requireCatalog, report, ref catalogMissingReported);
+            }
+        }
+
+        private static void ValidateCompatibilityExpectation(
+            MxAnimationSetDefinition definition,
+            ResourceCatalog catalog,
+            bool requireCatalog,
+            ResourceCatalogValidationReport report,
+            ref bool catalogMissingReported)
+        {
+            MxAnimationCompatibilityExpectation expectation = definition.CompatibilityExpectation;
+            if (expectation == null || expectation.IsDefault)
+                return;
+
+            MxAnimationCompatibilityValidationReport compatibilityReport =
+                MxAnimationCompatibilityValidator.ValidateExpectation(expectation);
+            for (int i = 0; i < compatibilityReport.Issues.Count; i++)
+            {
+                MxAnimationCompatibilityIssue issue = compatibilityReport.Issues[i];
+                if (issue.Severity == MxAnimationCompatibilityIssueSeverity.Error)
+                    report.AddError(issue.Code, issue.Key, issue.Message);
+                else
+                    report.AddWarning(issue.Code, issue.Key, issue.Message);
+            }
+
+            for (int i = 0; i < expectation.ClipExpectations.Count; i++)
+            {
+                MxAnimationClipCompatibilityExpectation clip = expectation.ClipExpectations[i];
+                if (clip != null)
+                    ValidateClip(clip.ClipKey, "CompatibilityClipMissing", "compatibility clip", catalog, requireCatalog, report, ref catalogMissingReported);
+            }
+
+            for (int i = 0; i < expectation.AvatarMaskExpectations.Count; i++)
+            {
+                MxAnimationAvatarMaskCompatibilityExpectation mask = expectation.AvatarMaskExpectations[i];
+                if (mask != null)
+                    ValidateAvatarMask(mask.AvatarMaskKey, catalog, requireCatalog, report, ref catalogMissingReported);
             }
         }
 

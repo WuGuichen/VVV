@@ -162,6 +162,132 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetDefinitionHash_IncludesCompatibilityExpectation()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var mask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
+            var first = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                compatibilityExpectation: new MxAnimationCompatibilityExpectation(
+                    "humanoid",
+                    "sha256:skeleton",
+                    new[] { "Hips/Spine" },
+                    new[] { "Hips/Spine/WeaponSocket" },
+                    new[]
+                    {
+                        new MxAnimationClipCompatibilityExpectation(idle, new[] { "Hips/Spine" })
+                    },
+                    new[]
+                    {
+                        new MxAnimationAvatarMaskCompatibilityExpectation(mask, new[] { "Hips/Spine" })
+                    }));
+            var second = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                compatibilityExpectation: new MxAnimationCompatibilityExpectation(
+                    "humanoid",
+                    "sha256:skeleton",
+                    new[] { "Hips/Spine" },
+                    new[] { "Hips/Spine/WeaponSocket" },
+                    new[]
+                    {
+                        new MxAnimationClipCompatibilityExpectation(idle, new[] { "Hips/Spine" })
+                    },
+                    new[]
+                    {
+                        new MxAnimationAvatarMaskCompatibilityExpectation(mask, new[] { "Hips/Spine" })
+                    }));
+            var changed = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                compatibilityExpectation: new MxAnimationCompatibilityExpectation(
+                    "humanoid",
+                    "sha256:skeleton",
+                    new[] { "Hips/Head" }));
+
+            Assert.AreEqual(first.DefinitionHash, second.DefinitionHash);
+            Assert.AreNotEqual(first.DefinitionHash, changed.DefinitionHash);
+        }
+
+        [Test]
+        public void CompatibilityValidator_ReportsSkeletonClipMaskAndBakeMismatches()
+        {
+            var clip = new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip);
+            var mask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
+            var skeleton = new MxAnimationSkeletonCompatibilityProfile(
+                "humanoid",
+                "sha256:skeleton",
+                new[] { "Hips", "Hips/Spine" },
+                new[] { "Hips/Spine/WeaponSocket" });
+            var profile = new MxAnimationCompatibilityProfile(
+                skeleton,
+                new[]
+                {
+                    new MxAnimationClipCompatibilityProfile(clip, "humanoid", "sha256:skeleton", new[] { "Hips/Spine" })
+                },
+                new[]
+                {
+                    new MxAnimationAvatarMaskCompatibilityProfile(mask, "humanoid", "sha256:skeleton", new[] { "Hips/Spine" })
+                },
+                new[] { CreateBakeArtifact(clip, "humanoid", "sha256:old-skeleton") });
+            var expectation = new MxAnimationCompatibilityExpectation(
+                "humanoid",
+                "sha256:skeleton",
+                new[] { "Hips/Head" },
+                new[] { "Hips/LeftHandSocket" },
+                new[]
+                {
+                    new MxAnimationClipCompatibilityExpectation(clip, new[] { "Hips/Arm" })
+                },
+                new[]
+                {
+                    new MxAnimationAvatarMaskCompatibilityExpectation(mask, new[] { "Hips/Arm" })
+                });
+
+            MxAnimationCompatibilityValidationReport report = MxAnimationCompatibilityValidator.Validate(profile, expectation);
+
+            Assert.IsTrue(report.HasErrors);
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.BonePathMissing, default, "bonePath");
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.SocketPathMissing, default, "socketPath");
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.ClipBindingPathMissing, clip, "clipBindingPath");
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.AvatarMaskPathMissing, mask, "avatarMaskPath");
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.BakeArtifactSkeletonProfileHashMismatch, clip, "bakeSkeletonProfileHash");
+        }
+
+        [Test]
+        public void CompatibilityValidator_RequiresExactPackageWhenExpectationSpecifiesPackage()
+        {
+            var expectedClip = new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip, packageId: "package.a");
+            var actualClip = new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip, packageId: "package.b");
+            var skeleton = new MxAnimationSkeletonCompatibilityProfile("humanoid", "sha256:skeleton", new[] { "Hips" });
+            var profile = new MxAnimationCompatibilityProfile(
+                skeleton,
+                new[]
+                {
+                    new MxAnimationClipCompatibilityProfile(actualClip, "humanoid", "sha256:skeleton", new[] { "Hips" })
+                });
+            var expectation = new MxAnimationCompatibilityExpectation(
+                "humanoid",
+                "sha256:skeleton",
+                clipExpectations: new[]
+                {
+                    new MxAnimationClipCompatibilityExpectation(expectedClip, new[] { "Hips" })
+                });
+
+            MxAnimationCompatibilityValidationReport report = MxAnimationCompatibilityValidator.Validate(profile, expectation);
+
+            Assert.IsTrue(report.HasErrors);
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.ClipProfileMissing, expectedClip, "clipProfile");
+        }
+
+        [Test]
         public void StaticMappingProvider_FindsDefinitionBySetId()
         {
             var definition = new MxAnimationSetDefinition(
@@ -174,6 +300,57 @@ namespace MxFramework.Tests.Animation
             Assert.IsTrue(provider.TryFindDefinition("demo.set", out MxAnimationSetDefinition found));
             Assert.AreEqual(definition, found);
             Assert.IsFalse(provider.TryFindDefinition("missing.set", out _));
+        }
+
+        private static MxAnimationBakeArtifact CreateBakeArtifact(
+            ResourceKey clip,
+            string skeletonProfileId,
+            string skeletonProfileHash)
+        {
+            var profile = new MxAnimationBakeProfile(
+                "profile.test",
+                clip,
+                "sha256:source",
+                skeletonProfileId,
+                skeletonProfileHash,
+                sampleTickRate: 30,
+                quantizationScale: 1000,
+                MxAnimationBakeCoordinateSpace.Local,
+                MxAnimationBakeRoundingPolicy.RoundNearest,
+                "import:test");
+            return new MxAnimationBakeArtifact(profile);
+        }
+
+        private static void AssertIssue(
+            MxAnimationCompatibilityValidationReport report,
+            string code,
+            ResourceKey key,
+            string field)
+        {
+            for (int i = 0; i < report.Issues.Count; i++)
+            {
+                MxAnimationCompatibilityIssue issue = report.Issues[i];
+                if (issue.Code == code
+                    && issue.Field == field
+                    && (!key.IsValid || issue.Key == key))
+                {
+                    return;
+                }
+            }
+
+            Assert.Fail("Missing issue " + code + " field=" + field + "\n" + Describe(report));
+        }
+
+        private static string Describe(MxAnimationCompatibilityValidationReport report)
+        {
+            var lines = new List<string>();
+            for (int i = 0; i < report.Issues.Count; i++)
+            {
+                MxAnimationCompatibilityIssue issue = report.Issues[i];
+                lines.Add(issue.Code + " " + issue.Field + " " + issue.Key + " expected=" + issue.Expected + " actual=" + issue.Actual);
+            }
+
+            return string.Join("\n", lines);
         }
 
         [Test]

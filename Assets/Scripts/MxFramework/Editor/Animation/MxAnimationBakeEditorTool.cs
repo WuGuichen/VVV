@@ -431,4 +431,233 @@ namespace MxFramework.Editor.Animation
             }
         }
     }
+
+    public static class MxAnimationCompatibilityEditorExtractor
+    {
+        public static MxAnimationSkeletonCompatibilityProfile CreateSkeletonProfile(
+            GameObject root,
+            string profileId,
+            IEnumerable<string> socketPaths = null)
+        {
+            var bonePaths = new List<string>();
+            if (root != null)
+                CollectTransformPaths(root.transform, root.transform, bonePaths);
+
+            return new MxAnimationSkeletonCompatibilityProfile(
+                profileId,
+                bonePaths: bonePaths,
+                socketPaths: FilterKnownPaths(socketPaths, bonePaths));
+        }
+
+        public static MxAnimationClipCompatibilityProfile CreateClipProfile(
+            AnimationClip clip,
+            ResourceKey clipKey,
+            MxAnimationSkeletonCompatibilityProfile skeletonProfile = null,
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "")
+        {
+            IReadOnlyList<string> bindingPaths = ExtractClipBindingPaths(clip);
+            return new MxAnimationClipCompatibilityProfile(
+                clipKey,
+                ResolveClipSkeletonProfileId(skeletonProfile, bindingPaths, skeletonProfileId),
+                ResolveClipSkeletonProfileHash(skeletonProfile, bindingPaths, skeletonProfileHash),
+                bindingPaths);
+        }
+
+        public static MxAnimationAvatarMaskCompatibilityProfile CreateAvatarMaskProfile(
+            AvatarMask avatarMask,
+            ResourceKey avatarMaskKey,
+            MxAnimationSkeletonCompatibilityProfile skeletonProfile = null,
+            string skeletonProfileId = "",
+            string skeletonProfileHash = "")
+        {
+            return new MxAnimationAvatarMaskCompatibilityProfile(
+                avatarMaskKey,
+                ResolveSkeletonProfileId(skeletonProfile, skeletonProfileId),
+                ResolveSkeletonProfileHash(skeletonProfile, skeletonProfileHash),
+                ExtractAvatarMaskActivePaths(avatarMask));
+        }
+
+        public static MxAnimationCompatibilityProfile CreateProfile(
+            MxAnimationSkeletonCompatibilityProfile skeletonProfile,
+            IEnumerable<MxAnimationClipCompatibilityProfile> clipProfiles = null,
+            IEnumerable<MxAnimationAvatarMaskCompatibilityProfile> avatarMaskProfiles = null,
+            IEnumerable<MxAnimationBakeArtifact> bakeArtifacts = null)
+        {
+            return new MxAnimationCompatibilityProfile(
+                skeletonProfile,
+                clipProfiles,
+                avatarMaskProfiles,
+                bakeArtifacts);
+        }
+
+        public static MxAnimationCompatibilityValidationReport Validate(
+            MxAnimationCompatibilityProfile profile,
+            MxAnimationCompatibilityExpectation expectation)
+        {
+            return MxAnimationCompatibilityValidator.Validate(profile, expectation);
+        }
+
+        public static IReadOnlyList<string> ExtractClipBindingPaths(AnimationClip clip)
+        {
+            if (clip == null)
+                return Array.Empty<string>();
+
+            var paths = new List<string>();
+            EditorCurveBinding[] curveBindings = AnimationUtility.GetCurveBindings(clip);
+            for (int i = 0; i < curveBindings.Length; i++)
+                AddPath(paths, curveBindings[i].path);
+
+            EditorCurveBinding[] objectBindings = AnimationUtility.GetObjectReferenceCurveBindings(clip);
+            for (int i = 0; i < objectBindings.Length; i++)
+                AddPath(paths, objectBindings[i].path);
+
+            paths.Sort(StringComparer.Ordinal);
+            return paths;
+        }
+
+        public static IReadOnlyList<string> ExtractAvatarMaskActivePaths(AvatarMask avatarMask)
+        {
+            if (avatarMask == null)
+                return Array.Empty<string>();
+
+            var paths = new List<string>();
+            for (int i = 0; i < avatarMask.transformCount; i++)
+            {
+                if (!avatarMask.GetTransformActive(i))
+                    continue;
+
+                AddPath(paths, avatarMask.GetTransformPath(i));
+            }
+
+            paths.Sort(StringComparer.Ordinal);
+            return paths;
+        }
+
+        private static void CollectTransformPaths(Transform root, Transform current, List<string> paths)
+        {
+            if (root == null || current == null)
+                return;
+
+            AddPath(paths, CreateRelativePath(root, current));
+            for (int i = 0; i < current.childCount; i++)
+                CollectTransformPaths(root, current.GetChild(i), paths);
+        }
+
+        private static IReadOnlyList<string> FilterKnownPaths(IEnumerable<string> paths, IReadOnlyList<string> knownPaths)
+        {
+            if (paths == null)
+                return Array.Empty<string>();
+
+            var filtered = new List<string>();
+            foreach (string path in paths)
+            {
+                string normalized = NormalizePath(path);
+                if (string.IsNullOrWhiteSpace(normalized) || !ContainsPath(knownPaths, normalized) || filtered.Contains(normalized))
+                    continue;
+
+                filtered.Add(normalized);
+            }
+
+            filtered.Sort(StringComparer.Ordinal);
+            return filtered;
+        }
+
+        private static string CreateRelativePath(Transform root, Transform current)
+        {
+            if (current == root)
+                return string.Empty;
+
+            var names = new List<string>();
+            Transform cursor = current;
+            while (cursor != null && cursor != root)
+            {
+                names.Add(cursor.name);
+                cursor = cursor.parent;
+            }
+
+            names.Reverse();
+            return string.Join("/", names);
+        }
+
+        private static void AddPath(List<string> paths, string path)
+        {
+            string normalized = NormalizePath(path);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return;
+
+            if (!paths.Contains(normalized))
+                paths.Add(normalized);
+        }
+
+        private static string ResolveClipSkeletonProfileId(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            IReadOnlyList<string> bindingPaths,
+            string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(fallback))
+                return fallback;
+
+            return ClipBindingsMatchSkeleton(profile, bindingPaths) ? profile.ProfileId : string.Empty;
+        }
+
+        private static string ResolveClipSkeletonProfileHash(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            IReadOnlyList<string> bindingPaths,
+            string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(fallback))
+                return fallback;
+
+            return ClipBindingsMatchSkeleton(profile, bindingPaths) ? profile.ProfileHash : string.Empty;
+        }
+
+        private static string ResolveSkeletonProfileId(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            string fallback)
+        {
+            return profile != null ? profile.ProfileId : fallback ?? string.Empty;
+        }
+
+        private static string ResolveSkeletonProfileHash(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            string fallback)
+        {
+            return profile != null ? profile.ProfileHash : fallback ?? string.Empty;
+        }
+
+        private static bool ClipBindingsMatchSkeleton(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            IReadOnlyList<string> bindingPaths)
+        {
+            if (profile == null)
+                return false;
+
+            for (int i = 0; i < bindingPaths.Count; i++)
+            {
+                string path = bindingPaths[i];
+                if (!profile.ContainsBonePath(path) && !profile.ContainsSocketPath(path))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool ContainsPath(IReadOnlyList<string> paths, string path)
+        {
+            string normalized = NormalizePath(path);
+            for (int i = 0; i < paths.Count; i++)
+            {
+                if (string.Equals(paths[i], normalized, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return (path ?? string.Empty).Replace('\\', '/').Trim().Trim('/');
+        }
+    }
 }
