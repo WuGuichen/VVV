@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using MxFramework.Demo;
 using MxFramework.Editor;
 using MxFramework.Resources;
+using MxFramework.Resources.Unity;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -18,6 +19,7 @@ namespace MxFramework.Tests.Resources
             TempImportedResourceCatalog.SkeletonWalkForwardAnimationId,
             TempImportedResourceCatalog.SkeletonRunForwardAnimationId,
             TempImportedResourceCatalog.SkeletonJumpAnimationId,
+            TempImportedResourceCatalog.SkeletonUpperBodyMaskId,
             "art.character.skeleton.animation.standing_jump_running",
             "art.character.skeleton.animation.standing_jump_running_landing",
             "art.character.skeleton.animation.standing_land_to_standing_idle",
@@ -72,9 +74,28 @@ namespace MxFramework.Tests.Resources
             CollectionAssert.Contains(FindEntry(catalog, "art.weapon.katana.generic_01").Labels, TempImportedResourceCatalog.DomainArtLabel);
             CollectionAssert.Contains(FindEntry(catalog, TempImportedResourceCatalog.SkeletonModelId).Labels, TempImportedResourceCatalog.SampleSkeletonLabel);
             CollectionAssert.Contains(FindEntry(catalog, TempImportedResourceCatalog.SkeletonIdleAnimationId).Labels, TempImportedResourceCatalog.SampleSkeletonAnimationClipLabel);
+            CollectionAssert.Contains(FindEntry(catalog, TempImportedResourceCatalog.SkeletonUpperBodyMaskId).Labels, TempImportedResourceCatalog.WarmupMxAnimationLabel);
             CollectionAssert.Contains(FindEntry(catalog, "ui.start_screen.button.normal").Labels, TempImportedResourceCatalog.DomainUiLabel);
             CollectionAssert.Contains(FindEntry(catalog, "vfx.status_aura.burn").Labels, TempImportedResourceCatalog.DomainVfxLabel);
             CollectionAssert.Contains(FindEntry(catalog, "audio.magic_effect.wind").Labels, TempImportedResourceCatalog.DomainAudioLabel);
+        }
+
+        [Test]
+        public void SampleResourceCatalogBuilder_BuildCatalogMatchesRuntimeCatalogAndJsonRoundtrips()
+        {
+            ResourceCatalog runtimeCatalog = TempImportedResourceCatalog.CreateCatalog();
+            ResourceCatalog generatedCatalog = SampleResourceCatalogBuilder.BuildCatalog();
+
+            AssertCatalogsEqual(runtimeCatalog, generatedCatalog);
+            ResourceCatalogValidationReport validation = SampleResourceCatalogBuilder.ValidateGeneratedCatalog(generatedCatalog);
+            Assert.False(validation.HasErrors, ResourceCatalogEditorValidator.CreateReportText(generatedCatalog, validation));
+
+            string json = SampleResourceCatalogBuilder.WriteCatalogJson(generatedCatalog);
+            StringAssert.Contains("\"id\": \"art.character.skeleton.mask.upper_body\"", json);
+            Assert.IsTrue(json.EndsWith("\n", System.StringComparison.Ordinal));
+
+            ResourceCatalog roundtrip = StreamingResourceCatalogLoader.LoadFromJson(json);
+            AssertCatalogsEqual(generatedCatalog, roundtrip);
         }
 
         [Test]
@@ -210,6 +231,32 @@ namespace MxFramework.Tests.Resources
             }
 
             Assert.Fail("Expected resource catalog validation issue: " + code);
+        }
+
+        private static void AssertCatalogsEqual(ResourceCatalog expected, ResourceCatalog actual)
+        {
+            Assert.AreEqual(expected.CatalogId, actual.CatalogId);
+            Assert.AreEqual(expected.PackageId, actual.PackageId);
+            Assert.AreEqual(expected.Entries.Count, actual.Entries.Count);
+
+            for (int i = 0; i < expected.Entries.Count; i++)
+                AssertEntriesEqual(expected.Entries[i], actual.Entries[i]);
+        }
+
+        private static void AssertEntriesEqual(ResourceCatalogEntry expected, ResourceCatalogEntry actual)
+        {
+            Assert.AreEqual(expected.Id, actual.Id);
+            Assert.AreEqual(expected.TypeId, actual.TypeId);
+            Assert.AreEqual(expected.Variant, actual.Variant);
+            Assert.AreEqual(expected.PackageId, actual.PackageId);
+            Assert.AreEqual(expected.ProviderId, actual.ProviderId);
+            Assert.AreEqual(expected.Address, actual.Address);
+            Assert.AreEqual(expected.Hash, actual.Hash);
+            Assert.AreEqual(expected.Size, actual.Size);
+            Assert.AreEqual(expected.AllowOverride, actual.AllowOverride);
+            CollectionAssert.AreEqual(expected.Labels, actual.Labels);
+            CollectionAssert.AreEqual(expected.Dependencies, actual.Dependencies);
+            CollectionAssert.AreEqual(expected.ProviderData, actual.ProviderData);
         }
     }
 }

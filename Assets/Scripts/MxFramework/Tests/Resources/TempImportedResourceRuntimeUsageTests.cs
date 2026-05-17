@@ -10,8 +10,8 @@ namespace MxFramework.Tests.Resources
 {
     public class TempImportedResourceRuntimeUsageTests
     {
-        [TestCase(TempImportedResourceCatalog.PackageLabel, 33)]
-        [TestCase(TempImportedResourceCatalog.WarmupMxAnimationLabel, 17)]
+        [TestCase(TempImportedResourceCatalog.PackageLabel, 34)]
+        [TestCase(TempImportedResourceCatalog.WarmupMxAnimationLabel, 18)]
         [TestCase(TempImportedResourceCatalog.WarmupStartScreenLabel, 7)]
         [TestCase(TempImportedResourceCatalog.WarmupCombatLabel, 9)]
         [TestCase(TempImportedResourceCatalog.WarmupStatusEffectsLabel, 4)]
@@ -36,7 +36,7 @@ namespace MxFramework.Tests.Resources
             Assert.AreEqual(TempImportedResourceCatalog.CatalogId, loaded.Catalogs[0].CatalogId);
             Assert.AreEqual(TempImportedResourceCatalog.PackageId, loaded.Catalogs[0].PackageId);
             Assert.AreEqual(1, loaded.CatalogCount);
-            Assert.AreEqual(33, loaded.EntryCount);
+            Assert.AreEqual(34, loaded.EntryCount);
             Assert.AreEqual(1, loaded.ProviderCount);
             Assert.AreEqual(expectedCount, loaded.LoadedCount);
             Assert.AreEqual(expectedCount, loaded.TotalRefCount);
@@ -178,7 +178,7 @@ namespace MxFramework.Tests.Resources
 
             ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
             Assert.AreEqual(1, snapshot.CatalogCount);
-            Assert.AreEqual(33, snapshot.EntryCount);
+            Assert.AreEqual(34, snapshot.EntryCount);
             Assert.AreEqual(1, snapshot.ProviderCount);
             Assert.AreEqual(0, snapshot.LoadedCount);
 

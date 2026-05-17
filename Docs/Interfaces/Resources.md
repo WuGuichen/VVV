@@ -31,6 +31,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 | `ResourceCatalogValidator` | noEngine Catalog 结构校验 |
 | `ResourceCatalogValidationReport` | Catalog 校验问题报告 |
 | `ResourceCatalogEditorValidator` | Editor 侧资源存在性和类型校验 |
+| `SampleResourceCatalogBuilder` | Editor 侧 `mxframework.samples` Catalog 扫描 / 生成入口 |
 | `IResourcePreloadService` / `ResourcePreloadService` | 预加载 group / scene warmup 策略服务，批量加载 explicit keys 和 labels |
 | `ResourcePreloadPlan` | 预加载计划，包含 groupId、labels、explicit keys、failFast、maxConcurrentLoads |
 | `ResourcePreloadResult` | 预加载结果，包含 requested / loaded / failed count 和错误列表 |
@@ -69,6 +70,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - `ResourceCatalogEditorValidator` 位于 `MxFramework.Editor`，使用 `AssetDatabase` 校验 `resources` / `assetBundle` 入口资源存在和主资源类型。
 - `ResourceCatalogEditorValidator` 会额外校验 `memory` entry 的 `providerData.assetPath`，用于 Demo / Editor Play Mode 将已序列化 Unity 对象纳入 Catalog 和 warmup。
 - Editor 校验只报告问题，不自动修改 Catalog 或导入设置。
+- `SampleResourceCatalogBuilder` 会扫描 / 校验框架正式样例资源规则，并通过 `MxFramework/Samples/Generate Resource Catalog` 确定性生成 `Assets/Config/MxFramework/ResourceCatalogs/mxframework_samples_resource_catalog.json`；当前输出仍是 Editor Play Mode / Demo 用的 `memory` provider catalog，Player 路径留给 AssetBundle / Streaming catalog 切片。
 - M6A 已新增 Preload Group + Scene Warmup，作为独立策略服务，不把 PreloadGroup 做成 Provider，也不修改 `IResourceManager` 签名。
 - `ResourcePreloadService` 会先按 `ResourcePreloadPlan.ExplicitKeys` 和 `Labels` 收集 key，去重后调用现有 `LoadAsync<object>`。
 - `ResourcePreloadPlan.MaxConcurrentLoads` 第一版保留字段，当前 noEngine immediate async 实现仍按顺序加载。

@@ -343,7 +343,8 @@ namespace MxFramework.Demo
             return string.Equals(typeId, ResourceTypeIds.GameObject, StringComparison.Ordinal)
                 || string.Equals(typeId, ResourceTypeIds.Texture2D, StringComparison.Ordinal)
                 || string.Equals(typeId, ResourceTypeIds.AudioClip, StringComparison.Ordinal)
-                || string.Equals(typeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal);
+                || string.Equals(typeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal)
+                || string.Equals(typeId, ResourceTypeIds.AvatarMask, StringComparison.Ordinal);
         }
 
         private static bool IsFmodCatalogValue(string value)

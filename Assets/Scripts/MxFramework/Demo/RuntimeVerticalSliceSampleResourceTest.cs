@@ -9,8 +9,8 @@ namespace MxFramework.Demo
     {
         private static readonly RuntimeVerticalSliceResourcePreloadCase[] PreloadCases =
         {
-            new RuntimeVerticalSliceResourcePreloadCase("samples.package", "package", TempImportedResourceCatalog.PackageLabel, 33),
-            new RuntimeVerticalSliceResourcePreloadCase("samples.mxanimation", "MxAnimation", TempImportedResourceCatalog.WarmupMxAnimationLabel, 17),
+            new RuntimeVerticalSliceResourcePreloadCase("samples.package", "package", TempImportedResourceCatalog.PackageLabel, 34),
+            new RuntimeVerticalSliceResourcePreloadCase("samples.mxanimation", "MxAnimation", TempImportedResourceCatalog.WarmupMxAnimationLabel, 18),
             new RuntimeVerticalSliceResourcePreloadCase("samples.start_screen", "StartScreen", TempImportedResourceCatalog.WarmupStartScreenLabel, 7),
             new RuntimeVerticalSliceResourcePreloadCase("samples.combat", "Combat", TempImportedResourceCatalog.WarmupCombatLabel, 9),
             new RuntimeVerticalSliceResourcePreloadCase("samples.status_effects", "StatusEffects", TempImportedResourceCatalog.WarmupStatusEffectsLabel, 4),
@@ -363,7 +363,7 @@ namespace MxFramework.Demo
         {
             string status = success ? "ok" : "failed";
             return "Samples resources " + status +
-                ": warmup 33/17/7/9/4/4, direct P" + direct.PrefabCount +
+                ": warmup 34/18/7/9/4/4, direct P" + direct.PrefabCount +
                 "/T" + direct.TextureCount +
                 "/A" + direct.AudioClipCount +
                 ", release loaded=" + afterFullRelease.LoadedCount +
