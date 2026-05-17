@@ -48,7 +48,8 @@ namespace MxFramework.Tests.Combat.Hit
             Assert.AreEqual(HitResolveKind.Invincible, results[1].Kind);
             Assert.AreEqual(HitResolveKind.Parried, results[2].Kind);
             Assert.AreEqual(HitResolveKind.Blocked, results[3].Kind);
-            Assert.AreEqual(0, results[3].Damage);
+            Assert.AreEqual(10, results[3].Damage);
+            Assert.IsFalse(results[3].IsAcceptedDamage);
         }
 
         [Test]

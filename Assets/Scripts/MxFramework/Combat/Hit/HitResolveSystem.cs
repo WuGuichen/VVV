@@ -149,7 +149,7 @@ namespace MxFramework.Combat.Hit
 
             if ((state & HitTargetStateFlags.Blocking) != 0)
             {
-                return CreateResult(candidate, HitResolveKind.Blocked, 0, 0, FixVector3.Zero);
+                return CreateResult(candidate, HitResolveKind.Blocked, candidate.Damage, 0, FixVector3.Zero);
             }
 
             int staggerFrames = (state & HitTargetStateFlags.SuperArmor) != 0 ? 0 : candidate.StaggerFrames;

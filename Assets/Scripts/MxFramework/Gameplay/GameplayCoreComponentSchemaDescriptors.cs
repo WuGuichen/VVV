@@ -8,6 +8,8 @@ namespace MxFramework.Gameplay
         public const string TagsStableId = "mxframework.gameplay.tags";
         public const string StatusesStableId = "mxframework.gameplay.statuses";
         public const string PosturePressureStableId = "mxframework.gameplay.posture_pressure";
+        public const string GuardPressureStableId = "mxframework.gameplay.guard_pressure";
+        public const string ArmorIntegrityStableId = "mxframework.gameplay.armor_integrity";
 
         public static void RegisterDiagnostics(GameplayComponentSchemaRegistry registry)
         {
@@ -20,6 +22,8 @@ namespace MxFramework.Gameplay
             registry.Register(new TagsDiagnostics());
             registry.Register(new StatusesDiagnostics());
             registry.Register(new PosturePressureDiagnostics());
+            registry.Register(new GuardPressureDiagnostics());
+            registry.Register(new ArmorIntegrityDiagnostics());
         }
 
         public static void RegisterRuntimeHash(GameplayComponentSchemaRegistry registry)
@@ -33,6 +37,8 @@ namespace MxFramework.Gameplay
             registry.Register(new TagsHash());
             registry.Register(new StatusesHash());
             registry.Register(new PosturePressureHash());
+            registry.Register(new GuardPressureHash());
+            registry.Register(new ArmorIntegrityHash());
         }
 
         public static void RegisterSaveState(GameplayComponentSchemaRegistry registry)
@@ -46,6 +52,8 @@ namespace MxFramework.Gameplay
             registry.Register(new TagsSaveState());
             registry.Register(new StatusesSaveState());
             registry.Register(new PosturePressureSaveState());
+            registry.Register(new GuardPressureSaveState());
+            registry.Register(new ArmorIntegritySaveState());
         }
 
         private sealed class IdentityDiagnostics : IGameplayComponentDiagnosticWriter<GameplayIdentityComponent>
@@ -184,6 +192,42 @@ namespace MxFramework.Gameplay
             }
         }
 
+        private sealed class GuardPressureDiagnostics : IGameplayComponentDiagnosticWriter<GameplayGuardPressureComponent>
+        {
+            public GameplayComponentSchema Schema => CreateGuardPressureSchema();
+
+            public void WriteDiagnostics(
+                GameplayEntityId entityId,
+                in GameplayGuardPressureComponent component,
+                GameplayComponentDiagnosticWriter writer)
+            {
+                WriteEntity(writer, entityId);
+                writer.AddInt("maxPressure", component.MaxPressure);
+                writer.AddInt("recoveryRate", component.RecoveryRate);
+                writer.AddInt("recoveryDelayFrames", component.RecoveryDelayFrames);
+                writer.AddInt("currentPressure", component.CurrentPressure);
+                writer.AddInt("currentBand", (int)component.CurrentBand);
+                writer.AddLong("lastPressureFrame", component.LastPressureFrame);
+                writer.AddBool("isBroken", component.IsBroken);
+            }
+        }
+
+        private sealed class ArmorIntegrityDiagnostics : IGameplayComponentDiagnosticWriter<GameplayArmorIntegrityComponent>
+        {
+            public GameplayComponentSchema Schema => CreateArmorIntegritySchema();
+
+            public void WriteDiagnostics(
+                GameplayEntityId entityId,
+                in GameplayArmorIntegrityComponent component,
+                GameplayComponentDiagnosticWriter writer)
+            {
+                WriteEntity(writer, entityId);
+                writer.AddInt("maxIntegrity", component.MaxIntegrity);
+                writer.AddInt("currentIntegrity", component.CurrentIntegrity);
+                writer.AddBool("isBroken", component.IsBroken);
+            }
+        }
+
         private static void WriteEntity(GameplayComponentDiagnosticWriter writer, GameplayEntityId entityId)
         {
             writer.AddInt("entity.index", entityId.Index);
@@ -197,6 +241,30 @@ namespace MxFramework.Gameplay
                 1,
                 typeof(GameplayPosturePressureComponent),
                 "Gameplay Posture Pressure",
+                supportsDiagnostics: true,
+                supportsHash: true,
+                supportsSaveState: true);
+        }
+
+        private static GameplayComponentSchema CreateGuardPressureSchema()
+        {
+            return new GameplayComponentSchema(
+                GuardPressureStableId,
+                1,
+                typeof(GameplayGuardPressureComponent),
+                "Gameplay Guard Pressure",
+                supportsDiagnostics: true,
+                supportsHash: true,
+                supportsSaveState: true);
+        }
+
+        private static GameplayComponentSchema CreateArmorIntegritySchema()
+        {
+            return new GameplayComponentSchema(
+                ArmorIntegrityStableId,
+                1,
+                typeof(GameplayArmorIntegrityComponent),
+                "Gameplay Armor Integrity",
                 supportsDiagnostics: true,
                 supportsHash: true,
                 supportsSaveState: true);
@@ -324,6 +392,40 @@ namespace MxFramework.Gameplay
                 accumulator.AddInt("currentPressure", component.CurrentPressure);
                 accumulator.AddInt("currentBand", (int)component.CurrentBand);
                 accumulator.AddLong("lastPressureFrame", component.LastPressureFrame);
+                accumulator.AddInt("isBroken", component.IsBroken ? 1 : 0);
+            }
+        }
+
+        private sealed class GuardPressureHash : IGameplayComponentHashWriter<GameplayGuardPressureComponent>
+        {
+            public GameplayComponentSchema Schema => CreateGuardPressureSchema();
+
+            public void WriteHash(
+                GameplayEntityId entityId,
+                in GameplayGuardPressureComponent component,
+                MxFramework.Runtime.RuntimeHashAccumulator accumulator)
+            {
+                accumulator.AddInt("maxPressure", component.MaxPressure);
+                accumulator.AddInt("recoveryRate", component.RecoveryRate);
+                accumulator.AddInt("recoveryDelayFrames", component.RecoveryDelayFrames);
+                accumulator.AddInt("currentPressure", component.CurrentPressure);
+                accumulator.AddInt("currentBand", (int)component.CurrentBand);
+                accumulator.AddLong("lastPressureFrame", component.LastPressureFrame);
+                accumulator.AddInt("isBroken", component.IsBroken ? 1 : 0);
+            }
+        }
+
+        private sealed class ArmorIntegrityHash : IGameplayComponentHashWriter<GameplayArmorIntegrityComponent>
+        {
+            public GameplayComponentSchema Schema => CreateArmorIntegritySchema();
+
+            public void WriteHash(
+                GameplayEntityId entityId,
+                in GameplayArmorIntegrityComponent component,
+                MxFramework.Runtime.RuntimeHashAccumulator accumulator)
+            {
+                accumulator.AddInt("maxIntegrity", component.MaxIntegrity);
+                accumulator.AddInt("currentIntegrity", component.CurrentIntegrity);
                 accumulator.AddInt("isBroken", component.IsBroken ? 1 : 0);
             }
         }
@@ -612,6 +714,123 @@ namespace MxFramework.Gameplay
             }
         }
 
+        private sealed class GuardPressureSaveState : IGameplayComponentSaveStateAdapter<GameplayGuardPressureComponent>
+        {
+            public GameplayComponentSchema Schema => CreateGuardPressureSchema();
+
+            public MxFramework.Runtime.RuntimeCustomState WriteSaveState(
+                GameplayEntityId entityId,
+                in GameplayGuardPressureComponent component)
+            {
+                return GameplayComponentSchemaPayload.Write(
+                    Schema,
+                    new GuardPressurePayload
+                    {
+                        MaxPressure = component.MaxPressure,
+                        RecoveryRate = component.RecoveryRate,
+                        RecoveryDelayFrames = component.RecoveryDelayFrames,
+                        CurrentPressure = component.CurrentPressure,
+                        CurrentBand = (int)component.CurrentBand,
+                        LastPressureFrame = component.LastPressureFrame,
+                        IsBroken = component.IsBroken
+                    });
+            }
+
+            public MxFramework.Runtime.RuntimeSaveStateResult<GameplayGuardPressureComponent> ReadSaveState(
+                GameplayEntityId entityId,
+                MxFramework.Runtime.RuntimeCustomState payload)
+            {
+                MxFramework.Runtime.RuntimeSaveStateResult<GuardPressurePayload> result =
+                    GameplayComponentSchemaPayload.Read<GuardPressurePayload>(Schema, payload);
+                if (!result.Success)
+                    return MxFramework.Runtime.RuntimeSaveStateResult<GameplayGuardPressureComponent>.Failed(result.Error);
+                if (result.Value == null)
+                    return GameplayComponentSchemaPayload.Invalid<GameplayGuardPressureComponent>(Schema, payload, "Guard pressure payload is null.");
+                if (!System.Enum.IsDefined(typeof(PressureBand), result.Value.CurrentBand))
+                    return GameplayComponentSchemaPayload.Invalid<GameplayGuardPressureComponent>(Schema, payload, "Guard pressure band is not defined: " + result.Value.CurrentBand);
+
+                try
+                {
+                    var band = (PressureBand)result.Value.CurrentBand;
+                    GameplayGuardPressureComponent.Validate(
+                        result.Value.MaxPressure,
+                        result.Value.RecoveryRate,
+                        result.Value.RecoveryDelayFrames,
+                        result.Value.CurrentPressure,
+                        result.Value.LastPressureFrame,
+                        band,
+                        result.Value.IsBroken);
+
+                    return MxFramework.Runtime.RuntimeSaveStateResult<GameplayGuardPressureComponent>.Succeeded(
+                        new GameplayGuardPressureComponent
+                        {
+                            MaxPressure = result.Value.MaxPressure,
+                            RecoveryRate = result.Value.RecoveryRate,
+                            RecoveryDelayFrames = result.Value.RecoveryDelayFrames,
+                            CurrentPressure = result.Value.CurrentPressure,
+                            CurrentBand = band,
+                            LastPressureFrame = result.Value.LastPressureFrame,
+                            IsBroken = result.Value.IsBroken
+                        });
+                }
+                catch (System.Exception exception)
+                {
+                    return GameplayComponentSchemaPayload.Invalid<GameplayGuardPressureComponent>(Schema, payload, exception);
+                }
+            }
+        }
+
+        private sealed class ArmorIntegritySaveState : IGameplayComponentSaveStateAdapter<GameplayArmorIntegrityComponent>
+        {
+            public GameplayComponentSchema Schema => CreateArmorIntegritySchema();
+
+            public MxFramework.Runtime.RuntimeCustomState WriteSaveState(
+                GameplayEntityId entityId,
+                in GameplayArmorIntegrityComponent component)
+            {
+                return GameplayComponentSchemaPayload.Write(
+                    Schema,
+                    new ArmorIntegrityPayload
+                    {
+                        MaxIntegrity = component.MaxIntegrity,
+                        CurrentIntegrity = component.CurrentIntegrity,
+                        IsBroken = component.IsBroken
+                    });
+            }
+
+            public MxFramework.Runtime.RuntimeSaveStateResult<GameplayArmorIntegrityComponent> ReadSaveState(
+                GameplayEntityId entityId,
+                MxFramework.Runtime.RuntimeCustomState payload)
+            {
+                MxFramework.Runtime.RuntimeSaveStateResult<ArmorIntegrityPayload> result =
+                    GameplayComponentSchemaPayload.Read<ArmorIntegrityPayload>(Schema, payload);
+                if (!result.Success)
+                    return MxFramework.Runtime.RuntimeSaveStateResult<GameplayArmorIntegrityComponent>.Failed(result.Error);
+                if (result.Value == null)
+                    return GameplayComponentSchemaPayload.Invalid<GameplayArmorIntegrityComponent>(Schema, payload, "Armor integrity payload is null.");
+
+                try
+                {
+                    GameplayArmorIntegrityComponent.Validate(
+                        result.Value.MaxIntegrity,
+                        result.Value.CurrentIntegrity,
+                        result.Value.IsBroken);
+
+                    return MxFramework.Runtime.RuntimeSaveStateResult<GameplayArmorIntegrityComponent>.Succeeded(
+                        new GameplayArmorIntegrityComponent
+                        {
+                            MaxIntegrity = result.Value.MaxIntegrity,
+                            CurrentIntegrity = result.Value.CurrentIntegrity,
+                            IsBroken = result.Value.IsBroken
+                        });
+                }
+                catch (System.Exception exception)
+                {
+                    return GameplayComponentSchemaPayload.Invalid<GameplayArmorIntegrityComponent>(Schema, payload, exception);
+                }
+            }
+        }
+
         private readonly struct IdentityPayload
         {
             public IdentityPayload(int definitionId, int variantId)
@@ -662,6 +881,24 @@ namespace MxFramework.Gameplay
             public int CurrentPressure { get; set; }
             public int CurrentBand { get; set; }
             public long LastPressureFrame { get; set; }
+            public bool IsBroken { get; set; }
+        }
+
+        private sealed class GuardPressurePayload
+        {
+            public int MaxPressure { get; set; }
+            public int RecoveryRate { get; set; }
+            public int RecoveryDelayFrames { get; set; }
+            public int CurrentPressure { get; set; }
+            public int CurrentBand { get; set; }
+            public long LastPressureFrame { get; set; }
+            public bool IsBroken { get; set; }
+        }
+
+        private sealed class ArmorIntegrityPayload
+        {
+            public int MaxIntegrity { get; set; }
+            public int CurrentIntegrity { get; set; }
             public bool IsBroken { get; set; }
         }
     }

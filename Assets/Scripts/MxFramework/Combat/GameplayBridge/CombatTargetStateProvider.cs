@@ -10,17 +10,20 @@ namespace MxFramework.Combat.GameplayBridge
         private readonly GameplayStatusId _blockingStatusId;
         private readonly GameplayStatusId _parryingStatusId;
         private readonly GameplayStatusId _superArmorStatusId;
+        private readonly GameplayStatusId _guardBrokenStatusId;
 
         public CombatTargetStateProvider(
             GameplayStatusId invincibleStatusId = default,
             GameplayStatusId blockingStatusId = default,
             GameplayStatusId parryingStatusId = default,
-            GameplayStatusId superArmorStatusId = default)
+            GameplayStatusId superArmorStatusId = default,
+            GameplayStatusId guardBrokenStatusId = default)
         {
             _invincibleStatusId = invincibleStatusId;
             _blockingStatusId = blockingStatusId;
             _parryingStatusId = parryingStatusId;
             _superArmorStatusId = superArmorStatusId;
+            _guardBrokenStatusId = guardBrokenStatusId;
         }
 
         public HitTargetStateFlags Evaluate(GameplayComponentWorld world, GameplayEntityId entityId)
@@ -47,7 +50,8 @@ namespace MxFramework.Combat.GameplayBridge
             if (_invincibleStatusId.IsValid && statuses.Contains(_invincibleStatusId))
                 flags |= HitTargetStateFlags.Invincible;
 
-            if (_blockingStatusId.IsValid && statuses.Contains(_blockingStatusId))
+            bool isGuardBroken = _guardBrokenStatusId.IsValid && statuses.Contains(_guardBrokenStatusId);
+            if (!isGuardBroken && _blockingStatusId.IsValid && statuses.Contains(_blockingStatusId))
                 flags |= HitTargetStateFlags.Blocking;
 
             if (_parryingStatusId.IsValid && statuses.Contains(_parryingStatusId))

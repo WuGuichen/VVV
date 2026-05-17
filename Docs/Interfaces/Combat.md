@@ -42,7 +42,7 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Trace Provider | `ICombatActionTraceProvider` / `CombatActionTimelineTraceProvider` | 从动作时间轴读取 weapon trace |
 | Diagnostics | `CombatDebugSnapshot` / `CombatDebugSnapshotBuilder` / `CombatHitExplain` / `CombatQueryTrace` | 运行时可读诊断快照和命中 explain |
 | Replay | `CombatReplayInput` / `CombatReplayRecorder` / `CombatDesyncDump` | replay 输入记录和 desync dump |
-| Gameplay Bridge | `CombatGameplayEventBridge` / `CombatBreakLineAdapter` / `CombatPostureBreakAdapter` | 将 Combat 命中结果、动作支撑线和破韧事件桥接到 Gameplay / Buff / Combat Action 侧 |
+| Gameplay Bridge | `CombatGameplayEventBridge` / `CombatBreakLineAdapter` / `CombatPostureBreakAdapter` / `CombatGuardArmorApplicationSystem` | 将 Combat 命中结果、动作支撑线、防御压力、护甲完整度和破韧事件桥接到 Gameplay / Buff / Combat Action 侧 |
 
 ## 时间域与 RuntimeHost bridge
 
@@ -95,6 +95,8 @@ Bridge 语义：zero-step 不推进 `CombatFrameClock`；multi-step 每个 step 
 - `HitTargetStateFlags` 支持 Alive、Invincible、Parrying、Blocking、SuperArmor 等状态过滤。
 - `ICombatEventDispatcher` 可接收 resolved / blocked 事件。
 
+`HitResolveKind.Blocked` 保留本次 incoming damage 到 `HitResolveResult.Damage`，用于 bridge 层作为 GuardPressure 输入；但 `HitResolveResult.IsAcceptedDamage` 仍只在 `Kind == Damage && Damage > 0` 时为 true，因此 Blocked 不会被旧 HP 应用路径当作已接受伤害。
+
 ## Action / RuntimeHost 模块
 
 动作运行时使用 `CombatActionTimeline`、`CombatActionRunner` 和 `CombatAnimationContext`，并通过 RuntimeHost 模块接入统一 tick：
@@ -132,6 +134,19 @@ breakLine = Max(baseLine, Max(actionLine, minLine))
 当 support profile 为空时返回 `basePressure`。`Fix64` 结果通过 `ToInt()` 量化，当前语义是向零截断。`CombatBreakLineAdapter.IsInHyperArmorWindow(profile, localFrame)` 只在 profile 显式启用 hyper armor 且 local frame 落在窗口内时返回 true。
 
 `CombatPostureBreakAdapter` 订阅 `GameplayPosturePressureSystem.PostureBreakEvents`，把 `PostureBreakEvent.EntityId` 通过 `CombatEntityGameplayMap` 映射为 `CombatEntityId`，再调用 `CombatActionRunner.ForceCancel`。缺失映射、没有 running action 或 adapter disable / dispose 都不会产生取消。
+
+## Gameplay Bridge：GuardPressure 和 ArmorIntegrity
+
+`CombatGuardArmorApplicationSystem` 是 Guard / Armor composition root 的 hit application 替代路线。它读取 `HitResolveResult`，通过 `CombatEntityGameplayMap` 将 target `CombatEntityId` 映射到 `GameplayEntityId`，并完整接管同一 hit stream 的 HP command 输出；项目组合根不能同时注册旧 `CombatHitApplicationSystem`，否则同一 Damage 结果会重复扣 HP。该 system 默认 priority 为 `60`，早于默认 priority `70` 的 `GameplayGuardPressureSystem`，使 Blocked 命中写入的 GuardPressure 请求能在同一 `GameplaySystemPipeline.Tick` 内消费。
+
+处理规则：
+- `HitResolveKind.Blocked`：如果结果 `Damage > 0`，向 `GameplayGuardPressureSystem.Enqueue(new GameplayGuardPressureRequest(...))` 写入 GuardPressure 请求，trace id 使用原 `HitResolveResult.TraceId`。
+- `HitResolveKind.Damage`：读取目标 `GameplayArmorIntegrityComponent`，按 armor 调整后的伤害输出 `GameplayRuntimeCommandFactory.AddComponentAttribute(..., -adjustedDamage, traceId)`。
+- 没有 armor component，或 armor `MaxIntegrity <= 0`、`CurrentIntegrity <= 0`、`CurrentIntegrity > MaxIntegrity`、`IsBroken == true` 时，应用完整 incoming damage。
+- 可用 armor 的固定口径：先用命中前的 `CurrentIntegrity` 计算 `absorbed = incomingDamage * CurrentIntegrity / MaxIntegrity`（整数截断）；再按 incoming damage 衰减 `CurrentIntegrity = max(0, CurrentIntegrity - incomingDamage)`；最终 `adjustedDamage = incomingDamage - absorbed`。
+- armor 从未破裂状态衰减到 0 时只发布 `ArmorBreakEvent`，不新增 `HitResolveKind.ArmorBroken`，也不改变原始 hit resolve kind。
+
+`CombatTargetStateProvider` 可选配置 `guardBrokenStatusId`。当目标同时拥有 Blocking status 和 GuardBroken status 时，provider 不再设置 `HitTargetStateFlags.Blocking`；Invincible、Parrying、SuperArmor 等其他映射不受影响。GuardBreak 后如何写入该 status 归 Gameplay / 组合根负责。
 
 ## Baked Weapon Trace Adapter
 
