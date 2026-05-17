@@ -194,6 +194,15 @@ namespace MxFramework.Editor.Animation
         private string _compatibilityProfileId = "skeleton";
         private string _compatibilitySocketPaths = "WeaponSocket\nWeaponTip";
         private MxAnimationCompatibilityWorkstationReport _lastCompatibilityReport;
+        private bool _showPackageBuilder = true;
+        private MxAnimationPackageProviderSampleKind _packageProviderSampleKind = MxAnimationPackageProviderSampleKind.LocalAssetBundle;
+        private int _packageVersion = 1;
+        private string _packageCatalogId = string.Empty;
+        private string _packageBundleName = string.Empty;
+        private string _packageRemoteUrl = string.Empty;
+        private string _packageRemoteCacheKey = string.Empty;
+        private string _packageRemoteHash = string.Empty;
+        private MxAnimationPackageBuildResult _lastPackageBuildResult;
         private bool _showTimelineEditor = true;
         private int _timelineBindingIndex;
         private int _timelineFrame;
@@ -265,6 +274,7 @@ namespace MxFramework.Editor.Animation
             DrawLayerRows();
             DrawBlendRows();
             DrawCompatibilityPanel();
+            DrawPackageBuilderPanel();
             DrawDiagnostics();
             EditorGUILayout.EndScrollView();
 
@@ -855,6 +865,7 @@ namespace MxFramework.Editor.Animation
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                EditorGUI.BeginChangeCheck();
                 _compatibilitySkeletonRoot = (GameObject)EditorGUILayout.ObjectField(
                     "Skeleton Root",
                     _compatibilitySkeletonRoot,
@@ -863,6 +874,12 @@ namespace MxFramework.Editor.Animation
                 _compatibilityProfileId = EditorGUILayout.TextField("Profile Id", _compatibilityProfileId);
                 EditorGUILayout.LabelField("Socket Paths");
                 _compatibilitySocketPaths = EditorGUILayout.TextArea(_compatibilitySocketPaths, GUILayout.MinHeight(48f));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    _lastBatchBakeReport = null;
+                    _lastCompatibilityReport = null;
+                    _lastPackageBuildResult = null;
+                }
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -889,6 +906,59 @@ namespace MxFramework.Editor.Animation
                             : "Compatibility issues or stale bake inputs were found. See the copyable report below.",
                         _lastCompatibilityReport.Success ? MessageType.Info : MessageType.Warning);
                     EditorGUILayout.TextArea(_lastCompatibilityReport.ReportText, GUILayout.MinHeight(140f));
+                }
+            }
+        }
+
+        private void DrawPackageBuilderPanel()
+        {
+            _showPackageBuilder = EditorGUILayout.Foldout(_showPackageBuilder, "Animation Package Builder", true);
+            if (!_showPackageBuilder)
+                return;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUI.BeginChangeCheck();
+                _packageProviderSampleKind = (MxAnimationPackageProviderSampleKind)EditorGUILayout.EnumPopup(
+                    "Provider Sample",
+                    _packageProviderSampleKind);
+                _packageVersion = Math.Max(1, EditorGUILayout.IntField("Package Version", _packageVersion <= 0 ? Math.Max(1, _registry.Version) : _packageVersion));
+                _packageCatalogId = EditorGUILayout.TextField("Catalog Id Override", _packageCatalogId);
+                _packageBundleName = EditorGUILayout.TextField("Bundle Name Override", _packageBundleName);
+                if (_packageProviderSampleKind == MxAnimationPackageProviderSampleKind.RemoteBundle)
+                {
+                    _packageRemoteUrl = EditorGUILayout.TextField("Remote Bundle URL", _packageRemoteUrl);
+                    _packageRemoteCacheKey = EditorGUILayout.TextField("Remote Cache Key", _packageRemoteCacheKey);
+                    _packageRemoteHash = EditorGUILayout.TextField("Remote Bundle SHA-256", _packageRemoteHash);
+                }
+                if (EditorGUI.EndChangeCheck())
+                    _lastPackageBuildResult = null;
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Preview Package Build"))
+                        RefreshPackageBuildReport(logToConsole: true);
+
+                    using (new EditorGUI.DisabledScope(_lastPackageBuildResult == null || string.IsNullOrEmpty(_lastPackageBuildResult.ReportText)))
+                    {
+                        if (GUILayout.Button("Copy Package Report"))
+                            EditorGUIUtility.systemCopyBuffer = _lastPackageBuildResult.ReportText;
+                        if (GUILayout.Button("Export Package Report"))
+                            ExportTextFile("Export MxAnimation Package Build Report", "MxAnimationPackageBuildReport.txt", _lastPackageBuildResult.ReportText);
+                    }
+                }
+
+                if (_lastPackageBuildResult == null)
+                    RefreshPackageBuildReport(logToConsole: false);
+
+                if (_lastPackageBuildResult != null)
+                {
+                    EditorGUILayout.HelpBox(
+                        _lastPackageBuildResult.Success
+                            ? "Package expectation and catalog snapshot validate. The report can be passed to warmup with the generated PackageCatalog."
+                            : "Package build validation found issues. See the copyable report below.",
+                        _lastPackageBuildResult.Success ? MessageType.Info : MessageType.Warning);
+                    EditorGUILayout.TextArea(_lastPackageBuildResult.ReportText, GUILayout.MinHeight(150f));
                 }
             }
         }
@@ -1011,6 +1081,7 @@ namespace MxFramework.Editor.Animation
                 _batchOutputRoot,
                 CreateCurrentSkeletonProfile());
             _lastCompatibilityReport = null;
+            _lastPackageBuildResult = null;
             Debug.Log(_lastBatchBakeReport.ReportText, _registry);
         }
 
@@ -1024,6 +1095,26 @@ namespace MxFramework.Editor.Animation
                 _lastBatchBakeReport);
             if (logToConsole && _lastCompatibilityReport != null)
                 Debug.Log(_lastCompatibilityReport.ReportText, _registry);
+        }
+
+        private void RefreshPackageBuildReport(bool logToConsole)
+        {
+            var options = new MxAnimationPackageBuilderOptions(
+                packageVersion: _packageVersion <= 0 ? Math.Max(1, _registry.Version) : _packageVersion,
+                catalogId: _packageCatalogId,
+                providerSampleKind: _packageProviderSampleKind,
+                bundleName: _packageBundleName,
+                remoteBundleUrl: _packageRemoteUrl,
+                remoteCacheKey: _packageRemoteCacheKey,
+                remoteBundleHash: _packageRemoteHash);
+            RefreshCompatibilityReport(logToConsole: false);
+            _lastPackageBuildResult = MxAnimationPackageBuilder.Build(
+                _registry,
+                options,
+                _lastBatchBakeReport,
+                _lastCompatibilityReport);
+            if (logToConsole && _lastPackageBuildResult != null)
+                Debug.Log(_lastPackageBuildResult.ReportText, _registry);
         }
 
         private MxAnimationSkeletonCompatibilityProfile CreateCurrentSkeletonProfile()
@@ -1303,6 +1394,9 @@ namespace MxFramework.Editor.Animation
                 EditorUtility.SetDirty(_registry);
                 RefreshReport(logToConsole: false);
                 MarkTimelinePreviewDirty();
+                _lastBatchBakeReport = null;
+                _lastCompatibilityReport = null;
+                _lastPackageBuildResult = null;
             }
             Undo.SetCurrentGroupName(undoName);
         }
@@ -1312,8 +1406,14 @@ namespace MxFramework.Editor.Animation
             _registry = registry;
             _serializedRegistry = registry != null ? new SerializedObject(registry) : null;
             _lastReport = string.Empty;
+            _lastBatchBakeReport = null;
+            _lastCompatibilityReport = null;
+            _lastPackageBuildResult = null;
             if (_registry != null)
+            {
+                _packageVersion = Math.Max(1, _registry.Version);
                 RefreshReport(logToConsole: false);
+            }
         }
 
         private void EnsureSerializedObject()

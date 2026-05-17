@@ -68,6 +68,7 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationWarmupIssue` | 结构化 warmup diagnostics，定位 animation set、catalog、clip registry、具体 clip / mask key 或 preload `ResourceError` |
 | `MxAnimationClipRegistryAsset` | Editor-only registry authoring asset，可引用 `AnimationClip` 但不进入 runtime DTO |
 | `MxAnimationClipRegistryExporter` | 从 Editor registry 导出 noEngine `MxAnimationSetDefinition` 和 validation report |
+| `MxAnimationPackageBuilder` | Editor-only package builder，从 registry / bake / compatibility report 生成 package expectation、catalog snapshot 和 copyable validation report |
 | `MxAnimationTimelineScrubberPreviewBuilder` / `MxAnimationTimelineScrubberPreviewWindow` | Editor-only 只读 timeline / scrubber 预览；把 action binding、presentation event、CombatActionTimeline snapshot 和 bake samples 对齐到同一 frame |
 | `MxAnimationPlayRequest` | 播放请求，可指定 binding/action 或直接 clip key |
 | `MxAnimationStopRequest` | 停止请求，支持 layer 和 fade out duration |
@@ -195,6 +196,8 @@ Animation package loading 是 Animation 层对 Resources catalog 的一层 noEng
 `MxAnimationPackageCatalogValidator` 必须在 warmup 或 CI 阶段输出结构化 diagnostics，不能把错误包静默当成 fallback：package id/version/hash mismatch、provider 不在允许列表、catalog entry hash mismatch、missing clip、missing AvatarMask、missing bake artifact、missing compatibility profile 都是 error。
 
 `MxAnimationWarmupRequest` 可携带 package expectation 和 `MxAnimationPackageCatalog` snapshot。warmup 会把 `MxAnimationPackageResourceExpectation.RequiredForWarmup=true` 的资源加入 `ResourcePreloadPlan`，因此同一个 warmup group 可以持有 clip、AvatarMask、bake artifact 和 compatibility profile；释放仍通过 `MxAnimationWarmupService.Release` 归还 group handle。
+
+Editor Workstation 的 `Animation Package Builder` 面板只生成 preview/build input，不提交派生包内容。它从 `MxAnimationClipRegistryAsset` 导出的 mapping、最近一次 batch bake report 和 compatibility report 生成 `MxAnimationPackageExpectation` 与 `ResourceCatalog` snapshot；sample provider 可以切换为 memory、local AssetBundle 或 remoteBundle。local / remote bundle 地址仍使用 `bundleName|assetName`；remote URL、cache key 和 bundle SHA-256 只写入 `providerData`，不引入 Addressables 或发布自动化。
 
 Addressables 保持可选兼容路径：项目若已经安装 Addressables，应实现独立 provider/adapter 并把 catalog entry provider 写成项目约定的 id。Animation 层只校验 provider id 是否在 `AcceptedProviderIds`，不引用 Addressables API，也不要求 `MxFramework.Resources.Unity` 增加硬依赖。
 
