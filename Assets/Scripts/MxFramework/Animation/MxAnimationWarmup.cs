@@ -64,6 +64,7 @@ namespace MxFramework.Animation
             ResourceCatalog catalog = null,
             MxAnimationPresentationSyncState syncState = null,
             MxAnimationClipRegistry expectedClipRegistry = null,
+            MxAnimationCompatibilityProfile compatibilityProfile = null,
             bool skipPreloadWhenInvalid = true)
         {
             Definition = definition;
@@ -71,6 +72,7 @@ namespace MxFramework.Animation
             Catalog = catalog;
             SyncState = syncState;
             ExpectedClipRegistry = expectedClipRegistry;
+            CompatibilityProfile = compatibilityProfile;
             SkipPreloadWhenInvalid = skipPreloadWhenInvalid;
         }
 
@@ -79,6 +81,7 @@ namespace MxFramework.Animation
         public ResourceCatalog Catalog { get; }
         public MxAnimationPresentationSyncState SyncState { get; }
         public MxAnimationClipRegistry ExpectedClipRegistry { get; }
+        public MxAnimationCompatibilityProfile CompatibilityProfile { get; }
         public bool SkipPreloadWhenInvalid { get; }
     }
 
@@ -95,6 +98,7 @@ namespace MxFramework.Animation
         public const string ExpectedClipRegistryEntryMissing = "ExpectedClipRegistryEntryMissing";
         public const string ClipRegistryEntryHashMismatch = "ClipRegistryEntryHashMismatch";
         public const string CatalogValidationFailed = "CatalogValidationFailed";
+        public const string CompatibilityValidationFailed = "CompatibilityValidationFailed";
         public const string PreloadOperationFailed = "PreloadOperationFailed";
         public const string PreloadResourceFailed = "PreloadResourceFailed";
     }
@@ -199,6 +203,7 @@ namespace MxFramework.Animation
             ValidateDefinition(definition, request.Catalog, issues);
             ValidateSyncState(definition, request.ClipRegistry, request.SyncState, issues);
             ValidateClipRegistry(requiredKeys, request.ClipRegistry, request.ExpectedClipRegistry, issues);
+            ValidateCompatibility(definition, request.CompatibilityProfile, issues);
 
             if (request.SkipPreloadWhenInvalid && issues.Count > 0)
                 return new MxAnimationWarmupResult(groupId, null, requiredKeys, labels, issues);
@@ -430,6 +435,34 @@ namespace MxFramework.Animation
             }
         }
 
+        private static void ValidateCompatibility(
+            MxAnimationSetDefinition definition,
+            MxAnimationCompatibilityProfile compatibilityProfile,
+            List<MxAnimationWarmupIssue> issues)
+        {
+            MxAnimationCompatibilityExpectation expectation = definition.CompatibilityExpectation;
+            if (expectation == null || expectation.IsDefault)
+                return;
+
+            MxAnimationCompatibilityValidationReport report = MxAnimationCompatibilityValidator.Validate(
+                compatibilityProfile,
+                expectation);
+            for (int i = 0; i < report.Issues.Count; i++)
+            {
+                MxAnimationCompatibilityIssue issue = report.Issues[i];
+                if (issue.Severity != MxAnimationCompatibilityIssueSeverity.Error)
+                    continue;
+
+                issues.Add(new MxAnimationWarmupIssue(
+                    MxAnimationWarmupIssueCodes.CompatibilityValidationFailed,
+                    issue.Key,
+                    issue.Code,
+                    issue.Expected,
+                    issue.Actual,
+                    issue.Message));
+            }
+        }
+
         private static List<ResourceKey> CollectRequiredKeys(
             MxAnimationSetDefinition definition,
             MxAnimationWarmupDefinition warmup)
@@ -486,6 +519,24 @@ namespace MxFramework.Animation
                     MxAnimationLayerDefinition layer = definition.Layers[i];
                     if (layer != null)
                         AddKey(layer.AvatarMaskKey, keys, unique);
+                }
+            }
+
+            MxAnimationCompatibilityExpectation expectation = definition.CompatibilityExpectation;
+            if (expectation != null && !expectation.IsDefault)
+            {
+                for (int i = 0; i < expectation.ClipExpectations.Count; i++)
+                {
+                    MxAnimationClipCompatibilityExpectation clip = expectation.ClipExpectations[i];
+                    if (clip != null)
+                        AddKey(clip.ClipKey, keys, unique);
+                }
+
+                for (int i = 0; i < expectation.AvatarMaskExpectations.Count; i++)
+                {
+                    MxAnimationAvatarMaskCompatibilityExpectation mask = expectation.AvatarMaskExpectations[i];
+                    if (mask != null)
+                        AddKey(mask.AvatarMaskKey, keys, unique);
                 }
             }
 

@@ -253,6 +253,53 @@ namespace MxFramework.Tests.Animation
             Assert.AreEqual("hash-v2", issue.Actual);
         }
 
+        [Test]
+        public void Warmup_WhenCompatibilityProfileMismatch_ReportsDiagnosticsAndSkipsPreload()
+        {
+            ResourceKey idle = ClipKey("demo.animation.idle");
+            ResourceCatalog catalog = Catalog(Entry(idle, "clips/idle", hash: "hash-idle"));
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("clips/idle", "Idle"), catalog);
+            var service = new MxAnimationWarmupService(new ResourcePreloadService(manager));
+            var expectation = new MxAnimationCompatibilityExpectation(
+                "humanoid",
+                "sha256:skeleton",
+                new[] { "Hips/Head" },
+                new[] { "Hips/RightHandSocket" },
+                new[]
+                {
+                    new MxAnimationClipCompatibilityExpectation(idle, new[] { "Hips/Spine" })
+                });
+            var definition = new MxAnimationSetDefinition(
+                "demo.actor",
+                1,
+                idle,
+                idle,
+                compatibilityExpectation: expectation);
+            var profile = new MxAnimationCompatibilityProfile(
+                new MxAnimationSkeletonCompatibilityProfile(
+                    "humanoid",
+                    "sha256:skeleton",
+                    new[] { "Hips" },
+                    new[] { "Hips/LeftHandSocket" }),
+                new[]
+                {
+                    new MxAnimationClipCompatibilityProfile(idle, "humanoid", "sha256:skeleton", new[] { "Hips" })
+                });
+
+            MxAnimationWarmupResult result = service.Warmup(new MxAnimationWarmupRequest(
+                definition,
+                MxAnimationClipRegistryBuilder.FromCatalog(catalog),
+                catalog,
+                compatibilityProfile: profile));
+
+            Assert.IsFalse(result.Success);
+            Assert.IsNull(result.PreloadResult);
+            AssertIssue(result, MxAnimationWarmupIssueCodes.CompatibilityValidationFailed, default, MxAnimationCompatibilityIssueCodes.BonePathMissing);
+            AssertIssue(result, MxAnimationWarmupIssueCodes.CompatibilityValidationFailed, default, MxAnimationCompatibilityIssueCodes.SocketPathMissing);
+            AssertIssue(result, MxAnimationWarmupIssueCodes.CompatibilityValidationFailed, idle, MxAnimationCompatibilityIssueCodes.ClipBindingPathMissing);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
         private static MxAnimationSetDefinition CreateDefinition(
             ResourceKey defaultClip,
             ResourceKey fallbackClip,

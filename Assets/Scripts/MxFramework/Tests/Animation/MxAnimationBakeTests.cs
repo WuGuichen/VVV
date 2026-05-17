@@ -50,6 +50,22 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void BakeArtifactValidator_ReportsCompatibilityExpectationMismatch()
+        {
+            MxAnimationBakeProfile profile = CreateProfile();
+            var artifact = new MxAnimationBakeArtifact(profile, new[] { Trace(localFrame: 1) });
+            var expectation = new MxAnimationBakeExpectation(
+                compatibilityExpectation: new MxAnimationCompatibilityExpectation(
+                    skeletonProfileId: profile.SkeletonProfileId,
+                    skeletonProfileHash: "sha256:expected-skeleton"));
+
+            MxAnimationBakeValidationReport report = MxAnimationBakeArtifactValidator.Validate(artifact, expectation);
+
+            Assert.IsTrue(report.HasErrors);
+            Assert.That(report.Issues.Select(i => i.Code), Contains.Item(MxAnimationCompatibilityIssueCodes.BakeArtifactSkeletonProfileHashMismatch));
+        }
+
+        [Test]
         public void BakeQuantizer_UsesConfiguredRoundingPolicy()
         {
             Assert.AreEqual(1250, MxAnimationBakeQuantizer.Quantize(1.25d, 1000, MxAnimationBakeRoundingPolicy.RoundNearest));
@@ -71,6 +87,50 @@ namespace MxFramework.Tests.Animation
             Assert.AreEqual(2000, first.Artifact.RootMotionFrames[first.Artifact.RootMotionFrames.Count - 1].RootPosition.X);
             Assert.AreEqual(MxAnimationBakeEventKind.Footstep, first.Artifact.EventMarkers[0].Kind);
             Assert.That(first.ReportText, Does.Contain("sourceClipHash: sha256:"));
+        }
+
+        [Test]
+        public void EditorCompatibilityExtractor_ValidatesSkeletonClipAndAvatarMaskWithoutPlayMode()
+        {
+            GameObject root = CreateSkeletonRoot();
+            try
+            {
+                AnimationClip clip = new AnimationClip { name = "Compatibility Test", frameRate = 30f };
+                SetCurve(clip, "Hips/Spine", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 1f));
+                var avatarMask = new AvatarMask { transformCount = 2 };
+                avatarMask.SetTransformPath(0, "Hips/Spine");
+                avatarMask.SetTransformActive(0, true);
+                avatarMask.SetTransformPath(1, "Hips/Leg");
+                avatarMask.SetTransformActive(1, false);
+                ResourceKey clipKey = new ResourceKey("demo.animation.compatibility", ResourceTypeIds.AnimationClip);
+                ResourceKey maskKey = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
+
+                MxAnimationSkeletonCompatibilityProfile skeleton =
+                    MxAnimationCompatibilityEditorExtractor.CreateSkeletonProfile(
+                        root,
+                        "humanoid",
+                        new[] { "Hips/Spine/WeaponSocket" });
+                MxAnimationCompatibilityProfile profile = MxAnimationCompatibilityEditorExtractor.CreateProfile(
+                    skeleton,
+                    new[] { MxAnimationCompatibilityEditorExtractor.CreateClipProfile(clip, clipKey, skeleton) },
+                    new[] { MxAnimationCompatibilityEditorExtractor.CreateAvatarMaskProfile(avatarMask, maskKey, skeleton) });
+                var expectation = new MxAnimationCompatibilityExpectation(
+                    skeleton.ProfileId,
+                    skeleton.ProfileHash,
+                    new[] { "Hips/Spine" },
+                    new[] { "Hips/Spine/WeaponSocket" },
+                    new[] { new MxAnimationClipCompatibilityExpectation(clipKey, new[] { "Hips/Spine" }) },
+                    new[] { new MxAnimationAvatarMaskCompatibilityExpectation(maskKey, new[] { "Hips/Spine" }) });
+
+                MxAnimationCompatibilityValidationReport report =
+                    MxAnimationCompatibilityEditorExtractor.Validate(profile, expectation);
+
+                Assert.IsFalse(report.HasErrors, Describe(report));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
         }
 
         [Test]
@@ -136,6 +196,18 @@ namespace MxFramework.Tests.Animation
             return new MxAnimationBakedEventMarker(localFrame, "event:" + sourceOrder, MxAnimationBakeEventKind.Marker, sourceOrder: sourceOrder);
         }
 
+        private static GameObject CreateSkeletonRoot()
+        {
+            var root = new GameObject("Root");
+            var hips = new GameObject("Hips");
+            hips.transform.SetParent(root.transform);
+            var spine = new GameObject("Spine");
+            spine.transform.SetParent(hips.transform);
+            var weaponSocket = new GameObject("WeaponSocket");
+            weaponSocket.transform.SetParent(spine.transform);
+            return root;
+        }
+
         private static AnimationClip CreateClip()
         {
             var clip = new AnimationClip { name = "Bake Test", frameRate = 30f };
@@ -160,6 +232,12 @@ namespace MxFramework.Tests.Animation
                 clip,
                 EditorCurveBinding.FloatCurve(path, typeof(Transform), propertyName),
                 curve);
+        }
+
+        private static string Describe(MxAnimationCompatibilityValidationReport report)
+        {
+            return string.Join("\n", report.Issues.Select(issue =>
+                issue.Code + " " + issue.Field + " " + issue.Key + " expected=" + issue.Expected + " actual=" + issue.Actual + " " + issue.Message));
         }
     }
 }

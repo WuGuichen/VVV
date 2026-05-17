@@ -1831,7 +1831,8 @@ namespace MxFramework.Animation
             IEnumerable<MxAnimationLayerDefinition> layers = null,
             MxAnimationWarmupDefinition warmup = null,
             IEnumerable<MxAnimationBlend1DDefinition> blend1DDefinitions = null,
-            IEnumerable<MxAnimationBlend2DDefinition> blend2DDefinitions = null)
+            IEnumerable<MxAnimationBlend2DDefinition> blend2DDefinitions = null,
+            MxAnimationCompatibilityExpectation compatibilityExpectation = null)
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -1853,6 +1854,7 @@ namespace MxFramework.Animation
                 ? new List<MxAnimationBlend2DDefinition>(blend2DDefinitions)
                 : new List<MxAnimationBlend2DDefinition>();
             Warmup = warmup ?? MxAnimationWarmupDefinition.Default;
+            CompatibilityExpectation = compatibilityExpectation ?? new MxAnimationCompatibilityExpectation();
             DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
                 ? MxAnimationSetDefinitionHasher.ComputeHash(this)
                 : definitionHash;
@@ -1869,6 +1871,7 @@ namespace MxFramework.Animation
         public IReadOnlyList<MxAnimationBlend1DDefinition> Blend1DDefinitions => _blend1DDefinitions;
         public IReadOnlyList<MxAnimationBlend2DDefinition> Blend2DDefinitions => _blend2DDefinitions;
         public MxAnimationWarmupDefinition Warmup { get; }
+        public MxAnimationCompatibilityExpectation CompatibilityExpectation { get; }
 
         public bool TryFindLayerDefinition(MxAnimationLayerId layerId, out MxAnimationLayerDefinition layer)
         {

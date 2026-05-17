@@ -1437,7 +1437,20 @@ var set = new MxAnimationSetDefinition(
             },
             parameterXScale: 1000,
             parameterYScale: 1000)
-    });
+    },
+    compatibilityExpectation: new MxAnimationCompatibilityExpectation(
+        skeletonProfileId: "humanoid",
+        skeletonProfileHash: "sha256:skeleton-profile",
+        requiredBonePaths: new[] { "Hips/Spine" },
+        requiredSocketPaths: new[] { "Hips/Spine/WeaponSocket" },
+        clipExpectations: new[]
+        {
+            new MxAnimationClipCompatibilityExpectation(idle, new[] { "Hips/Spine" })
+        },
+        avatarMaskExpectations: new[]
+        {
+            new MxAnimationAvatarMaskCompatibilityExpectation(upperBodyMask, new[] { "Hips/Spine" })
+        }));
 
 // resources 由组合根注册 provider + catalog；clip / AvatarMask 必须通过 ResourceKey 解析。
 var backend = new UnityPlayablesAnimationBackend(animator, resources, set, "actor.demo");
@@ -1506,11 +1519,13 @@ eventSink.TryDispatch(dispatch, payloadResolved: true, out MxAnimationPresentati
 ```csharp
 var preloadService = new ResourcePreloadService(resources);
 var warmupService = new MxAnimationWarmupService(preloadService);
+MxAnimationCompatibilityProfile compatibilityProfile = LoadOrExtractCompatibilityProfile();
 MxAnimationWarmupResult warmup = warmupService.Warmup(new MxAnimationWarmupRequest(
     mappedSet,
     registry,
     catalog,
-    syncState));
+    syncState,
+    compatibilityProfile: compatibilityProfile));
 
 if (!warmup.Success)
 {
@@ -1534,6 +1549,22 @@ MxFramework / MxAnimation / Bake Selected Animation Clip MVP
 
 生成的 `.mxbake.txt` artifact 报告包含 source clip hash、bake profile hash、skeleton/avatar profile hash、artifact hash、root motion reference、weapon trace reference 和 event markers。它只用于 authoring / preview / Combat 参考数据输入；运行时 Combat 不读取 Animator、PlayableGraph 或 Unity bone pose 当前状态。
 
+Skeleton / Avatar / Clip compatibility 可以由 Editor 提取器生成 noEngine profile，再交给 warmup、CI 或 bake 校验：
+
+```csharp
+MxAnimationSkeletonCompatibilityProfile skeletonProfile =
+    MxAnimationCompatibilityEditorExtractor.CreateSkeletonProfile(
+        characterRoot,
+        "humanoid",
+        socketPaths: new[] { "Hips/Spine/WeaponSocket" });
+
+MxAnimationCompatibilityProfile compatibilityProfile =
+    MxAnimationCompatibilityEditorExtractor.CreateProfile(
+        skeletonProfile,
+        new[] { MxAnimationCompatibilityEditorExtractor.CreateClipProfile(idleClip, idle, skeletonProfile) },
+        new[] { MxAnimationCompatibilityEditorExtractor.CreateAvatarMaskProfile(upperBodyAvatarMask, upperBodyMask, skeletonProfile) });
+```
+
 约定：
 
 - `MxFramework.Animation` 不引用 Unity，不保存 `AnimationClip`、GUID 或 `Assets/...` path。
@@ -1543,9 +1574,11 @@ MxFramework / MxAnimation / Bake Selected Animation Clip MVP
 - 1D locomotion blend 使用 `MxAnimationBlend1DDefinition` 和 `MxAnimationBlend1DRequest`；2D locomotion blend 使用 `MxAnimationBlend2DDefinition` 和 `MxAnimationBlend2DRequest`。point clip key 进入 definition hash、mapping validation 和 warmup，实际 clip 仍由 backend 通过 `ResourceManager` 加载。
 - `MxAnimationBlend1DRequest` / `MxAnimationBlend2DRequest` 会转换成共享 `MxAnimationBlendRequest`，backend 再走同一条 clip weight -> Playables slot mixer 路径。
 - 2D blend 权重计算在 noEngine 层使用量化整数参数完成，Unity backend 只消费 clip weight 列表；它不能把 Unity 当前动画姿态或 Playable time 写回权威逻辑。
+- compatibility profile 只保存 skeleton id/hash、bone/socket path、clip binding path、AvatarMask active path 和 `ResourceKey`；不得把 Unity object、GUID 或 asset path 写入 noEngine runtime contract。
 - bake artifact 必须作为派生缓存处理。source/profile/skeleton/artifact hash mismatch 必须输出 diagnostics，不能静默使用过期数据。
+- bake artifact 可和 `MxAnimationCompatibilityExpectation` 一起校验 skeleton profile id/hash，避免用错误骨架生成的 trace/root motion reference 混入运行时。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
-- warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
+- warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type、compatibility mismatch 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
 - warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。
 - Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
 - presentation event 是表现层事件，不驱动 Combat 命中、取消、伤害、无敌、移动或 replay hash。默认 late join 不补播一次性 VFX/SFX；需要补播时必须把事件标记为 `CatchUpSafe` 并由项目网络层显式执行策略。
