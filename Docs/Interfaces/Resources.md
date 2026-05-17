@@ -74,6 +74,8 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - `SampleResourceCatalogBuilder` 会扫描 / 校验框架正式样例资源规则，并通过 `MxFramework/Samples/Generate Resource Catalog` 确定性生成 `Assets/Config/MxFramework/ResourceCatalogs/mxframework_samples_resource_catalog.json`；当前输出仍是 Editor Play Mode / Demo 用的 `memory` provider catalog，Player 路径留给 AssetBundle / Streaming catalog 切片。
 - `SamplePlayerResourceCatalogBuilder` 会构建最小 Player smoke AssetBundle，并生成 `Assets/StreamingAssets/MxFramework/Samples/mxframework_samples_player_catalog.json`；该 catalog 使用 `assetBundle` provider，bundle root 为 `MxFramework/Samples/Bundles`。
 - 当前 Player sample path 覆盖本地文件系统 / 桌面 Player 形态；Android / WebGL 的 StreamingAssets catalog 和 bundle 读取不能假设同步 `System.IO.File` / `AssetBundle.LoadFromFile` 一定可用，后续需要 UnityWebRequest 或平台专用读取分支。
+- `RuntimeVerticalSliceRunner` 默认资源绑定会先跑 Editor Play Mode `memory` catalog warmup，再尝试 Player `assetBundle` StreamingAssets smoke；结果通过 `ResourceWarmupSummary` 和 `ResourceBindingLogLines` 暴露给 Demo UI / tests。
+- Runtime Preview 当前仍不隐式依赖 `MxFramework.Resources` / `MxFramework.Resources.Unity`。Preview 场景目标、UI Toolkit 资产和 ResourceManager 应由外层组合根显式注入，避免 Preview.Runtime 把资源 Provider 变成隐藏依赖。
 - M6A 已新增 Preload Group + Scene Warmup，作为独立策略服务，不把 PreloadGroup 做成 Provider，也不修改 `IResourceManager` 签名。
 - `ResourcePreloadService` 会先按 `ResourcePreloadPlan.ExplicitKeys` 和 `Labels` 收集 key，去重后调用现有 `LoadAsync<object>`。
 - `ResourcePreloadPlan.MaxConcurrentLoads` 第一版保留字段，当前 noEngine immediate async 实现仍按顺序加载。

@@ -1384,6 +1384,13 @@ MxFramework/Samples/Build Player Resource Catalog
 
 当前 smoke 只验证本地文件系统 / 桌面 Player 兼容路径。Android 和 WebGL 的 StreamingAssets 读取不能依赖同步 `System.IO.File` 或 `AssetBundle.LoadFromFile`，需要后续 provider / loader 使用 `UnityWebRequest` 或平台专用读取策略。
 
+`RuntimeVerticalSliceRunner` 默认会在启动资源 warmup 时执行两条路径：
+
+- Editor Play Mode / Demo serialized reference path：`mxframework.samples` memory catalog + `MemoryResourceProvider`。
+- Player smoke path：`StreamingResourceCatalogLoader` + `AssetBundleProvider` + `ResourcePreloadService`，使用上方 Player catalog 和 bundle root。
+
+运行结果会写入 `ResourceWarmupSummary` 和 `ResourceBindingLogLines`，其中包含 warmup、direct load、release 后 `ResourceDebugSnapshot` loaded/ref-count，以及 Player bundle 计数。Runtime Preview 当前不隐式创建或持有 ResourceManager；如 Preview 需要资源，应由外层组合根显式注入 catalog、provider 和 UI Toolkit 资产。
+
 约定：
 
 - 业务配置只保存 `ResourceKey`，不保存 Unity 路径或 `UnityEngine.Object`。
