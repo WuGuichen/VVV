@@ -208,6 +208,7 @@
 | 1D Locomotion Blend Demo | ✅ v0.2 | `MxAnimationBlend1DDefinition` / `MxAnimationBlend1DRequest` / `MxAnimationBlend1DCalculator` | Animation + Animation.Unity + Demo |
 | Bake MVP | ✅ v0.2 | `MxAnimationBakeArtifact` / `MxAnimationBakeArtifactValidator` / `CombatBakedWeaponTraceAdapter` | Animation + Editor + Combat |
 | Provider-switchable Animation Package Loading | ✅ v0.3 | `MxAnimationPackageExpectation` / `MxAnimationPackageCatalogValidator` / `MxAnimationResourceTypeIds` | Animation + Resources |
+| Mod Animation Package Override | ✅ v0.3 | `MxAnimationModOverrideDefinition` / `MxAnimationModOverrideMerger` / `MxAnimationModOverrideMergeResult` | Animation + Resources |
 
 → 接口：`Interfaces/Animation.md`
 → 测试：`Tests/Animation/`
