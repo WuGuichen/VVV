@@ -182,9 +182,18 @@ namespace MxFramework.Editor.Animation
         private Vector2 _scroll;
         private string _lastReport = string.Empty;
         private bool _showClipRows = true;
+        private bool _showBatchBake = true;
         private bool _showBindingRows = true;
         private bool _showLayerRows = true;
         private bool _showBlendRows = true;
+        private bool _showCompatibilityPanel = true;
+        private bool[] _batchClipSelected = Array.Empty<bool>();
+        private string _batchOutputRoot = MxAnimationBakeEditorTool.DefaultOutputRoot;
+        private MxAnimationBatchBakeReport _lastBatchBakeReport;
+        private GameObject _compatibilitySkeletonRoot;
+        private string _compatibilityProfileId = "skeleton";
+        private string _compatibilitySocketPaths = "WeaponSocket\nWeaponTip";
+        private MxAnimationCompatibilityWorkstationReport _lastCompatibilityReport;
         private bool _showTimelineEditor = true;
         private int _timelineBindingIndex;
         private int _timelineFrame;
@@ -250,10 +259,12 @@ namespace MxFramework.Editor.Animation
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             DrawRegistryHeader();
             DrawClipRows();
+            DrawBatchBakePanel();
             DrawBindingRows();
             DrawTimelineEventEditor();
             DrawLayerRows();
             DrawBlendRows();
+            DrawCompatibilityPanel();
             DrawDiagnostics();
             EditorGUILayout.EndScrollView();
 
@@ -333,6 +344,80 @@ namespace MxFramework.Editor.Animation
 
             if (GUILayout.Button("Add Clip"))
                 AddRow(clips, "Add MxAnimation Clip", InitializeClipRow);
+        }
+
+        private void DrawBatchBakePanel()
+        {
+            MxAnimationClipRegistryClipEntry[] clips = _registry.Clips;
+            EnsureBatchSelectionState(clips.Length);
+            _showBatchBake = EditorGUILayout.Foldout(
+                _showBatchBake,
+                "Batch Bake (" + clips.Length.ToString(CultureInfo.InvariantCulture) + ")",
+                true);
+            if (!_showBatchBake)
+                return;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                _batchOutputRoot = EditorGUILayout.TextField("Output Root", string.IsNullOrWhiteSpace(_batchOutputRoot) ? MxAnimationBakeEditorTool.DefaultOutputRoot : _batchOutputRoot);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Select All", GUILayout.Width(88f)))
+                        SetBatchSelection(clips.Length, true);
+                    if (GUILayout.Button("Select None", GUILayout.Width(92f)))
+                        SetBatchSelection(clips.Length, false);
+                }
+
+                if (clips.Length == 0)
+                    EditorGUILayout.HelpBox("No registry clips are available for batch bake.", MessageType.Info);
+
+                for (int i = 0; i < clips.Length; i++)
+                {
+                    MxAnimationClipRegistryClipEntry clip = clips[i];
+                    string label = clip.ClipId
+                        + " | "
+                        + (clip.Clip != null ? clip.Clip.name : "(missing clip)")
+                        + " | "
+                        + clip.CreateResourceKey(_registry.PackageId);
+                    _batchClipSelected[i] = EditorGUILayout.ToggleLeft(label, _batchClipSelected[i]);
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    using (new EditorGUI.DisabledScope(clips.Length == 0))
+                    {
+                        if (GUILayout.Button("Bake Selected"))
+                            RunBatchBake(SelectedBatchIndices());
+                        if (GUILayout.Button("Bake All"))
+                            RunBatchBake(null);
+                    }
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    using (new EditorGUI.DisabledScope(_lastBatchBakeReport == null || string.IsNullOrEmpty(_lastBatchBakeReport.ReportText)))
+                    {
+                        if (GUILayout.Button("Copy Batch Report"))
+                            EditorGUIUtility.systemCopyBuffer = _lastBatchBakeReport.ReportText;
+                        if (GUILayout.Button("Export Batch Report"))
+                            ExportTextFile("Export MxAnimation Batch Bake Report", "MxAnimationBatchBakeReport.txt", _lastBatchBakeReport.ReportText);
+                    }
+                }
+
+                if (_lastBatchBakeReport != null)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Baked "
+                        + _lastBatchBakeReport.BakedCount.ToString(CultureInfo.InvariantCulture)
+                        + " clip(s). Errors: "
+                        + _lastBatchBakeReport.ErrorCount.ToString(CultureInfo.InvariantCulture)
+                        + ", warnings: "
+                        + _lastBatchBakeReport.WarningCount.ToString(CultureInfo.InvariantCulture)
+                        + ".",
+                        _lastBatchBakeReport.Success ? MessageType.Info : MessageType.Warning);
+                    EditorGUILayout.TextArea(_lastBatchBakeReport.ReportText, GUILayout.MinHeight(120f));
+                }
+            }
         }
 
         private void DrawBindingRows()
@@ -762,6 +847,52 @@ namespace MxFramework.Editor.Animation
                 AddRow(points, "Add MxAnimation 2D Blend Point", InitializeBlend2DPointRow);
         }
 
+        private void DrawCompatibilityPanel()
+        {
+            _showCompatibilityPanel = EditorGUILayout.Foldout(_showCompatibilityPanel, "Compatibility Profile", true);
+            if (!_showCompatibilityPanel)
+                return;
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                _compatibilitySkeletonRoot = (GameObject)EditorGUILayout.ObjectField(
+                    "Skeleton Root",
+                    _compatibilitySkeletonRoot,
+                    typeof(GameObject),
+                    true);
+                _compatibilityProfileId = EditorGUILayout.TextField("Profile Id", _compatibilityProfileId);
+                EditorGUILayout.LabelField("Socket Paths");
+                _compatibilitySocketPaths = EditorGUILayout.TextArea(_compatibilitySocketPaths, GUILayout.MinHeight(48f));
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Refresh Compatibility"))
+                        RefreshCompatibilityReport(logToConsole: true);
+
+                    using (new EditorGUI.DisabledScope(_lastCompatibilityReport == null || string.IsNullOrEmpty(_lastCompatibilityReport.ReportText)))
+                    {
+                        if (GUILayout.Button("Copy Compatibility Report"))
+                            EditorGUIUtility.systemCopyBuffer = _lastCompatibilityReport.ReportText;
+                        if (GUILayout.Button("Export Compatibility Report"))
+                            ExportTextFile("Export MxAnimation Compatibility Report", "MxAnimationCompatibilityReport.txt", _lastCompatibilityReport.ReportText);
+                    }
+                }
+
+                if (_lastCompatibilityReport == null)
+                    RefreshCompatibilityReport(logToConsole: false);
+
+                if (_lastCompatibilityReport != null)
+                {
+                    EditorGUILayout.HelpBox(
+                        _lastCompatibilityReport.Success
+                            ? "Compatibility profile matches the current skeleton, clip, AvatarMask, and bake freshness inputs."
+                            : "Compatibility issues or stale bake inputs were found. See the copyable report below.",
+                        _lastCompatibilityReport.Success ? MessageType.Info : MessageType.Warning);
+                    EditorGUILayout.TextArea(_lastCompatibilityReport.ReportText, GUILayout.MinHeight(140f));
+                }
+            }
+        }
+
         private void DrawDiagnostics()
         {
             EditorGUILayout.LabelField("Validation / Export Diagnostics", EditorStyles.boldLabel);
@@ -872,6 +1003,69 @@ namespace MxFramework.Editor.Animation
             _timelinePreviewDirty = true;
         }
 
+        private void RunBatchBake(IReadOnlyList<int> selectedIndices)
+        {
+            _lastBatchBakeReport = MxAnimationWorkstationBakeUtility.BakeRegistryClipsToFiles(
+                _registry,
+                selectedIndices,
+                _batchOutputRoot,
+                CreateCurrentSkeletonProfile());
+            _lastCompatibilityReport = null;
+            Debug.Log(_lastBatchBakeReport.ReportText, _registry);
+        }
+
+        private void RefreshCompatibilityReport(bool logToConsole)
+        {
+            _lastCompatibilityReport = MxAnimationWorkstationBakeUtility.BuildCompatibilityReport(
+                _registry,
+                _compatibilitySkeletonRoot,
+                _compatibilityProfileId,
+                ParseSocketPaths(_compatibilitySocketPaths),
+                _lastBatchBakeReport);
+            if (logToConsole && _lastCompatibilityReport != null)
+                Debug.Log(_lastCompatibilityReport.ReportText, _registry);
+        }
+
+        private MxAnimationSkeletonCompatibilityProfile CreateCurrentSkeletonProfile()
+        {
+            return _compatibilitySkeletonRoot != null
+                ? MxAnimationCompatibilityEditorExtractor.CreateSkeletonProfile(
+                    _compatibilitySkeletonRoot,
+                    string.IsNullOrWhiteSpace(_compatibilityProfileId) ? "skeleton" : _compatibilityProfileId,
+                    ParseSocketPaths(_compatibilitySocketPaths))
+                : null;
+        }
+
+        private IReadOnlyList<int> SelectedBatchIndices()
+        {
+            var indices = new List<int>();
+            for (int i = 0; i < _batchClipSelected.Length; i++)
+            {
+                if (_batchClipSelected[i])
+                    indices.Add(i);
+            }
+
+            return indices;
+        }
+
+        private void EnsureBatchSelectionState(int clipCount)
+        {
+            if (_batchClipSelected != null && _batchClipSelected.Length == clipCount)
+                return;
+
+            var next = new bool[Math.Max(0, clipCount)];
+            for (int i = 0; i < next.Length; i++)
+                next[i] = _batchClipSelected == null || i >= _batchClipSelected.Length || _batchClipSelected[i];
+            _batchClipSelected = next;
+        }
+
+        private void SetBatchSelection(int clipCount, bool selected)
+        {
+            EnsureBatchSelectionState(clipCount);
+            for (int i = 0; i < _batchClipSelected.Length; i++)
+                _batchClipSelected[i] = selected;
+        }
+
         private int ResolveTimelinePreviewMaxFrame(AnimationClip selectedClip)
         {
             int maxFrame = MxAnimationTimelineEventTimeUtility.ResolvePreviewMaxFrame(
@@ -896,16 +1090,38 @@ namespace MxFramework.Editor.Animation
 
         private void ExportTimelineSummaryText()
         {
+            ExportTextFile("Export MxAnimation Timeline Text", "MxAnimationTimeline.txt", _timelineSummary);
+        }
+
+        private static void ExportTextFile(string title, string defaultName, string text)
+        {
             string path = EditorUtility.SaveFilePanel(
-                "Export MxAnimation Timeline Text",
+                title,
                 Application.dataPath,
-                "MxAnimationTimeline.txt",
+                defaultName,
                 "txt");
             if (string.IsNullOrEmpty(path))
                 return;
 
-            File.WriteAllText(path, _timelineSummary ?? string.Empty, Encoding.UTF8);
+            File.WriteAllText(path, text ?? string.Empty, Encoding.UTF8);
             AssetDatabase.Refresh();
+        }
+
+        private static IReadOnlyList<string> ParseSocketPaths(string text)
+        {
+            var paths = new List<string>();
+            string[] tokens = (text ?? string.Empty).Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                string path = tokens[i].Replace('\\', '/').Trim().Trim('/');
+                if (string.IsNullOrWhiteSpace(path) || paths.Contains(path))
+                    continue;
+
+                paths.Add(path);
+            }
+
+            paths.Sort(StringComparer.Ordinal);
+            return paths;
         }
 
         private string ResolveTimelineBindingSelector(MxAnimationClipRegistryBindingEntry[] bindings)

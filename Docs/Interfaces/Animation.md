@@ -159,6 +159,8 @@ Event timeline authoring / preview：
 - MxAnimation Workstation 的 Timeline Event Editor + Scrubber 可以选择 action binding、步进 / scrub frame range，并直接编辑该 binding 的 `MxAnimationPresentationEvent` 数组；编辑通过 registry serialized fields 保存，导出仍由 `MxAnimationClipRegistryExporter` 生成 noEngine `MxAnimationSetDefinition`。
 - Workstation scrubber 会显示同帧 presentation events、只读 CombatActionTimeline / Combat authoring source phase/window/frame event、以及可用 bake root/socket/weapon trace samples；当前 bake artifact asset 尚未作为 registry 序列化引用，Workstation v1 默认从选中 `AnimationClip` 生成内存 bake preview，缺 clip 或关闭 bake 时输出 clear diagnostics。
 - Scrubber diagnostics 覆盖 missing clip、missing bake、hash/source mismatch、event out of range、timeline frame mismatch 和 Combat source reflection limitations where available，并支持复制 / 导出为 text。Combat rows 和 bake rows均为参考 / 诊断，不改变 Combat authority、timeline semantics 或 runtime DTO。
+- Workstation Batch Bake 面板可以列出 registry clips，批量烘焙 selected / all clips 到 `.mxbake.txt` 派生报告，并输出每个 clip 的 source clip hash、profile hash、skeleton profile hash、artifact hash、validation issues 和 copy / export batch report。单 clip menu `MxFramework/MxAnimation/Bake Selected Animation Clip MVP` 保持可用。
+- Workstation Compatibility Profile 面板可以从 skeleton root、registry clips 和 layer AvatarMask 引用提取 compatibility profile，复用 `MxAnimationCompatibilityEditorExtractor` / `MxAnimationCompatibilityValidator` 输出 skeleton / clip / AvatarMask / bake artifact diagnostics。刷新 compatibility 时会把最近 batch bake artifact 与当前 clip source hash、profile hash、skeleton profile hash 对比，明确报告 source/profile/skeleton/artifact stale mismatch。
 
 ## Bake Artifact Contract
 

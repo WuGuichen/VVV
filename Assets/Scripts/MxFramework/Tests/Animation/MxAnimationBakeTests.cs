@@ -274,6 +274,62 @@ namespace MxFramework.Tests.Animation
             Assert.AreNotEqual(first.Artifact.Profile.SourceClipHash, second.Artifact.Profile.SourceClipHash);
         }
 
+        [Test]
+        public void WorkstationBatchBake_AggregatesSelectedRegistryClipsAndHashes()
+        {
+            MxAnimationClipRegistryAsset asset = CreateBatchRegistry();
+            try
+            {
+                MxAnimationBatchBakeReport report =
+                    MxAnimationWorkstationBakeUtility.BakeRegistryClips(asset, new[] { 0 });
+
+                Assert.IsTrue(report.Success, report.ReportText);
+                Assert.AreEqual(1, report.Results.Count);
+                Assert.AreEqual("attack", report.Results[0].ClipId);
+                Assert.AreEqual(1, report.BakedCount);
+                Assert.That(report.ReportText, Does.Contain("MxAnimation Batch Bake Report"));
+                Assert.That(report.ReportText, Does.Contain("artifactHash: sha256:"));
+                Assert.That(report.ReportText, Does.Contain("sourceClipHash: sha256:"));
+                Assert.That(report.ReportText, Does.Contain("profileHash: sha256:"));
+            }
+            finally
+            {
+                DestroyRegistry(asset);
+            }
+        }
+
+        [Test]
+        public void WorkstationCompatibilityReport_ReportsMissingProfileAndStaleBakeDiagnostics()
+        {
+            MxAnimationClipRegistryAsset asset = CreateBatchRegistry();
+            GameObject root = CreateSkeletonRoot();
+            try
+            {
+                MxAnimationBatchBakeReport staleBake =
+                    MxAnimationWorkstationBakeUtility.BakeRegistryClips(asset, new[] { 0 });
+
+                MxAnimationCompatibilityWorkstationReport report =
+                    MxAnimationWorkstationBakeUtility.BuildCompatibilityReport(
+                        asset,
+                        root,
+                        "humanoid",
+                        new[] { "Hips/Spine/WeaponSocket" },
+                        staleBake);
+
+                Assert.IsFalse(report.Success, report.ReportText);
+                Assert.That(report.ReportText, Does.Contain(MxAnimationCompatibilityIssueCodes.BonePathMissing));
+                Assert.That(report.ReportText, Does.Contain(MxAnimationCompatibilityIssueCodes.AvatarMaskProfileMissing));
+                Assert.That(report.ReportText, Does.Contain(MxAnimationCompatibilityIssueCodes.BakeArtifactSkeletonProfileHashMismatch));
+                Assert.That(report.ReportText, Does.Contain("BakeSkeletonProfileHashMismatch"));
+                Assert.That(report.ReportText, Does.Contain("BakeProfileHashExpectedMismatch"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                DestroyRegistry(asset);
+            }
+        }
+
         private static void SetEvents(AnimationClip clip, AnimationEvent[] events)
         {
             AnimationUtility.SetAnimationEvents(clip, events);
@@ -365,6 +421,59 @@ namespace MxFramework.Tests.Animation
                     new AnimationEvent { time = 0.5f, functionName = "foot_left" }
                 });
             return clip;
+        }
+
+        private static MxAnimationClipRegistryAsset CreateBatchRegistry()
+        {
+            MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            AnimationClip attack = CreateClip();
+            SetCurve(attack, "Hips/MissingArm", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            AnimationClip idle = new AnimationClip { name = "Idle", frameRate = 30f };
+            SetCurve(idle, "Hips/Spine", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 0f));
+            asset.AnimationSetId = "batch.test";
+            asset.Version = 1;
+            asset.PackageId = "demo.package";
+            asset.Clips = new[]
+            {
+                new MxAnimationClipRegistryClipEntry
+                {
+                    ClipId = "attack",
+                    Clip = attack,
+                    ResourceId = "demo.animation.attack",
+                    IsDefault = true
+                },
+                new MxAnimationClipRegistryClipEntry
+                {
+                    ClipId = "idle",
+                    Clip = idle,
+                    ResourceId = "demo.animation.idle",
+                    IsFallback = true
+                }
+            };
+            asset.Layers = new[]
+            {
+                new MxAnimationClipRegistryLayerEntry
+                {
+                    LayerId = "upper",
+                    AvatarMaskResourceId = "demo.animation.mask.upper"
+                }
+            };
+            return asset;
+        }
+
+        private static void DestroyRegistry(MxAnimationClipRegistryAsset asset)
+        {
+            if (asset == null)
+                return;
+
+            MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+            for (int i = 0; i < clips.Length; i++)
+            {
+                if (clips[i].Clip != null)
+                    Object.DestroyImmediate(clips[i].Clip);
+            }
+
+            Object.DestroyImmediate(asset);
         }
 
         private static void SetCurve(AnimationClip clip, string path, string propertyName, AnimationCurve curve)
