@@ -155,6 +155,9 @@ namespace MxFramework.Demo
         private readonly List<string> _eventLog = new List<string>();
         private const int MaxEventLog = 20;
 
+        public string ResourceWarmupSummary => _resourceWarmupSummary;
+        public IReadOnlyList<string> ResourceBindingLogLines => _resourceTestLines;
+
         private void Awake()
         {
             InitializeTarget();
