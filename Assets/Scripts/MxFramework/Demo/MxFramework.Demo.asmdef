@@ -22,6 +22,7 @@
         "MxFramework.Combat.Animation.Unity",
         "MxFramework.Combat.GameplayBridge",
         "MxFramework.Resources",
+        "MxFramework.Resources.Unity",
         "MxFramework.UI.Toolkit"
     ],
     "includePlatforms": [],

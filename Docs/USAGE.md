@@ -1374,6 +1374,16 @@ MxFramework/Samples/Generate Resource Catalog
 
 生成器会输出 `Assets/Config/MxFramework/ResourceCatalogs/mxframework_samples_resource_catalog.json`，并校验 `memory` provider 的 `providerData.assetPath` 是否指向正式样例资源。该 catalog 仍服务 Editor Play Mode / Demo 组合根；Player 资源路径应由后续 AssetBundle / Streaming catalog 接管。
 
+Player smoke 资源路径由独立生成器维护，菜单路径：
+
+```text
+MxFramework/Samples/Build Player Resource Catalog
+```
+
+生成器会构建 `Assets/StreamingAssets/MxFramework/Samples/Bundles/mxframework.samples.start_screen.assetbundle`，并输出 `Assets/StreamingAssets/MxFramework/Samples/mxframework_samples_player_catalog.json`。该 catalog 使用 `assetBundle` provider，可通过 `StreamingResourceCatalogLoader.LoadFromStreamingAssets("MxFramework/Samples/mxframework_samples_player_catalog.json")` 挂载到 `ResourceManager`，bundle root 为 `Path.Combine(Application.streamingAssetsPath, "MxFramework/Samples/Bundles")`。
+
+当前 smoke 只验证本地文件系统 / 桌面 Player 兼容路径。Android 和 WebGL 的 StreamingAssets 读取不能依赖同步 `System.IO.File` 或 `AssetBundle.LoadFromFile`，需要后续 provider / loader 使用 `UnityWebRequest` 或平台专用读取策略。
+
 约定：
 
 - 业务配置只保存 `ResourceKey`，不保存 Unity 路径或 `UnityEngine.Object`。
