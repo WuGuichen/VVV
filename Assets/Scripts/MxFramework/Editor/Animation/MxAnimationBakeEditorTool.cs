@@ -462,13 +462,14 @@ namespace MxFramework.Editor.Animation
                 if (result == null || result.BakeResult == null || result.BakeResult.Artifact == null)
                     continue;
 
-                AnimationClip currentClip = ResolveClip(registry, result.ClipId);
-                if (currentClip == null)
+                if (!TryResolveClipEntry(registry, result.ClipId, out MxAnimationClipRegistryClipEntry currentEntry)
+                    || currentEntry.Clip == null)
                     continue;
 
+                ResourceKey currentSourceClipKey = currentEntry.CreateResourceKey(registry.PackageId);
                 MxAnimationBakeProfile expectedProfile = MxAnimationBakeEditorTool.CreateBakeProfile(
-                    currentClip,
-                    result.SourceClipKey,
+                    currentEntry.Clip,
+                    currentSourceClipKey,
                     skeletonProfile);
                 MxAnimationBakeValidationReport report = MxAnimationBakeArtifactValidator.Validate(
                     result.BakeResult.Artifact,
@@ -532,16 +533,23 @@ namespace MxFramework.Editor.Animation
             return false;
         }
 
-        private static AnimationClip ResolveClip(MxAnimationClipRegistryAsset registry, string clipId)
+        private static bool TryResolveClipEntry(
+            MxAnimationClipRegistryAsset registry,
+            string clipId,
+            out MxAnimationClipRegistryClipEntry clipEntry)
         {
             MxAnimationClipRegistryClipEntry[] clips = registry.Clips;
             for (int i = 0; i < clips.Length; i++)
             {
                 if (string.Equals(clips[i].ClipId, clipId, StringComparison.Ordinal))
-                    return clips[i].Clip;
+                {
+                    clipEntry = clips[i];
+                    return true;
+                }
             }
 
-            return null;
+            clipEntry = default;
+            return false;
         }
 
         private static List<int> ResolveIndices(IReadOnlyList<int> selectedIndices, int clipCount)

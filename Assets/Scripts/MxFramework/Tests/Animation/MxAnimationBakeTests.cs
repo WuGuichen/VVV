@@ -330,6 +330,51 @@ namespace MxFramework.Tests.Animation
             }
         }
 
+        [Test]
+        public void WorkstationCompatibilityReport_ReportsStaleBakeWhenRegistrySourceKeyChanges()
+        {
+            MxAnimationClipRegistryAsset asset = CreateBatchRegistry();
+            try
+            {
+                MxAnimationBatchBakeReport staleBake =
+                    MxAnimationWorkstationBakeUtility.BakeRegistryClips(asset, new[] { 0 });
+                Assert.IsTrue(staleBake.Success, staleBake.ReportText);
+                Assert.AreEqual("attack", staleBake.Results[0].ClipId);
+
+                ResourceKey originalSourceKey = staleBake.Results[0].SourceClipKey;
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].ResourceId = "demo.animation.attack.v2";
+                clips[0].Variant = "high";
+                clips[0].PackageId = "override.package";
+                ResourceKey currentSourceKey = clips[0].CreateResourceKey(asset.PackageId);
+                Assert.AreEqual("attack", clips[0].ClipId);
+                Assert.AreNotEqual(originalSourceKey, currentSourceKey);
+
+                MxAnimationBakeProfile expectedProfile =
+                    MxAnimationBakeEditorTool.CreateBakeProfile(clips[0].Clip, currentSourceKey);
+
+                MxAnimationCompatibilityWorkstationReport report =
+                    MxAnimationWorkstationBakeUtility.BuildCompatibilityReport(
+                        asset,
+                        null,
+                        string.Empty,
+                        new string[0],
+                        staleBake);
+
+                Assert.IsFalse(report.Success, report.ReportText);
+                MxAnimationBakeIssue issue = report.BakeValidationReports
+                    .SelectMany(bakeReport => bakeReport.Issues)
+                    .Single(bakeIssue => bakeIssue.Code == "BakeProfileHashExpectedMismatch");
+                Assert.AreEqual(expectedProfile.ProfileHash, issue.Expected);
+                Assert.AreEqual(staleBake.Results[0].BakeResult.Artifact.Profile.ProfileHash, issue.Actual);
+                Assert.That(report.ReportText, Does.Contain("BakeProfileHashExpectedMismatch"));
+            }
+            finally
+            {
+                DestroyRegistry(asset);
+            }
+        }
+
         private static void SetEvents(AnimationClip clip, AnimationEvent[] events)
         {
             AnimationUtility.SetAnimationEvents(clip, events);
