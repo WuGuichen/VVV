@@ -1,8 +1,8 @@
 # Animation 接口
 
 > 状态：MVP Implemented
-> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112、Gitea Issue #123、Gitea Issue #124、Gitea Issue #125、Gitea Issue #126、Gitea Issue #127、Gitea Issue #129
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics、资源版本校验和 provider-switchable animation package loading expectation；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / timeline scrubber preview / bake report tool 和 compatibility profile extractor。
+> 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112、Gitea Issue #123、Gitea Issue #124、Gitea Issue #125、Gitea Issue #126、Gitea Issue #127、Gitea Issue #129、Gitea Issue #130
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics、资源版本校验、provider-switchable animation package loading expectation 和 Mod animation package override merge；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / timeline scrubber preview / bake report tool 和 compatibility profile extractor。
 
 ## 职责
 
@@ -59,6 +59,9 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationPackageExpectation` / `MxAnimationPackageCatalog` | animation package 加载期望和实际 catalog snapshot，保存 package id、version、catalog id/hash、允许 provider 和 required resource entries |
 | `MxAnimationPackageResourceExpectation` | 声明 package 内 clip、AvatarMask、bake artifact、compatibility profile 的 `ResourceKey`、catalog entry hash、provider 和是否参与 warmup |
 | `MxAnimationPackageCatalogValidator` / `MxAnimationPackageValidationReport` | 校验 package id/version/hash、provider 切换、missing clip/mask/bake/profile 和 catalog entry hash mismatch |
+| `MxAnimationModPackageManifest` | Mod animation package manifest 的 noEngine 摘要：package id、version、catalog id/hash 和 load order |
+| `MxAnimationModOverrideDefinition` | 针对某个 animation set 的 Mod override DTO，声明 action、layer、1D/2D blend、package resource 和 compatibility override |
+| `MxAnimationModOverrideMerger` / `MxAnimationModOverrideMergeResult` | 合并 base mapping + mod override，输出新 `MxAnimationSetDefinition`、merged package expectation、base/override hash/version 和 accepted/rejected diagnostics |
 | `MxAnimationWarmupDefinition` | animation set 的 warmup 声明：preload group id、required keys、labels、failFast 和是否包含 default/fallback/action/mask |
 | `MxAnimationWarmupService` | 复用 `IResourcePreloadService` 预热 animation set 资源，并输出版本 / hash / preload diagnostics |
 | `MxAnimationWarmupRequest` / `MxAnimationWarmupResult` | warmup 输入与结果；结果持有 `ResourcePreloadResult` / `ResourceGroupHandle`，释放必须走 service |
@@ -192,6 +195,27 @@ Animation package loading 是 Animation 层对 Resources catalog 的一层 noEng
 
 Addressables 保持可选兼容路径：项目若已经安装 Addressables，应实现独立 provider/adapter 并把 catalog entry provider 写成项目约定的 id。Animation 层只校验 provider id 是否在 `AcceptedProviderIds`，不引用 Addressables API，也不要求 `MxFramework.Resources.Unity` 增加硬依赖。
 
+## Mod Animation Package Override
+
+Mod animation package override 是 noEngine merge 契约，不读取外部 Unity object，不修改 Combat action、hit、damage、cancel、invulnerability 或 authority。外部包只能通过 `ResourceKey` 覆盖表现 mapping：
+
+- action binding replacement：替换已有 binding/action 的 clip、layer、播放参数和表现事件。
+- layer replacement/addition：替换或新增 layer definition，包含 AvatarMask key。
+- 1D / 2D blend replacement/addition：按 blend id 替换或新增 blend definition。
+- package resource expectation：声明 bake artifact、compatibility profile 或其它 package resource key，进入 #129 package validation / warmup。
+
+`MxAnimationModOverrideMerger.Merge` 的输入是 base `MxAnimationSetDefinition`、`MxAnimationModOverrideDefinition`、可选 `ResourceCatalog`、`MxAnimationCompatibilityProfile`、`MxAnimationPackageCatalog` 和 base package expectation。合并前会校验：
+
+- target set id、expected base version、expected base hash。
+- override 自身 canonical hash。
+- 合并后的 mapping structure 和 catalog entry。
+- override compatibility expectation 与实际 compatibility profile。
+- merged package expectation 与 package catalog。
+
+通过后返回新的 `MxAnimationSetDefinition`，其 `DefinitionHash` 由合并后内容稳定计算；结果同时保留 `BaseDefinitionHash/BaseVersion` 和 `OverrideHash/OverrideVersion`。失败时 `MergedDefinition` 为 null，`Issues` 中保留具体 rejected diagnostics。
+
+late load / unload 不由 override merger 直接持有资源 handle。调用方应把 `MergedDefinition` 和 `MergedPackageExpectation` 交给 `MxAnimationWarmupService`；warmup result 的 `ResourceGroupHandle` 仍按 #129 规则释放。
+
 Legacy coexistence:
 
 - 旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 保持可用，但仍是 opt-in。
@@ -215,6 +239,7 @@ Legacy coexistence:
 - animation package expectation 不改变 mapping contract；同一份 `MxAnimationSetDefinition` 可以在 sample memory provider、local AssetBundle provider、remote Bundle provider 或项目层 Addressables adapter 间切换，只要 catalog entry key/hash/version/provider expectation 匹配。
 - warmup 会校验 animation set hash、resource catalog hash、clip registry version 和可选 expected clip registry entry hash；mismatch 必须输出具体 field、expected、actual 和相关 resource key。
 - warmup 可进一步校验 package id/version/catalog hash、catalog entry hash、missing clip/mask/bake/profile，并把 package resources 加入 preload group。
+- Mod override 只能产出新的表现 mapping 和 package expectation。合法 override 仍必须先通过 mapping/catalog/package/compatibility validation，再进入 warmup；不兼容或缺资源的 override 不允许强制播放。
 - warmup partial failure 会把每个 `ResourceError` 转成 `PreloadResourceFailed` issue，保留失败 key、provider、address 和错误码。调用方不能把失败当作空播成功。
 - warmup result 的 `ResourceGroupHandle` 只代表预热持有的 handles。释放 group 只归还这一组引用；如果其它 consumer 仍持有同一 clip，底层资源不会被卸载。
 - `MxAnimationClipRegistryAsset` 只属于 Unity Editor authoring。运行时和 Demo 不得从该 asset 直接取 `AnimationClip`，必须通过导出的 `MxAnimationSetDefinition` + `ResourceManager` 加载。
@@ -269,6 +294,7 @@ Assets/Scripts/MxFramework/Tests/Animation/
 - bake profile/artifact hash 稳定性、source/profile/artifact mismatch diagnostics、Editor clip 曲线采样和 event marker bake。
 - skeleton/avatar/clip compatibility profile、missing bone/socket、AvatarMask active path、clip binding、bake artifact skeleton mismatch、warmup compatibility diagnostics 和 Editor extractor。
 - animation package expectation、provider-switchable catalog validation、missing bake/profile diagnostics 和 package warmup preload。
+- Mod animation package override 的 stable hash、action/mask/blend/bake override、base hash mismatch、package missing resource、compatibility rejection 和 warmup handle release。
 - play / stop state transition 和非 resident handle release。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。

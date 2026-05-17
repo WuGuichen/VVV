@@ -1578,6 +1578,66 @@ MxAnimationWarmupResult packageWarmup = warmupService.Warmup(new MxAnimationWarm
 
 `MxAnimationPackageCatalogValidator` 会报告 package id/version/catalog hash mismatch、provider 不匹配、entry hash mismatch、missing clip/mask/bake/profile；`RequiredForWarmup=true` 的 package resources 会进入同一个 preload group。Addressables 仍是可选 adapter：项目可把 provider id 写入 `AcceptedProviderIds`，但 MxFramework 默认程序集不引用 Addressables。
 
+Mod animation package 通过 noEngine override DTO 覆盖表现 mapping。合并前必须校验 base hash/version、catalog/package、compatibility；成功后再 warmup：
+
+```csharp
+var manifest = new MxAnimationModPackageManifest(
+    "mod.anim.demo",
+    version: 2,
+    displayName: "Demo Animation Mod",
+    catalogId: "mod.anim.demo.catalog",
+    catalogHash: "sha256:catalog",
+    loadOrder: 10);
+
+var modOverride = new MxAnimationModOverrideDefinition(
+    targetSetId: mappedSet.SetId,
+    manifest: manifest,
+    overrideVersion: 1,
+    expectedBaseVersion: mappedSet.Version,
+    expectedBaseHash: mappedSet.DefinitionHash,
+    actionOverrides: new[]
+    {
+        new MxAnimationActionBindingOverride(new MxAnimationActionBinding(
+            "attack",
+            "action:attack",
+            new ResourceKey("demo.animation.attack.mod", ResourceTypeIds.AnimationClip, packageId: "mod.anim.demo"),
+            new MxAnimationLayerId("upper_body")))
+    },
+    layerOverrides: new[]
+    {
+        new MxAnimationLayerDefinitionOverride(new MxAnimationLayerDefinition(
+            new MxAnimationLayerId("upper_body"),
+            avatarMaskKey: new ResourceKey("demo.animation.mask.mod", ResourceTypeIds.AvatarMask, packageId: "mod.anim.demo")))
+    },
+    packageResources: new[]
+    {
+        new MxAnimationPackageResourceExpectation(
+            new ResourceKey("demo.animation.bake.attack.mod", MxAnimationResourceTypeIds.BakeArtifact, packageId: "mod.anim.demo"),
+            catalogEntryHash: "sha256:bake")
+    },
+    compatibilityExpectation: LoadModCompatibilityExpectation(),
+    acceptedProviderIds: new[] { "assetBundle", "remoteBundle" });
+
+MxAnimationModOverrideMergeResult merge = MxAnimationModOverrideMerger.Merge(
+    new MxAnimationModOverrideMergeRequest(
+        mappedSet,
+        modOverride,
+        modCatalog,
+        compatibilityProfile,
+        new MxAnimationPackageCatalog(modCatalog, version: 2, catalogHash: "sha256:catalog"),
+        packageExpectation));
+
+if (!merge.Success)
+{
+    foreach (MxAnimationModOverrideIssue issue in merge.Issues)
+        Log(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message);
+
+    // 不要强制播放 rejected override；继续使用 base mapping 或阻断加载。
+}
+```
+
+`merge.MergedDefinition.DefinitionHash` 是合并后稳定 mapping hash；`merge.BaseDefinitionHash` / `merge.OverrideHash` 保留审计所需的 base 与 mod 输入。资源生命周期仍通过 `MxAnimationWarmupService`：把 `merge.MergedDefinition` 和 `merge.MergedPackageExpectation` 传给 warmup，释放时调用 `warmupService.Release(result)`。
+
 Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。Inspector 的 `Event Timeline Preview` 会显示 Seconds / NormalizedTime / CombatFrame / PresentationFrame 事件，并对 CombatFrame / PresentationFrame 输出 deterministic correlation 摘要。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
 
 只读逐帧检查可以打开 `MxFramework / MxAnimation / Timeline Scrubber Preview MVP`，或在 Clip Registry Inspector 点击 `Open Timeline Scrubber Preview`。窗口选择 action binding 和 frame 后，会显示同帧 presentation event、CombatActionTimeline phase/window/frame event、baked root/socket/weapon trace sample，以及 missing clip、missing bake、hash/source mismatch、event out of range、timeline frame mismatch diagnostics。该工具只做 preview，不编辑 registry、Combat authoring 或 runtime DTO。
@@ -1621,6 +1681,7 @@ MxAnimationCompatibilityProfile compatibilityProfile =
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
 - warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type、compatibility mismatch 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
 - package expectation 复用同一套 `ResourceKey` mapping，允许 memory / AssetBundle / remote Bundle / 可选 Addressables provider 切换；错误包、错误版本、错误 hash、missing bake/profile 不能静默播放。
+- Mod animation override 只改表现 mapping 和 package resource expectation；合并结果必须先通过 catalog/package/compatibility validation，不能修改 Combat authority。
 - warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。
 - Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
 - presentation event 是表现层事件，不驱动 Combat 命中、取消、伤害、无敌、移动或 replay hash。默认 late join 不补播一次性 VFX/SFX；需要补播时必须把事件标记为 `CatchUpSafe` 并由项目网络层显式执行策略。
