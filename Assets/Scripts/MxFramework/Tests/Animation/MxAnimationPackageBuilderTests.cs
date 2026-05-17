@@ -103,7 +103,8 @@ namespace MxFramework.Tests.Animation
                     skeletonRoot,
                     MxAnimationPackageProviderSampleKind.RemoteBundle,
                     remoteBundleUrl: "file:///tmp/demo-animation-package",
-                    remoteCacheKey: "demo-animation-package-cache");
+                    remoteCacheKey: "demo-animation-package-cache",
+                    remoteBundleHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
 
                 Assert.IsTrue(result.Success, result.ReportText);
                 for (int i = 0; i < result.CatalogSnapshot.Entries.Count; i++)
@@ -113,6 +114,8 @@ namespace MxFramework.Tests.Animation
                     Assert.AreEqual("file:///tmp/demo-animation-package", entry.ProviderData["url"]);
                     Assert.AreEqual("demo-animation-package", entry.ProviderData["bundleName"]);
                     Assert.AreEqual("demo-animation-package-cache", entry.ProviderData["cacheKey"]);
+                    Assert.AreEqual("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", entry.ProviderData["hash.demo-animation-package"]);
+                    Assert.AreNotEqual(entry.Hash, entry.ProviderData["hash.demo-animation-package"]);
                 }
             }
             finally
@@ -138,6 +141,30 @@ namespace MxFramework.Tests.Animation
                 AssertPackageIssue(
                     result.PackageValidation,
                     MxAnimationPackageValidationIssueCodes.PackageResourceProviderMismatch);
+            }
+            finally
+            {
+                DestroyPackageRegistry(asset, skeletonRoot);
+            }
+        }
+
+        [Test]
+        public void Build_WithoutBakeAndCompatibilityInputs_ReportsMissingPackageInputs()
+        {
+            MxAnimationClipRegistryAsset asset = CreatePackageRegistry(out GameObject skeletonRoot);
+            try
+            {
+                var options = new MxAnimationPackageBuilderOptions(
+                    packageVersion: 4,
+                    providerSampleKind: MxAnimationPackageProviderSampleKind.LocalAssetBundle,
+                    bundleName: "demo-animation-package");
+                MxAnimationPackageBuildResult result = MxAnimationPackageBuilder.Build(asset, options);
+
+                Assert.IsFalse(result.Success, result.ReportText);
+                AssertPackageIssue(result.PackageValidation, MxAnimationPackageValidationIssueCodes.BakeArtifactMissing);
+                AssertPackageIssue(result.PackageValidation, MxAnimationPackageValidationIssueCodes.CompatibilityProfileMissing);
+                Assert.That(result.ReportText, Does.Contain(MxAnimationPackageValidationIssueCodes.BakeArtifactMissing));
+                Assert.That(result.ReportText, Does.Contain(MxAnimationPackageValidationIssueCodes.CompatibilityProfileMissing));
             }
             finally
             {
@@ -187,7 +214,8 @@ namespace MxFramework.Tests.Animation
             MxAnimationPackageProviderSampleKind providerSampleKind,
             IEnumerable<string> acceptedProviderIds = null,
             string remoteBundleUrl = "",
-            string remoteCacheKey = "")
+            string remoteCacheKey = "",
+            string remoteBundleHash = "")
         {
             MxAnimationSkeletonCompatibilityProfile skeletonProfile =
                 MxAnimationCompatibilityEditorExtractor.CreateSkeletonProfile(
@@ -209,6 +237,7 @@ namespace MxFramework.Tests.Animation
                 bundleName: "demo-animation-package",
                 remoteBundleUrl: remoteBundleUrl,
                 remoteCacheKey: remoteCacheKey,
+                remoteBundleHash: remoteBundleHash,
                 acceptedProviderIds: acceptedProviderIds);
             return MxAnimationPackageBuilder.Build(asset, options, batchReport, compatibilityReport);
         }

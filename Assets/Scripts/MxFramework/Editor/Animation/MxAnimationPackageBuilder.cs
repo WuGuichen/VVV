@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using MxFramework.Animation;
@@ -30,6 +31,7 @@ namespace MxFramework.Editor.Animation
             string bundleName = "",
             string remoteBundleUrl = "",
             string remoteCacheKey = "",
+            string remoteBundleHash = "",
             IEnumerable<string> acceptedProviderIds = null)
         {
             PackageId = packageId ?? string.Empty;
@@ -39,6 +41,7 @@ namespace MxFramework.Editor.Animation
             BundleName = bundleName ?? string.Empty;
             RemoteBundleUrl = remoteBundleUrl ?? string.Empty;
             RemoteCacheKey = remoteCacheKey ?? string.Empty;
+            RemoteBundleHash = remoteBundleHash ?? string.Empty;
             _acceptedProviderIds = acceptedProviderIds != null
                 ? new List<string>(acceptedProviderIds)
                 : new List<string>();
@@ -51,6 +54,7 @@ namespace MxFramework.Editor.Animation
         public string BundleName { get; }
         public string RemoteBundleUrl { get; }
         public string RemoteCacheKey { get; }
+        public string RemoteBundleHash { get; }
         public IReadOnlyList<string> AcceptedProviderIds => _acceptedProviderIds;
     }
 
@@ -115,8 +119,9 @@ namespace MxFramework.Editor.Animation
             var entries = new List<ResourceCatalogEntry>();
             var resources = new List<MxAnimationPackageResourceExpectation>();
             var seen = new HashSet<ResourceKey>();
-            AddDefinitionResources(registry, export != null ? export.Definition : null, providerId, bundleName, options, entries, resources, seen);
-            AddBakeResources(batchBakeReport, providerId, bundleName, options, entries, resources, seen);
+            MxAnimationSetDefinition definition = export != null ? export.Definition : null;
+            AddDefinitionResources(registry, definition, providerId, bundleName, options, entries, resources, seen);
+            AddBakeResources(definition, batchBakeReport, providerId, bundleName, options, entries, resources, seen);
             AddCompatibilityResource(registry, compatibilityReport, providerId, bundleName, options, entries, resources, seen);
 
             string catalogHash = ComputeCatalogHash(catalogId, packageId, entries);
@@ -224,6 +229,7 @@ namespace MxFramework.Editor.Animation
         }
 
         private static void AddBakeResources(
+            MxAnimationSetDefinition definition,
             MxAnimationBatchBakeReport batchBakeReport,
             string providerId,
             string bundleName,
@@ -232,37 +238,39 @@ namespace MxFramework.Editor.Animation
             List<MxAnimationPackageResourceExpectation> resources,
             HashSet<ResourceKey> seen)
         {
-            if (batchBakeReport == null)
-                return;
-
-            for (int i = 0; i < batchBakeReport.Results.Count; i++)
+            if (batchBakeReport != null)
             {
-                MxAnimationBatchBakeClipResult result = batchBakeReport.Results[i];
-                MxAnimationBakeArtifact artifact = result != null && result.BakeResult != null
-                    ? result.BakeResult.Artifact
-                    : null;
-                if (artifact == null || !artifact.Profile.SourceClipKey.IsValid)
-                    continue;
+                for (int i = 0; i < batchBakeReport.Results.Count; i++)
+                {
+                    MxAnimationBatchBakeClipResult result = batchBakeReport.Results[i];
+                    MxAnimationBakeArtifact artifact = result != null && result.BakeResult != null
+                        ? result.BakeResult.Artifact
+                        : null;
+                    if (artifact == null || artifact.Profile == null || !artifact.Profile.SourceClipKey.IsValid)
+                        continue;
 
-                ResourceKey bakeKey = CreateDerivedKey(
-                    artifact.Profile.SourceClipKey,
-                    MxAnimationResourceTypeIds.BakeArtifact,
-                    ".bake");
-                string assetPath = !string.IsNullOrWhiteSpace(result.BakeResult.OutputPath)
-                    ? result.BakeResult.OutputPath
-                    : "Assets/MxAnimationPackages/" + SanitizePathPart(bakeKey.PackageId) + "/Bake/" + SanitizePathPart(bakeKey.Id) + ".mxbake.txt";
-                AddResource(
-                    bakeKey,
-                    MxAnimationPackageResourceKind.BakeArtifact,
-                    assetPath,
-                    providerId,
-                    bundleName,
-                    options,
-                    entries,
-                    resources,
-                    seen,
-                    artifact.ArtifactHash);
+                    ResourceKey bakeKey = CreateDerivedKey(
+                        artifact.Profile.SourceClipKey,
+                        MxAnimationResourceTypeIds.BakeArtifact,
+                        ".bake");
+                    string assetPath = !string.IsNullOrWhiteSpace(result.BakeResult.OutputPath)
+                        ? result.BakeResult.OutputPath
+                        : "Assets/MxAnimationPackages/" + SanitizePathPart(bakeKey.PackageId) + "/Bake/" + SanitizePathPart(bakeKey.Id) + ".mxbake.txt";
+                    AddResource(
+                        bakeKey,
+                        MxAnimationPackageResourceKind.BakeArtifact,
+                        assetPath,
+                        providerId,
+                        bundleName,
+                        options,
+                        entries,
+                        resources,
+                        seen,
+                        artifact.ArtifactHash);
+                }
             }
+
+            AddMissingBakeExpectations(definition, resources, seen);
         }
 
         private static void AddCompatibilityResource(
@@ -277,20 +285,20 @@ namespace MxFramework.Editor.Animation
         {
             MxAnimationCompatibilityProfile profile = compatibilityReport != null ? compatibilityReport.Profile : null;
             if (profile == null || profile.SkeletonProfile == null)
+            {
+                AddResourceExpectation(
+                    CreateCompatibilityKey(registry, options, "skeleton"),
+                    MxAnimationPackageResourceKind.CompatibilityProfile,
+                    resources,
+                    seen);
                 return;
+            }
 
-            string packageId = ResolvePackageId(registry, options);
-            string setId = registry != null && !string.IsNullOrWhiteSpace(registry.AnimationSetId)
-                ? registry.AnimationSetId
-                : packageId;
             string profileId = string.IsNullOrWhiteSpace(profile.SkeletonProfile.ProfileId)
                 ? "skeleton"
                 : profile.SkeletonProfile.ProfileId;
-            var key = new ResourceKey(
-                NormalizeResourceId(setId) + ".compatibility." + NormalizeResourceId(profileId),
-                MxAnimationResourceTypeIds.CompatibilityProfile,
-                string.Empty,
-                packageId);
+            string packageId = ResolvePackageId(registry, options);
+            ResourceKey key = CreateCompatibilityKey(registry, options, profileId);
             string assetPath = "Assets/MxAnimationPackages/" + SanitizePathPart(packageId) + "/Compatibility/" + SanitizePathPart(profileId) + ".mxcompat.txt";
             AddResource(
                 key,
@@ -337,6 +345,92 @@ namespace MxFramework.Editor.Animation
                 providerData: providerData);
             entries.Add(entry);
             resources.Add(new MxAnimationPackageResourceExpectation(key, hash, kind: kind));
+        }
+
+        private static void AddResourceExpectation(
+            ResourceKey key,
+            MxAnimationPackageResourceKind kind,
+            List<MxAnimationPackageResourceExpectation> resources,
+            HashSet<ResourceKey> seen,
+            string hash = "")
+        {
+            if (!key.IsValid || !seen.Add(key))
+                return;
+
+            resources.Add(new MxAnimationPackageResourceExpectation(key, hash, kind: kind));
+        }
+
+        private static void AddMissingBakeExpectations(
+            MxAnimationSetDefinition definition,
+            List<MxAnimationPackageResourceExpectation> resources,
+            HashSet<ResourceKey> seen)
+        {
+            if (definition == null)
+                return;
+
+            var clipKeys = new List<ResourceKey>();
+            var clipSeen = new HashSet<ResourceKey>();
+            AddClipKey(definition.DefaultClip, clipKeys, clipSeen);
+            AddClipKey(definition.FallbackClip, clipKeys, clipSeen);
+            for (int i = 0; i < definition.Actions.Count; i++)
+            {
+                MxAnimationActionBinding action = definition.Actions[i];
+                if (action != null)
+                    AddClipKey(action.Clip, clipKeys, clipSeen);
+            }
+
+            for (int i = 0; i < definition.Blend1DDefinitions.Count; i++)
+            {
+                MxAnimationBlend1DDefinition blend = definition.Blend1DDefinitions[i];
+                if (blend == null)
+                    continue;
+
+                for (int pointIndex = 0; pointIndex < blend.Points.Count; pointIndex++)
+                    AddClipKey(blend.Points[pointIndex].ClipKey, clipKeys, clipSeen);
+            }
+
+            for (int i = 0; i < definition.Blend2DDefinitions.Count; i++)
+            {
+                MxAnimationBlend2DDefinition blend = definition.Blend2DDefinitions[i];
+                if (blend == null)
+                    continue;
+
+                for (int pointIndex = 0; pointIndex < blend.Points.Count; pointIndex++)
+                    AddClipKey(blend.Points[pointIndex].ClipKey, clipKeys, clipSeen);
+            }
+
+            for (int i = 0; i < clipKeys.Count; i++)
+            {
+                AddResourceExpectation(
+                    CreateDerivedKey(clipKeys[i], MxAnimationResourceTypeIds.BakeArtifact, ".bake"),
+                    MxAnimationPackageResourceKind.BakeArtifact,
+                    resources,
+                    seen);
+            }
+        }
+
+        private static void AddClipKey(ResourceKey key, List<ResourceKey> keys, HashSet<ResourceKey> seen)
+        {
+            if (!key.IsValid || !seen.Add(key))
+                return;
+
+            keys.Add(key);
+        }
+
+        private static ResourceKey CreateCompatibilityKey(
+            MxAnimationClipRegistryAsset registry,
+            MxAnimationPackageBuilderOptions options,
+            string profileId)
+        {
+            string packageId = ResolvePackageId(registry, options);
+            string setId = registry != null && !string.IsNullOrWhiteSpace(registry.AnimationSetId)
+                ? registry.AnimationSetId
+                : packageId;
+            return new ResourceKey(
+                NormalizeResourceId(setId) + ".compatibility." + NormalizeResourceId(profileId),
+                MxAnimationResourceTypeIds.CompatibilityProfile,
+                string.Empty,
+                packageId);
         }
 
         private static string ResolveAssetPath(MxAnimationClipRegistryAsset registry, ResourceKey key)
@@ -396,9 +490,10 @@ namespace MxFramework.Editor.Animation
             if (!string.Equals(providerId, RemoteBundleProvider.Id, StringComparison.Ordinal))
                 return null;
 
+            string bundleHash = ResolveRemoteBundleHash(options);
             string cacheKey = !string.IsNullOrWhiteSpace(options.RemoteCacheKey)
                 ? options.RemoteCacheKey
-                : bundleName + "." + ShortHash(hash);
+                : !string.IsNullOrWhiteSpace(RemoveSha256Prefix(bundleHash)) ? bundleName + "." + ShortHash(bundleHash) : bundleName;
             string url = !string.IsNullOrWhiteSpace(options.RemoteBundleUrl)
                 ? options.RemoteBundleUrl
                 : "file:///{bundle-root}/" + bundleName;
@@ -406,8 +501,75 @@ namespace MxFramework.Editor.Animation
             {
                 { "url", url },
                 { "bundleName", bundleName },
-                { "cacheKey", cacheKey }
+                { "cacheKey", cacheKey },
+                { "hash." + bundleName, bundleHash }
             };
+        }
+
+        private static string ResolveRemoteBundleHash(MxAnimationPackageBuilderOptions options)
+        {
+            if (options == null)
+                return "sha256:";
+            if (!string.IsNullOrWhiteSpace(options.RemoteBundleHash))
+                return EnsureSha256Prefix(options.RemoteBundleHash);
+
+            if (TryGetLocalPath(options.RemoteBundleUrl, out string localPath) && File.Exists(localPath))
+                return "sha256:" + ComputeFileSha256(localPath);
+
+            return "sha256:";
+        }
+
+        private static bool TryGetLocalPath(string url, out string localPath)
+        {
+            localPath = string.Empty;
+            if (string.IsNullOrWhiteSpace(url))
+                return false;
+
+            if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri) && uri.IsFile)
+            {
+                localPath = uri.LocalPath;
+                return true;
+            }
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out _) && File.Exists(url))
+            {
+                localPath = url;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string ComputeFileSha256(string path)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            using (FileStream stream = File.OpenRead(path))
+            {
+                byte[] hash = sha256.ComputeHash(stream);
+                var builder = new StringBuilder(hash.Length * 2);
+                for (int i = 0; i < hash.Length; i++)
+                    builder.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
+                return builder.ToString();
+            }
+        }
+
+        private static string EnsureSha256Prefix(string hash)
+        {
+            string value = hash ?? string.Empty;
+            return value.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)
+                ? value
+                : "sha256:" + value;
+        }
+
+        private static string RemoveSha256Prefix(string hash)
+        {
+            if (string.IsNullOrWhiteSpace(hash))
+                return string.Empty;
+
+            const string Prefix = "sha256:";
+            return hash.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase)
+                ? hash.Substring(Prefix.Length)
+                : hash;
         }
 
         private static IReadOnlyList<string> ResolveAcceptedProviderIds(MxAnimationPackageBuilderOptions options)

@@ -197,7 +197,7 @@ Animation package loading 是 Animation 层对 Resources catalog 的一层 noEng
 
 `MxAnimationWarmupRequest` 可携带 package expectation 和 `MxAnimationPackageCatalog` snapshot。warmup 会把 `MxAnimationPackageResourceExpectation.RequiredForWarmup=true` 的资源加入 `ResourcePreloadPlan`，因此同一个 warmup group 可以持有 clip、AvatarMask、bake artifact 和 compatibility profile；释放仍通过 `MxAnimationWarmupService.Release` 归还 group handle。
 
-Editor Workstation 的 `Animation Package Builder` 面板只生成 preview/build input，不提交派生包内容。它从 `MxAnimationClipRegistryAsset` 导出的 mapping、最近一次 batch bake report 和 compatibility report 生成 `MxAnimationPackageExpectation` 与 `ResourceCatalog` snapshot；sample provider 可以切换为 memory、local AssetBundle 或 remoteBundle。local / remote bundle 地址仍使用 `bundleName|assetName`，remote URL / cache key 只写入 `providerData`，不引入 Addressables 或发布自动化。
+Editor Workstation 的 `Animation Package Builder` 面板只生成 preview/build input，不提交派生包内容。它从 `MxAnimationClipRegistryAsset` 导出的 mapping、最近一次 batch bake report 和 compatibility report 生成 `MxAnimationPackageExpectation` 与 `ResourceCatalog` snapshot；sample provider 可以切换为 memory、local AssetBundle 或 remoteBundle。local / remote bundle 地址仍使用 `bundleName|assetName`；remote URL、cache key 和 bundle SHA-256 只写入 `providerData`，不引入 Addressables 或发布自动化。
 
 Addressables 保持可选兼容路径：项目若已经安装 Addressables，应实现独立 provider/adapter 并把 catalog entry provider 写成项目约定的 id。Animation 层只校验 provider id 是否在 `AcceptedProviderIds`，不引用 Addressables API，也不要求 `MxFramework.Resources.Unity` 增加硬依赖。
 

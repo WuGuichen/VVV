@@ -201,6 +201,7 @@ namespace MxFramework.Editor.Animation
         private string _packageBundleName = string.Empty;
         private string _packageRemoteUrl = string.Empty;
         private string _packageRemoteCacheKey = string.Empty;
+        private string _packageRemoteHash = string.Empty;
         private MxAnimationPackageBuildResult _lastPackageBuildResult;
         private bool _showTimelineEditor = true;
         private int _timelineBindingIndex;
@@ -864,6 +865,7 @@ namespace MxFramework.Editor.Animation
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                EditorGUI.BeginChangeCheck();
                 _compatibilitySkeletonRoot = (GameObject)EditorGUILayout.ObjectField(
                     "Skeleton Root",
                     _compatibilitySkeletonRoot,
@@ -872,6 +874,11 @@ namespace MxFramework.Editor.Animation
                 _compatibilityProfileId = EditorGUILayout.TextField("Profile Id", _compatibilityProfileId);
                 EditorGUILayout.LabelField("Socket Paths");
                 _compatibilitySocketPaths = EditorGUILayout.TextArea(_compatibilitySocketPaths, GUILayout.MinHeight(48f));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    _lastCompatibilityReport = null;
+                    _lastPackageBuildResult = null;
+                }
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -921,6 +928,7 @@ namespace MxFramework.Editor.Animation
                 {
                     _packageRemoteUrl = EditorGUILayout.TextField("Remote Bundle URL", _packageRemoteUrl);
                     _packageRemoteCacheKey = EditorGUILayout.TextField("Remote Cache Key", _packageRemoteCacheKey);
+                    _packageRemoteHash = EditorGUILayout.TextField("Remote Bundle SHA-256", _packageRemoteHash);
                 }
                 if (EditorGUI.EndChangeCheck())
                     _lastPackageBuildResult = null;
@@ -1090,16 +1098,15 @@ namespace MxFramework.Editor.Animation
 
         private void RefreshPackageBuildReport(bool logToConsole)
         {
-            if (_lastCompatibilityReport == null)
-                RefreshCompatibilityReport(logToConsole: false);
-
             var options = new MxAnimationPackageBuilderOptions(
                 packageVersion: _packageVersion <= 0 ? Math.Max(1, _registry.Version) : _packageVersion,
                 catalogId: _packageCatalogId,
                 providerSampleKind: _packageProviderSampleKind,
                 bundleName: _packageBundleName,
                 remoteBundleUrl: _packageRemoteUrl,
-                remoteCacheKey: _packageRemoteCacheKey);
+                remoteCacheKey: _packageRemoteCacheKey,
+                remoteBundleHash: _packageRemoteHash);
+            RefreshCompatibilityReport(logToConsole: false);
             _lastPackageBuildResult = MxAnimationPackageBuilder.Build(
                 _registry,
                 options,
@@ -1386,6 +1393,8 @@ namespace MxFramework.Editor.Animation
                 EditorUtility.SetDirty(_registry);
                 RefreshReport(logToConsole: false);
                 MarkTimelinePreviewDirty();
+                _lastBatchBakeReport = null;
+                _lastCompatibilityReport = null;
                 _lastPackageBuildResult = null;
             }
             Undo.SetCurrentGroupName(undoName);
