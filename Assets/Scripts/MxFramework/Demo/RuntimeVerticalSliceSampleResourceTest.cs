@@ -9,8 +9,8 @@ namespace MxFramework.Demo
     {
         private static readonly RuntimeVerticalSliceResourcePreloadCase[] PreloadCases =
         {
-            new RuntimeVerticalSliceResourcePreloadCase("samples.package", "package", TempImportedResourceCatalog.PackageLabel, 33),
-            new RuntimeVerticalSliceResourcePreloadCase("samples.mxanimation", "MxAnimation", TempImportedResourceCatalog.WarmupMxAnimationLabel, 17),
+            new RuntimeVerticalSliceResourcePreloadCase("samples.package", "package", TempImportedResourceCatalog.PackageLabel, 34),
+            new RuntimeVerticalSliceResourcePreloadCase("samples.mxanimation", "MxAnimation", TempImportedResourceCatalog.WarmupMxAnimationLabel, 18),
             new RuntimeVerticalSliceResourcePreloadCase("samples.start_screen", "StartScreen", TempImportedResourceCatalog.WarmupStartScreenLabel, 7),
             new RuntimeVerticalSliceResourcePreloadCase("samples.combat", "Combat", TempImportedResourceCatalog.WarmupCombatLabel, 9),
             new RuntimeVerticalSliceResourcePreloadCase("samples.status_effects", "StatusEffects", TempImportedResourceCatalog.WarmupStatusEffectsLabel, 4),

@@ -134,6 +134,27 @@
       }
     },
     {
+      "id": "art.character.skeleton.mask.upper_body",
+      "type": "AvatarMask",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "memory",
+      "address": "mxframework.samples/art/character/skeleton/mask/upper_body",
+      "labels": [
+        "package.mxframework.samples",
+        "domain.art",
+        "sample.skeleton",
+        "warmup.demo.mxanimation"
+      ],
+      "dependencies": [],
+      "hash": "",
+      "size": 0,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/Masks/SkeletonUpperBody.mask"
+      }
+    },
+    {
       "id": "art.character.skeleton.animation.standing_jump_running",
       "type": "AnimationClip",
       "variant": "",

@@ -1366,6 +1366,14 @@ ResourceCatalogValidationReport validation =
     ResourceCatalogEditorValidator.ValidateCatalog(catalog, new[] { "resources", "assetBundle" });
 ```
 
+框架样例 Catalog 由 Editor 生成器维护，菜单路径：
+
+```text
+MxFramework/Samples/Generate Resource Catalog
+```
+
+生成器会输出 `Assets/Config/MxFramework/ResourceCatalogs/mxframework_samples_resource_catalog.json`，并校验 `memory` provider 的 `providerData.assetPath` 是否指向正式样例资源。该 catalog 仍服务 Editor Play Mode / Demo 组合根；Player 资源路径应由后续 AssetBundle / Streaming catalog 接管。
+
 约定：
 
 - 业务配置只保存 `ResourceKey`，不保存 Unity 路径或 `UnityEngine.Object`。
