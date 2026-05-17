@@ -206,6 +206,45 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Play_WhenSameClipAlreadyCurrent_ReusesPlayableAndReportsCacheHit()
+        {
+            ResourceKey idleKey = ClipKey("demo.animation.idle");
+            AnimationClip idle = CreateClip("idle");
+            var provider = new MemoryResourceProvider().Register("clips/idle", idle);
+            ResourceManager manager = CreateManager(provider, Entry(idleKey, "clips/idle"));
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, EmptyDefinition()))
+            {
+                MxAnimationBackendResult first = fixture.Backend.Play(new MxAnimationPlayRequest { ClipKey = idleKey });
+                MxAnimationBackendResult second = fixture.Backend.Play(new MxAnimationPlayRequest
+                {
+                    ClipKey = idleKey,
+                    PlaybackSpeed = 1.25f,
+                    StartOffsetSeconds = 0.2f
+                });
+
+                Assert.IsTrue(first.Success, first.Message);
+                Assert.IsTrue(second.Success, second.Message);
+                Assert.AreEqual(1, provider.LoadCount);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+                MxAnimationDiagnosticSnapshot snapshot = fixture.Backend.CreateSnapshot();
+                MxAnimationLayerDiagnostic layer = FindLayer(snapshot, MxAnimationLayerId.Base);
+                Assert.AreEqual(MxAnimationLayerStatus.Playing, layer.Status);
+                Assert.AreEqual(idleKey, layer.CurrentClipKey);
+                Assert.AreEqual(1, layer.ActivePlayableCount);
+                Assert.AreEqual(1, snapshot.Cache.CacheHitCount);
+                Assert.AreEqual(1, snapshot.Cache.CacheMissCount);
+                Assert.AreEqual(1, snapshot.Cache.CachedPlayableCount);
+                Assert.AreEqual(1, snapshot.Cache.ActivePlayableCount);
+                Assert.AreEqual(1, snapshot.Cache.ResourceLoadedCount);
+                Assert.AreEqual(1, snapshot.Cache.ResourceRefCount);
+            }
+
+            Object.DestroyImmediate(idle);
+        }
+
+        [Test]
         public void Play_WhenRequestedClipFails_UsesResidentFallbackAndReportsDiagnostics()
         {
             ResourceKey requestedKey = ClipKey("demo.animation.missing");
@@ -458,6 +497,143 @@ namespace MxFramework.Tests.Animation
             Object.DestroyImmediate(idle);
             Object.DestroyImmediate(walk);
             Object.DestroyImmediate(run);
+            Object.DestroyImmediate(attack);
+        }
+
+        [Test]
+        public void SetBlend1D_ReusesCachedBlendSlotsAcrossSpeedChanges()
+        {
+            ResourceKey idleKey = ClipKey("demo.animation.idle");
+            ResourceKey walkKey = ClipKey("demo.animation.walk");
+            ResourceKey runKey = ClipKey("demo.animation.run");
+            AnimationClip idle = CreateClip("idle");
+            AnimationClip walk = CreateClip("walk");
+            AnimationClip run = CreateClip("run");
+            var provider = new MemoryResourceProvider()
+                .Register("clips/idle", idle)
+                .Register("clips/walk", walk)
+                .Register("clips/run", run);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry(idleKey, "clips/idle"),
+                Entry(walkKey, "clips/walk"),
+                Entry(runKey, "clips/run"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                default,
+                default,
+                blend1DDefinitions: new[]
+                {
+                    new MxAnimationBlend1DDefinition(
+                        "locomotion",
+                        "locomotion.speed",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend1DPoint(0, idleKey),
+                            new MxAnimationBlend1DPoint(500, walkKey),
+                            new MxAnimationBlend1DPoint(1000, runKey)
+                        })
+                });
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
+            {
+                MxAnimationBackendResult fast = fixture.Backend.SetBlend1D(new MxAnimationBlend1DRequest
+                {
+                    BlendId = "locomotion",
+                    Parameter = new MxAnimationQuantizedParameter("locomotion.speed", 750),
+                    CorrelationId = "speed:750"
+                });
+                Assert.IsTrue(fast.Success, fast.Message);
+                Assert.AreEqual(2, provider.LoadCount);
+                Assert.AreEqual(2, manager.CreateDebugSnapshot().LoadedCount);
+
+                MxAnimationBackendResult slow = fixture.Backend.SetBlend1D(new MxAnimationBlend1DRequest
+                {
+                    BlendId = "locomotion",
+                    Parameter = new MxAnimationQuantizedParameter("locomotion.speed", 250),
+                    CorrelationId = "speed:250"
+                });
+                Assert.IsTrue(slow.Success, slow.Message);
+                Assert.AreEqual(3, provider.LoadCount);
+                Assert.AreEqual(3, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(3, manager.CreateDebugSnapshot().TotalRefCount);
+
+                MxAnimationDiagnosticSnapshot snapshot = fixture.Backend.CreateSnapshot();
+                MxAnimationLayerDiagnostic baseLayer = FindLayer(snapshot, MxAnimationLayerId.Base);
+                Assert.AreEqual("locomotion", baseLayer.Blend1DId);
+                Assert.AreEqual(2, baseLayer.ActivePlayableCount);
+                Assert.AreEqual(3, baseLayer.Blend1DWeights.Count);
+                Assert.AreEqual(2, snapshot.Cache.CacheHitCount);
+                Assert.AreEqual(3, snapshot.Cache.CacheMissCount);
+                Assert.AreEqual(3, snapshot.Cache.CachedPlayableCount);
+                Assert.AreEqual(2, snapshot.Cache.ActivePlayableCount);
+                Assert.AreEqual(3, snapshot.Cache.ResourceLoadedCount);
+                Assert.AreEqual(3, snapshot.Cache.ResourceRefCount);
+
+                fixture.Backend.Stop(new MxAnimationStopRequest { LayerId = MxAnimationLayerId.Base });
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(3, provider.ReleaseCount);
+            }
+
+            Object.DestroyImmediate(idle);
+            Object.DestroyImmediate(walk);
+            Object.DestroyImmediate(run);
+        }
+
+        [Test]
+        public void UpperBodyAttack_WhenFadeOutCompletes_ReleasesHandleBeforeReplay()
+        {
+            ResourceKey attackKey = ClipKey("demo.animation.attack");
+            MxAnimationLayerId upperBody = new MxAnimationLayerId("upper_body");
+            AnimationClip attack = CreateClip("attack");
+            var provider = new MemoryResourceProvider().Register("clips/attack", attack);
+            ResourceManager manager = CreateManager(provider, Entry(attackKey, "clips/attack"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                default,
+                default,
+                layers: new[]
+                {
+                    new MxAnimationLayerDefinition(MxAnimationLayerId.Base, defaultWeight: 1f),
+                    new MxAnimationLayerDefinition(upperBody, "humanoid.upper", 1f)
+                });
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
+            {
+                MxAnimationBackendResult first = fixture.Backend.Play(new MxAnimationPlayRequest
+                {
+                    ClipKey = attackKey,
+                    LayerId = upperBody
+                });
+                Assert.IsTrue(first.Success, first.Message);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+                fixture.Backend.Stop(new MxAnimationStopRequest { LayerId = upperBody, FadeOutDurationSeconds = 0.25f });
+                fixture.Backend.Tick(0.25f);
+
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(1, provider.ReleaseCount);
+
+                MxAnimationBackendResult second = fixture.Backend.Play(new MxAnimationPlayRequest
+                {
+                    ClipKey = attackKey,
+                    LayerId = upperBody
+                });
+                Assert.IsTrue(second.Success, second.Message);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(2, provider.LoadCount);
+
+                MxAnimationDiagnosticSnapshot snapshot = fixture.Backend.CreateSnapshot();
+                MxAnimationLayerDiagnostic upper = FindLayer(snapshot, upperBody);
+                Assert.AreEqual(attackKey, upper.CurrentClipKey);
+                Assert.AreEqual(1, upper.ActivePlayableCount);
+                Assert.AreEqual(1, snapshot.Cache.CachedPlayableCount);
+                Assert.AreEqual(1, snapshot.Cache.ResourceRefCount);
+            }
+
             Object.DestroyImmediate(attack);
         }
 

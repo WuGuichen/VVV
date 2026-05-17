@@ -21,6 +21,7 @@ namespace MxFramework.Animation.Unity
         private readonly List<PendingMaskLoad> _pendingMaskLoads = new List<PendingMaskLoad>();
         private readonly IMxAnimationPlayableDiagnostics _diagnostics;
         private readonly MxAnimationPlayableGraphRuntime _playables;
+        private readonly MxAnimationPlayableStateCache _stateCache;
 
         private ResidentClip _defaultClip;
         private ResidentClip _fallbackClip;
@@ -38,6 +39,7 @@ namespace MxFramework.Animation.Unity
             _actorId = actorId ?? string.Empty;
             _diagnostics = new MxAnimationPlayableDiagnosticBuffer(MaxRecentItems);
             _playables = new MxAnimationPlayableGraphRuntime(_animator);
+            _stateCache = new MxAnimationPlayableStateCache();
 
             _defaultClip = LoadResidentClip("default", _definition.DefaultClip);
             _fallbackClip = LoadResidentClip("fallback", _definition.FallbackClip);
@@ -66,6 +68,9 @@ namespace MxFramework.Animation.Unity
                 return InvalidRequest(MxAnimationRequestKind.Play, request != null ? request.LayerId : MxAnimationLayerId.Base, default, error);
 
             LayerRuntime layer = GetOrCreateLayer(resolved.LayerId);
+            if (TryReuseCurrentForPlay(layer, resolved, out MxAnimationBackendResult reuseResult))
+                return reuseResult;
+
             layer.Status = MxAnimationLayerStatus.Loading;
             layer.NextClipKey = resolved.ClipKey;
             return BeginClipLoad(resolved, MxAnimationRequestKind.Play, false);
@@ -126,9 +131,8 @@ namespace MxFramework.Animation.Unity
             LayerRuntime layer = GetOrCreateLayer(resolved.LayerId);
             if (layer.Current != null && layer.Current.Key == resolved.ClipKey)
             {
-                layer.Current.PlaybackSpeed = resolved.PlaybackSpeed;
-                layer.Current.Loop = resolved.Loop;
-                layer.Current.Playable.SetSpeed(resolved.PlaybackSpeed);
+                UpdateSlotPlayback(layer.Current, resolved.PlaybackSpeed, resolved.Loop, resolved.StartOffsetSeconds, false);
+                _stateCache.RecordHit();
                 AddRequest(new MxAnimationRequestDiagnostic(
                     MxAnimationRequestKind.CrossFade,
                     resolved.LayerId,
@@ -205,9 +209,14 @@ namespace MxFramework.Animation.Unity
                 return InvalidRequest(MxAnimationRequestKind.SetBlend1D, blend.LayerId, default, "1D blend definition has no valid points.");
 
             LayerRuntime layer = GetOrCreateLayer(blend.LayerId);
-            ReleaseLayerSlots(layer);
+            ReleaseCurrentSlot(layer);
+            ReleaseOutgoingSlots(layer);
+            if (!string.Equals(layer.ActiveBlendId, blend.BlendId, StringComparison.Ordinal))
+                ReleaseBlendSlots(layer);
+            ReleaseStaleBlendSlots(layer, weights.Weights);
             layer.ActiveBlendId = blend.BlendId;
             layer.BlendParameter = request.Parameter;
+            layer.BlendWeights.Clear();
             layer.BlendWeights.AddRange(weights.Weights);
 
             ResourceKey dominantKey = default;
@@ -221,29 +230,41 @@ namespace MxFramework.Animation.Unity
                     dominantKey = weight.ClipKey;
                 }
 
-                if (weight.Weight <= 0f)
-                    continue;
-
-                if (!TryCreateBlendSlot(weight, out ClipSlot slot, out ResourceError error))
+                ClipSlot slot = FindBlendSlot(layer, weight.ClipKey);
+                if (slot != null)
                 {
-                    layer.Status = MxAnimationLayerStatus.Failed;
-                    layer.LastError = error;
-                    TrackResourceError(error);
-                    ReleaseLayerSlots(layer);
-                    AddRequest(new MxAnimationRequestDiagnostic(
-                        MxAnimationRequestKind.SetBlend1D,
-                        blend.LayerId,
-                        weight.ClipKey,
-                        weight.ClipKey,
-                        false,
-                        MxAnimationBackendResultCode.LoadFailed,
-                        request.CorrelationId,
-                        "1D blend clip failed to load."));
-                    return MxAnimationBackendResult.Failed(MxAnimationBackendResultCode.LoadFailed, weight.ClipKey, error, "1D blend clip failed to load.");
+                    UpdateSlotPlayback(slot, weight.PlaybackSpeed, weight.Loop, 0f, false);
+                    _stateCache.RecordHit();
+                }
+                else
+                {
+                    if (weight.Weight <= 0f)
+                        continue;
+
+                    if (!TryCreateBlendSlot(weight, out slot, out ResourceError error))
+                    {
+                        layer.Status = MxAnimationLayerStatus.Failed;
+                        layer.LastError = error;
+                        TrackResourceError(error);
+                        ReleaseLayerSlots(layer);
+                        AddRequest(new MxAnimationRequestDiagnostic(
+                            MxAnimationRequestKind.SetBlend1D,
+                            blend.LayerId,
+                            weight.ClipKey,
+                            weight.ClipKey,
+                            false,
+                            MxAnimationBackendResultCode.LoadFailed,
+                            request.CorrelationId,
+                            "1D blend clip failed to load."));
+                        return MxAnimationBackendResult.Failed(MxAnimationBackendResultCode.LoadFailed, weight.ClipKey, error, "1D blend clip failed to load.");
+                    }
+
+                    ConnectSlot(layer, slot, weight.Weight);
+                    layer.BlendSlots.Add(slot);
+                    _stateCache.RecordMiss();
                 }
 
-                ConnectSlot(layer, slot, weight.Weight);
-                layer.BlendSlots.Add(slot);
+                SetSlotWeight(layer, slot, weight.Weight);
             }
 
             layer.Status = MxAnimationLayerStatus.Playing;
@@ -324,7 +345,8 @@ namespace MxFramework.Animation.Unity
                 layers,
                 fades,
                 _diagnostics.RecentRequests,
-                _diagnostics.RecentResourceErrors);
+                _diagnostics.RecentResourceErrors,
+                CreateCacheDiagnostic());
         }
 
         public void Release()
@@ -403,8 +425,12 @@ namespace MxFramework.Animation.Unity
         private MxAnimationBackendResult BeginClipLoad(ClipRequest request, MxAnimationRequestKind kind, bool fallbackAttempt)
         {
             if (TryCreateResidentSlot(request, fallbackAttempt, out ClipSlot residentSlot))
+            {
+                _stateCache.RecordHit();
                 return ApplyLoadedSlot(request, kind, residentSlot, fallbackAttempt);
+            }
 
+            _stateCache.RecordMiss();
             IResourceOperation<ResourceHandle<AnimationClip>> operation = _resourceManager.LoadAsync<AnimationClip>(request.ClipKey);
             var pending = new PendingLoad(
                 LoadPurpose.Request,
@@ -678,6 +704,33 @@ namespace MxFramework.Animation.Unity
             layer.Status = MxAnimationLayerStatus.Playing;
         }
 
+        private bool TryReuseCurrentForPlay(LayerRuntime layer, ClipRequest request, out MxAnimationBackendResult result)
+        {
+            result = default;
+            if (layer.Current == null || layer.Current.Key != request.ClipKey)
+                return false;
+
+            UpdateSlotPlayback(layer.Current, request.PlaybackSpeed, request.Loop, request.StartOffsetSeconds, true);
+            ReleaseOutgoingSlots(layer);
+            ReleaseBlendSlots(layer);
+            SetSlotWeight(layer, layer.Current, 1f);
+            layer.Status = MxAnimationLayerStatus.Playing;
+            layer.LastError = ResourceError.None;
+            layer.NextClipKey = default;
+            _stateCache.RecordHit();
+            AddRequest(new MxAnimationRequestDiagnostic(
+                MxAnimationRequestKind.Play,
+                request.LayerId,
+                request.RequestedClipKey,
+                request.ClipKey,
+                false,
+                MxAnimationBackendResultCode.Success,
+                request.CorrelationId,
+                "Clip is already current."));
+            result = MxAnimationBackendResult.Succeeded(request.ClipKey, "Clip is already current.");
+            return true;
+        }
+
         private void CrossFadeToSlot(LayerRuntime layer, ClipSlot slot, float fadeDuration)
         {
             fadeDuration = Math.Max(0f, fadeDuration);
@@ -852,25 +905,63 @@ namespace MxFramework.Animation.Unity
             _playables.SetClipWeight(layer.LayerMixer, slot.InputIndex, slot.Weight);
         }
 
+        private static void UpdateSlotPlayback(ClipSlot slot, float playbackSpeed, bool loop, float startOffsetSeconds, bool resetTime)
+        {
+            if (slot == null)
+                return;
+
+            slot.PlaybackSpeed = playbackSpeed;
+            slot.Loop = loop;
+            slot.Playable.SetSpeed(playbackSpeed);
+            if (resetTime)
+                slot.Playable.SetTime(Math.Max(0f, startOffsetSeconds));
+        }
+
         private void ReleaseLayerSlots(LayerRuntime layer)
         {
-            if (layer.Current != null)
-            {
-                DetachAndReleaseSlot(layer, layer.Current);
-                layer.Current = null;
-            }
+            ReleaseCurrentSlot(layer);
+            ReleaseOutgoingSlots(layer);
+            ReleaseBlendSlots(layer);
+            layer.NextClipKey = default;
+        }
 
+        private void ReleaseCurrentSlot(LayerRuntime layer)
+        {
+            if (layer.Current == null)
+                return;
+
+            DetachAndReleaseSlot(layer, layer.Current);
+            layer.Current = null;
+        }
+
+        private void ReleaseOutgoingSlots(LayerRuntime layer)
+        {
             for (int i = layer.Outgoing.Count - 1; i >= 0; i--)
                 DetachAndReleaseSlot(layer, layer.Outgoing[i]);
             layer.Outgoing.Clear();
+        }
 
+        private void ReleaseBlendSlots(LayerRuntime layer)
+        {
             for (int i = layer.BlendSlots.Count - 1; i >= 0; i--)
                 DetachAndReleaseSlot(layer, layer.BlendSlots[i]);
             layer.BlendSlots.Clear();
             layer.BlendWeights.Clear();
             layer.ActiveBlendId = string.Empty;
             layer.BlendParameter = default;
-            layer.NextClipKey = default;
+        }
+
+        private void ReleaseStaleBlendSlots(LayerRuntime layer, IReadOnlyList<MxAnimationBlend1DWeight> weights)
+        {
+            for (int i = layer.BlendSlots.Count - 1; i >= 0; i--)
+            {
+                ClipSlot slot = layer.BlendSlots[i];
+                if (ContainsBlendWeight(weights, slot.Key))
+                    continue;
+
+                layer.BlendSlots.RemoveAt(i);
+                DetachAndReleaseSlot(layer, slot);
+            }
         }
 
         private void DetachAndReleaseSlot(LayerRuntime layer, ClipSlot slot)
@@ -993,6 +1084,15 @@ namespace MxFramework.Animation.Unity
             return request.LayerId;
         }
 
+        private MxAnimationBackendCacheDiagnostic CreateCacheDiagnostic()
+        {
+            return _stateCache.CreateDiagnostic(
+                CountResidentClips(),
+                CountCachedPlayableSlots(),
+                CountActivePlayableSlots(),
+                _resourceManager.CreateDebugSnapshot());
+        }
+
         private MxAnimationBackendResult InvalidRequest(MxAnimationRequestKind kind, MxAnimationLayerId layerId, ResourceKey clipKey, string message)
         {
             AddRequest(new MxAnimationRequestDiagnostic(
@@ -1049,7 +1149,64 @@ namespace MxFramework.Animation.Unity
 
         private static int CountActiveSlots(LayerRuntime layer)
         {
-            return (layer.Current != null ? 1 : 0) + layer.Outgoing.Count + layer.BlendSlots.Count;
+            int count = layer.Current != null ? 1 : 0;
+            count += layer.Outgoing.Count;
+            for (int i = 0; i < layer.BlendSlots.Count; i++)
+            {
+                if (layer.BlendSlots[i].Weight > 0f)
+                    count++;
+            }
+
+            return count;
+        }
+
+        private int CountResidentClips()
+        {
+            int count = 0;
+            if (_defaultClip != null && _defaultClip.Status == MxAnimationResourceLoadStatus.Loaded)
+                count++;
+            if (_fallbackClip != null && _fallbackClip.Status == MxAnimationResourceLoadStatus.Loaded)
+                count++;
+            return count;
+        }
+
+        private int CountCachedPlayableSlots()
+        {
+            int count = 0;
+            foreach (LayerRuntime layer in _layers.Values)
+                count += (layer.Current != null ? 1 : 0) + layer.Outgoing.Count + layer.BlendSlots.Count;
+            return count;
+        }
+
+        private int CountActivePlayableSlots()
+        {
+            int count = 0;
+            foreach (LayerRuntime layer in _layers.Values)
+                count += CountActiveSlots(layer);
+            return count;
+        }
+
+        private static ClipSlot FindBlendSlot(LayerRuntime layer, ResourceKey key)
+        {
+            for (int i = 0; i < layer.BlendSlots.Count; i++)
+            {
+                ClipSlot slot = layer.BlendSlots[i];
+                if (slot.Key == key)
+                    return slot;
+            }
+
+            return null;
+        }
+
+        private static bool ContainsBlendWeight(IReadOnlyList<MxAnimationBlend1DWeight> weights, ResourceKey key)
+        {
+            for (int i = 0; i < weights.Count; i++)
+            {
+                if (weights[i].ClipKey == key)
+                    return true;
+            }
+
+            return false;
         }
 
         private static float SumOutgoingWeight(LayerRuntime layer)

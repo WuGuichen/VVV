@@ -1431,6 +1431,38 @@ namespace MxFramework.Animation
         public ResourceError LastError { get; }
     }
 
+    public sealed class MxAnimationBackendCacheDiagnostic
+    {
+        public static readonly MxAnimationBackendCacheDiagnostic Empty =
+            new MxAnimationBackendCacheDiagnostic(0, 0, 0, 0, 0, 0, 0);
+
+        public MxAnimationBackendCacheDiagnostic(
+            int cacheHitCount,
+            int cacheMissCount,
+            int residentClipCount,
+            int cachedPlayableCount,
+            int activePlayableCount,
+            int resourceLoadedCount,
+            int resourceRefCount)
+        {
+            CacheHitCount = Math.Max(0, cacheHitCount);
+            CacheMissCount = Math.Max(0, cacheMissCount);
+            ResidentClipCount = Math.Max(0, residentClipCount);
+            CachedPlayableCount = Math.Max(0, cachedPlayableCount);
+            ActivePlayableCount = Math.Max(0, activePlayableCount);
+            ResourceLoadedCount = Math.Max(0, resourceLoadedCount);
+            ResourceRefCount = Math.Max(0, resourceRefCount);
+        }
+
+        public int CacheHitCount { get; }
+        public int CacheMissCount { get; }
+        public int ResidentClipCount { get; }
+        public int CachedPlayableCount { get; }
+        public int ActivePlayableCount { get; }
+        public int ResourceLoadedCount { get; }
+        public int ResourceRefCount { get; }
+    }
+
     public sealed class MxAnimationRequestDiagnostic
     {
         public MxAnimationRequestDiagnostic(
@@ -1482,7 +1514,8 @@ namespace MxFramework.Animation
             IEnumerable<MxAnimationLayerDiagnostic> layerStates,
             IEnumerable<MxAnimationFadeDiagnostic> activeFades,
             IEnumerable<MxAnimationRequestDiagnostic> recentRequests,
-            IEnumerable<ResourceError> recentResourceErrors)
+            IEnumerable<ResourceError> recentResourceErrors,
+            MxAnimationBackendCacheDiagnostic cache = null)
         {
             BackendName = backendName ?? string.Empty;
             ActorId = actorId ?? string.Empty;
@@ -1492,6 +1525,7 @@ namespace MxFramework.Animation
             IsReleased = isReleased;
             DefaultClip = defaultClip;
             FallbackClip = fallbackClip;
+            Cache = cache ?? MxAnimationBackendCacheDiagnostic.Empty;
             _layerStates = layerStates != null
                 ? new List<MxAnimationLayerDiagnostic>(layerStates)
                 : new List<MxAnimationLayerDiagnostic>();
@@ -1514,6 +1548,7 @@ namespace MxFramework.Animation
         public bool IsReleased { get; }
         public MxAnimationResourceDiagnostic DefaultClip { get; }
         public MxAnimationResourceDiagnostic FallbackClip { get; }
+        public MxAnimationBackendCacheDiagnostic Cache { get; }
         public IReadOnlyList<MxAnimationLayerDiagnostic> LayerStates => _layerStates;
         public IReadOnlyList<MxAnimationFadeDiagnostic> ActiveFades => _activeFades;
         public IReadOnlyList<MxAnimationRequestDiagnostic> RecentRequests => _recentRequests;
