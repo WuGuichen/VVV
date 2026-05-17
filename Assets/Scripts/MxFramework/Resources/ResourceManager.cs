@@ -211,7 +211,6 @@ namespace MxFramework.Resources
             int retainedCount = 0;
             int evictableCount = 0;
             int pinnedCount = 0;
-            long retainedBytes = 0;
             foreach (ResourceRecord record in _loaded.Values)
             {
                 totalRefCount += record.RefCount;
@@ -219,13 +218,13 @@ namespace MxFramework.Resources
                     continue;
 
                 retainedCount++;
-                retainedBytes += record.EstimatedBytes;
                 if (record.RetainMode == ResourceRetainMode.KeepAlive)
                     pinnedCount++;
                 else
                     evictableCount++;
             }
 
+            long retainedBytes = GetRetainedBytes();
             long retainBudgetBytes = _retainPolicy.Mode == ResourceRetainMode.Budgeted
                 ? _retainPolicy.MaxRetainedBytes
                 : 0;
@@ -564,12 +563,25 @@ namespace MxFramework.Resources
 
         private long GetRetainedBytes()
         {
+            var counted = new HashSet<ResourceKey>();
             long bytes = 0;
-            foreach (ResourceRecord record in _loaded.Values)
+            foreach (KeyValuePair<ResourceKey, ResourceRecord> pair in _loaded)
             {
-                if (record.IsRetained)
-                    bytes += record.EstimatedBytes;
+                if (pair.Value.IsRetained)
+                    bytes += GetRetainedClosureBytes(pair.Key, counted);
             }
+
+            return bytes;
+        }
+
+        private long GetRetainedClosureBytes(ResourceKey key, HashSet<ResourceKey> counted)
+        {
+            if (!_loaded.TryGetValue(key, out ResourceRecord record) || !counted.Add(key))
+                return 0;
+
+            long bytes = record.EstimatedBytes;
+            for (int i = 0; i < record.Dependencies.Count; i++)
+                bytes += GetRetainedClosureBytes(record.Dependencies[i], counted);
 
             return bytes;
         }

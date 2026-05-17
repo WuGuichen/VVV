@@ -239,6 +239,7 @@ Legacy coexistence:
 - animation package expectation 不改变 mapping contract；同一份 `MxAnimationSetDefinition` 可以在 sample memory provider、local AssetBundle provider、remote Bundle provider 或项目层 Addressables adapter 间切换，只要 catalog entry key/hash/version/provider expectation 匹配。
 - warmup 会校验 animation set hash、resource catalog hash、clip registry version 和可选 expected clip registry entry hash；mismatch 必须输出具体 field、expected、actual 和相关 resource key。
 - warmup 可进一步校验 package id/version/catalog hash、catalog entry hash、missing clip/mask/bake/profile，并把 package resources 加入 preload group。
+- 对非立即完成的 provider，调用方应使用 `MxAnimationWarmupService.WarmupAsync` 并轮询 `IsDone`；同步 `Warmup` 只适合立即完成路径，遇到 pending preload 会返回 `PreloadOperationPending` issue。
 - Mod override 只能产出新的表现 mapping 和 package expectation。合法 override 仍必须先通过 mapping/catalog/package/compatibility validation，再进入 warmup；不兼容或缺资源的 override 不允许强制播放。
 - warmup partial failure 会把每个 `ResourceError` 转成 `PreloadResourceFailed` issue，保留失败 key、provider、address 和错误码。调用方不能把失败当作空播成功。
 - warmup result 的 `ResourceGroupHandle` 只代表预热持有的 handles。释放 group 只归还这一组引用；如果其它 consumer 仍持有同一 clip，底层资源不会被卸载。

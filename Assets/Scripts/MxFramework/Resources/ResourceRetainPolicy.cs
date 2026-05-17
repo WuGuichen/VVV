@@ -13,7 +13,15 @@ namespace MxFramework.Resources
         public ResourceRetainPolicy(
             ResourceRetainMode mode,
             float durationSeconds = 0f,
-            int frameCount = 0,
+            int frameCount = 0)
+            : this(mode, durationSeconds, frameCount, 0)
+        {
+        }
+
+        public ResourceRetainPolicy(
+            ResourceRetainMode mode,
+            float durationSeconds,
+            int frameCount,
             long maxRetainedBytes = 0)
         {
             Mode = mode;
@@ -37,7 +45,7 @@ namespace MxFramework.Resources
 
         public static ResourceRetainPolicy Budgeted(long maxRetainedBytes)
         {
-            return new ResourceRetainPolicy(ResourceRetainMode.Budgeted, maxRetainedBytes: maxRetainedBytes);
+            return new ResourceRetainPolicy(ResourceRetainMode.Budgeted, 0f, 0, maxRetainedBytes);
         }
     }
 }

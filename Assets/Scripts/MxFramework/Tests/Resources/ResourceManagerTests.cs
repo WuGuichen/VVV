@@ -318,6 +318,63 @@ namespace MxFramework.Tests.Resources
         }
 
         [Test]
+        public void Release_WithBudgetedRetainPolicy_CountsSharedDependencyClosureOnce()
+        {
+            var provider = new MemoryResourceProvider()
+                .Register("demo/shared", "shared")
+                .Register("demo/first", "first")
+                .Register("demo/second", "second")
+                .Register("demo/transient", "transient");
+            var sharedDependency = new ResourceKey("demo.text.shared", ResourceTypeIds.String);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.shared", ResourceTypeIds.String, "demo/shared", size: 90),
+                Entry(
+                    "demo.text.first",
+                    ResourceTypeIds.String,
+                    "demo/first",
+                    dependencies: new[] { sharedDependency },
+                    size: 10,
+                    providerData: RetainPriority(10)),
+                Entry(
+                    "demo.text.second",
+                    ResourceTypeIds.String,
+                    "demo/second",
+                    dependencies: new[] { sharedDependency },
+                    size: 10,
+                    providerData: RetainPriority(10)),
+                Entry("demo.text.transient", ResourceTypeIds.String, "demo/transient", size: 1));
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(110));
+
+            ResourceHandle<string> first = manager.Load<string>(new ResourceKey("demo.text.first", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> second = manager.Load<string>(new ResourceKey("demo.text.second", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> transient = manager.Load<string>(new ResourceKey("demo.text.transient", ResourceTypeIds.String)).Value;
+
+            manager.Release(first);
+            manager.Release(second);
+
+            ResourceDebugSnapshot shared = manager.CreateDebugSnapshot();
+            Assert.AreEqual(4, shared.LoadedCount);
+            Assert.AreEqual(2, shared.RetainedCount);
+            Assert.AreEqual(110, shared.RetainedBytes);
+            Assert.AreEqual(0, provider.ReleaseCount);
+
+            manager.Release(transient);
+
+            ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+            Assert.AreEqual(3, snapshot.LoadedCount);
+            Assert.AreEqual(2, snapshot.RetainedCount);
+            Assert.AreEqual(110, snapshot.RetainedBytes);
+            Assert.AreEqual(110, snapshot.RetainBudgetBytes);
+            Assert.AreEqual(0, snapshot.RetainBudgetOverageBytes);
+            Assert.IsFalse(snapshot.RetainBudgetExceeded);
+            Assert.AreEqual(1, provider.ReleaseCount);
+            Assert.AreEqual(1, snapshot.RecentEvictions.Count);
+            Assert.AreEqual(new ResourceKey("demo.text.transient", ResourceTypeIds.String), snapshot.RecentEvictions[0].Key);
+            Assert.AreEqual("budget", snapshot.RecentEvictions[0].Reason);
+        }
+
+        [Test]
         public void Release_WithBudgetedRetainPolicy_ReusesRetainedRecordWhenUnderBudget()
         {
             var provider = new MemoryResourceProvider().Register("demo/reused", "reused");

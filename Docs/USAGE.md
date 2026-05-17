@@ -1593,6 +1593,8 @@ if (!warmup.Success)
 warmupService.Release(warmup);
 ```
 
+如果项目层资源 provider 会跨帧完成加载，改用 `warmupService.WarmupAsync(request)`，轮询返回的 `IResourceOperation<MxAnimationWarmupResult>.IsDone` 后再读取 `Result`。同步 `Warmup` 只覆盖立即完成路径；遇到 pending preload 会返回 `PreloadOperationPending` issue，并要求调用方切到异步路径。
+
 如果同一份 mapping 要在 sample memory provider、本地 AssetBundle、remote Bundle 或项目层可选 Addressables adapter 间切换，Animation 层只额外声明 package expectation；provider 差异仍留在 `ResourceCatalogEntry`：
 
 ```csharp
