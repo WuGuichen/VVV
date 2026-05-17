@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.AI.GameplayBridge",
+    "rootNamespace": "MxFramework.AI.GameplayBridge",
+    "references": [
+        "MxFramework.AI",
+        "MxFramework.Gameplay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

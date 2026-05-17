@@ -13,6 +13,7 @@
         "MxFramework.Buffs",
         "MxFramework.Modifiers",
         "MxFramework.AI",
+        "MxFramework.AI.GameplayBridge",
         "MxFramework.Config",
         "MxFramework.Config.Runtime",
         "MxFramework.Animation",
