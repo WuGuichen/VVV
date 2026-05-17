@@ -377,7 +377,8 @@ git push -u origin <branch>
 GitHub `github` 不是协作源，不从 GitHub 拉取工作流决策，不在 GitHub 上处理 LFS 资产；它只作为非 LFS Git 镜像 remote：
 
 ```bash
-git push github main
+git fetch origin
+git push github refs/remotes/origin/main:refs/heads/main
 ```
 
 本地 `.git/hooks/pre-push` 已为 remote 名 `github` 设置 `GIT_LFS_SKIP_PUSH=1`。推送 GitHub 时应看到：
@@ -389,12 +390,39 @@ Skipping Git LFS upload for remote 'github'. Git refs will still be pushed.
 如果 GitHub `main` 与本地分叉，且确认以本地为准：
 
 ```bash
-git push --force-with-lease github main
+git fetch origin
+git push --force-with-lease github refs/remotes/origin/main:refs/heads/main
 ```
 
 不要裸 `--force`。不要把 GitHub 当作 LFS 资产备份。
 
 日常开发默认只要求把任务分支推到 Gitea，并通过 PR 合并。同步 GitHub 是额外镜像动作，不替代 Gitea PR。
+
+### Issue / PR 元数据镜像
+
+Issue 和 PR 不属于 Git 内容，不能靠 `git push` 同步到 GitHub。需要手动触发工具：
+
+```bash
+# 预览 Gitea Issue -> GitHub Issue
+Tools/GiteaGithubSync/sync_gitea_to_github.py --issues
+
+# 写入 GitHub
+Tools/GiteaGithubSync/sync_gitea_to_github.py --issues --apply
+
+# 同时镜像 PR 元数据
+Tools/GiteaGithubSync/sync_gitea_to_github.py --issues --prs --apply
+```
+
+同步规则：
+
+- 单向同步：Gitea -> GitHub。
+- Gitea Issue 镜像为 GitHub Issue。
+- Gitea PR 默认镜像为 GitHub Issue，并带 `mirror/pr` 标签。
+- GitHub Issue body 内写入 `<!-- gitea-issue-id: N -->` 或 `<!-- gitea-pr-id: N -->`，后续运行按 marker 更新，避免重复创建。
+- 不同步评论、review、approval、merge 权限、Protected Branch、自动化状态。
+- 不要求 GitHub issue / PR 编号与 Gitea 一致。
+
+真正把 Gitea PR 复刻成 GitHub PR 需要把源分支也推到 GitHub，并持续维护分支状态。当前项目不默认这样做，因为 GitHub 只是非 LFS `main` 镜像，不是协作源。
 
 ## 12. Webhook / Hermes
 

@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.39 | 2026-05-15
+> 版本 0.6.40 | 2026-05-17
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -35,6 +35,7 @@
 | `API_STANDARDS.md` | API 命名、兼容性、GC、Unity 依赖标准。 |
 | `WORKFLOW.md` | 项目日常开发、验收、提交和推送流程。 |
 | `GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查。 |
+| `../Tools/GiteaGithubSync/README.md` | Gitea Issue / PR 元数据手动镜像到 GitHub 的脚本说明。 |
 | `Decisions/` | ADR 决策记录，保存架构、流程和版本控制等正式决策。 |
 | `Progress/CurrentStatus.md` | 当前项目流程、主仓库和下一步运营状态。 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 基于框架制作小游戏 / Demo / Runtime Showcase 的执行规范。 |
@@ -204,6 +205,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.40 | 2026-05-17 | 新增 Gitea -> GitHub Issue / PR 元数据手动镜像脚本，明确 PR 默认以 GitHub Issue 形式镜像，不把 GitHub 变成协作源 |
 | 0.6.39 | 2026-05-15 | 新增 Runtime Debug UI Framework 01 设计文档，明确通用运行时调试 overlay 与现有 Showcase HUD 边界、DebugUI 程序集拆分、snapshot 聚合、输入/焦点行为和 M1-M5 实施切片 |
 | 0.6.38 | 2026-05-14 | 新增资源目录规范文档，明确临时导入资源到正式 Samples 根、ResourceKey/label 命名、direct/dependency-only 划分、MagicEffects 身份和 FMOD bank 边界 |
 | 0.6.37 | 2026-05-13 | 新增 Combat Animation RuntimeHost 集成模块，使用预注册服务模式和 Simulation / PostSimulation / Diagnostics 三阶段模块推进动作、武器轨迹和诊断快照 |
