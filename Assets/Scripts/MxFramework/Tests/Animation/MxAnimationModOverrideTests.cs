@@ -3,6 +3,7 @@ using MxFramework.Animation;
 using MxFramework.Editor.Animation;
 using MxFramework.Resources;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace MxFramework.Tests.Animation
 {
@@ -338,7 +339,8 @@ namespace MxFramework.Tests.Animation
                 modAttack,
                 modRun,
                 modMask,
-                bake);
+                bake,
+                includeBlend2D: true);
             ResourceCatalog catalog = Catalog(idle, baseAttack, modAttack, baseRun, modRun, baseMask, modMask, bake);
             var packageCatalog = new MxAnimationPackageCatalog(catalog, version: 2, catalogHash: "mod-catalog-hash");
 
@@ -354,14 +356,15 @@ namespace MxFramework.Tests.Animation
 
             Assert.IsTrue(preview.Success, preview.ReportText);
             Assert.IsTrue(preview.MergeResult.Success, Describe(preview.MergeResult));
-            Assert.AreEqual(3, preview.MergeResult.AcceptedOverrideCount);
+            Assert.AreEqual(4, preview.MergeResult.AcceptedOverrideCount);
             Assert.AreEqual(0, preview.MergeResult.RejectedOverrideCount);
             Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "action"));
             Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "event"));
             Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "layer"));
             Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "blend1D"));
+            Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "blend2D"));
             Assert.That(preview.Rows.Any(row => row.Status == MxAnimationModOverridePreviewRowStatus.Accepted && row.Category == "packageResource"));
-            Assert.That(preview.ReportText, Does.Contain("acceptedOverrides: 3"));
+            Assert.That(preview.ReportText, Does.Contain("acceptedOverrides: 4"));
             Assert.That(preview.ReportText, Does.Contain("rejectedOverrides: 0"));
             Assert.That(preview.ReportText, Does.Contain("baseHash: " + baseDefinition.DefinitionHash));
             Assert.That(preview.ReportText, Does.Contain("overrideHash: " + overrideDefinition.OverrideHash));
@@ -411,6 +414,84 @@ namespace MxFramework.Tests.Animation
             Assert.That(preview.ReportText, Does.Contain("expected=sha256:stale"));
             Assert.That(preview.ReportText, Does.Contain("actual=" + baseDefinition.DefinitionHash));
             Assert.That(preview.ReportText, Does.Contain("Mod animation override was authored for a different base mapping hash."));
+        }
+
+        [Test]
+        public void WorkstationPreview_BuildFromRegistriesFailsWhenPackageBuilderReportFails()
+        {
+            MxAnimationClipRegistryAsset baseRegistry = CreateRegistryAsset("base.anim.demo", Clip("demo.animation.attack.base"));
+            MxAnimationClipRegistryAsset overrideRegistry = CreateRegistryAsset("mod.anim.demo", Clip("demo.animation.attack.mod", "mod.anim.demo"));
+            try
+            {
+                MxAnimationPackageBuildResult failedPackageBuild = MxAnimationPackageBuilder.Build(
+                    overrideRegistry,
+                    new MxAnimationPackageBuilderOptions(
+                        packageId: "mod.anim.demo",
+                        packageVersion: 2,
+                        providerSampleKind: MxAnimationPackageProviderSampleKind.Memory));
+                Assert.IsFalse(failedPackageBuild.Success, failedPackageBuild.ReportText);
+
+                MxAnimationModOverrideWorkstationPreview preview =
+                    MxAnimationModOverrideWorkstationPreviewBuilder.BuildFromRegistries(
+                        baseRegistry,
+                        overrideRegistry,
+                        failedPackageBuild,
+                        compatibilityReport: null,
+                        overrideVersion: 1,
+                        resultVersion: 0,
+                        loadOrder: 10,
+                        runWarmupValidation: false);
+
+                Assert.IsFalse(preview.InputDiagnosticsSuccess, preview.ReportText);
+                Assert.IsFalse(preview.Success, preview.ReportText);
+                Assert.That(preview.ReportText, Does.Contain("packageBuilderSuccess: false"));
+                Assert.That(preview.ReportText, Does.Contain("inputDiagnosticsSuccess: false"));
+                Assert.That(preview.ReportText, Does.Contain("packageBuildReport:"));
+            }
+            finally
+            {
+                DestroyRegistryAsset(baseRegistry);
+                DestroyRegistryAsset(overrideRegistry);
+            }
+        }
+
+        [Test]
+        public void WorkstationPreview_PackageResourceRowsReflectMergeRejection()
+        {
+            ResourceKey idle = Clip("demo.animation.idle");
+            ResourceKey baseAttack = Clip("demo.animation.attack.base");
+            ResourceKey modAttack = Clip("demo.animation.attack.mod", "mod.anim.demo");
+            ResourceKey baseRun = Clip("demo.animation.run.base");
+            ResourceKey modRun = Clip("demo.animation.run.mod", "mod.anim.demo");
+            ResourceKey baseMask = Mask("demo.animation.mask.base");
+            ResourceKey modMask = Mask("demo.animation.mask.mod", "mod.anim.demo");
+            ResourceKey missingBake = Bake("demo.animation.bake.attack.mod", "mod.anim.demo");
+            MxAnimationSetDefinition baseDefinition = CreateBaseDefinition(idle, baseAttack, baseRun, baseMask);
+            MxAnimationModOverrideDefinition overrideDefinition = CreateOverride(
+                baseDefinition,
+                modAttack,
+                modRun,
+                modMask,
+                missingBake);
+            ResourceCatalog catalogWithoutBake = Catalog(idle, baseAttack, modAttack, baseRun, modRun, baseMask, modMask);
+            var packageCatalog = new MxAnimationPackageCatalog(catalogWithoutBake, version: 2, catalogHash: "mod-catalog-hash");
+
+            MxAnimationModOverrideWorkstationPreview preview =
+                MxAnimationModOverrideWorkstationPreviewBuilder.Build(
+                    baseDefinition,
+                    overrideDefinition,
+                    catalogWithoutBake,
+                    packageCatalog,
+                    null,
+                    CompatibilityProfile(new[] { baseAttack, modAttack, baseRun, modRun }, new[] { baseMask, modMask }));
+
+            Assert.IsFalse(preview.Success, preview.ReportText);
+            Assert.That(preview.Rows.Any(row =>
+                row.Status == MxAnimationModOverridePreviewRowStatus.Rejected
+                && row.Category == "packageResource"
+                && row.Target.Contains(missingBake.Id)), preview.ReportText);
+            Assert.That(preview.ReportText, Does.Contain(MxAnimationModOverrideIssueCodes.PackageValidationFailed));
+            Assert.That(preview.ReportText, Does.Contain(MxAnimationPackageValidationIssueCodes.BakeArtifactMissing));
         }
 
         private static MxAnimationSetDefinition CreateBaseDefinition(
@@ -466,8 +547,26 @@ namespace MxFramework.Tests.Animation
             ResourceKey bake,
             string expectedBaseHash = null,
             string requiredBindingPath = "Hips/Spine",
-            string overrideHash = "")
+            string overrideHash = "",
+            bool includeBlend2D = false)
         {
+            MxAnimationBlend2DDefinitionOverride[] blend2DOverrides = includeBlend2D
+                ? new[]
+                {
+                    new MxAnimationBlend2DDefinitionOverride(new MxAnimationBlend2DDefinition(
+                        "directional_locomotion",
+                        "moveX",
+                        "moveY",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend2DPoint(0, 0, Clip("demo.animation.idle")),
+                            new MxAnimationBlend2DPoint(1000, 0, run),
+                            new MxAnimationBlend2DPoint(0, 1000, attack)
+                        }))
+                }
+                : null;
+
             return new MxAnimationModOverrideDefinition(
                 baseDefinition.SetId,
                 new MxAnimationModPackageManifest(
@@ -518,6 +617,7 @@ namespace MxFramework.Tests.Animation
                             new MxAnimationBlend1DPoint(1000, run)
                         }))
                 },
+                blend2DOverrides: blend2DOverrides,
                 packageResources: new[]
                 {
                     new MxAnimationPackageResourceExpectation(attack, "hash-" + attack.Id, "memory"),
@@ -534,6 +634,78 @@ namespace MxFramework.Tests.Animation
                     new[] { new MxAnimationAvatarMaskCompatibilityExpectation(mask, new[] { "Hips/Spine" }) }),
                 acceptedProviderIds: new[] { "memory" },
                 overrideHash: overrideHash);
+        }
+
+        private static MxAnimationClipRegistryAsset CreateRegistryAsset(string packageId, ResourceKey attackKey)
+        {
+            var idleClip = new AnimationClip { name = packageId + ".idle" };
+            var attackClip = new AnimationClip { name = packageId + ".attack" };
+            var mask = new AvatarMask { name = packageId + ".upper" };
+            var asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            asset.AnimationSetId = "demo.actor";
+            asset.Version = 1;
+            asset.PackageId = packageId;
+            asset.Clips = new[]
+            {
+                new MxAnimationClipRegistryClipEntry
+                {
+                    ClipId = "idle",
+                    Clip = idleClip,
+                    ResourceId = "demo.animation.idle",
+                    IsDefault = true,
+                    IsFallback = true
+                },
+                new MxAnimationClipRegistryClipEntry
+                {
+                    ClipId = "attack",
+                    Clip = attackClip,
+                    ResourceId = attackKey.Id,
+                    PackageId = attackKey.PackageId
+                }
+            };
+            asset.Layers = new[]
+            {
+                new MxAnimationClipRegistryLayerEntry
+                {
+                    LayerId = "upper_body",
+                    AvatarMask = mask,
+                    AvatarMaskResourceId = "demo.animation.mask.upper",
+                    AvatarMaskPackageId = packageId
+                }
+            };
+            asset.Bindings = new[]
+            {
+                new MxAnimationClipRegistryBindingEntry
+                {
+                    BindingId = "attack",
+                    ActionKey = "action:attack",
+                    ClipId = "attack",
+                    LayerId = "upper_body"
+                }
+            };
+            return asset;
+        }
+
+        private static void DestroyRegistryAsset(MxAnimationClipRegistryAsset asset)
+        {
+            if (asset == null)
+                return;
+
+            MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+            for (int i = 0; i < clips.Length; i++)
+            {
+                if (clips[i].Clip != null)
+                    Object.DestroyImmediate(clips[i].Clip);
+            }
+
+            MxAnimationClipRegistryLayerEntry[] layers = asset.Layers;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                if (layers[i].AvatarMask != null)
+                    Object.DestroyImmediate(layers[i].AvatarMask);
+            }
+
+            Object.DestroyImmediate(asset);
         }
 
         private static ResourceCatalog Catalog(params ResourceKey[] keys)

@@ -50,6 +50,7 @@ namespace MxFramework.Editor.Animation
             MxAnimationModOverrideMergeResult mergeResult,
             MxAnimationPackageValidationReport packageValidation,
             MxAnimationWarmupResult warmupResult,
+            bool inputDiagnosticsSuccess,
             IReadOnlyList<MxAnimationModOverridePreviewRow> rows,
             string reportText)
         {
@@ -58,6 +59,7 @@ namespace MxFramework.Editor.Animation
             MergeResult = mergeResult;
             PackageValidation = packageValidation ?? new MxAnimationPackageValidationReport();
             WarmupResult = warmupResult;
+            InputDiagnosticsSuccess = inputDiagnosticsSuccess;
             _rows = rows != null
                 ? new List<MxAnimationModOverridePreviewRow>(rows)
                 : new List<MxAnimationModOverridePreviewRow>();
@@ -69,10 +71,12 @@ namespace MxFramework.Editor.Animation
         public MxAnimationModOverrideMergeResult MergeResult { get; }
         public MxAnimationPackageValidationReport PackageValidation { get; }
         public MxAnimationWarmupResult WarmupResult { get; }
+        public bool InputDiagnosticsSuccess { get; }
         public IReadOnlyList<MxAnimationModOverridePreviewRow> Rows => _rows;
         public string ReportText { get; }
         public bool Success => MergeResult != null
             && MergeResult.Success
+            && InputDiagnosticsSuccess
             && PackageValidation.Success
             && (WarmupResult == null || WarmupResult.Success);
     }
@@ -152,6 +156,11 @@ namespace MxFramework.Editor.Animation
             MxAnimationWarmupResult warmup = runWarmupValidation
                 ? RunWarmupValidation(merge, catalog, packageCatalog, compatibilityProfile)
                 : null;
+            bool inputDiagnosticsSuccess = ValidateInputDiagnostics(
+                baseExport,
+                overrideExport,
+                packageBuildResult,
+                compatibilityReport);
             List<MxAnimationModOverridePreviewRow> rows = CreateRows(baseDefinition, overrideDefinition, merge);
             string reportText = CreateReportText(
                 baseDefinition,
@@ -159,6 +168,7 @@ namespace MxFramework.Editor.Animation
                 merge,
                 packageValidation,
                 warmup,
+                inputDiagnosticsSuccess,
                 rows,
                 baseExport,
                 overrideExport,
@@ -171,6 +181,7 @@ namespace MxFramework.Editor.Animation
                 merge,
                 packageValidation,
                 warmup,
+                inputDiagnosticsSuccess,
                 rows,
                 reportText);
         }
@@ -341,7 +352,7 @@ namespace MxFramework.Editor.Animation
             MxAnimationModOverrideMergeResult merge)
         {
             var rows = new List<MxAnimationModOverridePreviewRow>();
-            AppendInputRows(rows, baseDefinition, overrideDefinition);
+            AppendInputRows(rows, baseDefinition, overrideDefinition, merge);
             if (merge == null)
                 return rows;
 
@@ -362,10 +373,23 @@ namespace MxFramework.Editor.Animation
             return rows;
         }
 
+        private static bool ValidateInputDiagnostics(
+            MxAnimationClipRegistryExportResult baseExport,
+            MxAnimationClipRegistryExportResult overrideExport,
+            MxAnimationPackageBuildResult packageBuildResult,
+            MxAnimationCompatibilityWorkstationReport compatibilityReport)
+        {
+            return (baseExport == null || baseExport.Success)
+                && (overrideExport == null || overrideExport.Success)
+                && (packageBuildResult == null || packageBuildResult.Success)
+                && (compatibilityReport == null || compatibilityReport.Success);
+        }
+
         private static void AppendInputRows(
             List<MxAnimationModOverridePreviewRow> rows,
             MxAnimationSetDefinition baseDefinition,
-            MxAnimationModOverrideDefinition overrideDefinition)
+            MxAnimationModOverrideDefinition overrideDefinition,
+            MxAnimationModOverrideMergeResult merge)
         {
             if (overrideDefinition == null)
                 return;
@@ -373,49 +397,66 @@ namespace MxFramework.Editor.Animation
             for (int i = 0; i < overrideDefinition.ActionOverrides.Count; i++)
             {
                 MxAnimationActionBindingOverride item = overrideDefinition.ActionOverrides[i];
-                bool accepted = item != null && item.Binding != null && HasAction(baseDefinition, item.BindingId, item.ActionKey);
-                rows.Add(InputRow(accepted, "action", item != null ? item.BindingId + "|" + item.ActionKey : string.Empty));
+                bool eligible = item != null && item.Binding != null && HasAction(baseDefinition, item.BindingId, item.ActionKey);
+                string target = item != null ? item.BindingId + "|" + item.ActionKey : string.Empty;
+                MxAnimationModOverridePreviewRowStatus status = ResolveInputRowStatus(
+                    eligible,
+                    merge,
+                    "action",
+                    target,
+                    item != null && item.Binding != null ? item.Binding.Clip : default);
+                rows.Add(InputRow(status, "action", target));
                 if (item != null && item.Binding != null)
-                    AppendEventRows(rows, accepted, item.Binding.BindingId, item.Binding.PresentationEvents);
+                    AppendEventRows(rows, status, item.Binding.BindingId, item.Binding.PresentationEvents);
             }
 
             for (int i = 0; i < overrideDefinition.LayerOverrides.Count; i++)
             {
                 MxAnimationLayerDefinitionOverride item = overrideDefinition.LayerOverrides[i];
-                rows.Add(InputRow(item != null && item.Layer != null, "layer", item != null ? item.LayerId.ToString() : string.Empty));
+                bool eligible = item != null && item.Layer != null;
+                string target = item != null ? item.LayerId.ToString() : string.Empty;
+                rows.Add(InputRow(ResolveInputRowStatus(eligible, merge, "layer", target, default), "layer", target));
             }
 
             for (int i = 0; i < overrideDefinition.Blend1DOverrides.Count; i++)
             {
                 MxAnimationBlend1DDefinitionOverride item = overrideDefinition.Blend1DOverrides[i];
-                rows.Add(InputRow(item != null && item.Blend != null, "blend1D", item != null ? item.BlendId : string.Empty));
+                bool eligible = item != null && item.Blend != null;
+                string target = item != null ? item.BlendId : string.Empty;
+                rows.Add(InputRow(ResolveInputRowStatus(eligible, merge, "blend1D", target, default), "blend1D", target));
             }
 
             for (int i = 0; i < overrideDefinition.Blend2DOverrides.Count; i++)
             {
                 MxAnimationBlend2DDefinitionOverride item = overrideDefinition.Blend2DOverrides[i];
-                rows.Add(InputRow(item != null && item.Blend != null, "blend2D", item != null ? item.BlendId : string.Empty));
+                bool eligible = item != null && item.Blend != null;
+                string target = item != null ? item.BlendId : string.Empty;
+                rows.Add(InputRow(ResolveInputRowStatus(eligible, merge, "blend2D", target, default), "blend2D", target));
             }
 
             for (int i = 0; i < overrideDefinition.PackageResources.Count; i++)
             {
                 MxAnimationPackageResourceExpectation item = overrideDefinition.PackageResources[i];
-                rows.Add(InputRow(item != null && item.Key.IsValid, "packageResource", item != null ? item.Key.ToString() : string.Empty));
+                bool eligible = item != null && item.Key.IsValid;
+                ResourceKey key = item != null ? item.Key : default;
+                string target = item != null ? item.Key.ToString() : string.Empty;
+                rows.Add(InputRow(ResolveInputRowStatus(eligible, merge, "packageResource", target, key), "packageResource", target));
             }
 
             if (overrideDefinition.CompatibilityExpectation != null && !overrideDefinition.CompatibilityExpectation.IsDefault)
             {
+                string target = overrideDefinition.CompatibilityExpectation.SkeletonProfileId + "|"
+                    + overrideDefinition.CompatibilityExpectation.SkeletonProfileHash;
                 rows.Add(InputRow(
-                    true,
+                    ResolveInputRowStatus(true, merge, "compatibility", target, default),
                     "compatibility",
-                    overrideDefinition.CompatibilityExpectation.SkeletonProfileId + "|"
-                    + overrideDefinition.CompatibilityExpectation.SkeletonProfileHash));
+                    target));
             }
         }
 
         private static void AppendEventRows(
             List<MxAnimationModOverridePreviewRow> rows,
-            bool accepted,
+            MxAnimationModOverridePreviewRowStatus parentStatus,
             string bindingId,
             IReadOnlyList<MxAnimationPresentationEvent> events)
         {
@@ -426,21 +467,94 @@ namespace MxFramework.Editor.Animation
             {
                 MxAnimationPresentationEvent item = events[i];
                 rows.Add(InputRow(
-                    accepted,
+                    parentStatus,
                     "event",
                     bindingId + "|" + item.EventId + "|" + item.TimeDomain + ":" + item.Time.ToString("R", CultureInfo.InvariantCulture)));
             }
         }
 
-        private static MxAnimationModOverridePreviewRow InputRow(bool accepted, string category, string target)
+        private static MxAnimationModOverridePreviewRow InputRow(
+            MxAnimationModOverridePreviewRowStatus status,
+            string category,
+            string target)
         {
             return new MxAnimationModOverridePreviewRow(
-                accepted ? MxAnimationModOverridePreviewRowStatus.Accepted : MxAnimationModOverridePreviewRowStatus.Rejected,
+                status,
                 category,
                 target,
-                accepted ? MxAnimationModOverrideIssueCodes.OverrideAccepted : "OverrideInputRejected",
+                status == MxAnimationModOverridePreviewRowStatus.Accepted
+                    ? MxAnimationModOverrideIssueCodes.OverrideAccepted
+                    : status == MxAnimationModOverridePreviewRowStatus.Rejected ? "OverrideInputRejected" : "OverrideInputCandidate",
                 category,
-                accepted ? "Override input is eligible for merger review." : "Override input is missing or does not target the base mapping.");
+                ResolveInputRowMessage(status));
+        }
+
+        private static string ResolveInputRowMessage(MxAnimationModOverridePreviewRowStatus status)
+        {
+            switch (status)
+            {
+                case MxAnimationModOverridePreviewRowStatus.Accepted:
+                    return "Override input was accepted by the merge preview.";
+                case MxAnimationModOverridePreviewRowStatus.Rejected:
+                    return "Override input was rejected by target, mapping, compatibility, or package validation.";
+                default:
+                    return "Override input is a candidate; final status is determined by merge diagnostics.";
+            }
+        }
+
+        private static MxAnimationModOverridePreviewRowStatus ResolveInputRowStatus(
+            bool eligible,
+            MxAnimationModOverrideMergeResult merge,
+            string category,
+            string target,
+            ResourceKey key)
+        {
+            if (!eligible)
+                return MxAnimationModOverridePreviewRowStatus.Rejected;
+            if (merge == null)
+                return MxAnimationModOverridePreviewRowStatus.Diagnostic;
+            if (merge.Success)
+                return MxAnimationModOverridePreviewRowStatus.Accepted;
+            if (HasMatchingError(merge, category, target, key))
+                return MxAnimationModOverridePreviewRowStatus.Rejected;
+
+            return MxAnimationModOverridePreviewRowStatus.Diagnostic;
+        }
+
+        private static bool HasMatchingError(
+            MxAnimationModOverrideMergeResult merge,
+            string category,
+            string target,
+            ResourceKey key)
+        {
+            if (merge == null)
+                return false;
+
+            for (int i = 0; i < merge.Issues.Count; i++)
+            {
+                MxAnimationModOverrideIssue issue = merge.Issues[i];
+                if (issue == null || issue.Severity != MxAnimationModOverrideIssueSeverity.Error)
+                    continue;
+
+                string issueCategory = ResolveIssueCategory(issue);
+                if (!string.Equals(issueCategory, category, StringComparison.Ordinal))
+                    continue;
+                if (key.IsValid && issue.Key == key)
+                    return true;
+                if (!string.IsNullOrWhiteSpace(target)
+                    && (string.Equals(issue.Actual, target, StringComparison.Ordinal)
+                        || string.Equals(issue.Field, target, StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+                if (string.Equals(category, "compatibility", StringComparison.Ordinal)
+                    || string.Equals(category, "packageResource", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasAction(MxAnimationSetDefinition definition, string bindingId, string actionKey)
@@ -487,6 +601,7 @@ namespace MxFramework.Editor.Animation
             MxAnimationModOverrideMergeResult merge,
             MxAnimationPackageValidationReport packageValidation,
             MxAnimationWarmupResult warmup,
+            bool inputDiagnosticsSuccess,
             IReadOnlyList<MxAnimationModOverridePreviewRow> rows,
             MxAnimationClipRegistryExportResult baseExport,
             MxAnimationClipRegistryExportResult overrideExport,
@@ -495,7 +610,12 @@ namespace MxFramework.Editor.Animation
         {
             var builder = new StringBuilder();
             builder.Append("MxAnimation Mod Override Review Report\n");
-            builder.Append("success: ").Append(merge != null && merge.Success && packageValidation.Success && (warmup == null || warmup.Success) ? "true" : "false").Append('\n');
+            builder.Append("success: ").Append(merge != null && merge.Success && inputDiagnosticsSuccess && packageValidation.Success && (warmup == null || warmup.Success) ? "true" : "false").Append('\n');
+            builder.Append("inputDiagnosticsSuccess: ").Append(inputDiagnosticsSuccess ? "true" : "false").Append('\n');
+            builder.Append("baseExportSuccess: ").Append(baseExport == null || baseExport.Success ? "true" : "false").Append('\n');
+            builder.Append("overrideExportSuccess: ").Append(overrideExport == null || overrideExport.Success ? "true" : "false").Append('\n');
+            builder.Append("packageBuilderSuccess: ").Append(packageBuildResult == null || packageBuildResult.Success ? "true" : "false").Append('\n');
+            builder.Append("compatibilityReportSuccess: ").Append(compatibilityReport == null || compatibilityReport.Success ? "true" : "false").Append('\n');
             builder.Append("baseSetId: ").Append(baseDefinition != null ? baseDefinition.SetId : string.Empty).Append('\n');
             builder.Append("baseVersion: ").Append(merge != null ? merge.BaseVersion : baseDefinition != null ? baseDefinition.Version : 0).Append('\n');
             builder.Append("baseHash: ").Append(merge != null ? merge.BaseDefinitionHash : baseDefinition != null ? baseDefinition.DefinitionHash : string.Empty).Append('\n');
