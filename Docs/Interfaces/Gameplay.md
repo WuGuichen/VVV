@@ -247,6 +247,8 @@ Guard / Armor pressure components:
 - `GameplayGuardPressureSystem` 进入 `PressureBand.Broken` 时发布 `GuardBreakEvent`。构造 system 时若传入有效 `guardBrokenStatusId`，系统会把该 status 追加到目标 `GameplayStatusComponent`，保留已有 status；Combat bridge 后续可通过 `CombatTargetStateProvider` 用该 status 屏蔽 Blocking。
 - `GameplayArmorIntegrityComponent` 是纯状态组件，不包含恢复逻辑。Damage bridge 负责按 incoming damage 衰减完整度，并在归零时发布 `ArmorBreakEvent`；Gameplay core 不新增 Combat hit kind，也不引用 Combat。
 - GuardPressure 和 ArmorIntegrity 已接入 `GameplayCoreComponentSchemaDescriptors`，稳定 schema id 分别为 `mxframework.gameplay.guard_pressure` 和 `mxframework.gameplay.armor_integrity`，支持 diagnostics、runtime hash 和 SaveState roundtrip。
+- Runtime AI Planner 不直接读取 Gameplay component stores。`MxFramework.AI.GameplayBridge.PostureAiSensorAdapter` 是 AI world state 的边界 adapter：它从 posture / guard / armor components 读取状态，向 `IAiWorldState` 输出 `self.*` / `target.*` pressure facts；Gameplay core 仍不引用 Runtime AI Planner。
+- Adapter 的 self 来源由 `Func<int, GameplayEntityId>` resolver 明确提供，target 来源由可选 target resolver 提供。缺失 entity、缺失 store、缺失 component 或 component state 无效时，adapter 移除对应 facts，不抛错，也不写入默认值。
 
 Component attribute runtime v0：
 
@@ -393,6 +395,7 @@ Component posture pressure v0：
 - 状态段变化通过 `BandChangedEvents` 发布 `PressureBandChangedEvent`；首次进入 `Broken` 时通过 `PostureBreakEvents` 发布 `PostureBreakEvent`。事件 payload 使用 `GameplayEntityId`，不携带 `CombatEntityId`。
 - `GameplayCoreComponentSchemaDescriptors` 注册 posture pressure diagnostics、runtime hash 和 SaveState adapter，稳定 schema id 为 `mxframework.gameplay.posture_pressure`。
 - v0 不把 posture pressure 写入 `GameplayRuntimeEvent`，避免让共享 runtime event DTO 继续膨胀；跨模块消费者应通过 typed event source 或后续 bridge 拿到事件。
+- Runtime AI Planner bridge 输出 posture facts：`self.posture.band` / `target.posture.band` 为稳定 `int` band 值（Stable=0, Pressed=1, Cracked=2, Critical=3, Broken=4），`self.posture.ratio` / `target.posture.ratio` 为 `float`，`self.posture.broken` / `target.posture.broken` 为 `bool`。Guard facts 使用 `self.guard.*` / `target.guard.*`，Armor facts 使用 `self.armor.ratio` / `target.armor.ratio` 和 `self.armor.broken` / `target.armor.broken`；Armor component 没有 band，因此 bridge 不派生 armor band。
 
 Gameplay command systems v0：
 
