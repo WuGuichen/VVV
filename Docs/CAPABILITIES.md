@@ -185,7 +185,7 @@
 | Sample Catalog Builder | ✅ v0.6.5 | `SampleResourceCatalogBuilder` / `MxFramework/Samples/Generate Resource Catalog` | Editor + Resources |
 | Sample Player AssetBundle Catalog | ✅ v0.6.6 | `SamplePlayerResourceCatalogBuilder` / `MxFramework/Samples/Build Player Resource Catalog` | Editor + Resources.Unity |
 | Runtime Demo Resource Binding | ✅ v0.6.7 | `RuntimeVerticalSliceRunner.ResourceWarmupSummary` / resource binding diagnostics | Demo + Resources |
-| Preload Group / Scene Warmup | ✅ v0.6.1 | `ResourcePreloadService` / `ResourcePreloadPlan` / `ResourceGroupHandle` | Resources |
+| Preload Group / Scene Warmup | ✅ v0.6.8 | `ResourcePreloadService` / `ResourcePreloadPlan.MaxConcurrentLoads` / progress + cancellation | Resources |
 | Variant Catalog / Retain Policy | ✅ v0.6.2 | `ResourceVariantProfile` / `ResourceRetainPolicy` / retain diagnostics | Resources |
 | Remote Bundle Provider | ✅ v0.6.3 | `RemoteBundleProvider` / `providerData.url` / SHA-256 cache validation | Resources.Unity |
 | Runtime Samples Resource Chain | ✅ v0.6.4 | `RuntimeVerticalSliceSampleResourceTest` / `TempImportedResourceCatalog` / `ResourceKeyConfigProfile.CreateSample()` | Demo + Resources |

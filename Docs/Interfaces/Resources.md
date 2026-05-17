@@ -25,7 +25,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 | `StreamingResourceCatalogLoader` | 从 StreamingAssets 或文件读取 Catalog JSON |
 | `ResourceHandle<T>` | 加载成功后的句柄，释放必须走 `IResourceManager.Release` |
 | `ResourceLoadResult<T>` / `ResourceError` | 非异常加载结果和错误描述 |
-| `IResourceOperation<T>` | 异步加载操作抽象，M1 提供 immediate 实现 |
+| `IResourceOperation<T>` | 异步加载操作抽象，暴露 `IsDone`、`IsCancelled`、`Progress`、`Result` 和 `Cancel()` |
 | `ResourceDebugSnapshot` | Catalog、Provider、加载资源、引用计数和最近错误快照 |
 | `ResourceDebugSource` | 将资源快照接入 Diagnostics 的 `IFrameworkDebugSource` |
 | `ResourceCatalogValidator` | noEngine Catalog 结构校验 |
@@ -33,7 +33,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 | `ResourceCatalogEditorValidator` | Editor 侧资源存在性和类型校验 |
 | `SampleResourceCatalogBuilder` | Editor 侧 `mxframework.samples` Catalog 扫描 / 生成入口 |
 | `SamplePlayerResourceCatalogBuilder` | Editor 侧 `mxframework.samples` Player AssetBundle / Streaming catalog 生成入口 |
-| `IResourcePreloadService` / `ResourcePreloadService` | 预加载 group / scene warmup 策略服务，批量加载 explicit keys 和 labels |
+| `IResourcePreloadService` / `ResourcePreloadService` | 预加载 group / scene warmup 策略服务，批量加载 explicit keys 和 labels，并返回可轮询 operation |
 | `ResourcePreloadPlan` | 预加载计划，包含 groupId、labels、explicit keys、failFast、maxConcurrentLoads |
 | `ResourcePreloadResult` | 预加载结果，包含 requested / loaded / failed count 和错误列表 |
 | `ResourceGroupHandle` | 预加载 group 持有的 handles；通过 `ReleaseGroup` 统一释放 |
@@ -77,9 +77,11 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - `RuntimeVerticalSliceRunner` 默认资源绑定会先跑 Editor Play Mode `memory` catalog warmup，再尝试 Player `assetBundle` StreamingAssets smoke；结果通过 `ResourceWarmupSummary` 和 `ResourceBindingLogLines` 暴露给 Demo UI / tests。
 - Runtime Preview 当前仍不隐式依赖 `MxFramework.Resources` / `MxFramework.Resources.Unity`。Preview 场景目标、UI Toolkit 资产和 ResourceManager 应由外层组合根显式注入，避免 Preview.Runtime 把资源 Provider 变成隐藏依赖。
 - M6A 已新增 Preload Group + Scene Warmup，作为独立策略服务，不把 PreloadGroup 做成 Provider，也不修改 `IResourceManager` 签名。
-- `ResourcePreloadService` 会先按 `ResourcePreloadPlan.ExplicitKeys` 和 `Labels` 收集 key，去重后调用现有 `LoadAsync<object>`。
-- `ResourcePreloadPlan.MaxConcurrentLoads` 第一版保留字段，当前 noEngine immediate async 实现仍按顺序加载。
-- `ResourcePreloadPlan.FailFast=true` 时首个失败后停止继续加载；默认会收集所有失败并保留已成功加载的 handles。
+- `ResourcePreloadService` 会先按 `ResourcePreloadPlan.ExplicitKeys` 和 `Labels` 收集 key，去重后返回 `IResourceOperation<ResourcePreloadResult>`；调用方可以轮询 `IsDone` / `Progress`，完成后读取 `Result`。
+- `ResourcePreloadPlan.MaxConcurrentLoads` 控制预加载调度窗口；operation 会在已启动 load 完成后继续补位，不创建后台线程。
+- `ResourcePreloadPlan.FailFast=true` 时首个失败后停止继续启动新 load，并取消仍在途的 load；默认会收集所有失败并保留已成功加载的 handles。
+- `ResourcePreloadOperation.Cancel()` 或已取消的 `CancellationToken` 会取消在途 load，释放已经加载成功的 handles，并以 `ResourceErrorCode.Cancelled` 返回失败结果。
+- 当前 `ResourceManager.LoadAsync` 仍兼容 noEngine immediate 语义；Unity Provider 的异步能力必须在 Unity 主线程轮询或完成，不能假设 worker thread 可触碰 `UnityEngine.Object` / `AssetBundle` API。
 - `ResourcePreloadService.ReleaseGroup` 幂等；调用方释放 group 后，底层逐个调用 `IResourceManager.Release`。
 - MxAnimation warmup 直接复用 `ResourcePreloadService`。animation set 只声明 `ResourceKey` / label / group id；版本、hash 和 partial failure diagnostics 由 Animation 层包装，不新增 `MxFramework.Animation.Resources`。
 - 同一资源被 warmup group 和其它 consumer 同时持有时，释放 warmup group 只减少该 group 的引用；底层卸载仍由 `ResourceManager` ref-count / retain policy 决定。
