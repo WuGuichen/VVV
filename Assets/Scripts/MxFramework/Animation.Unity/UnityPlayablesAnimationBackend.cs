@@ -19,12 +19,9 @@ namespace MxFramework.Animation.Unity
         private readonly Dictionary<MxAnimationLayerId, LayerRuntime> _layers = new Dictionary<MxAnimationLayerId, LayerRuntime>();
         private readonly List<PendingLoad> _pendingLoads = new List<PendingLoad>();
         private readonly List<PendingMaskLoad> _pendingMaskLoads = new List<PendingMaskLoad>();
-        private readonly Queue<MxAnimationRequestDiagnostic> _recentRequests = new Queue<MxAnimationRequestDiagnostic>();
-        private readonly Queue<ResourceError> _recentResourceErrors = new Queue<ResourceError>();
+        private readonly IMxAnimationPlayableDiagnostics _diagnostics;
+        private readonly MxAnimationPlayableGraphRuntime _playables;
 
-        private PlayableGraph _graph;
-        private AnimationLayerMixerPlayable _rootMixer;
-        private AnimationPlayableOutput _output;
         private ResidentClip _defaultClip;
         private ResidentClip _fallbackClip;
         private bool _released;
@@ -39,8 +36,9 @@ namespace MxFramework.Animation.Unity
             _resourceManager = resourceManager ?? throw new ArgumentNullException(nameof(resourceManager));
             _definition = definition ?? new MxAnimationSetDefinition(string.Empty, 0, default, default);
             _actorId = actorId ?? string.Empty;
+            _diagnostics = new MxAnimationPlayableDiagnosticBuffer(MaxRecentItems);
+            _playables = new MxAnimationPlayableGraphRuntime(_animator);
 
-            CreateGraph();
             _defaultClip = LoadResidentClip("default", _definition.DefaultClip);
             _fallbackClip = LoadResidentClip("fallback", _definition.FallbackClip);
             InitializeConfiguredLayers();
@@ -276,8 +274,7 @@ namespace MxFramework.Animation.Unity
             foreach (LayerRuntime layer in _layers.Values)
                 TickLayer(layer, deltaTime);
 
-            if (_graph.IsValid())
-                _graph.Evaluate(deltaTime);
+            _playables.Evaluate(deltaTime);
         }
 
         public MxAnimationDiagnosticSnapshot CreateSnapshot()
@@ -320,14 +317,14 @@ namespace MxFramework.Animation.Unity
                 _actorId,
                 _definition.SetId,
                 _released ? 0 : 1,
-                _graph.IsValid(),
+                _playables.IsGraphValid,
                 _released,
                 CreateResourceDiagnostic(_defaultClip),
                 CreateResourceDiagnostic(_fallbackClip),
                 layers,
                 fades,
-                _recentRequests,
-                _recentResourceErrors);
+                _diagnostics.RecentRequests,
+                _diagnostics.RecentResourceErrors);
         }
 
         public void Release()
@@ -354,8 +351,7 @@ namespace MxFramework.Animation.Unity
             ReleaseResidentClip(_defaultClip);
             ReleaseResidentClip(_fallbackClip);
 
-            if (_graph.IsValid())
-                _graph.Destroy();
+            _playables.Destroy();
 
             AddRequest(new MxAnimationRequestDiagnostic(
                 MxAnimationRequestKind.Release,
@@ -371,16 +367,6 @@ namespace MxFramework.Animation.Unity
         public void Dispose()
         {
             Release();
-        }
-
-        private void CreateGraph()
-        {
-            _graph = PlayableGraph.Create("MxFramework.Animation.Unity");
-            _graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-            _rootMixer = AnimationLayerMixerPlayable.Create(_graph, 0);
-            _output = AnimationPlayableOutput.Create(_graph, "Animation", _animator);
-            _output.SetSourcePlayable(_rootMixer);
-            _graph.Play();
         }
 
         private void InitializeConfiguredLayers()
@@ -502,8 +488,7 @@ namespace MxFramework.Animation.Unity
             layer.MaskHandle = result.Value;
             layer.MaskStatus = MxAnimationLayerMaskStatus.Loaded;
             layer.LastError = ResourceError.None;
-            if (_rootMixer.IsValid())
-                _rootMixer.SetLayerMaskFromAvatarMask((uint)layer.RootInputIndex, result.Value.Value);
+            _playables.SetLayerMask(layer.LayerMixer, result.Value.Value);
         }
 
         private void CompleteResidentLoad(PendingLoad pending)
@@ -681,9 +666,7 @@ namespace MxFramework.Animation.Unity
             bool loop,
             float startOffsetSeconds)
         {
-            AnimationClipPlayable playable = AnimationClipPlayable.Create(_graph, handle.Value);
-            playable.SetTime(Math.Max(0f, startOffsetSeconds));
-            playable.SetSpeed(playbackSpeed);
+            AnimationClipPlayable playable = _playables.CreateClipPlayable(handle.Value, playbackSpeed, startOffsetSeconds);
             return new ClipSlot(key, handle, playable, ownsHandle, isFallback, playbackSpeed, loop);
         }
 
@@ -771,17 +754,13 @@ namespace MxFramework.Animation.Unity
             if (_layers.TryGetValue(layerId, out LayerRuntime layer))
                 return layer;
 
-            AnimationMixerPlayable mixer = AnimationMixerPlayable.Create(_graph, 0);
-            int inputIndex = _rootMixer.GetInputCount();
-            _rootMixer.SetInputCount(inputIndex + 1);
-            _graph.Connect(mixer, 0, _rootMixer, inputIndex);
+            MxAnimationLayerMixerHandle layerMixer = _playables.AddLayerMixer();
 
             MxAnimationLayerDefinition definition = ResolveLayerDefinition(layerId);
             float weight = definition != null ? definition.DefaultWeight : 1f;
             layer = new LayerRuntime(
                 layerId,
-                mixer,
-                inputIndex,
+                layerMixer,
                 weight,
                 definition != null ? definition.ProfileId : string.Empty,
                 definition != null ? definition.BlendMode : MxAnimationLayerBlendMode.Override,
@@ -821,16 +800,12 @@ namespace MxFramework.Animation.Unity
         private void ApplyLayerWeight(LayerRuntime layer)
         {
             layer.Weight = Clamp01(layer.Weight);
-            if (_rootMixer.IsValid())
-                _rootMixer.SetInputWeight(layer.RootInputIndex, layer.Weight);
+            _playables.SetLayerWeight(layer.LayerMixer, layer.Weight);
         }
 
         private void ApplyLayerBlendMode(LayerRuntime layer)
         {
-            if (!_rootMixer.IsValid())
-                return;
-
-            _rootMixer.SetLayerAdditive((uint)layer.RootInputIndex, layer.BlendMode == MxAnimationLayerBlendMode.Additive);
+            _playables.SetLayerAdditive(layer.LayerMixer, layer.BlendMode == MxAnimationLayerBlendMode.Additive);
         }
 
         private void BeginMaskLoad(LayerRuntime layer)
@@ -867,18 +842,14 @@ namespace MxFramework.Animation.Unity
 
         private void ConnectSlot(LayerRuntime layer, ClipSlot slot, float weight)
         {
-            int inputIndex = layer.Mixer.GetInputCount();
-            layer.Mixer.SetInputCount(inputIndex + 1);
-            _graph.Connect(slot.Playable, 0, layer.Mixer, inputIndex);
-            slot.InputIndex = inputIndex;
+            slot.InputIndex = _playables.ConnectClip(layer.LayerMixer, slot.Playable, weight);
             SetSlotWeight(layer, slot, weight);
         }
 
         private void SetSlotWeight(LayerRuntime layer, ClipSlot slot, float weight)
         {
             slot.Weight = Clamp01(weight);
-            if (slot.InputIndex >= 0 && layer.Mixer.IsValid())
-                layer.Mixer.SetInputWeight(slot.InputIndex, slot.Weight);
+            _playables.SetClipWeight(layer.LayerMixer, slot.InputIndex, slot.Weight);
         }
 
         private void ReleaseLayerSlots(LayerRuntime layer)
@@ -907,15 +878,13 @@ namespace MxFramework.Animation.Unity
             if (slot == null)
                 return;
 
-            if (slot.InputIndex >= 0 && layer.Mixer.IsValid())
+            if (slot.InputIndex >= 0)
             {
-                layer.Mixer.SetInputWeight(slot.InputIndex, 0f);
-                layer.Mixer.DisconnectInput(slot.InputIndex);
+                _playables.DisconnectClip(layer.LayerMixer, slot.InputIndex);
                 slot.InputIndex = -1;
             }
 
-            if (slot.Playable.IsValid() && _graph.IsValid())
-                _graph.DestroyPlayable(slot.Playable);
+            _playables.DestroyClipPlayable(slot.Playable);
 
             if (slot.OwnsHandle && slot.Handle != null && !slot.Handle.IsReleased)
                 _resourceManager.Release(slot.Handle);
@@ -1048,16 +1017,12 @@ namespace MxFramework.Animation.Unity
             if (error.IsNone)
                 return;
 
-            _recentResourceErrors.Enqueue(error);
-            while (_recentResourceErrors.Count > MaxRecentItems)
-                _recentResourceErrors.Dequeue();
+            _diagnostics.TrackResourceError(error);
         }
 
         private void AddRequest(MxAnimationRequestDiagnostic diagnostic)
         {
-            _recentRequests.Enqueue(diagnostic);
-            while (_recentRequests.Count > MaxRecentItems)
-                _recentRequests.Dequeue();
+            _diagnostics.AddRequest(diagnostic);
         }
 
         private static float CalculateProgress(float elapsed, float duration)
@@ -1295,16 +1260,14 @@ namespace MxFramework.Animation.Unity
         {
             public LayerRuntime(
                 MxAnimationLayerId layerId,
-                AnimationMixerPlayable mixer,
-                int rootInputIndex,
+                MxAnimationLayerMixerHandle layerMixer,
                 float weight,
                 string profileId,
                 MxAnimationLayerBlendMode blendMode,
                 ResourceKey maskKey)
             {
                 LayerId = layerId;
-                Mixer = mixer;
-                RootInputIndex = rootInputIndex;
+                LayerMixer = layerMixer;
                 Status = MxAnimationLayerStatus.Stopped;
                 Weight = Clamp01(weight);
                 StartWeight = Weight;
@@ -1316,8 +1279,8 @@ namespace MxFramework.Animation.Unity
             }
 
             public MxAnimationLayerId LayerId { get; }
-            public AnimationMixerPlayable Mixer { get; }
-            public int RootInputIndex { get; }
+            public MxAnimationLayerMixerHandle LayerMixer { get; }
+            public int RootInputIndex => LayerMixer.RootInputIndex;
             public float Weight { get; set; }
             public float StartWeight { get; set; }
             public float TargetWeight { get; set; }
