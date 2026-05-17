@@ -571,6 +571,7 @@ namespace MxFramework.Animation
         public const string CatalogValidationFailed = "CatalogValidationFailed";
         public const string CompatibilityValidationFailed = "CompatibilityValidationFailed";
         public const string PackageValidationFailed = "PackageValidationFailed";
+        public const string PreloadOperationPending = "PreloadOperationPending";
         public const string PreloadOperationFailed = "PreloadOperationFailed";
         public const string PreloadResourceFailed = "PreloadResourceFailed";
     }
@@ -653,6 +654,54 @@ namespace MxFramework.Animation
             MxAnimationWarmupRequest request,
             CancellationToken cancellationToken = default)
         {
+            WarmupContext context = CreateWarmupContext(request);
+            if (context.SkipPreload)
+                return CreateWarmupResult(context, null);
+
+            IResourceOperation<ResourcePreloadResult> operation = StartPreload(context, cancellationToken);
+            if (operation == null)
+                return CreateMissingPreloadOperationResult(context);
+
+            if (!operation.IsDone)
+            {
+                operation.Cancel();
+                return CreatePendingPreloadResult(context);
+            }
+
+            return CompleteWarmup(context, operation.Result);
+        }
+
+        public IResourceOperation<MxAnimationWarmupResult> WarmupAsync(
+            MxAnimationWarmupRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            WarmupContext context = CreateWarmupContext(request);
+            if (context.SkipPreload)
+            {
+                return new ImmediateResourceOperation<MxAnimationWarmupResult>(
+                    ResourceLoadResult<MxAnimationWarmupResult>.Loaded(CreateWarmupResult(context, null)));
+            }
+
+            IResourceOperation<ResourcePreloadResult> operation = StartPreload(context, cancellationToken);
+            if (operation == null)
+            {
+                return new ImmediateResourceOperation<MxAnimationWarmupResult>(
+                    ResourceLoadResult<MxAnimationWarmupResult>.Loaded(CreateMissingPreloadOperationResult(context)));
+            }
+
+            return new MxAnimationWarmupOperation(context, operation);
+        }
+
+        public void Release(MxAnimationWarmupResult result)
+        {
+            if (result == null || result.Handle == null)
+                return;
+
+            _preloadService.ReleaseGroup(result.Handle);
+        }
+
+        private WarmupContext CreateWarmupContext(MxAnimationWarmupRequest request)
+        {
             var issues = new List<MxAnimationWarmupIssue>();
             if (request == null || request.Definition == null)
             {
@@ -663,7 +712,7 @@ namespace MxFramework.Animation
                     "present",
                     "missing",
                     "Animation warmup requires an animation set definition."));
-                return new MxAnimationWarmupResult(string.Empty, null, null, null, issues);
+                return new WarmupContext(string.Empty, null, null, false, issues, true);
             }
 
             MxAnimationSetDefinition definition = request.Definition;
@@ -678,14 +727,30 @@ namespace MxFramework.Animation
             ValidateCompatibility(definition, request.CompatibilityProfile, issues);
             ValidatePackageExpectation(request, issues);
 
-            if (request.SkipPreloadWhenInvalid && issues.Count > 0)
-                return new MxAnimationWarmupResult(groupId, null, requiredKeys, labels, issues);
+            bool skipPreload = request.SkipPreloadWhenInvalid && issues.Count > 0;
+            return new WarmupContext(groupId, requiredKeys, labels, warmup.FailFast, issues, skipPreload);
+        }
 
-            var preloadPlan = new ResourcePreloadPlan(groupId, requiredKeys, labels, warmup.FailFast);
-            IResourceOperation<ResourcePreloadResult> operation = _preloadService.PreloadAsync(preloadPlan, cancellationToken);
-            if (!operation.Result.Success)
+        private IResourceOperation<ResourcePreloadResult> StartPreload(
+            WarmupContext context,
+            CancellationToken cancellationToken)
+        {
+            var preloadPlan = new ResourcePreloadPlan(
+                context.GroupId,
+                context.RequiredKeys,
+                context.Labels,
+                context.FailFast);
+            return _preloadService.PreloadAsync(preloadPlan, cancellationToken);
+        }
+
+        private static MxAnimationWarmupResult CompleteWarmup(
+            WarmupContext context,
+            ResourceLoadResult<ResourcePreloadResult> operationResult)
+        {
+            if (!operationResult.Success)
             {
-                ResourceError error = operation.Result.Error;
+                ResourceError error = operationResult.Error;
+                var issues = CopyIssues(context);
                 issues.Add(new MxAnimationWarmupIssue(
                     MxAnimationWarmupIssueCodes.PreloadOperationFailed,
                     error.Key,
@@ -694,14 +759,34 @@ namespace MxFramework.Animation
                     error.Code.ToString(),
                     error.Message,
                     error));
-                return new MxAnimationWarmupResult(groupId, null, requiredKeys, labels, issues);
+                return new MxAnimationWarmupResult(context.GroupId, null, context.RequiredKeys, context.Labels, issues);
             }
 
-            ResourcePreloadResult preloadResult = operation.Result.Value;
+            ResourcePreloadResult preloadResult = operationResult.Value;
+            if (preloadResult == null)
+            {
+                var issues = CopyIssues(context);
+                var error = new ResourceError(
+                    ResourceErrorCode.ProviderFailed,
+                    default,
+                    string.Empty,
+                    "Animation warmup preload completed without a result.");
+                issues.Add(new MxAnimationWarmupIssue(
+                    MxAnimationWarmupIssueCodes.PreloadOperationFailed,
+                    error.Key,
+                    "preload",
+                    "result",
+                    "missing",
+                    error.Message,
+                    error));
+                return new MxAnimationWarmupResult(context.GroupId, null, context.RequiredKeys, context.Labels, issues);
+            }
+
+            List<MxAnimationWarmupIssue> preloadIssues = CopyIssues(context);
             for (int i = 0; i < preloadResult.Errors.Count; i++)
             {
                 ResourceError error = preloadResult.Errors[i];
-                issues.Add(new MxAnimationWarmupIssue(
+                preloadIssues.Add(new MxAnimationWarmupIssue(
                     MxAnimationWarmupIssueCodes.PreloadResourceFailed,
                     error.Key,
                     "resource",
@@ -711,15 +796,61 @@ namespace MxFramework.Animation
                     error));
             }
 
-            return new MxAnimationWarmupResult(groupId, preloadResult, requiredKeys, labels, issues);
+            return new MxAnimationWarmupResult(
+                context.GroupId,
+                preloadResult,
+                context.RequiredKeys,
+                context.Labels,
+                preloadIssues);
         }
 
-        public void Release(MxAnimationWarmupResult result)
+        private static MxAnimationWarmupResult CreateWarmupResult(
+            WarmupContext context,
+            ResourcePreloadResult preloadResult)
         {
-            if (result == null || result.Handle == null)
-                return;
+            return new MxAnimationWarmupResult(
+                context.GroupId,
+                preloadResult,
+                context.RequiredKeys,
+                context.Labels,
+                context.Issues);
+        }
 
-            _preloadService.ReleaseGroup(result.Handle);
+        private static MxAnimationWarmupResult CreateMissingPreloadOperationResult(WarmupContext context)
+        {
+            var issues = CopyIssues(context);
+            var error = new ResourceError(
+                ResourceErrorCode.ProviderFailed,
+                default,
+                string.Empty,
+                "Animation warmup preload service returned no operation.");
+            issues.Add(new MxAnimationWarmupIssue(
+                MxAnimationWarmupIssueCodes.PreloadOperationFailed,
+                error.Key,
+                "preload",
+                "operation",
+                "missing",
+                error.Message,
+                error));
+            return new MxAnimationWarmupResult(context.GroupId, null, context.RequiredKeys, context.Labels, issues);
+        }
+
+        private static MxAnimationWarmupResult CreatePendingPreloadResult(WarmupContext context)
+        {
+            var issues = CopyIssues(context);
+            issues.Add(new MxAnimationWarmupIssue(
+                MxAnimationWarmupIssueCodes.PreloadOperationPending,
+                default,
+                "preload",
+                "completed",
+                "pending",
+                "Animation warmup preload did not complete synchronously. Use WarmupAsync to poll non-immediate preload operations."));
+            return new MxAnimationWarmupResult(context.GroupId, null, context.RequiredKeys, context.Labels, issues);
+        }
+
+        private static List<MxAnimationWarmupIssue> CopyIssues(WarmupContext context)
+        {
+            return new List<MxAnimationWarmupIssue>(context.Issues);
         }
 
         private static void ValidateDefinition(
@@ -1097,6 +1228,82 @@ namespace MxFramework.Animation
             return string.IsNullOrWhiteSpace(definition.SetId)
                 ? "mxanimation.warmup"
                 : "mxanimation." + definition.SetId + ".warmup";
+        }
+
+        private sealed class WarmupContext
+        {
+            private readonly List<ResourceKey> _requiredKeys;
+            private readonly List<string> _labels;
+            private readonly List<MxAnimationWarmupIssue> _issues;
+
+            public WarmupContext(
+                string groupId,
+                IEnumerable<ResourceKey> requiredKeys,
+                IEnumerable<string> labels,
+                bool failFast,
+                IEnumerable<MxAnimationWarmupIssue> issues,
+                bool skipPreload)
+            {
+                GroupId = groupId ?? string.Empty;
+                _requiredKeys = requiredKeys != null
+                    ? new List<ResourceKey>(requiredKeys)
+                    : new List<ResourceKey>();
+                _labels = labels != null
+                    ? new List<string>(labels)
+                    : new List<string>();
+                FailFast = failFast;
+                _issues = issues != null
+                    ? new List<MxAnimationWarmupIssue>(issues)
+                    : new List<MxAnimationWarmupIssue>();
+                SkipPreload = skipPreload;
+            }
+
+            public string GroupId { get; }
+            public IReadOnlyList<ResourceKey> RequiredKeys => _requiredKeys;
+            public IReadOnlyList<string> Labels => _labels;
+            public bool FailFast { get; }
+            public IReadOnlyList<MxAnimationWarmupIssue> Issues => _issues;
+            public bool SkipPreload { get; }
+        }
+
+        private sealed class MxAnimationWarmupOperation : IResourceOperation<MxAnimationWarmupResult>
+        {
+            private readonly WarmupContext _context;
+            private readonly IResourceOperation<ResourcePreloadResult> _preloadOperation;
+
+            public MxAnimationWarmupOperation(
+                WarmupContext context,
+                IResourceOperation<ResourcePreloadResult> preloadOperation)
+            {
+                _context = context;
+                _preloadOperation = preloadOperation;
+            }
+
+            public bool IsDone => _preloadOperation.IsDone;
+            public bool IsCancelled => _preloadOperation.IsCancelled;
+            public float Progress => _preloadOperation.Progress;
+
+            public ResourceLoadResult<MxAnimationWarmupResult> Result
+            {
+                get
+                {
+                    if (!_preloadOperation.IsDone)
+                    {
+                        return ResourceLoadResult<MxAnimationWarmupResult>.Failed(new ResourceError(
+                            ResourceErrorCode.ProviderFailed,
+                            default,
+                            string.Empty,
+                            "Animation warmup preload operation is not complete."));
+                    }
+
+                    return ResourceLoadResult<MxAnimationWarmupResult>.Loaded(CompleteWarmup(_context, _preloadOperation.Result));
+                }
+            }
+
+            public void Cancel()
+            {
+                _preloadOperation.Cancel();
+            }
         }
 
         private static void AddMismatch(

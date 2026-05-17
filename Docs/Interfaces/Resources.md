@@ -26,7 +26,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 | `ResourceHandle<T>` | 加载成功后的句柄，释放必须走 `IResourceManager.Release` |
 | `ResourceLoadResult<T>` / `ResourceError` | 非异常加载结果和错误描述 |
 | `IResourceOperation<T>` | 异步加载操作抽象，暴露 `IsDone`、`IsCancelled`、`Progress`、`Result` 和 `Cancel()` |
-| `ResourceDebugSnapshot` | Catalog、Provider、加载资源、引用计数和最近错误快照 |
+| `ResourceDebugSnapshot` | Catalog、Provider、加载资源、引用计数、retain budget 和最近错误 / eviction 快照 |
 | `ResourceDebugSource` | 将资源快照接入 Diagnostics 的 `IFrameworkDebugSource` |
 | `ResourceCatalogValidator` | noEngine Catalog 结构校验 |
 | `ResourceCatalogValidationReport` | Catalog 校验问题报告 |
@@ -38,7 +38,7 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 | `ResourcePreloadResult` | 预加载结果，包含 requested / loaded / failed count 和错误列表 |
 | `ResourceGroupHandle` | 预加载 group 持有的 handles；通过 `ReleaseGroup` 统一释放 |
 | `ResourceVariantProfile` | 显式资源变体 fallback profile，由 `ResourceManager` 在解析阶段使用 |
-| `ResourceRetainMode` / `ResourceRetainPolicy` | 引用计数归零后的底层 record 保留策略 |
+| `ResourceRetainMode` / `ResourceRetainPolicy` | 引用计数归零后的底层 record 保留策略，包含 `None`、`Timed`、`KeepAlive`、`Budgeted` |
 | `ResourceEvictionRecord` | retained record 被释放时的诊断记录 |
 
 ## 使用约定
@@ -92,7 +92,11 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - `ResourceManager.SetRetainPolicy(ResourceRetainPolicy.None)` 保持旧行为：引用计数归零立即卸载。
 - `ResourceRetainPolicy.Timed` 在 noEngine 层通过 `AdvanceRetainTime` 或 `AdvanceRetainFrames` 手动推进，不依赖 Unity 时间。
 - `ResourceRetainPolicy.KeepAlive` 会在 handle release 后保留底层 loaded record，直到 `EvictRetainedResources` 显式清理。
-- `ResourceDebugSnapshot` 已包含 `RetainedCount`、`EvictableCount`、`PinnedCount`、`RetainPolicyCount` 和 `RecentEvictions`。
+- `ResourceRetainPolicy.Budgeted(maxRetainedBytes)` 使用 `ResourceCatalogEntry.Size` 作为 retained bytes 估算；`Size=0` 表示当前没有可用 size signal，不会凭空估算 Unity / 平台内存。
+- `ResourceCatalogEntry.ProviderData["retainPriority"]` 是框架保留 metadata key，可选声明 retain priority，整数越大越晚被预算策略驱逐；缺省或非法值按 `0` 处理。
+- Budgeted retain 的自动驱逐顺序确定为：低 priority 优先、较早进入 retained 状态优先、最后按 `ResourceKey.ToString()` 排序打平。
+- `KeepAlive` retained record 视为 pinned，不会被 budgeted policy 自动驱逐；`EvictRetainedResources()` 是显式手动清理，仍可清理所有 retained record。
+- `ResourceDebugSnapshot` 已包含 `RetainedCount`、`EvictableCount`、`PinnedCount`、`RetainPolicyCount`、`RetainedBytes`、`RetainBudgetBytes`、`RetainBudgetOverageBytes`、`RetainBudgetExceeded` 和 `RecentEvictions`。
 - M6C 已新增 `RemoteBundleProvider`，ProviderId 为 `remoteBundle`，位于 `MxFramework.Resources.Unity`。
 - RemoteBundle address 继续使用 `bundleName|assetName`；`providerData.url` 指向 bundle source，`providerData.cacheKey` 控制缓存文件名。
 - RemoteBundle hash 使用 `ResourceCatalogEntry.Hash`，支持 `sha256:<hex>` 或裸 hex；hash mismatch 返回 `ProviderFailed`。

@@ -206,6 +206,35 @@ namespace MxFramework.Tests.Resources
         }
 
         [Test]
+        public void PreloadAsync_WhenFailFastWithImmediateConcurrentLoads_StopsBeforeLaterLoads()
+        {
+            var provider = new MemoryResourceProvider().Register("demo/after", "After");
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.missing", "demo/missing"),
+                Entry("demo.text.after", "demo/after"));
+            var service = new ResourcePreloadService(manager);
+
+            ResourcePreloadResult result = service.PreloadAsync(new ResourcePreloadPlan(
+                "fail-fast-immediate-concurrent",
+                explicitKeys: new[]
+                {
+                    new ResourceKey("demo.text.missing", ResourceTypeIds.String),
+                    new ResourceKey("demo.text.after", ResourceTypeIds.String)
+                },
+                failFast: true,
+                maxConcurrentLoads: 2)).Result.Value;
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(2, result.RequestedCount);
+            Assert.AreEqual(0, result.LoadedCount);
+            Assert.AreEqual(1, result.FailedCount);
+            Assert.AreEqual(ResourceErrorCode.NotFound, result.Errors[0].Code);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.AreEqual(0, provider.LoadCount);
+        }
+
+        [Test]
         public void PreloadAsync_WithMaxConcurrentLoads_StartsOnlyConcurrencyWindowUntilCompletions()
         {
             ResourceKey first = Key("demo.text.async_a");
@@ -264,6 +293,33 @@ namespace MxFramework.Tests.Resources
             manager.ObjectOperations[1].CompleteLoaded();
             Assert.IsTrue(operation.Result.Success, operation.Result.Error.Message);
             Assert.AreEqual(1f, operation.Progress);
+        }
+
+        [Test]
+        public void PreloadAsync_ProgressIncludesInFlightChildProgressAndClamps()
+        {
+            ResourceKey first = Key("demo.text.progress_child_a");
+            ResourceKey second = Key("demo.text.progress_child_b");
+            var manager = new ManualAsyncResourceManager(first, second);
+            var service = new ResourcePreloadService(manager);
+
+            IResourceOperation<ResourcePreloadResult> operation = service.PreloadAsync(new ResourcePreloadPlan(
+                "progress-children",
+                explicitKeys: new[] { first, second },
+                maxConcurrentLoads: 2));
+
+            manager.ObjectOperations[0].SetProgress(0.5f);
+            manager.ObjectOperations[1].SetProgress(0.25f);
+            Assert.AreEqual(0.375f, operation.Progress);
+
+            manager.ObjectOperations[0].SetProgress(2f);
+            manager.ObjectOperations[1].SetProgress(-1f);
+            Assert.AreEqual(0.5f, operation.Progress);
+
+            manager.ObjectOperations[0].SetProgress(2f);
+            manager.ObjectOperations[1].SetProgress(2f);
+            Assert.AreEqual(1f, operation.Progress);
+            Assert.IsFalse(operation.IsDone);
         }
 
         [Test]
@@ -459,8 +515,13 @@ namespace MxFramework.Tests.Resources
 
             public bool IsDone { get; private set; }
             public bool IsCancelled { get; private set; }
-            public float Progress => IsDone ? 1f : 0f;
+            public float Progress => IsDone ? 1f : _progress;
             public ResourceLoadResult<T> Result => _result;
+
+            public void SetProgress(float progress)
+            {
+                _progress = progress;
+            }
 
             public void CompleteLoaded()
             {
@@ -497,6 +558,8 @@ namespace MxFramework.Tests.Resources
                 _result = result;
                 IsDone = true;
             }
+
+            private float _progress;
         }
     }
 }

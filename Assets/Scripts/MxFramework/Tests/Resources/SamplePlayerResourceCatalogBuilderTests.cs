@@ -16,14 +16,11 @@ namespace MxFramework.Tests.Resources
         }
 
         [Test]
-        public void Generate_BuildsStreamingAssetBundleCatalogAndLoadsSmokeTexture()
+        public void CommittedFixture_LoadsStreamingAssetBundleCatalogAndSmokeTexture()
         {
-            SamplePlayerResourceCatalogBuilder.Generate();
-
             string catalogPath = Path.Combine(Application.dataPath, "../", SamplePlayerResourceCatalogBuilder.CatalogPath);
             string bundlePath = Path.Combine(Application.dataPath, "../", SamplePlayerResourceCatalogBuilder.BundleRootPath, SamplePlayerResourceCatalogBuilder.StartScreenBundleName);
-            Assert.IsTrue(File.Exists(catalogPath), "Missing player catalog: " + catalogPath);
-            Assert.IsTrue(File.Exists(bundlePath), "Missing player AssetBundle: " + bundlePath);
+            AssertCommittedFixtureExists(catalogPath, bundlePath);
 
             ResourceCatalog catalog = StreamingResourceCatalogLoader.LoadFromFile(catalogPath);
             ResourceCatalogValidationReport validation = SamplePlayerResourceCatalogBuilder.ValidateGeneratedCatalog(catalog);
@@ -66,6 +63,18 @@ namespace MxFramework.Tests.Resources
             Assert.AreEqual(0, afterRelease.LoadedCount);
             Assert.AreEqual(0, afterRelease.TotalRefCount);
             Assert.AreEqual(0, provider.LoadedBundleCount);
+        }
+
+        private static void AssertCommittedFixtureExists(string catalogPath, string bundlePath)
+        {
+            Assert.IsTrue(
+                File.Exists(catalogPath),
+                "Missing committed player resource catalog fixture. Regenerate intentionally with the Unity menu " +
+                "'MxFramework/Samples/Build Player Resource Catalog' and commit the updated file: " + catalogPath);
+            Assert.IsTrue(
+                File.Exists(bundlePath),
+                "Missing committed player AssetBundle fixture. Regenerate intentionally with the Unity menu " +
+                "'MxFramework/Samples/Build Player Resource Catalog' and commit the updated file: " + bundlePath);
         }
     }
 }

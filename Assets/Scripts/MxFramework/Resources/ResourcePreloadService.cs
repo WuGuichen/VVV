@@ -146,9 +146,18 @@ namespace MxFramework.Resources
                     if (_requestedKeys.Count == 0)
                         return 1f;
 
-                    return _isDone
-                        ? 1f
-                        : (float)_completedCount / _requestedKeys.Count;
+                    if (_isDone)
+                        return 1f;
+
+                    float progress = _completedCount;
+                    for (int i = 0; i < _inFlight.Count; i++)
+                    {
+                        IResourceOperation<ResourceHandle<object>> operation = _inFlight[i].Operation;
+                        if (operation != null)
+                            progress += Clamp01(operation.Progress);
+                    }
+
+                    return Clamp01(progress / _requestedKeys.Count);
                 }
             }
 
@@ -185,40 +194,18 @@ namespace MxFramework.Resources
                 do
                 {
                     progressed = false;
-                    StartLoads();
 
-                    for (int i = _inFlight.Count - 1; i >= 0; i--)
+                    if (ProcessCompletedInFlight(true))
                     {
-                        InFlightLoad load = _inFlight[i];
-                        if (!load.Operation.IsDone)
-                            continue;
-
-                        _inFlight.RemoveAt(i);
-                        _completedCount++;
-                        ResourceLoadResult<ResourceHandle<object>> result = load.Operation.Result;
-                        if (result.Success && result.Value != null)
-                        {
-                            _handles.Add(result.Value);
-                        }
-                        else if (result.Success)
-                        {
-                            AddError(new ResourceError(
-                                ResourceErrorCode.ProviderFailed,
-                                load.Key,
-                                string.Empty,
-                                "Resource preload load completed without a handle."));
-                        }
-                        else
-                        {
-                            AddError(result.Error);
-                        }
-
-                        if (_plan.FailFast && _errors.Count > 0)
-                        {
-                            CompleteLoaded();
+                        if (_isDone)
                             return;
-                        }
+                        progressed = true;
+                    }
 
+                    if (StartLoads())
+                    {
+                        if (_isDone)
+                            return;
                         progressed = true;
                     }
                 }
@@ -228,18 +215,20 @@ namespace MxFramework.Resources
                     CompleteLoaded();
             }
 
-            private void StartLoads()
+            private bool StartLoads()
             {
+                bool progressed = false;
                 while (!_isDone && _inFlight.Count < _plan.MaxConcurrentLoads && _nextIndex < _requestedKeys.Count)
                 {
                     ResourceKey key = _requestedKeys[_nextIndex++];
                     if (_cancellationToken.IsCancellationRequested)
                     {
                         Cancel(key);
-                        return;
+                        return true;
                     }
 
                     IResourceOperation<ResourceHandle<object>> operation = _resourceManager.LoadAsync<object>(key, _cancellationToken);
+                    progressed = true;
                     if (operation == null)
                     {
                         _completedCount++;
@@ -252,14 +241,18 @@ namespace MxFramework.Resources
                         if (_plan.FailFast)
                         {
                             CompleteLoaded();
-                            return;
+                            return true;
                         }
 
                         continue;
                     }
 
                     _inFlight.Add(new InFlightLoad(key, operation));
+                    if (operation.IsDone && ProcessCompletedInFlight(true) && _isDone)
+                        return true;
                 }
+
+                return progressed;
             }
 
             private void CompleteLoaded()
@@ -295,14 +288,22 @@ namespace MxFramework.Resources
 
             private void CaptureCompletedInFlight()
             {
-                for (int i = _inFlight.Count - 1; i >= 0; i--)
+                ProcessCompletedInFlight(false);
+            }
+
+            private bool ProcessCompletedInFlight(bool completeOnFailFast)
+            {
+                bool progressed = false;
+                for (int i = 0; i < _inFlight.Count; i++)
                 {
                     InFlightLoad load = _inFlight[i];
                     if (load.Operation == null || !load.Operation.IsDone)
                         continue;
 
                     _inFlight.RemoveAt(i);
+                    i--;
                     _completedCount++;
+                    progressed = true;
                     ResourceLoadResult<ResourceHandle<object>> result = load.Operation.Result;
                     if (result.Success && result.Value != null)
                     {
@@ -320,7 +321,15 @@ namespace MxFramework.Resources
                     {
                         AddError(result.Error);
                     }
+
+                    if (completeOnFailFast && _plan.FailFast && _errors.Count > 0)
+                    {
+                        CompleteLoaded();
+                        return true;
+                    }
                 }
+
+                return progressed;
             }
 
             private void AddError(ResourceError error)
@@ -359,6 +368,16 @@ namespace MxFramework.Resources
                     default,
                     string.Empty,
                     "Resource preload operation is not done."));
+            }
+
+            private static float Clamp01(float value)
+            {
+                if (value < 0f)
+                    return 0f;
+                if (value > 1f)
+                    return 1f;
+
+                return value;
             }
 
             private readonly struct InFlightLoad

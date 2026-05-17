@@ -1,5 +1,4 @@
 using MxFramework.Demo;
-using MxFramework.Editor;
 using MxFramework.Resources;
 using NUnit.Framework;
 
@@ -45,9 +44,10 @@ namespace MxFramework.Tests.Resources
         [Test]
         public void Run_CompletesPlayerStreamingAssetBundleSmokeAndReleasesAllResources()
         {
-            if (!RuntimeVerticalSlicePlayerResourceTest.DefaultFixtureExists())
-                SamplePlayerResourceCatalogBuilder.Generate();
-            Assert.IsTrue(RuntimeVerticalSlicePlayerResourceTest.DefaultFixtureExists());
+            Assert.IsTrue(
+                RuntimeVerticalSlicePlayerResourceTest.DefaultFixtureExists(),
+                "Missing committed player resource StreamingAssets fixture. Regenerate intentionally with the Unity menu " +
+                "'MxFramework/Samples/Build Player Resource Catalog' and commit the catalog and bundle fixtures.");
 
             using (var resourceTest = new RuntimeVerticalSlicePlayerResourceTest())
             {

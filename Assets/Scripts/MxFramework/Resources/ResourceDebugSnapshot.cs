@@ -20,7 +20,10 @@ namespace MxFramework.Resources
             int evictableCount = 0,
             int pinnedCount = 0,
             int retainPolicyCount = 0,
-            IReadOnlyList<ResourceEvictionRecord> recentEvictions = null)
+            IReadOnlyList<ResourceEvictionRecord> recentEvictions = null,
+            long retainedBytes = 0,
+            long retainBudgetBytes = 0,
+            long retainBudgetOverageBytes = 0)
         {
             CatalogCount = catalogCount;
             EntryCount = entryCount;
@@ -38,6 +41,9 @@ namespace MxFramework.Resources
             PinnedCount = pinnedCount;
             RetainPolicyCount = retainPolicyCount;
             RecentEvictions = recentEvictions ?? new List<ResourceEvictionRecord>();
+            RetainedBytes = retainedBytes < 0 ? 0 : retainedBytes;
+            RetainBudgetBytes = retainBudgetBytes < 0 ? 0 : retainBudgetBytes;
+            RetainBudgetOverageBytes = retainBudgetOverageBytes < 0 ? 0 : retainBudgetOverageBytes;
         }
 
         public int CatalogCount { get; }
@@ -52,6 +58,10 @@ namespace MxFramework.Resources
         public int EvictableCount { get; }
         public int PinnedCount { get; }
         public int RetainPolicyCount { get; }
+        public long RetainedBytes { get; }
+        public long RetainBudgetBytes { get; }
+        public long RetainBudgetOverageBytes { get; }
+        public bool RetainBudgetExceeded => RetainBudgetOverageBytes > 0;
         public IReadOnlyList<ResourceError> RecentErrors { get; }
         public IReadOnlyList<ResourceCatalogSummary> Catalogs { get; }
         public IReadOnlyList<ResourceEntryOrigin> EntryOrigins { get; }

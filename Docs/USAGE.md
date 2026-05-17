@@ -1270,6 +1270,15 @@ resources.Release(handle);
 resources.AdvanceRetainTime(3f);
 ```
 
+Retain policy 的选择边界：
+
+- `ResourceRetainPolicy.None`：默认策略，handle 引用计数归零后立即释放底层资源。
+- `ResourceRetainPolicy.Timed(...)`：适合短时间来回切换 UI、动画或小型场景 warmup，组合根必须显式推进时间或帧数。
+- `ResourceRetainPolicy.KeepAlive`：适合明确需要 pinned 的常驻资源，只通过 `EvictRetainedResources()` 显式清理。
+- `ResourceRetainPolicy.Budgeted(maxRetainedBytes)`：适合有 catalog size signal 的 Demo / Player 路径；预算只使用 `ResourceCatalogEntry.Size`，可选框架保留 metadata `providerData["retainPriority"]` 决定驱逐优先级，整数越大越晚驱逐。
+
+Budgeted policy 不启动后台卸载线程，也不访问平台内存 API。引用计数归零后，record 会先进入 retained 状态，再按低 priority、较早 retained、`ResourceKey` 字符串顺序驱逐，直到 `ResourceDebugSnapshot.RetainedBytes <= RetainBudgetBytes` 或只剩 pinned `KeepAlive` 记录。`KeepAlive` 记录不会被预算策略自动驱逐；手动调用 `EvictRetainedResources()` 表示显式清理。
+
 Remote Bundle Provider 使用 Catalog 的 `providerData` 指定 source 和 cache key：
 
 ```csharp
@@ -1583,6 +1592,8 @@ if (!warmup.Success)
 // 战斗结束或 actor 销毁时释放 warmup group。
 warmupService.Release(warmup);
 ```
+
+如果项目层资源 provider 会跨帧完成加载，改用 `warmupService.WarmupAsync(request)`，轮询返回的 `IResourceOperation<MxAnimationWarmupResult>.IsDone` 后再读取 `Result`。同步 `Warmup` 只覆盖立即完成路径；遇到 pending preload 会返回 `PreloadOperationPending` issue，并要求调用方切到异步路径。
 
 如果同一份 mapping 要在 sample memory provider、本地 AssetBundle、remote Bundle 或项目层可选 Addressables adapter 间切换，Animation 层只额外声明 package expectation；provider 差异仍留在 `ResourceCatalogEntry`：
 

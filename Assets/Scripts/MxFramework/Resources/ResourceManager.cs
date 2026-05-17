@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 
 namespace MxFramework.Resources
@@ -21,6 +22,7 @@ namespace MxFramework.Resources
         private ResourceVariantProfile _variantProfile = ResourceVariantProfile.Empty;
         private ResourceRetainPolicy _retainPolicy = ResourceRetainPolicy.None;
         private int _failedCount;
+        private long _retainSequence;
 
         public IResourceManager RegisterProvider(IResourceProvider provider)
         {
@@ -44,6 +46,7 @@ namespace MxFramework.Resources
         public ResourceManager SetRetainPolicy(ResourceRetainPolicy policy)
         {
             _retainPolicy = policy ?? ResourceRetainPolicy.None;
+            EnforceRetainBudget();
             return this;
         }
 
@@ -221,6 +224,14 @@ namespace MxFramework.Resources
                     evictableCount++;
             }
 
+            long retainedBytes = GetRetainedBytes();
+            long retainBudgetBytes = _retainPolicy.Mode == ResourceRetainMode.Budgeted
+                ? _retainPolicy.MaxRetainedBytes
+                : 0;
+            long retainBudgetOverageBytes = _retainPolicy.Mode == ResourceRetainMode.Budgeted && retainedBytes > retainBudgetBytes
+                ? retainedBytes - retainBudgetBytes
+                : 0;
+
             return new ResourceDebugSnapshot(
                 _catalogs.Count,
                 _entriesGlobal.Count,
@@ -237,7 +248,10 @@ namespace MxFramework.Resources
                 evictableCount,
                 pinnedCount,
                 _retainPolicy.Mode == ResourceRetainMode.None ? 0 : 1,
-                new List<ResourceEvictionRecord>(_recentEvictions));
+                new List<ResourceEvictionRecord>(_recentEvictions),
+                retainedBytes,
+                retainBudgetBytes,
+                retainBudgetOverageBytes);
         }
 
         public int AdvanceRetainTime(float deltaSeconds)
@@ -410,6 +424,7 @@ namespace MxFramework.Resources
             if (_loaded.TryGetValue(resolved.PackageKey, out ResourceRecord existing))
             {
                 existing.RetainMode = ResourceRetainMode.None;
+                existing.RetainedSequence = 0;
                 existing.RefCount = existing.RefCount <= 0 ? 1 : existing.RefCount + 1;
                 return ResourceLoadResult<object>.Loaded(existing.Value);
             }
@@ -525,8 +540,90 @@ namespace MxFramework.Resources
                 return false;
             }
 
-            record.BeginRetain(_retainPolicy);
+            record.BeginRetain(_retainPolicy, ++_retainSequence);
+            EnforceRetainBudget();
             return true;
+        }
+
+        private void EnforceRetainBudget()
+        {
+            if (_retainPolicy.Mode != ResourceRetainMode.Budgeted)
+                return;
+
+            int guard = _loaded.Count;
+            while (guard > 0 && GetRetainedBytes() > _retainPolicy.MaxRetainedBytes)
+            {
+                if (!TrySelectRetainBudgetEviction(out ResourceKey key, out ResourceRecord record))
+                    break;
+
+                ReleaseRecord(key, record, "budget");
+                guard--;
+            }
+        }
+
+        private long GetRetainedBytes()
+        {
+            var counted = new HashSet<ResourceKey>();
+            long bytes = 0;
+            foreach (KeyValuePair<ResourceKey, ResourceRecord> pair in _loaded)
+            {
+                if (pair.Value.IsRetained)
+                    bytes += GetRetainedClosureBytes(pair.Key, counted);
+            }
+
+            return bytes;
+        }
+
+        private long GetRetainedClosureBytes(ResourceKey key, HashSet<ResourceKey> counted)
+        {
+            if (!_loaded.TryGetValue(key, out ResourceRecord record) || !counted.Add(key))
+                return 0;
+
+            long bytes = record.EstimatedBytes;
+            for (int i = 0; i < record.Dependencies.Count; i++)
+                bytes += GetRetainedClosureBytes(record.Dependencies[i], counted);
+
+            return bytes;
+        }
+
+        private bool TrySelectRetainBudgetEviction(out ResourceKey selectedKey, out ResourceRecord selectedRecord)
+        {
+            selectedKey = default;
+            selectedRecord = null;
+            bool found = false;
+
+            foreach (KeyValuePair<ResourceKey, ResourceRecord> pair in _loaded)
+            {
+                ResourceRecord candidate = pair.Value;
+                if (!candidate.IsRetained || candidate.RetainMode == ResourceRetainMode.KeepAlive)
+                    continue;
+
+                if (!found || CompareRetainBudgetCandidate(pair.Key, candidate, selectedKey, selectedRecord) < 0)
+                {
+                    selectedKey = pair.Key;
+                    selectedRecord = candidate;
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        private static int CompareRetainBudgetCandidate(
+            ResourceKey leftKey,
+            ResourceRecord left,
+            ResourceKey rightKey,
+            ResourceRecord right)
+        {
+            int priority = left.RetainPriority.CompareTo(right.RetainPriority);
+            if (priority != 0)
+                return priority;
+
+            int retained = left.RetainedSequence.CompareTo(right.RetainedSequence);
+            if (retained != 0)
+                return retained;
+
+            return string.Compare(leftKey.ToString(), rightKey.ToString(), StringComparison.Ordinal);
         }
 
         private void ReleaseRecord(ResourceKey key, ResourceRecord record, string reason)
@@ -586,6 +683,8 @@ namespace MxFramework.Resources
 
         private sealed class ResourceRecord
         {
+            private const string RetainPriorityProviderDataKey = "retainPriority";
+
             public ResourceRecord(ResolvedEntry resolved, IResourceProvider provider, object value, List<ResourceKey> dependencies)
             {
                 Resolved = resolved;
@@ -593,6 +692,8 @@ namespace MxFramework.Resources
                 Value = value;
                 Dependencies = dependencies;
                 RefCount = 1;
+                EstimatedBytes = resolved.Entry.Size;
+                RetainPriority = GetRetainPriority(resolved.Entry);
             }
 
             public ResolvedEntry Resolved { get; }
@@ -603,13 +704,17 @@ namespace MxFramework.Resources
             public ResourceRetainMode RetainMode { get; set; }
             public float RemainingRetainSeconds { get; private set; }
             public int RemainingRetainFrames { get; private set; }
+            public long EstimatedBytes { get; }
+            public int RetainPriority { get; }
+            public long RetainedSequence { get; set; }
             public bool IsRetained => RefCount <= 0 && RetainMode != ResourceRetainMode.None;
 
-            public void BeginRetain(ResourceRetainPolicy policy)
+            public void BeginRetain(ResourceRetainPolicy policy, long retainedSequence)
             {
                 RetainMode = policy.Mode;
                 RemainingRetainSeconds = policy.DurationSeconds;
                 RemainingRetainFrames = policy.FrameCount;
+                RetainedSequence = retainedSequence;
             }
 
             public bool AdvanceRetainTime(float deltaSeconds)
@@ -628,6 +733,20 @@ namespace MxFramework.Resources
 
                 RemainingRetainFrames -= frameCount;
                 return RemainingRetainFrames <= 0 && RemainingRetainSeconds <= 0f;
+            }
+
+            private static int GetRetainPriority(ResourceCatalogEntry entry)
+            {
+                if (entry == null ||
+                    entry.ProviderData == null ||
+                    !entry.ProviderData.TryGetValue(RetainPriorityProviderDataKey, out string value))
+                {
+                    return 0;
+                }
+
+                return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int priority)
+                    ? priority
+                    : 0;
             }
         }
     }

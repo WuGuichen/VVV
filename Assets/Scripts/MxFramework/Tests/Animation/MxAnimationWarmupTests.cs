@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Threading;
 using MxFramework.Animation;
 using MxFramework.Resources;
 using MxFramework.Resources.Unity;
@@ -204,6 +205,58 @@ namespace MxFramework.Tests.Animation
 
             service.Release(result);
             Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void Warmup_WhenPreloadOperationIsPending_ReportsPendingWithoutReadingResult()
+        {
+            ResourceKey idle = ClipKey("demo.animation.idle");
+            ResourceCatalog catalog = Catalog(Entry(idle, "clips/idle", hash: "hash-idle"));
+            var preload = new DeferredPreloadService();
+            var service = new MxAnimationWarmupService(preload);
+            MxAnimationSetDefinition definition = CreateDefinition(idle, idle);
+            MxAnimationClipRegistry registry = MxAnimationClipRegistryBuilder.FromCatalog(catalog, version: 1, catalogHash: "catalog-hash");
+
+            MxAnimationWarmupResult result = service.Warmup(new MxAnimationWarmupRequest(definition, registry, catalog));
+
+            Assert.IsFalse(result.Success);
+            Assert.IsNull(result.PreloadResult);
+            Assert.AreEqual(0, preload.Operation.ResultReadCount);
+            Assert.IsTrue(preload.Operation.IsCancelled);
+            AssertIssue(result, MxAnimationWarmupIssueCodes.PreloadOperationPending, default, "preload");
+        }
+
+        [Test]
+        public void WarmupAsync_WhenPreloadCompletesLater_ReturnsResultAfterPolling()
+        {
+            ResourceKey idle = ClipKey("demo.animation.idle");
+            ResourceCatalog catalog = Catalog(Entry(idle, "clips/idle", hash: "hash-idle"));
+            var preload = new DeferredPreloadService();
+            var service = new MxAnimationWarmupService(preload);
+            MxAnimationSetDefinition definition = CreateDefinition(idle, idle);
+            MxAnimationClipRegistry registry = MxAnimationClipRegistryBuilder.FromCatalog(catalog, version: 1, catalogHash: "catalog-hash");
+
+            IResourceOperation<MxAnimationWarmupResult> operation = service.WarmupAsync(new MxAnimationWarmupRequest(definition, registry, catalog));
+            preload.Operation.SetProgress(0.5f);
+
+            Assert.IsFalse(operation.IsDone);
+            Assert.AreEqual(0.5f, operation.Progress, 0.0001f);
+            Assert.AreEqual("mxanimation.demo.actor.warmup", preload.Plan.GroupId);
+
+            var preloadResult = new ResourcePreloadResult(
+                preload.Plan.GroupId,
+                null,
+                preload.Plan.ExplicitKeys,
+                null);
+            preload.Operation.Complete(ResourceLoadResult<ResourcePreloadResult>.Loaded(preloadResult));
+
+            Assert.IsTrue(operation.IsDone);
+            ResourceLoadResult<MxAnimationWarmupResult> result = operation.Result;
+            Assert.IsTrue(result.Success);
+            Assert.IsTrue(result.Value.Success, Describe(result.Value));
+            Assert.AreSame(preloadResult, result.Value.PreloadResult);
+            Assert.AreEqual(1, result.Value.RequiredKeys.Count);
+            Assert.AreEqual(0, preload.Operation.CancelCount);
         }
 
         [Test]
@@ -789,6 +842,77 @@ namespace MxFramework.Tests.Animation
         {
             return string.Join("\n", report.Issues.Select(issue =>
                 issue.Code + " " + issue.Field + " " + issue.Key + " expected=" + issue.Expected + " actual=" + issue.Actual + " " + issue.Message));
+        }
+
+        private sealed class DeferredPreloadService : IResourcePreloadService
+        {
+            public DeferredPreloadOperation<ResourcePreloadResult> Operation { get; } = new DeferredPreloadOperation<ResourcePreloadResult>();
+            public ResourcePreloadPlan Plan { get; private set; }
+
+            public IResourceOperation<ResourcePreloadResult> PreloadAsync(
+                ResourcePreloadPlan plan,
+                CancellationToken cancellationToken = default)
+            {
+                Plan = plan;
+                return Operation;
+            }
+
+            public void ReleaseGroup(ResourceGroupHandle handle)
+            {
+            }
+        }
+
+        private sealed class DeferredPreloadOperation<T> : IResourceOperation<T>
+        {
+            private ResourceLoadResult<T> _result = ResourceLoadResult<T>.Failed(new ResourceError(
+                ResourceErrorCode.ProviderFailed,
+                default,
+                string.Empty,
+                "Deferred preload operation has not completed."));
+            private float _progress;
+
+            public bool IsDone { get; private set; }
+            public bool IsCancelled { get; private set; }
+            public int ResultReadCount { get; private set; }
+            public int CancelCount { get; private set; }
+            public float Progress => _progress;
+
+            public ResourceLoadResult<T> Result
+            {
+                get
+                {
+                    ResultReadCount++;
+                    return _result;
+                }
+            }
+
+            public void SetProgress(float progress)
+            {
+                _progress = progress;
+            }
+
+            public void Complete(ResourceLoadResult<T> result)
+            {
+                _result = result;
+                IsDone = true;
+                _progress = 1f;
+            }
+
+            public void Cancel()
+            {
+                if (IsCancelled)
+                    return;
+
+                CancelCount++;
+                IsCancelled = true;
+                IsDone = true;
+                _progress = 1f;
+                _result = ResourceLoadResult<T>.Failed(new ResourceError(
+                    ResourceErrorCode.Cancelled,
+                    default,
+                    string.Empty,
+                    "Deferred preload operation was cancelled."));
+            }
         }
     }
 }

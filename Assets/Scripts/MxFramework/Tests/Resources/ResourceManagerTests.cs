@@ -245,6 +245,216 @@ namespace MxFramework.Tests.Resources
         }
 
         [Test]
+        public void Release_WithBudgetedRetainPolicy_EvictsByPriorityThenRetainAge()
+        {
+            var provider = new MemoryResourceProvider()
+                .Register("demo/low", "low")
+                .Register("demo/old", "old")
+                .Register("demo/new", "new")
+                .Register("demo/newer", "newer");
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.low", ResourceTypeIds.String, "demo/low", size: 40, providerData: RetainPriority(0)),
+                Entry("demo.text.old", ResourceTypeIds.String, "demo/old", size: 40, providerData: RetainPriority(5)),
+                Entry("demo.text.new", ResourceTypeIds.String, "demo/new", size: 40, providerData: RetainPriority(5)),
+                Entry("demo.text.newer", ResourceTypeIds.String, "demo/newer", size: 40, providerData: RetainPriority(5)));
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(80));
+
+            ResourceHandle<string> low = manager.Load<string>(new ResourceKey("demo.text.low", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> old = manager.Load<string>(new ResourceKey("demo.text.old", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> newer = manager.Load<string>(new ResourceKey("demo.text.newer", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> @new = manager.Load<string>(new ResourceKey("demo.text.new", ResourceTypeIds.String)).Value;
+
+            manager.Release(low);
+            manager.Release(old);
+            manager.Release(@new);
+            manager.Release(newer);
+
+            ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+            Assert.AreEqual(2, provider.ReleaseCount);
+            Assert.AreEqual(2, snapshot.LoadedCount);
+            Assert.AreEqual(2, snapshot.RetainedCount);
+            Assert.AreEqual(80, snapshot.RetainedBytes);
+            Assert.AreEqual(80, snapshot.RetainBudgetBytes);
+            Assert.AreEqual(0, snapshot.RetainBudgetOverageBytes);
+            Assert.IsFalse(snapshot.RetainBudgetExceeded);
+            Assert.AreEqual(2, snapshot.RecentEvictions.Count);
+            Assert.AreEqual(new ResourceKey("demo.text.low", ResourceTypeIds.String), snapshot.RecentEvictions[0].Key);
+            Assert.AreEqual("budget", snapshot.RecentEvictions[0].Reason);
+            Assert.AreEqual(new ResourceKey("demo.text.old", ResourceTypeIds.String), snapshot.RecentEvictions[1].Key);
+            Assert.AreEqual("budget", snapshot.RecentEvictions[1].Reason);
+        }
+
+        [Test]
+        public void Release_WithBudgetedRetainPolicy_ReportsBudgetDiagnosticsAndEvictionReason()
+        {
+            var provider = new MemoryResourceProvider()
+                .Register("demo/pinned", "pinned")
+                .Register("demo/transient", "transient");
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.pinned", ResourceTypeIds.String, "demo/pinned", size: 90),
+                Entry("demo.text.transient", ResourceTypeIds.String, "demo/transient", size: 25));
+            manager.SetRetainPolicy(ResourceRetainPolicy.KeepAlive);
+
+            ResourceHandle<string> pinned = manager.Load<string>(new ResourceKey("demo.text.pinned", ResourceTypeIds.String)).Value;
+            manager.Release(pinned);
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(50));
+            ResourceHandle<string> transient = manager.Load<string>(new ResourceKey("demo.text.transient", ResourceTypeIds.String)).Value;
+            manager.Release(transient);
+
+            ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+            Assert.AreEqual(1, snapshot.RetainedCount);
+            Assert.AreEqual(0, snapshot.EvictableCount);
+            Assert.AreEqual(1, snapshot.PinnedCount);
+            Assert.AreEqual(90, snapshot.RetainedBytes);
+            Assert.AreEqual(50, snapshot.RetainBudgetBytes);
+            Assert.AreEqual(40, snapshot.RetainBudgetOverageBytes);
+            Assert.IsTrue(snapshot.RetainBudgetExceeded);
+            Assert.AreEqual(1, provider.ReleaseCount);
+            Assert.AreEqual(1, snapshot.RecentEvictions.Count);
+            Assert.AreEqual(new ResourceKey("demo.text.transient", ResourceTypeIds.String), snapshot.RecentEvictions[0].Key);
+            Assert.AreEqual("budget", snapshot.RecentEvictions[0].Reason);
+        }
+
+        [Test]
+        public void Release_WithBudgetedRetainPolicy_CountsSharedDependencyClosureOnce()
+        {
+            var provider = new MemoryResourceProvider()
+                .Register("demo/shared", "shared")
+                .Register("demo/first", "first")
+                .Register("demo/second", "second")
+                .Register("demo/transient", "transient");
+            var sharedDependency = new ResourceKey("demo.text.shared", ResourceTypeIds.String);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.shared", ResourceTypeIds.String, "demo/shared", size: 90),
+                Entry(
+                    "demo.text.first",
+                    ResourceTypeIds.String,
+                    "demo/first",
+                    dependencies: new[] { sharedDependency },
+                    size: 10,
+                    providerData: RetainPriority(10)),
+                Entry(
+                    "demo.text.second",
+                    ResourceTypeIds.String,
+                    "demo/second",
+                    dependencies: new[] { sharedDependency },
+                    size: 10,
+                    providerData: RetainPriority(10)),
+                Entry("demo.text.transient", ResourceTypeIds.String, "demo/transient", size: 1));
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(110));
+
+            ResourceHandle<string> first = manager.Load<string>(new ResourceKey("demo.text.first", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> second = manager.Load<string>(new ResourceKey("demo.text.second", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> transient = manager.Load<string>(new ResourceKey("demo.text.transient", ResourceTypeIds.String)).Value;
+
+            manager.Release(first);
+            manager.Release(second);
+
+            ResourceDebugSnapshot shared = manager.CreateDebugSnapshot();
+            Assert.AreEqual(4, shared.LoadedCount);
+            Assert.AreEqual(2, shared.RetainedCount);
+            Assert.AreEqual(110, shared.RetainedBytes);
+            Assert.AreEqual(0, provider.ReleaseCount);
+
+            manager.Release(transient);
+
+            ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+            Assert.AreEqual(3, snapshot.LoadedCount);
+            Assert.AreEqual(2, snapshot.RetainedCount);
+            Assert.AreEqual(110, snapshot.RetainedBytes);
+            Assert.AreEqual(110, snapshot.RetainBudgetBytes);
+            Assert.AreEqual(0, snapshot.RetainBudgetOverageBytes);
+            Assert.IsFalse(snapshot.RetainBudgetExceeded);
+            Assert.AreEqual(1, provider.ReleaseCount);
+            Assert.AreEqual(1, snapshot.RecentEvictions.Count);
+            Assert.AreEqual(new ResourceKey("demo.text.transient", ResourceTypeIds.String), snapshot.RecentEvictions[0].Key);
+            Assert.AreEqual("budget", snapshot.RecentEvictions[0].Reason);
+        }
+
+        [Test]
+        public void Release_WithBudgetedRetainPolicy_ReusesRetainedRecordWhenUnderBudget()
+        {
+            var provider = new MemoryResourceProvider().Register("demo/reused", "reused");
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.reused", ResourceTypeIds.String, "demo/reused", size: 25));
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(50));
+
+            ResourceHandle<string> first = manager.Load<string>(new ResourceKey("demo.text.reused", ResourceTypeIds.String)).Value;
+            manager.Release(first);
+            ResourceHandle<string> second = manager.Load<string>(new ResourceKey("demo.text.reused", ResourceTypeIds.String)).Value;
+
+            Assert.AreEqual("reused", second.Value);
+            Assert.AreEqual(1, provider.LoadCount);
+            Assert.AreEqual(0, provider.ReleaseCount);
+            Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+            manager.Release(second);
+        }
+
+        [Test]
+        public void Release_WithBudgetedRetainPolicy_DoesNotEstimateBytesWhenCatalogSizeIsMissing()
+        {
+            var provider = new MemoryResourceProvider()
+                .Register("demo/a", "A")
+                .Register("demo/b", "B");
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.a", ResourceTypeIds.String, "demo/a"),
+                Entry("demo.text.b", ResourceTypeIds.String, "demo/b"));
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(0));
+
+            ResourceHandle<string> first = manager.Load<string>(new ResourceKey("demo.text.a", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> second = manager.Load<string>(new ResourceKey("demo.text.b", ResourceTypeIds.String)).Value;
+            manager.Release(first);
+            manager.Release(second);
+
+            ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+            Assert.AreEqual(2, snapshot.LoadedCount);
+            Assert.AreEqual(2, snapshot.RetainedCount);
+            Assert.AreEqual(0, snapshot.RetainedBytes);
+            Assert.AreEqual(0, snapshot.RetainBudgetBytes);
+            Assert.AreEqual(0, snapshot.RetainBudgetOverageBytes);
+            Assert.IsFalse(snapshot.RetainBudgetExceeded);
+            Assert.AreEqual(0, provider.ReleaseCount);
+        }
+
+        [Test]
+        public void SetRetainPolicy_WhenSwitchingKeepAliveToBudgeted_DoesNotEvictPinnedRecords()
+        {
+            var provider = new MemoryResourceProvider().Register("demo/pinned", "pinned");
+            ResourceManager manager = CreateManager(provider, Entry("demo.text.pinned", ResourceTypeIds.String, "demo/pinned", size: 75));
+            manager.SetRetainPolicy(ResourceRetainPolicy.KeepAlive);
+
+            ResourceHandle<string> pinned = manager.Load<string>(new ResourceKey("demo.text.pinned", ResourceTypeIds.String)).Value;
+            manager.Release(pinned);
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(0));
+
+            ResourceDebugSnapshot budgeted = manager.CreateDebugSnapshot();
+            Assert.AreEqual(1, budgeted.LoadedCount);
+            Assert.AreEqual(1, budgeted.RetainedCount);
+            Assert.AreEqual(1, budgeted.PinnedCount);
+            Assert.AreEqual(0, budgeted.EvictableCount);
+            Assert.AreEqual(75, budgeted.RetainedBytes);
+            Assert.AreEqual(0, budgeted.RetainBudgetBytes);
+            Assert.AreEqual(75, budgeted.RetainBudgetOverageBytes);
+            Assert.IsTrue(budgeted.RetainBudgetExceeded);
+            Assert.AreEqual(0, provider.ReleaseCount);
+
+            Assert.AreEqual(1, manager.EvictRetainedResources());
+            ResourceDebugSnapshot evicted = manager.CreateDebugSnapshot();
+            Assert.AreEqual(0, evicted.LoadedCount);
+            Assert.AreEqual(0, evicted.RetainedCount);
+            Assert.AreEqual(1, provider.ReleaseCount);
+            Assert.AreEqual(1, evicted.RecentEvictions.Count);
+            Assert.AreEqual(new ResourceKey("demo.text.pinned", ResourceTypeIds.String), evicted.RecentEvictions[0].Key);
+            Assert.AreEqual("manual", evicted.RecentEvictions[0].Reason);
+        }
+
+        [Test]
         public void ResourceDebugSource_ExportsSnapshotAsFrameworkDebugReport()
         {
             var provider = new MemoryResourceProvider().Register("demo/text", "hello");
@@ -261,8 +471,38 @@ namespace MxFramework.Tests.Resources
             StringAssert.Contains("totalRefCount: 1", text);
             StringAssert.Contains("- Entry Origins", text);
             StringAssert.Contains("demo.text.hello", text);
+            StringAssert.Contains("retainedBytes: 0", text);
+            StringAssert.Contains("retainBudgetExceeded: false", text);
+            StringAssert.Contains("- Recent Evictions", text);
 
             manager.Release(handle);
+        }
+
+        [Test]
+        public void ResourceDebugSource_ExportsBudgetAndRecentEvictionDiagnostics()
+        {
+            var provider = new MemoryResourceProvider()
+                .Register("demo/a", "A")
+                .Register("demo/b", "B");
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry("demo.text.a", ResourceTypeIds.String, "demo/a", size: 40),
+                Entry("demo.text.b", ResourceTypeIds.String, "demo/b", size: 40));
+            manager.SetRetainPolicy(ResourceRetainPolicy.Budgeted(40));
+
+            ResourceHandle<string> first = manager.Load<string>(new ResourceKey("demo.text.a", ResourceTypeIds.String)).Value;
+            ResourceHandle<string> second = manager.Load<string>(new ResourceKey("demo.text.b", ResourceTypeIds.String)).Value;
+            manager.Release(first);
+            manager.Release(second);
+
+            var source = new ResourceDebugSource(manager);
+            string text = FrameworkDebugReportExporter.ExportText(source.CreateSnapshot());
+
+            StringAssert.Contains("retainedBytes: 40", text);
+            StringAssert.Contains("retainBudgetBytes: 40", text);
+            StringAssert.Contains("retainBudgetExceeded: false", text);
+            StringAssert.Contains("- Recent Evictions", text);
+            StringAssert.Contains("budget key=demo.text.a:String provider=memory", text);
         }
 
         [Test]
@@ -329,7 +569,9 @@ namespace MxFramework.Tests.Resources
             string address,
             string variant = "",
             IEnumerable<ResourceKey> dependencies = null,
-            bool allowOverride = false)
+            bool allowOverride = false,
+            long size = 0,
+            IReadOnlyDictionary<string, string> providerData = null)
         {
             return new ResourceCatalogEntry(
                 id,
@@ -338,7 +580,17 @@ namespace MxFramework.Tests.Resources
                 address,
                 variant: variant,
                 dependencies: dependencies,
-                allowOverride: allowOverride);
+                size: size,
+                allowOverride: allowOverride,
+                providerData: providerData);
+        }
+
+        private static IReadOnlyDictionary<string, string> RetainPriority(int priority)
+        {
+            return new Dictionary<string, string>
+            {
+                { "retainPriority", priority.ToString() }
+            };
         }
 
         private static void AssertIssue(ResourceCatalogValidationReport report, string code)
