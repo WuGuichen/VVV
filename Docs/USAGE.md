@@ -2245,6 +2245,51 @@ public sealed class CountAliveSystem : IGameplaySystem
 - Spawn definition 是组合根输入，不是 world state；SaveState 保存 spawn 后的实体和组件结果。
 - 自定义 system 通过 `GameplaySystemContext.ComponentWorld` 访问 component runtime，不直接 drain `RuntimeCommandBuffer`。
 
+### 20.1 Posture Pressure
+
+姿态压力是 component-native 状态：系统只读写 `GameplayComponentWorld`，Combat / UI / Runtime AI Planner 接入由后续 bridge 负责。
+
+```csharp
+var world = new GameplayComponentWorld();
+GameplayCoreComponentSchemaDescriptors.RegisterDiagnostics(world.Schemas);
+GameplayCoreComponentSchemaDescriptors.RegisterRuntimeHash(world.Schemas);
+GameplayCoreComponentSchemaDescriptors.RegisterSaveState(world.Schemas);
+
+GameplayEntityId entity = world.CreateEntity();
+world.GetOrCreateStore<GameplayPosturePressureComponent>().Set(
+    entity,
+    new GameplayPosturePressureComponent(
+        maxPressure: 100,
+        recoveryRate: 5,
+        recoveryDelayFrames: 6));
+
+var pressure = new GameplayPosturePressureSystem();
+pressure.BandChangedEvents.Subscribe(evt =>
+{
+    PressureBand band = evt.NewBand;
+});
+pressure.PostureBreakEvents.Subscribe(evt =>
+{
+    GameplayEntityId brokenEntity = evt.EntityId;
+});
+
+pressure.Enqueue(new GameplayPosturePressureRequest(entity, delta: 35, traceId: "hit-001"));
+pressure.Tick(new GameplaySystemContext(
+    new RuntimeFrame(10),
+    0d,
+    0d,
+    new GameplayWorld(),
+    new RuntimeCommand[0],
+    world.Events,
+    componentWorld: world));
+```
+
+约定：
+
+- `GameplayPosturePressureSystem` 默认运行在 Resolution phase、priority 70；它先消费 request，再执行自然恢复。
+- 状态段事件和破韧事件是 typed event bus，不会写入 `GameplayRuntimeEvent`。
+- Schema / Hash / SaveState 由 `GameplayCoreComponentSchemaDescriptors` 统一注册。
+
 ## 21. 推荐组合根
 
 游戏层可以集中装配框架模块：

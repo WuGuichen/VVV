@@ -7,6 +7,7 @@ namespace MxFramework.Gameplay
         public const string LifecycleStableId = "mxframework.gameplay.lifecycle";
         public const string TagsStableId = "mxframework.gameplay.tags";
         public const string StatusesStableId = "mxframework.gameplay.statuses";
+        public const string PosturePressureStableId = "mxframework.gameplay.posture_pressure";
 
         public static void RegisterDiagnostics(GameplayComponentSchemaRegistry registry)
         {
@@ -18,6 +19,7 @@ namespace MxFramework.Gameplay
             registry.Register(new LifecycleDiagnostics());
             registry.Register(new TagsDiagnostics());
             registry.Register(new StatusesDiagnostics());
+            registry.Register(new PosturePressureDiagnostics());
         }
 
         public static void RegisterRuntimeHash(GameplayComponentSchemaRegistry registry)
@@ -30,6 +32,7 @@ namespace MxFramework.Gameplay
             registry.Register(new LifecycleHash());
             registry.Register(new TagsHash());
             registry.Register(new StatusesHash());
+            registry.Register(new PosturePressureHash());
         }
 
         public static void RegisterSaveState(GameplayComponentSchemaRegistry registry)
@@ -42,6 +45,7 @@ namespace MxFramework.Gameplay
             registry.Register(new LifecycleSaveState());
             registry.Register(new TagsSaveState());
             registry.Register(new StatusesSaveState());
+            registry.Register(new PosturePressureSaveState());
         }
 
         private sealed class IdentityDiagnostics : IGameplayComponentDiagnosticWriter<GameplayIdentityComponent>
@@ -160,10 +164,42 @@ namespace MxFramework.Gameplay
             }
         }
 
+        private sealed class PosturePressureDiagnostics : IGameplayComponentDiagnosticWriter<GameplayPosturePressureComponent>
+        {
+            public GameplayComponentSchema Schema => CreatePosturePressureSchema();
+
+            public void WriteDiagnostics(
+                GameplayEntityId entityId,
+                in GameplayPosturePressureComponent component,
+                GameplayComponentDiagnosticWriter writer)
+            {
+                WriteEntity(writer, entityId);
+                writer.AddInt("maxPressure", component.MaxPressure);
+                writer.AddInt("recoveryRate", component.RecoveryRate);
+                writer.AddInt("recoveryDelayFrames", component.RecoveryDelayFrames);
+                writer.AddInt("currentPressure", component.CurrentPressure);
+                writer.AddInt("currentBand", (int)component.CurrentBand);
+                writer.AddLong("lastPressureFrame", component.LastPressureFrame);
+                writer.AddBool("isBroken", component.IsBroken);
+            }
+        }
+
         private static void WriteEntity(GameplayComponentDiagnosticWriter writer, GameplayEntityId entityId)
         {
             writer.AddInt("entity.index", entityId.Index);
             writer.AddInt("entity.generation", entityId.Generation);
+        }
+
+        private static GameplayComponentSchema CreatePosturePressureSchema()
+        {
+            return new GameplayComponentSchema(
+                PosturePressureStableId,
+                1,
+                typeof(GameplayPosturePressureComponent),
+                "Gameplay Posture Pressure",
+                supportsDiagnostics: true,
+                supportsHash: true,
+                supportsSaveState: true);
         }
 
         private sealed class IdentityHash : IGameplayComponentHashWriter<GameplayIdentityComponent>
@@ -270,6 +306,25 @@ namespace MxFramework.Gameplay
                 accumulator.AddInt("count", ids.Length);
                 for (int i = 0; i < ids.Length; i++)
                     accumulator.AddInt("id", ids[i].Value);
+            }
+        }
+
+        private sealed class PosturePressureHash : IGameplayComponentHashWriter<GameplayPosturePressureComponent>
+        {
+            public GameplayComponentSchema Schema => CreatePosturePressureSchema();
+
+            public void WriteHash(
+                GameplayEntityId entityId,
+                in GameplayPosturePressureComponent component,
+                MxFramework.Runtime.RuntimeHashAccumulator accumulator)
+            {
+                accumulator.AddInt("maxPressure", component.MaxPressure);
+                accumulator.AddInt("recoveryRate", component.RecoveryRate);
+                accumulator.AddInt("recoveryDelayFrames", component.RecoveryDelayFrames);
+                accumulator.AddInt("currentPressure", component.CurrentPressure);
+                accumulator.AddInt("currentBand", (int)component.CurrentBand);
+                accumulator.AddLong("lastPressureFrame", component.LastPressureFrame);
+                accumulator.AddInt("isBroken", component.IsBroken ? 1 : 0);
             }
         }
 
@@ -491,6 +546,72 @@ namespace MxFramework.Gameplay
             }
         }
 
+        private sealed class PosturePressureSaveState : IGameplayComponentSaveStateAdapter<GameplayPosturePressureComponent>
+        {
+            public GameplayComponentSchema Schema => CreatePosturePressureSchema();
+
+            public MxFramework.Runtime.RuntimeCustomState WriteSaveState(
+                GameplayEntityId entityId,
+                in GameplayPosturePressureComponent component)
+            {
+                return GameplayComponentSchemaPayload.Write(
+                    Schema,
+                    new PosturePressurePayload
+                    {
+                        MaxPressure = component.MaxPressure,
+                        RecoveryRate = component.RecoveryRate,
+                        RecoveryDelayFrames = component.RecoveryDelayFrames,
+                        CurrentPressure = component.CurrentPressure,
+                        CurrentBand = (int)component.CurrentBand,
+                        LastPressureFrame = component.LastPressureFrame,
+                        IsBroken = component.IsBroken
+                    });
+            }
+
+            public MxFramework.Runtime.RuntimeSaveStateResult<GameplayPosturePressureComponent> ReadSaveState(
+                GameplayEntityId entityId,
+                MxFramework.Runtime.RuntimeCustomState payload)
+            {
+                MxFramework.Runtime.RuntimeSaveStateResult<PosturePressurePayload> result =
+                    GameplayComponentSchemaPayload.Read<PosturePressurePayload>(Schema, payload);
+                if (!result.Success)
+                    return MxFramework.Runtime.RuntimeSaveStateResult<GameplayPosturePressureComponent>.Failed(result.Error);
+                if (result.Value == null)
+                    return GameplayComponentSchemaPayload.Invalid<GameplayPosturePressureComponent>(Schema, payload, "Posture pressure payload is null.");
+                if (!System.Enum.IsDefined(typeof(PressureBand), result.Value.CurrentBand))
+                    return GameplayComponentSchemaPayload.Invalid<GameplayPosturePressureComponent>(Schema, payload, "Posture pressure band is not defined: " + result.Value.CurrentBand);
+
+                try
+                {
+                    var band = (PressureBand)result.Value.CurrentBand;
+                    GameplayPosturePressureComponent.Validate(
+                        result.Value.MaxPressure,
+                        result.Value.RecoveryRate,
+                        result.Value.RecoveryDelayFrames,
+                        result.Value.CurrentPressure,
+                        result.Value.LastPressureFrame,
+                        band,
+                        result.Value.IsBroken);
+
+                    return MxFramework.Runtime.RuntimeSaveStateResult<GameplayPosturePressureComponent>.Succeeded(
+                        new GameplayPosturePressureComponent
+                        {
+                            MaxPressure = result.Value.MaxPressure,
+                            RecoveryRate = result.Value.RecoveryRate,
+                            RecoveryDelayFrames = result.Value.RecoveryDelayFrames,
+                            CurrentPressure = result.Value.CurrentPressure,
+                            CurrentBand = band,
+                            LastPressureFrame = result.Value.LastPressureFrame,
+                            IsBroken = result.Value.IsBroken
+                        });
+                }
+                catch (System.Exception exception)
+                {
+                    return GameplayComponentSchemaPayload.Invalid<GameplayPosturePressureComponent>(Schema, payload, exception);
+                }
+            }
+        }
+
         private readonly struct IdentityPayload
         {
             public IdentityPayload(int definitionId, int variantId)
@@ -531,6 +652,17 @@ namespace MxFramework.Gameplay
             }
 
             public int[] Ids { get; }
+        }
+
+        private sealed class PosturePressurePayload
+        {
+            public int MaxPressure { get; set; }
+            public int RecoveryRate { get; set; }
+            public int RecoveryDelayFrames { get; set; }
+            public int CurrentPressure { get; set; }
+            public int CurrentBand { get; set; }
+            public long LastPressureFrame { get; set; }
+            public bool IsBroken { get; set; }
         }
     }
 }
