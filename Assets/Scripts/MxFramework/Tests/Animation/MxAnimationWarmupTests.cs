@@ -1,12 +1,23 @@
+using System.IO;
 using System.Linq;
 using MxFramework.Animation;
 using MxFramework.Resources;
+using MxFramework.Resources.Unity;
 using NUnit.Framework;
+using UnityEditor;
+using UnityEngine;
 
 namespace MxFramework.Tests.Animation
 {
     public sealed class MxAnimationWarmupTests
     {
+        private const string PackageBundleName = "mx-animation-package";
+        private const string PackageBundleRoot = "Temp/MxAnimationPackageLoadingBundleTests";
+        private const string PackageClipAssetPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim";
+        private const string PackageMaskAssetPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/Masks/SkeletonUpperBody.mask";
+        private const string PackageBakeAssetPath = "Assets/TestAssets/MxFramework/ResourcesDemo/resource_demo_text.txt";
+        private const string PackageProfileAssetPath = "Assets/TestAssets/MxFramework/ResourcesDemo/resource_shared_text.txt";
+
         [Test]
         public void Warmup_LoadsDefinitionKeysAndLabels_ThenReleasesGroup()
         {
@@ -357,6 +368,75 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Warmup_UsesSameMappingWithMemoryAndAssetBundleProviders()
+        {
+            ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceKey mask = MaskKey("demo.animation.mask.upper_body");
+            ResourceKey bake = BakeKey("demo.animation.bake.attack");
+            ResourceKey profile = ProfileKey("demo.animation.profile.humanoid");
+            MxAnimationSetDefinition definition = CreateDefinition(clip, clip, mask: mask);
+            MxAnimationPackageExpectation expectation = CreatePackageExpectation(
+                clip,
+                mask,
+                bake,
+                profile,
+                "memory",
+                AssetBundleProvider.Id);
+            ResourceCatalog memoryCatalog = Catalog(
+                "mx.anim.demo.catalog",
+                "mx.anim.demo",
+                Entry(clip, "memory/clip", hash: "clip-hash"),
+                Entry(mask, "memory/mask", hash: "mask-hash"),
+                Entry(bake, "memory/bake", hash: "bake-hash"),
+                Entry(profile, "memory/profile", hash: "profile-hash"));
+            ResourceManager memoryManager = CreateManager(
+                new MemoryResourceProvider()
+                    .Register("memory/clip", "Clip")
+                    .Register("memory/mask", "Mask")
+                    .Register("memory/bake", "Bake")
+                    .Register("memory/profile", "Profile"),
+                memoryCatalog);
+
+            BuildAnimationPackageBundle();
+            try
+            {
+                var bundleProvider = new AssetBundleProvider(PackageBundleRoot);
+                ResourceCatalog bundleCatalog = Catalog(
+                    "mx.anim.demo.catalog",
+                    "mx.anim.demo",
+                    Entry(clip, PackageBundleName + "|" + PackageClipAssetPath, AssetBundleProvider.Id, hash: "clip-hash"),
+                    Entry(mask, PackageBundleName + "|" + PackageMaskAssetPath, AssetBundleProvider.Id, hash: "mask-hash"),
+                    Entry(bake, PackageBundleName + "|" + PackageBakeAssetPath, AssetBundleProvider.Id, hash: "bake-hash"),
+                    Entry(profile, PackageBundleName + "|" + PackageProfileAssetPath, AssetBundleProvider.Id, hash: "profile-hash"));
+                ResourceManager bundleManager = CreateManager(bundleProvider, bundleCatalog);
+
+                MxAnimationWarmupResult memoryResult = WarmupPackage(memoryManager, memoryCatalog, definition, expectation);
+                MxAnimationWarmupResult bundleResult = WarmupPackage(bundleManager, bundleCatalog, definition, expectation);
+
+                Assert.IsTrue(memoryResult.Success, Describe(memoryResult));
+                Assert.IsTrue(bundleResult.Success, Describe(bundleResult));
+                Assert.AreEqual(4, memoryResult.PreloadResult.LoadedCount);
+                Assert.AreEqual(4, bundleResult.PreloadResult.LoadedCount);
+                Assert.AreEqual(4, memoryManager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(4, bundleManager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(1, bundleProvider.LoadedBundleCount);
+                Assert.AreEqual(4, bundleProvider.GetBundleRefCount(PackageBundleName));
+
+                new MxAnimationWarmupService(new ResourcePreloadService(memoryManager)).Release(memoryResult);
+                new MxAnimationWarmupService(new ResourcePreloadService(bundleManager)).Release(bundleResult);
+
+                Assert.AreEqual(0, memoryManager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(0, bundleManager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(0, bundleProvider.LoadedBundleCount);
+            }
+            finally
+            {
+                AssetBundle.UnloadAllAssetBundles(true);
+                DeleteDirectory(PackageBundleRoot);
+            }
+        }
+
+        [Test]
         public void Warmup_WithPackageExpectation_PreloadsClipMaskBakeAndCompatibilityProfile()
         {
             ResourceKey clip = ClipKey("demo.animation.attack");
@@ -444,16 +524,21 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
-        public void PackageValidator_WhenBakeArtifactMissing_ReportsSpecificDiagnostic()
+        public void PackageValidator_WhenRequiredResourcesMissing_ReportsSpecificDiagnostics()
         {
             ResourceKey clip = ClipKey("demo.animation.attack");
+            ResourceKey mask = MaskKey("demo.animation.mask.upper_body");
             ResourceKey bake = BakeKey("demo.animation.bake.attack");
-            ResourceCatalog catalog = Catalog(Entry(clip, "clips/attack", hash: "clip-hash"));
+            ResourceKey profile = ProfileKey("demo.animation.profile.humanoid");
+            ResourceCatalog catalog = new ResourceCatalog("demo", string.Empty, new ResourceCatalogEntry[0]);
             var expectation = new MxAnimationPackageExpectation(
                 string.Empty,
                 resources: new[]
                 {
-                    new MxAnimationPackageResourceExpectation(bake, "bake-hash")
+                    new MxAnimationPackageResourceExpectation(clip, "clip-hash"),
+                    new MxAnimationPackageResourceExpectation(mask, "mask-hash"),
+                    new MxAnimationPackageResourceExpectation(bake, "bake-hash"),
+                    new MxAnimationPackageResourceExpectation(profile, "profile-hash")
                 });
 
             MxAnimationPackageValidationReport report = MxAnimationPackageCatalogValidator.Validate(
@@ -461,7 +546,10 @@ namespace MxFramework.Tests.Animation
                 expectation);
 
             Assert.IsFalse(report.Success);
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.AnimationClipMissing, clip, "catalogEntry");
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.AvatarMaskMissing, mask, "catalogEntry");
             AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.BakeArtifactMissing, bake, "catalogEntry");
+            AssertPackageIssue(report, MxAnimationPackageValidationIssueCodes.CompatibilityProfileMissing, profile, "catalogEntry");
         }
 
         [Test]
@@ -563,7 +651,7 @@ namespace MxFramework.Tests.Animation
                 labels: labels);
         }
 
-        private static ResourceManager CreateManager(MemoryResourceProvider provider, ResourceCatalog catalog)
+        private static ResourceManager CreateManager(IResourceProvider provider, ResourceCatalog catalog)
         {
             var manager = new ResourceManager();
             manager.RegisterProvider(provider);
@@ -589,6 +677,78 @@ namespace MxFramework.Tests.Animation
         private static ResourceKey ProfileKey(string id)
         {
             return new ResourceKey(id, MxAnimationResourceTypeIds.CompatibilityProfile);
+        }
+
+        private static MxAnimationPackageExpectation CreatePackageExpectation(
+            ResourceKey clip,
+            ResourceKey mask,
+            ResourceKey bake,
+            ResourceKey profile,
+            params string[] acceptedProviderIds)
+        {
+            return new MxAnimationPackageExpectation(
+                "mx.anim.demo",
+                version: 2,
+                catalogId: "mx.anim.demo.catalog",
+                catalogHash: "catalog-hash",
+                acceptedProviderIds: acceptedProviderIds,
+                resources: new[]
+                {
+                    new MxAnimationPackageResourceExpectation(clip, "clip-hash"),
+                    new MxAnimationPackageResourceExpectation(mask, "mask-hash"),
+                    new MxAnimationPackageResourceExpectation(bake, "bake-hash"),
+                    new MxAnimationPackageResourceExpectation(profile, "profile-hash")
+                });
+        }
+
+        private static MxAnimationWarmupResult WarmupPackage(
+            ResourceManager manager,
+            ResourceCatalog catalog,
+            MxAnimationSetDefinition definition,
+            MxAnimationPackageExpectation expectation)
+        {
+            var service = new MxAnimationWarmupService(new ResourcePreloadService(manager));
+            return service.Warmup(new MxAnimationWarmupRequest(
+                definition,
+                MxAnimationClipRegistryBuilder.FromCatalog(catalog, version: 1, catalogHash: "catalog-hash"),
+                catalog,
+                null,
+                null,
+                true,
+                null,
+                expectation,
+                new MxAnimationPackageCatalog(catalog, version: 2, catalogHash: "catalog-hash")));
+        }
+
+        private static void BuildAnimationPackageBundle()
+        {
+            DeleteDirectory(PackageBundleRoot);
+            Directory.CreateDirectory(PackageBundleRoot);
+            BuildPipeline.BuildAssetBundles(
+                PackageBundleRoot,
+                new[]
+                {
+                    new AssetBundleBuild
+                    {
+                        assetBundleName = PackageBundleName,
+                        assetNames = new[]
+                        {
+                            PackageClipAssetPath,
+                            PackageMaskAssetPath,
+                            PackageBakeAssetPath,
+                            PackageProfileAssetPath
+                        }
+                    }
+                },
+                BuildAssetBundleOptions.UncompressedAssetBundle,
+                EditorUserBuildSettings.activeBuildTarget);
+            Assert.IsTrue(File.Exists(Path.Combine(PackageBundleRoot, PackageBundleName)));
+        }
+
+        private static void DeleteDirectory(string path)
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
         }
 
         private static MxAnimationWarmupIssue AssertIssue(
