@@ -1539,6 +1539,45 @@ if (!warmup.Success)
 warmupService.Release(warmup);
 ```
 
+如果同一份 mapping 要在 sample memory provider、本地 AssetBundle、remote Bundle 或项目层可选 Addressables adapter 间切换，Animation 层只额外声明 package expectation；provider 差异仍留在 `ResourceCatalogEntry`：
+
+```csharp
+var packageExpectation = new MxAnimationPackageExpectation(
+    "mx.anim.demo",
+    version: 2,
+    catalogId: "mx.anim.demo.catalog",
+    catalogHash: "sha256:catalog",
+    acceptedProviderIds: new[] { "memory", "assetBundle", "remoteBundle", "addressables" },
+    resources: new[]
+    {
+        new MxAnimationPackageResourceExpectation(
+            new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip),
+            catalogEntryHash: "sha256:clip"),
+        new MxAnimationPackageResourceExpectation(
+            new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask),
+            catalogEntryHash: "sha256:mask"),
+        new MxAnimationPackageResourceExpectation(
+            new ResourceKey("demo.animation.bake.attack", MxAnimationResourceTypeIds.BakeArtifact),
+            catalogEntryHash: "sha256:bake"),
+        new MxAnimationPackageResourceExpectation(
+            new ResourceKey("demo.animation.profile.humanoid", MxAnimationResourceTypeIds.CompatibilityProfile),
+            catalogEntryHash: "sha256:profile")
+    });
+
+MxAnimationWarmupResult packageWarmup = warmupService.Warmup(new MxAnimationWarmupRequest(
+    mappedSet,
+    registry,
+    catalog,
+    syncState,
+    null,
+    true,
+    compatibilityProfile,
+    packageExpectation,
+    new MxAnimationPackageCatalog(catalog, version: 2, catalogHash: "sha256:catalog")));
+```
+
+`MxAnimationPackageCatalogValidator` 会报告 package id/version/catalog hash mismatch、provider 不匹配、entry hash mismatch、missing clip/mask/bake/profile；`RequiredForWarmup=true` 的 package resources 会进入同一个 preload group。Addressables 仍是可选 adapter：项目可把 provider id 写入 `AcceptedProviderIds`，但 MxFramework 默认程序集不引用 Addressables。
+
 Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。Inspector 的 `Event Timeline Preview` 会显示 Seconds / NormalizedTime / CombatFrame / PresentationFrame 事件，并对 CombatFrame / PresentationFrame 输出 deterministic correlation 摘要。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
 
 只读逐帧检查可以打开 `MxFramework / MxAnimation / Timeline Scrubber Preview MVP`，或在 Clip Registry Inspector 点击 `Open Timeline Scrubber Preview`。窗口选择 action binding 和 frame 后，会显示同帧 presentation event、CombatActionTimeline phase/window/frame event、baked root/socket/weapon trace sample，以及 missing clip、missing bake、hash/source mismatch、event out of range、timeline frame mismatch diagnostics。该工具只做 preview，不编辑 registry、Combat authoring 或 runtime DTO。
@@ -1581,6 +1620,7 @@ MxAnimationCompatibilityProfile compatibilityProfile =
 - bake artifact 可和 `MxAnimationCompatibilityExpectation` 一起校验 skeleton profile id/hash，避免用错误骨架生成的 trace/root motion reference 混入运行时。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
 - warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type、compatibility mismatch 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。
+- package expectation 复用同一套 `ResourceKey` mapping，允许 memory / AssetBundle / remote Bundle / 可选 Addressables provider 切换；错误包、错误版本、错误 hash、missing bake/profile 不能静默播放。
 - warmup group release 只释放预热持有的 handles，不会误释放其它 consumer 正在持有的同一 clip。
 - Editor clip registry 只是 authoring 入口，不允许作为运行时资源加载捷径。
 - presentation event 是表现层事件，不驱动 Combat 命中、取消、伤害、无敌、移动或 replay hash。默认 late join 不补播一次性 VFX/SFX；需要补播时必须把事件标记为 `CatchUpSafe` 并由项目网络层显式执行策略。

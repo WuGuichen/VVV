@@ -66,6 +66,29 @@ namespace MxFramework.Animation
             MxAnimationClipRegistry expectedClipRegistry = null,
             bool skipPreloadWhenInvalid = true,
             MxAnimationCompatibilityProfile compatibilityProfile = null)
+            : this(
+                definition,
+                clipRegistry,
+                catalog,
+                syncState,
+                expectedClipRegistry,
+                skipPreloadWhenInvalid,
+                compatibilityProfile,
+                null,
+                null)
+        {
+        }
+
+        public MxAnimationWarmupRequest(
+            MxAnimationSetDefinition definition,
+            MxAnimationClipRegistry clipRegistry,
+            ResourceCatalog catalog,
+            MxAnimationPresentationSyncState syncState,
+            MxAnimationClipRegistry expectedClipRegistry,
+            bool skipPreloadWhenInvalid,
+            MxAnimationCompatibilityProfile compatibilityProfile,
+            MxAnimationPackageExpectation packageExpectation,
+            MxAnimationPackageCatalog packageCatalog = null)
         {
             Definition = definition;
             ClipRegistry = clipRegistry;
@@ -73,6 +96,8 @@ namespace MxFramework.Animation
             SyncState = syncState;
             ExpectedClipRegistry = expectedClipRegistry;
             CompatibilityProfile = compatibilityProfile;
+            PackageExpectation = packageExpectation;
+            PackageCatalog = packageCatalog;
             SkipPreloadWhenInvalid = skipPreloadWhenInvalid;
         }
 
@@ -82,7 +107,453 @@ namespace MxFramework.Animation
         public MxAnimationPresentationSyncState SyncState { get; }
         public MxAnimationClipRegistry ExpectedClipRegistry { get; }
         public MxAnimationCompatibilityProfile CompatibilityProfile { get; }
+        public MxAnimationPackageExpectation PackageExpectation { get; }
+        public MxAnimationPackageCatalog PackageCatalog { get; }
         public bool SkipPreloadWhenInvalid { get; }
+    }
+
+    public static class MxAnimationResourceTypeIds
+    {
+        public const string BakeArtifact = "MxAnimationBakeArtifact";
+        public const string CompatibilityProfile = "MxAnimationCompatibilityProfile";
+    }
+
+    public enum MxAnimationPackageResourceKind
+    {
+        Resource = 0,
+        AnimationClip = 1,
+        AvatarMask = 2,
+        BakeArtifact = 3,
+        CompatibilityProfile = 4
+    }
+
+    public sealed class MxAnimationPackageResourceExpectation
+    {
+        public MxAnimationPackageResourceExpectation(
+            ResourceKey key,
+            string catalogEntryHash = "",
+            string providerId = "",
+            bool requiredForWarmup = true,
+            MxAnimationPackageResourceKind kind = MxAnimationPackageResourceKind.Resource)
+        {
+            Key = key;
+            CatalogEntryHash = catalogEntryHash ?? string.Empty;
+            ProviderId = providerId ?? string.Empty;
+            RequiredForWarmup = requiredForWarmup;
+            Kind = kind == MxAnimationPackageResourceKind.Resource
+                ? InferKind(key)
+                : kind;
+        }
+
+        public ResourceKey Key { get; }
+        public string CatalogEntryHash { get; }
+        public string ProviderId { get; }
+        public bool RequiredForWarmup { get; }
+        public MxAnimationPackageResourceKind Kind { get; }
+
+        private static MxAnimationPackageResourceKind InferKind(ResourceKey key)
+        {
+            if (string.Equals(key.TypeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal))
+                return MxAnimationPackageResourceKind.AnimationClip;
+            if (string.Equals(key.TypeId, ResourceTypeIds.AvatarMask, StringComparison.Ordinal))
+                return MxAnimationPackageResourceKind.AvatarMask;
+            if (string.Equals(key.TypeId, MxAnimationResourceTypeIds.BakeArtifact, StringComparison.Ordinal))
+                return MxAnimationPackageResourceKind.BakeArtifact;
+            if (string.Equals(key.TypeId, MxAnimationResourceTypeIds.CompatibilityProfile, StringComparison.Ordinal))
+                return MxAnimationPackageResourceKind.CompatibilityProfile;
+
+            return MxAnimationPackageResourceKind.Resource;
+        }
+    }
+
+    public sealed class MxAnimationPackageExpectation
+    {
+        private readonly List<string> _acceptedProviderIds;
+        private readonly List<MxAnimationPackageResourceExpectation> _resources;
+
+        public MxAnimationPackageExpectation(
+            string packageId,
+            int version = 0,
+            string catalogId = "",
+            string catalogHash = "",
+            IEnumerable<string> acceptedProviderIds = null,
+            IEnumerable<MxAnimationPackageResourceExpectation> resources = null)
+        {
+            PackageId = packageId ?? string.Empty;
+            Version = version < 0 ? 0 : version;
+            CatalogId = catalogId ?? string.Empty;
+            CatalogHash = catalogHash ?? string.Empty;
+            _acceptedProviderIds = acceptedProviderIds != null
+                ? new List<string>(acceptedProviderIds)
+                : new List<string>();
+            _resources = resources != null
+                ? new List<MxAnimationPackageResourceExpectation>(resources)
+                : new List<MxAnimationPackageResourceExpectation>();
+        }
+
+        public string PackageId { get; }
+        public int Version { get; }
+        public string CatalogId { get; }
+        public string CatalogHash { get; }
+        public IReadOnlyList<string> AcceptedProviderIds => _acceptedProviderIds;
+        public IReadOnlyList<MxAnimationPackageResourceExpectation> Resources => _resources;
+
+        public bool IsDefault =>
+            string.IsNullOrWhiteSpace(PackageId)
+            && Version == 0
+            && string.IsNullOrWhiteSpace(CatalogId)
+            && string.IsNullOrWhiteSpace(CatalogHash)
+            && _acceptedProviderIds.Count == 0
+            && _resources.Count == 0;
+    }
+
+    public sealed class MxAnimationPackageCatalog
+    {
+        public MxAnimationPackageCatalog(
+            ResourceCatalog catalog,
+            int version = 0,
+            string catalogHash = "",
+            string packageId = "",
+            string catalogId = "")
+        {
+            Catalog = catalog;
+            Version = version < 0 ? 0 : version;
+            CatalogHash = catalogHash ?? string.Empty;
+            PackageId = !string.IsNullOrWhiteSpace(packageId)
+                ? packageId
+                : catalog != null ? catalog.PackageId : string.Empty;
+            CatalogId = !string.IsNullOrWhiteSpace(catalogId)
+                ? catalogId
+                : catalog != null ? catalog.CatalogId : string.Empty;
+        }
+
+        public ResourceCatalog Catalog { get; }
+        public int Version { get; }
+        public string CatalogHash { get; }
+        public string PackageId { get; }
+        public string CatalogId { get; }
+    }
+
+    public enum MxAnimationPackageValidationIssueSeverity
+    {
+        Error = 0,
+        Warning = 1
+    }
+
+    public static class MxAnimationPackageValidationIssueCodes
+    {
+        public const string PackageCatalogMissing = "PackageCatalogMissing";
+        public const string PackageIdMismatch = "PackageIdMismatch";
+        public const string PackageVersionMismatch = "PackageVersionMismatch";
+        public const string PackageCatalogIdMismatch = "PackageCatalogIdMismatch";
+        public const string PackageCatalogHashMismatch = "PackageCatalogHashMismatch";
+        public const string PackageResourceKeyInvalid = "PackageResourceKeyInvalid";
+        public const string PackageResourceMissing = "PackageResourceMissing";
+        public const string AnimationClipMissing = "AnimationClipMissing";
+        public const string AvatarMaskMissing = "AvatarMaskMissing";
+        public const string BakeArtifactMissing = "BakeArtifactMissing";
+        public const string CompatibilityProfileMissing = "CompatibilityProfileMissing";
+        public const string PackageResourceProviderMismatch = "PackageResourceProviderMismatch";
+        public const string PackageResourceHashMismatch = "PackageResourceHashMismatch";
+    }
+
+    public sealed class MxAnimationPackageValidationIssue
+    {
+        public MxAnimationPackageValidationIssue(
+            MxAnimationPackageValidationIssueSeverity severity,
+            string code,
+            ResourceKey key,
+            string field,
+            string expected,
+            string actual,
+            string message)
+        {
+            Severity = severity;
+            Code = code ?? string.Empty;
+            Key = key;
+            Field = field ?? string.Empty;
+            Expected = expected ?? string.Empty;
+            Actual = actual ?? string.Empty;
+            Message = message ?? string.Empty;
+        }
+
+        public MxAnimationPackageValidationIssueSeverity Severity { get; }
+        public string Code { get; }
+        public ResourceKey Key { get; }
+        public string Field { get; }
+        public string Expected { get; }
+        public string Actual { get; }
+        public string Message { get; }
+    }
+
+    public sealed class MxAnimationPackageValidationReport
+    {
+        private readonly List<MxAnimationPackageValidationIssue> _issues = new List<MxAnimationPackageValidationIssue>();
+
+        public IReadOnlyList<MxAnimationPackageValidationIssue> Issues => _issues;
+        public bool Success
+        {
+            get
+            {
+                for (int i = 0; i < _issues.Count; i++)
+                {
+                    if (_issues[i].Severity == MxAnimationPackageValidationIssueSeverity.Error)
+                        return false;
+                }
+
+                return true;
+            }
+        }
+
+        public void AddError(string code, ResourceKey key, string field, string expected, string actual, string message)
+        {
+            _issues.Add(new MxAnimationPackageValidationIssue(
+                MxAnimationPackageValidationIssueSeverity.Error,
+                code,
+                key,
+                field,
+                expected,
+                actual,
+                message));
+        }
+    }
+
+    public static class MxAnimationPackageCatalogValidator
+    {
+        public static MxAnimationPackageValidationReport Validate(
+            MxAnimationPackageCatalog packageCatalog,
+            MxAnimationPackageExpectation expectation)
+        {
+            var report = new MxAnimationPackageValidationReport();
+            if (expectation == null || expectation.IsDefault)
+                return report;
+
+            ResourceCatalog catalog = packageCatalog != null ? packageCatalog.Catalog : null;
+            if (catalog == null)
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageCatalogMissing,
+                    default,
+                    "catalog",
+                    "present",
+                    "missing",
+                    "Animation package validation requires a resource catalog.");
+                return report;
+            }
+
+            ValidatePackageMetadata(packageCatalog, expectation, report);
+            for (int i = 0; i < expectation.Resources.Count; i++)
+                ValidateResource(catalog, expectation, expectation.Resources[i], report);
+
+            return report;
+        }
+
+        private static void ValidatePackageMetadata(
+            MxAnimationPackageCatalog packageCatalog,
+            MxAnimationPackageExpectation expectation,
+            MxAnimationPackageValidationReport report)
+        {
+            if (!string.IsNullOrWhiteSpace(expectation.PackageId)
+                && !string.Equals(expectation.PackageId, packageCatalog.PackageId, StringComparison.Ordinal))
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageIdMismatch,
+                    default,
+                    "packageId",
+                    expectation.PackageId,
+                    packageCatalog.PackageId,
+                    "Animation package id does not match the expected package.");
+            }
+
+            if (expectation.Version > 0 && expectation.Version != packageCatalog.Version)
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageVersionMismatch,
+                    default,
+                    "version",
+                    expectation.Version.ToString(),
+                    packageCatalog.Version.ToString(),
+                    "Animation package version does not match the expected package.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(expectation.CatalogId)
+                && !string.Equals(expectation.CatalogId, packageCatalog.CatalogId, StringComparison.Ordinal))
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageCatalogIdMismatch,
+                    default,
+                    "catalogId",
+                    expectation.CatalogId,
+                    packageCatalog.CatalogId,
+                    "Animation package catalog id does not match the expected catalog.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(expectation.CatalogHash)
+                && !string.Equals(expectation.CatalogHash, packageCatalog.CatalogHash, StringComparison.Ordinal))
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageCatalogHashMismatch,
+                    default,
+                    "catalogHash",
+                    expectation.CatalogHash,
+                    packageCatalog.CatalogHash,
+                    "Animation package catalog hash does not match the expected catalog.");
+            }
+        }
+
+        private static void ValidateResource(
+            ResourceCatalog catalog,
+            MxAnimationPackageExpectation packageExpectation,
+            MxAnimationPackageResourceExpectation resourceExpectation,
+            MxAnimationPackageValidationReport report)
+        {
+            if (resourceExpectation == null)
+                return;
+
+            ResourceKey key = resourceExpectation.Key;
+            if (!key.IsValid)
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageResourceKeyInvalid,
+                    key,
+                    "resourceKey",
+                    "valid",
+                    "invalid",
+                    "Animation package resource expectation has an invalid resource key.");
+                return;
+            }
+
+            if (!TryFindEntry(catalog, key, out ResourceCatalogEntry entry))
+            {
+                string code = MissingCode(resourceExpectation.Kind);
+                report.AddError(
+                    code,
+                    key,
+                    "catalogEntry",
+                    "present",
+                    "missing",
+                    "Animation package catalog does not contain required " + DescribeKind(resourceExpectation.Kind) + ": " + key + ".");
+                return;
+            }
+
+            string expectedProvider = resourceExpectation.ProviderId;
+            if (!string.IsNullOrWhiteSpace(expectedProvider))
+            {
+                if (!string.Equals(expectedProvider, entry.ProviderId, StringComparison.Ordinal))
+                {
+                    report.AddError(
+                        MxAnimationPackageValidationIssueCodes.PackageResourceProviderMismatch,
+                        key,
+                        "providerId",
+                        expectedProvider,
+                        entry.ProviderId,
+                        "Animation package resource provider does not match the expected provider.");
+                }
+            }
+            else if (packageExpectation.AcceptedProviderIds.Count > 0
+                && !ContainsProvider(packageExpectation.AcceptedProviderIds, entry.ProviderId))
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageResourceProviderMismatch,
+                    key,
+                    "providerId",
+                    string.Join(",", packageExpectation.AcceptedProviderIds),
+                    entry.ProviderId,
+                    "Animation package resource provider is not allowed for this package expectation.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(resourceExpectation.CatalogEntryHash)
+                && !string.Equals(resourceExpectation.CatalogEntryHash, entry.Hash, StringComparison.Ordinal))
+            {
+                report.AddError(
+                    MxAnimationPackageValidationIssueCodes.PackageResourceHashMismatch,
+                    key,
+                    "catalogEntryHash",
+                    resourceExpectation.CatalogEntryHash,
+                    entry.Hash,
+                    "Animation package resource hash does not match the expected catalog entry hash.");
+            }
+        }
+
+        private static bool TryFindEntry(ResourceCatalog catalog, ResourceKey key, out ResourceCatalogEntry entry)
+        {
+            for (int i = 0; i < catalog.Entries.Count; i++)
+            {
+                ResourceCatalogEntry candidate = catalog.Entries[i];
+                if (candidate == null)
+                    continue;
+
+                ResourceKey candidateKey = candidate.CreateKey(catalog.PackageId);
+                if (!MatchesKey(candidateKey, key))
+                    continue;
+
+                entry = candidate;
+                return true;
+            }
+
+            entry = null;
+            return false;
+        }
+
+        private static bool MatchesKey(ResourceKey catalogKey, ResourceKey requestedKey)
+        {
+            if (!string.Equals(catalogKey.Id, requestedKey.Id, StringComparison.Ordinal))
+                return false;
+            if (!string.Equals(catalogKey.TypeId, requestedKey.TypeId, StringComparison.Ordinal))
+                return false;
+            if (!string.Equals(catalogKey.Variant, requestedKey.Variant, StringComparison.Ordinal))
+                return false;
+            if (!string.IsNullOrWhiteSpace(requestedKey.PackageId)
+                && !string.Equals(catalogKey.PackageId, requestedKey.PackageId, StringComparison.Ordinal))
+                return false;
+
+            return true;
+        }
+
+        private static bool ContainsProvider(IReadOnlyList<string> acceptedProviderIds, string providerId)
+        {
+            for (int i = 0; i < acceptedProviderIds.Count; i++)
+            {
+                if (string.Equals(acceptedProviderIds[i], providerId, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string MissingCode(MxAnimationPackageResourceKind kind)
+        {
+            switch (kind)
+            {
+                case MxAnimationPackageResourceKind.AnimationClip:
+                    return MxAnimationPackageValidationIssueCodes.AnimationClipMissing;
+                case MxAnimationPackageResourceKind.AvatarMask:
+                    return MxAnimationPackageValidationIssueCodes.AvatarMaskMissing;
+                case MxAnimationPackageResourceKind.BakeArtifact:
+                    return MxAnimationPackageValidationIssueCodes.BakeArtifactMissing;
+                case MxAnimationPackageResourceKind.CompatibilityProfile:
+                    return MxAnimationPackageValidationIssueCodes.CompatibilityProfileMissing;
+                default:
+                    return MxAnimationPackageValidationIssueCodes.PackageResourceMissing;
+            }
+        }
+
+        private static string DescribeKind(MxAnimationPackageResourceKind kind)
+        {
+            switch (kind)
+            {
+                case MxAnimationPackageResourceKind.AnimationClip:
+                    return "animation clip";
+                case MxAnimationPackageResourceKind.AvatarMask:
+                    return "AvatarMask";
+                case MxAnimationPackageResourceKind.BakeArtifact:
+                    return "bake artifact";
+                case MxAnimationPackageResourceKind.CompatibilityProfile:
+                    return "compatibility profile";
+                default:
+                    return "resource";
+            }
+        }
     }
 
     public static class MxAnimationWarmupIssueCodes
@@ -99,6 +570,7 @@ namespace MxFramework.Animation
         public const string ClipRegistryEntryHashMismatch = "ClipRegistryEntryHashMismatch";
         public const string CatalogValidationFailed = "CatalogValidationFailed";
         public const string CompatibilityValidationFailed = "CompatibilityValidationFailed";
+        public const string PackageValidationFailed = "PackageValidationFailed";
         public const string PreloadOperationFailed = "PreloadOperationFailed";
         public const string PreloadResourceFailed = "PreloadResourceFailed";
     }
@@ -196,7 +668,7 @@ namespace MxFramework.Animation
 
             MxAnimationSetDefinition definition = request.Definition;
             MxAnimationWarmupDefinition warmup = definition.Warmup ?? MxAnimationWarmupDefinition.Default;
-            List<ResourceKey> requiredKeys = CollectRequiredKeys(definition, warmup);
+            List<ResourceKey> requiredKeys = CollectRequiredKeys(definition, warmup, request.PackageExpectation);
             List<string> labels = CollectLabels(warmup);
             string groupId = ResolveGroupId(definition, warmup);
 
@@ -204,6 +676,7 @@ namespace MxFramework.Animation
             ValidateSyncState(definition, request.ClipRegistry, request.SyncState, issues);
             ValidateClipRegistry(requiredKeys, request.ClipRegistry, request.ExpectedClipRegistry, issues);
             ValidateCompatibility(definition, request.CompatibilityProfile, issues);
+            ValidatePackageExpectation(request, issues);
 
             if (request.SkipPreloadWhenInvalid && issues.Count > 0)
                 return new MxAnimationWarmupResult(groupId, null, requiredKeys, labels, issues);
@@ -463,9 +936,45 @@ namespace MxFramework.Animation
             }
         }
 
+        private static void ValidatePackageExpectation(
+            MxAnimationWarmupRequest request,
+            List<MxAnimationWarmupIssue> issues)
+        {
+            if (request.PackageExpectation == null || request.PackageExpectation.IsDefault)
+                return;
+
+            MxAnimationPackageCatalog packageCatalog = request.PackageCatalog;
+            if (packageCatalog == null)
+            {
+                string catalogHash = request.ClipRegistry != null
+                    ? request.ClipRegistry.CatalogHash
+                    : string.Empty;
+                packageCatalog = new MxAnimationPackageCatalog(request.Catalog, catalogHash: catalogHash);
+            }
+
+            MxAnimationPackageValidationReport report = MxAnimationPackageCatalogValidator.Validate(
+                packageCatalog,
+                request.PackageExpectation);
+            for (int i = 0; i < report.Issues.Count; i++)
+            {
+                MxAnimationPackageValidationIssue issue = report.Issues[i];
+                if (issue.Severity != MxAnimationPackageValidationIssueSeverity.Error)
+                    continue;
+
+                issues.Add(new MxAnimationWarmupIssue(
+                    MxAnimationWarmupIssueCodes.PackageValidationFailed,
+                    issue.Key,
+                    issue.Code,
+                    issue.Expected,
+                    issue.Actual,
+                    issue.Message));
+            }
+        }
+
         private static List<ResourceKey> CollectRequiredKeys(
             MxAnimationSetDefinition definition,
-            MxAnimationWarmupDefinition warmup)
+            MxAnimationWarmupDefinition warmup,
+            MxAnimationPackageExpectation packageExpectation)
         {
             var keys = new List<ResourceKey>();
             var unique = new HashSet<ResourceKey>();
@@ -542,6 +1051,16 @@ namespace MxFramework.Animation
 
             for (int i = 0; i < warmup.RequiredKeys.Count; i++)
                 AddKey(warmup.RequiredKeys[i], keys, unique);
+
+            if (packageExpectation != null)
+            {
+                for (int i = 0; i < packageExpectation.Resources.Count; i++)
+                {
+                    MxAnimationPackageResourceExpectation resource = packageExpectation.Resources[i];
+                    if (resource != null && resource.RequiredForWarmup)
+                        AddKey(resource.Key, keys, unique);
+                }
+            }
 
             return keys;
         }
