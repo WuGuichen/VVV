@@ -120,12 +120,12 @@ MxAnimation 的 presentation sync contract 可以把 Combat action lifecycle 复
 
 MxAnimation bake 产出的 socket / root / weapon reference 只能作为确定性参考数据进入 Combat。Combat noEngine 侧使用 `CombatBakedWeaponTraceAdapter` 将 reference 与显式 runtime profile 组合：
 
-- `CombatBakedWeaponTraceReferenceFrame` 保存 local frame、trace id、socket prev/now、tip direction prev/now，全部使用 `FixVector3`。
+- `CombatBakedWeaponTraceReferenceFrame` 保存 local frame、trace id、socket id、socket prev/now、tip direction prev/now，坐标全部使用 `FixVector3`。
 - `CombatBakedWeaponRuntimeProfile` 保存 character scale、weapon length、weapon radius、socket offset 和 target layer mask。
 - `CombatBakedWeaponTraceAdapter.BuildFrame` 输出现有 `WeaponTraceFrame`。
 - `CombatBakedWeaponTraceAdapter.BuildCurrentBladeCapsule` 输出现有 `CombatCapsuleQuery`，后续仍走 `CombatPhysicsWorld` / `HitResolveSystem`。
 
-这条路径不引用 `MxFramework.Animation`、`AnimationClip`、Animator、PlayableGraph 或 Unity bone pose。动态武器、角色尺寸和 socket offset 都必须作为显式 profile 输入；如果 IK / 动态骨骼修正要影响权威命中，也必须先转成可复现 Combat 输入或确定性 solver 数据。
+这条路径不引用 `MxFramework.Animation`、`AnimationClip`、Animator、PlayableGraph 或 Unity bone pose。动态武器、角色尺寸和 socket offset 都必须作为显式 profile 输入；如果 IK / 动态骨骼修正要影响权威命中，也必须先转成可复现 Combat 输入或确定性 solver 数据。MxAnimation bake artifact 只在离线或加载侧帮助生成/校验 reference，Combat runtime 不直接读取 artifact 或 Unity 当前姿态。
 
 ## 最小使用示例
 

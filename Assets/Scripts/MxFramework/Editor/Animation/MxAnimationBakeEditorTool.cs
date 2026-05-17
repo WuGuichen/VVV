@@ -40,6 +40,9 @@ namespace MxFramework.Editor.Animation
 
         private const string MenuPath = "MxFramework/MxAnimation/Bake Selected Animation Clip MVP";
         private const string DefaultPackageId = "mxframework.samples";
+        private const string RootSocketId = "root";
+        private const string WeaponSocketId = "weapon";
+        private const string WeaponTipPath = "WeaponTip";
 
         [MenuItem(MenuPath, priority = 132)]
         public static void BakeSelectedClipToDefaultArtifact()
@@ -122,18 +125,25 @@ namespace MxFramework.Editor.Animation
 
             int frameCount = Math.Max(1, (int)Math.Ceiling(Math.Max(clip.length, 0.0001f) * profile.SampleTickRate));
             var rootFrames = new List<MxAnimationBakedRootMotionFrame>(frameCount + 1);
+            var socketFrames = new List<MxAnimationBakedSocketFrame>((frameCount + 1) * 2);
             var traceFrames = new List<MxAnimationBakedWeaponTraceFrame>(frameCount);
             MxAnimationBakedVector3 previousRoot = SampleVector(clip, string.Empty, 0f, profile);
             MxAnimationBakedVector3 previousTip = SampleWeaponTip(clip, 0f, profile, previousRoot);
 
             rootFrames.Add(new MxAnimationBakedRootMotionFrame(0, previousRoot, MxAnimationBakedVector3.Zero));
+            AddSocketFrame(socketFrames, 0, RootSocketId, string.Empty, previousRoot, MxAnimationBakedVector3.Zero);
+            AddSocketFrame(socketFrames, 0, WeaponSocketId, WeaponTipPath, previousTip, MxAnimationBakedVector3.Zero);
             for (int frame = 1; frame <= frameCount; frame++)
             {
                 float time = Mathf.Min(clip.length, frame / (float)profile.SampleTickRate);
                 MxAnimationBakedVector3 root = SampleVector(clip, string.Empty, time, profile);
                 MxAnimationBakedVector3 tip = SampleWeaponTip(clip, time, profile, root);
-                rootFrames.Add(new MxAnimationBakedRootMotionFrame(frame, root, Delta(previousRoot, root)));
-                traceFrames.Add(new MxAnimationBakedWeaponTraceFrame(frame, traceId: 0, socketId: "weapon", previousRoot, previousTip, root, tip));
+                MxAnimationBakedVector3 rootDelta = Delta(previousRoot, root);
+                MxAnimationBakedVector3 tipDelta = Delta(previousTip, tip);
+                rootFrames.Add(new MxAnimationBakedRootMotionFrame(frame, root, rootDelta));
+                AddSocketFrame(socketFrames, frame, RootSocketId, string.Empty, root, rootDelta);
+                AddSocketFrame(socketFrames, frame, WeaponSocketId, WeaponTipPath, tip, tipDelta);
+                traceFrames.Add(new MxAnimationBakedWeaponTraceFrame(frame, 0, WeaponSocketId, previousRoot, previousTip, root, tip));
                 previousRoot = root;
                 previousTip = tip;
             }
@@ -142,7 +152,8 @@ namespace MxFramework.Editor.Animation
                 profile,
                 traceFrames,
                 rootFrames,
-                CreateEventMarkers(clip, profile));
+                CreateEventMarkers(clip, profile),
+                socketFrames: socketFrames);
         }
 
         public static string CreateReportText(MxAnimationBakeArtifact artifact, MxAnimationBakeValidationReport validation)
@@ -161,7 +172,28 @@ namespace MxFramework.Editor.Animation
                 builder.Append("quantizationScale: ").Append(artifact.Profile.QuantizationScale).Append('\n');
                 builder.Append("weaponTraceFrames: ").Append(artifact.WeaponTraceFrames.Count).Append('\n');
                 builder.Append("rootMotionFrames: ").Append(artifact.RootMotionFrames.Count).Append('\n');
+                builder.Append("socketTrajectoryFrames: ").Append(artifact.SocketFrames.Count).Append('\n');
                 builder.Append("eventMarkers: ").Append(artifact.EventMarkers.Count).Append('\n');
+                builder.Append("rootMotion:\n");
+                for (int i = 0; i < artifact.RootMotionFrames.Count; i++)
+                {
+                    MxAnimationBakedRootMotionFrame frame = artifact.RootMotionFrames[i];
+                    builder.Append("- frame: ").Append(frame.LocalFrame)
+                        .Append(" position: ").Append(frame.RootPosition)
+                        .Append(" delta: ").Append(frame.DeltaPosition).Append('\n');
+                }
+
+                builder.Append("socketTrajectory:\n");
+                for (int i = 0; i < artifact.SocketFrames.Count; i++)
+                {
+                    MxAnimationBakedSocketFrame frame = artifact.SocketFrames[i];
+                    builder.Append("- frame: ").Append(frame.LocalFrame)
+                        .Append(" socket: ").Append(frame.SocketId)
+                        .Append(" path: ").Append(string.IsNullOrEmpty(frame.SocketPath) ? "<root>" : frame.SocketPath)
+                        .Append(" position: ").Append(frame.Position)
+                        .Append(" delta: ").Append(frame.DeltaPosition).Append('\n');
+                }
+
                 builder.Append("weaponTrace:\n");
                 for (int i = 0; i < artifact.WeaponTraceFrames.Count; i++)
                 {
@@ -169,6 +201,18 @@ namespace MxFramework.Editor.Animation
                     builder.Append("- frame: ").Append(frame.LocalFrame).Append(" trace: ").Append(frame.TraceId)
                         .Append(" rootNow: ").Append(frame.RootNow)
                         .Append(" tipNow: ").Append(frame.TipNow).Append('\n');
+                }
+
+                builder.Append("eventAlignment:\n");
+                for (int i = 0; i < artifact.EventMarkers.Count; i++)
+                {
+                    MxAnimationBakedEventMarker marker = artifact.EventMarkers[i];
+                    builder.Append("- frame: ").Append(marker.LocalFrame)
+                        .Append(" presentationFrame: ").Append(marker.PresentationFrame)
+                        .Append(" combatFrame: ").Append(marker.CombatFrame)
+                        .Append(" event: ").Append(marker.EventId)
+                        .Append(" kind: ").Append(marker.Kind)
+                        .Append(" sourceOrder: ").Append(marker.SourceOrder).Append('\n');
                 }
             }
 
@@ -187,6 +231,7 @@ namespace MxFramework.Editor.Animation
                         .Append(" field=").Append(issue.Field)
                         .Append(" expected=").Append(issue.Expected)
                         .Append(" actual=").Append(issue.Actual)
+                        .Append(" location=").Append(issue.Location)
                         .Append(" message=").Append(issue.Message)
                         .Append('\n');
                 }
@@ -201,7 +246,7 @@ namespace MxFramework.Editor.Animation
             MxAnimationBakeProfile profile,
             MxAnimationBakedVector3 fallbackRoot)
         {
-            if (TrySampleVector(clip, "WeaponTip", time, profile, out MxAnimationBakedVector3 tip))
+            if (TrySampleVector(clip, WeaponTipPath, time, profile, out MxAnimationBakedVector3 tip))
                 return tip;
 
             long forward = profile.QuantizationScale;
@@ -281,10 +326,27 @@ namespace MxFramework.Editor.Animation
                 AnimationEvent evt = events[i];
                 int frame = Math.Max(0, (int)Math.Round(evt.time * profile.SampleTickRate, MidpointRounding.AwayFromZero));
                 string eventId = string.IsNullOrWhiteSpace(evt.functionName) ? "event:" + i.ToString(CultureInfo.InvariantCulture) : evt.functionName;
-                markers.Add(new MxAnimationBakedEventMarker(frame, eventId, ClassifyEvent(eventId), sourceOrder: i));
+                markers.Add(new MxAnimationBakedEventMarker(
+                    frame,
+                    eventId,
+                    ClassifyEvent(eventId),
+                    sourceOrder: i,
+                    presentationFrame: frame,
+                    combatFrame: -1));
             }
 
             return markers;
+        }
+
+        private static void AddSocketFrame(
+            List<MxAnimationBakedSocketFrame> frames,
+            int localFrame,
+            string socketId,
+            string socketPath,
+            MxAnimationBakedVector3 position,
+            MxAnimationBakedVector3 deltaPosition)
+        {
+            frames.Add(new MxAnimationBakedSocketFrame(localFrame, socketId, socketPath, position, deltaPosition));
         }
 
         private static MxAnimationBakeEventKind ClassifyEvent(string eventId)

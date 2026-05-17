@@ -27,6 +27,14 @@ namespace MxFramework.Animation
         PresentationEvent = 2
     }
 
+    public enum MxAnimationBakeDataPurpose
+    {
+        CombatReferenceInput = 0,
+        AuthoringPreview = 1,
+        TimelineAlignment = 2,
+        Diagnostics = 3
+    }
+
     public enum MxAnimationBakeIssueSeverity
     {
         Error = 0,
@@ -176,6 +184,32 @@ namespace MxFramework.Animation
         public MxAnimationBakedVector3 DeltaPosition { get; }
     }
 
+    public sealed class MxAnimationBakedSocketFrame
+    {
+        public MxAnimationBakedSocketFrame(
+            int localFrame,
+            string socketId,
+            string socketPath,
+            MxAnimationBakedVector3 position,
+            MxAnimationBakedVector3 deltaPosition)
+        {
+            if (localFrame < 0)
+                throw new ArgumentOutOfRangeException(nameof(localFrame), "Local frame cannot be negative.");
+
+            LocalFrame = localFrame;
+            SocketId = socketId ?? string.Empty;
+            SocketPath = socketPath ?? string.Empty;
+            Position = position;
+            DeltaPosition = deltaPosition;
+        }
+
+        public int LocalFrame { get; }
+        public string SocketId { get; }
+        public string SocketPath { get; }
+        public MxAnimationBakedVector3 Position { get; }
+        public MxAnimationBakedVector3 DeltaPosition { get; }
+    }
+
     public sealed class MxAnimationBakedEventMarker
     {
         public MxAnimationBakedEventMarker(
@@ -183,18 +217,26 @@ namespace MxFramework.Animation
             string eventId,
             MxAnimationBakeEventKind kind,
             ResourceKey payloadKey = default,
-            int sourceOrder = 0)
+            int sourceOrder = 0,
+            int presentationFrame = -1,
+            int combatFrame = -1)
         {
             if (localFrame < 0)
                 throw new ArgumentOutOfRangeException(nameof(localFrame), "Local frame cannot be negative.");
             if (sourceOrder < 0)
                 throw new ArgumentOutOfRangeException(nameof(sourceOrder), "Source order cannot be negative.");
+            if (presentationFrame < -1)
+                throw new ArgumentOutOfRangeException(nameof(presentationFrame), "Presentation frame cannot be less than -1.");
+            if (combatFrame < -1)
+                throw new ArgumentOutOfRangeException(nameof(combatFrame), "Combat frame cannot be less than -1.");
 
             LocalFrame = localFrame;
             EventId = eventId ?? string.Empty;
             Kind = kind;
             PayloadKey = payloadKey;
             SourceOrder = sourceOrder;
+            PresentationFrame = presentationFrame;
+            CombatFrame = combatFrame;
         }
 
         public int LocalFrame { get; }
@@ -202,12 +244,15 @@ namespace MxFramework.Animation
         public MxAnimationBakeEventKind Kind { get; }
         public ResourceKey PayloadKey { get; }
         public int SourceOrder { get; }
+        public int PresentationFrame { get; }
+        public int CombatFrame { get; }
     }
 
     public sealed class MxAnimationBakeArtifact
     {
         private readonly List<MxAnimationBakedWeaponTraceFrame> _weaponTraceFrames;
         private readonly List<MxAnimationBakedRootMotionFrame> _rootMotionFrames;
+        private readonly List<MxAnimationBakedSocketFrame> _socketFrames;
         private readonly List<MxAnimationBakedEventMarker> _eventMarkers;
 
         public MxAnimationBakeArtifact(
@@ -215,11 +260,13 @@ namespace MxFramework.Animation
             IEnumerable<MxAnimationBakedWeaponTraceFrame> weaponTraceFrames = null,
             IEnumerable<MxAnimationBakedRootMotionFrame> rootMotionFrames = null,
             IEnumerable<MxAnimationBakedEventMarker> eventMarkers = null,
-            string artifactHash = "")
+            string artifactHash = "",
+            IEnumerable<MxAnimationBakedSocketFrame> socketFrames = null)
         {
             Profile = profile ?? throw new ArgumentNullException(nameof(profile));
             _weaponTraceFrames = CopyAndSort(weaponTraceFrames, CompareWeaponTraceFrame);
             _rootMotionFrames = CopyAndSort(rootMotionFrames, CompareRootMotionFrame);
+            _socketFrames = CopyAndSort(socketFrames, CompareSocketFrame);
             _eventMarkers = CopyAndSort(eventMarkers, CompareEventMarker);
             ArtifactHash = string.IsNullOrWhiteSpace(artifactHash)
                 ? MxAnimationBakeHasher.ComputeArtifactHash(this)
@@ -229,6 +276,7 @@ namespace MxFramework.Animation
         public MxAnimationBakeProfile Profile { get; }
         public IReadOnlyList<MxAnimationBakedWeaponTraceFrame> WeaponTraceFrames => _weaponTraceFrames;
         public IReadOnlyList<MxAnimationBakedRootMotionFrame> RootMotionFrames => _rootMotionFrames;
+        public IReadOnlyList<MxAnimationBakedSocketFrame> SocketFrames => _socketFrames;
         public IReadOnlyList<MxAnimationBakedEventMarker> EventMarkers => _eventMarkers;
         public string ArtifactHash { get; }
 
@@ -276,6 +324,24 @@ namespace MxFramework.Animation
             if (right == null)
                 return 1;
             return left.LocalFrame.CompareTo(right.LocalFrame);
+        }
+
+        private static int CompareSocketFrame(MxAnimationBakedSocketFrame left, MxAnimationBakedSocketFrame right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            int result = left.LocalFrame.CompareTo(right.LocalFrame);
+            if (result != 0)
+                return result;
+            result = string.CompareOrdinal(left.SocketId, right.SocketId);
+            if (result != 0)
+                return result;
+            return string.CompareOrdinal(left.SocketPath, right.SocketPath);
         }
 
         private static int CompareEventMarker(MxAnimationBakedEventMarker left, MxAnimationBakedEventMarker right)
@@ -1164,6 +1230,68 @@ namespace MxFramework.Animation
         }
     }
 
+    public readonly struct MxAnimationBakeIssueLocation : IEquatable<MxAnimationBakeIssueLocation>
+    {
+        public MxAnimationBakeIssueLocation(
+            ResourceKey sourceClipKey,
+            string profileId = "",
+            string skeletonProfileId = "",
+            string artifactHash = "")
+        {
+            SourceClipKey = sourceClipKey;
+            ProfileId = profileId ?? string.Empty;
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            ArtifactHash = artifactHash ?? string.Empty;
+        }
+
+        public ResourceKey SourceClipKey { get; }
+        public string ProfileId { get; }
+        public string SkeletonProfileId { get; }
+        public string ArtifactHash { get; }
+
+        public bool HasValue =>
+            SourceClipKey.IsValid
+            || !string.IsNullOrWhiteSpace(ProfileId)
+            || !string.IsNullOrWhiteSpace(SkeletonProfileId)
+            || !string.IsNullOrWhiteSpace(ArtifactHash);
+
+        public bool Equals(MxAnimationBakeIssueLocation other)
+        {
+            return SourceClipKey.Equals(other.SourceClipKey)
+                && string.Equals(ProfileId, other.ProfileId, StringComparison.Ordinal)
+                && string.Equals(SkeletonProfileId, other.SkeletonProfileId, StringComparison.Ordinal)
+                && string.Equals(ArtifactHash, other.ArtifactHash, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is MxAnimationBakeIssueLocation other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = SourceClipKey.GetHashCode();
+                hash = (hash * 397) ^ (ProfileId != null ? ProfileId.GetHashCode() : 0);
+                hash = (hash * 397) ^ (SkeletonProfileId != null ? SkeletonProfileId.GetHashCode() : 0);
+                hash = (hash * 397) ^ (ArtifactHash != null ? ArtifactHash.GetHashCode() : 0);
+                return hash;
+            }
+        }
+
+        public override string ToString()
+        {
+            if (!HasValue)
+                return string.Empty;
+
+            return "sourceClip=" + SourceClipKey
+                + " profile=" + ProfileId
+                + " skeleton=" + SkeletonProfileId
+                + " artifact=" + ArtifactHash;
+        }
+    }
+
     public sealed class MxAnimationBakeIssue
     {
         public MxAnimationBakeIssue(
@@ -1172,7 +1300,8 @@ namespace MxFramework.Animation
             string field,
             string expected,
             string actual,
-            string message)
+            string message,
+            MxAnimationBakeIssueLocation location = default)
         {
             Severity = severity;
             Code = code ?? string.Empty;
@@ -1180,6 +1309,7 @@ namespace MxFramework.Animation
             Expected = expected ?? string.Empty;
             Actual = actual ?? string.Empty;
             Message = message ?? string.Empty;
+            Location = location;
         }
 
         public MxAnimationBakeIssueSeverity Severity { get; }
@@ -1188,6 +1318,7 @@ namespace MxFramework.Animation
         public string Expected { get; }
         public string Actual { get; }
         public string Message { get; }
+        public MxAnimationBakeIssueLocation Location { get; }
     }
 
     public sealed class MxAnimationBakeValidationReport
@@ -1199,19 +1330,38 @@ namespace MxFramework.Animation
         public int WarningCount { get; private set; }
         public bool HasErrors => ErrorCount > 0;
 
-        public void AddError(string code, string field, string expected, string actual, string message)
+        public void AddError(
+            string code,
+            string field,
+            string expected,
+            string actual,
+            string message,
+            MxAnimationBakeIssueLocation location = default)
         {
-            Add(MxAnimationBakeIssueSeverity.Error, code, field, expected, actual, message);
+            Add(MxAnimationBakeIssueSeverity.Error, code, field, expected, actual, message, location);
         }
 
-        public void AddWarning(string code, string field, string expected, string actual, string message)
+        public void AddWarning(
+            string code,
+            string field,
+            string expected,
+            string actual,
+            string message,
+            MxAnimationBakeIssueLocation location = default)
         {
-            Add(MxAnimationBakeIssueSeverity.Warning, code, field, expected, actual, message);
+            Add(MxAnimationBakeIssueSeverity.Warning, code, field, expected, actual, message, location);
         }
 
-        private void Add(MxAnimationBakeIssueSeverity severity, string code, string field, string expected, string actual, string message)
+        private void Add(
+            MxAnimationBakeIssueSeverity severity,
+            string code,
+            string field,
+            string expected,
+            string actual,
+            string message,
+            MxAnimationBakeIssueLocation location)
         {
-            _issues.Add(new MxAnimationBakeIssue(severity, code, field, expected, actual, message));
+            _issues.Add(new MxAnimationBakeIssue(severity, code, field, expected, actual, message, location));
             if (severity == MxAnimationBakeIssueSeverity.Error)
                 ErrorCount++;
             else
@@ -1232,21 +1382,23 @@ namespace MxFramework.Animation
                 return report;
             }
 
-            ValidateProfile(artifact.Profile, report);
+            MxAnimationBakeIssueLocation location = CreateLocation(artifact);
+            ValidateProfile(artifact.Profile, report, location);
 
             string actualProfileHash = MxAnimationBakeHasher.ComputeProfileHash(artifact.Profile);
             if (!string.Equals(artifact.Profile.ProfileHash, actualProfileHash, StringComparison.Ordinal))
             {
-                report.AddError("BakeProfileHashMismatch", "profileHash", artifact.Profile.ProfileHash, actualProfileHash, "Bake profile hash does not match profile contents.");
+                report.AddError("BakeProfileHashMismatch", "profileHash", artifact.Profile.ProfileHash, actualProfileHash, "Bake profile hash does not match profile contents.", location);
             }
 
             string actualArtifactHash = MxAnimationBakeHasher.ComputeArtifactHash(artifact);
             if (!string.Equals(artifact.ArtifactHash, actualArtifactHash, StringComparison.Ordinal))
             {
-                report.AddError("BakeArtifactHashMismatch", "artifactHash", artifact.ArtifactHash, actualArtifactHash, "Bake artifact hash does not match artifact contents.");
+                report.AddError("BakeArtifactHashMismatch", "artifactHash", artifact.ArtifactHash, actualArtifactHash, "Bake artifact hash does not match artifact contents.", location);
             }
 
-            ValidateDuplicateTraceFrames(artifact, report);
+            ValidateDuplicateTraceFrames(artifact, report, location);
+            ValidateDuplicateSocketFrames(artifact, report, location);
 
             if (expectation != null)
                 ValidateExpectation(artifact, expectation, report);
@@ -1254,31 +1406,37 @@ namespace MxFramework.Animation
             return report;
         }
 
-        private static void ValidateProfile(MxAnimationBakeProfile profile, MxAnimationBakeValidationReport report)
+        private static void ValidateProfile(
+            MxAnimationBakeProfile profile,
+            MxAnimationBakeValidationReport report,
+            MxAnimationBakeIssueLocation location)
         {
             if (profile == null)
             {
-                report.AddError("BakeProfileMissing", "profile", "non-null", "null", "Bake profile is missing.");
+                report.AddError("BakeProfileMissing", "profile", "non-null", "null", "Bake profile is missing.", location);
                 return;
             }
 
             if (!profile.SourceClipKey.IsValid)
-                report.AddError("BakeSourceClipKeyMissing", "sourceClipKey", "valid ResourceKey", profile.SourceClipKey.ToString(), "Bake source clip key is missing or invalid.");
+                report.AddError("BakeSourceClipKeyMissing", "sourceClipKey", "valid ResourceKey", profile.SourceClipKey.ToString(), "Bake source clip key is missing or invalid.", location);
             if (string.IsNullOrWhiteSpace(profile.SourceClipHash))
-                report.AddError("BakeSourceClipHashMissing", "sourceClipHash", "non-empty", profile.SourceClipHash, "Bake source clip hash is required.");
+                report.AddError("BakeSourceClipHashMissing", "sourceClipHash", "non-empty", profile.SourceClipHash, "Bake source clip hash is required.", location);
             if (string.IsNullOrWhiteSpace(profile.ProfileId))
-                report.AddError("BakeProfileIdMissing", "profileId", "non-empty", profile.ProfileId, "Bake profile id is required.");
+                report.AddError("BakeProfileIdMissing", "profileId", "non-empty", profile.ProfileId, "Bake profile id is required.", location);
             if (string.IsNullOrWhiteSpace(profile.ProfileHash))
-                report.AddError("BakeProfileHashMissing", "profileHash", "non-empty", profile.ProfileHash, "Bake profile hash is required.");
+                report.AddError("BakeProfileHashMissing", "profileHash", "non-empty", profile.ProfileHash, "Bake profile hash is required.", location);
             if (string.IsNullOrWhiteSpace(profile.SkeletonProfileHash))
-                report.AddWarning("BakeSkeletonProfileHashMissing", "skeletonProfileHash", "non-empty", profile.SkeletonProfileHash, "Skeleton profile hash is recommended for stale-artifact diagnostics.");
+                report.AddWarning("BakeSkeletonProfileHashMissing", "skeletonProfileHash", "non-empty", profile.SkeletonProfileHash, "Skeleton profile hash is recommended for stale-artifact diagnostics.", location);
             if (profile.SampleTickRate <= 0)
-                report.AddError("BakeSampleTickRateInvalid", "sampleTickRate", "> 0", profile.SampleTickRate.ToString(CultureInfo.InvariantCulture), "Sample tick rate must be positive.");
+                report.AddError("BakeSampleTickRateInvalid", "sampleTickRate", "> 0", profile.SampleTickRate.ToString(CultureInfo.InvariantCulture), "Sample tick rate must be positive.", location);
             if (profile.QuantizationScale <= 0)
-                report.AddError("BakeQuantizationScaleInvalid", "quantizationScale", "> 0", profile.QuantizationScale.ToString(CultureInfo.InvariantCulture), "Quantization scale must be positive.");
+                report.AddError("BakeQuantizationScaleInvalid", "quantizationScale", "> 0", profile.QuantizationScale.ToString(CultureInfo.InvariantCulture), "Quantization scale must be positive.", location);
         }
 
-        private static void ValidateDuplicateTraceFrames(MxAnimationBakeArtifact artifact, MxAnimationBakeValidationReport report)
+        private static void ValidateDuplicateTraceFrames(
+            MxAnimationBakeArtifact artifact,
+            MxAnimationBakeValidationReport report,
+            MxAnimationBakeIssueLocation location)
         {
             var keys = new HashSet<string>(StringComparer.Ordinal);
             for (int i = 0; i < artifact.WeaponTraceFrames.Count; i++)
@@ -1290,7 +1448,26 @@ namespace MxFramework.Animation
                     + ":"
                     + frame.SocketId;
                 if (!keys.Add(key))
-                    report.AddError("BakeDuplicateWeaponTraceFrame", "weaponTraceFrames", "unique localFrame/traceId/socketId", key, "Duplicate baked weapon trace frame.");
+                    report.AddError("BakeDuplicateWeaponTraceFrame", "weaponTraceFrames", "unique localFrame/traceId/socketId", key, "Duplicate baked weapon trace frame.", location);
+            }
+        }
+
+        private static void ValidateDuplicateSocketFrames(
+            MxAnimationBakeArtifact artifact,
+            MxAnimationBakeValidationReport report,
+            MxAnimationBakeIssueLocation location)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < artifact.SocketFrames.Count; i++)
+            {
+                MxAnimationBakedSocketFrame frame = artifact.SocketFrames[i];
+                string key = frame.LocalFrame.ToString(CultureInfo.InvariantCulture)
+                    + ":"
+                    + frame.SocketId
+                    + ":"
+                    + frame.SocketPath;
+                if (!keys.Add(key))
+                    report.AddError("BakeDuplicateSocketFrame", "socketFrames", "unique localFrame/socketId/socketPath", key, "Duplicate baked socket trajectory frame.", location);
             }
         }
 
@@ -1299,10 +1476,11 @@ namespace MxFramework.Animation
             MxAnimationBakeExpectation expectation,
             MxAnimationBakeValidationReport report)
         {
-            CompareExpected("BakeSourceClipHashMismatch", "sourceClipHash", expectation.SourceClipHash, artifact.Profile.SourceClipHash, report);
-            CompareExpected("BakeProfileHashExpectedMismatch", "profileHash", expectation.ProfileHash, artifact.Profile.ProfileHash, report);
-            CompareExpected("BakeSkeletonProfileHashMismatch", "skeletonProfileHash", expectation.SkeletonProfileHash, artifact.Profile.SkeletonProfileHash, report);
-            CompareExpected("BakeArtifactHashExpectedMismatch", "artifactHash", expectation.ArtifactHash, artifact.ArtifactHash, report);
+            MxAnimationBakeIssueLocation location = CreateLocation(artifact);
+            CompareExpected("BakeSourceClipHashMismatch", "sourceClipHash", expectation.SourceClipHash, artifact.Profile.SourceClipHash, report, location);
+            CompareExpected("BakeProfileHashExpectedMismatch", "profileHash", expectation.ProfileHash, artifact.Profile.ProfileHash, report, location);
+            CompareExpected("BakeSkeletonProfileHashMismatch", "skeletonProfileHash", expectation.SkeletonProfileHash, artifact.Profile.SkeletonProfileHash, report, location);
+            CompareExpected("BakeArtifactHashExpectedMismatch", "artifactHash", expectation.ArtifactHash, artifact.ArtifactHash, report, location);
 
             if (expectation.CompatibilityExpectation != null && !expectation.CompatibilityExpectation.IsDefault)
             {
@@ -1312,11 +1490,33 @@ namespace MxFramework.Animation
                 {
                     MxAnimationCompatibilityIssue issue = compatibilityReport.Issues[i];
                     if (issue.Severity == MxAnimationCompatibilityIssueSeverity.Error)
-                        report.AddError(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message);
+                        report.AddError(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message, location);
                     else
-                        report.AddWarning(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message);
+                        report.AddWarning(issue.Code, issue.Field, issue.Expected, issue.Actual, issue.Message, location);
                 }
             }
+        }
+
+        private static MxAnimationBakeIssueLocation CreateLocation(MxAnimationBakeArtifact artifact)
+        {
+            if (artifact == null)
+                return default;
+
+            return CreateLocation(artifact.Profile, artifact.ArtifactHash);
+        }
+
+        private static MxAnimationBakeIssueLocation CreateLocation(
+            MxAnimationBakeProfile profile,
+            string artifactHash = "")
+        {
+            if (profile == null)
+                return default;
+
+            return new MxAnimationBakeIssueLocation(
+                profile.SourceClipKey,
+                profile.ProfileId,
+                profile.SkeletonProfileId,
+                artifactHash);
         }
 
         private static void CompareExpected(
@@ -1324,14 +1524,15 @@ namespace MxFramework.Animation
             string field,
             string expected,
             string actual,
-            MxAnimationBakeValidationReport report)
+            MxAnimationBakeValidationReport report,
+            MxAnimationBakeIssueLocation location)
         {
             if (string.IsNullOrWhiteSpace(expected))
                 return;
             if (string.Equals(expected, actual, StringComparison.Ordinal))
                 return;
 
-            report.AddError(code, field, expected, actual, "Bake artifact expectation mismatch.");
+            report.AddError(code, field, expected, actual, "Bake artifact expectation mismatch.", location);
         }
     }
 
@@ -1397,7 +1598,7 @@ namespace MxFramework.Animation
                 return HashPrefix + Sha256Hex(string.Empty);
 
             var builder = new StringBuilder();
-            builder.Append("mxanimation.bake.artifact.v1\n");
+            builder.Append("mxanimation.bake.artifact.v2\n");
             Append(builder, "profileHash", artifact.Profile.ProfileHash);
             Append(builder, "sourceClipHash", artifact.Profile.SourceClipHash);
 
@@ -1423,11 +1624,24 @@ namespace MxFramework.Animation
                 Append(builder, "deltaPosition", frame.DeltaPosition.ToString());
             }
 
+            for (int i = 0; i < artifact.SocketFrames.Count; i++)
+            {
+                MxAnimationBakedSocketFrame frame = artifact.SocketFrames[i];
+                builder.Append("socket[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]\n");
+                Append(builder, "localFrame", frame.LocalFrame.ToString(CultureInfo.InvariantCulture));
+                Append(builder, "socketId", frame.SocketId);
+                Append(builder, "socketPath", frame.SocketPath);
+                Append(builder, "position", frame.Position.ToString());
+                Append(builder, "deltaPosition", frame.DeltaPosition.ToString());
+            }
+
             for (int i = 0; i < artifact.EventMarkers.Count; i++)
             {
                 MxAnimationBakedEventMarker marker = artifact.EventMarkers[i];
                 builder.Append("event[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("]\n");
                 Append(builder, "localFrame", marker.LocalFrame.ToString(CultureInfo.InvariantCulture));
+                Append(builder, "presentationFrame", marker.PresentationFrame.ToString(CultureInfo.InvariantCulture));
+                Append(builder, "combatFrame", marker.CombatFrame.ToString(CultureInfo.InvariantCulture));
                 Append(builder, "sourceOrder", marker.SourceOrder.ToString(CultureInfo.InvariantCulture));
                 Append(builder, "eventId", marker.EventId);
                 Append(builder, "kind", marker.Kind.ToString());

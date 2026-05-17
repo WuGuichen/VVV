@@ -18,15 +18,44 @@ namespace MxFramework.Tests.Animation
                 profile,
                 new[] { Trace(localFrame: 2), Trace(localFrame: 1) },
                 new[] { Root(localFrame: 1), Root(localFrame: 0) },
-                new[] { Marker(localFrame: 4, sourceOrder: 1), Marker(localFrame: 3, sourceOrder: 0) });
+                new[] { Marker(localFrame: 4, sourceOrder: 1), Marker(localFrame: 3, sourceOrder: 0) },
+                socketFrames: new[] { Socket(localFrame: 2), Socket(localFrame: 1) });
             var second = new MxAnimationBakeArtifact(
                 profile,
                 new[] { Trace(localFrame: 1), Trace(localFrame: 2) },
                 new[] { Root(localFrame: 0), Root(localFrame: 1) },
-                new[] { Marker(localFrame: 3, sourceOrder: 0), Marker(localFrame: 4, sourceOrder: 1) });
+                new[] { Marker(localFrame: 3, sourceOrder: 0), Marker(localFrame: 4, sourceOrder: 1) },
+                socketFrames: new[] { Socket(localFrame: 1), Socket(localFrame: 2) });
 
             Assert.AreEqual(first.ArtifactHash, second.ArtifactHash);
             Assert.IsFalse(MxAnimationBakeArtifactValidator.Validate(first).HasErrors);
+        }
+
+        [Test]
+        public void BakeArtifactHash_IncludesSocketTrajectoryAndEventAlignment()
+        {
+            MxAnimationBakeProfile profile = CreateProfile();
+            var socketA = new MxAnimationBakeArtifact(
+                profile,
+                new[] { Trace(localFrame: 1) },
+                new[] { Root(localFrame: 1) },
+                new[] { Marker(localFrame: 3, sourceOrder: 0, presentationFrame: 3) },
+                socketFrames: new[] { Socket(localFrame: 1, x: 10) });
+            var socketB = new MxAnimationBakeArtifact(
+                profile,
+                new[] { Trace(localFrame: 1) },
+                new[] { Root(localFrame: 1) },
+                new[] { Marker(localFrame: 3, sourceOrder: 0, presentationFrame: 3) },
+                socketFrames: new[] { Socket(localFrame: 1, x: 11) });
+            var eventB = new MxAnimationBakeArtifact(
+                profile,
+                new[] { Trace(localFrame: 1) },
+                new[] { Root(localFrame: 1) },
+                new[] { Marker(localFrame: 3, sourceOrder: 0, presentationFrame: 4) },
+                socketFrames: new[] { Socket(localFrame: 1, x: 10) });
+
+            Assert.AreNotEqual(socketA.ArtifactHash, socketB.ArtifactHash);
+            Assert.AreNotEqual(socketA.ArtifactHash, eventB.ArtifactHash);
         }
 
         [Test]
@@ -47,6 +76,28 @@ namespace MxFramework.Tests.Animation
             Assert.That(report.Issues.Select(i => i.Code), Contains.Item("BakeProfileHashExpectedMismatch"));
             Assert.That(report.Issues.Select(i => i.Code), Contains.Item("BakeSkeletonProfileHashMismatch"));
             Assert.That(report.Issues.Select(i => i.Code), Contains.Item("BakeArtifactHashExpectedMismatch"));
+            Assert.IsTrue(report.Issues.All(i => i.Location.SourceClipKey.Equals(profile.SourceClipKey)));
+            Assert.IsTrue(report.Issues.All(i => i.Location.ProfileId == profile.ProfileId));
+            Assert.IsTrue(report.Issues.All(i => i.Location.SkeletonProfileId == profile.SkeletonProfileId));
+            Assert.IsTrue(report.Issues.All(i => i.Location.ArtifactHash == artifact.ArtifactHash));
+        }
+
+        [Test]
+        public void BakeArtifactValidator_ReportsDuplicateSocketFrameWithLocation()
+        {
+            MxAnimationBakeProfile profile = CreateProfile();
+            var artifact = new MxAnimationBakeArtifact(
+                profile,
+                socketFrames: new[] { Socket(localFrame: 1), Socket(localFrame: 1) });
+
+            MxAnimationBakeValidationReport report = MxAnimationBakeArtifactValidator.Validate(artifact);
+
+            Assert.IsTrue(report.HasErrors);
+            MxAnimationBakeIssue issue = report.Issues.Single(i => i.Code == "BakeDuplicateSocketFrame");
+            Assert.AreEqual(profile.SourceClipKey, issue.Location.SourceClipKey);
+            Assert.AreEqual(profile.ProfileId, issue.Location.ProfileId);
+            Assert.AreEqual(profile.SkeletonProfileId, issue.Location.SkeletonProfileId);
+            Assert.AreEqual(artifact.ArtifactHash, issue.Location.ArtifactHash);
         }
 
         [Test]
@@ -84,9 +135,14 @@ namespace MxFramework.Tests.Animation
             Assert.IsTrue(first.Success, first.ReportText);
             Assert.AreEqual(first.Artifact.ArtifactHash, second.Artifact.ArtifactHash);
             Assert.Greater(first.Artifact.WeaponTraceFrames.Count, 0);
+            Assert.Greater(first.Artifact.SocketFrames.Count, first.Artifact.RootMotionFrames.Count);
             Assert.AreEqual(2000, first.Artifact.RootMotionFrames[first.Artifact.RootMotionFrames.Count - 1].RootPosition.X);
             Assert.AreEqual(MxAnimationBakeEventKind.Footstep, first.Artifact.EventMarkers[0].Kind);
+            Assert.AreEqual(first.Artifact.EventMarkers[0].LocalFrame, first.Artifact.EventMarkers[0].PresentationFrame);
+            Assert.AreEqual(-1, first.Artifact.EventMarkers[0].CombatFrame);
             Assert.That(first.ReportText, Does.Contain("sourceClipHash: sha256:"));
+            Assert.That(first.ReportText, Does.Contain("socketTrajectoryFrames:"));
+            Assert.That(first.ReportText, Does.Contain("eventAlignment:"));
         }
 
         [Test]
@@ -230,9 +286,24 @@ namespace MxFramework.Tests.Animation
                 new MxAnimationBakedVector3(1, 0, 0));
         }
 
-        private static MxAnimationBakedEventMarker Marker(int localFrame, int sourceOrder)
+        private static MxAnimationBakedSocketFrame Socket(int localFrame, long x = 0)
         {
-            return new MxAnimationBakedEventMarker(localFrame, "event:" + sourceOrder, MxAnimationBakeEventKind.Marker, sourceOrder: sourceOrder);
+            return new MxAnimationBakedSocketFrame(
+                localFrame,
+                "weapon",
+                "Hips/Spine/WeaponSocket",
+                new MxAnimationBakedVector3(x, localFrame, 0),
+                new MxAnimationBakedVector3(1, 0, 0));
+        }
+
+        private static MxAnimationBakedEventMarker Marker(int localFrame, int sourceOrder, int presentationFrame = -1)
+        {
+            return new MxAnimationBakedEventMarker(
+                localFrame,
+                "event:" + sourceOrder,
+                MxAnimationBakeEventKind.Marker,
+                sourceOrder: sourceOrder,
+                presentationFrame: presentationFrame);
         }
 
         private static GameObject CreateSkeletonRoot()
