@@ -84,6 +84,11 @@ namespace MxFramework.Editor.Animation
 
         public static MxAnimationBakeEditorResult BakeClip(AnimationClip clip)
         {
+            return BakeClip(clip, default(ResourceKey));
+        }
+
+        public static MxAnimationBakeEditorResult BakeClip(AnimationClip clip, ResourceKey sourceClipKey)
+        {
             if (clip == null)
             {
                 var report = new MxAnimationBakeValidationReport();
@@ -92,10 +97,13 @@ namespace MxFramework.Editor.Animation
             }
 
             string clipName = NormalizeName(clip.name);
-            ResourceKey clipKey = new ResourceKey("art.character.skeleton.animation." + clipName, ResourceTypeIds.AnimationClip, packageId: DefaultPackageId);
+            ResourceKey clipKey = sourceClipKey.IsValid
+                ? sourceClipKey
+                : new ResourceKey("art.character.skeleton.animation." + clipName, ResourceTypeIds.AnimationClip, packageId: DefaultPackageId);
+            string profileSuffix = NormalizeName(sourceClipKey.IsValid ? clipKey.Id : clipName);
             string clipHash = ComputeClipHash(clip);
             var profile = new MxAnimationBakeProfile(
-                "mxanimation.bake." + clipName,
+                "mxanimation.bake." + profileSuffix,
                 clipKey,
                 clipHash,
                 "skeleton",
