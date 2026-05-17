@@ -1383,6 +1383,10 @@ using UnityEngine;
 var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
 var walk = new ResourceKey("demo.animation.walk", ResourceTypeIds.AnimationClip);
 var run = new ResourceKey("demo.animation.run", ResourceTypeIds.AnimationClip);
+var left = new ResourceKey("demo.animation.left", ResourceTypeIds.AnimationClip);
+var right = new ResourceKey("demo.animation.right", ResourceTypeIds.AnimationClip);
+var forward = new ResourceKey("demo.animation.forward", ResourceTypeIds.AnimationClip);
+var backward = new ResourceKey("demo.animation.backward", ResourceTypeIds.AnimationClip);
 var fallback = new ResourceKey("demo.animation.fallback", ResourceTypeIds.AnimationClip);
 var upperBodyMask = new ResourceKey("demo.animation.mask.upper_body", ResourceTypeIds.AvatarMask);
 var set = new MxAnimationSetDefinition(
@@ -1416,6 +1420,23 @@ var set = new MxAnimationSetDefinition(
                 new MxAnimationBlend1DPoint(1000, run)
             },
             parameterScale: 1000)
+    },
+    blend2DDefinitions: new[]
+    {
+        new MxAnimationBlend2DDefinition(
+            blendId: "locomotion2d",
+            parameterXId: "locomotion.x",
+            parameterYId: "locomotion.y",
+            layerId: MxAnimationLayerId.Base,
+            points: new[]
+            {
+                new MxAnimationBlend2DPoint(-1000, 0, left),
+                new MxAnimationBlend2DPoint(1000, 0, right),
+                new MxAnimationBlend2DPoint(0, 1000, forward),
+                new MxAnimationBlend2DPoint(0, -1000, backward)
+            },
+            parameterXScale: 1000,
+            parameterYScale: 1000)
     });
 
 // resources 由组合根注册 provider + catalog；clip / AvatarMask 必须通过 ResourceKey 解析。
@@ -1425,6 +1446,12 @@ backend.SetBlend1D(new MxAnimationBlend1DRequest
 {
     BlendId = "locomotion",
     Parameter = new MxAnimationQuantizedParameter("locomotion.speed", 750)
+});
+backend.SetBlend2D(new MxAnimationBlend2DRequest
+{
+    BlendId = "locomotion2d",
+    ParameterX = new MxAnimationQuantizedParameter("locomotion.x", 250),
+    ParameterY = new MxAnimationQuantizedParameter("locomotion.y", 500)
 });
 backend.SetLayerWeight(new MxAnimationLayerWeightRequest
 {
@@ -1513,7 +1540,9 @@ MxFramework / MxAnimation / Bake Selected Animation Clip MVP
 - `MxFramework.Animation.Unity` 通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 backend 自己拥有的 handle。
 - AvatarMask 与 clip 一样使用 `ResourceKey` 和 `ResourceManager` 加载；runtime definition 不直接保存 `AvatarMask` 引用。
 - layer weight 只影响 Unity Playables layer mixer 的表现权重，可用于上半身攻击、下半身移动这类视觉混合；它不改变 Combat authority。
-- 1D locomotion blend 使用 `MxAnimationBlend1DDefinition` 和 `MxAnimationBlend1DRequest`；point clip key 进入 definition hash、mapping validation 和 warmup，实际 clip 仍由 backend 通过 `ResourceManager` 加载。
+- 1D locomotion blend 使用 `MxAnimationBlend1DDefinition` 和 `MxAnimationBlend1DRequest`；2D locomotion blend 使用 `MxAnimationBlend2DDefinition` 和 `MxAnimationBlend2DRequest`。point clip key 进入 definition hash、mapping validation 和 warmup，实际 clip 仍由 backend 通过 `ResourceManager` 加载。
+- `MxAnimationBlend1DRequest` / `MxAnimationBlend2DRequest` 会转换成共享 `MxAnimationBlendRequest`，backend 再走同一条 clip weight -> Playables slot mixer 路径。
+- 2D blend 权重计算在 noEngine 层使用量化整数参数完成，Unity backend 只消费 clip weight 列表；它不能把 Unity 当前动画姿态或 Playable time 写回权威逻辑。
 - bake artifact 必须作为派生缓存处理。source/profile/skeleton/artifact hash mismatch 必须输出 diagnostics，不能静默使用过期数据。
 - `MxAnimationSetDefinition.DefinitionHash` 是稳定 mapping hash；加载侧可用它和 catalog hash / registry version 检测过期数据。
 - warmup 复用 `ResourcePreloadService` 和 catalog labels；hash/version mismatch、missing clip、wrong type 或 partial failure 都会产生结构化 `MxAnimationWarmupIssue`。

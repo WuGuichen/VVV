@@ -262,6 +262,7 @@ namespace MxFramework.Tests.Combat.Animation
             public readonly List<MxAnimationCrossFadeRequest> CrossFades = new List<MxAnimationCrossFadeRequest>();
             public readonly List<MxAnimationLayerWeightRequest> LayerWeights = new List<MxAnimationLayerWeightRequest>();
             public readonly List<MxAnimationBlend1DRequest> Blend1DRequests = new List<MxAnimationBlend1DRequest>();
+            public readonly List<MxAnimationBlend2DRequest> Blend2DRequests = new List<MxAnimationBlend2DRequest>();
 
             public string BackendName => "Recording";
 
@@ -293,6 +294,12 @@ namespace MxFramework.Tests.Combat.Animation
             {
                 Blend1DRequests.Add(request);
                 return MxAnimationBackendResult.Succeeded(default, "Recorded 1D blend.");
+            }
+
+            public MxAnimationBackendResult SetBlend2D(MxAnimationBlend2DRequest request)
+            {
+                Blend2DRequests.Add(request);
+                return MxAnimationBackendResult.Succeeded(default, "Recorded 2D blend.");
             }
 
             public void Tick(float deltaTime)

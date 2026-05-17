@@ -343,6 +343,46 @@ namespace MxFramework.Tests.Animation
             AssertIssue(missingReport, "AvatarMaskCatalogEntryMissing");
         }
 
+        [Test]
+        public void SetDefinitionValidator_ValidatesBlend2DCoordinatesParametersAndClips()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var right = new ResourceKey("demo.animation.right", ResourceTypeIds.AnimationClip);
+            var catalog = new ResourceCatalog(
+                "demo.catalog",
+                "demo.package",
+                new[]
+                {
+                    new ResourceCatalogEntry(idle.Id, idle.TypeId, "memory", "idle"),
+                    new ResourceCatalogEntry(right.Id, right.TypeId, "memory", "right")
+                });
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                blend2DDefinitions: new[]
+                {
+                    new MxAnimationBlend2DDefinition(
+                        "locomotion2d",
+                        "move.x",
+                        string.Empty,
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend2DPoint(0, 0, idle),
+                            new MxAnimationBlend2DPoint(0, 0, right),
+                            new MxAnimationBlend2DPoint(1000, 0, default)
+                        })
+                });
+
+            ResourceCatalogValidationReport report = MxAnimationSetDefinitionValidator.Validate(definition, catalog);
+
+            AssertIssue(report, "Blend2DParameterMissing");
+            AssertIssue(report, "DuplicateBlend2DCoordinate");
+            AssertIssue(report, "Blend2DClipMissing");
+        }
+
         private static void AssertIssue(ResourceCatalogValidationReport report, string code)
         {
             for (int i = 0; i < report.Issues.Count; i++)
@@ -352,6 +392,62 @@ namespace MxFramework.Tests.Animation
             }
 
             Assert.Fail("Expected animation validation issue: " + code);
+        }
+
+        private static MxAnimationSetDefinition Create2DHashDefinition(
+            ResourceKey idle,
+            ResourceKey right,
+            ResourceKey up,
+            string parameterX,
+            string parameterY,
+            int scaleX,
+            int scaleY,
+            int changedX,
+            ResourceKey rightClip)
+        {
+            return new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                idle,
+                idle,
+                blend2DDefinitions: new[]
+                {
+                    new MxAnimationBlend2DDefinition(
+                        "locomotion2d",
+                        parameterX,
+                        parameterY,
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend2DPoint(0, 0, idle),
+                            new MxAnimationBlend2DPoint(1000 + changedX, 0, rightClip),
+                            new MxAnimationBlend2DPoint(0, 1000, up)
+                        },
+                        scaleX,
+                        scaleY)
+                });
+        }
+
+        private static void Assert2DWeight(MxAnimationBlend2DWeights weights, ResourceKey clipKey, float expected)
+        {
+            for (int i = 0; i < weights.Weights.Count; i++)
+            {
+                if (weights.Weights[i].ClipKey != clipKey)
+                    continue;
+
+                Assert.AreEqual(expected, weights.Weights[i].Weight, 0.0001f);
+                return;
+            }
+
+            Assert.Fail("Expected 2D blend weight for " + clipKey + ".");
+        }
+
+        private static float Sum2DWeights(MxAnimationBlend2DWeights weights)
+        {
+            float sum = 0f;
+            for (int i = 0; i < weights.Weights.Count; i++)
+                sum += weights.Weights[i].Weight;
+            return sum;
         }
 
         [Test]
@@ -463,6 +559,116 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Blend2DCalculator_EvaluatesDeterministicWeightsForCommonTopologies()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var right = new ResourceKey("demo.animation.right", ResourceTypeIds.AnimationClip);
+            var up = new ResourceKey("demo.animation.up", ResourceTypeIds.AnimationClip);
+            var diagonal = new ResourceKey("demo.animation.diagonal", ResourceTypeIds.AnimationClip);
+            var square = new MxAnimationBlend2DDefinition(
+                "locomotion2d",
+                "move.x",
+                "move.y",
+                MxAnimationLayerId.Base,
+                new[]
+                {
+                    new MxAnimationBlend2DPoint(0, 0, idle),
+                    new MxAnimationBlend2DPoint(1000, 0, right),
+                    new MxAnimationBlend2DPoint(0, 1000, up),
+                    new MxAnimationBlend2DPoint(1000, 1000, diagonal)
+                });
+
+            MxAnimationBlend2DWeights exact =
+                MxAnimationBlend2DCalculator.Evaluate(square, new MxAnimationQuantizedParameter("move.x", 0), new MxAnimationQuantizedParameter("move.y", 0));
+            MxAnimationBlend2DWeights center =
+                MxAnimationBlend2DCalculator.Evaluate(square, new MxAnimationQuantizedParameter("move.x", 500), new MxAnimationQuantizedParameter("move.y", 500));
+            MxAnimationBlend2DWeights outside =
+                MxAnimationBlend2DCalculator.Evaluate(square, new MxAnimationQuantizedParameter("move.x", 1500), new MxAnimationQuantizedParameter("move.y", 500));
+
+            Assert2DWeight(exact, idle, 1f);
+            Assert2DWeight(center, idle, 0.25f);
+            Assert2DWeight(center, right, 0.25f);
+            Assert2DWeight(center, up, 0.25f);
+            Assert2DWeight(center, diagonal, 0.25f);
+            Assert2DWeight(outside, right, 0.5f);
+            Assert2DWeight(outside, diagonal, 0.5f);
+
+            var triangle = new MxAnimationBlend2DDefinition(
+                "triangle",
+                "move.x",
+                "move.y",
+                MxAnimationLayerId.Base,
+                new[]
+                {
+                    new MxAnimationBlend2DPoint(0, 0, idle),
+                    new MxAnimationBlend2DPoint(1000, 0, right),
+                    new MxAnimationBlend2DPoint(0, 1000, up)
+                });
+            MxAnimationBlend2DWeights triangleInside =
+                MxAnimationBlend2DCalculator.Evaluate(triangle, new MxAnimationQuantizedParameter("move.x", 250), new MxAnimationQuantizedParameter("move.y", 250));
+            MxAnimationBlend2DWeights triangleOutside =
+                MxAnimationBlend2DCalculator.Evaluate(triangle, new MxAnimationQuantizedParameter("move.x", 1500), new MxAnimationQuantizedParameter("move.y", 0));
+
+            Assert2DWeight(triangleInside, idle, 0.5f);
+            Assert2DWeight(triangleInside, right, 0.25f);
+            Assert2DWeight(triangleInside, up, 0.25f);
+            Assert2DWeight(triangleOutside, right, 1f);
+
+            var single = new MxAnimationBlend2DDefinition(
+                "single",
+                "move.x",
+                "move.y",
+                MxAnimationLayerId.Base,
+                new[] { new MxAnimationBlend2DPoint(250, 250, idle) });
+            var doublePoint = new MxAnimationBlend2DDefinition(
+                "double",
+                "move.x",
+                "move.y",
+                MxAnimationLayerId.Base,
+                new[]
+                {
+                    new MxAnimationBlend2DPoint(0, 0, idle),
+                    new MxAnimationBlend2DPoint(1000, 0, right)
+                });
+            var collinear = new MxAnimationBlend2DDefinition(
+                "collinear",
+                "move.x",
+                "move.y",
+                MxAnimationLayerId.Base,
+                new[]
+                {
+                    new MxAnimationBlend2DPoint(0, 0, idle),
+                    new MxAnimationBlend2DPoint(500, 500, right),
+                    new MxAnimationBlend2DPoint(1000, 1000, up)
+                });
+            var degenerate = new MxAnimationBlend2DDefinition(
+                "degenerate",
+                "move.x",
+                "move.y",
+                MxAnimationLayerId.Base,
+                new[]
+                {
+                    new MxAnimationBlend2DPoint(0, 0, idle),
+                    new MxAnimationBlend2DPoint(0, 0, right),
+                    new MxAnimationBlend2DPoint(1000, 0, up)
+                });
+
+            Assert2DWeight(
+                MxAnimationBlend2DCalculator.Evaluate(single, new MxAnimationQuantizedParameter("move.x", -500), new MxAnimationQuantizedParameter("move.y", 900)),
+                idle,
+                1f);
+            MxAnimationBlend2DWeights doubleWeights =
+                MxAnimationBlend2DCalculator.Evaluate(doublePoint, new MxAnimationQuantizedParameter("move.x", 250), new MxAnimationQuantizedParameter("move.y", 500));
+            Assert2DWeight(doubleWeights, idle, 0.75f);
+            Assert2DWeight(doubleWeights, right, 0.25f);
+            MxAnimationBlend2DWeights collinearWeights =
+                MxAnimationBlend2DCalculator.Evaluate(collinear, new MxAnimationQuantizedParameter("move.x", 750), new MxAnimationQuantizedParameter("move.y", 750));
+            Assert2DWeight(collinearWeights, right, 0.5f);
+            Assert2DWeight(collinearWeights, up, 0.5f);
+            Assert.AreEqual(1f, Sum2DWeights(MxAnimationBlend2DCalculator.Evaluate(degenerate, new MxAnimationQuantizedParameter("move.x", 250), new MxAnimationQuantizedParameter("move.y", 0))), 0.0001f);
+        }
+
+        [Test]
         public void SetDefinitionHash_IncludesBlend1DDefinition()
         {
             var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
@@ -507,6 +713,26 @@ namespace MxFramework.Tests.Animation
 
             Assert.That(first.DefinitionHash, Does.StartWith(MxAnimationSetDefinitionHasher.HashPrefix));
             Assert.AreNotEqual(first.DefinitionHash, changed.DefinitionHash);
+        }
+
+        [Test]
+        public void SetDefinitionHash_IncludesBlend2DDefinition()
+        {
+            var idle = new ResourceKey("demo.animation.idle", ResourceTypeIds.AnimationClip);
+            var right = new ResourceKey("demo.animation.right", ResourceTypeIds.AnimationClip);
+            var up = new ResourceKey("demo.animation.up", ResourceTypeIds.AnimationClip);
+            var changedClip = new ResourceKey("demo.animation.changed", ResourceTypeIds.AnimationClip);
+            var first = Create2DHashDefinition(idle, right, up, "move.x", "move.y", 1000, 1000, 0, right);
+            var changedCoordinate = Create2DHashDefinition(idle, right, up, "move.x", "move.y", 1000, 1000, 250, right);
+            var changedParameter = Create2DHashDefinition(idle, right, up, "move.horizontal", "move.y", 1000, 1000, 0, right);
+            var changedScale = Create2DHashDefinition(idle, right, up, "move.x", "move.y", 100, 1000, 0, right);
+            var changedPointClip = Create2DHashDefinition(idle, right, up, "move.x", "move.y", 1000, 1000, 0, changedClip);
+
+            Assert.That(first.DefinitionHash, Does.StartWith(MxAnimationSetDefinitionHasher.HashPrefix));
+            Assert.AreNotEqual(first.DefinitionHash, changedCoordinate.DefinitionHash);
+            Assert.AreNotEqual(first.DefinitionHash, changedParameter.DefinitionHash);
+            Assert.AreNotEqual(first.DefinitionHash, changedScale.DefinitionHash);
+            Assert.AreNotEqual(first.DefinitionHash, changedPointClip.DefinitionHash);
         }
 
         [Test]

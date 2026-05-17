@@ -583,6 +583,91 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetBlend2D_LoadsWeightedClipsAndReportsDiagnostics()
+        {
+            ResourceKey idleKey = ClipKey("demo.animation.idle");
+            ResourceKey rightKey = ClipKey("demo.animation.right");
+            ResourceKey upKey = ClipKey("demo.animation.up");
+            ResourceKey diagonalKey = ClipKey("demo.animation.diagonal");
+            AnimationClip idle = CreateClip("idle");
+            AnimationClip right = CreateClip("right");
+            AnimationClip up = CreateClip("up");
+            AnimationClip diagonal = CreateClip("diagonal");
+            var provider = new MemoryResourceProvider()
+                .Register("clips/idle", idle)
+                .Register("clips/right", right)
+                .Register("clips/up", up)
+                .Register("clips/diagonal", diagonal);
+            ResourceManager manager = CreateManager(
+                provider,
+                Entry(idleKey, "clips/idle"),
+                Entry(rightKey, "clips/right"),
+                Entry(upKey, "clips/up"),
+                Entry(diagonalKey, "clips/diagonal"));
+            var definition = new MxAnimationSetDefinition(
+                "demo.set",
+                1,
+                default,
+                default,
+                blend2DDefinitions: new[]
+                {
+                    new MxAnimationBlend2DDefinition(
+                        "locomotion2d",
+                        "move.x",
+                        "move.y",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend2DPoint(0, 0, idleKey),
+                            new MxAnimationBlend2DPoint(1000, 0, rightKey),
+                            new MxAnimationBlend2DPoint(0, 1000, upKey),
+                            new MxAnimationBlend2DPoint(1000, 1000, diagonalKey)
+                        })
+                });
+
+            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
+            {
+                MxAnimationBackendResult blendResult = fixture.Backend.SetBlend2D(new MxAnimationBlend2DRequest
+                {
+                    BlendId = "locomotion2d",
+                    ParameterX = new MxAnimationQuantizedParameter("move.x", 500),
+                    ParameterY = new MxAnimationQuantizedParameter("move.y", 500),
+                    CorrelationId = "move:500,500"
+                });
+
+                Assert.IsTrue(blendResult.Success, blendResult.Message);
+                Assert.AreEqual(4, provider.LoadCount);
+                Assert.AreEqual(4, manager.CreateDebugSnapshot().LoadedCount);
+
+                MxAnimationDiagnosticSnapshot snapshot = fixture.Backend.CreateSnapshot();
+                MxAnimationLayerDiagnostic layer = FindLayer(snapshot, MxAnimationLayerId.Base);
+                Assert.AreEqual(MxAnimationBlendKind.Blend2D, layer.BlendKind);
+                Assert.AreEqual(string.Empty, layer.Blend1DId);
+                Assert.AreEqual("locomotion2d", layer.Blend2DId);
+                Assert.AreEqual("move.x", layer.Blend2DParameterX.ParameterId);
+                Assert.AreEqual("move.y", layer.Blend2DParameterY.ParameterId);
+                Assert.AreEqual(500, layer.Blend2DParameterX.QuantizedValue);
+                Assert.AreEqual(500, layer.Blend2DParameterY.QuantizedValue);
+                Assert.AreEqual(4, layer.Blend2DWeights.Count);
+                Assert.AreEqual(4, layer.ActivePlayableCount);
+                Assert.AreEqual(0.25f, layer.Blend2DWeights[0].Weight, 0.0001f);
+                Assert.AreEqual(0.25f, layer.Blend2DWeights[1].Weight, 0.0001f);
+                Assert.AreEqual(0.25f, layer.Blend2DWeights[2].Weight, 0.0001f);
+                Assert.AreEqual(0.25f, layer.Blend2DWeights[3].Weight, 0.0001f);
+                Assert.AreEqual(4, snapshot.Cache.CacheMissCount);
+                Assert.AreEqual(4, snapshot.Cache.CachedPlayableCount);
+                Assert.AreEqual(4, snapshot.Cache.ActivePlayableCount);
+                Assert.AreEqual(4, snapshot.Cache.ResourceLoadedCount);
+                Assert.AreEqual(4, snapshot.Cache.ResourceRefCount);
+            }
+
+            Object.DestroyImmediate(idle);
+            Object.DestroyImmediate(right);
+            Object.DestroyImmediate(up);
+            Object.DestroyImmediate(diagonal);
+        }
+
+        [Test]
         public void UpperBodyAttack_WhenFadeOutCompletes_ReleasesHandleBeforeReplay()
         {
             ResourceKey attackKey = ClipKey("demo.animation.attack");

@@ -54,6 +54,66 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Warmup_IncludesBlend2DPointClips()
+        {
+            ResourceKey idle = ClipKey("demo.animation.idle");
+            ResourceKey fallback = ClipKey("demo.animation.fallback");
+            ResourceKey left = ClipKey("demo.animation.left");
+            ResourceKey right = ClipKey("demo.animation.right");
+            ResourceKey forward = ClipKey("demo.animation.forward");
+            ResourceKey backward = ClipKey("demo.animation.backward");
+            var provider = new MemoryResourceProvider()
+                .Register("clips/idle", "Idle")
+                .Register("clips/fallback", "Fallback")
+                .Register("clips/left", "Left")
+                .Register("clips/right", "Right")
+                .Register("clips/forward", "Forward")
+                .Register("clips/backward", "Backward");
+            ResourceCatalog catalog = Catalog(
+                Entry(idle, "clips/idle", hash: "hash-idle"),
+                Entry(fallback, "clips/fallback", hash: "hash-fallback"),
+                Entry(left, "clips/left", hash: "hash-left"),
+                Entry(right, "clips/right", hash: "hash-right"),
+                Entry(forward, "clips/forward", hash: "hash-forward"),
+                Entry(backward, "clips/backward", hash: "hash-backward"));
+            ResourceManager manager = CreateManager(provider, catalog);
+            var service = new MxAnimationWarmupService(new ResourcePreloadService(manager));
+            MxAnimationClipRegistry registry = MxAnimationClipRegistryBuilder.FromCatalog(catalog, version: 1, catalogHash: "catalog-hash");
+            var definition = new MxAnimationSetDefinition(
+                "demo.actor",
+                1,
+                idle,
+                fallback,
+                blend2DDefinitions: new[]
+                {
+                    new MxAnimationBlend2DDefinition(
+                        "locomotion2d",
+                        "move.x",
+                        "move.y",
+                        MxAnimationLayerId.Base,
+                        new[]
+                        {
+                            new MxAnimationBlend2DPoint(-1000, 0, left),
+                            new MxAnimationBlend2DPoint(1000, 0, right),
+                            new MxAnimationBlend2DPoint(0, 1000, forward),
+                            new MxAnimationBlend2DPoint(0, -1000, backward)
+                        })
+                });
+
+            MxAnimationWarmupResult result = service.Warmup(new MxAnimationWarmupRequest(definition, registry, catalog));
+
+            Assert.IsTrue(result.Success, Describe(result));
+            Assert.AreEqual(6, result.RequiredKeys.Count);
+            Assert.AreEqual(6, result.PreloadResult.RequestedCount);
+            Assert.AreEqual(6, result.PreloadResult.LoadedCount);
+            Assert.AreEqual(6, manager.CreateDebugSnapshot().LoadedCount);
+
+            service.Release(result);
+
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
         public void Warmup_WhenSyncVersionMismatch_ReportsDiagnosticsAndSkipsPreload()
         {
             ResourceKey idle = ClipKey("demo.animation.idle");

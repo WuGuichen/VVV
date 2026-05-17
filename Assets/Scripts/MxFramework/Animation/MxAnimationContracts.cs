@@ -98,6 +98,7 @@ namespace MxFramework.Animation
         CrossFade,
         SetLayerWeight,
         SetBlend1D,
+        SetBlend2D,
         Release
     }
 
@@ -130,6 +131,13 @@ namespace MxFramework.Animation
         Loaded,
         Failed,
         Released
+    }
+
+    public enum MxAnimationBlendKind
+    {
+        None,
+        Blend1D,
+        Blend2D
     }
 
     public enum MxAnimationPresentationSyncStatus
@@ -479,6 +487,678 @@ namespace MxFramework.Animation
                     point.PlaybackSpeed,
                     point.Loop));
             }
+        }
+    }
+
+    public sealed class MxAnimationBlend2DPoint
+    {
+        public MxAnimationBlend2DPoint(
+            int x,
+            int y,
+            ResourceKey clipKey,
+            float playbackSpeed = 1f,
+            bool loop = true)
+        {
+            X = x;
+            Y = y;
+            ClipKey = clipKey;
+            PlaybackSpeed = Math.Abs(playbackSpeed) < 0.0001f ? 1f : playbackSpeed;
+            Loop = loop;
+        }
+
+        public int X { get; }
+        public int Y { get; }
+        public ResourceKey ClipKey { get; }
+        public float PlaybackSpeed { get; }
+        public bool Loop { get; }
+    }
+
+    public sealed class MxAnimationBlend2DDefinition
+    {
+        private readonly List<MxAnimationBlend2DPoint> _points;
+
+        public MxAnimationBlend2DDefinition(
+            string blendId,
+            string parameterXId,
+            string parameterYId,
+            MxAnimationLayerId layerId,
+            IEnumerable<MxAnimationBlend2DPoint> points,
+            int parameterXScale = 1000,
+            int parameterYScale = 1000,
+            float fadeDurationSeconds = 0.1f)
+        {
+            BlendId = blendId ?? string.Empty;
+            ParameterXId = parameterXId ?? string.Empty;
+            ParameterYId = parameterYId ?? string.Empty;
+            LayerId = layerId;
+            ParameterXScale = parameterXScale <= 0 ? 1 : parameterXScale;
+            ParameterYScale = parameterYScale <= 0 ? 1 : parameterYScale;
+            FadeDurationSeconds = fadeDurationSeconds < 0f ? 0f : fadeDurationSeconds;
+            _points = points != null
+                ? new List<MxAnimationBlend2DPoint>(points)
+                : new List<MxAnimationBlend2DPoint>();
+            _points.Sort(ComparePoints);
+        }
+
+        public string BlendId { get; }
+        public string ParameterXId { get; }
+        public string ParameterYId { get; }
+        public MxAnimationLayerId LayerId { get; }
+        public int ParameterXScale { get; }
+        public int ParameterYScale { get; }
+        public float FadeDurationSeconds { get; }
+        public IReadOnlyList<MxAnimationBlend2DPoint> Points => _points;
+
+        private static int ComparePoints(MxAnimationBlend2DPoint left, MxAnimationBlend2DPoint right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            int result = left.X.CompareTo(right.X);
+            if (result != 0)
+                return result;
+
+            result = left.Y.CompareTo(right.Y);
+            if (result != 0)
+                return result;
+
+            return string.CompareOrdinal(left.ClipKey.ToString(), right.ClipKey.ToString());
+        }
+    }
+
+    public readonly struct MxAnimationBlend2DWeight
+    {
+        public MxAnimationBlend2DWeight(
+            ResourceKey clipKey,
+            int x,
+            int y,
+            float weight,
+            float playbackSpeed,
+            bool loop)
+        {
+            ClipKey = clipKey;
+            X = x;
+            Y = y;
+            Weight = Clamp01(weight);
+            PlaybackSpeed = Math.Abs(playbackSpeed) < 0.0001f ? 1f : playbackSpeed;
+            Loop = loop;
+        }
+
+        public ResourceKey ClipKey { get; }
+        public int X { get; }
+        public int Y { get; }
+        public float Weight { get; }
+        public float PlaybackSpeed { get; }
+        public bool Loop { get; }
+
+        private static float Clamp01(float value)
+        {
+            if (float.IsNaN(value) || value <= 0f)
+                return 0f;
+            return value >= 1f ? 1f : value;
+        }
+    }
+
+    public sealed class MxAnimationBlend2DWeights
+    {
+        private readonly List<MxAnimationBlend2DWeight> _weights;
+
+        public MxAnimationBlend2DWeights(
+            string blendId,
+            MxAnimationQuantizedParameter parameterX,
+            MxAnimationQuantizedParameter parameterY,
+            IEnumerable<MxAnimationBlend2DWeight> weights)
+        {
+            BlendId = blendId ?? string.Empty;
+            ParameterX = parameterX;
+            ParameterY = parameterY;
+            _weights = weights != null
+                ? new List<MxAnimationBlend2DWeight>(weights)
+                : new List<MxAnimationBlend2DWeight>();
+        }
+
+        public string BlendId { get; }
+        public MxAnimationQuantizedParameter ParameterX { get; }
+        public MxAnimationQuantizedParameter ParameterY { get; }
+        public IReadOnlyList<MxAnimationBlend2DWeight> Weights => _weights;
+    }
+
+    public static class MxAnimationBlend2DCalculator
+    {
+        private const double Epsilon = 0.000001d;
+
+        public static MxAnimationBlend2DWeights Evaluate(
+            MxAnimationBlend2DDefinition definition,
+            MxAnimationQuantizedParameter parameterX,
+            MxAnimationQuantizedParameter parameterY)
+        {
+            if (definition == null || definition.Points.Count == 0)
+                return new MxAnimationBlend2DWeights(string.Empty, parameterX, parameterY, null);
+
+            var weights = new List<MxAnimationBlend2DWeight>(definition.Points.Count);
+            for (int i = 0; i < definition.Points.Count; i++)
+                weights.Add(CreateWeight(definition.Points[i], 0f));
+
+            int x = string.Equals(parameterX.ParameterId, definition.ParameterXId, StringComparison.Ordinal)
+                ? parameterX.QuantizedValue
+                : 0;
+            int y = string.Equals(parameterY.ParameterId, definition.ParameterYId, StringComparison.Ordinal)
+                ? parameterY.QuantizedValue
+                : 0;
+
+            int exactIndex = FindExactPoint(definition.Points, x, y);
+            if (exactIndex >= 0)
+            {
+                SetSingle(weights, definition.Points, exactIndex);
+                return new MxAnimationBlend2DWeights(definition.BlendId, parameterX, parameterY, weights);
+            }
+
+            if (definition.Points.Count == 1)
+            {
+                SetSingle(weights, definition.Points, 0);
+                return new MxAnimationBlend2DWeights(definition.BlendId, parameterX, parameterY, weights);
+            }
+
+            if (definition.Points.Count == 2)
+            {
+                ApplySegment(definition.Points, 0, 1, x, y, weights);
+                return new MxAnimationBlend2DWeights(definition.BlendId, parameterX, parameterY, weights);
+            }
+
+            if (AreCollinear(definition.Points))
+            {
+                ApplyCollinear(definition.Points, x, y, weights);
+                return new MxAnimationBlend2DWeights(definition.BlendId, parameterX, parameterY, weights);
+            }
+
+            if (TryApplyRectangle(definition.Points, x, y, weights)
+                || TryApplyTriangle(definition.Points, x, y, weights))
+            {
+                return new MxAnimationBlend2DWeights(definition.BlendId, parameterX, parameterY, weights);
+            }
+
+            ApplyNearestSegment(definition.Points, x, y, weights);
+            return new MxAnimationBlend2DWeights(definition.BlendId, parameterX, parameterY, weights);
+        }
+
+        private static MxAnimationBlend2DWeight CreateWeight(MxAnimationBlend2DPoint point, float weight)
+        {
+            return point == null
+                ? default
+                : new MxAnimationBlend2DWeight(point.ClipKey, point.X, point.Y, weight, point.PlaybackSpeed, point.Loop);
+        }
+
+        private static void SetSingle(
+            List<MxAnimationBlend2DWeight> weights,
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int index)
+        {
+            ClearWeights(weights, points);
+            weights[index] = CreateWeight(points[index], 1f);
+        }
+
+        private static void ClearWeights(
+            List<MxAnimationBlend2DWeight> weights,
+            IReadOnlyList<MxAnimationBlend2DPoint> points)
+        {
+            for (int i = 0; i < weights.Count; i++)
+                weights[i] = CreateWeight(points[i], 0f);
+        }
+
+        private static int FindExactPoint(IReadOnlyList<MxAnimationBlend2DPoint> points, int x, int y)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = points[i];
+                if (point != null && point.X == x && point.Y == y)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private static bool AreCollinear(IReadOnlyList<MxAnimationBlend2DPoint> points)
+        {
+            int first = FindFirstValidPoint(points);
+            int second = FindNextDistinctPoint(points, first);
+            if (first < 0 || second < 0)
+                return true;
+
+            MxAnimationBlend2DPoint a = points[first];
+            MxAnimationBlend2DPoint b = points[second];
+            for (int i = 0; i < points.Count; i++)
+            {
+                MxAnimationBlend2DPoint c = points[i];
+                if (c == null)
+                    continue;
+
+                long area = Cross(a, b, c);
+                if (area != 0)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static void ApplyCollinear(
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int x,
+            int y,
+            List<MxAnimationBlend2DWeight> weights)
+        {
+            int[] indices = CreateSortedProjectionIndices(points);
+            if (indices.Length == 0)
+                return;
+
+            if (indices.Length == 1)
+            {
+                SetSingle(weights, points, indices[0]);
+                return;
+            }
+
+            bool useX = Range(points, indices, true) >= Range(points, indices, false);
+            double value = useX ? x : y;
+            double first = Coordinate(points[indices[0]], useX);
+            double last = Coordinate(points[indices[indices.Length - 1]], useX);
+            if (value <= first)
+            {
+                SetSingle(weights, points, indices[0]);
+                return;
+            }
+
+            if (value >= last)
+            {
+                SetSingle(weights, points, indices[indices.Length - 1]);
+                return;
+            }
+
+            for (int i = 0; i < indices.Length - 1; i++)
+            {
+                int left = indices[i];
+                int right = indices[i + 1];
+                double leftValue = Coordinate(points[left], useX);
+                double rightValue = Coordinate(points[right], useX);
+                if (Math.Abs(rightValue - leftValue) <= Epsilon)
+                    continue;
+                if (value < leftValue || value > rightValue)
+                    continue;
+
+                double t = (value - leftValue) / (rightValue - leftValue);
+                ApplyPair(points, left, right, 1d - t, t, weights);
+                return;
+            }
+
+            ApplyNearestSegment(points, x, y, weights);
+        }
+
+        private static bool TryApplyRectangle(
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int x,
+            int y,
+            List<MxAnimationBlend2DWeight> weights)
+        {
+            int[] xs = UniqueCoordinates(points, true);
+            int[] ys = UniqueCoordinates(points, false);
+            if (xs.Length < 2 || ys.Length < 2)
+                return false;
+
+            FindBracket(xs, x, out int x0, out int x1);
+            FindBracket(ys, y, out int y0, out int y1);
+            if (x0 == x1 || y0 == y1)
+                return false;
+
+            int i00 = FindPoint(points, x0, y0);
+            int i10 = FindPoint(points, x1, y0);
+            int i01 = FindPoint(points, x0, y1);
+            int i11 = FindPoint(points, x1, y1);
+            if (i00 < 0 || i10 < 0 || i01 < 0 || i11 < 0)
+                return false;
+
+            double clampedX = Clamp(x, x0, x1);
+            double clampedY = Clamp(y, y0, y1);
+            double tx = (clampedX - x0) / (x1 - x0);
+            double ty = (clampedY - y0) / (y1 - y0);
+            ClearWeights(weights, points);
+            weights[i00] = CreateWeight(points[i00], (float)((1d - tx) * (1d - ty)));
+            weights[i10] = CreateWeight(points[i10], (float)(tx * (1d - ty)));
+            weights[i01] = CreateWeight(points[i01], (float)((1d - tx) * ty));
+            weights[i11] = CreateWeight(points[i11], (float)(tx * ty));
+            return true;
+        }
+
+        private static bool TryApplyTriangle(
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int x,
+            int y,
+            List<MxAnimationBlend2DWeight> weights)
+        {
+            for (int a = 0; a < points.Count - 2; a++)
+            {
+                if (points[a] == null)
+                    continue;
+
+                for (int b = a + 1; b < points.Count - 1; b++)
+                {
+                    if (points[b] == null)
+                        continue;
+
+                    for (int c = b + 1; c < points.Count; c++)
+                    {
+                        if (points[c] == null)
+                            continue;
+
+                        if (!TryBarycentric(points[a], points[b], points[c], x, y, out double wa, out double wb, out double wc))
+                            continue;
+
+                        if (wa < -Epsilon || wb < -Epsilon || wc < -Epsilon)
+                            continue;
+
+                        wa = Clamp01(wa);
+                        wb = Clamp01(wb);
+                        wc = Clamp01(wc);
+                        Normalize(ref wa, ref wb, ref wc);
+                        ClearWeights(weights, points);
+                        weights[a] = CreateWeight(points[a], (float)wa);
+                        weights[b] = CreateWeight(points[b], (float)wb);
+                        weights[c] = CreateWeight(points[c], (float)wc);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryBarycentric(
+            MxAnimationBlend2DPoint a,
+            MxAnimationBlend2DPoint b,
+            MxAnimationBlend2DPoint c,
+            int x,
+            int y,
+            out double wa,
+            out double wb,
+            out double wc)
+        {
+            double denominator = ((b.Y - c.Y) * (a.X - c.X)) + ((c.X - b.X) * (a.Y - c.Y));
+            if (Math.Abs(denominator) <= Epsilon)
+            {
+                wa = wb = wc = 0d;
+                return false;
+            }
+
+            wa = (((b.Y - c.Y) * (x - c.X)) + ((c.X - b.X) * (y - c.Y))) / denominator;
+            wb = (((c.Y - a.Y) * (x - c.X)) + ((a.X - c.X) * (y - c.Y))) / denominator;
+            wc = 1d - wa - wb;
+            return true;
+        }
+
+        private static void ApplyNearestSegment(
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int x,
+            int y,
+            List<MxAnimationBlend2DWeight> weights)
+        {
+            double bestDistance = double.MaxValue;
+            int bestA = -1;
+            int bestB = -1;
+            double bestT = 0d;
+            for (int a = 0; a < points.Count - 1; a++)
+            {
+                if (points[a] == null)
+                    continue;
+
+                for (int b = a + 1; b < points.Count; b++)
+                {
+                    if (points[b] == null)
+                        continue;
+
+                    double vx = points[b].X - points[a].X;
+                    double vy = points[b].Y - points[a].Y;
+                    double lengthSquared = (vx * vx) + (vy * vy);
+                    if (lengthSquared <= Epsilon)
+                        continue;
+
+                    double t = (((x - points[a].X) * vx) + ((y - points[a].Y) * vy)) / lengthSquared;
+                    t = Clamp01(t);
+                    double projectedX = points[a].X + (vx * t);
+                    double projectedY = points[a].Y + (vy * t);
+                    double distance = DistanceSquared(projectedX, projectedY, x, y);
+                    if (distance >= bestDistance)
+                        continue;
+
+                    bestDistance = distance;
+                    bestA = a;
+                    bestB = b;
+                    bestT = t;
+                }
+            }
+
+            if (bestA >= 0 && bestB >= 0)
+            {
+                ApplyPair(points, bestA, bestB, 1d - bestT, bestT, weights);
+                return;
+            }
+
+            SetSingle(weights, points, FindNearestPoint(points, x, y));
+        }
+
+        private static void ApplySegment(
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int a,
+            int b,
+            int x,
+            int y,
+            List<MxAnimationBlend2DWeight> weights)
+        {
+            double vx = points[b].X - points[a].X;
+            double vy = points[b].Y - points[a].Y;
+            double lengthSquared = (vx * vx) + (vy * vy);
+            if (lengthSquared <= Epsilon)
+            {
+                SetSingle(weights, points, a);
+                return;
+            }
+
+            double t = (((x - points[a].X) * vx) + ((y - points[a].Y) * vy)) / lengthSquared;
+            t = Clamp01(t);
+            ApplyPair(points, a, b, 1d - t, t, weights);
+        }
+
+        private static void ApplyPair(
+            IReadOnlyList<MxAnimationBlend2DPoint> points,
+            int a,
+            int b,
+            double wa,
+            double wb,
+            List<MxAnimationBlend2DWeight> weights)
+        {
+            ClearWeights(weights, points);
+            weights[a] = CreateWeight(points[a], (float)wa);
+            weights[b] = CreateWeight(points[b], (float)wb);
+        }
+
+        private static int FindFirstValidPoint(IReadOnlyList<MxAnimationBlend2DPoint> points)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (points[i] != null)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private static int FindNextDistinctPoint(IReadOnlyList<MxAnimationBlend2DPoint> points, int first)
+        {
+            if (first < 0)
+                return -1;
+
+            for (int i = first + 1; i < points.Count; i++)
+            {
+                if (points[i] == null)
+                    continue;
+                if (points[i].X != points[first].X || points[i].Y != points[first].Y)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private static int FindNearestPoint(IReadOnlyList<MxAnimationBlend2DPoint> points, int x, int y)
+        {
+            int best = 0;
+            double bestDistance = double.MaxValue;
+            for (int i = 0; i < points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = points[i];
+                if (point == null)
+                    continue;
+
+                double distance = DistanceSquared(point.X, point.Y, x, y);
+                if (distance >= bestDistance)
+                    continue;
+
+                bestDistance = distance;
+                best = i;
+            }
+
+            return best;
+        }
+
+        private static int[] CreateSortedProjectionIndices(IReadOnlyList<MxAnimationBlend2DPoint> points)
+        {
+            var indices = new List<int>();
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (points[i] != null)
+                    indices.Add(i);
+            }
+
+            indices.Sort((left, right) =>
+            {
+                int result = points[left].X.CompareTo(points[right].X);
+                if (result != 0)
+                    return result;
+
+                result = points[left].Y.CompareTo(points[right].Y);
+                if (result != 0)
+                    return result;
+
+                return string.CompareOrdinal(points[left].ClipKey.ToString(), points[right].ClipKey.ToString());
+            });
+            return indices.ToArray();
+        }
+
+        private static int[] UniqueCoordinates(IReadOnlyList<MxAnimationBlend2DPoint> points, bool useX)
+        {
+            var values = new List<int>();
+            for (int i = 0; i < points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = points[i];
+                if (point == null)
+                    continue;
+
+                int value = useX ? point.X : point.Y;
+                if (!values.Contains(value))
+                    values.Add(value);
+            }
+
+            values.Sort();
+            return values.ToArray();
+        }
+
+        private static void FindBracket(int[] values, int sample, out int lower, out int upper)
+        {
+            if (sample <= values[0])
+            {
+                lower = values[0];
+                upper = values[1];
+                return;
+            }
+
+            int last = values.Length - 1;
+            if (sample >= values[last])
+            {
+                lower = values[last - 1];
+                upper = values[last];
+                return;
+            }
+
+            for (int i = 0; i < values.Length - 1; i++)
+            {
+                if (sample < values[i] || sample > values[i + 1])
+                    continue;
+
+                lower = values[i];
+                upper = values[i + 1];
+                return;
+            }
+
+            lower = values[0];
+            upper = values[1];
+        }
+
+        private static int FindPoint(IReadOnlyList<MxAnimationBlend2DPoint> points, int x, int y)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = points[i];
+                if (point != null && point.X == x && point.Y == y)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private static double Coordinate(MxAnimationBlend2DPoint point, bool useX)
+        {
+            return useX ? point.X : point.Y;
+        }
+
+        private static double Range(IReadOnlyList<MxAnimationBlend2DPoint> points, int[] indices, bool useX)
+        {
+            return Coordinate(points[indices[indices.Length - 1]], useX) - Coordinate(points[indices[0]], useX);
+        }
+
+        private static long Cross(MxAnimationBlend2DPoint a, MxAnimationBlend2DPoint b, MxAnimationBlend2DPoint c)
+        {
+            return ((long)b.X - a.X) * (c.Y - a.Y) - ((long)b.Y - a.Y) * (c.X - a.X);
+        }
+
+        private static double DistanceSquared(double ax, double ay, double bx, double by)
+        {
+            double dx = ax - bx;
+            double dy = ay - by;
+            return (dx * dx) + (dy * dy);
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value <= min)
+                return min;
+            return value >= max ? max : value;
+        }
+
+        private static double Clamp01(double value)
+        {
+            if (double.IsNaN(value) || value <= 0d)
+                return 0d;
+            return value >= 1d ? 1d : value;
+        }
+
+        private static void Normalize(ref double a, ref double b, ref double c)
+        {
+            double sum = a + b + c;
+            if (sum <= Epsilon)
+                return;
+
+            a /= sum;
+            b /= sum;
+            c /= sum;
         }
     }
 
@@ -1138,6 +1818,7 @@ namespace MxFramework.Animation
         private readonly List<MxAnimationPresentationEvent> _events;
         private readonly List<MxAnimationLayerDefinition> _layers;
         private readonly List<MxAnimationBlend1DDefinition> _blend1DDefinitions;
+        private readonly List<MxAnimationBlend2DDefinition> _blend2DDefinitions;
 
         public MxAnimationSetDefinition(
             string setId,
@@ -1149,7 +1830,8 @@ namespace MxFramework.Animation
             string definitionHash = "",
             IEnumerable<MxAnimationLayerDefinition> layers = null,
             MxAnimationWarmupDefinition warmup = null,
-            IEnumerable<MxAnimationBlend1DDefinition> blend1DDefinitions = null)
+            IEnumerable<MxAnimationBlend1DDefinition> blend1DDefinitions = null,
+            IEnumerable<MxAnimationBlend2DDefinition> blend2DDefinitions = null)
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -1167,6 +1849,9 @@ namespace MxFramework.Animation
             _blend1DDefinitions = blend1DDefinitions != null
                 ? new List<MxAnimationBlend1DDefinition>(blend1DDefinitions)
                 : new List<MxAnimationBlend1DDefinition>();
+            _blend2DDefinitions = blend2DDefinitions != null
+                ? new List<MxAnimationBlend2DDefinition>(blend2DDefinitions)
+                : new List<MxAnimationBlend2DDefinition>();
             Warmup = warmup ?? MxAnimationWarmupDefinition.Default;
             DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
                 ? MxAnimationSetDefinitionHasher.ComputeHash(this)
@@ -1182,6 +1867,7 @@ namespace MxFramework.Animation
         public IReadOnlyList<MxAnimationPresentationEvent> Events => _events;
         public IReadOnlyList<MxAnimationLayerDefinition> Layers => _layers;
         public IReadOnlyList<MxAnimationBlend1DDefinition> Blend1DDefinitions => _blend1DDefinitions;
+        public IReadOnlyList<MxAnimationBlend2DDefinition> Blend2DDefinitions => _blend2DDefinitions;
         public MxAnimationWarmupDefinition Warmup { get; }
 
         public bool TryFindLayerDefinition(MxAnimationLayerId layerId, out MxAnimationLayerDefinition layer)
@@ -1229,6 +1915,35 @@ namespace MxFramework.Animation
                     && string.Equals(candidate.BlendId, blendId, StringComparison.Ordinal);
                 bool parameterMatches = !string.IsNullOrWhiteSpace(parameterId)
                     && string.Equals(candidate.ParameterId, parameterId, StringComparison.Ordinal);
+                if (!blendMatches && !parameterMatches)
+                    continue;
+
+                definition = candidate;
+                return true;
+            }
+
+            definition = null;
+            return false;
+        }
+
+        public bool TryFindBlend2DDefinition(
+            string blendId,
+            string parameterXId,
+            string parameterYId,
+            out MxAnimationBlend2DDefinition definition)
+        {
+            for (int i = 0; i < _blend2DDefinitions.Count; i++)
+            {
+                MxAnimationBlend2DDefinition candidate = _blend2DDefinitions[i];
+                if (candidate == null)
+                    continue;
+
+                bool blendMatches = !string.IsNullOrWhiteSpace(blendId)
+                    && string.Equals(candidate.BlendId, blendId, StringComparison.Ordinal);
+                bool parameterMatches = !string.IsNullOrWhiteSpace(parameterXId)
+                    && !string.IsNullOrWhiteSpace(parameterYId)
+                    && string.Equals(candidate.ParameterXId, parameterXId, StringComparison.Ordinal)
+                    && string.Equals(candidate.ParameterYId, parameterYId, StringComparison.Ordinal);
                 if (!blendMatches && !parameterMatches)
                     continue;
 
@@ -1291,11 +2006,79 @@ namespace MxFramework.Animation
         public string CorrelationId { get; set; } = string.Empty;
     }
 
+    public sealed class MxAnimationBlendRequest
+    {
+        private readonly List<MxAnimationQuantizedParameter> _parameters;
+
+        public MxAnimationBlendRequest(
+            MxAnimationBlendKind blendKind,
+            string targetActorId,
+            string blendId,
+            IEnumerable<MxAnimationQuantizedParameter> parameters,
+            float fadeDurationSeconds = -1f,
+            string correlationId = "")
+        {
+            BlendKind = blendKind;
+            TargetActorId = targetActorId ?? string.Empty;
+            BlendId = blendId ?? string.Empty;
+            FadeDurationSeconds = fadeDurationSeconds;
+            CorrelationId = correlationId ?? string.Empty;
+            _parameters = parameters != null
+                ? new List<MxAnimationQuantizedParameter>(parameters)
+                : new List<MxAnimationQuantizedParameter>();
+        }
+
+        public MxAnimationBlendKind BlendKind { get; }
+        public string TargetActorId { get; }
+        public string BlendId { get; }
+        public float FadeDurationSeconds { get; }
+        public string CorrelationId { get; }
+        public IReadOnlyList<MxAnimationQuantizedParameter> Parameters => _parameters;
+
+        public static MxAnimationBlendRequest From1D(MxAnimationBlend1DRequest request)
+        {
+            if (request == null)
+                return null;
+
+            return new MxAnimationBlendRequest(
+                MxAnimationBlendKind.Blend1D,
+                request.TargetActorId,
+                request.BlendId,
+                new[] { request.Parameter },
+                request.FadeDurationSeconds,
+                request.CorrelationId);
+        }
+
+        public static MxAnimationBlendRequest From2D(MxAnimationBlend2DRequest request)
+        {
+            if (request == null)
+                return null;
+
+            return new MxAnimationBlendRequest(
+                MxAnimationBlendKind.Blend2D,
+                request.TargetActorId,
+                request.BlendId,
+                new[] { request.ParameterX, request.ParameterY },
+                request.FadeDurationSeconds,
+                request.CorrelationId);
+        }
+    }
+
     public sealed class MxAnimationBlend1DRequest
     {
         public string TargetActorId { get; set; } = string.Empty;
         public string BlendId { get; set; } = string.Empty;
         public MxAnimationQuantizedParameter Parameter { get; set; }
+        public float FadeDurationSeconds { get; set; } = -1f;
+        public string CorrelationId { get; set; } = string.Empty;
+    }
+
+    public sealed class MxAnimationBlend2DRequest
+    {
+        public string TargetActorId { get; set; } = string.Empty;
+        public string BlendId { get; set; } = string.Empty;
+        public MxAnimationQuantizedParameter ParameterX { get; set; }
+        public MxAnimationQuantizedParameter ParameterY { get; set; }
         public float FadeDurationSeconds { get; set; } = -1f;
         public string CorrelationId { get; set; } = string.Empty;
     }
@@ -1351,7 +2134,12 @@ namespace MxFramework.Animation
             MxAnimationLayerSyncState layerSyncState = default,
             string blend1DId = "",
             MxAnimationQuantizedParameter blendParameter = default,
-            IEnumerable<MxAnimationBlend1DWeight> blend1DWeights = null)
+            IEnumerable<MxAnimationBlend1DWeight> blend1DWeights = null,
+            MxAnimationBlendKind blendKind = MxAnimationBlendKind.None,
+            string blend2DId = "",
+            MxAnimationQuantizedParameter blend2DParameterX = default,
+            MxAnimationQuantizedParameter blend2DParameterY = default,
+            IEnumerable<MxAnimationBlend2DWeight> blend2DWeights = null)
         {
             LayerId = layerId;
             Status = status;
@@ -1375,9 +2163,17 @@ namespace MxFramework.Animation
             _blend1DWeights = blend1DWeights != null
                 ? new List<MxAnimationBlend1DWeight>(blend1DWeights)
                 : new List<MxAnimationBlend1DWeight>();
+            BlendKind = blendKind;
+            Blend2DId = blend2DId ?? string.Empty;
+            Blend2DParameterX = blend2DParameterX;
+            Blend2DParameterY = blend2DParameterY;
+            _blend2DWeights = blend2DWeights != null
+                ? new List<MxAnimationBlend2DWeight>(blend2DWeights)
+                : new List<MxAnimationBlend2DWeight>();
         }
 
         private readonly List<MxAnimationBlend1DWeight> _blend1DWeights;
+        private readonly List<MxAnimationBlend2DWeight> _blend2DWeights;
 
         public MxAnimationLayerId LayerId { get; }
         public MxAnimationLayerStatus Status { get; }
@@ -1399,6 +2195,11 @@ namespace MxFramework.Animation
         public string Blend1DId { get; }
         public MxAnimationQuantizedParameter BlendParameter { get; }
         public IReadOnlyList<MxAnimationBlend1DWeight> Blend1DWeights => _blend1DWeights;
+        public MxAnimationBlendKind BlendKind { get; }
+        public string Blend2DId { get; }
+        public MxAnimationQuantizedParameter Blend2DParameterX { get; }
+        public MxAnimationQuantizedParameter Blend2DParameterY { get; }
+        public IReadOnlyList<MxAnimationBlend2DWeight> Blend2DWeights => _blend2DWeights;
 
         private static float Clamp01(float value)
         {
@@ -1606,6 +2407,7 @@ namespace MxFramework.Animation
         MxAnimationBackendResult CrossFade(MxAnimationCrossFadeRequest request);
         MxAnimationBackendResult SetLayerWeight(MxAnimationLayerWeightRequest request);
         MxAnimationBackendResult SetBlend1D(MxAnimationBlend1DRequest request);
+        MxAnimationBackendResult SetBlend2D(MxAnimationBlend2DRequest request);
         void Tick(float deltaTime);
         MxAnimationDiagnosticSnapshot CreateSnapshot();
         void Release();
