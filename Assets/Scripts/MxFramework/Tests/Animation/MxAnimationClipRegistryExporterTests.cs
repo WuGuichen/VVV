@@ -105,6 +105,153 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void Export_MapsBlendDefinitionsThroughClipRegistryKeys()
+        {
+            MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            var idleClip = new AnimationClip { name = "Idle" };
+            var walkClip = new AnimationClip { name = "Walk" };
+            var runClip = new AnimationClip { name = "Run" };
+            var strafeClip = new AnimationClip { name = "Strafe" };
+            try
+            {
+                asset.AnimationSetId = "demo.set";
+                asset.Version = 2;
+                asset.PackageId = "demo.package";
+                asset.Clips = new[]
+                {
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "idle",
+                        Clip = idleClip,
+                        ResourceId = "demo.animation.idle",
+                        IsDefault = true,
+                        IsFallback = true
+                    },
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "walk",
+                        Clip = walkClip,
+                        ResourceId = "demo.animation.walk"
+                    },
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "run",
+                        Clip = runClip,
+                        ResourceId = "demo.animation.run"
+                    },
+                    new MxAnimationClipRegistryClipEntry
+                    {
+                        ClipId = "strafe",
+                        Clip = strafeClip,
+                        ResourceId = "demo.animation.strafe"
+                    }
+                };
+                asset.Blend1DDefinitions = new[]
+                {
+                    new MxAnimationClipRegistryBlend1DEntry
+                    {
+                        BlendId = "locomotion",
+                        ParameterId = "speed",
+                        LayerId = "base",
+                        ParameterScale = 1000,
+                        FadeDurationSeconds = 0.25f,
+                        Points = new[]
+                        {
+                            new MxAnimationClipRegistryBlend1DPointEntry
+                            {
+                                Threshold = 0,
+                                ClipId = "idle",
+                                PlaybackSpeed = 1f,
+                                Loop = true
+                            },
+                            new MxAnimationClipRegistryBlend1DPointEntry
+                            {
+                                Threshold = 500,
+                                ClipId = "walk",
+                                PlaybackSpeed = 1.1f,
+                                Loop = true
+                            },
+                            new MxAnimationClipRegistryBlend1DPointEntry
+                            {
+                                Threshold = 1000,
+                                ClipId = "run",
+                                PlaybackSpeed = 1.2f,
+                                Loop = true
+                            }
+                        }
+                    }
+                };
+                asset.Blend2DDefinitions = new[]
+                {
+                    new MxAnimationClipRegistryBlend2DEntry
+                    {
+                        BlendId = "move2d",
+                        ParameterXId = "move.x",
+                        ParameterYId = "move.y",
+                        LayerId = "base",
+                        ParameterXScale = 1000,
+                        ParameterYScale = 1000,
+                        FadeDurationSeconds = 0.15f,
+                        Points = new[]
+                        {
+                            new MxAnimationClipRegistryBlend2DPointEntry
+                            {
+                                X = 0,
+                                Y = 0,
+                                ClipId = "idle",
+                                PlaybackSpeed = 1f,
+                                Loop = true
+                            },
+                            new MxAnimationClipRegistryBlend2DPointEntry
+                            {
+                                X = 1000,
+                                Y = 0,
+                                ClipId = "strafe",
+                                PlaybackSpeed = 1.05f,
+                                Loop = true
+                            }
+                        }
+                    }
+                };
+                var catalog = new ResourceCatalog(
+                    "demo.catalog",
+                    "demo.package",
+                    new[]
+                    {
+                        new ResourceCatalogEntry("demo.animation.idle", ResourceTypeIds.AnimationClip, "memory", "idle"),
+                        new ResourceCatalogEntry("demo.animation.walk", ResourceTypeIds.AnimationClip, "memory", "walk"),
+                        new ResourceCatalogEntry("demo.animation.run", ResourceTypeIds.AnimationClip, "memory", "run"),
+                        new ResourceCatalogEntry("demo.animation.strafe", ResourceTypeIds.AnimationClip, "memory", "strafe")
+                    });
+
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.Export(asset, catalog);
+
+                Assert.IsTrue(result.Success, MxAnimationClipRegistryExporter.CreateReportText(result));
+                Assert.AreEqual(1, result.Definition.Blend1DDefinitions.Count);
+                Assert.AreEqual(1, result.Definition.Blend2DDefinitions.Count);
+                Assert.AreEqual("locomotion", result.Definition.Blend1DDefinitions[0].BlendId);
+                Assert.AreEqual("speed", result.Definition.Blend1DDefinitions[0].ParameterId);
+                Assert.AreEqual("base", result.Definition.Blend1DDefinitions[0].LayerId.Value);
+                Assert.AreEqual(0.25f, result.Definition.Blend1DDefinitions[0].FadeDurationSeconds);
+                Assert.AreEqual("demo.animation.walk", result.Definition.Blend1DDefinitions[0].Points[1].ClipKey.Id);
+                Assert.AreEqual(1.1f, result.Definition.Blend1DDefinitions[0].Points[1].PlaybackSpeed);
+                Assert.AreEqual("move2d", result.Definition.Blend2DDefinitions[0].BlendId);
+                Assert.AreEqual("move.x", result.Definition.Blend2DDefinitions[0].ParameterXId);
+                Assert.AreEqual("move.y", result.Definition.Blend2DDefinitions[0].ParameterYId);
+                Assert.AreEqual("demo.animation.strafe", result.Definition.Blend2DDefinitions[0].Points[1].ClipKey.Id);
+                Assert.AreEqual(1000, result.Definition.Blend2DDefinitions[0].Points[1].X);
+            }
+            finally
+            {
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(walkClip);
+                Object.DestroyImmediate(runClip);
+                Object.DestroyImmediate(strafeClip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
         public void Export_PreservesPresentationEventsAsResourceKeyTimelineRows()
         {
             MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();

@@ -143,7 +143,7 @@ namespace MxFramework.Editor.Animation
     {
         private const string MenuPath = "MxFramework/MxAnimation/Workstation";
 
-        private MxAnimationClipRegistryAsset _registry;
+        [SerializeField] private MxAnimationClipRegistryAsset _registry;
         private SerializedObject _serializedRegistry;
         private Vector2 _scroll;
         private string _lastReport = string.Empty;
@@ -354,30 +354,131 @@ namespace MxFramework.Editor.Animation
         {
             SerializedProperty blend1D = _serializedRegistry.FindProperty("blend1DDefinitions");
             SerializedProperty blend2D = _serializedRegistry.FindProperty("blend2DDefinitions");
-            _showBlendRows = EditorGUILayout.Foldout(_showBlendRows, "Blend Definitions", true);
-            if (!_showBlendRows)
+            int blendCount = (blend1D != null ? blend1D.arraySize : 0) + (blend2D != null ? blend2D.arraySize : 0);
+            _showBlendRows = EditorGUILayout.Foldout(
+                _showBlendRows,
+                "Blend Definitions (" + blendCount.ToString(CultureInfo.InvariantCulture) + ")",
+                true);
+            if (!_showBlendRows || (blend1D == null && blend2D == null))
                 return;
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (blend1D != null || blend2D != null)
-                {
-                    if (blend1D != null)
-                        EditorGUILayout.PropertyField(blend1D, new GUIContent("1D Blends"), includeChildren: true);
-                    if (blend2D != null)
-                        EditorGUILayout.PropertyField(blend2D, new GUIContent("2D Blends"), includeChildren: true);
-                    return;
-                }
-
-                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(_registry);
-                int blend1DCount = result.Definition != null ? result.Definition.Blend1DDefinitions.Count : 0;
-                int blend2DCount = result.Definition != null ? result.Definition.Blend2DDefinitions.Count : 0;
-                EditorGUILayout.HelpBox(
-                    "MxAnimationSetDefinition supports 1D and 2D blends, but MxAnimationClipRegistryAsset has no serialized blend authoring fields in this slice. Exported blend counts are read-only here.",
-                    MessageType.Warning);
-                EditorGUILayout.LabelField("Exported 1D Blends", blend1DCount.ToString(CultureInfo.InvariantCulture));
-                EditorGUILayout.LabelField("Exported 2D Blends", blend2DCount.ToString(CultureInfo.InvariantCulture));
+                DrawBlend1DRows(blend1D);
+                DrawBlend2DRows(blend2D);
             }
+        }
+
+        private void DrawBlend1DRows(SerializedProperty blends)
+        {
+            if (blends == null)
+                return;
+
+            EditorGUILayout.LabelField("1D Blends", EditorStyles.boldLabel);
+            if (blends.arraySize == 0)
+                EditorGUILayout.HelpBox("No 1D blends are registered.", MessageType.None);
+
+            for (int i = 0; i < blends.arraySize; i++)
+            {
+                SerializedProperty row = blends.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(blends, i, "1D Blend", InitializeBlend1DRow);
+                    DrawRelative(row, "blendId", "Blend Id");
+                    DrawRelative(row, "parameterId", "Parameter Id");
+                    DrawRelative(row, "layerId", "Layer Id");
+                    DrawRelative(row, "parameterScale", "Parameter Scale");
+                    DrawRelative(row, "fadeDurationSeconds", "Fade Seconds");
+                    DrawBlend1DPointRows(row.FindPropertyRelative("points"));
+                }
+            }
+
+            if (GUILayout.Button("Add 1D Blend"))
+                AddRow(blends, "Add MxAnimation 1D Blend", InitializeBlend1DRow);
+        }
+
+        private void DrawBlend1DPointRows(SerializedProperty points)
+        {
+            if (points == null)
+                return;
+
+            EditorGUILayout.LabelField("Points", EditorStyles.miniBoldLabel);
+            if (points.arraySize == 0)
+                EditorGUILayout.HelpBox("No 1D points are registered.", MessageType.None);
+
+            for (int i = 0; i < points.arraySize; i++)
+            {
+                SerializedProperty point = points.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(points, i, "1D Point", InitializeBlend1DPointRow);
+                    DrawRelative(point, "threshold", "Threshold");
+                    DrawRelative(point, "clipId", "Clip Id");
+                    DrawRelative(point, "playbackSpeed", "Speed");
+                    DrawRelative(point, "loop", "Loop");
+                }
+            }
+
+            if (GUILayout.Button("Add 1D Point"))
+                AddRow(points, "Add MxAnimation 1D Blend Point", InitializeBlend1DPointRow);
+        }
+
+        private void DrawBlend2DRows(SerializedProperty blends)
+        {
+            if (blends == null)
+                return;
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("2D Blends", EditorStyles.boldLabel);
+            if (blends.arraySize == 0)
+                EditorGUILayout.HelpBox("No 2D blends are registered.", MessageType.None);
+
+            for (int i = 0; i < blends.arraySize; i++)
+            {
+                SerializedProperty row = blends.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(blends, i, "2D Blend", InitializeBlend2DRow);
+                    DrawRelative(row, "blendId", "Blend Id");
+                    DrawRelative(row, "parameterXId", "Parameter X Id");
+                    DrawRelative(row, "parameterYId", "Parameter Y Id");
+                    DrawRelative(row, "layerId", "Layer Id");
+                    DrawRelative(row, "parameterXScale", "Parameter X Scale");
+                    DrawRelative(row, "parameterYScale", "Parameter Y Scale");
+                    DrawRelative(row, "fadeDurationSeconds", "Fade Seconds");
+                    DrawBlend2DPointRows(row.FindPropertyRelative("points"));
+                }
+            }
+
+            if (GUILayout.Button("Add 2D Blend"))
+                AddRow(blends, "Add MxAnimation 2D Blend", InitializeBlend2DRow);
+        }
+
+        private void DrawBlend2DPointRows(SerializedProperty points)
+        {
+            if (points == null)
+                return;
+
+            EditorGUILayout.LabelField("Points", EditorStyles.miniBoldLabel);
+            if (points.arraySize == 0)
+                EditorGUILayout.HelpBox("No 2D points are registered.", MessageType.None);
+
+            for (int i = 0; i < points.arraySize; i++)
+            {
+                SerializedProperty point = points.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    DrawRowActions(points, i, "2D Point", InitializeBlend2DPointRow);
+                    DrawRelative(point, "x", "X");
+                    DrawRelative(point, "y", "Y");
+                    DrawRelative(point, "clipId", "Clip Id");
+                    DrawRelative(point, "playbackSpeed", "Speed");
+                    DrawRelative(point, "loop", "Loop");
+                }
+            }
+
+            if (GUILayout.Button("Add 2D Point"))
+                AddRow(points, "Add MxAnimation 2D Blend Point", InitializeBlend2DPointRow);
         }
 
         private void DrawDiagnostics()
@@ -560,6 +661,45 @@ namespace MxFramework.Editor.Animation
             SetFloat(row, "defaultWeight", index == 0 ? 1f : 0f);
         }
 
+        private static void InitializeBlend1DRow(SerializedProperty row, int index)
+        {
+            SetString(row, "blendId", "blend1d" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "parameterId", "locomotion.speed");
+            SetString(row, "layerId", "base");
+            SetInt(row, "parameterScale", 1000);
+            SetFloat(row, "fadeDurationSeconds", 0.1f);
+            ClearArray(row, "points");
+        }
+
+        private static void InitializeBlend1DPointRow(SerializedProperty row, int index)
+        {
+            SetInt(row, "threshold", index * 500);
+            SetString(row, "clipId", "clip" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetFloat(row, "playbackSpeed", 1f);
+            SetBool(row, "loop", true);
+        }
+
+        private static void InitializeBlend2DRow(SerializedProperty row, int index)
+        {
+            SetString(row, "blendId", "blend2d" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetString(row, "parameterXId", "move.x");
+            SetString(row, "parameterYId", "move.y");
+            SetString(row, "layerId", "base");
+            SetInt(row, "parameterXScale", 1000);
+            SetInt(row, "parameterYScale", 1000);
+            SetFloat(row, "fadeDurationSeconds", 0.1f);
+            ClearArray(row, "points");
+        }
+
+        private static void InitializeBlend2DPointRow(SerializedProperty row, int index)
+        {
+            SetInt(row, "x", index % 2 == 0 ? 0 : 1000);
+            SetInt(row, "y", index < 2 ? 0 : 1000);
+            SetString(row, "clipId", "clip" + (index + 1).ToString(CultureInfo.InvariantCulture));
+            SetFloat(row, "playbackSpeed", 1f);
+            SetBool(row, "loop", true);
+        }
+
         private static void SetString(SerializedProperty row, string propertyName, string value)
         {
             SerializedProperty property = row.FindPropertyRelative(propertyName);
@@ -574,11 +714,25 @@ namespace MxFramework.Editor.Animation
                 property.floatValue = value;
         }
 
+        private static void SetInt(SerializedProperty row, string propertyName, int value)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null)
+                property.intValue = value;
+        }
+
         private static void SetBool(SerializedProperty row, string propertyName, bool value)
         {
             SerializedProperty property = row.FindPropertyRelative(propertyName);
             if (property != null)
                 property.boolValue = value;
+        }
+
+        private static void ClearArray(SerializedProperty row, string propertyName)
+        {
+            SerializedProperty property = row.FindPropertyRelative(propertyName);
+            if (property != null && property.isArray)
+                property.ClearArray();
         }
     }
 
