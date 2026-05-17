@@ -209,8 +209,10 @@
 | Bake MVP | ✅ v0.2 | `MxAnimationBakeArtifact` / `MxAnimationBakeArtifactValidator` / `CombatBakedWeaponTraceAdapter` | Animation + Editor + Combat |
 | Provider-switchable Animation Package Loading | ✅ v0.3 | `MxAnimationPackageExpectation` / `MxAnimationPackageCatalogValidator` / `MxAnimationResourceTypeIds` | Animation + Resources |
 | Mod Animation Package Override | ✅ v0.3 | `MxAnimationModOverrideDefinition` / `MxAnimationModOverrideMerger` / `MxAnimationModOverrideMergeResult` | Animation + Resources |
+| MxAnimation System Showcase | ✅ playable validation | `MxAnimationShowcaseDemoBootstrap` / `MxAnimationSystemShowcase.unity` / `MxAnimationShowcaseDemoTests` | Demo + Animation.Unity |
 
 → 接口：`Interfaces/Animation.md`
+→ 手测：`Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md`
 → 测试：`Tests/Animation/`
 → **边界**: MxAnimation 只负责表现状态和资源加载诊断；不进入 Combat authority、Replay hash、命中、取消、伤害或权威移动。
 

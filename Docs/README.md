@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.40 | 2026-05-17
+> 版本 0.6.41 | 2026-05-17
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -91,6 +91,15 @@
 | `Interfaces/ConfigSchemaSeeds.md` | Phase 9 首批 Schema 种子清单 |
 | `Interfaces/ConfigReferenceRulesPhase9.md` | Phase 9 引用规则白名单 |
 | `Tasks/PHASE9_CLOSEOUT_REPORT.md` | Phase 9 closeout 接受记录、剩余风险和 AIAction 试点建议 |
+
+---
+
+## Demo / Showcase 文档
+
+| 文档 | 覆盖内容 |
+|------|----------|
+| `Demo/CONFIG_DEMO.md` | Config Demo 内置源、字段示例和引用验证说明。 |
+| `Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md` | MxAnimation System Showcase 入口、覆盖能力、手测流程、验收清单和自动验证入口。 |
 
 ---
 
@@ -205,6 +214,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.41 | 2026-05-17 | 收口 MxAnimation System Showcase 文档索引：能力清单补充 playable validation，详细手测流程归档到 `Docs/Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md` |
 | 0.6.40 | 2026-05-17 | 新增 Gitea -> GitHub Issue / PR 元数据手动镜像脚本，明确 PR 默认以 GitHub Issue 形式镜像，不把 GitHub 变成协作源 |
 | 0.6.39 | 2026-05-15 | 新增 Runtime Debug UI Framework 01 设计文档，明确通用运行时调试 overlay 与现有 Showcase HUD 边界、DebugUI 程序集拆分、snapshot 聚合、输入/焦点行为和 M1-M5 实施切片 |
 | 0.6.38 | 2026-05-14 | 新增资源目录规范文档，明确临时导入资源到正式 Samples 根、ResourceKey/label 命名、direct/dependency-only 划分、MagicEffects 身份和 FMOD bank 边界 |
