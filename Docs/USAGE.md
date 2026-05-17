@@ -1319,7 +1319,14 @@ IResourceOperation<ResourcePreloadResult> preloadOp =
     preload.PreloadAsync(new ResourcePreloadPlan(
         "combat",
         labels: new[] { "warmup.combat" },
-        explicitKeys: new[] { new ResourceKey("demo.text.title", ResourceTypeIds.String) }));
+        explicitKeys: new[] { new ResourceKey("demo.text.title", ResourceTypeIds.String) },
+        maxConcurrentLoads: 2));
+
+while (!preloadOp.IsDone)
+{
+    float progress = preloadOp.Progress;
+    // Update loading UI from the main loop.
+}
 
 if (preloadOp.Result.Success)
 {
@@ -1332,6 +1339,8 @@ if (preloadOp.Result.Success)
     preload.ReleaseGroup(preloadResult.Handle);
 }
 ```
+
+`ResourcePreloadPlan.MaxConcurrentLoads` 控制同时启动的 load 数量，完成一个再补一个；默认 collect-all 模式会保留已加载 handle 并收集所有错误，`failFast: true` 会在首个失败后取消仍在途的 load。调用 `preloadOp.Cancel()` 或取消传入的 `CancellationToken` 会释放已经成功加载的 handles，并返回 `ResourceErrorCode.Cancelled`。Unity Provider 的 completion / progress 应在 Unity 主线程驱动，不能从 worker thread 访问 `UnityEngine.Object`、`AssetBundle` 或 UI Toolkit 对象。
 
 Mod Package 可在 `mod.json` 中声明可选资源目录：
 
