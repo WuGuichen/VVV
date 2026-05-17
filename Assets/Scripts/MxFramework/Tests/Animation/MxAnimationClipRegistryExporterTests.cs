@@ -1,5 +1,6 @@
 using MxFramework.Animation;
 using MxFramework.Combat.Animation;
+using MxFramework.Combat.Authoring;
 using MxFramework.Editor.Animation;
 using MxFramework.Resources;
 using NUnit.Framework;
@@ -382,6 +383,75 @@ namespace MxFramework.Tests.Animation
             finally
             {
                 Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void TimelineScrubberPreview_CarriesExporterMissingClipDiagnostics()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
+            try
+            {
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(
+                        result.Definition,
+                        "attack",
+                        3,
+                        exportValidation: result.ValidationReport,
+                        selectedClipReferenceAvailable: false);
+
+                Assert.IsTrue(preview.HasErrors);
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "MissingClip"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void TimelineScrubberPreview_ReadsCombatAuthoringAssetAsTimelineSource()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
+            CombatActionAuthoringAsset action = ScriptableObject.CreateInstance<CombatActionAuthoringAsset>();
+            var clip = new AnimationClip { name = "Attack" };
+            try
+            {
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].Clip = clip;
+                asset.Clips = clips;
+                action.ActionId = 1001;
+                action.TotalFrames = 8;
+                action.Startup = new CombatAuthoringFrameRange(0, 1);
+                action.Active = new CombatAuthoringFrameRange(2, 4);
+                action.Recovery = new CombatAuthoringFrameRange(5, 7);
+                action.WeaponTraces = new[]
+                {
+                    new CombatWeaponTraceAuthoringData
+                    {
+                        TraceId = 7,
+                        FrameRange = new CombatAuthoringFrameRange(3, 3),
+                        SourceOrder = 1
+                    }
+                };
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                MxAnimationBakeArtifact bake = CreateBakeArtifact(asset.Clips[0].CreateResourceKey(asset.PackageId), frame: 3);
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(result.Definition, "attack", 3, bake, action);
+
+                Assert.IsFalse(preview.HasErrors, MxAnimationTimelineScrubberPreviewBuilder.CreateSummary(preview));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatWindow, "Active"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatWindow, "WeaponTrace:7"));
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "CombatFrameEventsUnavailable"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(action);
                 Object.DestroyImmediate(asset);
             }
         }
