@@ -15,7 +15,8 @@ namespace MxFramework.Combat.Animation
             CombatFrameRange active,
             CombatFrameRange recovery,
             CombatActionWindow[] windows,
-            CombatActionFrameEvent[] events)
+            CombatActionFrameEvent[] events,
+            CombatActionSupportProfile? supportProfile = null)
         {
             if (actionId <= 0)
             {
@@ -30,12 +31,17 @@ namespace MxFramework.Combat.Animation
             startup.ValidateWithin(totalFrames, nameof(startup));
             active.ValidateWithin(totalFrames, nameof(active));
             recovery.ValidateWithin(totalFrames, nameof(recovery));
+            if (supportProfile.HasValue && supportProfile.Value.HasHyperArmorWindow)
+            {
+                supportProfile.Value.HyperArmorWindow.ValidateWithin(totalFrames, nameof(supportProfile));
+            }
 
             ActionId = actionId;
             TotalFrames = totalFrames;
             Startup = startup;
             Active = active;
             Recovery = recovery;
+            SupportProfile = supportProfile;
             _windows = windows == null ? Array.Empty<CombatActionWindow>() : (CombatActionWindow[])windows.Clone();
             _events = events == null ? Array.Empty<CombatActionFrameEvent>() : (CombatActionFrameEvent[])events.Clone();
 
@@ -53,6 +59,8 @@ namespace MxFramework.Combat.Animation
         public CombatFrameRange Active { get; }
 
         public CombatFrameRange Recovery { get; }
+
+        public CombatActionSupportProfile? SupportProfile { get; }
 
         public int WindowCount => _windows.Length;
 

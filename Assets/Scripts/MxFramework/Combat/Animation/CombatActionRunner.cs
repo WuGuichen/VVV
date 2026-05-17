@@ -183,6 +183,20 @@ namespace MxFramework.Combat.Animation
                 : CombatActionPhase.None;
         }
 
+        public CombatActionSupportProfile? GetCurrentSupportProfile(CombatEntityId entityId)
+        {
+            return _runningActions.TryGetValue(entityId, out RunningAction running)
+                ? running.Timeline.SupportProfile
+                : null;
+        }
+
+        public int GetCurrentLocalFrame(CombatEntityId entityId)
+        {
+            return _runningActions.TryGetValue(entityId, out RunningAction running)
+                ? running.LocalFrame
+                : -1;
+        }
+
         public int GetActionInstanceId(CombatEntityId entityId)
         {
             return _runningActions.TryGetValue(entityId, out RunningAction running)

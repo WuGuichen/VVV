@@ -32,7 +32,7 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Hit | `HitResolveSystem` | 对命中候选执行稳定排序、hit-once、防友伤和目标状态过滤 |
 | Hit | `HitCandidate` / `HitResolveResult` / `HitResolveKind` / `HitTargetStateFlags` | 命中候选、结算结果、结果类型和目标状态 flags |
 | Hit | `ITeamRelationProvider` / `IHitTargetStateResolver` / `ICombatEventDispatcher` | 队伍关系、目标状态和命中事件派发扩展点 |
-| Animation | `CombatActionTimeline` / `CombatActionFrameEvent` / `CombatActionWindow` / `CombatFrameRange` / `CombatActionWindowKind` | 动作时间轴、表现关联事件、窗口和帧范围 |
+| Animation | `CombatActionTimeline` / `CombatActionSupportProfile` / `CombatActionFrameEvent` / `CombatActionWindow` / `CombatFrameRange` / `CombatActionWindowKind` | 动作时间轴、支撑参数、表现关联事件、窗口和帧范围 |
 | Animation | `CombatActionRunner` / `CombatActionRegistry` / `CombatActionInstance` / `CombatActionState` / `CombatActionPhase` | 动作注册、运行、状态和阶段 |
 | Animation | `ActionResult` / `ActionStartedEvent` / `ActionPhaseChangedEvent` / `ActionFrameEventRaisedEvent` / `ActionFinishedEvent` / `ActionCanceledEvent` / `ActionCancelRejectedEvent` | 动作运行结果和生命周期事件 |
 | Animation | `ICombatAnimationContext` / `CombatAnimationContext` / `CombatAnimationSnapshot` | 动作系统可读写上下文和快照 |
@@ -42,7 +42,7 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Trace Provider | `ICombatActionTraceProvider` / `CombatActionTimelineTraceProvider` | 从动作时间轴读取 weapon trace |
 | Diagnostics | `CombatDebugSnapshot` / `CombatDebugSnapshotBuilder` / `CombatHitExplain` / `CombatQueryTrace` | 运行时可读诊断快照和命中 explain |
 | Replay | `CombatReplayInput` / `CombatReplayRecorder` / `CombatDesyncDump` | replay 输入记录和 desync dump |
-| Gameplay Bridge | `CombatGameplayEventBridge` | 将 Combat 命中结果桥接到 Gameplay / Buff 侧 |
+| Gameplay Bridge | `CombatGameplayEventBridge` / `CombatBreakLineAdapter` / `CombatPostureBreakAdapter` | 将 Combat 命中结果、动作支撑线和破韧事件桥接到 Gameplay / Buff / Combat Action 侧 |
 
 ## 时间域与 RuntimeHost bridge
 
@@ -102,6 +102,8 @@ Bridge 语义：zero-step 不推进 `CombatFrameClock`；multi-step 每个 step 
 - `CombatWeaponTraceRuntimeModule` 根据动作时间轴和 trace provider 生成武器轨迹查询。
 - `CombatAnimationDiagnosticsModule` 输出动作 / trace / hit 诊断快照。
 
+`CombatActionTimeline.SupportProfile` 可选保存 `CombatActionSupportProfile`，用于描述动作当前的姿态支撑参数。该 profile 只包含 Combat noEngine 数据：`SupportRate`、`MinSupportRatio` 和可选 hyper armor frame window，不引用 Gameplay。`CombatActionRunner.GetCurrentSupportProfile(entityId)` 和 `GetCurrentLocalFrame(entityId)` 提供只读查询；没有 running action 时分别返回 `null` 和 `-1`，不改变 action start / tick / cancel 生命周期。
+
 `CombatActionRunner.ActionFrameEventRaised` 发布 noEngine 的固定帧表现关联事件。`StartAction` / `ForceStartAction` 成功时先发布 `ActionStartedEvent`，再发布 local frame 0 的 `CombatActionFrameEvent`；`TickActions` 每次推进 running action 后，按稳定 entity id 顺序和 `CombatActionFrameEvent.CompareTo` 顺序发布该 local frame 的事件。payload `ActionFrameEventRaisedEvent` 包含 entity、action、action instance、world frame、local frame 和原始 frame event。
 
 frame event 只提供 deterministic presentation correlation，不承载 VFX / SFX / Camera / Footstep / UI kind，也不承载 `ResourceKey`。Unity 或 MxAnimation bridge 需要从 animation binding、bridge 配置或其他表现层配置解析资源和表现类型；该事件不得反向驱动取消窗口、命中、伤害、replay hash 或 Combat 权威状态。
@@ -115,6 +117,21 @@ MxAnimation 的 presentation sync contract 可以把 Combat action lifecycle 复
 `CombatActionState` 包含 `ActionInstanceId`，用于在 multi-step Runtime tick 内保留每个动作实例的 hit-once 身份；RuntimeHost weapon trace 模块基于每个 fixed step 后的动作状态快照计算候选，不从 Runtime frame 直接推导 Combat frame。
 
 默认模块位于 RuntimeHost 阶段中运行，具体 priority 和组合根由 Demo / 项目层配置。动作系统不读取 Unity Animator 状态作为权威。
+
+## Gameplay Bridge：姿态支撑和破韧打断
+
+`CombatBreakLineAdapter.CalculateBreakLine(basePressure, supportProfile)` 使用固定点参数计算 break line：
+
+```text
+baseLine = basePressure
+actionLine = baseLine * supportProfile.SupportRate
+minLine = baseLine * supportProfile.MinSupportRatio
+breakLine = Max(baseLine, Max(actionLine, minLine))
+```
+
+当 support profile 为空时返回 `basePressure`。`Fix64` 结果通过 `ToInt()` 量化，当前语义是向零截断。`CombatBreakLineAdapter.IsInHyperArmorWindow(profile, localFrame)` 只在 profile 显式启用 hyper armor 且 local frame 落在窗口内时返回 true。
+
+`CombatPostureBreakAdapter` 订阅 `GameplayPosturePressureSystem.PostureBreakEvents`，把 `PostureBreakEvent.EntityId` 通过 `CombatEntityGameplayMap` 映射为 `CombatEntityId`，再调用 `CombatActionRunner.ForceCancel`。缺失映射、没有 running action 或 adapter disable / dispose 都不会产生取消。
 
 ## Baked Weapon Trace Adapter
 

@@ -28,6 +28,11 @@ namespace MxFramework.UI.Toolkit
         public const string StatusDanger = "mx-status-badge--danger";
         public const string StatBar = "mx-stat-bar";
         public const string StatBarFill = "mx-stat-bar__fill";
+        public const string StressBar = "mx-stress-bar";
+        public const string StressBarFill = "mx-stress-bar__fill";
+        public const string StressBarBreakLine = "mx-stress-bar__break-line";
+        public const string StressBarActive = "mx-stress-bar--active";
+        public const string StressBarInactive = "mx-stress-bar--inactive";
         public const string EventLog = "mx-event-log";
         public const string EventLogRow = "mx-event-log__row";
         public const string EventLogEmpty = "mx-event-log__empty";
