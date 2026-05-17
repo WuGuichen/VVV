@@ -215,12 +215,14 @@ class PressureAttribute
 
 | 阶段 | 内容 | 产出 |
 |------|------|------|
-| **阶段 1** | 基础压力模型——扩展属性系统，新增 PressureAttribute 及其事件 | 压力属性配置格式和生命周期文档 |
-| **阶段 2** | 姿态与支撑系统——PosturePressure、ActionSupport、破韧逻辑 | 对应 UI 组件和演示 Demo |
-| **阶段 3** | 防御与外壳——GuardPressure、ArmorIntegrity | 破防、破壳动画 |
-| **阶段 4** | AI 适配——压力传感器和决策逻辑 | 基于压力段的行为触发规则 |
-| **阶段 5** | 环境与能力——Traction、Wetness、Heat、Charge、能力模板解析器 | 跨作品能力加载 |
-| **阶段 6** | 表现与复盘——UI、音效、复盘工具 | 压力事件复盘工具和数据导出 |
+| Issue | 阶段 | 内容 | 产出 |
+|-------|------|------|------|
+| #167 | **Stage 1** | 基础压力模型——PressureBand + PosturePressureComponent + 事件 | 压力属性组件，可参与 SaveState/hash |
+| #168 | **Stage 2** | 姿态与支撑——BreakLine 计算 + 破韧打断 + UI 压力条 | CombatActionSupportProfile + MxPosturePressureBar |
+| #169 | **Stage 3** | 防御与外壳——GuardPressure + GuardBreak + ArmorIntegrity | GuardPressureComponent + ArmorIntegrityComponent |
+| #170 | **Stage 4** | AI 适配——压力传感器 + 效用决策 + 行为触发 | PostureAiSensor + PostureWeightEvaluator |
+| — | Stage 5 | 环境与能力（暂未创建 Issue） | 依赖 Stage 1-4 落地经验 |
+| — | Stage 6 | 表现与复盘（暂未创建 Issue） | 依赖 Stage 1-4 落地经验 |
 
 每个阶段结束都应更新文档、接口和测试，确保系统在保持确定性的前提下逐步丰富玩法。
 
