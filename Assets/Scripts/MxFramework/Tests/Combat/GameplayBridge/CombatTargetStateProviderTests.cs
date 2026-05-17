@@ -12,6 +12,7 @@ namespace MxFramework.Tests.Combat.GameplayBridge
         private static readonly GameplayStatusId Blocking = new GameplayStatusId(200);
         private static readonly GameplayStatusId Parrying = new GameplayStatusId(300);
         private static readonly GameplayStatusId SuperArmor = new GameplayStatusId(400);
+        private static readonly GameplayStatusId GuardBroken = new GameplayStatusId(500);
 
         [Test]
         public void Evaluate_NullWorldThrows()
@@ -151,6 +152,21 @@ namespace MxFramework.Tests.Combat.GameplayBridge
                 HitTargetStateFlags.Blocking |
                 HitTargetStateFlags.SuperArmor,
                 provider.Evaluate(world, entity));
+        }
+
+        [Test]
+        public void Evaluate_GuardBrokenStatusSuppressesBlocking()
+        {
+            var world = new GameplayComponentWorld();
+            GameplayEntityId entity = CreateEntity(world, GameplayLifecycleComponent.Alive, Blocking, GuardBroken);
+            var provider = new CombatTargetStateProvider(
+                Invincible,
+                Blocking,
+                Parrying,
+                SuperArmor,
+                GuardBroken);
+
+            Assert.AreEqual(HitTargetStateFlags.Alive, provider.Evaluate(world, entity));
         }
 
         [Test]
