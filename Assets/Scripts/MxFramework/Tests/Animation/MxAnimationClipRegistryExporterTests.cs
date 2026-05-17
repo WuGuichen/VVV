@@ -535,6 +535,80 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void TimelineScrubberPreview_NormalizedEventRoundTripsAgainstPreviewMaxFrame()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:half", eventFrame: 0);
+            try
+            {
+                MxAnimationClipRegistryBindingEntry[] bindings = asset.Bindings;
+                MxAnimationClipRegistryEventEntry[] events = bindings[0].Events;
+                events[0].TimeDomain = MxAnimationEventTimeDomain.NormalizedTime;
+                events[0].Time = 0.5f;
+                bindings[0].Events = events;
+                asset.Bindings = bindings;
+
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                MxAnimationBakeArtifact bake = CreateBakeArtifact(asset.Clips[0].CreateResourceKey(asset.PackageId), frame: 30);
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(result.Definition, "attack", 15, bake);
+
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.PresentationEvent, "event:half"));
+                Assert.AreEqual(0.5f, preview.NormalizedTime, 0.0001f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void TimelineEventTimeUtility_NormalizedTimeUsesPreviewMaxFrame()
+        {
+            int previewMaxFrame = MxAnimationTimelineEventTimeUtility.ResolvePreviewMaxFrame(
+                clipLengthSeconds: 1f,
+                sampleRate: 30,
+                combatTotalFrames: -1);
+
+            float normalizedTime = MxAnimationTimelineEventTimeUtility.FrameToEventTime(
+                MxAnimationEventTimeDomain.NormalizedTime,
+                frame: 15,
+                previewMaxFrame: previewMaxFrame,
+                sampleRate: 30);
+
+            Assert.AreEqual(30, previewMaxFrame);
+            Assert.AreEqual(0.5f, normalizedTime, 0.0001f);
+        }
+
+        [Test]
+        public void TimelineScrubberPreview_AutoBakeWithRegistryClipKeyDoesNotReportSourceMismatch()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 0);
+            var clip = new AnimationClip { name = "Attack Preview" };
+            try
+            {
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].Clip = clip;
+                asset.Clips = clips;
+
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                ResourceKey registryClipKey = asset.Clips[0].CreateResourceKey(asset.PackageId);
+                MxAnimationBakeArtifact bake = MxAnimationBakeEditorTool.BakeClip(clip, registryClipKey).Artifact;
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(result.Definition, "attack", 0, bake);
+
+                Assert.AreEqual(registryClipKey, bake.Profile.SourceClipKey);
+                Assert.IsFalse(ContainsScrubberDiagnostic(preview, "BakeSourceClipMismatch"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
         public void TimelineScrubberPreview_CarriesExporterMissingClipDiagnostics()
         {
             MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);

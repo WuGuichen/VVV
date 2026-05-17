@@ -10,6 +10,8 @@ using MxFramework.Resources;
 using UnityEditor;
 using UnityEngine;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MxFramework.Tests")]
+
 namespace MxFramework.Editor.Animation
 {
     [CustomEditor(typeof(MxAnimationClipRegistryAsset))]
@@ -137,6 +139,37 @@ namespace MxFramework.Editor.Animation
             }
 
             return builder.ToString();
+        }
+    }
+
+    internal static class MxAnimationTimelineEventTimeUtility
+    {
+        public static float FrameToEventTime(
+            MxAnimationEventTimeDomain timeDomain,
+            int frame,
+            int previewMaxFrame,
+            int sampleRate)
+        {
+            int clampedFrame = Math.Max(0, frame);
+            switch (timeDomain)
+            {
+                case MxAnimationEventTimeDomain.Seconds:
+                    return sampleRate > 0 ? clampedFrame / (float)sampleRate : 0f;
+                case MxAnimationEventTimeDomain.NormalizedTime:
+                    return previewMaxFrame > 0 ? clampedFrame / (float)previewMaxFrame : 0f;
+                default:
+                    return clampedFrame;
+            }
+        }
+
+        public static int ResolvePreviewMaxFrame(float clipLengthSeconds, int sampleRate, int combatTotalFrames)
+        {
+            int maxFrame = -1;
+            if (clipLengthSeconds > 0f && sampleRate > 0)
+                maxFrame = Math.Max(maxFrame, (int)Math.Ceiling(Math.Max(clipLengthSeconds, 0.0001f) * sampleRate));
+            if (combatTotalFrames > 0)
+                maxFrame = Math.Max(maxFrame, combatTotalFrames - 1);
+            return maxFrame;
         }
     }
 
@@ -375,11 +408,12 @@ namespace MxFramework.Editor.Animation
                 SerializedProperty binding = bindings.GetArrayElementAtIndex(_timelineBindingIndex);
                 string selector = ResolveTimelineBindingSelector(_registry.Bindings);
                 AnimationClip selectedClip = ResolveTimelineSelectedClip(_registry, selector);
-                int maxFrame = ResolveTimelineMaxFrame(selectedClip);
+                int previewMaxFrame = ResolveTimelinePreviewMaxFrame(selectedClip);
+                int scrubMaxFrame = ResolveTimelineScrubMaxFrame(selectedClip, previewMaxFrame);
 
-                DrawTimelineFrameControls(maxFrame);
+                DrawTimelineFrameControls(scrubMaxFrame);
                 DrawTimelineSourceStatus(selectedClip);
-                DrawTimelineEventRows(binding.FindPropertyRelative("events"), maxFrame);
+                DrawTimelineEventRows(binding.FindPropertyRelative("events"), previewMaxFrame);
                 DrawTimelinePreview();
             }
         }
@@ -499,7 +533,7 @@ namespace MxFramework.Editor.Animation
             }
 
             if (GUILayout.Button("Add Presentation Event"))
-                AddTimelineEvent(events);
+                AddTimelineEvent(events, maxFrame);
         }
 
         private void DrawTimelinePreview()
@@ -746,14 +780,14 @@ namespace MxFramework.Editor.Animation
             }
         }
 
-        private void AddTimelineEvent(SerializedProperty events)
+        private void AddTimelineEvent(SerializedProperty events, int maxFrame)
         {
             Undo.RecordObject(_registry, "Add MxAnimation Presentation Event");
             int index = events.arraySize;
             events.InsertArrayElementAtIndex(index);
             SerializedProperty row = events.GetArrayElementAtIndex(index);
             InitializeTimelineEventRow(row, index);
-            SetTimelineEventTime(row, Math.Max(1, _timelineRangeEnd), applyChanges: false);
+            SetTimelineEventTime(row, maxFrame, applyChanges: false);
             ApplySerializedChanges("Add MxAnimation Presentation Event");
             GUIUtility.ExitGUI();
         }
@@ -771,18 +805,11 @@ namespace MxFramework.Editor.Animation
                 MxAnimationEventTimeDomain timeDomain = domain != null
                     ? (MxAnimationEventTimeDomain)domain.enumValueIndex
                     : MxAnimationEventTimeDomain.PresentationFrame;
-                switch (timeDomain)
-                {
-                    case MxAnimationEventTimeDomain.Seconds:
-                        time.floatValue = _timelineFrame / (float)MxAnimationBakeEditorTool.DefaultSampleTickRate;
-                        break;
-                    case MxAnimationEventTimeDomain.NormalizedTime:
-                        time.floatValue = maxFrame > 0 ? _timelineFrame / (float)maxFrame : 0f;
-                        break;
-                    default:
-                        time.floatValue = _timelineFrame;
-                        break;
-                }
+                time.floatValue = MxAnimationTimelineEventTimeUtility.FrameToEventTime(
+                    timeDomain,
+                    _timelineFrame,
+                    maxFrame,
+                    MxAnimationBakeEditorTool.DefaultSampleTickRate);
             }
 
             if (applyChanges)
@@ -812,8 +839,9 @@ namespace MxFramework.Editor.Animation
             _timelineExport = MxAnimationClipRegistryExporter.ExportStructureOnly(_registry);
             _timelineSelector = ResolveTimelineBindingSelector(_registry.Bindings);
             _timelineClip = ResolveTimelineSelectedClip(_registry, _timelineSelector);
+            ResourceKey timelineClipKey = ResolveTimelineSelectedClipKey(_timelineExport.Definition, _timelineSelector);
             _timelineBake = _timelineAutoBakeSelectedClip && _timelineClip != null
-                ? MxAnimationBakeEditorTool.BakeClip(_timelineClip).Artifact
+                ? MxAnimationBakeEditorTool.BakeClip(_timelineClip, timelineClipKey).Artifact
                 : null;
             RebuildTimelinePreview();
             _timelinePreviewDirty = false;
@@ -844,7 +872,16 @@ namespace MxFramework.Editor.Animation
             _timelinePreviewDirty = true;
         }
 
-        private int ResolveTimelineMaxFrame(AnimationClip selectedClip)
+        private int ResolveTimelinePreviewMaxFrame(AnimationClip selectedClip)
+        {
+            int maxFrame = MxAnimationTimelineEventTimeUtility.ResolvePreviewMaxFrame(
+                selectedClip != null ? selectedClip.length : 0f,
+                MxAnimationBakeEditorTool.DefaultSampleTickRate,
+                TryGetTimelineIntProperty(_timelineCombatSource, "TotalFrames", -1));
+            return Math.Max(1, maxFrame);
+        }
+
+        private int ResolveTimelineScrubMaxFrame(AnimationClip selectedClip, int previewMaxFrame)
         {
             int maxFrame = Math.Max(1, _timelineRangeEnd);
             if (selectedClip != null)
@@ -854,11 +891,7 @@ namespace MxFramework.Editor.Animation
                     Mathf.CeilToInt(Mathf.Max(selectedClip.length, 0.0001f) * MxAnimationBakeEditorTool.DefaultSampleTickRate));
             }
 
-            int combatTotalFrames = TryGetTimelineIntProperty(_timelineCombatSource, "TotalFrames", -1);
-            if (combatTotalFrames > 0)
-                maxFrame = Math.Max(maxFrame, combatTotalFrames - 1);
-
-            return maxFrame;
+            return Math.Max(maxFrame, previewMaxFrame);
         }
 
         private void ExportTimelineSummaryText()
@@ -932,6 +965,27 @@ namespace MxFramework.Editor.Animation
             }
 
             return null;
+        }
+
+        private static ResourceKey ResolveTimelineSelectedClipKey(MxAnimationSetDefinition definition, string selector)
+        {
+            if (definition == null)
+                return default;
+
+            IReadOnlyList<MxAnimationActionBinding> actions = definition.Actions;
+            for (int i = 0; i < actions.Count; i++)
+            {
+                MxAnimationActionBinding binding = actions[i];
+                if (binding == null)
+                    continue;
+                if (string.Equals(binding.BindingId, selector, StringComparison.Ordinal)
+                    || string.Equals(binding.ActionKey, selector, StringComparison.Ordinal))
+                {
+                    return binding.Clip;
+                }
+            }
+
+            return default;
         }
 
         private static int TryGetTimelineIntProperty(object target, string propertyName, int fallback)
@@ -1918,7 +1972,8 @@ namespace MxFramework.Editor.Animation
             _cachedExport = MxAnimationClipRegistryExporter.ExportStructureOnly(_registry);
             _cachedSelector = ResolveSelectedBindingSelector(_registry.Bindings);
             _cachedClip = ResolveSelectedClip(_registry, _cachedSelector);
-            _cachedBake = _cachedClip != null ? MxAnimationBakeEditorTool.BakeClip(_cachedClip).Artifact : null;
+            ResourceKey cachedClipKey = ResolveSelectedClipKey(_cachedExport.Definition, _cachedSelector);
+            _cachedBake = _cachedClip != null ? MxAnimationBakeEditorTool.BakeClip(_cachedClip, cachedClipKey).Artifact : null;
             RebuildPreview();
         }
 
@@ -2040,6 +2095,27 @@ namespace MxFramework.Editor.Animation
             }
 
             return null;
+        }
+
+        private static ResourceKey ResolveSelectedClipKey(MxAnimationSetDefinition definition, string selector)
+        {
+            if (definition == null)
+                return default;
+
+            IReadOnlyList<MxAnimationActionBinding> actions = definition.Actions;
+            for (int i = 0; i < actions.Count; i++)
+            {
+                MxAnimationActionBinding binding = actions[i];
+                if (binding == null)
+                    continue;
+                if (string.Equals(binding.BindingId, selector, StringComparison.Ordinal)
+                    || string.Equals(binding.ActionKey, selector, StringComparison.Ordinal))
+                {
+                    return binding.Clip;
+                }
+            }
+
+            return default;
         }
     }
 }
