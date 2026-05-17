@@ -1,6 +1,11 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Reflection;
 using System.Text;
 using MxFramework.Animation;
+using MxFramework.Resources;
 using UnityEditor;
 using UnityEngine;
 
@@ -35,6 +40,9 @@ namespace MxFramework.Editor.Animation
                 EditorGUILayout.HelpBox(_lastReport, MessageType.Info);
 
             DrawEventTimeline(registry);
+
+            if (GUILayout.Button("Open Timeline Scrubber Preview"))
+                MxAnimationTimelineScrubberPreviewWindow.Open(registry);
         }
 
         private void DrawEventTimeline(MxAnimationClipRegistryAsset registry)
@@ -125,6 +133,842 @@ namespace MxFramework.Editor.Animation
             }
 
             return builder.ToString();
+        }
+    }
+
+    public enum MxAnimationTimelineScrubberDiagnosticSeverity
+    {
+        Error = 0,
+        Warning = 1
+    }
+
+    public enum MxAnimationTimelineScrubberRowKind
+    {
+        PresentationEvent = 0,
+        CombatFrameEvent = 1,
+        CombatWindow = 2,
+        RootMotion = 3,
+        Socket = 4,
+        WeaponTrace = 5
+    }
+
+    public sealed class MxAnimationTimelineScrubberDiagnostic
+    {
+        public MxAnimationTimelineScrubberDiagnostic(
+            MxAnimationTimelineScrubberDiagnosticSeverity severity,
+            string code,
+            string message)
+        {
+            Severity = severity;
+            Code = code ?? string.Empty;
+            Message = message ?? string.Empty;
+        }
+
+        public MxAnimationTimelineScrubberDiagnosticSeverity Severity { get; }
+        public string Code { get; }
+        public string Message { get; }
+    }
+
+    public sealed class MxAnimationTimelineScrubberRow
+    {
+        public MxAnimationTimelineScrubberRow(
+            MxAnimationTimelineScrubberRowKind kind,
+            int localFrame,
+            string label,
+            string details)
+        {
+            Kind = kind;
+            LocalFrame = localFrame;
+            Label = label ?? string.Empty;
+            Details = details ?? string.Empty;
+        }
+
+        public MxAnimationTimelineScrubberRowKind Kind { get; }
+        public int LocalFrame { get; }
+        public string Label { get; }
+        public string Details { get; }
+    }
+
+    public sealed class MxAnimationTimelineScrubberPreview
+    {
+        public MxAnimationTimelineScrubberPreview(
+            string setId,
+            string bindingId,
+            string actionKey,
+            string clipKey,
+            int localFrame,
+            float seconds,
+            float normalizedTime,
+            int combatFrame,
+            int presentationFrame,
+            IReadOnlyList<MxAnimationTimelineScrubberRow> rows,
+            IReadOnlyList<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            SetId = setId ?? string.Empty;
+            BindingId = bindingId ?? string.Empty;
+            ActionKey = actionKey ?? string.Empty;
+            ClipKey = clipKey ?? string.Empty;
+            LocalFrame = localFrame;
+            Seconds = seconds;
+            NormalizedTime = normalizedTime;
+            CombatFrame = combatFrame;
+            PresentationFrame = presentationFrame;
+            Rows = rows ?? Array.Empty<MxAnimationTimelineScrubberRow>();
+            Diagnostics = diagnostics ?? Array.Empty<MxAnimationTimelineScrubberDiagnostic>();
+        }
+
+        public string SetId { get; }
+        public string BindingId { get; }
+        public string ActionKey { get; }
+        public string ClipKey { get; }
+        public int LocalFrame { get; }
+        public float Seconds { get; }
+        public float NormalizedTime { get; }
+        public int CombatFrame { get; }
+        public int PresentationFrame { get; }
+        public IReadOnlyList<MxAnimationTimelineScrubberRow> Rows { get; }
+        public IReadOnlyList<MxAnimationTimelineScrubberDiagnostic> Diagnostics { get; }
+        public bool HasErrors
+        {
+            get
+            {
+                for (int i = 0; i < Diagnostics.Count; i++)
+                {
+                    if (Diagnostics[i].Severity == MxAnimationTimelineScrubberDiagnosticSeverity.Error)
+                        return true;
+                }
+
+                return false;
+            }
+        }
+    }
+
+    public static class MxAnimationTimelineScrubberPreviewBuilder
+    {
+        public static MxAnimationTimelineScrubberPreview Build(
+            MxAnimationSetDefinition definition,
+            string actionKeyOrBindingId,
+            int localFrame,
+            MxAnimationBakeArtifact bakeArtifact = null,
+            object combatTimeline = null,
+            ResourceCatalogValidationReport exportValidation = null,
+            bool selectedClipReferenceAvailable = true)
+        {
+            var rows = new List<MxAnimationTimelineScrubberRow>();
+            var diagnostics = new List<MxAnimationTimelineScrubberDiagnostic>();
+            int frame = Math.Max(0, localFrame);
+            MxAnimationActionBinding binding = FindBinding(definition, actionKeyOrBindingId);
+            int sampleRate = bakeArtifact != null && bakeArtifact.Profile.SampleTickRate > 0
+                ? bakeArtifact.Profile.SampleTickRate
+                : MxAnimationBakeEditorTool.DefaultSampleTickRate;
+            int maxFrame = ResolveMaxFrame(bakeArtifact, combatTimeline);
+            float seconds = frame / (float)sampleRate;
+            float normalizedTime = maxFrame > 0 ? frame / (float)maxFrame : 0f;
+
+            if (definition == null)
+                diagnostics.Add(Error("MissingAnimationSet", "Animation set definition is missing."));
+            AddExportDiagnostics(exportValidation, diagnostics);
+            if (binding == null)
+                diagnostics.Add(Error("MissingActionBinding", "Action binding is missing: " + (actionKeyOrBindingId ?? string.Empty) + "."));
+            else if (!binding.Clip.IsValid)
+                diagnostics.Add(Error("MissingClip", "Action binding clip key is missing: " + binding.BindingId + "."));
+            if (!selectedClipReferenceAvailable)
+                diagnostics.Add(Error("MissingClip", "Selected binding has no AnimationClip reference for preview bake: " + (binding != null ? binding.BindingId : actionKeyOrBindingId ?? string.Empty) + "."));
+            if (maxFrame >= 0 && frame > maxFrame)
+                diagnostics.Add(Warning("FrameOutOfRange", "Scrub frame is outside known timeline range: " + frame.ToString(CultureInfo.InvariantCulture) + " > " + maxFrame.ToString(CultureInfo.InvariantCulture) + "."));
+
+            AddAnimationEvents(definition, binding, frame, sampleRate, maxFrame, rows, diagnostics);
+            List<int> combatEventIds = AddCombatTimelineRows(combatTimeline, frame, rows, diagnostics);
+            AddBakeRows(binding, bakeArtifact, frame, rows, diagnostics);
+            AddTimelineMismatchDiagnostics(rows, combatEventIds, frame, diagnostics);
+            rows.Sort(CompareRows);
+
+            return new MxAnimationTimelineScrubberPreview(
+                definition != null ? definition.SetId : string.Empty,
+                binding != null ? binding.BindingId : string.Empty,
+                binding != null ? binding.ActionKey : actionKeyOrBindingId ?? string.Empty,
+                binding != null ? binding.Clip.ToString() : string.Empty,
+                frame,
+                seconds,
+                normalizedTime,
+                frame,
+                frame,
+                rows,
+                diagnostics);
+        }
+
+        private static void AddExportDiagnostics(
+            ResourceCatalogValidationReport exportValidation,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            if (exportValidation == null)
+                return;
+
+            for (int i = 0; i < exportValidation.Issues.Count; i++)
+            {
+                ResourceCatalogValidationIssue issue = exportValidation.Issues[i];
+                string code = string.Equals(issue.Code, "ClipReferenceMissing", StringComparison.Ordinal)
+                    ? "MissingClip"
+                    : issue.Code;
+                if (issue.Severity == ResourceCatalogValidationSeverity.Error)
+                    diagnostics.Add(Error(code, issue.Message));
+                else
+                    diagnostics.Add(Warning(code, issue.Message));
+            }
+        }
+
+        public static string CreateSummary(MxAnimationTimelineScrubberPreview preview)
+        {
+            var builder = new StringBuilder();
+            builder.Append("MxAnimation Timeline Scrubber Preview\n");
+            builder.Append("setId: ").Append(preview != null ? preview.SetId : string.Empty).Append('\n');
+            builder.Append("binding: ").Append(preview != null ? preview.BindingId : string.Empty).Append('\n');
+            builder.Append("action: ").Append(preview != null ? preview.ActionKey : string.Empty).Append('\n');
+            builder.Append("frame: ").Append(preview != null ? preview.LocalFrame : 0).Append('\n');
+            builder.Append("seconds: ").Append(preview != null ? preview.Seconds.ToString("0.###", CultureInfo.InvariantCulture) : "0").Append('\n');
+            builder.Append("normalized: ").Append(preview != null ? preview.NormalizedTime.ToString("0.###", CultureInfo.InvariantCulture) : "0").Append('\n');
+            builder.Append("rows:\n");
+            if (preview != null)
+            {
+                for (int i = 0; i < preview.Rows.Count; i++)
+                {
+                    MxAnimationTimelineScrubberRow row = preview.Rows[i];
+                    builder.Append("- ").Append(row.Kind)
+                        .Append(" frame=").Append(row.LocalFrame)
+                        .Append(" label=").Append(row.Label)
+                        .Append(" details=").Append(row.Details)
+                        .Append('\n');
+                }
+
+                builder.Append("diagnostics:\n");
+                if (preview.Diagnostics.Count == 0)
+                {
+                    builder.Append("- none\n");
+                }
+                else
+                {
+                    for (int i = 0; i < preview.Diagnostics.Count; i++)
+                    {
+                        MxAnimationTimelineScrubberDiagnostic diagnostic = preview.Diagnostics[i];
+                        builder.Append("- ").Append(diagnostic.Severity)
+                            .Append(' ').Append(diagnostic.Code)
+                            .Append(" message=").Append(diagnostic.Message)
+                            .Append('\n');
+                    }
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        private static MxAnimationActionBinding FindBinding(MxAnimationSetDefinition definition, string actionKeyOrBindingId)
+        {
+            if (definition == null || definition.Actions.Count == 0)
+                return null;
+
+            if (string.IsNullOrWhiteSpace(actionKeyOrBindingId))
+                return definition.Actions[0];
+
+            for (int i = 0; i < definition.Actions.Count; i++)
+            {
+                MxAnimationActionBinding binding = definition.Actions[i];
+                if (binding == null)
+                    continue;
+                if (string.Equals(binding.ActionKey, actionKeyOrBindingId, StringComparison.Ordinal)
+                    || string.Equals(binding.BindingId, actionKeyOrBindingId, StringComparison.Ordinal))
+                {
+                    return binding;
+                }
+            }
+
+            return null;
+        }
+
+        private static int ResolveMaxFrame(MxAnimationBakeArtifact bakeArtifact, object combatTimeline)
+        {
+            int maxFrame = -1;
+            int combatTotalFrames = TryGetIntProperty(combatTimeline, "TotalFrames", -1);
+            if (combatTotalFrames > 0)
+                maxFrame = Math.Max(maxFrame, combatTotalFrames - 1);
+            if (bakeArtifact != null)
+            {
+                if (bakeArtifact.RootMotionFrames.Count > 0)
+                    maxFrame = Math.Max(maxFrame, bakeArtifact.RootMotionFrames[bakeArtifact.RootMotionFrames.Count - 1].LocalFrame);
+                if (bakeArtifact.SocketFrames.Count > 0)
+                    maxFrame = Math.Max(maxFrame, bakeArtifact.SocketFrames[bakeArtifact.SocketFrames.Count - 1].LocalFrame);
+                if (bakeArtifact.WeaponTraceFrames.Count > 0)
+                    maxFrame = Math.Max(maxFrame, bakeArtifact.WeaponTraceFrames[bakeArtifact.WeaponTraceFrames.Count - 1].LocalFrame);
+            }
+
+            return maxFrame;
+        }
+
+        private static void AddAnimationEvents(
+            MxAnimationSetDefinition definition,
+            MxAnimationActionBinding binding,
+            int frame,
+            int sampleRate,
+            int maxFrame,
+            List<MxAnimationTimelineScrubberRow> rows,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            if (definition == null)
+                return;
+
+            IReadOnlyList<MxAnimationEventTimelineRow> eventRows = MxAnimationEventTimelineBuilder.BuildRows(definition);
+            for (int i = 0; i < eventRows.Count; i++)
+            {
+                MxAnimationEventTimelineRow row = eventRows[i];
+                if (!row.SetLevel && binding != null && !string.Equals(row.BindingId, binding.BindingId, StringComparison.Ordinal))
+                    continue;
+
+                int resolvedFrame = ResolveEventFrame(row, sampleRate, maxFrame);
+                if (maxFrame >= 0 && resolvedFrame > maxFrame)
+                    diagnostics.Add(Warning("EventOutOfRange", "Presentation event is outside known range: " + row.EventId + " frame=" + resolvedFrame.ToString(CultureInfo.InvariantCulture) + "."));
+                if (resolvedFrame != frame)
+                    continue;
+
+                rows.Add(new MxAnimationTimelineScrubberRow(
+                    MxAnimationTimelineScrubberRowKind.PresentationEvent,
+                    frame,
+                    row.EventId,
+                    "domain=" + row.TimeDomain + " kind=" + row.EventKind + " payload=" + row.PayloadKey));
+            }
+        }
+
+        private static int ResolveEventFrame(MxAnimationEventTimelineRow row, int sampleRate, int maxFrame)
+        {
+            switch (row.TimeDomain)
+            {
+                case MxAnimationEventTimeDomain.NormalizedTime:
+                    return Math.Max(0, (int)Math.Round(row.Time * Math.Max(0, maxFrame), MidpointRounding.AwayFromZero));
+                case MxAnimationEventTimeDomain.Seconds:
+                    return Math.Max(0, (int)Math.Round(row.Time * sampleRate, MidpointRounding.AwayFromZero));
+                default:
+                    return Math.Max(0, (int)Math.Round(row.Time, MidpointRounding.AwayFromZero));
+            }
+        }
+
+        private static List<int> AddCombatTimelineRows(
+            object combatTimeline,
+            int frame,
+            List<MxAnimationTimelineScrubberRow> rows,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            var combatEventIds = new List<int>();
+            if (combatTimeline == null)
+            {
+                diagnostics.Add(Warning("MissingCombatTimeline", "CombatActionTimeline is missing."));
+                return combatEventIds;
+            }
+
+            try
+            {
+                int actionId = TryGetIntProperty(combatTimeline, "ActionId", 0);
+                AddCombatRangeRow(combatTimeline, "Startup", frame, rows, diagnostics);
+                AddCombatRangeRow(combatTimeline, "Active", frame, rows, diagnostics);
+                AddCombatRangeRow(combatTimeline, "Recovery", frame, rows, diagnostics);
+                AddCombatWindowRows(combatTimeline, frame, actionId, rows, diagnostics);
+                AddCombatAuthoringTraceRows(combatTimeline, frame, actionId, rows);
+                AddCombatEventRows(combatTimeline, frame, actionId, rows, combatEventIds, diagnostics);
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add(Warning("CombatTimelineReflectionFailed", "Combat timeline reflection failed: " + ex.GetType().Name + " " + ex.Message));
+            }
+
+            return combatEventIds;
+        }
+
+        private static void AddCombatRangeRow(
+            object combatTimeline,
+            string propertyName,
+            int frame,
+            List<MxAnimationTimelineScrubberRow> rows,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            object range = GetPropertyValue(combatTimeline, propertyName);
+            if (range == null)
+            {
+                diagnostics.Add(Warning("CombatTimelineRangeMissing", "Combat timeline range is missing: " + propertyName + "."));
+                return;
+            }
+
+            if (!TryReadRange(range, out int start, out int end) || frame < start || frame > end)
+                return;
+
+            rows.Add(new MxAnimationTimelineScrubberRow(
+                MxAnimationTimelineScrubberRowKind.CombatWindow,
+                frame,
+                propertyName,
+                "range=" + start.ToString(CultureInfo.InvariantCulture) + "-" + end.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        private static void AddCombatWindowRows(
+            object combatTimeline,
+            int frame,
+            int actionId,
+            List<MxAnimationTimelineScrubberRow> rows,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            bool hasWindowCount = HasProperty(combatTimeline, "WindowCount");
+            int count = TryGetIntProperty(combatTimeline, "WindowCount", 0);
+            MethodInfo getWindow = combatTimeline.GetType().GetMethod("GetWindow", new[] { typeof(int) });
+            if (count > 0 && getWindow == null)
+            {
+                diagnostics.Add(Warning("CombatTimelineReflectionFailed", "CombatActionTimeline.GetWindow could not be reflected."));
+                return;
+            }
+
+            if (!hasWindowCount && !HasProperty(combatTimeline, "WeaponTraces"))
+                diagnostics.Add(Warning("CombatTimelineWindowsUnavailable", "Combat timeline source does not expose WindowCount/GetWindow or WeaponTraces."));
+
+            for (int i = 0; i < count; i++)
+            {
+                object window = getWindow.Invoke(combatTimeline, new object[] { i });
+                object range = GetPropertyValue(window, "Range");
+                if (!TryReadRange(range, out int start, out int end) || frame < start || frame > end)
+                    continue;
+
+                string kind = Convert.ToString(GetPropertyValue(window, "Kind"), CultureInfo.InvariantCulture);
+                int targetActionId = TryGetIntProperty(window, "TargetActionId", 0);
+                rows.Add(new MxAnimationTimelineScrubberRow(
+                    MxAnimationTimelineScrubberRowKind.CombatWindow,
+                    frame,
+                    string.IsNullOrEmpty(kind) ? "Window" : kind,
+                    "action=" + actionId.ToString(CultureInfo.InvariantCulture)
+                    + " range=" + start.ToString(CultureInfo.InvariantCulture) + "-" + end.ToString(CultureInfo.InvariantCulture)
+                    + " target=" + targetActionId.ToString(CultureInfo.InvariantCulture)));
+            }
+        }
+
+        private static void AddCombatAuthoringTraceRows(
+            object combatTimeline,
+            int frame,
+            int actionId,
+            List<MxAnimationTimelineScrubberRow> rows)
+        {
+            object traceSource = GetPropertyValue(combatTimeline, "WeaponTraces");
+            if (!(traceSource is IEnumerable traces))
+                return;
+
+            foreach (object trace in traces)
+            {
+                object range = GetPropertyValue(trace, "FrameRange");
+                if (!TryReadRange(range, out int start, out int end) || frame < start || frame > end)
+                    continue;
+
+                int traceId = TryGetIntProperty(trace, "TraceId", 0);
+                int sourceOrder = TryGetIntProperty(trace, "SourceOrder", 0);
+                rows.Add(new MxAnimationTimelineScrubberRow(
+                    MxAnimationTimelineScrubberRowKind.CombatWindow,
+                    frame,
+                    "WeaponTrace:" + traceId.ToString(CultureInfo.InvariantCulture),
+                    "action=" + actionId.ToString(CultureInfo.InvariantCulture)
+                    + " range=" + start.ToString(CultureInfo.InvariantCulture) + "-" + end.ToString(CultureInfo.InvariantCulture)
+                    + " sourceOrder=" + sourceOrder.ToString(CultureInfo.InvariantCulture)));
+            }
+        }
+
+        private static void AddCombatEventRows(
+            object combatTimeline,
+            int frame,
+            int actionId,
+            List<MxAnimationTimelineScrubberRow> rows,
+            List<int> combatEventIds,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            MethodInfo collectEvents = combatTimeline.GetType().GetMethod("CollectEvents");
+            if (collectEvents == null)
+            {
+                diagnostics.Add(Warning("CombatFrameEventsUnavailable", "Combat timeline source does not expose CollectEvents(localFrame, results)."));
+                return;
+            }
+
+            ParameterInfo[] parameters = collectEvents.GetParameters();
+            if (parameters.Length != 2)
+            {
+                diagnostics.Add(Warning("CombatFrameEventsUnavailable", "Combat timeline CollectEvents signature is not supported."));
+                return;
+            }
+
+            IList events;
+            try
+            {
+                events = (IList)Activator.CreateInstance(parameters[1].ParameterType);
+                collectEvents.Invoke(combatTimeline, new object[] { frame, events });
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add(Warning("CombatTimelineReflectionFailed", "Combat frame event reflection failed: " + ex.GetType().Name + " " + ex.Message));
+                return;
+            }
+
+            for (int i = 0; i < events.Count; i++)
+            {
+                object frameEvent = events[i];
+                int eventId = TryGetIntProperty(frameEvent, "EventId", -1);
+                int sourceOrder = TryGetIntProperty(frameEvent, "SourceOrder", 0);
+                combatEventIds.Add(eventId);
+                rows.Add(new MxAnimationTimelineScrubberRow(
+                    MxAnimationTimelineScrubberRowKind.CombatFrameEvent,
+                    frame,
+                    "event:" + eventId.ToString(CultureInfo.InvariantCulture),
+                    "action=" + actionId.ToString(CultureInfo.InvariantCulture)
+                    + " sourceOrder=" + sourceOrder.ToString(CultureInfo.InvariantCulture)));
+            }
+        }
+
+        private static void AddBakeRows(
+            MxAnimationActionBinding binding,
+            MxAnimationBakeArtifact bakeArtifact,
+            int frame,
+            List<MxAnimationTimelineScrubberRow> rows,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            if (bakeArtifact == null)
+            {
+                diagnostics.Add(Warning("MissingBakeArtifact", "Bake artifact is missing."));
+                return;
+            }
+
+            MxAnimationBakeValidationReport report = MxAnimationBakeArtifactValidator.Validate(bakeArtifact);
+            for (int i = 0; i < report.Issues.Count; i++)
+            {
+                if (report.Issues[i].Severity == MxAnimationBakeIssueSeverity.Error)
+                    diagnostics.Add(Error(report.Issues[i].Code, report.Issues[i].Message));
+                else
+                    diagnostics.Add(Warning(report.Issues[i].Code, report.Issues[i].Message));
+            }
+
+            if (binding != null && binding.Clip.IsValid && !binding.Clip.Equals(bakeArtifact.Profile.SourceClipKey))
+            {
+                diagnostics.Add(Warning(
+                    "BakeSourceClipMismatch",
+                    "Bake artifact source clip does not match selected binding clip. expected="
+                    + binding.Clip
+                    + " actual="
+                    + bakeArtifact.Profile.SourceClipKey));
+            }
+
+            bool foundBakeFrame = false;
+            for (int i = 0; i < bakeArtifact.RootMotionFrames.Count; i++)
+            {
+                MxAnimationBakedRootMotionFrame root = bakeArtifact.RootMotionFrames[i];
+                if (root.LocalFrame != frame)
+                    continue;
+                foundBakeFrame = true;
+                rows.Add(new MxAnimationTimelineScrubberRow(MxAnimationTimelineScrubberRowKind.RootMotion, frame, "root", "position=" + root.RootPosition + " delta=" + root.DeltaPosition));
+            }
+
+            for (int i = 0; i < bakeArtifact.SocketFrames.Count; i++)
+            {
+                MxAnimationBakedSocketFrame socket = bakeArtifact.SocketFrames[i];
+                if (socket.LocalFrame != frame)
+                    continue;
+                foundBakeFrame = true;
+                rows.Add(new MxAnimationTimelineScrubberRow(MxAnimationTimelineScrubberRowKind.Socket, frame, socket.SocketId, "path=" + socket.SocketPath + " position=" + socket.Position + " delta=" + socket.DeltaPosition));
+            }
+
+            for (int i = 0; i < bakeArtifact.WeaponTraceFrames.Count; i++)
+            {
+                MxAnimationBakedWeaponTraceFrame trace = bakeArtifact.WeaponTraceFrames[i];
+                if (trace.LocalFrame != frame)
+                    continue;
+                foundBakeFrame = true;
+                rows.Add(new MxAnimationTimelineScrubberRow(MxAnimationTimelineScrubberRowKind.WeaponTrace, frame, "trace:" + trace.TraceId.ToString(CultureInfo.InvariantCulture), "socket=" + trace.SocketId + " root=" + trace.RootNow + " tip=" + trace.TipNow));
+            }
+
+            if (!foundBakeFrame)
+                diagnostics.Add(Warning("BakeFrameMissing", "Bake artifact does not contain samples for frame " + frame.ToString(CultureInfo.InvariantCulture) + "."));
+        }
+
+        private static void AddTimelineMismatchDiagnostics(
+            IReadOnlyList<MxAnimationTimelineScrubberRow> rows,
+            IReadOnlyList<int> combatEventIds,
+            int frame,
+            List<MxAnimationTimelineScrubberDiagnostic> diagnostics)
+        {
+            if (combatEventIds.Count == 0)
+                return;
+
+            for (int i = 0; i < combatEventIds.Count; i++)
+            {
+                string expectedA = "event:" + combatEventIds[i].ToString(CultureInfo.InvariantCulture);
+                string expectedB = combatEventIds[i].ToString(CultureInfo.InvariantCulture);
+                bool matched = false;
+                for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+                {
+                    MxAnimationTimelineScrubberRow row = rows[rowIndex];
+                    if (row.Kind != MxAnimationTimelineScrubberRowKind.PresentationEvent)
+                        continue;
+                    if (string.Equals(row.Label, expectedA, StringComparison.Ordinal)
+                        || string.Equals(row.Label, expectedB, StringComparison.Ordinal))
+                    {
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched)
+                    diagnostics.Add(Warning("TimelineFrameMismatch", "Combat frame event has no matching presentation event at frame " + frame.ToString(CultureInfo.InvariantCulture) + ": " + expectedA + "."));
+            }
+        }
+
+        private static int CompareRows(MxAnimationTimelineScrubberRow left, MxAnimationTimelineScrubberRow right)
+        {
+            int result = left.LocalFrame.CompareTo(right.LocalFrame);
+            if (result != 0)
+                return result;
+            result = ((int)left.Kind).CompareTo((int)right.Kind);
+            if (result != 0)
+                return result;
+            return string.CompareOrdinal(left.Label, right.Label);
+        }
+
+        private static MxAnimationTimelineScrubberDiagnostic Error(string code, string message)
+        {
+            return new MxAnimationTimelineScrubberDiagnostic(MxAnimationTimelineScrubberDiagnosticSeverity.Error, code, message);
+        }
+
+        private static MxAnimationTimelineScrubberDiagnostic Warning(string code, string message)
+        {
+            return new MxAnimationTimelineScrubberDiagnostic(MxAnimationTimelineScrubberDiagnosticSeverity.Warning, code, message);
+        }
+
+        private static object GetPropertyValue(object target, string propertyName)
+        {
+            if (target == null)
+                return null;
+            PropertyInfo property = target.GetType().GetProperty(propertyName);
+            return property != null ? property.GetValue(target, null) : null;
+        }
+
+        private static bool HasProperty(object target, string propertyName)
+        {
+            return target != null && target.GetType().GetProperty(propertyName) != null;
+        }
+
+        private static int TryGetIntProperty(object target, string propertyName, int fallback)
+        {
+            object value = GetPropertyValue(target, propertyName);
+            return value is int intValue ? intValue : fallback;
+        }
+
+        private static bool TryReadRange(object range, out int startFrame, out int endFrame)
+        {
+            startFrame = TryGetIntProperty(range, "StartFrame", 0);
+            endFrame = TryGetIntProperty(range, "EndFrame", -1);
+            return range != null && endFrame >= startFrame;
+        }
+    }
+
+    public sealed class MxAnimationTimelineScrubberPreviewWindow : EditorWindow
+    {
+        private MxAnimationClipRegistryAsset _registry;
+        private UnityEngine.Object _combatTimelineSource;
+        private int _bindingIndex;
+        private int _frame;
+        private Vector2 _scroll;
+        private MxAnimationTimelineScrubberPreview _preview;
+        private string _summary = string.Empty;
+        private MxAnimationClipRegistryExportResult _cachedExport;
+        private MxAnimationBakeArtifact _cachedBake;
+        private AnimationClip _cachedClip;
+        private string _cachedSelector = string.Empty;
+
+        [MenuItem("MxFramework/MxAnimation/Timeline Scrubber Preview MVP", priority = 134)]
+        public static void Open()
+        {
+            Open(null);
+        }
+
+        public static void Open(MxAnimationClipRegistryAsset registry)
+        {
+            var window = GetWindow<MxAnimationTimelineScrubberPreviewWindow>("MxAnimation Scrubber");
+            if (registry != null)
+                window._registry = registry;
+            window.RefreshPreviewInputs();
+            window.Show();
+        }
+
+        private void OnGUI()
+        {
+            EditorGUI.BeginChangeCheck();
+            _registry = (MxAnimationClipRegistryAsset)EditorGUILayout.ObjectField("Registry", _registry, typeof(MxAnimationClipRegistryAsset), false);
+            if (_registry == null)
+            {
+                EditorGUILayout.HelpBox("Select a clip registry asset.", MessageType.None);
+                return;
+            }
+
+            MxAnimationClipRegistryBindingEntry[] bindings = _registry.Bindings;
+            string[] labels = CreateBindingLabels(bindings);
+            _bindingIndex = Mathf.Clamp(EditorGUILayout.Popup("Action", _bindingIndex, labels), 0, Math.Max(0, labels.Length - 1));
+            _combatTimelineSource = EditorGUILayout.ObjectField("Combat Timeline Source", _combatTimelineSource, typeof(UnityEngine.Object), false);
+            bool inputChanged = EditorGUI.EndChangeCheck();
+
+            int previousFrame = _frame;
+            _frame = Mathf.Max(0, EditorGUILayout.IntSlider("Frame", _frame, 0, ResolveWindowMaxFrame()));
+            if (inputChanged)
+                RefreshPreviewInputs();
+            else if (previousFrame != _frame)
+                RebuildPreview();
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Refresh Preview"))
+                    RefreshPreviewInputs();
+                using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_summary)))
+                {
+                    if (GUILayout.Button("Copy Summary"))
+                        EditorGUIUtility.systemCopyBuffer = _summary;
+                }
+            }
+
+            if (_preview == null)
+                RefreshPreviewInputs();
+            DrawPreview();
+        }
+
+        private void RefreshPreviewInputs()
+        {
+            if (_registry == null)
+            {
+                _preview = null;
+                _summary = string.Empty;
+                _cachedExport = null;
+                _cachedBake = null;
+                _cachedClip = null;
+                _cachedSelector = string.Empty;
+                return;
+            }
+
+            _cachedExport = MxAnimationClipRegistryExporter.ExportStructureOnly(_registry);
+            _cachedSelector = ResolveSelectedBindingSelector(_registry.Bindings);
+            _cachedClip = ResolveSelectedClip(_registry, _cachedSelector);
+            _cachedBake = _cachedClip != null ? MxAnimationBakeEditorTool.BakeClip(_cachedClip).Artifact : null;
+            RebuildPreview();
+        }
+
+        private void RebuildPreview()
+        {
+            if (_cachedExport == null)
+                return;
+
+            _preview = MxAnimationTimelineScrubberPreviewBuilder.Build(
+                _cachedExport.Definition,
+                _cachedSelector,
+                _frame,
+                _cachedBake,
+                _combatTimelineSource,
+                _cachedExport.ValidationReport,
+                _cachedClip != null);
+            _summary = MxAnimationTimelineScrubberPreviewBuilder.CreateSummary(_preview);
+        }
+
+        private void DrawPreview()
+        {
+            if (_preview == null)
+                return;
+
+            EditorGUILayout.LabelField("Set", _preview.SetId);
+            EditorGUILayout.LabelField("Clip", _preview.ClipKey);
+            EditorGUILayout.LabelField("Time", _preview.Seconds.ToString("0.###", CultureInfo.InvariantCulture) + "s / " + _preview.NormalizedTime.ToString("0.###", CultureInfo.InvariantCulture));
+
+            _scroll = EditorGUILayout.BeginScrollView(_scroll);
+            EditorGUILayout.LabelField("Rows", EditorStyles.boldLabel);
+            for (int i = 0; i < _preview.Rows.Count; i++)
+            {
+                MxAnimationTimelineScrubberRow row = _preview.Rows[i];
+                EditorGUILayout.LabelField(row.Kind + " | " + row.Label, row.Details);
+            }
+
+            EditorGUILayout.LabelField("Diagnostics", EditorStyles.boldLabel);
+            if (_preview.Diagnostics.Count == 0)
+            {
+                EditorGUILayout.LabelField("none");
+            }
+            else
+            {
+                for (int i = 0; i < _preview.Diagnostics.Count; i++)
+                {
+                    MxAnimationTimelineScrubberDiagnostic diagnostic = _preview.Diagnostics[i];
+                    EditorGUILayout.HelpBox(diagnostic.Code + ": " + diagnostic.Message, diagnostic.Severity == MxAnimationTimelineScrubberDiagnosticSeverity.Error ? MessageType.Error : MessageType.Warning);
+                }
+            }
+
+            EditorGUILayout.EndScrollView();
+        }
+
+        private int ResolveWindowMaxFrame()
+        {
+            AnimationClip clip = _cachedClip != null
+                ? _cachedClip
+                : ResolveSelectedClip(_registry, ResolveSelectedBindingSelector(_registry.Bindings));
+            if (clip == null)
+                return Math.Max(1, _frame);
+
+            return Math.Max(1, Mathf.CeilToInt(Mathf.Max(clip.length, 0.0001f) * MxAnimationBakeEditorTool.DefaultSampleTickRate));
+        }
+
+        private string ResolveSelectedBindingSelector(MxAnimationClipRegistryBindingEntry[] bindings)
+        {
+            if (bindings == null || bindings.Length == 0)
+                return string.Empty;
+
+            _bindingIndex = Mathf.Clamp(_bindingIndex, 0, bindings.Length - 1);
+            MxAnimationClipRegistryBindingEntry binding = bindings[_bindingIndex];
+            return !string.IsNullOrWhiteSpace(binding.BindingId) ? binding.BindingId : binding.ResolveActionKey();
+        }
+
+        private static string[] CreateBindingLabels(MxAnimationClipRegistryBindingEntry[] bindings)
+        {
+            if (bindings == null || bindings.Length == 0)
+                return new[] { "(none)" };
+
+            var labels = new string[bindings.Length];
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                string action = bindings[i].ResolveActionKey();
+                labels[i] = (string.IsNullOrWhiteSpace(bindings[i].BindingId) ? action : bindings[i].BindingId)
+                    + " | "
+                    + bindings[i].ClipId;
+            }
+
+            return labels;
+        }
+
+        private static AnimationClip ResolveSelectedClip(MxAnimationClipRegistryAsset registry, string selector)
+        {
+            if (registry == null)
+                return null;
+
+            MxAnimationClipRegistryBindingEntry binding = default;
+            bool foundBinding = false;
+            MxAnimationClipRegistryBindingEntry[] bindings = registry.Bindings;
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                if (string.Equals(bindings[i].BindingId, selector, StringComparison.Ordinal)
+                    || string.Equals(bindings[i].ResolveActionKey(), selector, StringComparison.Ordinal))
+                {
+                    binding = bindings[i];
+                    foundBinding = true;
+                    break;
+                }
+            }
+
+            if (!foundBinding)
+                return null;
+
+            MxAnimationClipRegistryClipEntry[] clips = registry.Clips;
+            for (int i = 0; i < clips.Length; i++)
+            {
+                if (string.Equals(clips[i].ClipId, binding.ClipId, StringComparison.Ordinal))
+                    return clips[i].Clip;
+            }
+
+            return null;
         }
     }
 }

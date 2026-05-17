@@ -2,7 +2,7 @@
 
 > 状态：MVP Implemented
 > 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112、Gitea Issue #123、Gitea Issue #124、Gitea Issue #125、Gitea Issue #126、Gitea Issue #127
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics 和资源版本校验；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / bake report tool 和 compatibility profile extractor。
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics 和资源版本校验；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供最小 clip registry authoring / export / validation / event timeline preview / timeline scrubber preview / bake report tool 和 compatibility profile extractor。
 
 ## 职责
 
@@ -61,6 +61,7 @@ Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat a
 | `MxAnimationWarmupIssue` | 结构化 warmup diagnostics，定位 animation set、catalog、clip registry、具体 clip / mask key 或 preload `ResourceError` |
 | `MxAnimationClipRegistryAsset` | Editor-only registry authoring asset，可引用 `AnimationClip` 但不进入 runtime DTO |
 | `MxAnimationClipRegistryExporter` | 从 Editor registry 导出 noEngine `MxAnimationSetDefinition` 和 validation report |
+| `MxAnimationTimelineScrubberPreviewBuilder` / `MxAnimationTimelineScrubberPreviewWindow` | Editor-only 只读 timeline / scrubber 预览；把 action binding、presentation event、CombatActionTimeline snapshot 和 bake samples 对齐到同一 frame |
 | `MxAnimationPlayRequest` | 播放请求，可指定 binding/action 或直接 clip key |
 | `MxAnimationStopRequest` | 停止请求，支持 layer 和 fade out duration |
 | `MxAnimationCrossFadeRequest` | crossfade 请求，支持 target clip、fade duration、start offset 和 outgoing release policy |
@@ -148,7 +149,8 @@ Event timeline authoring / preview：
 
 - `MxAnimationClipRegistryAsset` 的默认 Inspector 仍负责编辑 clip、binding 和 `MxAnimationPresentationEvent` 数组；Event Timeline Preview 从 exporter 生成的 noEngine `MxAnimationSetDefinition` 构建，只读取 `ResourceKey` DTO，不把 Unity object 写入 runtime contract。
 - timeline row 支持 Seconds / NormalizedTime / CombatFrame / PresentationFrame。CombatFrame / PresentationFrame row 显示 deterministic correlation label，便于和 Combat fixed-frame event 对齐。
-- 该 preview 不是完整 Timeline/Scrubber；逐帧 scrub、真实 VFX/SFX/Camera 执行和 resource payload preview 留给后续任务或项目层工具。
+- Timeline Scrubber Preview MVP 通过 `MxFramework/MxAnimation/Timeline Scrubber Preview MVP` 或 Clip Registry Inspector 打开。它可以选择 action binding 和 frame，并显示同帧 presentation events、CombatActionTimeline phase/window/frame event、baked root/socket/weapon trace samples，以及 missing clip、missing bake、hash/source mismatch、event out of range、timeline frame mismatch diagnostics。
+- Scrubber 是只读预览。编辑仍通过 registry serialized fields、Combat authoring asset 或 bake pipeline 完成；它不写 runtime DTO，不依赖 Unity Timeline package，也不把 Unity object 放进 runtime contract。
 
 ## Bake Artifact Contract
 

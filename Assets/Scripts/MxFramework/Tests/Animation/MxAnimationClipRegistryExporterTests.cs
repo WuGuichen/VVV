@@ -1,4 +1,6 @@
 using MxFramework.Animation;
+using MxFramework.Combat.Animation;
+using MxFramework.Combat.Authoring;
 using MxFramework.Editor.Animation;
 using MxFramework.Resources;
 using NUnit.Framework;
@@ -305,6 +307,155 @@ namespace MxFramework.Tests.Animation
             }
         }
 
+        [Test]
+        public void TimelineScrubberPreview_AlignsActionEventsCombatTimelineAndBakeSamples()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
+            var clip = new AnimationClip { name = "Attack" };
+            try
+            {
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].Clip = clip;
+                asset.Clips = clips;
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                MxAnimationBakeArtifact bake = CreateBakeArtifact(asset.Clips[0].CreateResourceKey(asset.PackageId), frame: 3);
+                var timeline = new CombatActionTimeline(
+                    actionId: 1001,
+                    totalFrames: 8,
+                    startup: new CombatFrameRange(0, 1),
+                    active: new CombatFrameRange(2, 4),
+                    recovery: new CombatFrameRange(5, 7),
+                    windows: new[] { new CombatActionWindow(CombatActionWindowKind.Cancel, new CombatFrameRange(3, 3), targetActionId: 2002) },
+                    events: new[] { new CombatActionFrameEvent(3, 77) });
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(result.Definition, "action:1001", 3, bake, timeline);
+
+                Assert.IsFalse(preview.HasErrors, MxAnimationTimelineScrubberPreviewBuilder.CreateSummary(preview));
+                Assert.AreEqual("attack", preview.BindingId);
+                Assert.AreEqual(0.1f, preview.Seconds, 0.0001f);
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.PresentationEvent, "event:77"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatFrameEvent, "event:77"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatWindow, "Active"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatWindow, "Cancel"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.RootMotion, "root"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.Socket, "weapon"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.WeaponTrace, "trace:7"));
+                Assert.IsFalse(ContainsScrubberDiagnostic(preview, "TimelineFrameMismatch"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void TimelineScrubberPreview_ReportsMismatchDiagnostics()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 99);
+            var clip = new AnimationClip { name = "Attack" };
+            try
+            {
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].Clip = clip;
+                asset.Clips = clips;
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                var wrongClip = new ResourceKey("demo.animation.other", ResourceTypeIds.AnimationClip, packageId: asset.PackageId);
+                MxAnimationBakeArtifact bake = CreateBakeArtifact(wrongClip, frame: 0);
+                var timeline = new CombatActionTimeline(
+                    actionId: 1001,
+                    totalFrames: 8,
+                    startup: new CombatFrameRange(0, 1),
+                    active: new CombatFrameRange(2, 4),
+                    recovery: new CombatFrameRange(5, 7),
+                    windows: null,
+                    events: new[] { new CombatActionFrameEvent(3, 99) });
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(result.Definition, "attack", 3, bake, timeline);
+
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "EventOutOfRange"));
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "BakeSourceClipMismatch"));
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "BakeFrameMissing"));
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "TimelineFrameMismatch"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void TimelineScrubberPreview_CarriesExporterMissingClipDiagnostics()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
+            try
+            {
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(
+                        result.Definition,
+                        "attack",
+                        3,
+                        exportValidation: result.ValidationReport,
+                        selectedClipReferenceAvailable: false);
+
+                Assert.IsTrue(preview.HasErrors);
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "MissingClip"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void TimelineScrubberPreview_ReadsCombatAuthoringAssetAsTimelineSource()
+        {
+            MxAnimationClipRegistryAsset asset = CreateScrubberRegistry("event:77", eventFrame: 3);
+            CombatActionAuthoringAsset action = ScriptableObject.CreateInstance<CombatActionAuthoringAsset>();
+            var clip = new AnimationClip { name = "Attack" };
+            try
+            {
+                MxAnimationClipRegistryClipEntry[] clips = asset.Clips;
+                clips[0].Clip = clip;
+                asset.Clips = clips;
+                action.ActionId = 1001;
+                action.TotalFrames = 8;
+                action.Startup = new CombatAuthoringFrameRange(0, 1);
+                action.Active = new CombatAuthoringFrameRange(2, 4);
+                action.Recovery = new CombatAuthoringFrameRange(5, 7);
+                action.WeaponTraces = new[]
+                {
+                    new CombatWeaponTraceAuthoringData
+                    {
+                        TraceId = 7,
+                        FrameRange = new CombatAuthoringFrameRange(3, 3),
+                        SourceOrder = 1
+                    }
+                };
+                MxAnimationClipRegistryExportResult result = MxAnimationClipRegistryExporter.ExportStructureOnly(asset);
+                MxAnimationBakeArtifact bake = CreateBakeArtifact(asset.Clips[0].CreateResourceKey(asset.PackageId), frame: 3);
+
+                MxAnimationTimelineScrubberPreview preview =
+                    MxAnimationTimelineScrubberPreviewBuilder.Build(result.Definition, "attack", 3, bake, action);
+
+                Assert.IsFalse(preview.HasErrors, MxAnimationTimelineScrubberPreviewBuilder.CreateSummary(preview));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatWindow, "Active"));
+                Assert.IsTrue(ContainsScrubberRow(preview, MxAnimationTimelineScrubberRowKind.CombatWindow, "WeaponTrace:7"));
+                Assert.IsTrue(ContainsScrubberDiagnostic(preview, "CombatFrameEventsUnavailable"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(action);
+                Object.DestroyImmediate(asset);
+            }
+        }
+
         private static void AssertIssue(ResourceCatalogValidationReport report, string code)
         {
             for (int i = 0; i < report.Issues.Count; i++)
@@ -328,6 +479,119 @@ namespace MxFramework.Tests.Animation
                 {
                     return true;
                 }
+            }
+
+            return false;
+        }
+
+        private static MxAnimationClipRegistryAsset CreateScrubberRegistry(string eventId, int eventFrame)
+        {
+            MxAnimationClipRegistryAsset asset = ScriptableObject.CreateInstance<MxAnimationClipRegistryAsset>();
+            asset.AnimationSetId = "combat.demo";
+            asset.Version = 3;
+            asset.PackageId = "demo.package";
+            asset.Clips = new[]
+            {
+                new MxAnimationClipRegistryClipEntry
+                {
+                    ClipId = "attack",
+                    ResourceId = "demo.animation.attack",
+                    IsDefault = true,
+                    IsFallback = true
+                }
+            };
+            asset.Bindings = new[]
+            {
+                new MxAnimationClipRegistryBindingEntry
+                {
+                    BindingId = "attack",
+                    ActionKey = "action:1001",
+                    ClipId = "attack",
+                    Events = new[]
+                    {
+                        new MxAnimationClipRegistryEventEntry
+                        {
+                            EventId = eventId,
+                            TimeDomain = MxAnimationEventTimeDomain.CombatFrame,
+                            Time = eventFrame,
+                            EventKind = "VFX",
+                            PayloadResourceId = "demo.vfx.slash",
+                            PayloadTypeId = ResourceTypeIds.GameObject,
+                            Socket = "weapon"
+                        }
+                    }
+                }
+            };
+            return asset;
+        }
+
+        private static MxAnimationBakeArtifact CreateBakeArtifact(ResourceKey clipKey, int frame)
+        {
+            var profile = new MxAnimationBakeProfile(
+                "profile.scrubber",
+                clipKey,
+                "sha256:source",
+                "skeleton.scrubber",
+                "sha256:skeleton",
+                sampleTickRate: 30,
+                quantizationScale: 1000,
+                MxAnimationBakeCoordinateSpace.Local,
+                MxAnimationBakeRoundingPolicy.RoundNearest,
+                "import:scrubber");
+
+            return new MxAnimationBakeArtifact(
+                profile,
+                new[]
+                {
+                    new MxAnimationBakedWeaponTraceFrame(
+                        frame,
+                        7,
+                        "weapon",
+                        new MxAnimationBakedVector3(frame - 1, 0, 0),
+                        new MxAnimationBakedVector3(frame - 1, 0, 1000),
+                        new MxAnimationBakedVector3(frame, 0, 0),
+                        new MxAnimationBakedVector3(frame, 0, 1000))
+                },
+                new[]
+                {
+                    new MxAnimationBakedRootMotionFrame(
+                        frame,
+                        new MxAnimationBakedVector3(frame, 0, 0),
+                        new MxAnimationBakedVector3(1, 0, 0))
+                },
+                socketFrames: new[]
+                {
+                    new MxAnimationBakedSocketFrame(
+                        frame,
+                        "weapon",
+                        "WeaponSocket",
+                        new MxAnimationBakedVector3(frame, 0, 0),
+                        new MxAnimationBakedVector3(1, 0, 0))
+                });
+        }
+
+        private static bool ContainsScrubberRow(
+            MxAnimationTimelineScrubberPreview preview,
+            MxAnimationTimelineScrubberRowKind kind,
+            string label)
+        {
+            for (int i = 0; i < preview.Rows.Count; i++)
+            {
+                if (preview.Rows[i].Kind == kind && preview.Rows[i].Label == label)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ContainsScrubberDiagnostic(
+            MxAnimationTimelineScrubberPreview preview,
+            string code)
+        {
+            for (int i = 0; i < preview.Diagnostics.Count; i++)
+            {
+                if (preview.Diagnostics[i].Code == code)
+                    return true;
             }
 
             return false;

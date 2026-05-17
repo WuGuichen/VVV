@@ -1541,6 +1541,8 @@ warmupService.Release(warmup);
 
 Unity Editor 内可以创建 `MxFramework/Animation/Clip Registry` asset，用 Inspector 填写 clip/action/binding 映射，再用 `Validate Mapping Structure` 做无 catalog 的结构校验。Inspector 的 `Event Timeline Preview` 会显示 Seconds / NormalizedTime / CombatFrame / PresentationFrame 事件，并对 CombatFrame / PresentationFrame 输出 deterministic correlation 摘要。正式导出或 CI 校验应调用 exporter 并传入 `ResourceCatalog`，检查 catalog entry、typeId、variant 和 package。该 asset 可以引用 `AnimationClip`，但运行时仍只使用导出的 `ResourceKey` mapping。
 
+只读逐帧检查可以打开 `MxFramework / MxAnimation / Timeline Scrubber Preview MVP`，或在 Clip Registry Inspector 点击 `Open Timeline Scrubber Preview`。窗口选择 action binding 和 frame 后，会显示同帧 presentation event、CombatActionTimeline phase/window/frame event、baked root/socket/weapon trace sample，以及 missing clip、missing bake、hash/source mismatch、event out of range、timeline frame mismatch diagnostics。该工具只做 preview，不编辑 registry、Combat authoring 或 runtime DTO。
+
 Bake MVP 入口用于把选中的 `AnimationClip` 转成 fixed-frame、量化的派生参考数据：
 
 ```text
