@@ -254,6 +254,24 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void WarmupRequest_PreservesPositionalSkipPreloadCompatibility()
+        {
+            ResourceKey idle = ClipKey("demo.animation.idle");
+            MxAnimationSetDefinition definition = CreateDefinition(idle, idle);
+
+            var request = new MxAnimationWarmupRequest(
+                definition,
+                null,
+                null,
+                null,
+                null,
+                false);
+
+            Assert.IsFalse(request.SkipPreloadWhenInvalid);
+            Assert.IsNull(request.CompatibilityProfile);
+        }
+
+        [Test]
         public void Warmup_WhenCompatibilityProfileMismatch_ReportsDiagnosticsAndSkipsPreload()
         {
             ResourceKey idle = ClipKey("demo.animation.idle");

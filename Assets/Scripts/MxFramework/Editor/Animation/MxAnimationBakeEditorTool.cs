@@ -443,7 +443,10 @@ namespace MxFramework.Editor.Animation
             if (root != null)
                 CollectTransformPaths(root.transform, root.transform, bonePaths);
 
-            return new MxAnimationSkeletonCompatibilityProfile(profileId, bonePaths: bonePaths, socketPaths: socketPaths);
+            return new MxAnimationSkeletonCompatibilityProfile(
+                profileId,
+                bonePaths: bonePaths,
+                socketPaths: FilterKnownPaths(socketPaths, bonePaths));
         }
 
         public static MxAnimationClipCompatibilityProfile CreateClipProfile(
@@ -453,11 +456,12 @@ namespace MxFramework.Editor.Animation
             string skeletonProfileId = "",
             string skeletonProfileHash = "")
         {
+            IReadOnlyList<string> bindingPaths = ExtractClipBindingPaths(clip);
             return new MxAnimationClipCompatibilityProfile(
                 clipKey,
-                ResolveSkeletonProfileId(skeletonProfile, skeletonProfileId),
-                ResolveSkeletonProfileHash(skeletonProfile, skeletonProfileHash),
-                ExtractClipBindingPaths(clip));
+                ResolveClipSkeletonProfileId(skeletonProfile, bindingPaths, skeletonProfileId),
+                ResolveClipSkeletonProfileHash(skeletonProfile, bindingPaths, skeletonProfileHash),
+                bindingPaths);
         }
 
         public static MxAnimationAvatarMaskCompatibilityProfile CreateAvatarMaskProfile(
@@ -540,6 +544,25 @@ namespace MxFramework.Editor.Animation
                 CollectTransformPaths(root, current.GetChild(i), paths);
         }
 
+        private static IReadOnlyList<string> FilterKnownPaths(IEnumerable<string> paths, IReadOnlyList<string> knownPaths)
+        {
+            if (paths == null)
+                return Array.Empty<string>();
+
+            var filtered = new List<string>();
+            foreach (string path in paths)
+            {
+                string normalized = NormalizePath(path);
+                if (string.IsNullOrWhiteSpace(normalized) || !ContainsPath(knownPaths, normalized) || filtered.Contains(normalized))
+                    continue;
+
+                filtered.Add(normalized);
+            }
+
+            filtered.Sort(StringComparer.Ordinal);
+            return filtered;
+        }
+
         private static string CreateRelativePath(Transform root, Transform current)
         {
             if (current == root)
@@ -559,12 +582,34 @@ namespace MxFramework.Editor.Animation
 
         private static void AddPath(List<string> paths, string path)
         {
-            string normalized = (path ?? string.Empty).Replace('\\', '/').Trim().Trim('/');
+            string normalized = NormalizePath(path);
             if (string.IsNullOrWhiteSpace(normalized))
                 return;
 
             if (!paths.Contains(normalized))
                 paths.Add(normalized);
+        }
+
+        private static string ResolveClipSkeletonProfileId(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            IReadOnlyList<string> bindingPaths,
+            string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(fallback))
+                return fallback;
+
+            return ClipBindingsMatchSkeleton(profile, bindingPaths) ? profile.ProfileId : string.Empty;
+        }
+
+        private static string ResolveClipSkeletonProfileHash(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            IReadOnlyList<string> bindingPaths,
+            string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(fallback))
+                return fallback;
+
+            return ClipBindingsMatchSkeleton(profile, bindingPaths) ? profile.ProfileHash : string.Empty;
         }
 
         private static string ResolveSkeletonProfileId(
@@ -579,6 +624,40 @@ namespace MxFramework.Editor.Animation
             string fallback)
         {
             return profile != null ? profile.ProfileHash : fallback ?? string.Empty;
+        }
+
+        private static bool ClipBindingsMatchSkeleton(
+            MxAnimationSkeletonCompatibilityProfile profile,
+            IReadOnlyList<string> bindingPaths)
+        {
+            if (profile == null)
+                return false;
+
+            for (int i = 0; i < bindingPaths.Count; i++)
+            {
+                string path = bindingPaths[i];
+                if (!profile.ContainsBonePath(path) && !profile.ContainsSocketPath(path))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool ContainsPath(IReadOnlyList<string> paths, string path)
+        {
+            string normalized = NormalizePath(path);
+            for (int i = 0; i < paths.Count; i++)
+            {
+                if (string.Equals(paths[i], normalized, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return (path ?? string.Empty).Replace('\\', '/').Trim().Trim('/');
         }
     }
 }

@@ -262,6 +262,32 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void CompatibilityValidator_RequiresExactPackageWhenExpectationSpecifiesPackage()
+        {
+            var expectedClip = new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip, packageId: "package.a");
+            var actualClip = new ResourceKey("demo.animation.attack", ResourceTypeIds.AnimationClip, packageId: "package.b");
+            var skeleton = new MxAnimationSkeletonCompatibilityProfile("humanoid", "sha256:skeleton", new[] { "Hips" });
+            var profile = new MxAnimationCompatibilityProfile(
+                skeleton,
+                new[]
+                {
+                    new MxAnimationClipCompatibilityProfile(actualClip, "humanoid", "sha256:skeleton", new[] { "Hips" })
+                });
+            var expectation = new MxAnimationCompatibilityExpectation(
+                "humanoid",
+                "sha256:skeleton",
+                clipExpectations: new[]
+                {
+                    new MxAnimationClipCompatibilityExpectation(expectedClip, new[] { "Hips" })
+                });
+
+            MxAnimationCompatibilityValidationReport report = MxAnimationCompatibilityValidator.Validate(profile, expectation);
+
+            Assert.IsTrue(report.HasErrors);
+            AssertIssue(report, MxAnimationCompatibilityIssueCodes.ClipProfileMissing, expectedClip, "clipProfile");
+        }
+
+        [Test]
         public void StaticMappingProvider_FindsDefinitionBySetId()
         {
             var definition = new MxAnimationSetDefinition(

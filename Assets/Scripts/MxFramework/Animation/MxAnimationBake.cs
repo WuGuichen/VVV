@@ -1054,12 +1054,15 @@ namespace MxFramework.Animation
 
         private static bool MatchesKey(ResourceKey left, ResourceKey right)
         {
-            return string.Equals(left.Id, right.Id, StringComparison.Ordinal)
-                && string.Equals(left.TypeId, right.TypeId, StringComparison.Ordinal)
-                && string.Equals(left.Variant, right.Variant, StringComparison.Ordinal)
-                && (string.IsNullOrWhiteSpace(left.PackageId)
-                    || string.IsNullOrWhiteSpace(right.PackageId)
-                    || string.Equals(left.PackageId, right.PackageId, StringComparison.Ordinal));
+            if (!string.Equals(left.Id, right.Id, StringComparison.Ordinal)
+                || !string.Equals(left.TypeId, right.TypeId, StringComparison.Ordinal)
+                || !string.Equals(left.Variant, right.Variant, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return string.IsNullOrWhiteSpace(right.PackageId)
+                || string.Equals(left.PackageId, right.PackageId, StringComparison.Ordinal);
         }
 
         private static string ResolveExpected(string overrideValue, string fallback)

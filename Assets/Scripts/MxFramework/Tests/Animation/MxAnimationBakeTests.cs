@@ -134,6 +134,45 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void EditorCompatibilityExtractor_DoesNotStampMissingSocketOrWrongSkeleton()
+        {
+            GameObject root = CreateSkeletonRoot();
+            try
+            {
+                AnimationClip clip = new AnimationClip { name = "Wrong Skeleton Test", frameRate = 30f };
+                SetCurve(clip, "Hips/MissingArm", "m_LocalPosition.x", AnimationCurve.Linear(0f, 0f, 1f, 1f));
+                ResourceKey clipKey = new ResourceKey("demo.animation.wrong_skeleton", ResourceTypeIds.AnimationClip);
+                MxAnimationSkeletonCompatibilityProfile skeleton =
+                    MxAnimationCompatibilityEditorExtractor.CreateSkeletonProfile(
+                        root,
+                        "humanoid",
+                        new[] { "Hips/Spine/MissingSocket" });
+                MxAnimationCompatibilityProfile profile = MxAnimationCompatibilityEditorExtractor.CreateProfile(
+                    skeleton,
+                    new[] { MxAnimationCompatibilityEditorExtractor.CreateClipProfile(clip, clipKey, skeleton) });
+                var expectation = new MxAnimationCompatibilityExpectation(
+                    skeleton.ProfileId,
+                    skeleton.ProfileHash,
+                    requiredSocketPaths: new[] { "Hips/Spine/MissingSocket" },
+                    clipExpectations: new[]
+                    {
+                        new MxAnimationClipCompatibilityExpectation(clipKey, new[] { "Hips/MissingArm" })
+                    });
+
+                MxAnimationCompatibilityValidationReport report =
+                    MxAnimationCompatibilityEditorExtractor.Validate(profile, expectation);
+
+                Assert.IsTrue(report.HasErrors);
+                Assert.That(report.Issues.Select(i => i.Code), Contains.Item(MxAnimationCompatibilityIssueCodes.SocketPathMissing));
+                Assert.That(report.Issues.Select(i => i.Code), Contains.Item(MxAnimationCompatibilityIssueCodes.ClipSkeletonProfileHashMismatch));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void EditorBakeTool_SourceClipHashChangesWhenEventsChange()
         {
             AnimationClip firstClip = CreateClip();

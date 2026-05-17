@@ -64,8 +64,8 @@ namespace MxFramework.Animation
             ResourceCatalog catalog = null,
             MxAnimationPresentationSyncState syncState = null,
             MxAnimationClipRegistry expectedClipRegistry = null,
-            MxAnimationCompatibilityProfile compatibilityProfile = null,
-            bool skipPreloadWhenInvalid = true)
+            bool skipPreloadWhenInvalid = true,
+            MxAnimationCompatibilityProfile compatibilityProfile = null)
         {
             Definition = definition;
             ClipRegistry = clipRegistry;
