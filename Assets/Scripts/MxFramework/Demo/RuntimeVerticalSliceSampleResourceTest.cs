@@ -363,7 +363,7 @@ namespace MxFramework.Demo
         {
             string status = success ? "ok" : "failed";
             return "Samples resources " + status +
-                ": warmup 33/17/7/9/4/4, direct P" + direct.PrefabCount +
+                ": warmup 34/18/7/9/4/4, direct P" + direct.PrefabCount +
                 "/T" + direct.TextureCount +
                 "/A" + direct.AudioClipCount +
                 ", release loaded=" + afterFullRelease.LoadedCount +
