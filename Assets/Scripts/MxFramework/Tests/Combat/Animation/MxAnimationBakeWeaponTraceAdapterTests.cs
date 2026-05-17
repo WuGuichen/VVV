@@ -22,6 +22,41 @@ namespace MxFramework.Tests.Combat.Animation
             Assert.AreEqual(new FixVector3(Fix64.FromInt(10), Fix64.FromInt(2), Fix64.Zero), frame.TipNow);
             Assert.AreEqual(Fix64.One, frame.Radius);
             Assert.AreEqual(CombatPhysicsLayerMask.FromLayer(2), frame.TargetMask);
+            Assert.AreEqual("weapon", reference.SocketId);
+        }
+
+        [Test]
+        public void BuildFrame_UsesOnlyBakedReferenceAndExplicitRuntimeProfile()
+        {
+            CombatBakedWeaponTraceReferenceFrame reference = CreateReference();
+            CombatBakedWeaponRuntimeProfile smallProfile = CreateProfile();
+            CombatBakedWeaponRuntimeProfile largeProfile = new CombatBakedWeaponRuntimeProfile(
+                characterScale: Fix64.FromInt(3),
+                weaponLength: Fix64.FromInt(3),
+                weaponRadius: Fix64.Half,
+                socketOffset: new FixVector3(Fix64.Zero, Fix64.One, Fix64.Zero),
+                targetMask: CombatPhysicsLayerMask.FromLayer(2));
+
+            WeaponTraceFrame first = CombatBakedWeaponTraceAdapter.BuildFrame(reference, smallProfile);
+            WeaponTraceFrame second = CombatBakedWeaponTraceAdapter.BuildFrame(reference, smallProfile);
+            WeaponTraceFrame scaled = CombatBakedWeaponTraceAdapter.BuildFrame(reference, largeProfile);
+
+            Assert.AreEqual(first, second);
+            Assert.AreNotEqual(first, scaled);
+        }
+
+        [Test]
+        public void ReferenceFrameConstructor_PreservesLegacySignature()
+        {
+            Assert.NotNull(typeof(CombatBakedWeaponTraceReferenceFrame).GetConstructor(new[]
+            {
+                typeof(int),
+                typeof(int),
+                typeof(FixVector3),
+                typeof(FixVector3),
+                typeof(FixVector3),
+                typeof(FixVector3)
+            }));
         }
 
         [Test]
@@ -54,7 +89,8 @@ namespace MxFramework.Tests.Combat.Animation
                 socketPrev: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
                 socketNow: new FixVector3(Fix64.FromInt(2), Fix64.Zero, Fix64.Zero),
                 tipDirectionPrev: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
-                tipDirectionNow: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero));
+                tipDirectionNow: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+                socketId: "weapon");
         }
 
         private static CombatBakedWeaponRuntimeProfile CreateProfile()

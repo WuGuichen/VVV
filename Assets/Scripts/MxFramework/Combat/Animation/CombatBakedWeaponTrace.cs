@@ -14,6 +14,18 @@ namespace MxFramework.Combat.Animation
             FixVector3 socketNow,
             FixVector3 tipDirectionPrev,
             FixVector3 tipDirectionNow)
+            : this(traceId, localFrame, socketPrev, socketNow, tipDirectionPrev, tipDirectionNow, string.Empty)
+        {
+        }
+
+        public CombatBakedWeaponTraceReferenceFrame(
+            int traceId,
+            int localFrame,
+            FixVector3 socketPrev,
+            FixVector3 socketNow,
+            FixVector3 tipDirectionPrev,
+            FixVector3 tipDirectionNow,
+            string socketId = "")
         {
             if (traceId < 0)
                 throw new ArgumentOutOfRangeException(nameof(traceId), "Trace id cannot be negative.");
@@ -22,6 +34,7 @@ namespace MxFramework.Combat.Animation
 
             TraceId = traceId;
             LocalFrame = localFrame;
+            SocketId = socketId ?? string.Empty;
             SocketPrev = socketPrev;
             SocketNow = socketNow;
             TipDirectionPrev = tipDirectionPrev;
@@ -30,6 +43,7 @@ namespace MxFramework.Combat.Animation
 
         public int TraceId { get; }
         public int LocalFrame { get; }
+        public string SocketId { get; }
         public FixVector3 SocketPrev { get; }
         public FixVector3 SocketNow { get; }
         public FixVector3 TipDirectionPrev { get; }
