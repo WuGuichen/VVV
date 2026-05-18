@@ -12,7 +12,7 @@ namespace MxFramework.Tests.CharacterControl
     public sealed class RuntimeAiPlannerCharacterCommandSourceTests
     {
         [Test]
-        public void SamePlanInput_ProducesStableCharacterCommand()
+        public void SamePlanInput_ProducesStableMovementAndOneShotActionRequest()
         {
             var world = new AiWorldState();
             world.SetValue(RuntimeAiPressureFactKeys.TargetPostureBand, 2);
@@ -32,6 +32,7 @@ namespace MxFramework.Tests.CharacterControl
             Assert.IsTrue(first.SprintHeld);
             Assert.AreEqual(1001, first.ActionRequest.CombatActionId);
             Assert.AreEqual(10, source.Diagnostics.LastActionId);
+            Assert.AreEqual(Fix64.One, second.MoveDirection.X);
             Assert.AreEqual(CharacterActionKind.None, second.ActionRequest.Kind);
             Assert.AreEqual(CharacterActionButtons.None, second.ActionButtons);
         }
@@ -116,11 +117,15 @@ namespace MxFramework.Tests.CharacterControl
             registry.Register(new RuntimeAiCharacterCommandProfile(
                 actionId: 1,
                 moveDirection: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
-                facingBasis: CharacterFacingBasis.Identity));
+                facingBasis: CharacterFacingBasis.Identity,
+                actionKind: CharacterActionKind.Attack,
+                combatActionId: 1001));
             registry.Register(new RuntimeAiCharacterCommandProfile(
                 actionId: 2,
                 moveDirection: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
-                facingBasis: CharacterFacingBasis.Identity));
+                facingBasis: CharacterFacingBasis.Identity,
+                actionKind: CharacterActionKind.Attack,
+                combatActionId: 1002));
             var source = new RuntimeAiPlannerCharacterCommandSource(
                 world,
                 planner,
@@ -137,8 +142,10 @@ namespace MxFramework.Tests.CharacterControl
             Assert.IsTrue(source.TryGetCommand(new RuntimeFrame(1), CreateEntity(), out CharacterCommand reused));
 
             Assert.AreEqual(Fix64.One, initial.MoveDirection.X);
+            Assert.AreEqual(1001, initial.ActionRequest.CombatActionId);
             Assert.AreEqual(Fix64.One, reused.MoveDirection.X);
             Assert.AreEqual(Fix64.Zero, reused.MoveDirection.Z);
+            Assert.AreEqual(CharacterActionKind.None, reused.ActionRequest.Kind);
         }
 
         private static RuntimeAiPlannerCharacterCommandSource CreateSource(
