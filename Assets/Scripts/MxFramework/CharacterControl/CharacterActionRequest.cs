@@ -132,6 +132,21 @@ namespace MxFramework.CharacterControl
                 traceId: traceId);
         }
 
+        public CharacterActionRequest WithFrame(RuntimeFrame frame)
+        {
+            return new CharacterActionRequest(
+                frame,
+                SourceId,
+                Entity,
+                Kind,
+                CombatActionId,
+                GameplayAbilityId,
+                TargetGameplayEntityId,
+                ForceStart,
+                QueueIfBusy,
+                TraceId);
+        }
+
         public bool Equals(CharacterActionRequest other)
         {
             return Frame == other.Frame

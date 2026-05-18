@@ -414,6 +414,8 @@ namespace MxFramework.CharacterControl
             }
 
             RuntimeCommand command;
+            GameplayComponentAbilityRequestHandle abilityRequestHandle = default;
+            bool hasAbilityRequestHandle = false;
             if (request.HasTarget)
             {
                 if (_abilityRequestStore == null)
@@ -428,10 +430,11 @@ namespace MxFramework.CharacterControl
                     request.GameplayAbilityId,
                     new[] { request.TargetGameplayEntityId },
                     targetQuery: null);
-                GameplayComponentAbilityRequestHandle handle = _abilityRequestStore.Add(abilityRequest);
+                abilityRequestHandle = _abilityRequestStore.Add(abilityRequest);
+                hasAbilityRequestHandle = true;
                 command = GameplayRuntimeCommandFactory.CastComponentAbilityRequest(
                     request.Frame,
-                    handle,
+                    abilityRequestHandle,
                     request.GameplayAbilityId,
                     request.SourceId,
                     request.TraceId);
@@ -450,6 +453,11 @@ namespace MxFramework.CharacterControl
             RuntimeCommandValidationResult enqueue = _gameplayCommandBuffer.Enqueue(command);
             if (!enqueue.Success)
             {
+                if (hasAbilityRequestHandle)
+                {
+                    _abilityRequestStore.Remove(abilityRequestHandle);
+                }
+
                 CharacterActionResult rejected = CharacterActionResult.Rejected(CharacterActionRejectedReason.RuntimeCommandRejected, enqueue.Error.Message);
                 Emit(CharacterActionEventType.Rejected, request, rejected.RejectedReason, 0, enqueue.Error.Command, rejected.Message);
                 return rejected;
@@ -484,10 +492,11 @@ namespace MxFramework.CharacterControl
             }
 
             CharacterActionRequest request = GetActiveCombatActionRequest();
-            _stateMachine.FinishAction(RuntimeFrameFromActiveCombatState(request));
+            RuntimeFrame lifecycleFrame = RuntimeFrameFromCombatFrame(evt.Frame);
+            _stateMachine.FinishAction(lifecycleFrame);
             Emit(CharacterActionEventType.Finished, request, CharacterActionRejectedReason.None, evt.ActionInstanceId, default, string.Empty);
             ClearActiveCombatActionRequest();
-            TrySubmitQueuedRequest();
+            TrySubmitQueuedRequest(lifecycleFrame);
         }
 
         private void OnCombatActionCanceled(ActionCanceledEvent evt)
@@ -498,24 +507,25 @@ namespace MxFramework.CharacterControl
             }
 
             CharacterActionRequest request = GetActiveCombatActionRequest();
-            _stateMachine.CancelAction(RuntimeFrameFromActiveCombatState(request), evt.Reason);
+            RuntimeFrame lifecycleFrame = RuntimeFrameFromCombatFrame(evt.Frame);
+            _stateMachine.CancelAction(lifecycleFrame, evt.Reason);
             Emit(CharacterActionEventType.Canceled, request, CharacterActionRejectedReason.None, evt.ActionInstanceId, default, evt.Reason);
             bool hasPendingReplacement = _hasPendingCombatActionRequest;
             ClearActiveCombatActionRequest();
             if (!hasPendingReplacement)
             {
-                TrySubmitQueuedRequest();
+                TrySubmitQueuedRequest(lifecycleFrame);
             }
         }
 
-        private void TrySubmitQueuedRequest()
+        private void TrySubmitQueuedRequest(RuntimeFrame frame)
         {
             if (!_hasQueuedRequest)
             {
                 return;
             }
 
-            CharacterActionRequest request = _queuedRequest;
+            CharacterActionRequest request = _queuedRequest.WithFrame(frame);
             _queuedRequest = default;
             _hasQueuedRequest = false;
             SubmitInternal(request, fromQueue: true);
@@ -561,9 +571,9 @@ namespace MxFramework.CharacterControl
             return _hasLastSubmittedRequest ? _lastSubmittedRequest : default;
         }
 
-        private RuntimeFrame RuntimeFrameFromActiveCombatState(CharacterActionRequest request)
+        private static RuntimeFrame RuntimeFrameFromCombatFrame(CombatFrame frame)
         {
-            return request.Kind == CharacterActionKind.None ? RuntimeFrame.Zero : request.Frame;
+            return new RuntimeFrame(frame.Value);
         }
 
         private void ClearPendingCombatActionRequest(CharacterActionRequest request)

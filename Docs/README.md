@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.43 | 2026-05-18
+> 版本 0.6.46 | 2026-05-18
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -13,6 +13,7 @@
 | **想知道框架现在能做什么** | → `CAPABILITIES.md`（按使用场景分类的功能清单） |
 | **开始接入：最小代码示例** | → `USAGE.md`（属性/Buff/Modifier/配置 代码模板） |
 | **让 Agent 读取最小上下文** | → `PROJECT_INDEX.md`（Context Pack 入口和禁止默认读取范围） |
+| **排查运行时状态和调试面板** | → `Guides/OBSERVABILITY_DEBUGGING_GUIDE.md`（Debug UI、日志、timeline、hot reload、commands 和 Simulation Harness） |
 | **让 agent 基于框架制作小游戏 / Demo** | → `AGENT_GAME_CREATION_GUIDE.md`（API 复用计划、标准分层、禁用项和验收清单） |
 | **选读哪个文档** | → 本文件下方「职责表」 |
 
@@ -42,6 +43,7 @@
 | `QUALITY_GATE.md` | 什么算做完、如何验收。 |
 | `ROADMAP.md` | 分阶段建设路线和完成定义（按 Phase 组织）。 |
 | `MIGRATION.md` | 从 WGame 迁移了哪些代码、怎么改的。 |
+| `Guides/OBSERVABILITY_DEBUGGING_GUIDE.md` | 如何接入和排查 Debug UI、日志、timeline、performance counters、Simulation Harness、hot reload、input adapter 和 command gate。 |
 
 ---
 
@@ -74,6 +76,7 @@
 | `Interfaces/AppFlow.md` | App / Scene Flow 状态和场景切换 |
 | `Interfaces/Input.md` | Unity Input System 上层的输入意图、上下文和重绑定接口 |
 | `Interfaces/CharacterControl.md` | Character Control 角色控制编排接口 |
+| `Interfaces/DebugUI.md` | Debug UI source registry、snapshot aggregation、Toolkit overlay 和 source adapter 接入方式 |
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |
 | `Interfaces/Editor.md` | Editor 工具接口 |
 
@@ -108,6 +111,7 @@
 
 | Goal | 说明 |
 |------|------|
+| `Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md` | Phase 13 Observability and Developer Workflow：Issue #178-#187，已覆盖只读 Debug UI core registry、UI Toolkit overlay shell、RuntimeHost / Logging / Resources / Gameplay / Combat source adapters、event timeline、entity watch、performance counters、Simulation Harness batch reports、Config Runtime patch hot reload、Debug UI input adapter、command gate 和调试指南；明确 Debug UI 状态不进入 Replay / SaveState / Runtime hash。 |
 | `Tasks/RUNTIME_DEBUG_UI_FRAMEWORK_01_DESIGN.md` | Runtime Debug UI Framework 01：Issue #85 通用运行时调试界面框架设计，规划 source registry、snapshot aggregation、Hidden / Collapsed / Expanded UX、DebugUI noEngine core / Toolkit / Input 拆分和 M1-M5 实施切片。 |
 | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` | Marble Maze Framework Physics Showcase：已重构为框架物理权威，RuntimeHost 负责命令、计时、checkpoint、诊断 hash、Replay 和 SaveState JSON；Unity 场景对象只作为 view / input adapter。 |
 | `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Validation：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState。当前仓库未提交 Breakout 场景资产，因此不标记为 Playable。 |
@@ -194,6 +198,7 @@
 | `Decisions/*.md` | 已接受的架构、流程和版本控制决策 | 重要决策接受或变更 |
 | `Progress/*.md` | 当前进度、流程状态和合并后摘要 | PR 合并后或状态变化 |
 | `QUALITY_GATE.md` | 什么算做完、如何验收 | 新增测试或发布要求 |
+| `Guides/*.md` | 端到端使用和排错指南 | 新增跨模块工作流或排障路径 |
 | `EDITORS.md` | 编辑器工具怎么呈现和验证框架状态 | 开发 Editor 工具前 |
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部编辑器总规划 | 外部编辑器范围变化 |
 | `AUTHORING_EDITOR_USAGE.md` | 当前编辑器怎么用、限制、排错 | 编辑器功能变化 |
@@ -217,8 +222,11 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.6.43 | 2026-05-18 | 扩展 Character Control v0.2：新增 Local Input command source、Runtime AI Planner command source、motion modifier / traction adapter contract 和对应测试 |
-| 0.6.42 | 2026-05-18 | 新增 Character Control noEngine 编排接口、设计契约和 v0.1 实现入口，串联 Runtime frame、Combat Motion、Combat Action 与 Gameplay command bridge |
+| 0.6.46 | 2026-05-18 | 扩展 Character Control v0.2：新增 Local Input command source、Runtime AI Planner command source、motion modifier / traction adapter contract 和对应测试 |
+| 0.6.45 | 2026-05-18 | Phase 13 扩展 #185-#187：新增 Config Runtime patch hot reload、Debug UI input adapter、command gate 和 Observability 调试指南 |
+| 0.6.44 | 2026-05-18 | Phase 13 扩展 #182-#184：新增 Debug UI timeline / entity watch、Diagnostics performance counters 和 noEngine Simulation Harness reports |
+| 0.6.43 | 2026-05-18 | 新增 Character Control noEngine 编排接口、设计契约和 v0.1 实现入口，串联 Runtime frame、Combat Motion、Combat Action 与 Gameplay command bridge |
+| 0.6.42 | 2026-05-18 | 新增 Phase 13 Observability and Developer Workflow 入口，落地 Debug UI core / Toolkit / adapter 首批任务文档 |
 | 0.6.41 | 2026-05-17 | 收口 MxAnimation System Showcase 文档索引：能力清单补充 playable validation，详细手测流程归档到 `Docs/Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md` |
 | 0.6.40 | 2026-05-17 | 新增 Gitea -> GitHub Issue / PR 元数据手动镜像脚本，明确 PR 默认以 GitHub Issue 形式镜像，不把 GitHub 变成协作源 |
 | 0.6.39 | 2026-05-15 | 新增 Runtime Debug UI Framework 01 设计文档，明确通用运行时调试 overlay 与现有 Showcase HUD 边界、DebugUI 程序集拆分、snapshot 聚合、输入/焦点行为和 M1-M5 实施切片 |

@@ -57,7 +57,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             int gameplayAbilityId = 0,
             bool forceStart = false,
             bool queueIfBusy = false,
-            Fix64 moveSpeedScale = default,
+            Fix64? moveSpeedScale = null,
             string traceTag = "")
         {
             if (actionId < 0)
@@ -77,7 +77,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             GameplayAbilityId = gameplayAbilityId;
             ForceStart = forceStart;
             QueueIfBusy = queueIfBusy;
-            MoveSpeedScale = moveSpeedScale.Equals(default(Fix64)) ? Fix64.One : moveSpeedScale;
+            MoveSpeedScale = moveSpeedScale ?? Fix64.One;
             TraceTag = traceTag ?? string.Empty;
         }
 
@@ -220,12 +220,12 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 RuntimeAiCharacterCommandProfile profile = _pendingProfile;
                 _pendingProfile = default;
                 _hasPendingProfile = false;
-                return TryBuildCommand(frame, entity, profile, out command);
+                return TryBuildCommand(frame, entity, profile, emitActionRequest: true, out command);
             }
 
             if (_hasLastProfile && frame < _nextDecisionFrame)
             {
-                return TryBuildCommand(frame, entity, _lastProfile, out command);
+                return TryBuildCommand(frame, entity, _lastProfile, emitActionRequest: false, out command);
             }
 
             if (!_planner.TryPlan(_worldState, _goals, _actions, out AiPlan plan))
@@ -271,17 +271,25 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             _smoothUntilFrame = AddFrames(frame, _options.CommandSmoothingFrames);
             _lastActionId = selectedProfile.ActionId;
             SetDiagnostics(RuntimeAiPlannerCharacterCommandSuppressedReason.None, frame, profileToUse.ActionId, default, DescribeGoal(plan.Goal));
-            return TryBuildCommand(frame, entity, profileToUse, out command);
+            return TryBuildCommand(
+                frame,
+                entity,
+                profileToUse,
+                emitActionRequest: actionChanged && profileToUse.ActionId == selectedProfile.ActionId,
+                out command);
         }
 
         private bool TryBuildCommand(
             RuntimeFrame frame,
             CharacterControlEntityRef entity,
             RuntimeAiCharacterCommandProfile profile,
+            bool emitActionRequest,
             out CharacterCommand command)
         {
             string traceId = BuildTraceId(frame, profile);
-            CharacterActionRequest request = CreateActionRequest(frame, entity, profile, traceId);
+            CharacterActionRequest request = emitActionRequest
+                ? CreateActionRequest(frame, entity, profile, traceId)
+                : default;
             command = new CharacterCommand(
                 frame,
                 _options.SourceId,
@@ -290,7 +298,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 profile.FacingBasis,
                 profile.JumpPressed,
                 profile.SprintHeld,
-                GetButtons(profile),
+                GetButtons(profile, emitActionRequest),
                 request,
                 profile.MoveSpeedScale,
                 traceId);
@@ -392,8 +400,11 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 : $"{prefix}:{frame.Value}:{profile.TraceTag}";
         }
 
-        private static CharacterActionButtons GetButtons(RuntimeAiCharacterCommandProfile profile)
+        private static CharacterActionButtons GetButtons(RuntimeAiCharacterCommandProfile profile, bool emitActionRequest)
         {
+            if (!emitActionRequest)
+                return CharacterActionButtons.None;
+
             switch (profile.ActionKind)
             {
                 case CharacterActionKind.Attack:

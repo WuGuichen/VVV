@@ -105,6 +105,8 @@ namespace MxFramework.CharacterControl.Input
             command = default;
             if (!CanReadGameplayInput())
             {
+                _commands.Clear();
+                _inputProvider.Commands.DrainForFrame(frame.Value, _commands);
                 return false;
             }
 

@@ -4,8 +4,10 @@ using MxFramework.Attributes;
 using MxFramework.Buffs;
 using MxFramework.Config;
 using MxFramework.Config.Runtime;
-using MxFramework.Gameplay;
+using MxFramework.DebugUI;
+using MxFramework.DebugUI.Adapters;
 using MxFramework.Events;
+using MxFramework.Gameplay;
 using MxFramework.Modifiers;
 using MxFramework.Runtime;
 using MxFramework.UI.Toolkit;
@@ -302,6 +304,17 @@ namespace MxFramework.Demo
         public string RuntimeFoundationSummary => _runtimeFoundationSummary;
         public RuntimeSaveState LastRuntimeSaveState => _lastRuntimeSaveState;
         public RuntimeReplaySnapshot RuntimeReplaySnapshot => _runtimeReplayRecorder != null ? _runtimeReplayRecorder.CreateSnapshot() : null;
+
+        public FrameworkDebugSourceRegistry CreateDebugSourceRegistry()
+        {
+            ResetRuntimeFoundationIfNeeded();
+            UpdateSnapshot();
+
+            var registry = new FrameworkDebugSourceRegistry();
+            registry.Register(new RuntimeHostDebugSource(_runtimeHost));
+            registry.Register(new GameplayDiagnosticSnapshotDebugSource(() => _lastSnapshot, "Gameplay"));
+            return registry;
+        }
 
         public void AppendExternalEvent(string message)
         {
