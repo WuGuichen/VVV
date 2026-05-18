@@ -118,9 +118,9 @@ adapter.SetEnabled(true);
 adapter.ProcessFrame(frame, debugUiTarget);
 ```
 
-The adapter pushes `InputContext.Debug` as an overlay scope and consumes `ToggleHud`, `ToggleConsole`, `DebugCycle` and `DebugStep` commands from `IInputProvider.Commands`. It does not read `Keyboard.current`, `Gamepad.current`, `Mouse.current` or `InputAction` directly.
+The adapter pushes `InputContext.Debug` as an overlay scope and non-destructively peeks `ToggleHud`, `ToggleConsole`, `DebugCycle` and `DebugStep` commands from `IInputProvider.Commands`. It does not drain gameplay commands, advance the queue frame, read `Keyboard.current`, `Gamepad.current`, `Mouse.current` or hold `InputAction` directly.
 
-In Unity scenes, `DebugUiOverlayInputBridge` can connect an `InputService` and `DebugUiOverlayController` on the same GameObject.
+In Unity scenes, `DebugUiOverlayInputBridge` can connect an `InputService` and `DebugUiOverlayController` on the same GameObject. The bridge uses `InputService.LastCommandFrame` instead of maintaining its own frame counter.
 
 ## 8. Gate Debug Commands
 
@@ -144,7 +144,7 @@ Providers expose `DebugUiCommandDescriptor` records with command id, risk, confi
 - Dashboard refresh fails: check `DebugUiDashboardViewModel.Errors`; one bad source should not hide other sources.
 - Timeline or Entities tab is empty: verify the registered source emits sections titled for timeline/entity watch and that upstream diagnostics snapshots contain entries.
 - Hot reload did nothing: confirm a `RuntimeConfigHotReloadRequest` was issued and `result.Success` is true before switching providers.
-- Debug shortcuts do nothing: confirm `DebugUiInputAdapter.Enabled`, the `InputContext.Debug` map and the frame number used by `DrainForFrame()`.
+- Debug shortcuts do nothing: confirm `DebugUiInputAdapter.Enabled`, the `InputContext.Debug` map, `InputService.LastCommandFrame` and whether another consumer drains commands before the bridge can peek them.
 - Command rejected: inspect `DebugUiCommandResult.ErrorCode`; common values are `disabled`, `not_found`, `confirmation_required` and `destructive_disabled`.
 
 ## 10. Pending Boundaries

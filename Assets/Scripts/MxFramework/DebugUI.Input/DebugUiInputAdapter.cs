@@ -30,6 +30,8 @@ namespace MxFramework.DebugUI.Input
         private readonly List<InputCommand> _commands = new List<InputCommand>(8);
         private IInputProvider _input;
         private IDisposable _debugContextScope;
+        private long _lastHandledSequence = -1L;
+        private long _lastObservedQueueFrame;
 
         public DebugUiInputAdapter(IInputProvider input = null)
         {
@@ -46,6 +48,7 @@ namespace MxFramework.DebugUI.Input
 
             ReleaseDebugContext();
             _input = input;
+            ResetCommandCursor();
             if (Enabled)
                 AcquireDebugContext();
         }
@@ -57,9 +60,14 @@ namespace MxFramework.DebugUI.Input
 
             Enabled = enabled;
             if (enabled)
+            {
+                ResetCommandCursor();
                 AcquireDebugContext();
+            }
             else
+            {
                 ReleaseDebugContext();
+            }
         }
 
         public DebugUiInputAdapterResult ProcessFrame(long frame, IDebugUiInputTarget target)
@@ -69,15 +77,25 @@ namespace MxFramework.DebugUI.Input
             if (target == null)
                 return new DebugUiInputAdapterResult(0, "Debug UI input target is missing.");
 
+            if (_input.Commands.CurrentFrame < _lastObservedQueueFrame)
+                ResetCommandCursor();
+            _lastObservedQueueFrame = _input.Commands.CurrentFrame;
+
             _commands.Clear();
-            _input.Commands.DrainForFrame(frame, _commands);
+            _input.Commands.PeekForFrame(frame, _commands, IsDebugCommand);
 
             int handled = 0;
+            long maxSeenSequence = _lastHandledSequence;
             try
             {
                 for (int i = 0; i < _commands.Count; i++)
                 {
                     InputCommand command = _commands[i];
+                    if (command.Sequence <= _lastHandledSequence)
+                        continue;
+                    if (command.Sequence > maxSeenSequence)
+                        maxSeenSequence = command.Sequence;
+
                     if (command.Phase != InputCommandPhase.Pressed
                         && command.Phase != InputCommandPhase.Performed)
                     {
@@ -93,6 +111,7 @@ namespace MxFramework.DebugUI.Input
                 return new DebugUiInputAdapterResult(handled, exception.Message);
             }
 
+            _lastHandledSequence = maxSeenSequence;
             return new DebugUiInputAdapterResult(handled, string.Empty);
         }
 
@@ -117,6 +136,20 @@ namespace MxFramework.DebugUI.Input
                 case InputIntent.DebugStep:
                     target.RequestDebugStep();
                     target.RefreshNow();
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsDebugCommand(InputCommand command)
+        {
+            switch (command.Intent)
+            {
+                case InputIntent.ToggleHud:
+                case InputIntent.ToggleConsole:
+                case InputIntent.DebugCycle:
+                case InputIntent.DebugStep:
                     return true;
                 default:
                     return false;
@@ -150,6 +183,12 @@ namespace MxFramework.DebugUI.Input
 
             _debugContextScope.Dispose();
             _debugContextScope = null;
+        }
+
+        private void ResetCommandCursor()
+        {
+            _lastHandledSequence = -1L;
+            _lastObservedQueueFrame = _input != null ? _input.Commands.CurrentFrame : 0L;
         }
     }
 }

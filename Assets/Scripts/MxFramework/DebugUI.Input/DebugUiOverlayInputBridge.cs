@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace MxFramework.DebugUI.Input
 {
+    [DefaultExecutionOrder(-900)]
     [DisallowMultipleComponent]
     [AddComponentMenu("MxFramework/Debug UI/Debug UI Input Bridge")]
     public sealed class DebugUiOverlayInputBridge : MonoBehaviour, IDebugUiInputTarget
@@ -13,7 +14,6 @@ namespace MxFramework.DebugUI.Input
         [SerializeField] private bool _enableOnStart = true;
 
         private readonly DebugUiInputAdapter _adapter = new DebugUiInputAdapter();
-        private long _frame;
         private DebugUiInputAdapterResult _lastResult;
 
         public DebugUiInputAdapterResult LastResult => _lastResult;
@@ -41,7 +41,7 @@ namespace MxFramework.DebugUI.Input
             if (_overlay == null || _inputService == null)
                 return;
 
-            _lastResult = _adapter.ProcessFrame(_frame++, this);
+            _lastResult = _adapter.ProcessFrame(_inputService.LastCommandFrame, this);
         }
 
         public void SetVisibility(DebugUiVisibility visibility)

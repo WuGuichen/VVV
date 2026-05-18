@@ -47,6 +47,7 @@ namespace MxFramework.Input
         public InputCommandQueue Commands => _commands;
         public InputContextStack Contexts => _contexts;
         public InputContext CurrentContext => _contexts.ActiveContext;
+        public long LastCommandFrame => _frame > 0L ? _frame - 1L : _commands.CurrentFrame;
         public InputActionAsset Actions => _runtimeActions;
         public IInputRebindingService Rebinding => _rebinding;
         public InputBindingDisplayService BindingDisplay => _bindingDisplay;

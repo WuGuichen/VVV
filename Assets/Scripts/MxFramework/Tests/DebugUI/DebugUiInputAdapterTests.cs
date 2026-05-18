@@ -29,6 +29,7 @@ namespace MxFramework.Tests.DebugUI
             var adapter = new DebugUiInputAdapter(input);
             adapter.SetEnabled(true);
             input.Enqueue(new InputCommand(0, 1, InputIntent.ToggleHud));
+            input.Enqueue(new InputCommand(0, 1, InputIntent.AttackPrimary));
             input.Enqueue(new InputCommand(0, 1, InputIntent.ToggleConsole));
             input.Enqueue(new InputCommand(0, 1, InputIntent.DebugStep));
 
@@ -39,6 +40,25 @@ namespace MxFramework.Tests.DebugUI
             Assert.AreEqual(DebugUiVisibility.Expanded, target.VisibilityValue);
             Assert.AreEqual(1, target.StepCount);
             Assert.AreEqual(1, target.RefreshCount);
+            Assert.AreEqual(4, input.Commands.PendingCount);
+            Assert.AreEqual(0, input.Commands.CurrentFrame);
+        }
+
+        [Test]
+        public void ProcessFrame_DoesNotRepeatPeekedDebugCommands()
+        {
+            var input = new FakeInputProvider();
+            var target = new TestTarget { VisibilityValue = DebugUiVisibility.Hidden };
+            var adapter = new DebugUiInputAdapter(input);
+            adapter.SetEnabled(true);
+            input.Enqueue(new InputCommand(0, 1, InputIntent.ToggleHud));
+
+            DebugUiInputAdapterResult first = adapter.ProcessFrame(0, target);
+            DebugUiInputAdapterResult second = adapter.ProcessFrame(0, target);
+
+            Assert.AreEqual(1, first.HandledCommandCount);
+            Assert.AreEqual(0, second.HandledCommandCount);
+            Assert.AreEqual(DebugUiVisibility.Collapsed, target.VisibilityValue);
         }
 
         private sealed class TestTarget : IDebugUiInputTarget

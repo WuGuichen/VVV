@@ -18,7 +18,7 @@ Input 模块把 Unity Input System 作为底层采集层，只向业务暴露意
 |------|------|
 | `IInputProvider` | 业务侧依赖入口，提供 `Snapshot`、`Commands` 和上下文切换 |
 | `InputSnapshot` | 每帧连续输入和一帧按钮状态，例如 `Move`、`Look`、`JumpPressed` |
-| `InputCommand` / `InputCommandQueue` | 瞬时意图事件队列，例如 Jump、Submit、Pause、Click |
+| `InputCommand` / `InputCommandQueue` | 瞬时意图事件队列，例如 Jump、Submit、Pause、Click；支持 destructive drain 和 non-destructive peek |
 | `InputContext` / `InputContextStack` | Gameplay、UI、Vehicle、PhotoMode、Cutscene、Rebinding、Debug 的上下文栈 |
 | `InputService` | 从 `InputActionAsset` 读取输入，生成 `InputSnapshot` 和 `InputCommand` |
 | `LocalUserInputAdapter` | 本地多人时接入 Unity `PlayerInput` 的私有 actions 副本 |
@@ -51,7 +51,17 @@ for (int i = 0; i < commands.Count; i++)
 }
 ```
 
-`InputCommandQueue.DrainForFrame(frame, List<InputCommand>)` 可复用外部列表，适合避免额外分配。
+`InputCommandQueue.DrainForFrame(frame, List<InputCommand>)` 可复用外部列表，适合避免额外分配。它会移除 `command.Frame <= frame` 的命令并推进 queue `CurrentFrame`，因此只适合权威消费者。
+
+只观察或旁路消费时使用 `PeekForFrame()`，可按 predicate 过滤，不移除命令也不推进 `CurrentFrame`：
+
+```csharp
+var debugCommands = new List<InputCommand>();
+input.Commands.PeekForFrame(
+    frame,
+    debugCommands,
+    command => command.Intent == InputIntent.ToggleHud);
+```
 
 ## 4. 上下文栈
 
@@ -102,7 +112,7 @@ if (input.BindingDisplay.TryGetDisplayString("Gameplay/Jump", 0, out string labe
 
 ## 7. Debug UI 输入桥
 
-Debug UI 输入桥位于独立程序集 `MxFramework.DebugUI.Input`。它只读取 `IInputProvider.Commands`，不直接读取 `Keyboard.current`、`Gamepad.current`、`Mouse.current` 或散落持有 `InputAction`。
+Debug UI 输入桥位于独立程序集 `MxFramework.DebugUI.Input`。它只通过 `PeekForFrame()` 非破坏性读取 `IInputProvider.Commands` 中的 Debug intents，不直接读取 `Keyboard.current`、`Gamepad.current`、`Mouse.current` 或散落持有 `InputAction`。
 
 ```csharp
 var adapter = new DebugUiInputAdapter(input);
@@ -110,7 +120,7 @@ adapter.SetEnabled(true); // Pushes InputContext.Debug as an overlay scope.
 adapter.ProcessFrame(frame, debugUiTarget);
 ```
 
-Unity 场景中可使用 `DebugUiOverlayInputBridge` 把同一 GameObject 上的 `InputService` 和 `DebugUiOverlayController` 连接起来。该桥只负责 visibility / refresh，不执行 Debug UI command。
+Unity 场景中可使用 `DebugUiOverlayInputBridge` 把同一 GameObject 上的 `InputService` 和 `DebugUiOverlayController` 连接起来。该桥使用 `InputService.LastCommandFrame` 对齐最近一次输入采集帧，只负责 visibility / refresh，不执行 Debug UI command。
 
 ## 8. 测试入口
 
