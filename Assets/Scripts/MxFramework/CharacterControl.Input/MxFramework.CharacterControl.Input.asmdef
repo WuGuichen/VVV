@@ -1,0 +1,20 @@
+{
+    "name": "MxFramework.CharacterControl.Input",
+    "rootNamespace": "MxFramework.CharacterControl.Input",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.Input",
+        "MxFramework.CharacterControl"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
