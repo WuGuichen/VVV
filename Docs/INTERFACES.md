@@ -1,6 +1,6 @@
 # MxFramework 接口索引
 
-> 版本 0.3.2 | 2026-05-15
+> 版本 0.3.3 | 2026-05-18
 >
 > 本文件只做接口导航、跨模块规则和依赖矩阵。具体模块接口不要继续堆在这里，必须拆到 `Docs/Interfaces/`。
 
@@ -33,7 +33,7 @@
 | UI Toolkit | `Docs/Interfaces/UI.Toolkit.md` | `Assets/Scripts/MxFramework/UI.Toolkit/` | `Assets/Scripts/MxFramework/Tests/UI.Toolkit/` |
 | Gameplay | `Docs/Interfaces/Gameplay.md` | `Assets/Scripts/MxFramework/Gameplay/` | `Assets/Scripts/MxFramework/Tests/Ability/`, `Assets/Scripts/MxFramework/Tests/Gameplay/` |
 | Combat | `Docs/Interfaces/Combat.md` | `Assets/Scripts/MxFramework/Combat/` | `Assets/Scripts/MxFramework/Tests/Combat/` |
-| Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
+| Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl*/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
 | Editor | `Docs/Interfaces/Editor.md` | `Assets/Scripts/MxFramework/Editor/` | Unity Editor / MCP |
 
 ## 文档规则

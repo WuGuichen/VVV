@@ -1825,25 +1825,27 @@ Character Control 是 Input、Runtime AI Planner、Replay/Test source 与 Combat
 ```csharp
 using MxFramework.CharacterControl;
 using MxFramework.Combat.Core;
-using MxFramework.Core;
+using MxFramework.Core.Math;
 using MxFramework.Gameplay;
 using MxFramework.Runtime;
 
 var entity = CharacterControlEntityRef.FromGameplayAndCombat(
-    stableId: 1,
-    gameplayEntityId: GameplayEntityId.Create(10, 1),
-    combatEntityId: new CombatEntityId(20),
-    combatBodyId: new CombatPhysicsBodyId(30));
+    new GameplayEntityId(10, 1),
+    new CombatEntityId(20),
+    new CombatBodyId(30),
+    stableId: 1);
 
 var frame = new RuntimeFrame(12);
 var command = new CharacterCommand(
     frame: frame,
     sourceId: 0,
     entity: entity,
-    move: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+    moveDirection: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
     facingBasis: CharacterFacingBasis.Identity,
     jumpPressed: false,
-    sprintHeld: true);
+    sprintHeld: true,
+    actionButtons: CharacterActionButtons.None,
+    actionRequest: default);
 
 var control = new CharacterControlStateMachine(entity);
 CharacterControlTransitionResult transition = control.BeginAction(
@@ -1855,35 +1857,111 @@ CharacterControlTransitionResult transition = control.BeginAction(
 
 ```csharp
 var resolver = new CharacterMotionResolver(
-    motor: combatKinematicMotor,
-    settings: CharacterMotionSettings.Default);
+    combatKinematicMotor,
+    CharacterMotionSettings.Default,
+    motionModifierProviders);
 
-CharacterMotionResult motion = resolver.Resolve(
-    stateMachine: control,
+CharacterMotionResult motion = resolver.Step(
     command: command,
-    state: currentMotionState,
-    deltaTime: Fix64.FromFraction(1, 60),
-    world: combatPhysicsWorld,
-    bodyId: entity.CombatBodyId);
+    controlState: control,
+    motionState: currentMotionState,
+    physicsWorld: combatPhysicsWorld);
 ```
 
 动作桥接只启动 / 取消 Combat action 或 enqueue Gameplay command，不直接写 Gameplay component store：
 
 ```csharp
 var actionController = new CharacterActionController(
-    entity: entity,
     stateMachine: control,
     actionRunner: combatActionRunner,
-    commandBuffer: runtimeCommandBuffer,
-    requestStore: gameplayAbilityRequestStore);
+    gameplayCommandBuffer: runtimeCommandBuffer,
+    abilityRequestStore: gameplayAbilityRequestStore);
 
 CharacterActionResult action = actionController.Submit(
     CharacterActionRequest.CombatAction(
         frame,
-        sourceId: 0,
         entity,
+        CharacterActionKind.Attack,
         combatActionId: 1001,
+        sourceId: 0,
         queueIfBusy: true));
+```
+
+本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
+
+```csharp
+using MxFramework.CharacterControl.Input;
+using MxInput = MxFramework.Input;
+
+var inputSource = new InputCharacterCommandSource(inputProvider, new InputCharacterCommandSourceOptions
+{
+    SourceId = 0,
+    UseLookAsFacing = true,
+    ActionBindings = new[]
+    {
+        CharacterInputActionBinding.CombatAction(
+            MxInput.InputIntent.AttackPrimary,
+            CharacterActionKind.Attack,
+            combatActionId: 1001,
+            queueIfBusy: true),
+        CharacterInputActionBinding.GameplayAbility(
+            MxInput.InputIntent.AttackSecondary,
+            gameplayAbilityId: 300001)
+    }
+});
+
+if (inputSource.TryGetCommand(frame, entity, out CharacterCommand inputCommand))
+{
+    control.RecordCommandFrame(inputCommand.Frame);
+}
+```
+
+Runtime AI Planner 适配放在 `MxFramework.CharacterControl.RuntimeAiPlannerBridge`，由项目组合根显式配置 planner action 到角色命令的 profile：
+
+```csharp
+using MxFramework.CharacterControl.RuntimeAiPlannerBridge;
+
+var profiles = new RuntimeAiCharacterCommandProfileRegistry();
+profiles.Register(new RuntimeAiCharacterCommandProfile(
+    actionId: 10,
+    moveDirection: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
+    facingBasis: CharacterFacingBasis.Identity,
+    actionKind: CharacterActionKind.Attack,
+    combatActionId: 1001,
+    traceTag: "approach-attack"));
+
+var plannerSource = new RuntimeAiPlannerCharacterCommandSource(
+    aiWorldState,
+    planner,
+    goals,
+    actions,
+    profiles,
+    new RuntimeAiPlannerCharacterCommandSourceOptions
+    {
+        SourceId = 10,
+        RequireTargetFacts = true,
+        ReactionDelayFrames = 2,
+        MinDecisionIntervalFrames = 3,
+        CommandSmoothingFrames = 2
+    });
+```
+
+移动 modifier / traction 通过 provider 注入，第一版只影响 `CombatMotionInput.MoveSpeedScale`：
+
+```csharp
+public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
+{
+    public void CollectModifiers(
+        CharacterMotionModifierContext context,
+        IList<CharacterMotionModifier> destination)
+    {
+        destination.Add(new CharacterMotionModifier(
+            source: "buff.slow",
+            moveSpeedScale: Fix64.Half,
+            reason: "slow",
+            priority: 10));
+    }
+}
 ```
 
 约定：
@@ -1892,6 +1970,7 @@ CharacterActionResult action = actionController.Submit(
 - `CharacterMotionResolver` 通过 `CombatKinematicMotor` 得到权威移动；Unity `CharacterController`、`Rigidbody`、`UnityEngine.Physics` 和表现层 root motion 不能作为权威。
 - `CharacterActionController` 通过 `CombatActionRunner` 和 `GameplayRuntimeCommandFactory` 桥接动作，不改 Combat timeline、hit window、damage 或 Gameplay HP/Buff/Ability 状态。
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
+- slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
 
 详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/`。
 
