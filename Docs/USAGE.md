@@ -1888,6 +1888,37 @@ CharacterActionResult action = actionController.Submit(
         queueIfBusy: true));
 ```
 
+Gameplay pressure typed events 通过 reaction bridge 接入控制状态，不直接写 Gameplay source of truth：
+
+```csharp
+var pressureReaction = new CharacterPressureReactionController(
+    control,
+    actionController,
+    new CharacterPressureReactionPolicy
+    {
+        GuardBreakReactionFrames = 8,
+        GuardBreakLockMask = CharacterControlLockMask.Action
+    });
+
+CharacterPressureReactionResult pressureResult = pressureReaction.Apply(
+    new PostureBreakEvent(
+        frame,
+        entity.GameplayEntityId,
+        PressureBand.Critical,
+        previousValue: 80,
+        currentPressure: 100,
+        maxPressure: 100,
+        delta: 20,
+        traceId: "hit-001"));
+
+if (pressureResult.ReactionStarted)
+{
+    pressureReaction.TryFinishExpiredReaction(
+        pressureResult.ReactionEndFrame,
+        out CharacterPressureReactionResult finished);
+}
+```
+
 本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
 
 ```csharp
@@ -1970,6 +2001,8 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - Input、Runtime AI Planner、UI Toolkit、Replay 和测试只实现 `ICharacterCommandSource` 或提交 `CharacterActionRequest`。
 - `CharacterMotionResolver` 通过 `CombatKinematicMotor` 得到权威移动；Unity `CharacterController`、`Rigidbody`、`UnityEngine.Physics` 和表现层 root motion 不能作为权威。
 - `CharacterActionController` 通过 `CombatActionRunner` 和 `GameplayRuntimeCommandFactory` 桥接动作，不改 Combat timeline、hit window、damage 或 Gameplay HP/Buff/Ability 状态。
+- `CharacterPressureReactionController` 只消费 Gameplay pressure typed events，先校验 `GameplayEntityId` 映射，再按策略进入 `Reaction`、输出事件或 rejected result。
+- posture / guard break 默认会清理 queued action request 并取消当前 Combat action；armor break 默认只记录反馈，不改变控制状态。
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
 - slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
 - Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。

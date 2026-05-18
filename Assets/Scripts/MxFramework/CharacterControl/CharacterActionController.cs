@@ -210,6 +210,19 @@ namespace MxFramework.CharacterControl
 
         public bool HasQueuedRequest => _hasQueuedRequest;
 
+        public bool ClearQueuedRequest()
+        {
+            ThrowIfDisposed();
+            if (!_hasQueuedRequest)
+            {
+                return false;
+            }
+
+            _queuedRequest = default;
+            _hasQueuedRequest = false;
+            return true;
+        }
+
         public CharacterActionResult Submit(CharacterActionRequest request)
         {
             ThrowIfDisposed();

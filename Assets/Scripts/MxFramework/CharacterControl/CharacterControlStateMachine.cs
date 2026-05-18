@@ -35,7 +35,9 @@ namespace MxFramework.CharacterControl
         Death = 8,
         Cutscene = 9,
         Restored = 10,
-        Manual = 11
+        Manual = 11,
+        GuardBreak = 12,
+        ArmorBreak = 13
     }
 
     public enum CharacterControlEventType
@@ -266,17 +268,38 @@ namespace MxFramework.CharacterControl
             CharacterControlTransitionReason reason = CharacterControlTransitionReason.ReactionStarted,
             string message = "")
         {
-            return Transition(
-                CharacterControlState.Reaction,
+            return BeginReaction(
                 frame,
                 reason,
                 CharacterControlLockMask.Move | CharacterControlLockMask.Jump | CharacterControlLockMask.Action,
                 message);
         }
 
+        public CharacterControlTransitionResult BeginReaction(
+            RuntimeFrame frame,
+            CharacterControlTransitionReason reason,
+            CharacterControlLockMask lockMask,
+            string message = "")
+        {
+            return Transition(
+                CharacterControlState.Reaction,
+                frame,
+                reason,
+                lockMask,
+                message);
+        }
+
         public CharacterControlTransitionResult ApplyPressureBreak(RuntimeFrame frame, string message = "")
         {
             return BeginReaction(frame, CharacterControlTransitionReason.PressureBreak, message);
+        }
+
+        public CharacterControlTransitionResult ApplyPressureBreak(
+            RuntimeFrame frame,
+            CharacterControlLockMask lockMask,
+            string message = "")
+        {
+            return BeginReaction(frame, CharacterControlTransitionReason.PressureBreak, lockMask, message);
         }
 
         public CharacterControlTransitionResult FinishReaction(RuntimeFrame frame, string message = "")

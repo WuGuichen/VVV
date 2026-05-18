@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.46 | 2026-05-18
+> 版本 0.6.47 | 2026-05-18
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -222,6 +222,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.47 | 2026-05-18 | 扩展 Character Control v0.3：新增 Gameplay pressure reaction bridge，支持 posture / guard / armor break typed events 转换为控制 Reaction、动作取消和诊断事件 |
 | 0.6.46 | 2026-05-18 | 扩展 Character Control v0.2：新增 Local Input command source、Runtime AI Planner command source、motion modifier / traction adapter contract 和对应测试 |
 | 0.6.45 | 2026-05-18 | Phase 13 扩展 #185-#187：新增 Config Runtime patch hot reload、Debug UI input adapter、command gate 和 Observability 调试指南 |
 | 0.6.44 | 2026-05-18 | Phase 13 扩展 #182-#184：新增 Debug UI timeline / entity watch、Diagnostics performance counters 和 noEngine Simulation Harness reports |
