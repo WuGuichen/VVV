@@ -91,9 +91,25 @@ namespace MxFramework.Tests.CharacterControl
             var input = new MxInput.FakeInputProvider();
             input.SetContext(MxInput.InputContext.UI);
             input.SetSnapshot(CreateSnapshot(move: Vector2.right));
-            var source = new InputCharacterCommandSource(input);
+            input.Commands.Enqueue(new MxInput.InputCommand(0, 1, MxInput.InputIntent.AttackPrimary));
+            var source = new InputCharacterCommandSource(input, new InputCharacterCommandSourceOptions
+            {
+                ActionBindings = new[]
+                {
+                    CharacterInputActionBinding.CombatAction(
+                        MxInput.InputIntent.AttackPrimary,
+                        CharacterActionKind.Attack,
+                        LightAttackId)
+                }
+            });
 
             Assert.IsFalse(source.TryGetCommand(RuntimeFrame.Zero, CreateEntity(), out _));
+            Assert.AreEqual(0, input.Commands.PendingCount);
+            Assert.AreEqual(1, input.Commands.CurrentFrame);
+
+            input.SetContext(MxInput.InputContext.Gameplay);
+            Assert.IsTrue(source.TryGetCommand(new RuntimeFrame(1), CreateEntity(), out CharacterCommand command));
+            Assert.AreEqual(CharacterActionKind.None, command.ActionRequest.Kind);
         }
 
         [Test]
