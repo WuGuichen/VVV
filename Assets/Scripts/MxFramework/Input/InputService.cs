@@ -24,14 +24,19 @@ namespace MxFramework.Input
         private IInputRebindingService _rebinding;
         private InputBindingDisplayService _bindingDisplay;
         private InputSnapshot _snapshot;
+        private bool _contextChangeSubscribed;
 
         public InputSnapshot Snapshot
         {
             get
             {
-                if (_runtimeActions != null && isActiveAndEnabled)
+                if (isActiveAndEnabled)
                 {
-                    return _cache.ReadSnapshot();
+                    EnsureActionsReadyForRead();
+                    if (_runtimeActions != null)
+                    {
+                        return _cache.ReadSnapshot();
+                    }
                 }
 
                 return _snapshot;
@@ -77,11 +82,12 @@ namespace MxFramework.Input
         protected virtual void Awake()
         {
             InitializeActions();
-            _contexts.Changed += ApplyContextStack;
+            EnsureContextChangeSubscription();
         }
 
         protected virtual void OnEnable()
         {
+            EnsureContextChangeSubscription();
             if (_runtimeActions == null)
             {
                 InitializeActions();
@@ -116,7 +122,11 @@ namespace MxFramework.Input
 
         protected virtual void OnDestroy()
         {
-            _contexts.Changed -= ApplyContextStack;
+            if (_contextChangeSubscribed)
+            {
+                _contexts.Changed -= ApplyContextStack;
+                _contextChangeSubscribed = false;
+            }
 
             if (_rebinding is IDisposable disposable)
             {
@@ -150,6 +160,43 @@ namespace MxFramework.Input
             _rebinding = new InputRebindingService(_runtimeActions, _bindingOverridesKey);
             _rebinding.Load();
             _bindingDisplay = new InputBindingDisplayService(_runtimeActions);
+        }
+
+        private void EnsureActionsReadyForRead()
+        {
+            bool needsApply = false;
+            if (_runtimeActions == null)
+            {
+                InitializeActions();
+                needsApply = true;
+            }
+
+            if (!_contextChangeSubscribed)
+            {
+                EnsureContextChangeSubscription();
+                needsApply = true;
+            }
+
+            if (_runtimeActions == null)
+                return;
+
+            if (_contexts.Count == 0)
+            {
+                SetContext(_initialContext);
+                return;
+            }
+
+            if (needsApply)
+                ApplyContextStack();
+        }
+
+        private void EnsureContextChangeSubscription()
+        {
+            if (_contextChangeSubscribed)
+                return;
+
+            _contexts.Changed += ApplyContextStack;
+            _contextChangeSubscribed = true;
         }
 
         private void ApplyContextStack()

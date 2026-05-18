@@ -17,7 +17,9 @@ namespace MxFramework.Tests.Input
             {
                 var service = gameObject.AddComponent<DefaultInputService>();
 
+                _ = service.Snapshot;
                 Press(keyboard.wKey);
+                InputSystem.Update();
 
                 Assert.Greater(service.Snapshot.Move.y, 0.5f);
                 Assert.AreEqual(0f, service.Snapshot.Move.x);

@@ -1,0 +1,84 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement class="showcase-root hud-default-layout">
+        <ui:VisualElement class="showcase-header">
+            <ui:Label name="showcase-title" text="Runtime Ability Slice" />
+            <ui:Button name="hud-visibility-toggle-button" text="HUD" />
+            <ui:Label name="mode-label" text="Mode" />
+            <ui:Label name="ability-source" text="Ability Source" />
+        </ui:VisualElement>
+        <ui:ScrollView name="showcase-body" mode="Vertical">
+            <ui:VisualElement name="mini-game-feedback" class="mx-panel">
+                <ui:Label name="feedback-player-status" class="mx-status-badge" text="Player: Stable" />
+                <ui:Label name="feedback-enemy-status" class="mx-status-badge" text="Enemy: Stable" />
+                <ui:Label name="feedback-player-buff" text="Player Buff: none" />
+                <ui:Label name="feedback-enemy-buff" text="Enemy Buff: none" />
+                <ui:Label name="feedback-skill-buttons" text="Skills ready" />
+                <ui:Label name="feedback-recent-action" text="Ready" />
+            </ui:VisualElement>
+            <ui:VisualElement name="manual-controls" class="mx-panel">
+                <ui:Button name="manual-strike-button" class="mx-command-button" text="Strike" />
+                <ui:Button name="manual-ignite-button" class="mx-command-button" text="Ignite" />
+                <ui:Button name="manual-buff-button" class="mx-command-button" text="Buff" />
+                <ui:Button name="manual-tick-button" class="mx-command-button" text="Tick" />
+                <ui:Button name="manual-modifier-button" class="mx-command-button" text="Modifier" />
+                <ui:Button name="manual-reset-button" class="mx-command-button" text="Reset" />
+                <ui:Button name="manual-auto-toggle-button" class="mx-command-button" text="Auto" />
+                <ui:Button name="manual-live-tick-toggle-button" class="mx-command-button" text="Live Tick" />
+                <ui:Button name="manual-mode-toggle-button" class="mx-command-button" text="Mode" />
+            </ui:VisualElement>
+            <ui:VisualElement name="config-controls" class="mx-panel">
+                <ui:Label name="config-summary" text="Config" />
+                <ui:Label name="config-mode-status" text="Mode" />
+                <ui:Label name="runtime-config-change-summary" text="No config changes" />
+                <ui:Label name="ability-rebuild-summary" text="No rebuild" />
+                <ui:Label name="config-comparison-summary" text="No comparison" />
+                <ui:Button name="config-load-patch-button" class="mx-command-button" text="Load Patch" />
+                <ui:Button name="config-load-mod-package-button" class="mx-command-button" text="Load Mod" />
+                <ui:Button name="config-rebuild-ability-button" class="mx-command-button" text="Rebuild" />
+                <ui:Button name="config-compare-button" class="mx-command-button" text="Compare" />
+            </ui:VisualElement>
+            <ui:VisualElement name="diagnostic-view" class="mx-panel">
+                <ui:Label name="diagnostic-header" text="Diagnostics" />
+                <ui:Label name="diagnostic-last-cast" text="Last cast: waiting" />
+                <ui:Label name="diagnostic-config-source" text="Config source: none" />
+                <ui:Label name="diagnostic-error-summary" text="No runtime errors" />
+                <ui:VisualElement class="mx-panel-tabs mx-diagnostic-tabs">
+                    <ui:Button name="diagnostic-summary-button" class="mx-panel-tabs__tab mx-command-button" text="Summary" />
+                    <ui:Button name="diagnostic-technical-button" class="mx-panel-tabs__tab mx-command-button" text="Technical" />
+                </ui:VisualElement>
+                <ui:VisualElement name="diagnostic-summary-view">
+                    <ui:VisualElement name="diagnostic-summary-entities-list" />
+                    <ui:VisualElement name="diagnostic-summary-ability-events-list" />
+                    <ui:VisualElement name="diagnostic-summary-attribute-events-list" />
+                    <ui:VisualElement name="diagnostic-summary-config-list" />
+                    <ui:VisualElement name="diagnostic-summary-errors-list" />
+                </ui:VisualElement>
+                <ui:VisualElement name="diagnostic-technical-view">
+                    <ui:VisualElement name="diagnostic-technical-entities-list" />
+                    <ui:VisualElement name="diagnostic-ability-events-list" />
+                    <ui:VisualElement name="diagnostic-attribute-events-list" />
+                    <ui:VisualElement name="diagnostic-config-source-list" />
+                    <ui:VisualElement name="diagnostic-errors-list" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="mx-panel">
+                <ui:Label name="snapshot-summary" text="No snapshot" />
+                <ui:Label name="player-name" text="Player" />
+                <ui:Label name="player-stats" text="HP" />
+                <ui:VisualElement class="mx-stat-bar">
+                    <ui:VisualElement name="player-hp-fill" class="mx-stat-bar__fill" />
+                </ui:VisualElement>
+                <ui:Label name="player-buffs" text="No buffs" />
+                <ui:Label name="enemy-name" text="Enemy" />
+                <ui:Label name="enemy-stats" text="HP" />
+                <ui:VisualElement class="mx-stat-bar">
+                    <ui:VisualElement name="enemy-hp-fill" class="mx-stat-bar__fill" />
+                </ui:VisualElement>
+                <ui:Label name="enemy-buffs" text="No buffs" />
+            </ui:VisualElement>
+            <ui:ScrollView name="event-scroll" mode="Vertical">
+                <ui:VisualElement name="event-list" class="mx-event-log" />
+            </ui:ScrollView>
+        </ui:ScrollView>
+    </ui:VisualElement>
+</ui:UXML>

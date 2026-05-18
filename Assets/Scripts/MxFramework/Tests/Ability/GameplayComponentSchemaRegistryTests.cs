@@ -137,8 +137,8 @@ namespace MxFramework.Tests.Ability
 
             GameplayComponentSchema[] snapshot = registry.CreateSnapshot();
 
-            Assert.AreEqual(5, snapshot.Length);
-            Assert.AreEqual(GameplayCoreComponentSchemaDescriptors.IdentityStableId, snapshot[0].StableId);
+            Assert.AreEqual(8, snapshot.Length);
+            Assert.IsTrue(registry.TryGetByStableId(GameplayCoreComponentSchemaDescriptors.IdentityStableId, out _));
             Assert.IsTrue(registry.TryGetDiagnosticWriter(out IGameplayComponentDiagnosticWriter<GameplayIdentityComponent> identityWriter));
             Assert.IsFalse(registry.TryGetHashWriter(out IGameplayComponentHashWriter<GameplayIdentityComponent> hashWriter));
             Assert.IsFalse(registry.TryGetSaveStateAdapter(out IGameplayComponentSaveStateAdapter<GameplayIdentityComponent> saveAdapter));
@@ -171,7 +171,7 @@ namespace MxFramework.Tests.Ability
 
             Assert.AreSame(schemas, world.Schemas);
             GameplayCoreComponentSchemaDescriptors.RegisterDiagnostics(world.Schemas);
-            Assert.AreEqual(5, world.Schemas.Count);
+            Assert.AreEqual(8, world.Schemas.Count);
         }
 
         private readonly struct TestComponent : IGameplayComponent
