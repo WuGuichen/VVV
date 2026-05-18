@@ -30,7 +30,6 @@ namespace MxFramework.Demo
         private bool _selectedMarkerOnMouseDown;
         private bool _isDraggingSelected;
         private bool _isOrbiting;
-        private bool _jumpQueued;
         private Vector3 _lastMousePosition;
         private Vector3 _mouseDownPosition;
         private Vector3 _dragGroundOffset;
@@ -132,9 +131,6 @@ namespace MxFramework.Demo
 
         private void HandleKeyboardCommands(InputSnapshot input)
         {
-            if (input.DebugPrimaryPressed)
-                _runner.AttackFromSelected();
-
             if (input.DebugSecondaryPressed)
                 _runner.ProbeFromSelected();
 
@@ -142,7 +138,7 @@ namespace MxFramework.Demo
                 _runner.CycleQueryShape();
 
             if (input.DebugStepPressed)
-                _runner.StepFrame();
+                _runner.RunRuntimeAiPlannerCommand();
 
             if (input.RestartPressed)
                 _runner.ResetShowcase();
@@ -157,16 +153,17 @@ namespace MxFramework.Demo
 
         private void HandleMotionInput(InputSnapshot input)
         {
-            Vector3 move = new Vector3(input.Move.x, 0f, input.Move.y);
+            if (_input != null && input.DebugPrimaryPressed)
+            {
+                _input.Commands.TryEnqueue(new InputCommand(
+                    _runner.CurrentFrame.Value + 1L,
+                    sourceId: 0,
+                    InputIntent.DebugPrimary,
+                    traceId: "combat-showcase-keyboard:DebugPrimary"),
+                    out _);
+            }
 
-            if (input.JumpPressed)
-                _jumpQueued = true;
-
-            if (move.sqrMagnitude > 0.0001f)
-                move.Normalize();
-
-            _runner.StepPlayerMotion(move, _jumpQueued);
-            _jumpQueued = false;
+            _runner.StepCharacterControlFromInput(_input);
         }
 
         private bool TrySelectMarkerUnderCursor(Vector3 pointer, out Transform marker)

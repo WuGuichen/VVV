@@ -2,6 +2,7 @@ using MxFramework.Combat.Core;
 using MxFramework.Combat.Motion;
 using MxFramework.Combat.Physics;
 using MxFramework.Core.Math;
+using MxFramework.CharacterControl;
 using UnityEngine;
 
 namespace MxFramework.Demo
@@ -18,6 +19,7 @@ namespace MxFramework.Demo
 
         private readonly CombatKinematicMotor _motor;
         private readonly int _obstacleLayer;
+        private CharacterMotionResolver _characterMotionResolver;
         private CombatMotionState _state;
         private CombatMotionStepResult _lastStep;
         private Transform _visualRoot;
@@ -111,6 +113,26 @@ namespace MxFramework.Demo
             _lastStep = _motor.Step(physicsWorld, playerBodyId, _state, input);
             _state = _lastStep.State;
             return _lastStep;
+        }
+
+        public CharacterMotionResult StepCharacter(
+            CombatFrame targetFrame,
+            CharacterControlStateMachine stateMachine,
+            CharacterCommand command,
+            CombatPhysicsWorld physicsWorld)
+        {
+            if (!IsInitialized)
+                Reset(FixVector3.Zero);
+
+            _characterMotionResolver = _characterMotionResolver ?? new CharacterMotionResolver(_motor);
+            CombatFrame previousFrame = targetFrame.Value > 0
+                ? new CombatFrame(targetFrame.Value - 1)
+                : CombatFrame.Zero;
+            _state = _state.WithFrame(previousFrame);
+            CharacterMotionResult result = _characterMotionResolver.Step(command, stateMachine, _state, physicsWorld);
+            _lastStep = result.StepResult;
+            _state = _lastStep.State;
+            return result;
         }
 
         public void RegisterStaticObstacles(CombatPhysicsWorld world)

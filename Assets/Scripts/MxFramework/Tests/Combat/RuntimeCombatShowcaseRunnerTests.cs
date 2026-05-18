@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using MxFramework.CharacterControl;
 using MxFramework.Demo;
+using MxFramework.Input;
 using MxFramework.UI.Toolkit;
 using NUnit.Framework;
 using UnityEditor;
@@ -244,6 +246,123 @@ namespace MxFramework.Tests.Combat
         }
 
         [Test]
+        public void CharacterControlInput_MovesJumpsAttacksAndRecordsDebugSnapshot()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+            var input = new FakeInputProvider();
+            input.SetContext(InputContext.Gameplay);
+            input.SetSnapshot(CreateInputSnapshot(move: Vector2.right, jumpPressed: true));
+
+            Assert.IsTrue(runner.StepCharacterControlFromInput(input));
+            Assert.That(runner.CharacterControlSummary, Does.Contain("Local Input"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("jumpPressed: true"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("Motion"));
+
+            int hpBefore = runner.EnemyHp;
+            input.SetSnapshot(InputSnapshot.Empty);
+            input.Commands.Enqueue(new InputCommand(
+                runner.CurrentFrame.Value + 1L,
+                sourceId: 0,
+                InputIntent.DebugPrimary,
+                traceId: "test-debug-primary"));
+
+            Assert.IsTrue(runner.StepCharacterControlFromInput(input));
+
+            Assert.Less(runner.EnemyHp, hpBefore);
+            Assert.That(runner.CharacterControlSummary, Does.Contain("action success=True"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("Action"));
+            Assert.That(runner.InteractionSummary, Does.Contain("CharacterControl Attack"));
+        }
+
+        [Test]
+        public void CharacterControlInput_IgnoresNonGameplayContext()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+            var input = new FakeInputProvider();
+            input.SetContext(InputContext.UI);
+            input.SetSnapshot(CreateInputSnapshot(move: Vector2.right, jumpPressed: true));
+            input.Commands.Enqueue(new InputCommand(
+                runner.CurrentFrame.Value + 1L,
+                sourceId: 0,
+                InputIntent.DebugPrimary,
+                traceId: "test-ui-debug-primary"));
+
+            int hpBefore = runner.EnemyHp;
+
+            Assert.IsFalse(runner.StepCharacterControlFromInput(input));
+
+            Assert.AreEqual(hpBefore, runner.EnemyHp);
+            Assert.That(runner.CharacterControlSummary, Does.Contain("command=none"));
+            Assert.That(runner.CharacterControlGameplayCommandCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void RuntimeAiPlannerCommand_AttacksAndRecordsCharacterControlDiagnostics()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+
+            int hpBefore = runner.EnemyHp;
+
+            Assert.IsTrue(runner.RunRuntimeAiPlannerCommand());
+
+            Assert.Less(runner.EnemyHp, hpBefore);
+            Assert.That(runner.CharacterControlSummary, Does.Contain("Runtime AI Planner"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("sourceId: 20002"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("showcase-attack"));
+        }
+
+        [Test]
+        public void PressureBreakReaction_UsesStateMachineAnimationAndDebugSnapshot()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+
+            CharacterPressureReactionResult result = runner.TriggerCharacterPressureBreak();
+
+            Assert.IsTrue(result.ReactionStarted, result.Message);
+            Assert.That(runner.CharacterControlSummary, Does.Contain("state=Reaction"));
+            Assert.That(runner.CharacterControlSummary, Does.Contain("crossFade=1"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("PressureBreak"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("Critical -> Broken"));
+
+            var input = new FakeInputProvider();
+            input.SetContext(InputContext.Gameplay);
+            input.SetSnapshot(InputSnapshot.Empty);
+            for (int i = 0; i < 13; i++)
+                runner.StepCharacterControlFromInput(input);
+
+            Assert.That(runner.CharacterControlSummary, Does.Contain("state=Locomotion"));
+        }
+
+        [Test]
+        public void GameplayAbilityInput_DrainsRuntimeCommandBufferThroughSliceHost()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+            var input = new FakeInputProvider();
+            input.SetContext(InputContext.Gameplay);
+            input.Commands.Enqueue(new InputCommand(
+                runner.CurrentFrame.Value + 1L,
+                sourceId: 5,
+                InputIntent.AttackSecondary,
+                traceId: "test-gameplay-ability"));
+
+            Assert.IsTrue(runner.StepCharacterControlFromInput(input));
+
+            Assert.AreEqual(1, runner.CharacterControlGameplayCommandCount);
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("GameplayCommandEnqueued"));
+            Assert.That(runner.CharacterControlSummary, Does.Contain("gameplayCommands=1"));
+        }
+
+        [Test]
         public void RuntimeHudButtons_DoNotKeepKeyboardFocusForSpaceJump()
         {
             _runnerObject = new GameObject("RuntimeCombatShowcaseHudFocusTest");
@@ -413,6 +532,32 @@ namespace MxFramework.Tests.Combat
 
             int revisionIndex = summary.LastIndexOf(" rev=", StringComparison.Ordinal);
             return revisionIndex < 0 ? summary : summary.Substring(0, revisionIndex);
+        }
+
+        private static InputSnapshot CreateInputSnapshot(
+            Vector2 move = default,
+            bool jumpPressed = false)
+        {
+            return new InputSnapshot(
+                move,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.zero,
+                0f,
+                jumpPressed,
+                jumpHeld: jumpPressed,
+                jumpReleased: false,
+                attackPrimaryPressed: false,
+                attackPrimaryHeld: false,
+                attackSecondaryPressed: false,
+                interactPressed: false,
+                dodgePressed: false,
+                sprintHeld: false,
+                submitPressed: false,
+                cancelPressed: false,
+                pausePressed: false,
+                debugTogglePressed: false);
         }
 
         private readonly struct ShowcaseReplayState : IEquatable<ShowcaseReplayState>

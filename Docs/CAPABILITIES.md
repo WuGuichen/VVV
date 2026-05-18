@@ -136,10 +136,11 @@
 | Local Input command source | ✅ v0.2 | `InputCharacterCommandSource` / `CharacterInputActionBinding` | CharacterControl.Input + Input |
 | Runtime AI Planner command source | ✅ v0.2 | `RuntimeAiPlannerCharacterCommandSource` / `RuntimeAiCharacterCommandProfile` | CharacterControl.RuntimeAiPlannerBridge + AI |
 | Motion modifier / traction contract | ✅ v0.2 | `ICharacterMotionModifierProvider` / `CharacterMotionModifierAggregator` | CharacterControl + Combat |
+| Playable vertical slice | ✅ v0.6.50 | `RuntimeCombatCharacterControlSlice` / `RuntimeCombatShowcaseRunner.StepCharacterControlFromInput()` / `RunRuntimeAiPlannerCommand()` | Demo + CharacterControl + Input + Runtime + Combat + DebugUI |
 
 → 接口：`Interfaces/CharacterControl.md`
 → 设计：`Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
-→ 测试：`Tests/CharacterControl/`
+→ 测试：`Tests/CharacterControl/`、`Tests/Combat/RuntimeCombatShowcaseRunnerTests.cs`
 → **边界**: Character Control 不读取 Unity 输入、不调用 Unity Physics、不写 Gameplay HP/Buff/Ability source of truth，也不让 MxAnimation / Animator / Playables root motion 反向驱动权威状态。
 
 ---
