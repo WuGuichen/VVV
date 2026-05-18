@@ -74,10 +74,16 @@ namespace MxFramework.Combat.Animation
     public readonly struct ActionFinishedEvent
     {
         public ActionFinishedEvent(CombatEntityId entityId, int actionId, int actionInstanceId)
+            : this(entityId, actionId, actionInstanceId, CombatFrame.Zero)
+        {
+        }
+
+        public ActionFinishedEvent(CombatEntityId entityId, int actionId, int actionInstanceId, CombatFrame frame)
         {
             EntityId = entityId;
             ActionId = actionId;
             ActionInstanceId = actionInstanceId;
+            Frame = frame;
         }
 
         public CombatEntityId EntityId { get; }
@@ -85,15 +91,23 @@ namespace MxFramework.Combat.Animation
         public int ActionId { get; }
 
         public int ActionInstanceId { get; }
+
+        public CombatFrame Frame { get; }
     }
 
     public readonly struct ActionCanceledEvent
     {
         public ActionCanceledEvent(CombatEntityId entityId, int actionId, int actionInstanceId, string reason)
+            : this(entityId, actionId, actionInstanceId, CombatFrame.Zero, reason)
+        {
+        }
+
+        public ActionCanceledEvent(CombatEntityId entityId, int actionId, int actionInstanceId, CombatFrame frame, string reason)
         {
             EntityId = entityId;
             ActionId = actionId;
             ActionInstanceId = actionInstanceId;
+            Frame = frame;
             Reason = reason ?? string.Empty;
         }
 
@@ -102,6 +116,8 @@ namespace MxFramework.Combat.Animation
         public int ActionId { get; }
 
         public int ActionInstanceId { get; }
+
+        public CombatFrame Frame { get; }
 
         public string Reason { get; }
     }

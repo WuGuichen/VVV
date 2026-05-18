@@ -50,7 +50,7 @@ namespace MxFramework.Combat.Animation
                     return Reject(entityId, running.Timeline.ActionId, actionId, reason);
                 }
 
-                CancelRunning(entityId, running, "Canceled into next action.");
+                CancelRunning(entityId, running, currentFrame, "Canceled into next action.");
             }
 
             return StartResolvedAction(entityId, timeline, currentFrame);
@@ -65,7 +65,7 @@ namespace MxFramework.Combat.Animation
 
             if (_runningActions.TryGetValue(entityId, out RunningAction running))
             {
-                CancelRunning(entityId, running, ForceStartReason);
+                CancelRunning(entityId, running, currentFrame, ForceStartReason);
             }
 
             return StartResolvedAction(entityId, timeline, currentFrame);
@@ -91,7 +91,7 @@ namespace MxFramework.Combat.Animation
                 {
                     _runningActions.Remove(entityId);
                     _entityOrder.RemoveAt(i);
-                    ActionFinished?.Invoke(new ActionFinishedEvent(entityId, running.Timeline.ActionId, running.ActionInstanceId));
+                    ActionFinished?.Invoke(new ActionFinishedEvent(entityId, running.Timeline.ActionId, running.ActionInstanceId, currentFrame));
                     continue;
                 }
 
@@ -118,7 +118,7 @@ namespace MxFramework.Combat.Animation
                 return Reject(entityId, running.Timeline.ActionId, nextActionId, reason);
             }
 
-            CancelRunning(entityId, running, "Canceled into next action.");
+            CancelRunning(entityId, running, currentFrame, "Canceled into next action.");
             return StartResolvedAction(entityId, nextTimeline, currentFrame);
         }
 
@@ -129,7 +129,7 @@ namespace MxFramework.Combat.Animation
                 return false;
             }
 
-            CancelRunning(entityId, running, ForceCancelReason);
+            CancelRunning(entityId, running, GetCurrentFrame(running), ForceCancelReason);
             return true;
         }
 
@@ -245,11 +245,16 @@ namespace MxFramework.Combat.Animation
             }
         }
 
-        private void CancelRunning(CombatEntityId entityId, RunningAction running, string reason)
+        private void CancelRunning(CombatEntityId entityId, RunningAction running, CombatFrame currentFrame, string reason)
         {
             _runningActions.Remove(entityId);
             RemoveEntityOrder(entityId);
-            ActionCanceled?.Invoke(new ActionCanceledEvent(entityId, running.Timeline.ActionId, running.ActionInstanceId, reason));
+            ActionCanceled?.Invoke(new ActionCanceledEvent(entityId, running.Timeline.ActionId, running.ActionInstanceId, currentFrame, reason));
+        }
+
+        private static CombatFrame GetCurrentFrame(RunningAction running)
+        {
+            return new CombatFrame(running.Instance.StartedAtFrame.Value + running.LocalFrame);
         }
 
         private ActionResult Reject(CombatEntityId entityId, int actionId, int nextActionId, string reason)

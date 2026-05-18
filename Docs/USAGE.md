@@ -1,6 +1,6 @@
 # MxFramework 使用手册
 
-> 版本 0.3.3 | 2026-05-15
+> 版本 0.3.4 | 2026-05-18
 >
 > 本文面向业务开发和 AI 辅助开发。目标是“先看这里就能接入”，不要靠通读源码理解基础模块。
 
@@ -1817,6 +1817,85 @@ fake.SetSnapshot(new InputSnapshot(
 - 瞬时输入可由 `InputCommandQueue` 转成游戏自己的 `RuntimeCommand`。
 - 本地多人使用 `LocalUserInputAdapter` 读取 `PlayerInput.actions` 的私有副本。
 - 重绑定通过 `IInputRebindingService.StartRebind("Gameplay/Jump", bindingIndex)` 触发，结果保存到 `PlayerPrefs`。
+
+## 15.5 Character Control 角色控制编排
+
+Character Control 是 Input、Runtime AI Planner、Replay/Test source 与 Combat / Gameplay 之间的 noEngine 编排层。组合根负责把设备输入或规划结果转成 `CharacterCommand`；Character Control 只消费固定点命令和稳定 entity id。
+
+```csharp
+using MxFramework.CharacterControl;
+using MxFramework.Combat.Core;
+using MxFramework.Core;
+using MxFramework.Core.Math;
+using MxFramework.Gameplay;
+using MxFramework.Runtime;
+
+var entity = CharacterControlEntityRef.FromGameplayAndCombat(
+    gameplayEntityId: new GameplayEntityId(10, 1),
+    combatEntityId: new CombatEntityId(20),
+    combatBodyId: new CombatBodyId(30),
+    stableId: 1);
+
+var frame = new RuntimeFrame(12);
+var command = new CharacterCommand(
+    frame: frame,
+    sourceId: 0,
+    entity: entity,
+    moveDirection: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+    facingBasis: CharacterFacingBasis.Identity,
+    jumpPressed: false,
+    sprintHeld: true,
+    actionButtons: CharacterActionButtons.None,
+    actionRequest: default);
+
+var control = new CharacterControlStateMachine(entity);
+CharacterControlTransitionResult transition = control.BeginAction(
+    frame,
+    CharacterControlTransitionReason.ActionStarted);
+```
+
+运动桥接必须走 Combat Motion：
+
+```csharp
+var resolver = new CharacterMotionResolver(
+    motor: combatKinematicMotor,
+    settings: CharacterMotionSettings.Default);
+
+CharacterMotionResult motion = resolver.Resolve(
+    stateMachine: control,
+    command: command,
+    state: currentMotionState,
+    deltaTime: Fix64.FromFraction(1, 60),
+    world: combatPhysicsWorld,
+    bodyId: entity.CombatBodyId);
+```
+
+动作桥接只启动 / 取消 Combat action 或 enqueue Gameplay command，不直接写 Gameplay component store：
+
+```csharp
+var actionController = new CharacterActionController(
+    stateMachine: control,
+    combatActionRunner: combatActionRunner,
+    gameplayCommandBuffer: runtimeCommandBuffer,
+    abilityRequestStore: gameplayAbilityRequestStore);
+
+CharacterActionResult action = actionController.Submit(
+    CharacterActionRequest.CombatAction(
+        frame,
+        sourceId: 0,
+        entity,
+        combatActionId: 1001,
+        queueIfBusy: true));
+```
+
+约定：
+
+- Input、Runtime AI Planner、UI Toolkit、Replay 和测试只实现 `ICharacterCommandSource` 或提交 `CharacterActionRequest`。
+- `CharacterMotionResolver` 通过 `CombatKinematicMotor` 得到权威移动；Unity `CharacterController`、`Rigidbody`、`UnityEngine.Physics` 和表现层 root motion 不能作为权威。
+- `CharacterActionController` 通过 `CombatActionRunner` 和 `GameplayRuntimeCommandFactory` 桥接动作，不改 Combat timeline、hit window、damage 或 Gameplay HP/Buff/Ability 状态。
+- cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
+
+详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/`。
 
 ## 16. Audio 音频系统
 
