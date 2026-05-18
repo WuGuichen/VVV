@@ -1,0 +1,18 @@
+{
+    "name": "MxFramework.DebugUI.Input",
+    "rootNamespace": "MxFramework.DebugUI.Input",
+    "references": [
+        "MxFramework.DebugUI",
+        "MxFramework.DebugUI.Toolkit",
+        "MxFramework.Input"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
