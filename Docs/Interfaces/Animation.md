@@ -19,6 +19,7 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 | `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight / set blend request、animation set definition、1D / 2D blend definition、warmup/version validation、skeleton / avatar / clip compatibility validation、bake profile/artifact/diagnostics、fade state、backend interface |
 | `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、内部 PlayableGraph 抽象、clip load、AvatarMask load、layer mixer weight、1D / 2D clip blend、fallback、manual tick、graph shutdown、handle ownership |
 | `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
+| `MxFramework.CharacterControl.Animation` | MVP | CharacterControl、Animation、Runtime、Resources | 把 Character Control locomotion / reaction 输出转成 MxAnimation 1D / 2D blend、play / crossfade request，并输出 missing binding / fallback / backend result diagnostics |
 | `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation、AnimationClip bake MVP tool |
 
 依赖方向：
@@ -31,6 +32,9 @@ MxFramework.Resources
 
 MxFramework.Combat
   <- MxFramework.Combat.Animation.Unity
+
+MxFramework.CharacterControl
+  <- MxFramework.CharacterControl.Animation
 ```
 
 Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat authority。
@@ -227,6 +231,7 @@ Legacy coexistence:
 
 - 旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 保持可用，但仍是 opt-in。
 - 新 `CombatMxAnimationUnityBridge` 不创建、不注册、不调用旧 driver。项目层 composition root 应在同一 entity 上选择 legacy Animator bridge 或 MxAnimation bridge 之一，避免同一 Combat event 双触发表现。
+- `CharacterControlMxAnimationAdapter` 不订阅 Combat action lifecycle；action 动画默认交给 `CombatMxAnimationUnityBridge`。它只处理 locomotion blend 和 pressure reaction 请求，`ApplyActionEvent(...)` 只记录 delegated diagnostics。
 
 ## 使用约定
 

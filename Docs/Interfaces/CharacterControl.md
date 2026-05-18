@@ -1,6 +1,6 @@
 # Character Control 接口
 
-> 状态：v0.3 contract + command sources / motion modifier adapters / pressure reaction bridge
+> 状态：v0.4 contract + command sources / motion modifier adapters / pressure reaction bridge / MxAnimation presentation adapter
 > 任务入口：`Docs/Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
 
 ## 职责
@@ -25,6 +25,12 @@ MxFramework.CharacterControl.Input
 MxFramework.CharacterControl.RuntimeAiPlannerBridge
   -> MxFramework.CharacterControl
   -> MxFramework.AI
+
+MxFramework.CharacterControl.Animation
+  -> MxFramework.CharacterControl
+  -> MxFramework.Animation
+  -> MxFramework.Runtime
+  -> MxFramework.Resources
 ```
 
 `MxFramework.CharacterControl` core 禁止引用：
@@ -34,6 +40,8 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - `MxFramework.UI.Toolkit`
 - `MxFramework.Animation.Unity`
 - Demo / Editor / WGame 私有命名空间
+
+`MxFramework.CharacterControl.Animation` 是表现层 adapter assembly，仍保持 noEngine；它只发 `IMxAnimationBackend` 请求，不引用 Unity Playables backend，也不把 backend/root motion 状态写回 Character Control。
 
 ## 公开接口
 
@@ -67,6 +75,10 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 | `RuntimeAiPlannerCharacterCommandSource` | Runtime AI Planner bridge，把 plan selected action profile 转成 `CharacterCommand`。 |
 | `RuntimeAiCharacterCommandProfile` / `RuntimeAiCharacterCommandProfileRegistry` | Runtime AI Planner action id 到 move/action request 的稳定映射。 |
 | `RuntimeAiPlannerCharacterCommandDiagnostics` | last goal、selected action、last command、suppressed reason 诊断。 |
+| `CharacterControlMxAnimationAdapter` | 可选表现 adapter，把 locomotion sample 和 pressure reaction event 转成 MxAnimation 1D / 2D blend、play 或 crossfade request。 |
+| `CharacterControlMxAnimationAdapterOptions` | 配置 grounded/airborne blend id、参数量化 scale、reaction binding 前缀、fallback 和 diagnostics 容量。 |
+| `CharacterControlAnimationLocomotionSample` | 组合根可直接提供的 locomotion 表现输入；也可由 `CharacterMotionResult` 生成。 |
+| `CharacterControlAnimationAdapterResult` / `CharacterControlAnimationDiagnosticSnapshot` | 输出 last request、last backend result、missing binding、fallback reason 和 recent results。 |
 
 ## 使用约定
 
@@ -85,6 +97,9 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - Runtime AI Planner bridge 使用 `Runtime AI Planner` 公共接口和 pressure fact keys，不使用 AIAction Config 或 WGame 私有行为数据。
 - Runtime AI Planner profile 的 `ActionRequest` 是 selection-edge one-shot；缓存复用、平滑复用和同 action 后续决策只继续输出移动、朝向、jump / sprint。
 - `RuntimeAiCharacterCommandProfile` 未指定 `moveSpeedScale` 时默认 `1`；显式传入 `Fix64.Zero` 是合法配置，可用于站定施法、原地防御或停步等待。
+- `CharacterControlMxAnimationAdapter` 的 locomotion 只消费 `CharacterMotionResult` 或显式 `CharacterControlAnimationLocomotionSample`，按 speed ratio / grounded / direction 量化成 `MxAnimationBlend1DRequest` 或 `MxAnimationBlend2DRequest`。
+- `CharacterControlMxAnimationAdapter` 的 reaction 只响应 `CharacterPressureReactionEventType.ReactionStarted`，按 `reaction:<Kind>` action key 查找 binding 并发 play / crossfade；missing binding 或 backend failure 只进入 diagnostics，不改变 authority 状态。
+- Character action 动画默认由 `CombatMxAnimationUnityBridge` 订阅 `CombatActionRunner` lifecycle。`CharacterControlMxAnimationAdapter.ApplyActionEvent(...)` 只记录 delegated diagnostics，不向 backend 发送 action request，避免同一 entity 双 bridge。
 - UI Toolkit、Audio、VFX、MxAnimation 和 debug overlay 只能消费事件 / snapshot。
 
 ## 测试入口

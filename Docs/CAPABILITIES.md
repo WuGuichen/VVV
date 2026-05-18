@@ -134,6 +134,7 @@
 | Local Input command source | ✅ v0.2 | `InputCharacterCommandSource` / `CharacterInputActionBinding` | CharacterControl.Input + Input |
 | Runtime AI Planner command source | ✅ v0.2 | `RuntimeAiPlannerCharacterCommandSource` / `RuntimeAiCharacterCommandProfile` | CharacterControl.RuntimeAiPlannerBridge + AI |
 | Motion modifier / traction contract | ✅ v0.2 | `ICharacterMotionModifierProvider` / `CharacterMotionModifierAggregator` | CharacterControl + Combat |
+| MxAnimation presentation adapter | ✅ v0.4 | `CharacterControlMxAnimationAdapter` / `CharacterControlAnimationDiagnosticSnapshot` | CharacterControl.Animation + Animation |
 
 → 接口：`Interfaces/CharacterControl.md`
 → 设计：`Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`

@@ -1921,6 +1921,25 @@ if (pressureResult.ReactionStarted)
 
 如果启用 `BrokenBandChangeStartsReaction`，band-change 只有在 pressure 上升且 `NewBand > PreviousBand` 时才会启动 reaction；recovery、negative delta 和 band 回落不会刷新已有 reaction window。组合根停用 pressure owner 时可调用 `FinishActiveReaction(...)` 主动释放控制锁。
 
+MxAnimation 表现适配放在可选 noEngine 程序集 `MxFramework.CharacterControl.Animation`。它只消费 Character Control 输出并调用 `IMxAnimationBackend`，不会把 Playables / Animator/root motion 写回权威状态：
+
+```csharp
+using MxFramework.CharacterControl.Animation;
+
+var animationAdapter = new CharacterControlMxAnimationAdapter();
+animationAdapter.RegisterActor(entity, animationBackend, animationSet, targetActorId: "player");
+
+CharacterControlAnimationAdapterResult locomotionAnimation =
+    animationAdapter.ApplyLocomotion(motionResult);
+
+pressureReaction.ReactionEvent += evt =>
+{
+    animationAdapter.ApplyReaction(evt);
+};
+```
+
+Locomotion 会按 `speedRatio` / `grounded` / `direction` 量化为 `MxAnimationBlend1DRequest` 或 `MxAnimationBlend2DRequest`。Reaction 默认按 `reaction:<Kind>` 查找 action binding 并发 crossfade；missing binding、fallback 和 backend failure 都进入 `CharacterControlAnimationDiagnosticSnapshot`，不影响 Character Control state machine。Combat action 动画继续复用 `CombatMxAnimationUnityBridge`，避免 Character Control adapter 和 Combat bridge 对同一 entity 双订阅。
+
 本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
 
 ```csharp
@@ -2009,6 +2028,7 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - `CharacterPressureReactionController` 只消费 Gameplay pressure typed events，先校验 `GameplayEntityId` 映射，再按策略进入 `Reaction`、输出事件或 rejected result。
 - posture / guard break 默认会清理 queued action request 并取消当前 Combat action；armor break 默认只记录反馈，不改变控制状态。
 - band-change reaction 只响应 pressure 上升导致的 band 升级；生命周期提前结束时用 `FinishActiveReaction(...)` 释放 active reaction。
+- MxAnimation adapter 只处理 locomotion / reaction 表现请求；Combat action lifecycle 继续交给 `CombatMxAnimationUnityBridge`。
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
 - slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
 - Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。

@@ -1,8 +1,8 @@
 # Character Control Runtime 00 Design Contract
 
-> Issues: #190, follow-up implementation slices #192, #193, #194
+> Issues: #190, follow-up implementation slices #192, #193, #194, #195, #196, #197, #198, #201
 > Delivery level: Framework Feature
-> Status: Design Contract + first implementation slices (#192, #193, #194)
+> Status: Design Contract + runtime command, motion, action, command source, modifier, pressure reaction, and MxAnimation presentation slices
 
 ## Goal
 
@@ -20,7 +20,7 @@ This document is the Context Pack for the first implementation slices. It does n
 | Gameplay pressure / attributes / abilities | `GameplayComponentWorld`, `GameplayEntityId`, pressure components, `GameplayRuntimeCommandFactory` | Character Control references stable Gameplay ids and enqueues ability commands. Pressure break is an explicit state-machine input. | It does not write HP, guard, posture, armor, buffs, modifiers, cooldowns, or costs directly. |
 | Combat motion | `CombatKinematicMotor`, `CombatMotionState`, `CombatMotionInput`, `CombatPhysicsWorld` | `CharacterMotionResolver` converts control state + command into `CombatMotionInput` and calls the existing motor. | Unity `CharacterController`, `Rigidbody`, and `UnityEngine.Physics` are never authority. |
 | Combat action | `CombatActionRunner`, `CombatActionTimeline`, action lifecycle events | `CharacterActionController` starts/cancels Combat actions and mirrors lifecycle into Character Control events. | It does not rewrite action timing, phase, cancel window, hit, damage, or weapon trace logic. |
-| MxAnimation presentation | `MxAnimation` and Combat animation bridge events | Character Control emits presentation-friendly state/action events. | MxAnimation remains presentation-only and does not feed root motion authority back to Character Control. |
+| MxAnimation presentation | `MxAnimation`, `IMxAnimationBackend`, and Combat animation bridge events | `MxFramework.CharacterControl.Animation` converts locomotion / reaction output to MxAnimation requests while action lifecycle stays delegated to Combat bridge. | MxAnimation remains presentation-only and does not feed root motion authority back to Character Control. |
 | Diagnostics | `IFrameworkDebugSource` style snapshots | Character Control exposes readonly result/event/snapshot DTOs. | No global diagnostics registry is introduced. |
 | UI Toolkit | `MxFramework.UI.Toolkit` controls | Runtime HUDs can observe Character Control events and snapshots. | UI callbacks enqueue commands or requests; they do not mutate authoritative state. |
 
@@ -207,8 +207,9 @@ Recommended order for the first implementation chain:
 7. `#196` Runtime AI Planner adapter to `ICharacterCommandSource`.
 8. `#201` Motion modifier / traction adapter contract.
 9. `#197` Pressure / reaction integration.
-10. Follow-up: Unity composition root / UI Toolkit runtime showcase.
-11. Follow-up: MxAnimation presentation bridge policy and authored action mappings.
+10. `#198` MxAnimation presentation bridge policy and authored action mappings.
+11. Follow-up: diagnostics source and Debug UI integration.
+12. Follow-up: Unity composition root / UI Toolkit runtime showcase.
 
 ## Acceptance For This Contract
 
