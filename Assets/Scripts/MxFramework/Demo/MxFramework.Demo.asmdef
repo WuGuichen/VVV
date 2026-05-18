@@ -23,6 +23,10 @@
         "MxFramework.Combat.GameplayBridge",
         "MxFramework.Resources",
         "MxFramework.Resources.Unity",
+        "MxFramework.Diagnostics",
+        "MxFramework.DebugUI",
+        "MxFramework.DebugUI.Adapters",
+        "MxFramework.DebugUI.Toolkit",
         "MxFramework.UI.Toolkit"
     ],
     "includePlatforms": [],

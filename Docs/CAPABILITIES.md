@@ -244,7 +244,26 @@
 
 ---
 
-## 7. 运行时 Demo：打开 Unity 按 Play 就能看到效果
+## 7. Observability / Debug UI：统一开发观察入口
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| Debug source 注册 | ✅ v0.1 | `FrameworkDebugSourceRegistry.Register()` / `Unregister()` | DebugUI + Diagnostics |
+| Snapshot 聚合和错误隔离 | ✅ v0.1 | `DebugUiSnapshotAggregator.Refresh()` / `DebugUiDashboardViewModel` | DebugUI |
+| UI 可见性状态 | ✅ v0.1 | `DebugUiVisibility.Hidden / Collapsed / Expanded` | DebugUI |
+| UI Toolkit overlay shell | ✅ v0.1 | `DebugUiOverlayController` / `DebugUiOverlayViewModelBinder` | DebugUI.Toolkit + UI.Toolkit |
+| RuntimeHost adapter | ✅ v0.1 | `RuntimeHostDebugSource` | DebugUI.Adapters + Runtime |
+| Gameplay / Combat adapters | ✅ v0.1 | `GameplayDiagnosticSnapshotDebugSource` / `GameplayComponentWorldDebugSource` / `CombatDebugSnapshotDebugSource` | DebugUI.Adapters |
+| Logging / Resources 接入 | ✅ v0.1 | 复用 `LogDebugSource` / `ResourceDebugSource` | Logging.Diagnostics / Resources |
+
+→ 接口：`Interfaces/DebugUI.md`
+→ 任务：`Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md`
+→ 测试：`Tests/DebugUI/`
+→ **边界**: Debug UI 默认只读；Debug UI 展开、折叠、tab、刷新暂停等表现状态不进入 Replay、SaveState 或 Runtime hash。
+
+---
+
+## 8. 运行时 Demo：打开 Unity 按 Play 就能看到效果
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
