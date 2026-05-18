@@ -22,7 +22,8 @@ namespace MxFramework.CharacterControl
         AdapterDisabled = 1,
         MissingEntityMapping = 2,
         PolicyIgnored = 3,
-        TransitionRejected = 4
+        TransitionRejected = 4,
+        NonEscalatingBandChange = 5
     }
 
     public readonly struct CharacterPressureReactionPolicyEntry
@@ -286,6 +287,8 @@ namespace MxFramework.CharacterControl
         private readonly CharacterPressureReactionAdapterOptions _options;
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(5);
         private readonly List<ActiveReaction> _activeReactions = new List<ActiveReaction>(4);
+        private RuntimeFrame _lastFrame;
+        private bool _hasLastFrame;
         private bool _disposed;
 
         public CharacterPressureReactionAdapter(
@@ -337,6 +340,8 @@ namespace MxFramework.CharacterControl
 
         public void Disable()
         {
+            ReleaseActiveReactions("Pressure reaction adapter disabled.");
+
             for (int i = _subscriptions.Count - 1; i >= 0; i--)
             {
                 _subscriptions[i].Dispose();
@@ -361,6 +366,7 @@ namespace MxFramework.CharacterControl
         public void Tick(RuntimeFrame frame)
         {
             ThrowIfDisposed();
+            RememberFrame(frame);
             for (int i = _activeReactions.Count - 1; i >= 0; i--)
             {
                 ActiveReaction active = _activeReactions[i];
@@ -379,24 +385,16 @@ namespace MxFramework.CharacterControl
 
         public bool ConsumePostureBandChanged(PressureBandChangedEvent evt)
         {
-            return ApplyReaction(
+            return ApplyBandChangedReaction(
                 CharacterPressureReactionKind.PostureBandChanged,
-                evt.EntityId,
-                evt.Frame,
-                evt.NewBand,
-                evt.Reason,
-                evt.TraceId);
+                evt);
         }
 
         public bool ConsumeGuardBandChanged(PressureBandChangedEvent evt)
         {
-            return ApplyReaction(
+            return ApplyBandChangedReaction(
                 CharacterPressureReactionKind.GuardBandChanged,
-                evt.EntityId,
-                evt.Frame,
-                evt.NewBand,
-                evt.Reason,
-                evt.TraceId);
+                evt);
         }
 
         public bool ConsumePostureBreak(PostureBreakEvent evt)
@@ -441,6 +439,7 @@ namespace MxFramework.CharacterControl
             string traceId)
         {
             ThrowIfDisposed();
+            RememberFrame(frame);
             if (!IsEnabled)
             {
                 Record(kind, entityId, frame, default, CharacterPressureReactionPolicyEntry.Ignore(), false, false, false, CharacterPressureReactionSuppressedReason.AdapterDisabled, reason, traceId);
@@ -485,9 +484,37 @@ namespace MxFramework.CharacterControl
             }
 
             RuntimeFrame endFrame = AddFrames(frame, entry.DurationFrames);
-            ReplaceActiveReaction(entityId, target, kind, endFrame);
+            ReplaceActiveReaction(entityId, target, kind, frame, endFrame);
             Record(kind, entityId, frame, endFrame, entry, cancelRequested, cancelSucceeded, true, CharacterPressureReactionSuppressedReason.None, message, traceId);
             return true;
+        }
+
+        private bool ApplyBandChangedReaction(
+            CharacterPressureReactionKind kind,
+            PressureBandChangedEvent evt)
+        {
+            ThrowIfDisposed();
+            RememberFrame(evt.Frame);
+            if (!IsEnabled)
+            {
+                Record(kind, evt.EntityId, evt.Frame, default, CharacterPressureReactionPolicyEntry.Ignore(), false, false, false, CharacterPressureReactionSuppressedReason.AdapterDisabled, evt.Reason, evt.TraceId);
+                return false;
+            }
+
+            CharacterPressureReactionPolicyEntry entry = _policy.GetEntry(kind);
+            if (!IsEscalatingBandChange(evt))
+            {
+                Record(kind, evt.EntityId, evt.Frame, default, entry, false, false, false, CharacterPressureReactionSuppressedReason.NonEscalatingBandChange, evt.Reason, evt.TraceId);
+                return false;
+            }
+
+            return ApplyReaction(
+                kind,
+                evt.EntityId,
+                evt.Frame,
+                evt.NewBand,
+                evt.Reason,
+                evt.TraceId);
         }
 
         private void Record(
@@ -524,6 +551,7 @@ namespace MxFramework.CharacterControl
             GameplayEntityId entityId,
             CharacterPressureReactionTarget target,
             CharacterPressureReactionKind kind,
+            RuntimeFrame startFrame,
             RuntimeFrame endFrame)
         {
             for (int i = _activeReactions.Count - 1; i >= 0; i--)
@@ -534,7 +562,37 @@ namespace MxFramework.CharacterControl
                 }
             }
 
-            _activeReactions.Add(new ActiveReaction(entityId, target, kind, endFrame));
+            _activeReactions.Add(new ActiveReaction(entityId, target, kind, startFrame, endFrame));
+        }
+
+        private void ReleaseActiveReactions(string message)
+        {
+            for (int i = _activeReactions.Count - 1; i >= 0; i--)
+            {
+                ActiveReaction active = _activeReactions[i];
+                if (active.Target.StateMachine.CurrentState == CharacterControlState.Reaction)
+                {
+                    active.Target.StateMachine.FinishReaction(GetReleaseFrame(active), message);
+                }
+            }
+
+            _activeReactions.Clear();
+        }
+
+        private RuntimeFrame GetReleaseFrame(ActiveReaction active)
+        {
+            return _hasLastFrame && _lastFrame >= active.StartFrame
+                ? _lastFrame
+                : active.StartFrame;
+        }
+
+        private void RememberFrame(RuntimeFrame frame)
+        {
+            if (!_hasLastFrame || frame >= _lastFrame)
+            {
+                _lastFrame = frame;
+                _hasLastFrame = true;
+            }
         }
 
         private void Subscribe<T>(IEventBus<T> bus, Action<T> handler) where T : struct
@@ -550,6 +608,11 @@ namespace MxFramework.CharacterControl
         private static RuntimeFrame AddFrames(RuntimeFrame frame, int frames)
         {
             return frames <= 0 ? frame : new RuntimeFrame(checked(frame.Value + frames));
+        }
+
+        private static bool IsEscalatingBandChange(PressureBandChangedEvent evt)
+        {
+            return evt.Delta > 0 && (int)evt.NewBand > (int)evt.PreviousBand;
         }
 
         private static string BuildMessage(CharacterPressureReactionKind kind, string reason, string traceId)
@@ -579,11 +642,13 @@ namespace MxFramework.CharacterControl
                 GameplayEntityId gameplayEntityId,
                 CharacterPressureReactionTarget target,
                 CharacterPressureReactionKind kind,
+                RuntimeFrame startFrame,
                 RuntimeFrame endFrame)
             {
                 GameplayEntityId = gameplayEntityId;
                 Target = target;
                 Kind = kind;
+                StartFrame = startFrame;
                 EndFrame = endFrame;
             }
 
@@ -592,6 +657,8 @@ namespace MxFramework.CharacterControl
             public CharacterPressureReactionTarget Target { get; }
 
             public CharacterPressureReactionKind Kind { get; }
+
+            public RuntimeFrame StartFrame { get; }
 
             public RuntimeFrame EndFrame { get; }
         }

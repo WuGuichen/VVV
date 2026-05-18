@@ -77,6 +77,8 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - `CharacterActionController` 可以调用 `CombatActionRunner.StartAction` / `ForceStartAction` / `ForceCancel`，但不修改 Combat action timeline。
 - Gameplay ability 只通过 `GameplayRuntimeCommandFactory` 生成 command，不直接写 Gameplay component store。
 - Pressure reaction adapter 只消费 Gameplay typed events，不计算 pressure 数值、不新增 Combat hit kind、不直接扣血；PostureBreak / GuardBreak 可按 policy 进入 Reaction 并通过 `CharacterActionController` 请求 cancel。
+- BandChanged reaction 只响应 pressure 上升导致的 band 升级；recovery、negative delta 或 Broken -> Critical 回落只记录 `NonEscalatingBandChange` 诊断，不刷新 reaction window。
+- `CharacterPressureReactionAdapter.Disable()` / `Dispose()` 会释放自身持有的 active reaction window，避免 adapter 停用后遗留控制锁。
 - ArmorBreak 默认只记录诊断反馈；如果项目需要受击硬直，必须通过 `CharacterPressureReactionPolicy.ArmorBreak` 显式开启。
 - cooldown / resource / status 限制通过 `ICharacterActionConstraint` 注入；CharacterControl 不内置具体属性 id、cost 或 status id。
 - Input adapter 只读 `IInputProvider`，不直接读设备 API；Gameplay context 不可用时不输出 command，并丢弃当前 frame 及以前的 queued commands，避免 UI / cutscene 期间的动作在恢复后补发。

@@ -138,6 +138,87 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(CharacterPressureReactionKind.PostureBandChanged, adapter.LastRecord.Kind);
         }
 
+        [Test]
+        public void BandChanged_RecoveryDoesNotRefreshReactionWindow()
+        {
+            var machine = new CharacterControlStateMachine(CreateEntity());
+            var registry = new CharacterPressureReactionTargetRegistry();
+            registry.Register(machine);
+            var adapter = new CharacterPressureReactionAdapter(registry);
+            adapter.Enable();
+
+            bool critical = adapter.ConsumePostureBandChanged(CreateBandChanged(
+                new RuntimeFrame(2),
+                CreateEntity().GameplayEntityId,
+                PressureBand.Cracked,
+                PressureBand.Critical,
+                previousValue: 70,
+                newValue: 90,
+                delta: 20));
+            RuntimeFrame originalEndFrame = adapter.LastRecord.EndFrame;
+            bool recovering = adapter.ConsumePostureBandChanged(CreateBandChanged(
+                new RuntimeFrame(3),
+                CreateEntity().GameplayEntityId,
+                PressureBand.Broken,
+                PressureBand.Critical,
+                previousValue: 100,
+                newValue: 80,
+                delta: -20,
+                reason: GameplayPosturePressureEvents.RecoveryReason));
+
+            Assert.IsTrue(critical);
+            Assert.IsFalse(recovering);
+            Assert.AreEqual(CharacterPressureReactionSuppressedReason.NonEscalatingBandChange, adapter.LastSuppressedReason);
+            Assert.AreEqual(1, adapter.ActiveReactionCount);
+            Assert.AreEqual(CharacterControlState.Reaction, machine.CurrentState);
+
+            adapter.Tick(originalEndFrame);
+
+            Assert.AreEqual(CharacterControlState.Locomotion, machine.CurrentState);
+            Assert.AreEqual(CharacterControlLockMask.None, machine.ControlLockMask);
+        }
+
+        [Test]
+        public void Disable_ReleasesActiveReactionWindow()
+        {
+            var machine = new CharacterControlStateMachine(CreateEntity());
+            var registry = new CharacterPressureReactionTargetRegistry();
+            registry.Register(machine);
+            var adapter = new CharacterPressureReactionAdapter(registry);
+            adapter.Enable();
+
+            Assert.IsTrue(adapter.ConsumeGuardBreak(CreateGuardBreak(new RuntimeFrame(5), CreateEntity().GameplayEntityId)));
+            Assert.AreEqual(CharacterControlState.Reaction, machine.CurrentState);
+
+            adapter.Disable();
+
+            Assert.IsFalse(adapter.IsEnabled);
+            Assert.AreEqual(0, adapter.ActiveReactionCount);
+            Assert.AreEqual(CharacterControlState.Locomotion, machine.CurrentState);
+            Assert.AreEqual(CharacterControlLockMask.None, machine.ControlLockMask);
+        }
+
+        [Test]
+        public void Dispose_ReleasesActiveReactionWindow()
+        {
+            var machine = new CharacterControlStateMachine(CreateEntity());
+            var registry = new CharacterPressureReactionTargetRegistry();
+            registry.Register(machine);
+            var adapter = new CharacterPressureReactionAdapter(registry);
+            adapter.Enable();
+
+            Assert.IsTrue(adapter.ConsumePostureBandChanged(CreateBandChanged(
+                new RuntimeFrame(4),
+                CreateEntity().GameplayEntityId,
+                PressureBand.Cracked,
+                PressureBand.Critical)));
+
+            adapter.Dispose();
+
+            Assert.AreEqual(CharacterControlState.Locomotion, machine.CurrentState);
+            Assert.AreEqual(CharacterControlLockMask.None, machine.ControlLockMask);
+        }
+
         private static CharacterControlEntityRef CreateEntity()
         {
             return CharacterControlEntityRef.FromGameplayAndCombat(
@@ -191,17 +272,23 @@ namespace MxFramework.Tests.CharacterControl
             RuntimeFrame frame,
             GameplayEntityId entityId,
             PressureBand previousBand,
-            PressureBand newBand)
+            PressureBand newBand,
+            int previousValue = 40,
+            int newValue = 75,
+            int delta = 35,
+            string reason = "",
+            string traceId = "band")
         {
             return new PressureBandChangedEvent(
                 frame,
                 entityId,
                 previousBand,
                 newBand,
-                previousValue: 40,
-                newValue: 75,
-                delta: 35,
-                traceId: "band");
+                previousValue,
+                newValue,
+                delta,
+                reason: reason,
+                traceId: traceId);
         }
     }
 }

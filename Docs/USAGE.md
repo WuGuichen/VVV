@@ -1910,6 +1910,8 @@ reactionAdapter.Tick(frame);
 
 默认策略会让 PostureBreak / GuardBreak 进入 `Reaction` 并通过 `CharacterActionController` 请求 cancel；GuardBreak 默认只锁 Action，PostureBreak 默认锁 Move / Jump / Action。ArmorBreak 默认只记录 `CharacterPressureReactionRecord` 诊断，不重复处理伤害或 HP。
 
+BandChanged 只在 pressure 上升且 `NewBand > PreviousBand` 时触发 reaction；recovery、negative delta 和 Broken -> Critical 回落会记录 `NonEscalatingBandChange`，不会刷新已有 reaction window。停用或释放 adapter 时，`Disable()` / `Dispose()` 会结束 adapter 持有的 active reaction，避免控制锁残留。
+
 本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
 
 ```csharp
