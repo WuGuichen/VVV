@@ -1,6 +1,6 @@
 # MxFramework 使用手册
 
-> 版本 0.3.4 | 2026-05-18
+> 版本 0.3.5 | 2026-05-18
 >
 > 本文面向业务开发和 AI 辅助开发。目标是“先看这里就能接入”，不要靠通读源码理解基础模块。
 
@@ -1919,6 +1919,8 @@ if (pressureResult.ReactionStarted)
 }
 ```
 
+如果启用 `BrokenBandChangeStartsReaction`，band-change 只有在 pressure 上升且 `NewBand > PreviousBand` 时才会启动 reaction；recovery、negative delta 和 band 回落不会刷新已有 reaction window。组合根停用 pressure owner 时可调用 `FinishActiveReaction(...)` 主动释放控制锁。
+
 MxAnimation 表现适配放在可选程序集 `MxFramework.CharacterControl.Animation`。它只消费 Character Control 结果 / 事件，把移动、反应转成 animation backend 请求；Combat action lifecycle 仍由 `CombatMxAnimationUnityBridge` 负责：
 
 ```csharp
@@ -2043,6 +2045,7 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - `CharacterActionController` 通过 `CombatActionRunner` 和 `GameplayRuntimeCommandFactory` 桥接动作，不改 Combat timeline、hit window、damage 或 Gameplay HP/Buff/Ability 状态。
 - `CharacterPressureReactionController` 只消费 Gameplay pressure typed events，先校验 `GameplayEntityId` 映射，再按策略进入 `Reaction`、输出事件或 rejected result。
 - posture / guard break 默认会清理 queued action request 并取消当前 Combat action；armor break 默认只记录反馈，不改变控制状态。
+- band-change reaction 只响应 pressure 上升导致的 band 升级；生命周期提前结束时用 `FinishActiveReaction(...)` 释放 active reaction。
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
 - slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
 - Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。

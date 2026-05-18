@@ -23,7 +23,7 @@ namespace MxFramework.Tests.CharacterControl
             var input = new MxInput.FakeInputProvider();
             input.SetContext(MxInput.InputContext.Gameplay);
             input.SetSnapshot(CreateSnapshot(
-                move: new Vector2(2f, -0.5f),
+                move: new Vector2(0.75f, -0.5f),
                 look: new Vector2(0f, 1f),
                 jumpPressed: true,
                 sprintHeld: true,
@@ -46,7 +46,7 @@ namespace MxFramework.Tests.CharacterControl
 
             Assert.AreEqual(new RuntimeFrame(5), command.Frame);
             Assert.AreEqual(7, command.SourceId);
-            Assert.AreEqual(Fix64.One, command.MoveDirection.X);
+            Assert.AreEqual(Fix64.FromRatio(3, 4), command.MoveDirection.X);
             Assert.AreEqual(Fix64.FromRatio(-1, 2), command.MoveDirection.Z);
             Assert.IsTrue(command.JumpPressed);
             Assert.IsTrue(command.SprintHeld);

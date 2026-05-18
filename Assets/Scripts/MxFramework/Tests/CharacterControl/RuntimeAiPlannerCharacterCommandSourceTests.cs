@@ -41,6 +41,7 @@ namespace MxFramework.Tests.CharacterControl
         public void Profile_AllowsExplicitZeroMoveSpeedScale()
         {
             var world = new AiWorldState();
+            world.SetValue(RuntimeAiPressureFactKeys.TargetPostureBand, 2);
             var action = new TestAction(11);
             var source = CreateSource(world, action, new RuntimeAiCharacterCommandProfile(
                 actionId: 11,
