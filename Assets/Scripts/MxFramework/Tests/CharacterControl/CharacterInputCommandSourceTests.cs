@@ -113,6 +113,37 @@ namespace MxFramework.Tests.CharacterControl
         }
 
         [Test]
+        public void NonGameplayContext_DrainsQueuedCommandsThroughFrame()
+        {
+            var input = new MxInput.FakeInputProvider();
+            input.SetContext(MxInput.InputContext.UI);
+            input.Commands.Enqueue(new MxInput.InputCommand(
+                frame: 1,
+                sourceId: 99,
+                intent: MxInput.InputIntent.AttackPrimary,
+                traceId: "stale-attack"));
+            var source = new InputCharacterCommandSource(input, new InputCharacterCommandSourceOptions
+            {
+                ActionBindings = new[]
+                {
+                    CharacterInputActionBinding.CombatAction(
+                        MxInput.InputIntent.AttackPrimary,
+                        CharacterActionKind.Attack,
+                        LightAttackId)
+                }
+            });
+
+            Assert.IsFalse(source.TryGetCommand(new RuntimeFrame(1), CreateEntity(), out _));
+            Assert.AreEqual(0, input.Commands.PendingCount);
+            Assert.AreEqual(2L, input.Commands.CurrentFrame);
+
+            input.SetContext(MxInput.InputContext.Gameplay);
+            Assert.IsTrue(source.TryGetCommand(new RuntimeFrame(2), CreateEntity(), out CharacterCommand command));
+            Assert.AreEqual(CharacterActionKind.None, command.ActionRequest.Kind);
+            Assert.AreEqual(CharacterActionButtons.None, command.ActionButtons);
+        }
+
+        [Test]
         public void SnapshotInput_MapsInteractDodgeAndCancelButtons()
         {
             var input = new MxInput.FakeInputProvider();

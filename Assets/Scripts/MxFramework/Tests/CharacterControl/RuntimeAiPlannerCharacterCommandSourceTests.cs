@@ -34,6 +34,23 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(10, source.Diagnostics.LastActionId);
             Assert.AreEqual(Fix64.One, second.MoveDirection.X);
             Assert.AreEqual(CharacterActionKind.None, second.ActionRequest.Kind);
+            Assert.AreEqual(CharacterActionButtons.None, second.ActionButtons);
+        }
+
+        [Test]
+        public void Profile_AllowsExplicitZeroMoveSpeedScale()
+        {
+            var world = new AiWorldState();
+            var action = new TestAction(11);
+            var source = CreateSource(world, action, new RuntimeAiCharacterCommandProfile(
+                actionId: 11,
+                moveDirection: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
+                facingBasis: CharacterFacingBasis.Identity,
+                moveSpeedScale: Fix64.Zero));
+
+            Assert.IsTrue(source.TryGetCommand(RuntimeFrame.Zero, CreateEntity(), out CharacterCommand command));
+
+            Assert.AreEqual(Fix64.Zero, command.MoveSpeedScale);
         }
 
         [Test]
@@ -70,7 +87,7 @@ namespace MxFramework.Tests.CharacterControl
                     moveDirection: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
                     facingBasis: CharacterFacingBasis.Identity,
                     actionKind: CharacterActionKind.Attack,
-                    combatActionId: 2001),
+                    combatActionId: 2002),
                 new RuntimeAiPlannerCharacterCommandSourceOptions
                 {
                     ReactionDelayFrames = 2
@@ -81,8 +98,12 @@ namespace MxFramework.Tests.CharacterControl
             Assert.IsTrue(source.TryGetCommand(new RuntimeFrame(2), CreateEntity(), out CharacterCommand command));
 
             Assert.AreEqual(Fix64.One, command.MoveDirection.Z);
-            Assert.AreEqual(2001, command.ActionRequest.CombatActionId);
+            Assert.AreEqual(2002, command.ActionRequest.CombatActionId);
             Assert.AreEqual(RuntimeAiPlannerCharacterCommandSuppressedReason.None, source.Diagnostics.SuppressedReason);
+
+            Assert.IsTrue(source.TryGetCommand(new RuntimeFrame(3), CreateEntity(), out CharacterCommand repeated));
+            Assert.AreEqual(Fix64.One, repeated.MoveDirection.Z);
+            Assert.AreEqual(CharacterActionKind.None, repeated.ActionRequest.Kind);
         }
 
         [Test]
@@ -125,26 +146,6 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(Fix64.One, reused.MoveDirection.X);
             Assert.AreEqual(Fix64.Zero, reused.MoveDirection.Z);
             Assert.AreEqual(CharacterActionKind.None, reused.ActionRequest.Kind);
-        }
-
-        [Test]
-        public void Profile_AllowsExplicitZeroMoveSpeedScale()
-        {
-            var world = new AiWorldState();
-            var action = new TestAction(10);
-            var source = CreateSource(
-                world,
-                action,
-                new RuntimeAiCharacterCommandProfile(
-                    actionId: 10,
-                    moveDirection: FixVector3.Zero,
-                    facingBasis: CharacterFacingBasis.Identity,
-                    moveSpeedScale: Fix64.Zero),
-                new RuntimeAiPlannerCharacterCommandSourceOptions());
-
-            Assert.IsTrue(source.TryGetCommand(RuntimeFrame.Zero, CreateEntity(), out CharacterCommand command));
-
-            Assert.AreEqual(Fix64.Zero, command.MoveSpeedScale);
         }
 
         private static RuntimeAiPlannerCharacterCommandSource CreateSource(

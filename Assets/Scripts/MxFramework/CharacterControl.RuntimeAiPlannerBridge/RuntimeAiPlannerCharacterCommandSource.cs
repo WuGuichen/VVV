@@ -220,12 +220,15 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 RuntimeAiCharacterCommandProfile profile = _pendingProfile;
                 _pendingProfile = default;
                 _hasPendingProfile = false;
-                return TryBuildCommand(frame, entity, profile, emitActionRequest: true, out command);
+                _nextDecisionFrame = AddFrames(frame, _options.MinDecisionIntervalFrames);
+                _smoothUntilFrame = AddFrames(frame, _options.CommandSmoothingFrames);
+                _lastActionId = profile.ActionId;
+                return TryBuildCommand(frame, entity, profile, includeActionRequest: true, out command);
             }
 
             if (_hasLastProfile && frame < _nextDecisionFrame)
             {
-                return TryBuildCommand(frame, entity, _lastProfile, emitActionRequest: false, out command);
+                return TryBuildCommand(frame, entity, _lastProfile, includeActionRequest: false, out command);
             }
 
             if (!_planner.TryPlan(_worldState, _goals, _actions, out AiPlan plan))
@@ -251,11 +254,13 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
 
             RuntimeAiCharacterCommandProfile profileToUse = selectedProfile;
             bool actionChanged = !_hasLastProfile || selectedProfile.ActionId != _lastProfile.ActionId;
+            bool includeActionRequest = actionChanged;
             if (_hasLastProfile
                 && actionChanged
                 && frame < _smoothUntilFrame)
             {
                 profileToUse = _lastProfile;
+                includeActionRequest = false;
             }
             else if (actionChanged && _options.ReactionDelayFrames > 0)
             {
@@ -271,23 +276,18 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             _smoothUntilFrame = AddFrames(frame, _options.CommandSmoothingFrames);
             _lastActionId = selectedProfile.ActionId;
             SetDiagnostics(RuntimeAiPlannerCharacterCommandSuppressedReason.None, frame, profileToUse.ActionId, default, DescribeGoal(plan.Goal));
-            return TryBuildCommand(
-                frame,
-                entity,
-                profileToUse,
-                emitActionRequest: actionChanged && profileToUse.ActionId == selectedProfile.ActionId,
-                out command);
+            return TryBuildCommand(frame, entity, profileToUse, includeActionRequest, out command);
         }
 
         private bool TryBuildCommand(
             RuntimeFrame frame,
             CharacterControlEntityRef entity,
             RuntimeAiCharacterCommandProfile profile,
-            bool emitActionRequest,
+            bool includeActionRequest,
             out CharacterCommand command)
         {
             string traceId = BuildTraceId(frame, profile);
-            CharacterActionRequest request = emitActionRequest
+            CharacterActionRequest request = includeActionRequest
                 ? CreateActionRequest(frame, entity, profile, traceId)
                 : default;
             command = new CharacterCommand(
@@ -298,7 +298,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 profile.FacingBasis,
                 profile.JumpPressed,
                 profile.SprintHeld,
-                GetButtons(profile, emitActionRequest),
+                includeActionRequest ? GetButtons(profile) : CharacterActionButtons.None,
                 request,
                 profile.MoveSpeedScale,
                 traceId);
@@ -400,11 +400,8 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 : $"{prefix}:{frame.Value}:{profile.TraceTag}";
         }
 
-        private static CharacterActionButtons GetButtons(RuntimeAiCharacterCommandProfile profile, bool emitActionRequest)
+        private static CharacterActionButtons GetButtons(RuntimeAiCharacterCommandProfile profile)
         {
-            if (!emitActionRequest)
-                return CharacterActionButtons.None;
-
             switch (profile.ActionKind)
             {
                 case CharacterActionKind.Attack:

@@ -105,8 +105,7 @@ namespace MxFramework.CharacterControl.Input
             command = default;
             if (!CanReadGameplayInput())
             {
-                _commands.Clear();
-                _inputProvider.Commands.DrainForFrame(frame.Value, _commands);
+                DropQueuedCommandsThroughFrame(frame);
                 return false;
             }
 
@@ -164,6 +163,13 @@ namespace MxFramework.CharacterControl.Input
                 _options.MoveSpeedScale,
                 traceId);
             return true;
+        }
+
+        private void DropQueuedCommandsThroughFrame(RuntimeFrame frame)
+        {
+            _commands.Clear();
+            _inputProvider.Commands.DrainForFrame(frame.Value, _commands);
+            _commands.Clear();
         }
 
         private bool CanReadGameplayInput()

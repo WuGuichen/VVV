@@ -1975,6 +1975,7 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - `CharacterActionController` 通过 `CombatActionRunner` 和 `GameplayRuntimeCommandFactory` 桥接动作，不改 Combat timeline、hit window、damage 或 Gameplay HP/Buff/Ability 状态。
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
 - slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
+- Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。
 
 详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/`。
 
