@@ -8,7 +8,8 @@
         "MxFramework.Resources",
         "MxFramework.Config.Runtime",
         "MxFramework.Gameplay",
-        "MxFramework.Combat"
+        "MxFramework.Combat",
+        "MxFramework.CharacterControl"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
