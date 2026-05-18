@@ -1826,24 +1826,27 @@ Character Control 是 Input、Runtime AI Planner、Replay/Test source 与 Combat
 using MxFramework.CharacterControl;
 using MxFramework.Combat.Core;
 using MxFramework.Core;
+using MxFramework.Core.Math;
 using MxFramework.Gameplay;
 using MxFramework.Runtime;
 
 var entity = CharacterControlEntityRef.FromGameplayAndCombat(
-    stableId: 1,
-    gameplayEntityId: GameplayEntityId.Create(10, 1),
+    gameplayEntityId: new GameplayEntityId(10, 1),
     combatEntityId: new CombatEntityId(20),
-    combatBodyId: new CombatPhysicsBodyId(30));
+    combatBodyId: new CombatBodyId(30),
+    stableId: 1);
 
 var frame = new RuntimeFrame(12);
 var command = new CharacterCommand(
     frame: frame,
     sourceId: 0,
     entity: entity,
-    move: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+    moveDirection: new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
     facingBasis: CharacterFacingBasis.Identity,
     jumpPressed: false,
-    sprintHeld: true);
+    sprintHeld: true,
+    actionButtons: CharacterActionButtons.None,
+    actionRequest: default);
 
 var control = new CharacterControlStateMachine(entity);
 CharacterControlTransitionResult transition = control.BeginAction(
@@ -1871,11 +1874,10 @@ CharacterMotionResult motion = resolver.Resolve(
 
 ```csharp
 var actionController = new CharacterActionController(
-    entity: entity,
     stateMachine: control,
-    actionRunner: combatActionRunner,
-    commandBuffer: runtimeCommandBuffer,
-    requestStore: gameplayAbilityRequestStore);
+    combatActionRunner: combatActionRunner,
+    gameplayCommandBuffer: runtimeCommandBuffer,
+    abilityRequestStore: gameplayAbilityRequestStore);
 
 CharacterActionResult action = actionController.Submit(
     CharacterActionRequest.CombatAction(
