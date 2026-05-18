@@ -77,6 +77,22 @@ namespace MxFramework.Tests.Input
         }
 
         [Test]
+        public void CommandQueue_PeekForFrameDoesNotDrainOrAdvanceFrame()
+        {
+            var queue = new InputCommandQueue();
+            queue.Enqueue(new InputCommand(0, 1, InputIntent.Jump));
+            queue.Enqueue(new InputCommand(0, 1, InputIntent.ToggleHud));
+            var peeked = new List<InputCommand>();
+
+            int count = queue.PeekForFrame(0, peeked, command => command.Intent == InputIntent.ToggleHud);
+
+            Assert.AreEqual(1, count);
+            Assert.AreEqual(InputIntent.ToggleHud, peeked[0].Intent);
+            Assert.AreEqual(2, queue.PendingCount);
+            Assert.AreEqual(0, queue.CurrentFrame);
+        }
+
+        [Test]
         public void FakeInputProvider_CanDriveSnapshotWithoutDevices()
         {
             var provider = new FakeInputProvider();

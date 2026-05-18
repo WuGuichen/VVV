@@ -29,6 +29,7 @@
         "MxFramework.Diagnostics",
         "MxFramework.DebugUI",
         "MxFramework.DebugUI.Adapters",
+        "MxFramework.DebugUI.Input",
         "MxFramework.DebugUI.Toolkit",
         "MxFramework.Logging",
         "MxFramework.Logging.Diagnostics",

@@ -10,7 +10,7 @@ Input 模块把 Unity Input System 作为底层采集层，只向业务暴露意
 - 模块不依赖 WGame、Entitas、Luban、Gameplay、Runtime 或 Demo。
 - noEngine 模块不得反向引用 Input；需要输入时由游戏组合根把 `IInputProvider` 传给上层控制器。
 - 默认配置资产位于 `Assets/Input/MxFramework/Config/MxFrameworkInputActions.inputactions`，第一版包含 `Gameplay`、`UI` 和 `Debug` 三个 Action Map。
-- Issue #85 `Runtime Debug UI` 设计复用 `Debug` Action Map 和 `InputIntent.ToggleHud` / `ToggleConsole` / `DebugCycle` / `DebugStep`；通用运行时调试 overlay 不直接读取设备 API，输入路由放在可选 adapter 或项目组合根。
+- `MxFramework.DebugUI.Input` 复用 `Debug` Action Map 和 `InputIntent.ToggleHud` / `ToggleConsole` / `DebugCycle` / `DebugStep`；通用运行时调试 overlay 不直接读取设备 API，输入路由放在可选 adapter 或项目组合根。
 
 ## 2. 公开契约
 
@@ -18,13 +18,14 @@ Input 模块把 Unity Input System 作为底层采集层，只向业务暴露意
 |------|------|
 | `IInputProvider` | 业务侧依赖入口，提供 `Snapshot`、`Commands` 和上下文切换 |
 | `InputSnapshot` | 每帧连续输入和一帧按钮状态，例如 `Move`、`Look`、`JumpPressed` |
-| `InputCommand` / `InputCommandQueue` | 瞬时意图事件队列，例如 Jump、Submit、Pause、Click |
+| `InputCommand` / `InputCommandQueue` | 瞬时意图事件队列，例如 Jump、Submit、Pause、Click；支持 destructive drain 和 non-destructive peek |
 | `InputContext` / `InputContextStack` | Gameplay、UI、Vehicle、PhotoMode、Cutscene、Rebinding、Debug 的上下文栈 |
 | `InputService` | 从 `InputActionAsset` 读取输入，生成 `InputSnapshot` 和 `InputCommand` |
 | `LocalUserInputAdapter` | 本地多人时接入 Unity `PlayerInput` 的私有 actions 副本 |
 | `IInputRebindingService` / `InputRebindingService` | 运行时交互式重绑定、保存、读取、重置 |
 | `InputBindingDisplayService` | 读取当前 binding 的显示文案，用于按钮提示 |
 | `UIInputBridge` | UI 打开/关闭时 push/pop UI 输入上下文 |
+| `DebugUiInputAdapter` / `DebugUiOverlayInputBridge` | 可选 Debug UI 输入桥，消费 `IInputProvider` 并 push `InputContext.Debug` overlay scope |
 | `FakeInputProvider` / `RecordedInputProvider` | 自动化测试、AI 接管和回放输入源 |
 
 ## 3. Snapshot 与 Command
@@ -50,7 +51,17 @@ for (int i = 0; i < commands.Count; i++)
 }
 ```
 
-`InputCommandQueue.DrainForFrame(frame, List<InputCommand>)` 可复用外部列表，适合避免额外分配。
+`InputCommandQueue.DrainForFrame(frame, List<InputCommand>)` 可复用外部列表，适合避免额外分配。它会移除 `command.Frame <= frame` 的命令并推进 queue `CurrentFrame`，因此只适合权威消费者。
+
+只观察或旁路消费时使用 `PeekForFrame()`，可按 predicate 过滤，不移除命令也不推进 `CurrentFrame`：
+
+```csharp
+var debugCommands = new List<InputCommand>();
+input.Commands.PeekForFrame(
+    frame,
+    debugCommands,
+    command => command.Intent == InputIntent.ToggleHud);
+```
 
 ## 4. 上下文栈
 
@@ -99,7 +110,20 @@ if (input.BindingDisplay.TryGetDisplayString("Gameplay/Jump", 0, out string labe
 
 本地多人使用 Unity `PlayerInput` 时，把 `LocalUserInputAdapter` 挂在同一对象上。它读取 `PlayerInput.actions`，不会绕过 Unity 为每个本地用户维护的私有 action 副本和设备过滤。
 
-## 7. 测试入口
+## 7. Debug UI 输入桥
+
+Debug UI 输入桥位于独立程序集 `MxFramework.DebugUI.Input`。它只通过 `PeekForFrame()` 非破坏性读取 `IInputProvider.Commands` 中的 Debug intents，不直接读取 `Keyboard.current`、`Gamepad.current`、`Mouse.current` 或散落持有 `InputAction`。
+
+```csharp
+var adapter = new DebugUiInputAdapter(input);
+adapter.SetEnabled(true); // Pushes InputContext.Debug as an overlay scope.
+adapter.ProcessFrame(frame, debugUiTarget);
+```
+
+Unity 场景中可使用 `DebugUiOverlayInputBridge` 把同一 GameObject 上的 `InputService` 和 `DebugUiOverlayController` 连接起来。该桥使用 `InputService.LastCommandFrame` 对齐最近一次输入采集帧，只负责 visibility / refresh，不执行 Debug UI command。
+
+## 8. 测试入口
 
 - `Assets/Scripts/MxFramework/Tests/Input/InputCoreTests.cs`
+- `Assets/Scripts/MxFramework/Tests/DebugUI/DebugUiInputAdapterTests.cs`
 - 测试覆盖上下文栈 overlay/exclusive、命令队列排序/迟到拒绝、Fake/Recorded 输入源。

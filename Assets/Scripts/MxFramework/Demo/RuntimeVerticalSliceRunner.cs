@@ -3,6 +3,7 @@ using MxFramework.Attributes;
 using MxFramework.Buffs;
 using MxFramework.Config;
 using MxFramework.Config.Runtime;
+using MxFramework.DebugUI.Adapters;
 using MxFramework.Events;
 using MxFramework.Modifiers;
 using MxFramework.UI.Toolkit;
@@ -137,6 +138,7 @@ namespace MxFramework.Demo
         private IConfigProvider _configRegistry;
         private bool _configReady;
         private ConfigChangeSet _changeSet;
+        private RuntimeConfigHotReloadResult _lastHotReloadResult;
         private string _patchSourceInfo = "";
         private string _patchError = "";
         private string _catalogSummary = "";
@@ -148,6 +150,13 @@ namespace MxFramework.Demo
         private RuntimeVerticalSliceSampleResourceTest _resourceSampleTest;
         private RuntimeVerticalSlicePlayerResourceTest _playerResourceTest;
         private readonly List<string> _loadoutWarnings = new List<string>();
+
+        public RuntimeConfigHotReloadResult LastConfigHotReloadResult => _lastHotReloadResult;
+
+        public RuntimeConfigHotReloadDebugSource CreateConfigHotReloadDebugSource()
+        {
+            return new RuntimeConfigHotReloadDebugSource(() => _lastHotReloadResult);
+        }
         private readonly List<string> _orderedPackageKeys = new List<string>();
         private readonly List<string> _skippedPackageKeys = new List<string>();
         private readonly List<string> _resourceTestLines = new List<string>();
@@ -591,6 +600,30 @@ namespace MxFramework.Demo
             }
 
             BuildRegistryFromPatchBundle(bundle);
+        }
+
+        public bool ReloadPatchFile()
+        {
+            string fullPath = System.IO.Path.Combine(Application.streamingAssetsPath, _patchFilePath);
+            var service = new RuntimeConfigPatchHotReloadService(RuntimeConfigSliceDemoData.CreateRegistry());
+            RuntimeConfigHotReloadResult result = service.Reload(new RuntimeConfigHotReloadRequest(fullPath, _patchFilePath));
+            _lastHotReloadResult = result;
+
+            if (!result.Success)
+            {
+                _patchError = result.ErrorSummary;
+                LogEvent("HOT RELOAD ERROR: " + _patchError);
+                return false;
+            }
+
+            _patchError = string.Empty;
+            _patchSourceInfo = result.SourceName + " (HotReload)";
+            _configRegistry = result.Provider;
+            _changeSet = result.ChangeSet;
+            _configReady = true;
+            LogEvent("Hot reload applied: " + result.ChangedTables.Count + " changed tables hash=" + result.ContentHash);
+            BuildAndRunFromRegistry();
+            return true;
         }
 
         private void BuildRegistryFromPatchBundle(RuntimeConfigPatchBundle bundle)
