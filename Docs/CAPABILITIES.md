@@ -122,6 +122,20 @@
 → 测试：`Tests/Input/InputCoreTests.cs`
 → **不含**: 项目专属按键布局、UI 提示美术、联网预测和录制文件格式
 
+### 1.8 Character Control — 角色控制编排
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| 统一角色命令 DTO | ✅ v0.1 | `CharacterCommand` / `ICharacterCommandSource` / `CharacterActionRequest` | CharacterControl |
+| 控制状态机 | ✅ v0.1 | `CharacterControlStateMachine` / `CharacterControlLockMask` / `CharacterStateChangedEvent` | CharacterControl |
+| Combat Motion resolver | ✅ v0.1 | `CharacterMotionResolver` / `CharacterMotionSettings` / `CharacterMotionResult` | CharacterControl + Combat |
+| Combat / Gameplay action bridge | ✅ v0.1 | `CharacterActionController` / `ICharacterActionConstraint` / `CharacterActionEvent` | CharacterControl + Runtime + Gameplay + Combat |
+
+→ 接口：`Interfaces/CharacterControl.md`
+→ 设计：`Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
+→ 测试：`Tests/CharacterControl/`
+→ **边界**: Character Control 不读取 Unity 输入、不调用 Unity Physics、不写 Gameplay HP/Buff/Ability source of truth，也不让 MxAnimation / Animator / Playables root motion 反向驱动权威状态。
+
 ---
 
 ## 2. 配置系统：用配置数据驱动运行时

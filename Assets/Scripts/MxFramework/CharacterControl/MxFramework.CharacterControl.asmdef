@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.CharacterControl",
+    "rootNamespace": "MxFramework.CharacterControl",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Combat",
+        "MxFramework.Gameplay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

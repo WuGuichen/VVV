@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.43 | 2026-05-18
+> 版本 0.6.44 | 2026-05-18
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -73,6 +73,7 @@
 | `Interfaces/Runtime.md` | Runtime Host / 生命周期调度 |
 | `Interfaces/AppFlow.md` | App / Scene Flow 状态和场景切换 |
 | `Interfaces/Input.md` | Unity Input System 上层的输入意图、上下文和重绑定接口 |
+| `Interfaces/CharacterControl.md` | Character Control 角色控制编排接口 |
 | `Interfaces/DebugUI.md` | Debug UI source registry、snapshot aggregation、Toolkit overlay 和 source adapter 接入方式 |
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |
 | `Interfaces/Editor.md` | Editor 工具接口 |
@@ -134,6 +135,7 @@
 | `Tasks/GAMEPLAY_ECS_STYLE_15_COMPONENT_ATTRIBUTE_RUNTIME.md` | Gameplay ECS-style 15：实现 component-native attribute set、attribute commands、attribute changed event 和 schema-backed hash / SaveState。 |
 | `Tasks/GAMEPLAY_COMPONENT_RUNTIME_SHOWCASE_01.md` | Gameplay Component Runtime Showcase 01：把 v0 component runtime 收口能力组合成可观察 Runtime Slice，提供 Unity runner、UI Toolkit 视图和 Editor 场景生成菜单。 |
 | `Tasks/GAMEPLAY_COMPONENT_PLAYABLE_COMBAT_BRIDGE_PLAN_01.md` | Gameplay Component Playable + Combat Bridge Plan：规划将 Gameplay Component Runtime Showcase 升级为提交的 Unity Playable 入口，并固定 component-native Combat bridge 的 source-of-truth 边界和后续实施切片。 |
+| `Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md` | Character Control Runtime 00：固定 noEngine 角色控制编排边界，并实现 command DTO、控制状态机、Combat Motion resolver 和 Combat / Gameplay action bridge 首批切片。 |
 | `Tasks/GAMEPLAY_COMPONENT_BUFF_MODIFIER_01.md` | Gameplay Component Buff / Modifier 01：新增 component-native buff / additive modifier state、cleanup system、diagnostics、hash 和 SaveState。 |
 | `Tasks/GAMEPLAY_ABILITY_03_COMMAND_SYSTEM.md` | Gameplay Ability 03：将 CastAbility / DespawnEntity 迁入 command systems，让 GameplayRuntimeModule 只负责 drain、pipeline、event queue 和 world tick。 |
 | `Tasks/GAMEPLAY_ABILITY_04_COMMAND_HANDLED_STATE.md` | Gameplay Ability 04：新增 command handled 状态，让 unsupported system 基于 handled 判断，支持 default pipeline 上扩展自定义 command system。 |
@@ -216,7 +218,8 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 0.6.43 | 2026-05-18 | Phase 13 扩展 #182-#184：新增 Debug UI timeline / entity watch、Diagnostics performance counters 和 noEngine Simulation Harness reports |
+| 0.6.44 | 2026-05-18 | Phase 13 扩展 #182-#184：新增 Debug UI timeline / entity watch、Diagnostics performance counters 和 noEngine Simulation Harness reports |
+| 0.6.43 | 2026-05-18 | 新增 Character Control noEngine 编排接口、设计契约和 v0.1 实现入口，串联 Runtime frame、Combat Motion、Combat Action 与 Gameplay command bridge |
 | 0.6.42 | 2026-05-18 | 新增 Phase 13 Observability and Developer Workflow 入口，落地 Debug UI core / Toolkit / adapter 首批任务文档 |
 | 0.6.41 | 2026-05-17 | 收口 MxAnimation System Showcase 文档索引：能力清单补充 playable validation，详细手测流程归档到 `Docs/Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md` |
 | 0.6.40 | 2026-05-17 | 新增 Gitea -> GitHub Issue / PR 元数据手动镜像脚本，明确 PR 默认以 GitHub Issue 形式镜像，不把 GitHub 变成协作源 |
