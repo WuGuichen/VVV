@@ -2,7 +2,7 @@
 
 > 状态：MVP Implemented
 > 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112、Gitea Issue #123、Gitea Issue #124、Gitea Issue #125、Gitea Issue #126、Gitea Issue #127、Gitea Issue #129、Gitea Issue #130
-> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics、资源版本校验、provider-switchable animation package loading expectation 和 Mod animation package override merge；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.Editor.Animation` 提供 clip registry authoring / export / validation、event timeline preview、Workstation timeline event editor / scrubber、bake report tool 和 compatibility profile extractor。
+> 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics、资源版本校验、provider-switchable animation package loading expectation 和 Mod animation package override merge；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.CharacterControl.Animation` 提供 Character Control 到 MxAnimation 的 noEngine locomotion / reaction 表现适配；`MxFramework.Editor.Animation` 提供 clip registry authoring / export / validation、event timeline preview、Workstation timeline event editor / scrubber、bake report tool 和 compatibility profile extractor。
 
 ## 职责
 
@@ -19,6 +19,7 @@ Unity Playables 接入放在 `MxFramework.Animation.Unity`，可以引用 UnityE
 | `MxFramework.Animation` | MVP | Resources | layer id、layer definition、play / stop / crossfade / set layer weight / set blend request、animation set definition、1D / 2D blend definition、warmup/version validation、skeleton / avatar / clip compatibility validation、bake profile/artifact/diagnostics、fade state、backend interface |
 | `MxFramework.Animation.Unity` | MVP | Animation、Resources、Resources.Unity、UnityEngine Playables | `UnityPlayablesAnimationBackend`、内部 PlayableGraph 抽象、clip load、AvatarMask load、layer mixer weight、1D / 2D clip blend、fallback、manual tick、graph shutdown、handle ownership |
 | `MxFramework.Combat.Animation.Unity` | MVP | Combat、Animation、Animation.Unity | 订阅 `CombatActionRunner` lifecycle / frame presentation events，转成 MxAnimation play / stop / crossfade 请求和 presentation event dispatch |
+| `MxFramework.CharacterControl.Animation` | MVP | CharacterControl、Animation、Combat、Resources | 消费 `CharacterMotionResult` / `CharacterStateChangedEvent` / `CharacterActionEvent`，转成 locomotion 1D/2D blend、reaction play/crossfade 或 bridge ownership diagnostics |
 | `MxFramework.Editor.Animation` | MVP | Editor、Animation、Resources、UnityEditor | Clip registry authoring asset、mapping export、catalog validation、最小 Inspector validation、AnimationClip bake MVP tool |
 
 依赖方向：
@@ -31,9 +32,12 @@ MxFramework.Resources
 
 MxFramework.Combat
   <- MxFramework.Combat.Animation.Unity
+
+MxFramework.CharacterControl
+  <- MxFramework.CharacterControl.Animation
 ```
 
-Combat 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat authority。
+Combat 不引用 Animation.Unity。Character Control core 不引用 Animation.Unity。Unity animation time 不反向驱动 Combat 或 Character Control authority。
 
 ## 公开接口
 
@@ -228,6 +232,25 @@ Legacy coexistence:
 - 旧 `MxFramework.Runtime.Unity.CombatAnimationUnityModule` / `CombatAnimatorDriver` 保持可用，但仍是 opt-in。
 - 新 `CombatMxAnimationUnityBridge` 不创建、不注册、不调用旧 driver。项目层 composition root 应在同一 entity 上选择 legacy Animator bridge 或 MxAnimation bridge 之一，避免同一 Combat event 双触发表现。
 
+## Character Control Presentation Bridge
+
+`MxFramework.CharacterControl.Animation` 是 noEngine adapter assembly，面向组合根注入的 `IMxAnimationBackend`。它不订阅 Combat runner lifecycle，不取代 `CombatMxAnimationUnityBridge` 的 action ownership；action event 在该 adapter 中只记录 `ActionHandledByCombatBridge` diagnostics，避免同一 Combat event 被双重桥接。
+
+公开类型：
+
+| 接口/类型 | 用途 |
+|-----------|------|
+| `CharacterAnimationPresentationController` | 消费 `CharacterMotionResult`、`CharacterStateChangedEvent` 和 `CharacterActionEvent`，输出 MxAnimation backend request 或 diagnostics |
+| `CharacterAnimationPresentationOptions` | 配置 actor id、1D/2D locomotion blend id、参数 id、量化 scale、airborne locomotion 策略、fade duration 和 reaction bindings |
+| `CharacterAnimationReactionBinding` | 按 `CharacterControlTransitionReason` 匹配 reaction，选择 `Play` 或 `CrossFade`，clip 使用 `ResourceKey` |
+| `CharacterAnimationPresentationDiagnosticSnapshot` | 记录 last request、backend result code、backend clip/resource error、missing binding、backend rejected、fallback/skipped reason 和最近诊断 |
+
+策略：
+
+- locomotion 从 `CharacterMotionResult.MotionInput` 读取移动方向和 `MoveSpeedScale`，并用 `CombatMotionState.Grounded` 决定是否输出非零地面移动参数；1D speed 使用 Combat 同款水平输入 clamp 后的幅度乘 `MoveSpeedScale`；默认 airborne 时参数归零，项目可显式打开 airborne locomotion blend。
+- reaction 只在 `CharacterStateChangedEvent.CurrentState == Reaction` 时按 reason 查找 binding；缺失 binding 或 backend reject 只记录 diagnostics。
+- adapter 不读取 Animator、PlayableGraph 或 Unity transform，不把动画状态写回 Character Control / Combat / Gameplay。
+
 ## 使用约定
 
 - DTO 中的 clip、VFX、SFX、camera profile 等表现资源一律使用 `ResourceKey`。
@@ -242,6 +265,7 @@ Legacy coexistence:
 - `MxAnimationBlend1DDefinition` 和 `MxAnimationBlend2DDefinition` 的 point clip 使用 `ResourceKey`，会进入 definition hash、mapping validation 和 warmup required keys。权重计算在 noEngine 层完成；Unity backend 只消费权重并加载对应 clip。
 - 2D blend 权重计算只使用量化整数参数和 point 坐标，不读取 Unity pose。外部采样会 clamp 到矩形边界或最近线段 / 最近点，保证 diagnostics 和 replay presentation correction 可复现。
 - `MxAnimationBakeArtifact` 是派生缓存。它可以辅助 Combat authoring 和 preview，但 runtime authority 只能消费已量化 reference + 显式 runtime profile，不得直接读 Unity 当前动画状态。
+- Character Control animation adapter 只负责 locomotion/reaction presentation request 和 diagnostics；Combat action presentation 继续由 `CombatMxAnimationUnityBridge` 订阅 Combat started / finished / canceled lifecycle，accepted / queued / rejected / gameplay-only action events 只记录 skipped diagnostics，避免重复订阅。
 - `MxAnimationWarmupService` 不新增资源子系统，只把 required keys / labels 转成 `ResourcePreloadPlan`，并复用 `IResourcePreloadService` / `ResourceManager` / `ResourceCatalog`。
 - animation package expectation 不改变 mapping contract；同一份 `MxAnimationSetDefinition` 可以在 sample memory provider、local AssetBundle provider、remote Bundle provider 或项目层 Addressables adapter 间切换，只要 catalog entry key/hash/version/provider expectation 匹配。
 - warmup 会校验 animation set hash、resource catalog hash、clip registry version 和可选 expected clip registry entry hash；mismatch 必须输出具体 field、expected、actual 和相关 resource key。

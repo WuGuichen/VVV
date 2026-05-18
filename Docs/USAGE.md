@@ -1919,6 +1919,43 @@ if (pressureResult.ReactionStarted)
 }
 ```
 
+MxAnimation 表现适配放在可选程序集 `MxFramework.CharacterControl.Animation`。它只消费 Character Control 结果 / 事件，把移动、反应转成 animation backend 请求；Combat action lifecycle 仍由 `CombatMxAnimationUnityBridge` 负责：
+
+```csharp
+using MxFramework.CharacterControl.Animation;
+using MxFramework.Resources;
+
+var animationPresentation = new CharacterAnimationPresentationController(
+    mxAnimationBackend,
+    new CharacterAnimationPresentationOptions
+    {
+        TargetActorId = "character:1",
+        LocomotionBlendMode = CharacterAnimationLocomotionBlendMode.Blend2D,
+        LocomotionBlend2DId = "locomotion2d",
+        BlendLocomotionWhenAirborne = false,
+        ReactionBindings =
+        {
+            new CharacterAnimationReactionBinding
+            {
+                Reason = CharacterControlTransitionReason.GuardBreak,
+                BindingId = "reaction.guard_break",
+                ClipKey = new ResourceKey("demo.animation.guard_break", ResourceTypeIds.AnimationClip),
+                RequestKind = CharacterAnimationReactionRequestKind.CrossFade,
+                FadeDurationSeconds = 0.12f
+            }
+        }
+    });
+
+CharacterAnimationPresentationResult locomotionAnimation =
+    animationPresentation.ApplyLocomotion(motion);
+
+CharacterAnimationPresentationResult reactionAnimation =
+    animationPresentation.ApplyStateChanged(stateChangedEvent);
+
+CharacterAnimationPresentationDiagnosticSnapshot animationDiagnostics =
+    animationPresentation.CreateSnapshot();
+```
+
 本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
 
 ```csharp
@@ -2009,6 +2046,8 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
 - slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
 - Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。
+- MxAnimation presentation adapter 只输出 `MxAnimationBlend1DRequest` / `MxAnimationBlend2DRequest` / `Play` / `CrossFade` 请求和 diagnostics；1D speed 使用水平输入幅度乘移动倍率，默认 airborne 时 locomotion 参数归零，缺失 reaction binding、fallback binding 或 backend reject 会记录 diagnostics 但不影响 Character Control authority。
+- Combat action started / finished / canceled 的动画表现仍由 `CombatMxAnimationUnityBridge` 负责；accepted、queued、rejected 和 gameplay-only action events 在 Character Control animation adapter 中只记录 skipped diagnostics。
 
 详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/`。
 

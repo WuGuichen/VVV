@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.CharacterControl.Animation",
+    "rootNamespace": "MxFramework.CharacterControl.Animation",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Combat",
+        "MxFramework.Resources",
+        "MxFramework.Animation",
+        "MxFramework.CharacterControl"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
