@@ -1925,11 +1925,12 @@ using MxFramework.CharacterControl.RuntimeAiPlannerBridge;
 var profiles = new RuntimeAiCharacterCommandProfileRegistry();
 profiles.Register(new RuntimeAiCharacterCommandProfile(
     actionId: 10,
-    moveDirection: new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One),
+    moveDirection: FixVector3.Zero,
     facingBasis: CharacterFacingBasis.Identity,
     actionKind: CharacterActionKind.Attack,
     combatActionId: 1001,
-    traceTag: "approach-attack"));
+    moveSpeedScale: Fix64.Zero,
+    traceTag: "stand-cast"));
 
 var plannerSource = new RuntimeAiPlannerCharacterCommandSource(
     aiWorldState,
@@ -1946,6 +1947,8 @@ var plannerSource = new RuntimeAiPlannerCharacterCommandSource(
         CommandSmoothingFrames = 2
     });
 ```
+
+`combatActionId` / `gameplayAbilityId` 这类 action request 只在 action selection edge 或 reaction-delay 生效帧输出一次；后续最小决策间隔或 smoothing 复用同一 profile 时只输出 movement command。`moveSpeedScale` 不传时默认 `1`，显式传 `Fix64.Zero` 可以表达站定施法、原地防御或停步等待。
 
 移动 modifier / traction 通过 provider 注入，第一版只影响 `CombatMotionInput.MoveSpeedScale`：
 

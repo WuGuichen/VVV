@@ -75,6 +75,7 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - Input adapter 只读 `IInputProvider`，不直接读设备 API；Gameplay context 不可用时不输出 command，并丢弃当前 frame 及以前的 queued commands，避免 UI / cutscene 期间的动作在恢复后补发。
 - Runtime AI Planner bridge 使用 `Runtime AI Planner` 公共接口和 pressure fact keys，不使用 AIAction Config 或 WGame 私有行为数据。
 - Runtime AI Planner profile 的 `ActionRequest` 是 selection-edge one-shot；缓存复用、平滑复用和同 action 后续决策只继续输出移动、朝向、jump / sprint。
+- `RuntimeAiCharacterCommandProfile` 未指定 `moveSpeedScale` 时默认 `1`；显式传入 `Fix64.Zero` 是合法配置，可用于站定施法、原地防御或停步等待。
 - UI Toolkit、Audio、VFX、MxAnimation 和 debug overlay 只能消费事件 / snapshot。
 
 ## 测试入口
