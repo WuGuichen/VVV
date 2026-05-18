@@ -34,6 +34,7 @@
         "MxFramework.Input",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
+        "MxFramework.CharacterControl",
         "MxFramework.Combat.Authoring",
         "MxFramework.Combat.GameplayBridge",
         "MxFramework.UI.Toolkit",
