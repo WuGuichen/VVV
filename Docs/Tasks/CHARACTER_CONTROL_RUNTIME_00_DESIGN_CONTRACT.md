@@ -1,8 +1,8 @@
 # Character Control Runtime 00 Design Contract
 
-> Issues: #190, follow-up implementation slices #192, #193, #194, #198
+> Issues: #190, follow-up implementation slices #192, #193, #194, #198, #199
 > Delivery level: Framework Feature
-> Status: Design Contract + implementation slices (#192, #193, #194, #198)
+> Status: Design Contract + implementation slices (#192, #193, #194, #198, #199)
 
 ## Goal
 
@@ -208,11 +208,12 @@ Recommended order for the first implementation chain:
 8. `#201` Motion modifier / traction adapter contract.
 9. `#197` Pressure / reaction integration.
 10. `#198` MxAnimation presentation adapter for locomotion blend, reaction requests, backend result diagnostics, and Combat bridge ownership policy.
-11. Follow-up: Unity composition root / UI Toolkit runtime showcase.
+11. `#199` Character Control Debug UI source for state, command, motion, action, pressure and recent events.
+12. Follow-up: Unity composition root / UI Toolkit runtime showcase.
 
 ## Acceptance For This Contract
 
-- `CharacterCommand`, state machine, motion resolver, action controller, command source, presentation, and diagnostics boundaries are documented.
+- `CharacterCommand`, state machine, motion resolver, action controller, command source, presentation, Debug UI source, and diagnostics boundaries are documented.
 - Unity `CharacterController`, `Rigidbody`, and current Playables / Animator root motion are explicitly non-authoritative.
 - Implementation order and blocking dependency on the missing command/action DTO foundation are recorded.
 - Implementation slices #192-#194 and #198 add noEngine runtime code and EditMode tests only; no scene, prefab, ScriptableObject, or hand-written YAML is introduced.

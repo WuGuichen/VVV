@@ -1958,6 +1958,27 @@ CharacterAnimationPresentationDiagnosticSnapshot animationDiagnostics =
     animationPresentation.CreateSnapshot();
 ```
 
+Character Control 可直接注册到 Phase 13 Debug UI registry。Source 会订阅状态、动作和 pressure reaction 的公开事件；command / motion 由组合根在采样和 motion step 后显式记录：
+
+```csharp
+using MxFramework.DebugUI;
+using MxFramework.DebugUI.Adapters;
+
+var characterDebugSource = new CharacterControlDebugSource(
+    control,
+    actionController: actionController,
+    pressureReactionController: pressureReaction);
+
+characterDebugSource.RecordCommand(command);
+characterDebugSource.RecordMotionResult(motion);
+
+var debugRegistry = new FrameworkDebugSourceRegistry();
+debugRegistry.Register(characterDebugSource);
+
+// 组合根销毁、场景卸载或角色换绑时：
+characterDebugSource.Dispose();
+```
+
 本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
 
 ```csharp
@@ -2051,6 +2072,7 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。
 - MxAnimation presentation adapter 只输出 `MxAnimationBlend1DRequest` / `MxAnimationBlend2DRequest` / `Play` / `CrossFade` 请求和 diagnostics；1D speed 使用水平输入幅度乘移动倍率，默认 airborne 时 locomotion 参数归零，缺失 reaction binding、fallback binding 或 backend reject 会记录 diagnostics 但不影响 Character Control authority。
 - Combat action started / finished / canceled 的动画表现仍由 `CombatMxAnimationUnityBridge` 负责；accepted、queued、rejected 和 gameplay-only action events 在 Character Control animation adapter 中只记录 skipped diagnostics。
+- Debug UI source 只读公开事件和组合根传入的 last command / motion result；不暴露可写命令，不进入 SaveState、Replay 或 Runtime hash。`FrameworkDebugSourceRegistry` 不拥有 source 生命周期，组合根必须释放 event-backed source。
 
 详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/`。
 

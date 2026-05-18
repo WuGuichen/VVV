@@ -132,6 +132,7 @@
 | Combat / Gameplay action bridge | ✅ v0.1 | `CharacterActionController` / `ICharacterActionConstraint` / `CharacterActionEvent` | CharacterControl + Runtime + Gameplay + Combat |
 | Gameplay pressure reaction bridge | ✅ v0.3 | `CharacterPressureReactionController` / `CharacterPressureReactionPolicy` / `CharacterPressureReactionEvent` | CharacterControl + Gameplay + Combat |
 | MxAnimation presentation adapter | ✅ v0.4 | `CharacterAnimationPresentationController` / `CharacterAnimationPresentationOptions` / `CharacterAnimationPresentationDiagnosticSnapshot` | CharacterControl.Animation + Animation |
+| Debug UI source | ✅ v0.5 | `CharacterControlDebugSource` | DebugUI.Adapters + CharacterControl |
 | Local Input command source | ✅ v0.2 | `InputCharacterCommandSource` / `CharacterInputActionBinding` | CharacterControl.Input + Input |
 | Runtime AI Planner command source | ✅ v0.2 | `RuntimeAiPlannerCharacterCommandSource` / `RuntimeAiCharacterCommandProfile` | CharacterControl.RuntimeAiPlannerBridge + AI |
 | Motion modifier / traction contract | ✅ v0.2 | `ICharacterMotionModifierProvider` / `CharacterMotionModifierAggregator` | CharacterControl + Combat |
@@ -274,6 +275,7 @@
 | UI Toolkit overlay shell | ✅ v0.1 | `DebugUiOverlayController` / `DebugUiOverlayViewModelBinder` | DebugUI.Toolkit + UI.Toolkit |
 | RuntimeHost adapter | ✅ v0.1 | `RuntimeHostDebugSource` | DebugUI.Adapters + Runtime |
 | Gameplay / Combat adapters | ✅ v0.1 | `GameplayDiagnosticSnapshotDebugSource` / `GameplayComponentWorldDebugSource` / `CombatDebugSnapshotDebugSource` | DebugUI.Adapters |
+| Character Control adapter | ✅ v0.1 | `CharacterControlDebugSource` | DebugUI.Adapters + CharacterControl |
 | Logging / Resources 接入 | ✅ v0.1 | 复用 `LogDebugSource` / `ResourceDebugSource` | Logging.Diagnostics / Resources |
 | Event timeline view model | ✅ v0.2 | `DebugUiTimelineEntryViewModel` / `DebugUiTimelineViewModel` / `DebugUiTimelineFilter` | DebugUI |
 | Gameplay / Combat timeline adapters | ✅ v0.2 | `GameplayRuntimeEventTimelineDebugSource` / `CombatTimelineDebugSource` | DebugUI.Adapters |

@@ -1,6 +1,6 @@
 # Character Control 接口
 
-> 状态：v0.4 contract + command sources / motion modifier adapters / pressure reaction bridge / animation presentation adapter
+> 状态：v0.5 contract + command sources / motion modifier adapters / pressure reaction bridge / animation presentation adapter / Debug UI source
 > 任务入口：`Docs/Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
 
 ## 职责
@@ -31,6 +31,11 @@ MxFramework.CharacterControl.Animation
   -> MxFramework.Animation
   -> MxFramework.Combat
   -> MxFramework.Resources
+
+MxFramework.DebugUI.Adapters
+  -> MxFramework.CharacterControl
+  -> MxFramework.DebugUI
+  -> MxFramework.Diagnostics
 ```
 
 `MxFramework.CharacterControl` core 禁止引用：
@@ -77,6 +82,7 @@ MxFramework.CharacterControl.Animation
 | `CharacterAnimationPresentationOptions` | 配置 actor id、1D / 2D locomotion blend id、参数 id、量化 scale、airborne locomotion 策略和 reaction binding。 |
 | `CharacterAnimationReactionBinding` | `CharacterControlTransitionReason` 到 `Play` / `CrossFade` 请求的表现层绑定，clip 只保存 `ResourceKey`。 |
 | `CharacterAnimationPresentationDiagnosticSnapshot` | 记录 last request、backend result code、backend clip/resource error、missing binding、fallback / skipped reason 和最近诊断列表。 |
+| `CharacterControlDebugSource` | Phase 13 Debug UI adapter，把状态、last command、motion、action、pressure band 和 recent events 输出为只读 `FrameworkDebugSnapshot`。 |
 
 ## 使用约定
 
@@ -99,6 +105,7 @@ MxFramework.CharacterControl.Animation
 - locomotion 表现只消费 `CharacterMotionResult`，默认只在 grounded 时输出非零 1D speed 或 2D direction blend 参数；1D speed 使用 Combat 同款水平输入 clamp 后的幅度乘 `MoveSpeedScale`；root motion、Animator time 和 Playable state 不能反写 Character Control / Combat。
 - action lifecycle 不在 Character Control animation adapter 内再次订阅 Combat 事件；Combat action started / finished / canceled 表现仍由现有 `CombatMxAnimationUnityBridge` 负责，accepted / queued / rejected / gameplay command enqueued 只记录 skipped diagnostics，避免同一 Combat event 被双重桥接。
 - reaction 表现按 `CharacterControlTransitionReason` 查找 binding 并输出 `Play` / `CrossFade`；缺失 binding 或 backend reject 只进入 diagnostics，不改变控制权威状态。
+- `CharacterControlDebugSource` 位于 `MxFramework.DebugUI.Adapters`，不让 CharacterControl core 反向依赖 Debug UI；source 只订阅公开事件，command / motion 由组合根显式记录，组合根负责在角色换绑或销毁时 `Dispose()`。
 - UI Toolkit、Audio、VFX、MxAnimation 和 debug overlay 只能消费事件 / snapshot。
 
 ## 测试入口

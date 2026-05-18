@@ -15,6 +15,7 @@ registry.Register(new ResourceDebugSource(resourceManager));
 registry.Register(new RuntimeHostDebugSource(runtimeHost));
 registry.Register(new GameplayDiagnosticSnapshotDebugSource(() => gameplaySnapshot));
 registry.Register(new CombatDebugSnapshotDebugSource(() => combatSnapshot));
+registry.Register(new CharacterControlDebugSource(characterControlStateMachine));
 
 var aggregator = new DebugUiSnapshotAggregator();
 DebugUiDashboardViewModel dashboard = aggregator.Refresh(registry);
