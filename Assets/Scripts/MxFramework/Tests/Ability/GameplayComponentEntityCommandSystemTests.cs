@@ -90,12 +90,14 @@ namespace MxFramework.Tests.Ability
 
             var events = new List<GameplayRuntimeEvent>();
             Assert.AreEqual(2, module.DrainEvents(RuntimeFrame.Zero, events));
-            Assert.AreEqual(GameplayRuntimeEventType.CommandRejected, events[0].Type);
-            Assert.AreEqual(GameplayComponentEntityCommandSystem.MissingEntityReason, events[0].Reason);
-            Assert.AreEqual(entity, events[0].ComponentEntityId);
-            Assert.AreEqual(GameplayRuntimeEventType.CommandRejected, events[1].Type);
-            Assert.AreEqual(GameplayComponentEntityCommandSystem.InvalidEntityReason, events[1].Reason);
-            Assert.AreEqual(default(GameplayEntityId), events[1].ComponentEntityId);
+            GameplayRuntimeEvent staleEvent = FindEventByTrace(events, "stale");
+            GameplayRuntimeEvent invalidEvent = FindEventByTrace(events, "invalid");
+            Assert.AreEqual(GameplayRuntimeEventType.CommandRejected, staleEvent.Type);
+            Assert.AreEqual(GameplayComponentEntityCommandSystem.MissingEntityReason, staleEvent.Reason);
+            Assert.AreEqual(entity, staleEvent.ComponentEntityId);
+            Assert.AreEqual(GameplayRuntimeEventType.CommandRejected, invalidEvent.Type);
+            Assert.AreEqual(GameplayComponentEntityCommandSystem.InvalidEntityReason, invalidEvent.Reason);
+            Assert.AreEqual(default(GameplayEntityId), invalidEvent.ComponentEntityId);
         }
 
         [Test]
@@ -196,6 +198,18 @@ namespace MxFramework.Tests.Ability
             }
 
             public int Value { get; }
+        }
+
+        private static GameplayRuntimeEvent FindEventByTrace(List<GameplayRuntimeEvent> events, string traceId)
+        {
+            for (int i = 0; i < events.Count; i++)
+            {
+                if (events[i].TraceId == traceId)
+                    return events[i];
+            }
+
+            Assert.Fail("Missing event with traceId: " + traceId);
+            return default;
         }
     }
 }

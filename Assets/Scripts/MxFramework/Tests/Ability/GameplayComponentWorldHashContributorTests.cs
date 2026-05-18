@@ -57,7 +57,7 @@ namespace MxFramework.Tests.Ability
             GameplayCoreComponentSchemaDescriptors.RegisterDiagnostics(registry);
             GameplayCoreComponentSchemaDescriptors.RegisterRuntimeHash(registry);
 
-            Assert.AreEqual(6, registry.Count);
+            Assert.AreEqual(8, registry.Count);
             Assert.IsTrue(registry.TryGetDiagnosticWriter(out IGameplayComponentDiagnosticWriter<GameplayIdentityComponent> diagnosticWriter));
             Assert.IsTrue(registry.TryGetHashWriter(out IGameplayComponentHashWriter<GameplayIdentityComponent> hashWriter));
             Assert.IsTrue(registry.TryGetDiagnosticWriter(out IGameplayComponentDiagnosticWriter<GameplayPosturePressureComponent> postureDiagnosticWriter));

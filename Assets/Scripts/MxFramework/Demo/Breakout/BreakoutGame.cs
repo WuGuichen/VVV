@@ -988,6 +988,11 @@ namespace MxFramework.Demo.Breakout
                 _nextBallId = Math.Max(_nextBallId, ball.Id + 1);
             }
 
+            if (_balls.Count == 0 && IsLaunched && !IsGameOver && !IsWin)
+            {
+                _balls.Add(new BreakoutBall(_nextBallId++, BallX, BallY, BallVelocityX, BallVelocityY));
+            }
+
             if (!IsLaunched && !IsGameOver && !IsWin)
             {
                 ClampBallOnPaddle();

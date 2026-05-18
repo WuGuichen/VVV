@@ -14,6 +14,7 @@ namespace MxFramework.Demo.MarbleMaze
         private const int ExitCollider = 100;
         private const double BoardHalfExtent = 4.25d;
         private const double WallThickness = 0.36d;
+        private const double BoardColliderY = 0.55d;
 
         private readonly CombatPhysicsWorld _world = new CombatPhysicsWorld();
         private readonly List<CombatQueryResult> _hits = new List<CombatQueryResult>(8);
@@ -133,10 +134,10 @@ namespace MxFramework.Demo.MarbleMaze
 
         private void BuildWorld()
         {
-            RegisterAabb(10, WallLayer, 0d, 0d, BoardHalfExtent + (WallThickness * 0.5d), BoardHalfExtent + WallThickness, WallThickness);
-            RegisterAabb(11, WallLayer, 0d, 0d, -BoardHalfExtent - (WallThickness * 0.5d), BoardHalfExtent + WallThickness, WallThickness);
-            RegisterAabb(12, WallLayer, BoardHalfExtent + (WallThickness * 0.5d), 0d, 0d, WallThickness, BoardHalfExtent + WallThickness);
-            RegisterAabb(13, WallLayer, -BoardHalfExtent - (WallThickness * 0.5d), 0d, 0d, WallThickness, BoardHalfExtent + WallThickness);
+            RegisterAabb(10, WallLayer, 0d, BoardColliderY, BoardHalfExtent + (WallThickness * 0.5d), BoardHalfExtent + WallThickness, WallThickness);
+            RegisterAabb(11, WallLayer, 0d, BoardColliderY, -BoardHalfExtent - (WallThickness * 0.5d), BoardHalfExtent + WallThickness, WallThickness);
+            RegisterAabb(12, WallLayer, BoardHalfExtent + (WallThickness * 0.5d), BoardColliderY, 0d, WallThickness, BoardHalfExtent + WallThickness);
+            RegisterAabb(13, WallLayer, -BoardHalfExtent - (WallThickness * 0.5d), BoardColliderY, 0d, WallThickness, BoardHalfExtent + WallThickness);
 
             for (int i = 0; i < _checkpoints.Length; i++)
                 RegisterAabb(1 + i, GoalLayer, _checkpoints[i].X, _checkpoints[i].Y, _checkpoints[i].Z, _targetRadius, _targetRadius);

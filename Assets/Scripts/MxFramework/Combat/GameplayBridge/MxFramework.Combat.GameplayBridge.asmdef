@@ -3,6 +3,8 @@
     "rootNamespace": "MxFramework.Combat.GameplayBridge",
     "references": [
         "MxFramework.Combat",
+        "MxFramework.Core",
+        "MxFramework.Events",
         "MxFramework.Gameplay",
         "MxFramework.Buffs",
         "MxFramework.Runtime"

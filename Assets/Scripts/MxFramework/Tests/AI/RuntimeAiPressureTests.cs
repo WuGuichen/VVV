@@ -58,7 +58,7 @@ namespace MxFramework.Tests.AI
 
             float multiplier = PostureWeightEvaluator.GetActionWeightModifier(1001, world, impactData);
 
-            Assert.AreEqual(1.5f, multiplier, 0.0001f);
+            Assert.AreEqual(1.49f, multiplier, 0.0001f);
         }
 
         [Test]

@@ -1,0 +1,24 @@
+.showcase-root {
+    flex-grow: 1;
+}
+
+.showcase-header {
+    flex-direction: row;
+}
+
+.mx-panel {
+    margin-bottom: 6px;
+    padding: 6px;
+}
+
+.mx-command-button {
+    margin-right: 4px;
+}
+
+.mx-stat-bar {
+    height: 8px;
+}
+
+.mx-stat-bar__fill {
+    height: 8px;
+}

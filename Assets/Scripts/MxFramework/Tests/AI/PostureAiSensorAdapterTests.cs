@@ -16,7 +16,7 @@ namespace MxFramework.Tests.AI
             world.GetOrCreateStore<GameplayPosturePressureComponent>().Set(self, new GameplayPosturePressureComponent(100, currentPressure: 60));
             world.GetOrCreateStore<GameplayGuardPressureComponent>().Set(self, new GameplayGuardPressureComponent(100, currentPressure: 100));
             world.GetOrCreateStore<GameplayArmorIntegrityComponent>().Set(self, new GameplayArmorIntegrityComponent(80, 20));
-            world.GetOrCreateStore<GameplayPosturePressureComponent>().Set(target, new GameplayPosturePressureComponent(200, currentPressure: 50));
+            world.GetOrCreateStore<GameplayPosturePressureComponent>().Set(target, new GameplayPosturePressureComponent(200, currentPressure: 100));
             world.GetOrCreateStore<GameplayGuardPressureComponent>().Set(target, new GameplayGuardPressureComponent(100, currentPressure: 0));
             world.GetOrCreateStore<GameplayArmorIntegrityComponent>().Set(target, new GameplayArmorIntegrityComponent(50, 0));
             var state = new AiWorldState();
@@ -33,8 +33,8 @@ namespace MxFramework.Tests.AI
             AssertFact(state, RuntimeAiGameplayPressureFactKeys.SelfArmorRatio, 0.25f);
             AssertFact(state, RuntimeAiGameplayPressureFactKeys.SelfArmorBroken, false);
 
-            AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetPostureBand, (int)PressureBand.Pressed);
-            AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetPostureRatio, 0.25f);
+            AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetPostureBand, (int)PressureBand.Cracked);
+            AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetPostureRatio, 0.5f);
             AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetPostureBroken, false);
             AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetGuardBand, (int)PressureBand.Stable);
             AssertFact(state, RuntimeAiGameplayPressureFactKeys.TargetGuardRatio, 0f);
