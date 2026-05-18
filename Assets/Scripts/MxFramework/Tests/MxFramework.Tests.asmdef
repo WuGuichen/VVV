@@ -39,6 +39,8 @@
         "MxFramework.Gameplay",
         "MxFramework.Combat",
         "MxFramework.CharacterControl",
+        "MxFramework.CharacterControl.Input",
+        "MxFramework.CharacterControl.RuntimeAiPlannerBridge",
         "MxFramework.Combat.Authoring",
         "MxFramework.Combat.GameplayBridge",
         "MxFramework.UI.Toolkit",

@@ -1,0 +1,20 @@
+{
+    "name": "MxFramework.CharacterControl.RuntimeAiPlannerBridge",
+    "rootNamespace": "MxFramework.CharacterControl.RuntimeAiPlannerBridge",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.AI",
+        "MxFramework.CharacterControl"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

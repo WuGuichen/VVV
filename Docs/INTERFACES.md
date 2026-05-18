@@ -34,7 +34,7 @@
 | UI Toolkit | `Docs/Interfaces/UI.Toolkit.md` | `Assets/Scripts/MxFramework/UI.Toolkit/` | `Assets/Scripts/MxFramework/Tests/UI.Toolkit/` |
 | Gameplay | `Docs/Interfaces/Gameplay.md` | `Assets/Scripts/MxFramework/Gameplay/` | `Assets/Scripts/MxFramework/Tests/Ability/`, `Assets/Scripts/MxFramework/Tests/Gameplay/` |
 | Combat | `Docs/Interfaces/Combat.md` | `Assets/Scripts/MxFramework/Combat/` | `Assets/Scripts/MxFramework/Tests/Combat/` |
-| Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
+| Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl*/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
 | Editor | `Docs/Interfaces/Editor.md` | `Assets/Scripts/MxFramework/Editor/` | Unity Editor / MCP |
 
 ## 文档规则

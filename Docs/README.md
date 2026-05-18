@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.45 | 2026-05-18
+> 版本 0.6.46 | 2026-05-18
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -138,6 +138,7 @@
 | `Tasks/GAMEPLAY_COMPONENT_RUNTIME_SHOWCASE_01.md` | Gameplay Component Runtime Showcase 01：把 v0 component runtime 收口能力组合成可观察 Runtime Slice，提供 Unity runner、UI Toolkit 视图和 Editor 场景生成菜单。 |
 | `Tasks/GAMEPLAY_COMPONENT_PLAYABLE_COMBAT_BRIDGE_PLAN_01.md` | Gameplay Component Playable + Combat Bridge Plan：规划将 Gameplay Component Runtime Showcase 升级为提交的 Unity Playable 入口，并固定 component-native Combat bridge 的 source-of-truth 边界和后续实施切片。 |
 | `Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md` | Character Control Runtime 00：固定 noEngine 角色控制编排边界，并实现 command DTO、控制状态机、Combat Motion resolver 和 Combat / Gameplay action bridge 首批切片。 |
+| Gitea #195 / #196 / #201 | Character Control command sources and motion modifiers：新增 Local Input adapter、Runtime AI Planner command source、motion modifier / traction provider contract。 |
 | `Tasks/GAMEPLAY_COMPONENT_BUFF_MODIFIER_01.md` | Gameplay Component Buff / Modifier 01：新增 component-native buff / additive modifier state、cleanup system、diagnostics、hash 和 SaveState。 |
 | `Tasks/GAMEPLAY_ABILITY_03_COMMAND_SYSTEM.md` | Gameplay Ability 03：将 CastAbility / DespawnEntity 迁入 command systems，让 GameplayRuntimeModule 只负责 drain、pipeline、event queue 和 world tick。 |
 | `Tasks/GAMEPLAY_ABILITY_04_COMMAND_HANDLED_STATE.md` | Gameplay Ability 04：新增 command handled 状态，让 unsupported system 基于 handled 判断，支持 default pipeline 上扩展自定义 command system。 |
@@ -221,6 +222,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.46 | 2026-05-18 | 扩展 Character Control v0.2：新增 Local Input command source、Runtime AI Planner command source、motion modifier / traction adapter contract 和对应测试 |
 | 0.6.45 | 2026-05-18 | Phase 13 扩展 #185-#187：新增 Config Runtime patch hot reload、Debug UI input adapter、command gate 和 Observability 调试指南 |
 | 0.6.44 | 2026-05-18 | Phase 13 扩展 #182-#184：新增 Debug UI timeline / entity watch、Diagnostics performance counters 和 noEngine Simulation Harness reports |
 | 0.6.43 | 2026-05-18 | 新增 Character Control noEngine 编排接口、设计契约和 v0.1 实现入口，串联 Runtime frame、Combat Motion、Combat Action 与 Gameplay command bridge |

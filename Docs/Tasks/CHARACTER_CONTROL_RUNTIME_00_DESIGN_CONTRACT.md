@@ -203,9 +203,12 @@ Recommended order for the first implementation chain:
 3. `#192` Control state machine and transition events.
 4. `#193` Motion resolver over `CombatKinematicMotor`.
 5. `#194` Action controller bridge to `CombatActionRunner` and Gameplay runtime commands.
-6. Follow-up: Input adapter and Runtime AI Planner adapter.
-7. Follow-up: Unity composition root / UI Toolkit runtime showcase.
-8. Follow-up: MxAnimation presentation bridge policy and authored action mappings.
+6. `#195` Local Input adapter to `ICharacterCommandSource`.
+7. `#196` Runtime AI Planner adapter to `ICharacterCommandSource`.
+8. `#201` Motion modifier / traction adapter contract.
+9. Follow-up: pressure / reaction integration.
+10. Follow-up: Unity composition root / UI Toolkit runtime showcase.
+11. Follow-up: MxAnimation presentation bridge policy and authored action mappings.
 
 ## Acceptance For This Contract
 
