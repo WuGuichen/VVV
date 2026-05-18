@@ -5,6 +5,7 @@
         "MxFramework.Core",
         "MxFramework.Runtime",
         "MxFramework.Combat",
+        "MxFramework.Gameplay",
         "MxFramework.Resources",
         "MxFramework.Animation",
         "MxFramework.CharacterControl"

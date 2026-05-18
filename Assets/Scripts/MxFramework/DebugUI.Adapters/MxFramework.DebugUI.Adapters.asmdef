@@ -2,6 +2,7 @@
     "name": "MxFramework.DebugUI.Adapters",
     "rootNamespace": "MxFramework.DebugUI.Adapters",
     "references": [
+        "MxFramework.Core",
         "MxFramework.DebugUI",
         "MxFramework.Diagnostics",
         "MxFramework.Runtime",

@@ -136,10 +136,11 @@
 | Local Input command source | ✅ v0.2 | `InputCharacterCommandSource` / `CharacterInputActionBinding` | CharacterControl.Input + Input |
 | Runtime AI Planner command source | ✅ v0.2 | `RuntimeAiPlannerCharacterCommandSource` / `RuntimeAiCharacterCommandProfile` | CharacterControl.RuntimeAiPlannerBridge + AI |
 | Motion modifier / traction contract | ✅ v0.2 | `ICharacterMotionModifierProvider` / `CharacterMotionModifierAggregator` | CharacterControl + Combat |
+| Playable vertical slice | ✅ playable validation | `CharacterControlPlayableSlice` / `CharacterControlPlayableDemo` / `Assets/Scenes/CharacterControlPlayable.unity` | Demo + CharacterControl + Runtime + UI Toolkit |
 
 → 接口：`Interfaces/CharacterControl.md`
 → 设计：`Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
-→ 测试：`Tests/CharacterControl/`
+→ 测试：`Tests/CharacterControl/`, `Tests/Demo/CharacterControl/`
 → **边界**: Character Control 不读取 Unity 输入、不调用 Unity Physics、不写 Gameplay HP/Buff/Ability source of truth，也不让 MxAnimation / Animator / Playables root motion 反向驱动权威状态。
 
 ---
@@ -337,13 +338,14 @@
 | Runtime Foundation Showcase Path | ✅ v0.1 | `RuntimeAbilitySliceRunner` 通过 `RuntimeHost` 驱动 command drain、simulation tick、diagnostics/replay hash；HUD 手动按钮走 `RuntimeCommandBuffer`；Ability Slice 支持 SaveState 恢复 |
 | Tetris Runtime Validation | ✅ v0.1 | 纯 C# Tetris validation fixture 覆盖固定帧输入、gravity/lock/line clear、replay playback hash、hash mismatch 和 SaveState JSON roundtrip |
 | Tetris Playable Demo | ✅ v0.1 | `Assets/Scenes/TetrisRuntimeValidation.unity`，UI Toolkit UXML/USS 棋盘；键盘输入经 `RuntimeCommandBuffer` 进入 `RuntimeHost` 后推进 Tetris |
+| Character Control Playable Demo | ✅ playable validation | `Assets/Scenes/CharacterControlPlayable.unity`，Local Input / Runtime AI Planner command source 经 `RuntimeCommandBuffer` 入队，由 `RuntimeHost` 推进移动、跳跃、攻击、pressure reaction、MxAnimation diagnostics 和 Debug UI snapshot |
 | Breakout Runtime Validation | ✅ v0.3 | 纯 C# Breakout validation fixture 覆盖连续运动、AABB 碰撞、关卡推进、砖块类型/HP/道具砖、多球、Wide/Slow/Multi/ExtraLife/Laser 道具、预发球滚动、按球拍位置发射方向、Replay hash、hash mismatch 和 SaveState JSON roundtrip |
 | Breakout Playable Demo | 待补齐场景 | 当前仓库保留 `BreakoutPlayableDemo` / `BreakoutAppFlowDemo` / UI Toolkit 资产，但 Breakout 场景资产尚未提交，因此不标记为 Playable |
 | Marble Maze Playable Demo | ✅ v0.1 playable | `Assets/Scenes/MarbleMazeBoot.unity` / `Assets/Scenes/MarbleMazeGameplay.unity`，Unity Physics 作为 Rigidbody/Collider 边界权威；输入经 `DefaultInputService` / `InputSnapshot` 转为 `RuntimeCommandBuffer` tilt 命令；RuntimeHost 记录 physics sample/checkpoint、计时、诊断 hash、Replay playback 和 SaveState JSON roundtrip |
 
-→ 场景：`Assets/Scenes/RuntimeVerticalSlice.unity`, `Assets/Scenes/TetrisRuntimeValidation.unity`
-→ 运行器：`Demo/RuntimeVerticalSliceRunner.cs`, `Demo/GameplayComponentRuntime/GameplayComponentRuntimeShowcaseRunner.cs`, `Demo/Tetris/TetrisPlayableDemo.cs`, `Demo/Breakout/BreakoutPlayableDemo.cs`, `Demo/Breakout/BreakoutAppFlowDemo.cs`
-→ UI：`Assets/UI/MxFramework/Showcase/GameplayShowcase.uxml`, `Assets/UI/MxFramework/Tetris/TetrisPlayableDemo.uxml`, `Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uxml`
+→ 场景：`Assets/Scenes/RuntimeVerticalSlice.unity`, `Assets/Scenes/TetrisRuntimeValidation.unity`, `Assets/Scenes/CharacterControlPlayable.unity`
+→ 运行器：`Demo/RuntimeVerticalSliceRunner.cs`, `Demo/GameplayComponentRuntime/GameplayComponentRuntimeShowcaseRunner.cs`, `Demo/Tetris/TetrisPlayableDemo.cs`, `Demo/CharacterControl/CharacterControlPlayableDemo.cs`, `Demo/Breakout/BreakoutPlayableDemo.cs`, `Demo/Breakout/BreakoutAppFlowDemo.cs`
+→ UI：`Assets/UI/MxFramework/Showcase/GameplayShowcase.uxml`, `Assets/UI/MxFramework/Tetris/TetrisPlayableDemo.uxml`, `Assets/UI/MxFramework/CharacterControl/CharacterControlPlayableDemo.uxml`, `Assets/UI/MxFramework/Breakout/BreakoutPlayableDemo.uxml`
 
 ---
 
