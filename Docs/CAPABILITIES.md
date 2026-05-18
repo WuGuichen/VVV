@@ -131,6 +131,7 @@
 | Combat Motion resolver | ✅ v0.1 | `CharacterMotionResolver` / `CharacterMotionSettings` / `CharacterMotionResult` | CharacterControl + Combat |
 | Combat / Gameplay action bridge | ✅ v0.1 | `CharacterActionController` / `ICharacterActionConstraint` / `CharacterActionEvent` | CharacterControl + Runtime + Gameplay + Combat |
 | Gameplay pressure reaction bridge | ✅ v0.3 | `CharacterPressureReactionController` / `CharacterPressureReactionPolicy` / `CharacterPressureReactionEvent` | CharacterControl + Gameplay + Combat |
+| MxAnimation presentation adapter | ✅ v0.4 | `CharacterAnimationPresentationController` / `CharacterAnimationPresentationOptions` / `CharacterAnimationPresentationDiagnosticSnapshot` | CharacterControl.Animation + Animation |
 | Local Input command source | ✅ v0.2 | `InputCharacterCommandSource` / `CharacterInputActionBinding` | CharacterControl.Input + Input |
 | Runtime AI Planner command source | ✅ v0.2 | `RuntimeAiPlannerCharacterCommandSource` / `RuntimeAiCharacterCommandProfile` | CharacterControl.RuntimeAiPlannerBridge + AI |
 | Motion modifier / traction contract | ✅ v0.2 | `ICharacterMotionModifierProvider` / `CharacterMotionModifierAggregator` | CharacterControl + Combat |
@@ -223,6 +224,7 @@
 | noEngine 动画表现契约 | ✅ v0.1 | `MxAnimationSetDefinition` / `MxAnimationActionBinding` / `IMxAnimationBackend` | Animation |
 | Unity Playables Backend | ✅ v0.1 | `UnityPlayablesAnimationBackend` | Animation.Unity |
 | Combat 表现桥 | ✅ v0.1 | `CombatMxAnimationUnityBridge` / `ICombatMxAnimationPresentationEventSink` | Combat.Animation.Unity |
+| Character Control 表现桥 | ✅ v0.4 | `CharacterAnimationPresentationController` / locomotion blend / reaction binding diagnostics | CharacterControl.Animation + Animation |
 | Clip Registry + Mapping | ✅ v0.2 | `MxAnimationClipRegistry` / `IMxAnimationMappingProvider` / `MxAnimationClipRegistryExporter` | Animation + Editor |
 | Presentation Sync Contract | ✅ v0.2 | `MxAnimationPresentationSyncState` / `MxAnimationPresentationEventDedupeKey` | Animation |
 | Layer Weight + AvatarMask | ✅ v0.2 | `MxAnimationLayerDefinition` / `MxAnimationLayerWeightRequest` / `ResourceTypeIds.AvatarMask` | Animation + Animation.Unity |
