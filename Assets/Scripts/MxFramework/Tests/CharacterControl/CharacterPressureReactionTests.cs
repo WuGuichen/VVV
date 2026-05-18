@@ -236,6 +236,42 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(CharacterControlLockMask.None, machine.ControlLockMask);
         }
 
+        [Test]
+        public void FinishActiveReaction_DoesNotFinishReenteredReactionOwnedByAnotherSource()
+        {
+            var machine = new CharacterControlStateMachine(CreateEntity());
+            var pressure = new CharacterPressureReactionController(machine, policy: new CharacterPressureReactionPolicy
+            {
+                GuardBreakReactionFrames = 8,
+                GuardBreakLockMask = CharacterControlLockMask.Action
+            });
+
+            CharacterPressureReactionResult started = pressure.Apply(new GuardBreakEvent(
+                new RuntimeFrame(5),
+                CreateEntity().GameplayEntityId,
+                PressureBand.Cracked,
+                previousValue: 50,
+                currentPressure: 100,
+                maxPressure: 100,
+                delta: 50,
+                traceId: "guard-break"));
+            Assert.IsTrue(started.ReactionStarted);
+            Assert.IsTrue(machine.FinishReaction(new RuntimeFrame(6), "External owner ended the pressure reaction.").Success);
+            Assert.IsTrue(machine.BeginReaction(
+                new RuntimeFrame(7),
+                CharacterControlTransitionReason.ReactionStarted,
+                CharacterControlLockMask.Action,
+                "External reaction.").Success);
+
+            CharacterPressureReactionResult finished = pressure.FinishActiveReaction(new RuntimeFrame(8), "Pressure owner disabled.");
+
+            Assert.IsTrue(finished.Recorded);
+            Assert.IsFalse(finished.ReactionFinished);
+            Assert.IsFalse(pressure.HasActiveReaction);
+            Assert.AreEqual(CharacterControlState.Reaction, machine.CurrentState);
+            Assert.AreEqual(CharacterControlLockMask.Action, machine.ControlLockMask);
+        }
+
         private static CharacterControlEntityRef CreateEntity()
         {
             return CharacterControlEntityRef.FromGameplayAndCombat(

@@ -265,6 +265,7 @@ namespace MxFramework.CharacterControl
         private readonly CharacterPressureReactionPolicy _policy;
         private RuntimeFrame _activeReactionEndFrame;
         private CharacterPressureReactionKind _activeReactionKind;
+        private int _activeReactionVersion;
         private bool _hasActiveReaction;
 
         public CharacterPressureReactionController(
@@ -364,16 +365,18 @@ namespace MxFramework.CharacterControl
             }
 
             CharacterPressureReactionKind kind = _activeReactionKind;
-            _hasActiveReaction = false;
-            _activeReactionKind = CharacterPressureReactionKind.None;
-            _activeReactionEndFrame = default;
+            bool ownsReaction = OwnsCurrentReaction();
+            ClearActiveReaction();
 
-            if (_stateMachine.CurrentState != CharacterControlState.Reaction)
+            if (!ownsReaction)
             {
+                string recordedMessage = _stateMachine.CurrentState == CharacterControlState.Reaction
+                    ? "Pressure reaction ownership changed before finish."
+                    : "Pressure reaction already left Reaction state.";
                 CharacterPressureReactionResult recorded = CharacterPressureReactionResult.RecordedOnly(
                     kind,
                     frame,
-                    string.IsNullOrEmpty(message) ? "Pressure reaction already left Reaction state." : message);
+                    string.IsNullOrEmpty(message) ? recordedMessage : message);
                 Emit(CharacterPressureReactionEventType.Recorded, recorded, default, PressureBand.Stable, PressureBand.Stable);
                 return recorded;
             }
@@ -405,13 +408,15 @@ namespace MxFramework.CharacterControl
             }
 
             CharacterPressureReactionKind kind = _activeReactionKind;
-            _hasActiveReaction = false;
-            _activeReactionKind = CharacterPressureReactionKind.None;
-            _activeReactionEndFrame = default;
+            bool ownsReaction = OwnsCurrentReaction();
+            ClearActiveReaction();
 
-            if (_stateMachine.CurrentState != CharacterControlState.Reaction)
+            if (!ownsReaction)
             {
-                result = CharacterPressureReactionResult.RecordedOnly(kind, frame, "Pressure reaction already left Reaction state.");
+                string recordedMessage = _stateMachine.CurrentState == CharacterControlState.Reaction
+                    ? "Pressure reaction ownership changed before finish."
+                    : "Pressure reaction already left Reaction state.";
+                result = CharacterPressureReactionResult.RecordedOnly(kind, frame, recordedMessage);
                 Emit(CharacterPressureReactionEventType.Recorded, result, default, PressureBand.Stable, PressureBand.Stable);
                 return true;
             }
@@ -448,6 +453,23 @@ namespace MxFramework.CharacterControl
                 return recorded;
             }
 
+            bool ownsCurrentReaction = OwnsCurrentReaction();
+            bool currentReactionIsForeign = _stateMachine.CurrentState == CharacterControlState.Reaction && !ownsCurrentReaction;
+            if (_hasActiveReaction && !ownsCurrentReaction)
+            {
+                ClearActiveReaction();
+            }
+
+            if (currentReactionIsForeign)
+            {
+                CharacterPressureReactionResult recorded = CharacterPressureReactionResult.RecordedOnly(
+                    kind,
+                    frame,
+                    "Reaction state is already owned by another source.");
+                Emit(CharacterPressureReactionEventType.Recorded, recorded, gameplayEntityId, previousBand, newBand);
+                return recorded;
+            }
+
             bool shouldCancel = cancelsAction && _stateMachine.CurrentState == CharacterControlState.Action;
             CharacterActionResult cancelResult = default;
             if (shouldCancel && _actionController != null)
@@ -479,6 +501,7 @@ namespace MxFramework.CharacterControl
             _hasActiveReaction = true;
             _activeReactionKind = kind;
             _activeReactionEndFrame = reactionEndFrame;
+            _activeReactionVersion = transition.Version;
 
             CharacterPressureReactionResult result = CharacterPressureReactionResult.Started(
                 kind,
@@ -491,6 +514,21 @@ namespace MxFramework.CharacterControl
                 message);
             Emit(CharacterPressureReactionEventType.ReactionStarted, result, gameplayEntityId, previousBand, newBand);
             return result;
+        }
+
+        private bool OwnsCurrentReaction()
+        {
+            return _hasActiveReaction
+                && _stateMachine.CurrentState == CharacterControlState.Reaction
+                && _stateMachine.Version == _activeReactionVersion;
+        }
+
+        private void ClearActiveReaction()
+        {
+            _hasActiveReaction = false;
+            _activeReactionKind = CharacterPressureReactionKind.None;
+            _activeReactionEndFrame = default;
+            _activeReactionVersion = 0;
         }
 
         private bool TryValidateEntity(

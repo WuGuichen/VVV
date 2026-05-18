@@ -3,7 +3,6 @@
     "rootNamespace": "MxFramework.CharacterControl",
     "references": [
         "MxFramework.Core",
-        "MxFramework.Events",
         "MxFramework.Runtime",
         "MxFramework.Combat",
         "MxFramework.Gameplay"

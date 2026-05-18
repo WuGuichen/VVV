@@ -14,7 +14,6 @@
 ```text
 MxFramework.CharacterControl
   -> MxFramework.Core
-  -> MxFramework.Events
   -> MxFramework.Runtime
   -> MxFramework.Combat
   -> MxFramework.Gameplay
