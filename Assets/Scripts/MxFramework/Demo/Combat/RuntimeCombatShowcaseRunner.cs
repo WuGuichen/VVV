@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MxFramework.CharacterControl;
 using MxFramework.Combat.Animation;
 using MxFramework.Combat.Core;
 using MxFramework.Combat.Diagnostics;
@@ -6,6 +7,9 @@ using MxFramework.Combat.Hit;
 using MxFramework.Combat.Motion;
 using MxFramework.Combat.Physics;
 using MxFramework.Core.Math;
+using MxFramework.Diagnostics;
+using MxFramework.Input;
+using MxFramework.Runtime;
 using UnityEngine;
 
 namespace MxFramework.Demo
@@ -68,6 +72,9 @@ namespace MxFramework.Demo
         private const int CommandProbe = 5;
         private const int CommandInteractiveAttack = 6;
         private const int CommandMotion = 7;
+        private const int CommandCharacterControl = 8;
+        private const int CommandPressureBreak = 9;
+        private const int CommandRuntimeAiPlanner = 10;
 
         private const int MaxLog = 40;
 
@@ -133,6 +140,7 @@ namespace MxFramework.Demo
         private float _resultShownAt;
         private bool _lastResultWasHit;
         private RuntimeCombatShowcaseMotionAdapter _motionAdapter;
+        private RuntimeCombatCharacterControlSlice _characterControlSlice;
 
         public bool IsInitialized { get; private set; }
         public CombatFrame CurrentFrame => _clock.CurrentFrame;
@@ -160,6 +168,11 @@ namespace MxFramework.Demo
         public string LastQueryDebugSummary => BuildLastQueryDebugSummary();
         public string MotionSummary => BuildMotionSummary();
         public string MotionCollisionSummary => _motionAdapter != null ? _motionAdapter.BuildCollisionSummary() : "Motion collision: waiting";
+        public string CharacterControlSummary => _characterControlSlice != null ? _characterControlSlice.BuildSummary() : "CharacterControl: waiting";
+        public string CharacterControlAnimationSummary => _characterControlSlice != null ? _characterControlSlice.BuildAnimationSummary() : "animation: waiting";
+        public string CharacterControlDebugReport => _characterControlSlice != null ? _characterControlSlice.BuildDebugReport() : "CharacterControl: waiting";
+        public FrameworkDebugSnapshot CharacterControlDebugSnapshot => EnsureCharacterControlSlice().CreateDebugSnapshot();
+        public int CharacterControlGameplayCommandCount => _characterControlSlice != null ? _characterControlSlice.TotalGameplayCommandsDrained : 0;
         public string MotionBrief => _motionAdapter != null
             ? $"Motion grounded={_motionAdapter.State.Grounded} flags={_motionAdapter.State.CollisionFlags}"
             : "Motion waiting";
@@ -181,6 +194,11 @@ namespace MxFramework.Demo
         private void LateUpdate()
         {
             AnimateCombatVisuals();
+        }
+
+        private void OnDestroy()
+        {
+            DisposeCharacterControlSlice();
         }
 
         public void StepFrame()
@@ -306,6 +324,7 @@ namespace MxFramework.Demo
             _selectedEntityId = new CombatEntityId(PlayerEntityId);
             ResolveSceneMarkers();
             EnsureMotionAdapter();
+            ResetCharacterControlSlice();
             _motionAdapter.Reset(GetPhysicsPosition(
                 _playerMarker,
                 new FixVector3(Fix64.Zero, _motionAdapter.Config.CharacterHalfExtents.Y, Fix64.Zero)));
@@ -327,8 +346,9 @@ namespace MxFramework.Demo
             }
 
             LogEvent(_physicsBindingSummary);
-            LogEvent("Playground: WASD/Arrows move, Space jump, H hide UI, P probe, J attack, Q shape, T step, R reset.");
+            LogEvent("Playground: WASD/Arrows move through CharacterControl, Space jump, J attack, T Runtime AI Planner, P probe, Q shape, R reset.");
             LogEvent(MotionSummary);
+            LogEvent(CharacterControlSummary);
             UpdateSnapshot();
         }
 
@@ -449,6 +469,122 @@ namespace MxFramework.Demo
             UpdateSnapshot();
         }
 
+        public bool StepCharacterControlFromInput(IInputProvider inputProvider)
+        {
+            RuntimeCombatCharacterControlSlice slice = EnsureCharacterControlSlice();
+            CombatFrame frame = _clock.Step();
+            RuntimeFrame runtimeFrame = new RuntimeFrame(frame.Value);
+            if (!slice.TryReadLocalCommand(inputProvider, runtimeFrame, out CharacterCommand command))
+            {
+                slice.TickRuntime(runtimeFrame);
+                UpdateSnapshot();
+                return false;
+            }
+
+            ApplyCharacterControlCommand(frame, command, CommandCharacterControl);
+            return true;
+        }
+
+        public bool RunRuntimeAiPlannerCommand()
+        {
+            RuntimeCombatCharacterControlSlice slice = EnsureCharacterControlSlice();
+            CombatFrame frame = _clock.Step();
+            RuntimeFrame runtimeFrame = new RuntimeFrame(frame.Value);
+            if (!slice.TryReadRuntimeAiPlannerCommand(runtimeFrame, out CharacterCommand command))
+            {
+                slice.TickRuntime(runtimeFrame);
+                _interactionSummary = "Runtime AI Planner command suppressed.";
+                LogEvent(_interactionSummary);
+                UpdateSnapshot();
+                return false;
+            }
+
+            ApplyCharacterControlCommand(frame, command, CommandRuntimeAiPlanner);
+            return true;
+        }
+
+        public CharacterPressureReactionResult TriggerCharacterPressureBreak()
+        {
+            RuntimeCombatCharacterControlSlice slice = EnsureCharacterControlSlice();
+            CombatFrame frame = _clock.Step();
+            RuntimeFrame runtimeFrame = new RuntimeFrame(frame.Value);
+            _replayRecorder.Record(new CombatReplayInput(frame, new CombatEntityId(PlayerEntityId), CommandPressureBreak, frame.Value));
+            CharacterPressureReactionResult result = slice.ApplyPostureBreak(runtimeFrame, "combat-showcase:manual-pressure-break");
+            slice.TickRuntime(runtimeFrame);
+            _interactionSummary = $"CharacterControl PressureBreak: kind={result.Kind} started={result.ReactionStarted} active={CharacterControlSummary}";
+            LogEvent(_interactionSummary);
+            UpdateSnapshot();
+            return result;
+        }
+
+        private void ApplyCharacterControlCommand(
+            CombatFrame frame,
+            CharacterCommand command,
+            int replayCommandId)
+        {
+            RuntimeCombatCharacterControlSlice slice = EnsureCharacterControlSlice();
+            RuntimeFrame runtimeFrame = new RuntimeFrame(frame.Value);
+            EnsureMotionAdapter();
+            _replayRecorder.Record(new CombatReplayInput(
+                frame,
+                new CombatEntityId(PlayerEntityId),
+                replayCommandId,
+                EncodeCharacterControlInput(command)));
+            RebuildPhysicsWorld(logBinding: false);
+            _queries.Clear();
+            _queryHeaders.Clear();
+            _physicsHits.Clear();
+            _hitResults.Clear();
+            _lastQueryDebugReport = null;
+
+            slice.RecordCommand(command);
+            CharacterActionResult actionResult = default;
+            bool hasActionResult = false;
+            if (command.HasActionRequest)
+            {
+                actionResult = slice.SubmitAction(command.ActionRequest);
+                hasActionResult = true;
+            }
+
+            CharacterMotionResult motionResult = _motionAdapter.StepCharacter(
+                frame,
+                slice.StateMachine,
+                command,
+                _physicsWorld);
+            slice.RecordMotion(motionResult);
+            _playerPhysicsPosition = motionResult.Position;
+            ApplyMotionToPlayerMarker();
+            if (_physicsWorld.TryGetBody(PlayerBodyId, out CombatPhysicsBody playerBody))
+                _playerPhysicsPosition = playerBody.Position;
+
+            bool resolvedCombatAction = hasActionResult
+                && actionResult.Success
+                && command.ActionRequest.HasCombatAction;
+            if (resolvedCombatAction)
+            {
+                _selectedEntityId = new CombatEntityId(PlayerEntityId);
+                ResolveInteractiveAttack(frame, recordReplay: false, sourceLabel: "CharacterControl Attack");
+            }
+            else
+            {
+                _interactionSummary = $"CharacterControl {command.TraceId}: pos={FormatPosition(_playerMarker != null ? _playerMarker.position : ToVector3(motionResult.Position))} grounded={motionResult.Grounded} state={slice.StateMachine.CurrentState}";
+                if (hasActionResult)
+                    _interactionSummary += $" action={command.ActionRequest.Kind} success={actionResult.Success}";
+                LogEvent(_interactionSummary);
+            }
+
+            slice.TickRuntime(runtimeFrame);
+            if (command.JumpPressed
+                || command.HasActionRequest
+                || motionResult.CollisionFlags != CombatMotionCollisionFlags.None
+                || frame.Value % 15 == 0)
+            {
+                LogEvent(CharacterControlSummary);
+            }
+
+            UpdateSnapshot();
+        }
+
         public void ProbeFromSelected()
         {
             CombatFrame frame = _clock.Step();
@@ -475,7 +611,14 @@ namespace MxFramework.Demo
         public void AttackFromSelected()
         {
             CombatFrame frame = _clock.Step();
-            _replayRecorder.Record(new CombatReplayInput(frame, _selectedEntityId, CommandInteractiveAttack, frame.Value));
+            ResolveInteractiveAttack(frame, recordReplay: true, sourceLabel: "Attack");
+        }
+
+        private void ResolveInteractiveAttack(CombatFrame frame, bool recordReplay, string sourceLabel)
+        {
+            if (recordReplay)
+                _replayRecorder.Record(new CombatReplayInput(frame, _selectedEntityId, CommandInteractiveAttack, frame.Value));
+
             RebuildPhysicsWorld(logBinding: false);
             _queries.Clear();
             _queryHeaders.Clear();
@@ -491,7 +634,7 @@ namespace MxFramework.Demo
                 AddScore(-10);
                 ShowPhysicsQueryVisual(query, false);
                 ShowHitMarker(GetQueryEndPoint(query), false);
-                _interactionSummary = $"Attack {SelectedEntityName}->{GetTargetEntityName()}: miss | {LastQueryDebugSummary}";
+                _interactionSummary = $"{sourceLabel} {SelectedEntityName}->{GetTargetEntityName()}: miss | {LastQueryDebugSummary}";
                 LogEvent(_interactionSummary);
                 UpdateSnapshot();
                 return;
@@ -520,6 +663,11 @@ namespace MxFramework.Demo
             if (result.IsAcceptedDamage)
             {
                 ApplyDamageToTarget(result.Damage);
+                if (_selectedEntityId.Value == EnemyEntityId)
+                {
+                    EnsureCharacterControlSlice().ApplyPostureBreak(new RuntimeFrame(frame.Value), "combat-showcase:enemy-hit");
+                }
+
                 _streak++;
                 AddScore(100 + _streak * 25);
             }
@@ -530,7 +678,7 @@ namespace MxFramework.Demo
 
             ShowPhysicsQueryVisual(query, result.IsAcceptedDamage);
             ShowHitMarker(GetHitPresentationPoint(physicsHit), result.IsAcceptedDamage);
-            _interactionSummary = $"Attack {SelectedEntityName}->{GetTargetEntityName()}: {result.Kind} damage={result.Damage} | {LastQueryDebugSummary}";
+            _interactionSummary = $"{sourceLabel} {SelectedEntityName}->{GetTargetEntityName()}: {result.Kind} damage={result.Damage} | {LastQueryDebugSummary}";
             LogEvent(_interactionSummary);
             TryAdvanceRoundAfterKill();
             UpdateSnapshot();
@@ -744,6 +892,29 @@ namespace MxFramework.Demo
                 _motionAdapter = new RuntimeCombatShowcaseMotionAdapter(MotionObstacleLayer);
         }
 
+        private RuntimeCombatCharacterControlSlice EnsureCharacterControlSlice()
+        {
+            if (_characterControlSlice == null)
+                _characterControlSlice = new RuntimeCombatCharacterControlSlice(_actionId);
+
+            return _characterControlSlice;
+        }
+
+        private void ResetCharacterControlSlice()
+        {
+            DisposeCharacterControlSlice();
+            EnsureCharacterControlSlice();
+        }
+
+        private void DisposeCharacterControlSlice()
+        {
+            if (_characterControlSlice == null)
+                return;
+
+            _characterControlSlice.Dispose();
+            _characterControlSlice = null;
+        }
+
         private void ApplyMotionToPlayerMarker()
         {
             if (_playerMarker == null || _motionAdapter == null)
@@ -789,6 +960,56 @@ namespace MxFramework.Demo
             int x = moveDirection.x > 0.01f ? 1 : moveDirection.x < -0.01f ? -1 : 0;
             int z = moveDirection.z > 0.01f ? 1 : moveDirection.z < -0.01f ? -1 : 0;
             return (jumpPressed ? 100 : 0) + (x + 1) * 10 + (z + 1);
+        }
+
+        private static int EncodeCharacterControlInput(CharacterCommand command)
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = AddHash(hash, command.SourceId);
+                hash = AddHash(hash, command.Entity.GetHashCode());
+                hash = AddHash(hash, command.MoveDirection.X);
+                hash = AddHash(hash, command.MoveDirection.Z);
+                hash = AddHash(hash, command.FacingBasis.Right.X);
+                hash = AddHash(hash, command.FacingBasis.Right.Z);
+                hash = AddHash(hash, command.FacingBasis.Forward.X);
+                hash = AddHash(hash, command.FacingBasis.Forward.Z);
+                hash = AddHash(hash, command.FacingBasis.Facing.X);
+                hash = AddHash(hash, command.FacingBasis.Facing.Z);
+                hash = AddHash(hash, command.JumpPressed ? 1 : 0);
+                hash = AddHash(hash, command.SprintHeld ? 1 : 0);
+                hash = AddHash(hash, (int)command.ActionButtons);
+                hash = AddHash(hash, command.MoveSpeedScale);
+
+                CharacterActionRequest request = command.ActionRequest;
+                hash = AddHash(hash, request.SourceId);
+                hash = AddHash(hash, (int)request.Kind);
+                hash = AddHash(hash, request.CombatActionId);
+                hash = AddHash(hash, request.GameplayAbilityId);
+                hash = AddHash(hash, request.TargetGameplayEntityId.Index);
+                hash = AddHash(hash, request.TargetGameplayEntityId.Generation);
+                hash = AddHash(hash, request.ForceStart ? 1 : 0);
+                hash = AddHash(hash, request.QueueIfBusy ? 1 : 0);
+                return hash;
+            }
+        }
+
+        private static int AddHash(int hash, int value)
+        {
+            unchecked
+            {
+                return (hash * 397) ^ value;
+            }
+        }
+
+        private static int AddHash(int hash, Fix64 value)
+        {
+            unchecked
+            {
+                long raw = value.RawValue;
+                return AddHash(hash, (int)(raw ^ (raw >> 32)));
+            }
         }
 
         private static FixVector3 ToFixVector3(Vector3 value)

@@ -1,8 +1,8 @@
 # Character Control Runtime 00 Design Contract
 
-> Issues: #190, follow-up implementation slices #192, #193, #194, #198, #199
+> Issues: #190, follow-up implementation slices #192, #193, #194, #198, #199, #200
 > Delivery level: Framework Feature
-> Status: Design Contract + implementation slices (#192, #193, #194, #198, #199)
+> Status: Design Contract + implementation slices (#192, #193, #194, #198, #199) + playable vertical slice (#200)
 
 ## Goal
 

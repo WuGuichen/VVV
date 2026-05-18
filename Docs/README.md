@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.49 | 2026-05-18
+> 版本 0.6.50 | 2026-05-18
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -222,6 +222,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.50 | 2026-05-18 | 完成 Character Control playable vertical slice：在 `CombatAnimationPhysicsTest` 中串起 Local Input、Runtime AI Planner、state/motion/action、pressure reaction、MxAnimation 和 Debug UI，并补充 Showcase 回归测试 |
 | 0.6.49 | 2026-05-18 | 扩展 Character Control v0.5：新增 Phase 13 Debug UI source，输出状态、last command、motion、action、pressure band 和 recent events 只读快照 |
 | 0.6.48 | 2026-05-18 | 扩展 Character Control v0.4：新增 noEngine MxAnimation presentation adapter，支持 locomotion 1D/2D blend、reaction Play/CrossFade binding、backend result 和缺失绑定诊断 |
 | 0.6.47 | 2026-05-18 | 扩展 Character Control v0.3：新增 Gameplay pressure reaction bridge，支持 posture / guard / armor break typed events 转换为控制 Reaction、动作取消和诊断事件 |

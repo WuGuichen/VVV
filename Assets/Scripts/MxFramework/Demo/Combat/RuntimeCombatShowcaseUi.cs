@@ -35,7 +35,7 @@ namespace MxFramework.Demo
             BuildViewModel();
             _hud.Refresh(_viewModel);
             _hud.SetManualControlState(false, false, true);
-            _hud.SetManualButtonLabels("Step", "Probe", "Attack", "Shape", "Snapshot", "Auto: Off", "Time: Off", "Mode: Combat", "Reset");
+            _hud.SetManualButtonLabels("Step", "Probe", "Attack", "AI Cmd", "Break", "Auto: Off", "Time: Off", "Mode: Character", "Reset");
         }
 
         public void OnRuntimeHudManualCommand(MxRuntimeHudManualCommand command)
@@ -55,10 +55,10 @@ namespace MxFramework.Demo
                     _runner.AttackFromSelected();
                     break;
                 case MxRuntimeHudManualCommand.Tick:
-                    _runner.CycleQueryShape();
+                    _runner.RunRuntimeAiPlannerCommand();
                     break;
                 case MxRuntimeHudManualCommand.ApplyModifier:
-                    _runner.LogSnapshotSummary();
+                    _runner.TriggerCharacterPressureBreak();
                     break;
                 case MxRuntimeHudManualCommand.Reset:
                     _runner.ResetShowcase();
@@ -72,9 +72,9 @@ namespace MxFramework.Demo
             _viewModel.Title = "MxFramework Combat 预览";
             _viewModel.ModeName = "Physics Game";
             _viewModel.AbilitySource = _runner.AuthoringPreviewSummary;
-            _viewModel.ConfigSummary = $"{_runner.PhysicsPlaygroundSummary} | {_runner.InteractionSummary}";
+            _viewModel.ConfigSummary = $"{_runner.PhysicsPlaygroundSummary} | {_runner.InteractionSummary} | {_runner.CharacterControlSummary}";
             _viewModel.SnapshotSummary = snapshot != null
-                ? snapshot.Summary
+                ? snapshot.Summary + " | " + _runner.CharacterControlAnimationSummary
                 : "等待 CombatDebugSnapshot";
             _viewModel.EventLog = _runner.EventLog;
             FillMiniGameFeedback(_viewModel.MiniGameFeedback, _runner);
@@ -89,9 +89,9 @@ namespace MxFramework.Demo
             feedback.PlayerStatusTone = runner.PlayerHp <= 0 ? "danger" : "positive";
             feedback.EnemyStatusText = $"Enemy HP {runner.EnemyHp}/{runner.EnemyMaxHp}";
             feedback.EnemyStatusTone = runner.EnemyHp <= 0 ? "danger" : runner.EnemyHp < runner.EnemyMaxHp / 2 ? "warning" : "neutral";
-            feedback.PlayerBuffText = runner.MotionSummary;
+            feedback.PlayerBuffText = runner.CharacterControlSummary;
             feedback.EnemyBuffText = $"{runner.LastQueryDebugSummary} | {runner.MotionCollisionSummary}";
-            feedback.SkillFeedbackText = "WASD/Arrows Move. Space Jump. H Hide UI. P Probe. J Attack.";
+            feedback.SkillFeedbackText = "WASD/Arrows Move. Space Jump. H Hide UI. P Probe. J CharacterControl Attack. T Runtime AI Planner.";
             feedback.RecentActionText = runner.InteractionSummary;
             feedback.StrikeButtonFeedbackText = "Advance deterministic combat frame.";
             feedback.IgniteButtonFeedbackText = $"Probe with {runner.QueryShapeName}.";
