@@ -95,6 +95,7 @@ namespace MxFramework.CharacterControl
             CharacterControlLockMask lockMask,
             CombatMotionInput motionInput,
             CombatMotionStepResult stepResult,
+            CharacterMotionModifierResult modifierResult,
             bool worldSynced,
             int worldRevision)
         {
@@ -103,6 +104,7 @@ namespace MxFramework.CharacterControl
             LockMask = lockMask;
             MotionInput = motionInput;
             StepResult = stepResult;
+            ModifierResult = modifierResult;
             WorldSynced = worldSynced;
             WorldRevision = worldRevision;
         }
@@ -116,6 +118,8 @@ namespace MxFramework.CharacterControl
         public CombatMotionInput MotionInput { get; }
 
         public CombatMotionStepResult StepResult { get; }
+
+        public CharacterMotionModifierResult ModifierResult { get; }
 
         public bool WorldSynced { get; }
 
@@ -140,6 +144,7 @@ namespace MxFramework.CharacterControl
     {
         private readonly CombatKinematicMotor _motor;
         private readonly CharacterMotionSettings _settings;
+        private readonly CharacterMotionModifierAggregator _modifierAggregator;
 
         public CharacterMotionResolver(CombatKinematicMotor motor)
             : this(motor, CharacterMotionSettings.Default)
@@ -147,9 +152,18 @@ namespace MxFramework.CharacterControl
         }
 
         public CharacterMotionResolver(CombatKinematicMotor motor, CharacterMotionSettings settings)
+            : this(motor, settings, null)
+        {
+        }
+
+        public CharacterMotionResolver(
+            CombatKinematicMotor motor,
+            CharacterMotionSettings settings,
+            ICharacterMotionModifierProvider[] modifierProviders)
         {
             _motor = motor ?? throw new ArgumentNullException(nameof(motor));
             _settings = settings.Equals(default(CharacterMotionSettings)) ? CharacterMotionSettings.Default : settings;
+            _modifierAggregator = new CharacterMotionModifierAggregator(modifierProviders);
         }
 
         public CharacterMotionSettings Settings => _settings;
@@ -165,7 +179,8 @@ namespace MxFramework.CharacterControl
 
             controlState.RecordCommandFrame(command.Frame);
 
-            CombatMotionInput input = CreateMotionInput(command, controlState);
+            CharacterMotionModifierResult modifierResult;
+            CombatMotionInput input = CreateMotionInput(command, controlState, out modifierResult);
             CharacterControlEntityRef entity = command.Entity.IsValid ? command.Entity : controlState.Entity;
             CombatMotionStepResult step = physicsWorld != null && entity.HasCombatBody
                 ? _motor.Step(physicsWorld, entity.CombatBodyId, motionState, input)
@@ -178,11 +193,20 @@ namespace MxFramework.CharacterControl
                 controlState.ControlLockMask,
                 input,
                 step,
+                modifierResult,
                 worldSynced,
                 worldRevision);
         }
 
         public CombatMotionInput CreateMotionInput(CharacterCommand command, CharacterControlStateMachine controlState)
+        {
+            return CreateMotionInput(command, controlState, out _);
+        }
+
+        public CombatMotionInput CreateMotionInput(
+            CharacterCommand command,
+            CharacterControlStateMachine controlState,
+            out CharacterMotionModifierResult modifierResult)
         {
             if (controlState == null)
                 throw new ArgumentNullException(nameof(controlState));
@@ -193,7 +217,17 @@ namespace MxFramework.CharacterControl
             FixVector3 moveDirection = moveLocked ? FixVector3.Zero : command.GetWorldMoveDirection();
             bool jumpPressed = !jumpLocked && command.JumpPressed && controlState.CurrentState == CharacterControlState.Locomotion;
 
-            Fix64 scale = command.MoveSpeedScale * _settings.BaseMoveSpeedScale * stateScale * _settings.TractionMoveSpeedScale;
+            var modifierContext = new CharacterMotionModifierContext(
+                command,
+                controlState.CurrentState,
+                controlState.ControlLockMask);
+            modifierResult = _modifierAggregator.Evaluate(modifierContext);
+
+            Fix64 scale = command.MoveSpeedScale
+                * _settings.BaseMoveSpeedScale
+                * stateScale
+                * _settings.TractionMoveSpeedScale
+                * modifierResult.FinalMoveSpeedScale;
             if (command.SprintHeld && controlState.CurrentState == CharacterControlState.Locomotion)
             {
                 scale *= _settings.SprintMoveSpeedScale;
