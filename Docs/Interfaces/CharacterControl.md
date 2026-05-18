@@ -14,6 +14,7 @@
 ```text
 MxFramework.CharacterControl
   -> MxFramework.Core
+  -> MxFramework.Events
   -> MxFramework.Runtime
   -> MxFramework.Combat
   -> MxFramework.Gameplay
@@ -58,6 +59,10 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 | `CharacterActionController` | 连接 `CombatActionRunner`、`RuntimeCommandBuffer` 和 `GameplayRuntimeCommandFactory` 的动作桥。 |
 | `CharacterActionEvent` | accepted / rejected / queued / started / command enqueued / finished / canceled 事件 payload。 |
 | `CharacterActionResult` | 动作请求处理结果，包含 stable rejection reason、action instance id 和 accepted runtime command。 |
+| `CharacterPressureReactionAdapter` | 订阅 Gameplay pressure / break typed events，把 posture / guard / armor 反馈转成 Reaction、控制锁和 action cancel 请求。 |
+| `CharacterPressureReactionPolicy` / `CharacterPressureReactionPolicyEntry` | 配置 break / band change 的 reaction duration、frame window、lock mask 和是否请求 cancel。 |
+| `CharacterPressureReactionTargetRegistry` | 将 `GameplayEntityId` 映射到 `CharacterControlStateMachine` 和可选 `CharacterActionController`。 |
+| `CharacterPressureReactionRecord` | 最近一次 pressure reaction / suppressed 诊断，包含 reason、duration、end frame、lock mask 和 cancel 结果。 |
 | `InputCharacterCommandSource` | 可选 Input adapter，把 `IInputProvider` snapshot / command queue 转成 `CharacterCommand`。 |
 | `CharacterInputActionBinding` | Input intent 到 Combat action / Gameplay ability / cancel 的显式绑定。 |
 | `RuntimeAiPlannerCharacterCommandSource` | Runtime AI Planner bridge，把 plan selected action profile 转成 `CharacterCommand`。 |
@@ -71,6 +76,8 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - motion modifier 只影响 `CombatMotionInput.MoveSpeedScale`；provider 不能写 Gameplay / Combat source of truth。
 - `CharacterActionController` 可以调用 `CombatActionRunner.StartAction` / `ForceStartAction` / `ForceCancel`，但不修改 Combat action timeline。
 - Gameplay ability 只通过 `GameplayRuntimeCommandFactory` 生成 command，不直接写 Gameplay component store。
+- Pressure reaction adapter 只消费 Gameplay typed events，不计算 pressure 数值、不新增 Combat hit kind、不直接扣血；PostureBreak / GuardBreak 可按 policy 进入 Reaction 并通过 `CharacterActionController` 请求 cancel。
+- ArmorBreak 默认只记录诊断反馈；如果项目需要受击硬直，必须通过 `CharacterPressureReactionPolicy.ArmorBreak` 显式开启。
 - cooldown / resource / status 限制通过 `ICharacterActionConstraint` 注入；CharacterControl 不内置具体属性 id、cost 或 status id。
 - Input adapter 只读 `IInputProvider`，不直接读设备 API；Gameplay context 不可用时不输出 command，并丢弃当前 frame 及以前的 queued commands，避免 UI / cutscene 期间的动作在恢复后补发。
 - Runtime AI Planner bridge 使用 `Runtime AI Planner` 公共接口和 pressure fact keys，不使用 AIAction Config 或 WGame 私有行为数据。

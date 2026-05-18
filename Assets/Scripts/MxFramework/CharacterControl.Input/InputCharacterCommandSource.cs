@@ -202,27 +202,47 @@ namespace MxFramework.CharacterControl.Input
         {
             if (snapshot.AttackPrimaryPressed)
             {
-                return CreateBoundRequest(frame, entity, MxInput.InputIntent.AttackPrimary, 0, string.Empty, ref traceId);
+                CharacterActionRequest request = CreateBoundRequest(frame, entity, MxInput.InputIntent.AttackPrimary, 0, string.Empty, ref traceId);
+                if (request.Kind != CharacterActionKind.None)
+                {
+                    return request;
+                }
             }
 
             if (snapshot.AttackSecondaryPressed)
             {
-                return CreateBoundRequest(frame, entity, MxInput.InputIntent.AttackSecondary, 0, string.Empty, ref traceId);
+                CharacterActionRequest request = CreateBoundRequest(frame, entity, MxInput.InputIntent.AttackSecondary, 0, string.Empty, ref traceId);
+                if (request.Kind != CharacterActionKind.None)
+                {
+                    return request;
+                }
             }
 
             if (snapshot.InteractPressed)
             {
-                return CreateBoundRequest(frame, entity, MxInput.InputIntent.Interact, 0, string.Empty, ref traceId);
+                CharacterActionRequest request = CreateBoundRequest(frame, entity, MxInput.InputIntent.Interact, 0, string.Empty, ref traceId);
+                if (request.Kind != CharacterActionKind.None)
+                {
+                    return request;
+                }
             }
 
             if (snapshot.DodgePressed)
             {
-                return CreateBoundRequest(frame, entity, MxInput.InputIntent.Dodge, 0, string.Empty, ref traceId);
+                CharacterActionRequest request = CreateBoundRequest(frame, entity, MxInput.InputIntent.Dodge, 0, string.Empty, ref traceId);
+                if (request.Kind != CharacterActionKind.None)
+                {
+                    return request;
+                }
             }
 
             if (snapshot.CancelPressed)
             {
-                return CreateBoundRequest(frame, entity, MxInput.InputIntent.Cancel, 0, string.Empty, ref traceId);
+                CharacterActionRequest request = CreateBoundRequest(frame, entity, MxInput.InputIntent.Cancel, 0, string.Empty, ref traceId);
+                if (request.Kind != CharacterActionKind.None)
+                {
+                    return request;
+                }
             }
 
             return default;

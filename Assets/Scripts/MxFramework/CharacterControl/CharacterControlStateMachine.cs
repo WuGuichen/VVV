@@ -266,11 +266,24 @@ namespace MxFramework.CharacterControl
             CharacterControlTransitionReason reason = CharacterControlTransitionReason.ReactionStarted,
             string message = "")
         {
+            return BeginReaction(
+                frame,
+                reason,
+                CharacterControlLockMask.Move | CharacterControlLockMask.Jump | CharacterControlLockMask.Action,
+                message);
+        }
+
+        public CharacterControlTransitionResult BeginReaction(
+            RuntimeFrame frame,
+            CharacterControlTransitionReason reason,
+            CharacterControlLockMask lockMask,
+            string message = "")
+        {
             return Transition(
                 CharacterControlState.Reaction,
                 frame,
                 reason,
-                CharacterControlLockMask.Move | CharacterControlLockMask.Jump | CharacterControlLockMask.Action,
+                lockMask,
                 message);
         }
 

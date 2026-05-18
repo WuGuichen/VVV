@@ -1,6 +1,6 @@
 # MxFramework 使用手册
 
-> 版本 0.3.4 | 2026-05-18
+> 版本 0.3.5 | 2026-05-18
 >
 > 本文面向业务开发和 AI 辅助开发。目标是“先看这里就能接入”，不要靠通读源码理解基础模块。
 
@@ -1888,6 +1888,28 @@ CharacterActionResult action = actionController.Submit(
         queueIfBusy: true));
 ```
 
+Gameplay pressure / break 事件通过 policy adapter 接入 Character Control；adapter 不计算 pressure 数值，也不直接写 Combat / Gameplay source of truth：
+
+```csharp
+var reactionTargets = new CharacterPressureReactionTargetRegistry();
+reactionTargets.Register(control, actionController);
+
+var reactionAdapter = new CharacterPressureReactionAdapter(new CharacterPressureReactionAdapterOptions
+{
+    TargetResolver = reactionTargets,
+    PostureBandChangedEvents = posturePressureSystem.BandChangedEvents,
+    PostureBreakEvents = posturePressureSystem.PostureBreakEvents,
+    GuardBandChangedEvents = guardPressureSystem.BandChangedEvents,
+    GuardBreakEvents = guardPressureSystem.GuardBreakEvents
+});
+reactionAdapter.Enable();
+
+// 在 Runtime / Gameplay tick 末尾推进恢复窗口。
+reactionAdapter.Tick(frame);
+```
+
+默认策略会让 PostureBreak / GuardBreak 进入 `Reaction` 并通过 `CharacterActionController` 请求 cancel；GuardBreak 默认只锁 Action，PostureBreak 默认锁 Move / Jump / Action。ArmorBreak 默认只记录 `CharacterPressureReactionRecord` 诊断，不重复处理伤害或 HP。
+
 本地输入适配放在可选程序集 `MxFramework.CharacterControl.Input`：
 
 ```csharp
@@ -1973,6 +1995,7 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - Input、Runtime AI Planner、UI Toolkit、Replay 和测试只实现 `ICharacterCommandSource` 或提交 `CharacterActionRequest`。
 - `CharacterMotionResolver` 通过 `CombatKinematicMotor` 得到权威移动；Unity `CharacterController`、`Rigidbody`、`UnityEngine.Physics` 和表现层 root motion 不能作为权威。
 - `CharacterActionController` 通过 `CombatActionRunner` 和 `GameplayRuntimeCommandFactory` 桥接动作，不改 Combat timeline、hit window、damage 或 Gameplay HP/Buff/Ability 状态。
+- `CharacterPressureReactionAdapter` 只消费 Gameplay typed events；reaction duration / lock mask / cancel 行为全部来自 `CharacterPressureReactionPolicy`。
 - cooldown、资源、状态、目标合法性等项目规则通过 `ICharacterActionConstraint` 注入。
 - slow、traction、fatigue 等移动影响通过 `ICharacterMotionModifierProvider` 输出 scale，不直接写 Gameplay / Combat 状态。
 - Input adapter 在 Gameplay context 关闭时会 drain 并丢弃当前 frame 及以前的 queued commands；Runtime AI Planner profile 的 `ActionRequest` 只在首次选择或 reaction delay 生效帧发出一次。
