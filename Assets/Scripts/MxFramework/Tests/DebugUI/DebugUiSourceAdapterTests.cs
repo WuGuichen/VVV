@@ -1,6 +1,7 @@
 using MxFramework.Combat.Core;
 using MxFramework.Combat.Diagnostics;
 using MxFramework.Combat.Hit;
+using MxFramework.Combat.Physics;
 using MxFramework.Core.Math;
 using MxFramework.DebugUI;
 using MxFramework.DebugUI.Adapters;
@@ -79,6 +80,123 @@ namespace MxFramework.Tests.DebugUI
             Assert.That(snapshot.Sections[3].Body, Does.Contain("damage=30"));
         }
 
+        [Test]
+        public void GameplayTimelineAdapter_MapsRuntimeEvents()
+        {
+            var events = new[]
+            {
+                new GameplayRuntimeEvent(
+                    new RuntimeFrame(2),
+                    GameplayRuntimeEventType.ComponentAttributeChanged,
+                    commandId: 10,
+                    casterEntityId: 0,
+                    abilityId: 0,
+                    targetEntityId: 0,
+                    failureCode: GameplayAbilityRuntimeFailureCode.None,
+                    reason: "attribute changed",
+                    traceId: "trace-2",
+                    componentEntityIndex: 4,
+                    componentEntityGeneration: 1,
+                    attributeId: 99,
+                    oldAttributeValue: 1,
+                    newAttributeValue: 5,
+                    attributeDelta: 4)
+            };
+
+            FrameworkDebugSnapshot snapshot = new GameplayRuntimeEventTimelineDebugSource(() => events).CreateSnapshot();
+
+            Assert.AreEqual("GameplayTimeline", snapshot.SourceName);
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("frame=2"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("entity=4:1"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("attr=99"));
+        }
+
+        [Test]
+        public void CombatTimelineAdapter_MapsQueriesAndHits()
+        {
+            var builder = new CombatDebugSnapshotBuilder();
+            builder.AddQuery(new CombatQueryTrace(
+                new CombatFrame(1),
+                new CombatQueryHeader(
+                    3,
+                    CombatQueryKind.Capsule,
+                    new CombatEntityId(7),
+                    traceId: 44,
+                    actionId: 100,
+                    sourceOrder: 0,
+                    CombatPhysicsLayerMask.All)));
+            builder.AddHit(new CombatHitExplain(
+                new HitResolveResult(
+                    new CombatEntityId(7),
+                    new CombatEntityId(8),
+                    actionId: 100,
+                    actionInstanceId: 101,
+                    traceId: 44,
+                    frame: new CombatFrame(2),
+                    kind: HitResolveKind.Blocked,
+                    damage: 0,
+                    staggerFrames: 0,
+                    knockback: FixVector3.Zero),
+                "Blocked"));
+
+            FrameworkDebugSnapshot snapshot = new CombatTimelineDebugSource(() => builder.Build(new CombatFrame(2))).CreateSnapshot();
+
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("category=Query"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("category=Hit"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("kind=Blocked"));
+        }
+
+        [Test]
+        public void GameplayEntityWatchAdapter_MapsPressureGuardAndArmor()
+        {
+            var world = new GameplayComponentWorld();
+            GameplayEntityId entity = world.CreateEntity();
+            world.GetOrCreateStore<GameplayAttributeSetComponent>()
+                .Set(entity, new GameplayAttributeSetComponent(new GameplayAttributeValue(1, 100, 75)));
+            world.GetOrCreateStore<GameplayPosturePressureComponent>()
+                .Set(entity, new GameplayPosturePressureComponent(100, currentPressure: 75));
+            world.GetOrCreateStore<GameplayGuardPressureComponent>()
+                .Set(entity, new GameplayGuardPressureComponent(80, currentPressure: 80));
+            world.GetOrCreateStore<GameplayArmorIntegrityComponent>()
+                .Set(entity, new GameplayArmorIntegrityComponent(20, 5));
+
+            FrameworkDebugSnapshot snapshot = new GameplayComponentWorldEntityWatchDebugSource(world).CreateSnapshot();
+
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("entity=1:1"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("attrs=1=75/100"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("pressure=Critical 75/100"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("guard=Broken 80/80 broken"));
+            Assert.That(snapshot.Sections[1].Body, Does.Contain("armor=5/20"));
+        }
+
+        [Test]
+        public void PerformanceCounterAdapters_MapRuntimeAndGameplaySources()
+        {
+            var runtimeHost = new RuntimeHost();
+            runtimeHost.RegisterModule(new TestRuntimeModule("test.module"));
+            runtimeHost.Initialize();
+            runtimeHost.Start();
+            runtimeHost.Tick(0, 0.016d);
+
+            var gameplaySnapshot = new GameplayDiagnosticSnapshot(
+                "Gameplay",
+                "test",
+                new[] { new GameplayEntitySnapshot(1, 1, true, null, null, null) },
+                default,
+                new[] { new GameplayAbilityEventSnapshot("Cast", 10, 1, 2, string.Empty) },
+                null);
+
+            FrameworkPerformanceCounterSnapshot runtimeCounters =
+                new RuntimeHostPerformanceCounterSource(runtimeHost).Capture();
+            FrameworkPerformanceCounterSnapshot gameplayCounters =
+                new GameplayDiagnosticPerformanceCounterSource(() => gameplaySnapshot).Capture();
+
+            Assert.That(runtimeCounters.Samples[0].CounterId, Does.Contain("runtime"));
+            Assert.AreEqual(1, FindCounter(runtimeCounters, "runtime.tickCount").Value);
+            Assert.AreEqual(1, FindCounter(gameplayCounters, "gameplay.entityCount").Value);
+            Assert.AreEqual(1, FindCounter(gameplayCounters, "gameplay.abilityEventCount").Value);
+        }
+
         private static DebugUiSourceViewModel FindSource(DebugUiDashboardViewModel model, string name)
         {
             for (int i = 0; i < model.Sources.Count; i++)
@@ -89,6 +207,20 @@ namespace MxFramework.Tests.DebugUI
 
             Assert.Fail("Missing source: " + name);
             return null;
+        }
+
+        private static FrameworkPerformanceCounterSample FindCounter(
+            FrameworkPerformanceCounterSnapshot snapshot,
+            string counterId)
+        {
+            for (int i = 0; i < snapshot.Samples.Count; i++)
+            {
+                if (snapshot.Samples[i].CounterId == counterId)
+                    return snapshot.Samples[i];
+            }
+
+            Assert.Fail("Missing counter: " + counterId);
+            return default;
         }
 
         private sealed class TestRuntimeModule : IRuntimeModule

@@ -1,6 +1,6 @@
 # MxFramework 路线图
 
-> 版本 0.6.37 | 2026-05-13
+> 版本 0.6.38 | 2026-05-18
 >
 > 路线图按“先稳定边界，再迁移实现，再做工具化”的顺序推进。
 
@@ -1026,7 +1026,7 @@
 - Phase 13 不是玩法功能扩张，不新增 WGame 业务规则、关卡逻辑或可写调试命令。
 - Debug UI 默认只读，优先顺序是 Core registry -> UI Toolkit overlay -> source adapters。
 - Debug UI 的展开、折叠、刷新暂停、选中 tab 等状态只属于表现层，不进入 Replay、SaveState 或 Runtime hash。
-- Hot Reload 与 Simulation Harness 依赖观察层稳定后再实施。
+- Hot Reload 依赖观察层稳定后再实施。
 
 任务：
 - `Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md`：Phase 13 总览、实施顺序和完成定义。
@@ -1034,12 +1034,16 @@
 - #179：`MxFramework.DebugUI` noEngine source registry、snapshot aggregator、dashboard view model。
 - #180：`MxFramework.DebugUI.Toolkit` Runtime UI Toolkit overlay shell。
 - #181：Framework Debug Source adapters，接入 Logging、RuntimeHost、Resources、Gameplay 和 Combat。
+- #182：Event timeline 和 entity watch，首批接入 Gameplay / Combat 诊断事实。
+- #183：Diagnostics performance counters，默认 opt-in，不改变 runtime authority。
+- #184：Simulation Harness batch reports，支持 noEngine scenario、Markdown / JSON report 和 Debug Source export。
 
 完成条件：
 - `MxFramework.DebugUI` 无 UnityEngine / UnityEditor / UIElements / Input System 引用。
 - Debug source registry 支持普通对象生命周期、ordinal 唯一 source name、unavailable source 展示和异常隔离。
 - UI Toolkit overlay 支持 Hidden / Collapsed / Expanded，并能展示空 dashboard、source sections 和 aggregator errors。
 - 至少一个现有 Demo 或 Showcase 能创建统一 Debug UI source registry。
+- Timeline / Entity Watch / Performance / Simulation report 均通过只读 Diagnostics / Debug UI sections 观察，不进入 Replay、SaveState 或 Runtime hash。
 - 现有 Diagnostics / Logging / Resources / Runtime / Gameplay / Combat 测试不回退。
 
 **状态**: 🔄 Implementation started

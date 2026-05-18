@@ -1,6 +1,6 @@
 # MxFramework 能力清单
 
-> 框架当前（2026-05-13 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
+> 框架当前（2026-05-18 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
 >
 > 状态标记：✅ v1 可用 | ✅ v0.x 部分可用 | 🔄 设计中 | 📋 规划中
 
@@ -269,8 +269,16 @@
 | RuntimeHost adapter | ✅ v0.1 | `RuntimeHostDebugSource` | DebugUI.Adapters + Runtime |
 | Gameplay / Combat adapters | ✅ v0.1 | `GameplayDiagnosticSnapshotDebugSource` / `GameplayComponentWorldDebugSource` / `CombatDebugSnapshotDebugSource` | DebugUI.Adapters |
 | Logging / Resources 接入 | ✅ v0.1 | 复用 `LogDebugSource` / `ResourceDebugSource` | Logging.Diagnostics / Resources |
+| Event timeline view model | ✅ v0.2 | `DebugUiTimelineEntryViewModel` / `DebugUiTimelineViewModel` / `DebugUiTimelineFilter` | DebugUI |
+| Gameplay / Combat timeline adapters | ✅ v0.2 | `GameplayRuntimeEventTimelineDebugSource` / `CombatTimelineDebugSource` | DebugUI.Adapters |
+| Entity watch view model | ✅ v0.2 | `DebugUiEntityWatchEntryViewModel` / `DebugUiEntityWatchViewModel` | DebugUI |
+| Gameplay component entity watch | ✅ v0.2 | `GameplayComponentWorldEntityWatchDebugSource` | DebugUI.Adapters + Gameplay |
+| Performance counter snapshots | ✅ v0.1 | `FrameworkPerformanceCounterRecorder` / `FrameworkPerformanceCounterDebugSource` | Diagnostics |
+| RuntimeHost / Gameplay / Combat counters | ✅ v0.1 | `RuntimeHostPerformanceCounterSource` / `GameplayDiagnosticPerformanceCounterSource` / `CombatDebugPerformanceCounterSource` | DebugUI.Adapters + Diagnostics |
+| Simulation Harness reports | ✅ v0.1 | `FrameworkSimulationBatchRunner` / `FrameworkSimulationReportFormatter` / `FrameworkSimulationReportDebugSource` | Diagnostics |
 
 → 接口：`Interfaces/DebugUI.md`
+→ 诊断接口：`Interfaces/Diagnostics.md`
 → 任务：`Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md`
 → 测试：`Tests/DebugUI/`
 → **边界**: Debug UI 默认只读；Debug UI 展开、折叠、tab、刷新暂停等表现状态不进入 Replay、SaveState 或 Runtime hash。
