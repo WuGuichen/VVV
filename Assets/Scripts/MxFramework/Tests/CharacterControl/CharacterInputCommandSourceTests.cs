@@ -113,6 +113,22 @@ namespace MxFramework.Tests.CharacterControl
         }
 
         [Test]
+        public void GameplayOverlayContext_StillOutputsCharacterCommand()
+        {
+            var input = new MxInput.FakeInputProvider();
+            input.SetContext(MxInput.InputContext.Gameplay);
+            input.PushContext(MxInput.InputContext.Debug, MxInput.InputContextPolicy.Overlay);
+            input.SetSnapshot(CreateSnapshot(move: Vector2.right, jumpPressed: true));
+            var source = new InputCharacterCommandSource(input);
+
+            Assert.AreEqual(MxInput.InputContext.Debug, input.CurrentContext);
+            Assert.IsTrue(input.IsContextEnabled(MxInput.InputContext.Gameplay));
+            Assert.IsTrue(source.TryGetCommand(RuntimeFrame.Zero, CreateEntity(), out CharacterCommand command));
+            Assert.AreEqual(Fix64.One, command.MoveDirection.X);
+            Assert.IsTrue(command.JumpPressed);
+        }
+
+        [Test]
         public void NonGameplayContext_DrainsQueuedCommandsThroughFrame()
         {
             var input = new MxInput.FakeInputProvider();

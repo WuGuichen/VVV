@@ -16,7 +16,7 @@ Input 模块把 Unity Input System 作为底层采集层，只向业务暴露意
 
 | 类型 | 用途 |
 |------|------|
-| `IInputProvider` | 业务侧依赖入口，提供 `Snapshot`、`Commands` 和上下文切换 |
+| `IInputProvider` | 业务侧依赖入口，提供 `Snapshot`、`Commands`、当前 context、启用 context 查询和上下文切换 |
 | `InputSnapshot` | 每帧连续输入和一帧按钮状态，例如 `Move`、`Look`、`JumpPressed` |
 | `InputCommand` / `InputCommandQueue` | 瞬时意图事件队列，例如 Jump、Submit、Pause、Click；支持 destructive drain 和 non-destructive peek |
 | `InputContext` / `InputContextStack` | Gameplay、UI、Vehicle、PhotoMode、Cutscene、Rebinding、Debug 的上下文栈 |
@@ -86,6 +86,8 @@ using (input.PushContext(InputContext.UI))
 IDisposable scope = input.PushContext(InputContext.UI, InputContextPolicy.Overlay);
 scope.Dispose();
 ```
+
+读取输入权限时应使用 `IsContextEnabled(InputContext.Gameplay)` 判断某个 context 是否仍在启用集合中，而不是只看 `CurrentContext`。例如 Debug UI 作为 overlay 打开时，`CurrentContext` 可以是 `Debug`，但 Gameplay map 仍然启用；此时 Character Control / Combat Showcase 这类 gameplay 组合根仍应能读取移动和动作命令。需要独占阻断 Gameplay 时，使用默认 `InputContextPolicy.Exclusive`。
 
 ## 5. 重绑定
 

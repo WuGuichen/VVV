@@ -179,7 +179,7 @@ namespace MxFramework.CharacterControl.Input
                 return _options.CanReadGameplayInput(_inputProvider);
             }
 
-            return _inputProvider.CurrentContext == MxInput.InputContext.Gameplay;
+            return _inputProvider.IsContextEnabled(MxInput.InputContext.Gameplay);
         }
 
         private CharacterFacingBasis GetFacingBasis(RuntimeFrame frame, MxInput.InputSnapshot snapshot)

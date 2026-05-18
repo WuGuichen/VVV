@@ -244,7 +244,7 @@ namespace MxFramework.Demo
             _localInputSource = new InputCharacterCommandSource(inputProvider, new InputCharacterCommandSourceOptions
             {
                 SourceId = LocalInputSourceId,
-                CanReadGameplayInput = provider => provider != null && provider.CurrentContext == MxInput.InputContext.Gameplay,
+                CanReadGameplayInput = provider => provider != null && provider.IsContextEnabled(MxInput.InputContext.Gameplay),
                 ActionBindings = new[]
                 {
                     CharacterInputActionBinding.CombatAction(

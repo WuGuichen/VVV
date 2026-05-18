@@ -22,11 +22,15 @@ namespace MxFramework.Tests.Input
                 Assert.AreEqual(2, enabled.Count);
                 Assert.AreEqual(InputContext.UI, enabled[0]);
                 Assert.AreEqual(InputContext.Gameplay, enabled[1]);
+                Assert.IsTrue(stack.IsContextEnabled(InputContext.UI));
+                Assert.IsTrue(stack.IsContextEnabled(InputContext.Gameplay));
             }
 
             stack.FillEnabledContexts(enabled);
             Assert.AreEqual(1, enabled.Count);
             Assert.AreEqual(InputContext.Gameplay, enabled[0]);
+            Assert.IsTrue(stack.IsContextEnabled(InputContext.Gameplay));
+            Assert.IsFalse(stack.IsContextEnabled(InputContext.UI));
         }
 
         [Test]
@@ -42,6 +46,8 @@ namespace MxFramework.Tests.Input
 
                 Assert.AreEqual(1, enabled.Count);
                 Assert.AreEqual(InputContext.UI, enabled[0]);
+                Assert.IsTrue(stack.IsContextEnabled(InputContext.UI));
+                Assert.IsFalse(stack.IsContextEnabled(InputContext.Gameplay));
             }
         }
 

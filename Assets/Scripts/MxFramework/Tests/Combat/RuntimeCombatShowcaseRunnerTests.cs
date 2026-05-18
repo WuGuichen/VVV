@@ -277,6 +277,57 @@ namespace MxFramework.Tests.Combat
         }
 
         [Test]
+        public void CharacterControlInput_AllowsGameplayWhileDebugOverlayIsActive()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+            var input = new FakeInputProvider();
+            input.SetContext(InputContext.Gameplay);
+            input.PushContext(InputContext.Debug, InputContextPolicy.Overlay);
+            input.SetSnapshot(CreateInputSnapshot(move: Vector2.right, jumpPressed: true));
+
+            Assert.AreEqual(InputContext.Debug, input.CurrentContext);
+            Assert.IsTrue(input.IsContextEnabled(InputContext.Gameplay));
+            Assert.IsTrue(runner.StepCharacterControlFromInput(input));
+            Assert.That(runner.CharacterControlSummary, Does.Contain("Local Input"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("jumpPressed: true"));
+
+            int hpBefore = runner.EnemyHp;
+            input.SetSnapshot(InputSnapshot.Empty);
+            input.Commands.Enqueue(new InputCommand(
+                runner.CurrentFrame.Value + 1L,
+                sourceId: 0,
+                InputIntent.DebugPrimary,
+                traceId: "test-debug-overlay-primary"));
+
+            Assert.IsTrue(runner.StepCharacterControlFromInput(input));
+            Assert.Less(runner.EnemyHp, hpBefore);
+            Assert.That(runner.InteractionSummary, Does.Contain("CharacterControl Attack"));
+        }
+
+        [Test]
+        public void CharacterControlInput_ConsumesRuntimeAlignedBufferedJumpCommand()
+        {
+            RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(
+                playerPosition: Vector3.zero,
+                enemyPosition: new Vector3(2f, 0f, 0f));
+            var input = new FakeInputProvider();
+            input.SetContext(InputContext.Gameplay);
+            input.SetSnapshot(CreateInputSnapshot(move: Vector2.zero, jumpPressed: false));
+            input.Commands.Enqueue(new InputCommand(
+                runner.CurrentFrame.Value + 1L,
+                sourceId: 0,
+                InputIntent.Jump,
+                traceId: "test-buffered-jump"));
+
+            Assert.IsTrue(runner.StepCharacterControlFromInput(input));
+
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("jumpPressed: true"));
+            Assert.That(runner.CharacterControlDebugReport, Does.Contain("jumpStarted: true"));
+        }
+
+        [Test]
         public void CharacterControlInput_IgnoresNonGameplayContext()
         {
             RuntimeCombatShowcaseRunner runner = CreateRunnerWithMarkers(

@@ -52,6 +52,11 @@ namespace MxFramework.Input
         public IInputRebindingService Rebinding => _rebinding;
         public InputBindingDisplayService BindingDisplay => _bindingDisplay;
 
+        public bool IsContextEnabled(InputContext context)
+        {
+            return _contexts.IsContextEnabled(context);
+        }
+
         public void SetContext(InputContext context)
         {
             _contexts.Set(context);

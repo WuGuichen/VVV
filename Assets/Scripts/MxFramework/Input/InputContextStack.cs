@@ -49,6 +49,30 @@ namespace MxFramework.Input
             NotifyChanged();
         }
 
+        public bool IsContextEnabled(InputContext context)
+        {
+            if (context == InputContext.Disabled)
+            {
+                return _layers.Count == 0;
+            }
+
+            for (int i = _layers.Count - 1; i >= 0; i--)
+            {
+                InputContextLayer layer = _layers[i].Layer;
+                if (layer.Context == context)
+                {
+                    return true;
+                }
+
+                if (layer.BlocksLowerContexts)
+                {
+                    break;
+                }
+            }
+
+            return false;
+        }
+
         public IDisposable Push(InputContext context, InputContextPolicy policy = InputContextPolicy.Exclusive)
         {
             if (context == InputContext.Disabled)

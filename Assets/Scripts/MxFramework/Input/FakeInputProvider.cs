@@ -11,6 +11,11 @@ namespace MxFramework.Input
         public InputCommandQueue Commands => _commands;
         public InputContext CurrentContext => _contexts.ActiveContext;
 
+        public bool IsContextEnabled(InputContext context)
+        {
+            return _contexts.IsContextEnabled(context);
+        }
+
         public void SetSnapshot(InputSnapshot snapshot)
         {
             Snapshot = snapshot;

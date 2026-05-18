@@ -10,6 +10,7 @@ namespace MxFramework.Demo
     public sealed class RuntimeCombatShowcaseInputController : MonoBehaviour
     {
         private const float ClickDragThreshold = 6f;
+        private const float FixedStepEpsilon = 0.0001f;
 
         [SerializeField] private Camera _camera;
         [SerializeField] private float _orbitYaw = 0f;
@@ -21,10 +22,13 @@ namespace MxFramework.Demo
         [SerializeField] private float _maxOrbitDistance = 16f;
         [SerializeField] private float _groundY = 0f;
         [SerializeField] private float _rightHudExclusionWidth = 380f;
+        [SerializeField] private float _characterControlStepRate = 60f;
+        [SerializeField] private int _maxCharacterControlStepsPerUpdate = 4;
 
         private RuntimeCombatShowcaseRunner _runner;
         private MxRuntimeHudController _hud;
         private IInputProvider _input;
+        private FakeInputProvider _characterControlInput;
         private InputSnapshot _latestInput;
         private Transform _selectedDragMarker;
         private bool _selectedMarkerOnMouseDown;
@@ -33,11 +37,13 @@ namespace MxFramework.Demo
         private Vector3 _lastMousePosition;
         private Vector3 _mouseDownPosition;
         private Vector3 _dragGroundOffset;
+        private float _characterControlStepAccumulator;
 
         private void Awake()
         {
             _runner = GetComponent<RuntimeCombatShowcaseRunner>();
             _hud = GetComponent<MxRuntimeHudController>();
+            _characterControlInput = new FakeInputProvider();
             ResolveInput();
             ResolveCamera();
             ApplyCameraOrbit();
@@ -153,17 +159,97 @@ namespace MxFramework.Demo
 
         private void HandleMotionInput(InputSnapshot input)
         {
-            if (_input != null && input.DebugPrimaryPressed)
+            SyncCharacterControlInput(input);
+            EnqueueCharacterControlPressedCommands(input);
+            StepCharacterControlFixed();
+        }
+
+        private void StepCharacterControlFixed()
+        {
+            if (_characterControlInput == null)
+                return;
+
+            float stepRate = Mathf.Max(1f, _characterControlStepRate);
+            float fixedDelta = 1f / stepRate;
+            _characterControlStepAccumulator += Mathf.Max(0f, Time.deltaTime);
+
+            int maxSteps = Mathf.Max(1, _maxCharacterControlStepsPerUpdate);
+            int steps = 0;
+            while (_characterControlStepAccumulator + FixedStepEpsilon >= fixedDelta && steps < maxSteps)
             {
-                _input.Commands.TryEnqueue(new InputCommand(
-                    _runner.CurrentFrame.Value + 1L,
-                    sourceId: 0,
-                    InputIntent.DebugPrimary,
-                    traceId: "combat-showcase-keyboard:DebugPrimary"),
-                    out _);
+                _runner.StepCharacterControlFromInput(_characterControlInput);
+                _characterControlStepAccumulator -= fixedDelta;
+                steps++;
             }
 
-            _runner.StepCharacterControlFromInput(_input);
+            if (steps == maxSteps && _characterControlStepAccumulator >= fixedDelta)
+                _characterControlStepAccumulator = 0f;
+        }
+
+        private void SyncCharacterControlInput(InputSnapshot input)
+        {
+            if (_characterControlInput == null)
+                _characterControlInput = new FakeInputProvider();
+
+            long nextFrame = _runner.CurrentFrame.Value + 1L;
+            if (_characterControlInput.Commands.CurrentFrame > nextFrame)
+                _characterControlInput.Commands.Reset(nextFrame);
+
+            bool gameplayEnabled = _input == null || _input.IsContextEnabled(InputContext.Gameplay);
+            _characterControlInput.SetContext(gameplayEnabled ? InputContext.Gameplay : _input.CurrentContext);
+            _characterControlInput.SetSnapshot(CreateCharacterControlSnapshot(input));
+        }
+
+        private void EnqueueCharacterControlPressedCommands(InputSnapshot input)
+        {
+            if (_characterControlInput == null || (_input != null && !_input.IsContextEnabled(InputContext.Gameplay)))
+                return;
+
+            long frame = _runner.CurrentFrame.Value + 1L;
+            if (frame < _characterControlInput.Commands.CurrentFrame)
+                frame = _characterControlInput.Commands.CurrentFrame;
+
+            EnqueueCharacterControlPressedCommand(frame, input.JumpPressed, InputIntent.Jump, "combat-showcase-keyboard:Jump");
+            EnqueueCharacterControlPressedCommand(frame, input.DebugPrimaryPressed, InputIntent.DebugPrimary, "combat-showcase-keyboard:DebugPrimary");
+            EnqueueCharacterControlPressedCommand(frame, input.AttackPrimaryPressed, InputIntent.AttackPrimary, "combat-showcase-keyboard:AttackPrimary");
+            EnqueueCharacterControlPressedCommand(frame, input.AttackSecondaryPressed, InputIntent.AttackSecondary, "combat-showcase-keyboard:AttackSecondary");
+        }
+
+        private void EnqueueCharacterControlPressedCommand(long frame, bool pressed, InputIntent intent, string traceId)
+        {
+            if (!pressed)
+                return;
+
+            _characterControlInput.Commands.TryEnqueue(new InputCommand(
+                frame,
+                sourceId: 0,
+                intent,
+                traceId: traceId),
+                out _);
+        }
+
+        private static InputSnapshot CreateCharacterControlSnapshot(InputSnapshot input)
+        {
+            return new InputSnapshot(
+                input.Move,
+                input.Look,
+                input.Navigate,
+                input.Point,
+                input.Scroll,
+                input.Throttle,
+                jumpPressed: false,
+                jumpHeld: input.JumpHeld,
+                jumpReleased: false,
+                attackPrimaryPressed: false,
+                attackPrimaryHeld: input.AttackPrimaryHeld,
+                attackSecondaryPressed: false,
+                interactPressed: false,
+                dodgePressed: false,
+                sprintHeld: input.SprintHeld,
+                submitPressed: false,
+                cancelPressed: false,
+                pausePressed: false,
+                debugTogglePressed: false);
         }
 
         private bool TrySelectMarkerUnderCursor(Vector3 pointer, out Transform marker)

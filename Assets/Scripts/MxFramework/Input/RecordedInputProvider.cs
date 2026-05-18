@@ -21,6 +21,11 @@ namespace MxFramework.Input
         public InputContext CurrentContext => _contexts.ActiveContext;
         public int Index => _index;
 
+        public bool IsContextEnabled(InputContext context)
+        {
+            return _contexts.IsContextEnabled(context);
+        }
+
         public bool Advance()
         {
             if (_snapshots.Count == 0)
