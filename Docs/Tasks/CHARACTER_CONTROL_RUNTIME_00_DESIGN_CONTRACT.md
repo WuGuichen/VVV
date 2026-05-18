@@ -206,7 +206,7 @@ Recommended order for the first implementation chain:
 6. `#195` Local Input adapter to `ICharacterCommandSource`.
 7. `#196` Runtime AI Planner adapter to `ICharacterCommandSource`.
 8. `#201` Motion modifier / traction adapter contract.
-9. Follow-up: pressure / reaction integration.
+9. `#197` Pressure / reaction integration.
 10. Follow-up: Unity composition root / UI Toolkit runtime showcase.
 11. Follow-up: MxAnimation presentation bridge policy and authored action mappings.
 

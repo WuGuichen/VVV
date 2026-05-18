@@ -1,6 +1,6 @@
 # Character Control 接口
 
-> 状态：v0.2 contract + command sources / motion modifier adapters
+> 状态：v0.3 contract + command sources / motion modifier adapters / pressure reaction bridge
 > 任务入口：`Docs/Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
 
 ## 职责
@@ -56,13 +56,13 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 | `CharacterMotionResolver` | `CharacterCommand` + control state -> `CombatMotionInput` -> `CombatKinematicMotor.Step(...)`。 |
 | `CharacterMotionResult` | 运动结果摘要，暴露 position、velocity、grounded、collision flags、applied delta 和 world sync 信息。 |
 | `ICharacterActionConstraint` | 冷却、资源、状态等项目/Gameplay 限制的只读检查扩展点。 |
-| `CharacterActionController` | 连接 `CombatActionRunner`、`RuntimeCommandBuffer` 和 `GameplayRuntimeCommandFactory` 的动作桥。 |
+| `CharacterActionController` | 连接 `CombatActionRunner`、`RuntimeCommandBuffer` 和 `GameplayRuntimeCommandFactory` 的动作桥，并允许 interrupt flow 清理 queued action request。 |
 | `CharacterActionEvent` | accepted / rejected / queued / started / command enqueued / finished / canceled 事件 payload。 |
 | `CharacterActionResult` | 动作请求处理结果，包含 stable rejection reason、action instance id 和 accepted runtime command。 |
-| `CharacterPressureReactionAdapter` | 订阅 Gameplay pressure / break typed events，把 posture / guard / armor 反馈转成 Reaction、控制锁和 action cancel 请求。 |
-| `CharacterPressureReactionPolicy` / `CharacterPressureReactionPolicyEntry` | 配置 break / band change 的 reaction duration、frame window、lock mask 和是否请求 cancel。 |
-| `CharacterPressureReactionTargetRegistry` | 将 `GameplayEntityId` 映射到 `CharacterControlStateMachine` 和可选 `CharacterActionController`。 |
-| `CharacterPressureReactionRecord` | 最近一次 pressure reaction / suppressed 诊断，包含 reason、duration、end frame、lock mask 和 cancel 结果。 |
+| `CharacterPressureReactionPolicy` | Gameplay pressure typed events 到 Character Control Reaction 的可配置策略。 |
+| `CharacterPressureReactionController` | 消费 `PostureBreakEvent` / `GuardBreakEvent` / `ArmorBreakEvent` / `PressureBandChangedEvent`，验证 Gameplay id 映射，按策略取消动作并进入 Reaction。 |
+| `CharacterPressureReactionResult` | pressure reaction 处理结果，包含 reaction kind、end frame、lock mask、action cancel result 和 stable rejection reason。 |
+| `CharacterPressureReactionEvent` | recorded / reaction started / reaction finished / rejected 诊断事件 payload。 |
 | `InputCharacterCommandSource` | 可选 Input adapter，把 `IInputProvider` snapshot / command queue 转成 `CharacterCommand`。 |
 | `CharacterInputActionBinding` | Input intent 到 Combat action / Gameplay ability / cancel 的显式绑定。 |
 | `RuntimeAiPlannerCharacterCommandSource` | Runtime AI Planner bridge，把 plan selected action profile 转成 `CharacterCommand`。 |
@@ -75,11 +75,12 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - `CharacterMotionResolver` 必须通过 `CombatKinematicMotor` 得到权威运动结果。
 - motion modifier 只影响 `CombatMotionInput.MoveSpeedScale`；provider 不能写 Gameplay / Combat source of truth。
 - `CharacterActionController` 可以调用 `CombatActionRunner.StartAction` / `ForceStartAction` / `ForceCancel`，但不修改 Combat action timeline。
+- `CharacterPressureReactionController` 只消费 Gameplay typed pressure events，不直接写 posture / guard / armor / HP / Buff / Ability 状态。
+- `PostureBreakEvent` 和 `GuardBreakEvent` 默认会先清理 queued action request、取消当前 Combat action，再让状态机进入 `Reaction`；`ArmorBreakEvent` 默认只记录反馈，项目可通过 `CharacterPressureReactionPolicy` 改成进入 Reaction。
+- `PressureBandChangedEvent` 默认只记录 band 变化，避免和 break typed event 重复触发；需要 broken band 直接触发时必须显式打开 `BrokenBandChangeStartsReaction`，且事件必须是 pressure 上升导致的 band 升级。
+- recovery、negative delta 或 band 回落不会刷新 active reaction window；组合根停用 pressure owner 时可调用 `FinishActiveReaction(...)` 主动释放控制锁。
+- pressure reaction 会校验 `CharacterControlEntityRef.GameplayEntityId`；缺失映射或 entity mismatch 只输出 rejected result/event，不抛异常。
 - Gameplay ability 只通过 `GameplayRuntimeCommandFactory` 生成 command，不直接写 Gameplay component store。
-- Pressure reaction adapter 只消费 Gameplay typed events，不计算 pressure 数值、不新增 Combat hit kind、不直接扣血；PostureBreak / GuardBreak 可按 policy 进入 Reaction 并通过 `CharacterActionController` 请求 cancel。
-- BandChanged reaction 只响应 pressure 上升导致的 band 升级；recovery、negative delta 或 Broken -> Critical 回落只记录 `NonEscalatingBandChange` 诊断，不刷新 reaction window。
-- `CharacterPressureReactionAdapter.Disable()` / `Dispose()` 会释放自身持有的 active reaction window，避免 adapter 停用后遗留控制锁。
-- ArmorBreak 默认只记录诊断反馈；如果项目需要受击硬直，必须通过 `CharacterPressureReactionPolicy.ArmorBreak` 显式开启。
 - cooldown / resource / status 限制通过 `ICharacterActionConstraint` 注入；CharacterControl 不内置具体属性 id、cost 或 status id。
 - Input adapter 只读 `IInputProvider`，不直接读设备 API；Gameplay context 不可用时不输出 command，并丢弃当前 frame 及以前的 queued commands，避免 UI / cutscene 期间的动作在恢复后补发。
 - Runtime AI Planner bridge 使用 `Runtime AI Planner` 公共接口和 pressure fact keys，不使用 AIAction Config 或 WGame 私有行为数据。
