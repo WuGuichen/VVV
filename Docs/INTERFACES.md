@@ -1,6 +1,6 @@
 # MxFramework 接口索引
 
-> 版本 0.3.3 | 2026-05-18
+> 版本 0.3.4 | 2026-05-18
 >
 > 本文件只做接口导航、跨模块规则和依赖矩阵。具体模块接口不要继续堆在这里，必须拆到 `Docs/Interfaces/`。
 
@@ -67,7 +67,7 @@
           ✓* = Modifiers → Buffs 只允许通过 IBuffPipeline 等接口访问。
 ```
 
-`MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。
+`MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。Performance counters 与 Simulation Harness 归入 Diagnostics 观察 / 报告 API，默认不改变 Runtime authority、Replay、SaveState 或 hash。
 
 ## AI Terminology
 

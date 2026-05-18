@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.42 | 2026-05-18
+> 版本 0.6.43 | 2026-05-18
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -108,7 +108,7 @@
 
 | Goal | 说明 |
 |------|------|
-| `Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md` | Phase 13 Observability and Developer Workflow：Issue #178-#181 首批任务，规划并实现只读 Debug UI core registry、UI Toolkit overlay shell 和 RuntimeHost / Logging / Resources / Gameplay / Combat source adapters；明确 Debug UI 状态不进入 Replay / SaveState / Runtime hash。 |
+| `Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md` | Phase 13 Observability and Developer Workflow：Issue #178-#184，已覆盖只读 Debug UI core registry、UI Toolkit overlay shell、RuntimeHost / Logging / Resources / Gameplay / Combat source adapters、event timeline、entity watch、performance counters 和 Simulation Harness batch reports；明确 Debug UI 状态不进入 Replay / SaveState / Runtime hash。 |
 | `Tasks/RUNTIME_DEBUG_UI_FRAMEWORK_01_DESIGN.md` | Runtime Debug UI Framework 01：Issue #85 通用运行时调试界面框架设计，规划 source registry、snapshot aggregation、Hidden / Collapsed / Expanded UX、DebugUI noEngine core / Toolkit / Input 拆分和 M1-M5 实施切片。 |
 | `Tasks/MARBLE_MAZE_UNITY_PHYSICS_SHOWCASE_01.md` | Marble Maze Framework Physics Showcase：已重构为框架物理权威，RuntimeHost 负责命令、计时、checkpoint、诊断 hash、Replay 和 SaveState JSON；Unity 场景对象只作为 view / input adapter。 |
 | `Tasks/BREAKOUT_RUNTIME_SHOWCASE_01.md` | Breakout Runtime Validation：用打砖块验证连续运动/AABB 碰撞、关卡/砖块类型/多球/道具、预发球滚动/发射方向、AppFlow/SceneFlow、RuntimeCommand、Replay hash、SaveState。当前仓库未提交 Breakout 场景资产，因此不标记为 Playable。 |
@@ -216,6 +216,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.43 | 2026-05-18 | Phase 13 扩展 #182-#184：新增 Debug UI timeline / entity watch、Diagnostics performance counters 和 noEngine Simulation Harness reports |
 | 0.6.42 | 2026-05-18 | 新增 Phase 13 Observability and Developer Workflow 入口，落地 Debug UI core / Toolkit / adapter 首批任务文档 |
 | 0.6.41 | 2026-05-17 | 收口 MxAnimation System Showcase 文档索引：能力清单补充 playable validation，详细手测流程归档到 `Docs/Demo/MX_ANIMATION_SYSTEM_SHOWCASE.md` |
 | 0.6.40 | 2026-05-17 | 新增 Gitea -> GitHub Issue / PR 元数据手动镜像脚本，明确 PR 默认以 GitHub Issue 形式镜像，不把 GitHub 变成协作源 |

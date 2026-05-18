@@ -60,6 +60,41 @@ namespace MxFramework.Tests.DebugUI
         }
 
         [Test]
+        public void Bind_TimelineTabRendersTimelineSections()
+        {
+            var host = new VisualElement();
+            var binder = new DebugUiOverlayViewModelBinder();
+            binder.Build(host);
+            var model = new DebugUiDashboardViewModel(
+                3,
+                new[] { new DebugUiSourceViewModel("GameplayTimeline", MxFramework.Diagnostics.FrameworkDebugMode.Runtime, DebugUiSourceStatus.Available, new[] { new DebugUiSectionViewModel("Timeline", "frame=1 source=Gameplay") }) },
+                null);
+
+            host.Q<MxPanelTabs>().Select(2);
+            binder.Bind(model, DebugUiVisibility.Expanded, refreshPaused: false);
+
+            Assert.That(host.Q<ScrollView>(DebugUiToolkitThemeTokens.ContentName).Q<Label>().text, Does.Contain("GameplayTimeline"));
+            Assert.That(host.Q<ScrollView>(DebugUiToolkitThemeTokens.ContentName).Q<Label>(className: DebugUiToolkitThemeTokens.SectionBody).text, Does.Contain("frame=1"));
+        }
+
+        [Test]
+        public void Bind_EntitiesTabRendersEntityWatchSections()
+        {
+            var host = new VisualElement();
+            var binder = new DebugUiOverlayViewModelBinder();
+            binder.Build(host);
+            var model = new DebugUiDashboardViewModel(
+                4,
+                new[] { new DebugUiSourceViewModel("EntityWatch", MxFramework.Diagnostics.FrameworkDebugMode.Runtime, DebugUiSourceStatus.Available, new[] { new DebugUiSectionViewModel("Entity Watch", "entity=1:1 pressure=Stable") }) },
+                null);
+
+            host.Q<MxPanelTabs>().Select(3);
+            binder.Bind(model, DebugUiVisibility.Expanded, refreshPaused: false);
+
+            Assert.That(host.Q<ScrollView>(DebugUiToolkitThemeTokens.ContentName).Q<Label>(className: DebugUiToolkitThemeTokens.SectionBody).text, Does.Contain("entity=1:1"));
+        }
+
+        [Test]
         public void Build_PreservesExistingHostContentAndReplacesPreviousDebugRoot()
         {
             var host = new VisualElement();

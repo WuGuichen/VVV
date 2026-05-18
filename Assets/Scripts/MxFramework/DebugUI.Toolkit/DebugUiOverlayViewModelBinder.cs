@@ -8,7 +8,7 @@ namespace MxFramework.DebugUI.Toolkit
 {
     public sealed class DebugUiOverlayViewModelBinder
     {
-        private readonly string[] _tabs = { "Overview", "Snapshots", "Logs" };
+        private readonly string[] _tabs = { "Overview", "Snapshots", "Timeline", "Entities", "Logs" };
         private VisualElement _root;
         private VisualElement _collapsed;
         private VisualElement _expanded;
@@ -143,6 +143,18 @@ namespace MxFramework.DebugUI.Toolkit
 
             if (_activeTab == 2)
             {
+                RenderSectionsByTitle(model, "Timeline", DebugUiToolkitThemeTokens.EmptyText);
+                return;
+            }
+
+            if (_activeTab == 3)
+            {
+                RenderSectionsByTitle(model, "Entity Watch", DebugUiToolkitThemeTokens.EmptyText);
+                return;
+            }
+
+            if (_activeTab == 4)
+            {
                 RenderLogs(model);
                 return;
             }
@@ -227,6 +239,34 @@ namespace MxFramework.DebugUI.Toolkit
             var log = new MxEventLog();
             log.SetItems(lines, "No logs", newestFirst: false);
             _content.Add(log);
+        }
+
+        private void RenderSectionsByTitle(
+            DebugUiDashboardViewModel model,
+            string title,
+            string emptyText)
+        {
+            bool added = false;
+            for (int i = 0; i < model.Sources.Count; i++)
+            {
+                DebugUiSourceViewModel source = model.Sources[i];
+                for (int j = 0; j < source.Sections.Count; j++)
+                {
+                    DebugUiSectionViewModel section = source.Sections[j];
+                    if (!string.Equals(section.Title, title, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    VisualElement card = CreateCard(source);
+                    Label body = CreateBody(section.IsEmpty ? "empty" : section.Body);
+                    body.AddToClassList(DebugUiToolkitThemeTokens.SectionBody);
+                    card.Add(body);
+                    _content.Add(card);
+                    added = true;
+                }
+            }
+
+            if (!added)
+                _content.Add(CreateBody(emptyText));
         }
 
         private static VisualElement CreateCard(DebugUiSourceViewModel source)
