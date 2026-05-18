@@ -460,17 +460,16 @@ namespace MxFramework.Diagnostics
                     case '"':
                         builder.Append("\\\"");
                         break;
-                    case '\n':
-                        builder.Append("\\n");
-                        break;
-                    case '\r':
-                        builder.Append("\\r");
-                        break;
-                    case '\t':
-                        builder.Append("\\t");
-                        break;
                     default:
-                        builder.Append(ch);
+                        if (ch < ' ')
+                        {
+                            builder.Append("\\u");
+                            builder.Append(((int)ch).ToString("x4"));
+                        }
+                        else
+                        {
+                            builder.Append(ch);
+                        }
                         break;
                 }
             }
