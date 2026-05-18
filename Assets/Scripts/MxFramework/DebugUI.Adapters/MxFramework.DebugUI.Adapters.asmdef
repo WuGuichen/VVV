@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.DebugUI.Adapters",
+    "rootNamespace": "MxFramework.DebugUI.Adapters",
+    "references": [
+        "MxFramework.DebugUI",
+        "MxFramework.Diagnostics",
+        "MxFramework.Runtime",
+        "MxFramework.Resources",
+        "MxFramework.Gameplay",
+        "MxFramework.Combat"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -57,7 +57,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             int gameplayAbilityId = 0,
             bool forceStart = false,
             bool queueIfBusy = false,
-            Fix64 moveSpeedScale = default,
+            Fix64? moveSpeedScale = null,
             string traceTag = "")
         {
             if (actionId < 0)
@@ -77,7 +77,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             GameplayAbilityId = gameplayAbilityId;
             ForceStart = forceStart;
             QueueIfBusy = queueIfBusy;
-            MoveSpeedScale = moveSpeedScale.Equals(default(Fix64)) ? Fix64.One : moveSpeedScale;
+            MoveSpeedScale = moveSpeedScale ?? Fix64.One;
             TraceTag = traceTag ?? string.Empty;
         }
 
@@ -220,12 +220,15 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 RuntimeAiCharacterCommandProfile profile = _pendingProfile;
                 _pendingProfile = default;
                 _hasPendingProfile = false;
-                return TryBuildCommand(frame, entity, profile, out command);
+                _nextDecisionFrame = AddFrames(frame, _options.MinDecisionIntervalFrames);
+                _smoothUntilFrame = AddFrames(frame, _options.CommandSmoothingFrames);
+                _lastActionId = profile.ActionId;
+                return TryBuildCommand(frame, entity, profile, includeActionRequest: true, out command);
             }
 
             if (_hasLastProfile && frame < _nextDecisionFrame)
             {
-                return TryBuildCommand(frame, entity, _lastProfile, out command);
+                return TryBuildCommand(frame, entity, _lastProfile, includeActionRequest: false, out command);
             }
 
             if (!_planner.TryPlan(_worldState, _goals, _actions, out AiPlan plan))
@@ -251,11 +254,13 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
 
             RuntimeAiCharacterCommandProfile profileToUse = selectedProfile;
             bool actionChanged = !_hasLastProfile || selectedProfile.ActionId != _lastProfile.ActionId;
+            bool includeActionRequest = actionChanged;
             if (_hasLastProfile
                 && actionChanged
                 && frame < _smoothUntilFrame)
             {
                 profileToUse = _lastProfile;
+                includeActionRequest = false;
             }
             else if (actionChanged && _options.ReactionDelayFrames > 0)
             {
@@ -271,17 +276,20 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
             _smoothUntilFrame = AddFrames(frame, _options.CommandSmoothingFrames);
             _lastActionId = selectedProfile.ActionId;
             SetDiagnostics(RuntimeAiPlannerCharacterCommandSuppressedReason.None, frame, profileToUse.ActionId, default, DescribeGoal(plan.Goal));
-            return TryBuildCommand(frame, entity, profileToUse, out command);
+            return TryBuildCommand(frame, entity, profileToUse, includeActionRequest, out command);
         }
 
         private bool TryBuildCommand(
             RuntimeFrame frame,
             CharacterControlEntityRef entity,
             RuntimeAiCharacterCommandProfile profile,
+            bool includeActionRequest,
             out CharacterCommand command)
         {
             string traceId = BuildTraceId(frame, profile);
-            CharacterActionRequest request = CreateActionRequest(frame, entity, profile, traceId);
+            CharacterActionRequest request = includeActionRequest
+                ? CreateActionRequest(frame, entity, profile, traceId)
+                : default;
             command = new CharacterCommand(
                 frame,
                 _options.SourceId,
@@ -290,7 +298,7 @@ namespace MxFramework.CharacterControl.RuntimeAiPlannerBridge
                 profile.FacingBasis,
                 profile.JumpPressed,
                 profile.SprintHeld,
-                GetButtons(profile),
+                includeActionRequest ? GetButtons(profile) : CharacterActionButtons.None,
                 request,
                 profile.MoveSpeedScale,
                 traceId);

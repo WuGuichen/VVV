@@ -72,8 +72,9 @@ MxFramework.CharacterControl.RuntimeAiPlannerBridge
 - `CharacterActionController` 可以调用 `CombatActionRunner.StartAction` / `ForceStartAction` / `ForceCancel`，但不修改 Combat action timeline。
 - Gameplay ability 只通过 `GameplayRuntimeCommandFactory` 生成 command，不直接写 Gameplay component store。
 - cooldown / resource / status 限制通过 `ICharacterActionConstraint` 注入；CharacterControl 不内置具体属性 id、cost 或 status id。
-- Input adapter 只读 `IInputProvider`，不直接读设备 API；Gameplay context 不可用时不输出 command。
+- Input adapter 只读 `IInputProvider`，不直接读设备 API；Gameplay context 不可用时不输出 command，并丢弃当前 frame 及以前的 queued commands，避免 UI / cutscene 期间的动作在恢复后补发。
 - Runtime AI Planner bridge 使用 `Runtime AI Planner` 公共接口和 pressure fact keys，不使用 AIAction Config 或 WGame 私有行为数据。
+- Runtime AI Planner profile 的 `ActionRequest` 是 selection-edge one-shot；缓存复用、平滑复用和同 action 后续决策只继续输出移动、朝向、jump / sprint。
 - UI Toolkit、Audio、VFX、MxAnimation 和 debug overlay 只能消费事件 / snapshot。
 
 ## 测试入口

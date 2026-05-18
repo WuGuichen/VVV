@@ -21,7 +21,9 @@ namespace MxFramework.Tests.CharacterControl
             var machine = new CharacterControlStateMachine(CreateEntity());
             var controller = new CharacterActionController(machine, runner);
             var events = new List<CharacterActionEvent>();
+            var stateEvents = new List<CharacterStateChangedEvent>();
             controller.ActionEvent += events.Add;
+            machine.StateChanged += stateEvents.Add;
             CharacterActionRequest request = CharacterActionRequest.CombatAction(
                 RuntimeFrame.Zero,
                 CreateEntity(),
@@ -43,6 +45,7 @@ namespace MxFramework.Tests.CharacterControl
 
             Assert.AreEqual(CharacterControlState.Locomotion, machine.CurrentState);
             Assert.AreEqual(CharacterActionEventType.Finished, events[events.Count - 1].Type);
+            Assert.AreEqual(new RuntimeFrame(3), stateEvents[stateEvents.Count - 1].Frame);
         }
 
         [Test]
@@ -102,10 +105,12 @@ namespace MxFramework.Tests.CharacterControl
             runner.TickActions(new CombatFrame(3));
 
             Assert.IsFalse(controller.HasQueuedRequest);
-            Assert.AreEqual(HeavyAttackId, runner.GetActionState(CreateEntity().CombatEntityId).Value.ActionId);
+            CombatActionState heavyState = runner.GetActionState(CreateEntity().CombatEntityId).Value;
+            Assert.AreEqual(HeavyAttackId, heavyState.ActionId);
+            Assert.AreEqual(new CombatFrame(3), heavyState.StartedAtFrame);
             Assert.IsTrue(events.Exists(evt => evt.Type == CharacterActionEventType.Queued));
             Assert.IsTrue(events.Exists(evt => evt.Type == CharacterActionEventType.Finished && evt.Request.CombatActionId == QuickAttackId));
-            Assert.IsTrue(events.Exists(evt => evt.Type == CharacterActionEventType.Started && evt.Request.CombatActionId == HeavyAttackId));
+            Assert.IsTrue(events.Exists(evt => evt.Type == CharacterActionEventType.Started && evt.Request.CombatActionId == HeavyAttackId && evt.Request.Frame == new RuntimeFrame(3)));
         }
 
         [Test]
@@ -158,6 +163,30 @@ namespace MxFramework.Tests.CharacterControl
             IReadOnlyList<RuntimeCommand> commands = buffer.DrainForFrame(RuntimeFrame.Zero);
             Assert.AreEqual(GameplayRuntimeCommandIds.CastComponentAbilityRequest, commands[0].CommandId);
             Assert.AreEqual(AbilityStrike, commands[0].Payload2);
+        }
+
+        [Test]
+        public void ExplicitTargetGameplayAbility_RemovesRequestWhenCommandEnqueueFails()
+        {
+            var buffer = new RuntimeCommandBuffer();
+            buffer.DrainForFrame(new RuntimeFrame(5));
+            var store = new GameplayComponentAbilityRequestStore();
+            var machine = new CharacterControlStateMachine(CreateEntity());
+            var controller = new CharacterActionController(machine, gameplayCommandBuffer: buffer, abilityRequestStore: store);
+            GameplayEntityId target = new GameplayEntityId(2, 1);
+            CharacterActionRequest request = CharacterActionRequest.GameplayAbility(
+                RuntimeFrame.Zero,
+                CreateEntity(),
+                AbilityStrike,
+                target,
+                sourceId: 9,
+                traceId: "late-targeted");
+
+            CharacterActionResult result = controller.Submit(request);
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(CharacterActionRejectedReason.RuntimeCommandRejected, result.RejectedReason);
+            Assert.AreEqual(0, store.Count);
         }
 
         [Test]

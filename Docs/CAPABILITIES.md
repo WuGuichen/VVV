@@ -1,6 +1,6 @@
 # MxFramework 能力清单
 
-> 框架当前（2026-05-13 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
+> 框架当前（2026-05-18 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
 >
 > 状态标记：✅ v1 可用 | ✅ v0.x 部分可用 | 🔄 设计中 | 📋 规划中
 
@@ -261,7 +261,34 @@
 
 ---
 
-## 7. 运行时 Demo：打开 Unity 按 Play 就能看到效果
+## 7. Observability / Debug UI：统一开发观察入口
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| Debug source 注册 | ✅ v0.1 | `FrameworkDebugSourceRegistry.Register()` / `Unregister()` | DebugUI + Diagnostics |
+| Snapshot 聚合和错误隔离 | ✅ v0.1 | `DebugUiSnapshotAggregator.Refresh()` / `DebugUiDashboardViewModel` | DebugUI |
+| UI 可见性状态 | ✅ v0.1 | `DebugUiVisibility.Hidden / Collapsed / Expanded` | DebugUI |
+| UI Toolkit overlay shell | ✅ v0.1 | `DebugUiOverlayController` / `DebugUiOverlayViewModelBinder` | DebugUI.Toolkit + UI.Toolkit |
+| RuntimeHost adapter | ✅ v0.1 | `RuntimeHostDebugSource` | DebugUI.Adapters + Runtime |
+| Gameplay / Combat adapters | ✅ v0.1 | `GameplayDiagnosticSnapshotDebugSource` / `GameplayComponentWorldDebugSource` / `CombatDebugSnapshotDebugSource` | DebugUI.Adapters |
+| Logging / Resources 接入 | ✅ v0.1 | 复用 `LogDebugSource` / `ResourceDebugSource` | Logging.Diagnostics / Resources |
+| Event timeline view model | ✅ v0.2 | `DebugUiTimelineEntryViewModel` / `DebugUiTimelineViewModel` / `DebugUiTimelineFilter` | DebugUI |
+| Gameplay / Combat timeline adapters | ✅ v0.2 | `GameplayRuntimeEventTimelineDebugSource` / `CombatTimelineDebugSource` | DebugUI.Adapters |
+| Entity watch view model | ✅ v0.2 | `DebugUiEntityWatchEntryViewModel` / `DebugUiEntityWatchViewModel` | DebugUI |
+| Gameplay component entity watch | ✅ v0.2 | `GameplayComponentWorldEntityWatchDebugSource` | DebugUI.Adapters + Gameplay |
+| Performance counter snapshots | ✅ v0.1 | `FrameworkPerformanceCounterRecorder` / `FrameworkPerformanceCounterDebugSource` | Diagnostics |
+| RuntimeHost / Gameplay / Combat counters | ✅ v0.1 | `RuntimeHostPerformanceCounterSource` / `GameplayDiagnosticPerformanceCounterSource` / `CombatDebugPerformanceCounterSource` | DebugUI.Adapters + Diagnostics |
+| Simulation Harness reports | ✅ v0.1 | `FrameworkSimulationBatchRunner` / `FrameworkSimulationReportFormatter` / `FrameworkSimulationReportDebugSource` | Diagnostics |
+
+→ 接口：`Interfaces/DebugUI.md`
+→ 诊断接口：`Interfaces/Diagnostics.md`
+→ 任务：`Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md`
+→ 测试：`Tests/DebugUI/`
+→ **边界**: Debug UI 默认只读；Debug UI 展开、折叠、tab、刷新暂停等表现状态不进入 Replay、SaveState 或 Runtime hash。
+
+---
+
+## 8. 运行时 Demo：打开 Unity 按 Play 就能看到效果
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
