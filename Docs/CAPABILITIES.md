@@ -279,8 +279,14 @@
 | Performance counter snapshots | ✅ v0.1 | `FrameworkPerformanceCounterRecorder` / `FrameworkPerformanceCounterDebugSource` | Diagnostics |
 | RuntimeHost / Gameplay / Combat counters | ✅ v0.1 | `RuntimeHostPerformanceCounterSource` / `GameplayDiagnosticPerformanceCounterSource` / `CombatDebugPerformanceCounterSource` | DebugUI.Adapters + Diagnostics |
 | Simulation Harness reports | ✅ v0.1 | `FrameworkSimulationBatchRunner` / `FrameworkSimulationReportFormatter` / `FrameworkSimulationReportDebugSource` | Diagnostics |
+| Config Runtime patch hot reload | ✅ v0.1 | `RuntimeConfigPatchHotReloadService` / `RuntimeConfigHotReloadResult` / `RuntimeConfigHotReloadPoller` | Config.Runtime |
+| Config hot reload Debug UI source | ✅ v0.1 | `RuntimeConfigHotReloadDebugSource` | DebugUI.Adapters + Config.Runtime |
+| Debug UI command gate | ✅ v0.1 | `DebugUiCommandGate` / `IDebugUiCommandProvider` / `DebugUiCommandGateDebugSource` | DebugUI |
+| Debug UI input adapter | ✅ v0.1 | `DebugUiInputAdapter` / `DebugUiOverlayInputBridge` | DebugUI.Input + Input |
+| Observability 调试指南 | ✅ v0.1 | `Docs/Guides/OBSERVABILITY_DEBUGGING_GUIDE.md` | Docs |
 
 → 接口：`Interfaces/DebugUI.md`
+→ 指南：`Guides/OBSERVABILITY_DEBUGGING_GUIDE.md`
 → 诊断接口：`Interfaces/Diagnostics.md`
 → 任务：`Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md`
 → 测试：`Tests/DebugUI/`

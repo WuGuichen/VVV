@@ -75,6 +75,49 @@ namespace MxFramework.Input
             return count;
         }
 
+        public IReadOnlyList<InputCommand> PeekForFrame(long frame)
+        {
+            var commands = new List<InputCommand>();
+            PeekForFrame(frame, commands);
+            return commands;
+        }
+
+        public int PeekForFrame(long frame, List<InputCommand> destination)
+        {
+            return PeekForFrame(frame, destination, null);
+        }
+
+        public int PeekForFrame(long frame, List<InputCommand> destination, Predicate<InputCommand> predicate)
+        {
+            if (destination == null)
+            {
+                throw new ArgumentNullException(nameof(destination));
+            }
+
+            if (frame < 0L)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frame), "Input command queue peek frame cannot be negative.");
+            }
+
+            int start = destination.Count;
+            for (int i = 0; i < _pending.Count; i++)
+            {
+                InputCommand command = _pending[i];
+                if (command.Frame <= frame && (predicate == null || predicate(command)))
+                {
+                    destination.Add(command);
+                }
+            }
+
+            int count = destination.Count - start;
+            if (count > 1)
+            {
+                destination.Sort(start, count, InputCommandComparer.Instance);
+            }
+
+            return count;
+        }
+
         public void Clear()
         {
             _pending.Clear();

@@ -68,7 +68,7 @@
           ✓* = Modifiers → Buffs 只允许通过 IBuffPipeline 等接口访问。
 ```
 
-`MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。Performance counters 与 Simulation Harness 归入 Diagnostics 观察 / 报告 API，默认不改变 Runtime authority、Replay、SaveState 或 hash。
+`MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat、Config Runtime 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。`MxFramework.DebugUI.Input` 是可选 Unity/Input 桥，不进入 noEngine 依赖矩阵。Performance counters、Simulation Harness、hot reload observation 与 command gate diagnostics 归入观察 / 报告 API，默认不改变 Runtime authority、Replay、SaveState 或 hash。
 
 ## AI Terminology
 
