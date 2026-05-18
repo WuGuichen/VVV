@@ -1,5 +1,6 @@
 using MxFramework.DebugUI;
 using MxFramework.DebugUI.Toolkit;
+using MxFramework.UI.Toolkit;
 using NUnit.Framework;
 using UnityEngine.UIElements;
 
@@ -36,6 +37,7 @@ namespace MxFramework.Tests.DebugUI
             Assert.AreEqual(DisplayStyle.Flex, collapsed.style.display.value);
             Assert.That(collapsed.Q<Label>().text, Does.Contain("sources=1"));
             Assert.That(collapsed.Q<Label>().text, Does.Contain("paused"));
+            Assert.IsNotNull(collapsed.Q<MxCommandButton>(DebugUiToolkitThemeTokens.ExpandButtonName));
         }
 
         [Test]
@@ -55,6 +57,33 @@ namespace MxFramework.Tests.DebugUI
             Assert.AreEqual(DisplayStyle.Flex, expanded.style.display.value);
             Assert.IsNotNull(host.Q<ScrollView>(DebugUiToolkitThemeTokens.ContentName));
             Assert.That(host.Q<Label>().text, Does.Contain("Debug UI"));
+        }
+
+        [Test]
+        public void Build_PreservesExistingHostContentAndReplacesPreviousDebugRoot()
+        {
+            var host = new VisualElement();
+            var hud = new Label("HUD") { name = "existing-hud" };
+            host.Add(hud);
+            var binder = new DebugUiOverlayViewModelBinder();
+
+            binder.Build(host);
+            binder.Build(host);
+
+            Assert.AreSame(hud, host.Q<Label>("existing-hud"));
+            Assert.AreEqual(1, CountDirectDebugRoots(host));
+        }
+
+        private static int CountDirectDebugRoots(VisualElement host)
+        {
+            int count = 0;
+            for (int i = 0; i < host.childCount; i++)
+            {
+                if (host[i].name == DebugUiToolkitThemeTokens.RootName)
+                    count++;
+            }
+
+            return count;
         }
     }
 }

@@ -13,6 +13,7 @@ namespace MxFramework.DebugUI.Toolkit
         private VisualElement _collapsed;
         private VisualElement _expanded;
         private Label _collapsedSummary;
+        private MxCommandButton _collapsedExpandButton;
         private Label _title;
         private MxStatusBadge _sourceBadge;
         private MxStatusBadge _errorBadge;
@@ -26,6 +27,7 @@ namespace MxFramework.DebugUI.Toolkit
         public event Action PauseToggled;
         public event Action CloseRequested;
         public event Action CollapseRequested;
+        public event Action ExpandRequested;
 
         public VisualElement Root => _root;
         public int ActiveTab => _activeTab;
@@ -35,7 +37,7 @@ namespace MxFramework.DebugUI.Toolkit
             if (host == null)
                 throw new ArgumentNullException(nameof(host));
 
-            host.Clear();
+            RemoveExistingRoot(host);
 
             _root = new VisualElement { name = DebugUiToolkitThemeTokens.RootName };
             _root.AddToClassList(DebugUiToolkitThemeTokens.Root);
@@ -45,6 +47,12 @@ namespace MxFramework.DebugUI.Toolkit
             _collapsed.AddToClassList(DebugUiToolkitThemeTokens.Collapsed);
             _collapsedSummary = new Label("-");
             _collapsed.Add(_collapsedSummary);
+            _collapsedExpandButton = new MxCommandButton(() => ExpandRequested?.Invoke(), "Expand")
+            {
+                name = DebugUiToolkitThemeTokens.ExpandButtonName
+            };
+            _collapsedExpandButton.SetState(true, true, "Expand dashboard");
+            _collapsed.Add(_collapsedExpandButton);
             _root.Add(_collapsed);
 
             _expanded = new VisualElement { name = DebugUiToolkitThemeTokens.ExpandedName };
@@ -250,6 +258,16 @@ namespace MxFramework.DebugUI.Toolkit
             return "Debug UI sources=" + model.SourceCount
                 + " errors=" + model.ErrorCount
                 + (refreshPaused ? " paused" : " live");
+        }
+
+        private static void RemoveExistingRoot(VisualElement host)
+        {
+            for (int i = host.childCount - 1; i >= 0; i--)
+            {
+                VisualElement child = host[i];
+                if (string.Equals(child.name, DebugUiToolkitThemeTokens.RootName, StringComparison.Ordinal))
+                    child.RemoveFromHierarchy();
+            }
         }
 
         private void EnsureBuilt()

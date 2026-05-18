@@ -147,6 +147,7 @@ namespace MxFramework.DebugUI.Toolkit
             _binder.PauseToggled += TogglePause;
             _binder.CloseRequested += Hide;
             _binder.CollapseRequested += Collapse;
+            _binder.ExpandRequested += Expand;
         }
 
         private void UnregisterBinderCallbacks()
@@ -155,6 +156,7 @@ namespace MxFramework.DebugUI.Toolkit
             _binder.PauseToggled -= TogglePause;
             _binder.CloseRequested -= Hide;
             _binder.CollapseRequested -= Collapse;
+            _binder.ExpandRequested -= Expand;
         }
 
         private void TogglePause()
@@ -170,6 +172,11 @@ namespace MxFramework.DebugUI.Toolkit
         private void Collapse()
         {
             SetVisibility(DebugUiVisibility.Collapsed);
+        }
+
+        private void Expand()
+        {
+            SetVisibility(DebugUiVisibility.Expanded);
         }
 
         private static void ApplyInlineLayout(VisualElement root)

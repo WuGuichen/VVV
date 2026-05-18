@@ -5,6 +5,7 @@ namespace MxFramework.DebugUI.Toolkit
         public const string RootName = "mx-debug-ui-root";
         public const string CollapsedName = "mx-debug-ui-collapsed";
         public const string ExpandedName = "mx-debug-ui-expanded";
+        public const string ExpandButtonName = "mx-debug-ui-expand";
         public const string SourceListName = "mx-debug-ui-source-list";
         public const string HeaderName = "mx-debug-ui-header";
         public const string ToolbarName = "mx-debug-ui-toolbar";

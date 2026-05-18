@@ -51,6 +51,39 @@ namespace MxFramework.Tests.DebugUI
         }
 
         [Test]
+        public void Refresh_CapturesMetadataExceptionAsErrorViewModel()
+        {
+            var registry = new FrameworkDebugSourceRegistry();
+            var source = new ThrowingMetadataSource("MetadataBroken", FrameworkDebugMode.Runtime);
+            registry.Register(source);
+            source.ThrowMode = true;
+
+            DebugUiDashboardViewModel model = new DebugUiSnapshotAggregator().Refresh(registry);
+
+            Assert.AreEqual(1, model.SourceCount);
+            Assert.AreEqual(1, model.ErrorCount);
+            Assert.AreEqual("MetadataBroken", model.Errors[0].SourceName);
+            Assert.AreEqual(nameof(InvalidOperationException), model.Errors[0].ExceptionType);
+            Assert.AreEqual(DebugUiSourceStatus.Error, model.Sources[0].Status);
+        }
+
+        [Test]
+        public void Refresh_CapturesNameExceptionWithoutFailingSort()
+        {
+            var registry = new FrameworkDebugSourceRegistry();
+            var source = new ThrowingMetadataSource("NameBroken", FrameworkDebugMode.Runtime);
+            registry.Register(source);
+            source.ThrowName = true;
+            registry.Register(new TestSource("Healthy", FrameworkDebugMode.Runtime));
+
+            DebugUiDashboardViewModel model = new DebugUiSnapshotAggregator().Refresh(registry);
+
+            Assert.AreEqual(2, model.SourceCount);
+            Assert.AreEqual(1, model.ErrorCount);
+            Assert.AreEqual(nameof(ThrowingMetadataSource), model.Errors[0].SourceName);
+        }
+
+        [Test]
         public void Refresh_IncrementsSequenceAndReturnsNewModels()
         {
             var registry = new FrameworkDebugSourceRegistry();
@@ -94,6 +127,60 @@ namespace MxFramework.Tests.DebugUI
             public FrameworkDebugSnapshot CreateSnapshot()
             {
                 throw new InvalidOperationException("snapshot failed");
+            }
+        }
+
+        private sealed class ThrowingMetadataSource : IFrameworkDebugSource
+        {
+            private readonly string _name;
+            private readonly FrameworkDebugMode _mode;
+
+            public ThrowingMetadataSource(string name, FrameworkDebugMode mode)
+            {
+                _name = name;
+                _mode = mode;
+            }
+
+            public bool ThrowName { get; set; }
+            public bool ThrowMode { get; set; }
+            public bool ThrowAvailability { get; set; }
+
+            public string Name
+            {
+                get
+                {
+                    if (ThrowName)
+                        throw new InvalidOperationException("name failed");
+
+                    return _name;
+                }
+            }
+
+            public FrameworkDebugMode Mode
+            {
+                get
+                {
+                    if (ThrowMode)
+                        throw new InvalidOperationException("mode failed");
+
+                    return _mode;
+                }
+            }
+
+            public bool IsAvailable
+            {
+                get
+                {
+                    if (ThrowAvailability)
+                        throw new InvalidOperationException("availability failed");
+
+                    return true;
+                }
+            }
+
+            public FrameworkDebugSnapshot CreateSnapshot()
+            {
+                return new FrameworkDebugSnapshot(_name, _mode, new[] { new FrameworkDebugSection("Summary", "ok") });
             }
         }
     }

@@ -13,7 +13,14 @@ namespace MxFramework.DebugUI
             if (registry == null)
                 throw new ArgumentNullException(nameof(registry));
 
-            var orderedSources = new List<IFrameworkDebugSource>(registry.Sources);
+            var orderedSources = new List<DebugUiSourceReadState>(registry.Sources.Count);
+            for (int i = 0; i < registry.Sources.Count; i++)
+            {
+                IFrameworkDebugSource source = registry.Sources[i];
+                if (source != null)
+                    orderedSources.Add(ReadSourceState(source));
+            }
+
             orderedSources.Sort(CompareSources);
 
             var sources = new List<DebugUiSourceViewModel>(orderedSources.Count);
@@ -22,9 +29,13 @@ namespace MxFramework.DebugUI
 
             for (int i = 0; i < orderedSources.Count; i++)
             {
-                IFrameworkDebugSource source = orderedSources[i];
-                if (source == null)
+                DebugUiSourceReadState source = orderedSources[i];
+
+                if (source.MetadataException != null)
+                {
+                    AddErrorSource(sources, errors, source, source.MetadataException);
                     continue;
+                }
 
                 string sourceName = source.Name ?? string.Empty;
                 FrameworkDebugMode sourceMode = source.Mode;
@@ -42,18 +53,12 @@ namespace MxFramework.DebugUI
 
                 try
                 {
-                    FrameworkDebugSnapshot snapshot = source.CreateSnapshot();
+                    FrameworkDebugSnapshot snapshot = source.Source.CreateSnapshot();
                     sources.Add(CreateSourceViewModel(source, snapshot));
                 }
                 catch (Exception exception)
                 {
-                    errors.Add(new DebugUiErrorViewModel(sourceName, exception.GetType().Name, exception.Message));
-                    sources.Add(new DebugUiSourceViewModel(
-                        sourceName,
-                        sourceMode,
-                        DebugUiSourceStatus.Error,
-                        new[] { new DebugUiSectionViewModel("Error", exception.Message) },
-                        exception.Message));
+                    AddErrorSource(sources, errors, source, exception);
                 }
             }
 
@@ -61,7 +66,7 @@ namespace MxFramework.DebugUI
         }
 
         private static DebugUiSourceViewModel CreateSourceViewModel(
-            IFrameworkDebugSource source,
+            DebugUiSourceReadState source,
             FrameworkDebugSnapshot snapshot)
         {
             if (snapshot == null)
@@ -89,7 +94,67 @@ namespace MxFramework.DebugUI
                 sections);
         }
 
-        private static int CompareSources(IFrameworkDebugSource left, IFrameworkDebugSource right)
+        private static void AddErrorSource(
+            List<DebugUiSourceViewModel> sources,
+            List<DebugUiErrorViewModel> errors,
+            DebugUiSourceReadState source,
+            Exception exception)
+        {
+            string message = exception != null ? exception.Message : "unknown error";
+            string exceptionType = exception != null ? exception.GetType().Name : nameof(Exception);
+            errors.Add(new DebugUiErrorViewModel(source.Name, exceptionType, message));
+            sources.Add(new DebugUiSourceViewModel(
+                source.Name,
+                source.Mode,
+                DebugUiSourceStatus.Error,
+                new[] { new DebugUiSectionViewModel("Error", message) },
+                message));
+        }
+
+        private static DebugUiSourceReadState ReadSourceState(IFrameworkDebugSource source)
+        {
+            string sourceName;
+            try
+            {
+                sourceName = source.Name;
+                if (string.IsNullOrEmpty(sourceName))
+                    sourceName = GetFallbackSourceName(source);
+            }
+            catch (Exception exception)
+            {
+                return DebugUiSourceReadState.Error(source, GetFallbackSourceName(source), default, exception);
+            }
+
+            FrameworkDebugMode mode;
+            try
+            {
+                mode = source.Mode;
+            }
+            catch (Exception exception)
+            {
+                return DebugUiSourceReadState.Error(source, sourceName, default, exception);
+            }
+
+            bool isAvailable;
+            try
+            {
+                isAvailable = source.IsAvailable;
+            }
+            catch (Exception exception)
+            {
+                return DebugUiSourceReadState.Error(source, sourceName, mode, exception);
+            }
+
+            return DebugUiSourceReadState.Available(source, sourceName, mode, isAvailable);
+        }
+
+        private static string GetFallbackSourceName(IFrameworkDebugSource source)
+        {
+            string typeName = source != null ? source.GetType().Name : null;
+            return string.IsNullOrEmpty(typeName) ? "UnknownSource" : typeName;
+        }
+
+        private static int CompareSources(DebugUiSourceReadState left, DebugUiSourceReadState right)
         {
             if (ReferenceEquals(left, right))
                 return 0;
@@ -103,6 +168,47 @@ namespace MxFramework.DebugUI
                 return mode;
 
             return string.Compare(left.Name, right.Name, StringComparison.Ordinal);
+        }
+
+        private sealed class DebugUiSourceReadState
+        {
+            private DebugUiSourceReadState(
+                IFrameworkDebugSource source,
+                string name,
+                FrameworkDebugMode mode,
+                bool isAvailable,
+                Exception metadataException)
+            {
+                Source = source;
+                Name = name ?? string.Empty;
+                Mode = mode;
+                IsAvailable = isAvailable;
+                MetadataException = metadataException;
+            }
+
+            public IFrameworkDebugSource Source { get; }
+            public string Name { get; }
+            public FrameworkDebugMode Mode { get; }
+            public bool IsAvailable { get; }
+            public Exception MetadataException { get; }
+
+            public static DebugUiSourceReadState Available(
+                IFrameworkDebugSource source,
+                string name,
+                FrameworkDebugMode mode,
+                bool isAvailable)
+            {
+                return new DebugUiSourceReadState(source, name, mode, isAvailable, null);
+            }
+
+            public static DebugUiSourceReadState Error(
+                IFrameworkDebugSource source,
+                string name,
+                FrameworkDebugMode mode,
+                Exception exception)
+            {
+                return new DebugUiSourceReadState(source, name, mode, isAvailable: false, metadataException: exception);
+            }
         }
     }
 }
