@@ -482,7 +482,16 @@ CharacterSpawnRequest
   -> CharacterControl command source
 ```
 
-第一版 Runtime 验收场景：
+#218 第一切片当前落点：
+
+- 新增 `MxFramework.Character.RuntimeSpawn` noEngine 程序集，不改变 `MxFramework.Character.Application` 只依赖 Config 的边界。
+- `CharacterImportedPackageJson` 从 `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/` 读取 #222 生成的 JSON 产物。
+- `CharacterRuntimeSpawnResolver` 先检查 `import_report.json` gate；`SpawnBlocked` 不生成 binding。
+- Runtime 解析必须复用 `SpawnPlanResolver` 和 `CharacterPackageResolver`，不在 runtime 侧私有拼表。
+- 第一切片输出 `CharacterRuntimeBinding`、Gameplay registration plan、Combat body collider binding plan、weapon attachment / trace plan 和 Resource preload binding plan。
+- `CharacterRuntimeSpawnModule` 可注册到 `RuntimeHost`，消费排队的 `CharacterSpawnRequest`，但目前只生成 plan，不创建真实 Gameplay / Combat / Presentation 实例。
+
+后续 Runtime 验收场景：
 
 - 生成 Iron Vanguard 剑盾玩家角色。
 - 同一 `CharacterConfig` 生成敌方单剑角色。

@@ -1,0 +1,22 @@
+{
+    "name": "MxFramework.Character.RuntimeSpawn",
+    "rootNamespace": "MxFramework.CharacterRuntimeSpawn",
+    "references": [
+        "MxFramework.Character.Application",
+        "MxFramework.CharacterControl",
+        "MxFramework.Combat",
+        "MxFramework.Config",
+        "MxFramework.Gameplay",
+        "MxFramework.Resources",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
