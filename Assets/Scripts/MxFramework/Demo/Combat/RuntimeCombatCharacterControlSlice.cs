@@ -42,6 +42,7 @@ namespace MxFramework.Demo
 
         private MxInput.IInputProvider _localInputProvider;
         private InputCharacterCommandSource _localInputSource;
+        private Func<RuntimeFrame, CharacterFacingBasis> _facingBasisProvider;
         private CharacterCommand _lastCommand;
         private CharacterMotionResult _lastMotionResult;
         private CharacterActionResult _lastActionResult;
@@ -53,8 +54,9 @@ namespace MxFramework.Demo
         private bool _hasLastPressureResult;
         private bool _disposed;
 
-        public RuntimeCombatCharacterControlSlice(int combatActionId)
+        public RuntimeCombatCharacterControlSlice(int combatActionId, Func<RuntimeFrame, CharacterFacingBasis> facingBasisProvider = null)
         {
+            _facingBasisProvider = facingBasisProvider;
             _combatActionId = combatActionId;
             _entity = CharacterControlEntityRef.FromGameplayAndCombat(
                 new GameplayEntityId(1, 1),
@@ -108,6 +110,11 @@ namespace MxFramework.Demo
         public CharacterControlStateMachine StateMachine => _stateMachine;
 
         public int TotalGameplayCommandsDrained => _runtimeModule.TotalGameplayCommandsDrained;
+
+        public void SetFacingBasisProvider(Func<RuntimeFrame, CharacterFacingBasis> facingBasisProvider)
+        {
+            _facingBasisProvider = facingBasisProvider;
+        }
 
         public bool TryReadLocalCommand(MxInput.IInputProvider inputProvider, RuntimeFrame frame, out CharacterCommand command)
         {
@@ -245,6 +252,7 @@ namespace MxFramework.Demo
             {
                 SourceId = LocalInputSourceId,
                 CanReadGameplayInput = provider => provider != null && provider.IsContextEnabled(MxInput.InputContext.Gameplay),
+                FacingBasisProvider = frame => _facingBasisProvider != null ? _facingBasisProvider(frame) : CharacterFacingBasis.Identity,
                 ActionBindings = new[]
                 {
                     CharacterInputActionBinding.CombatAction(

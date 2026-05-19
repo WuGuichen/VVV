@@ -22,6 +22,8 @@
         "MxFramework.Combat",
         "MxFramework.Combat.Animation.Unity",
         "MxFramework.Combat.GameplayBridge",
+        "MxFramework.Camera",
+        "MxFramework.Camera.Unity",
         "MxFramework.Resources",
         "MxFramework.Resources.Unity",
         "MxFramework.Diagnostics",

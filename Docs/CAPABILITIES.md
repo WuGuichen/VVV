@@ -143,6 +143,25 @@
 → 测试：`Tests/CharacterControl/`、`Tests/Combat/RuntimeCombatShowcaseRunnerTests.cs`
 → **边界**: Character Control 不读取 Unity 输入、不调用 Unity Physics、不写 Gameplay HP/Buff/Ability source of truth，也不让 MxAnimation / Animator / Playables root motion 反向驱动权威状态。
 
+### 1.9 Camera — 运行时表现相机
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| noEngine profile / request / target group 求值 | ✅ v0.1 | `MxCameraService.Evaluate()` / `MxCameraEvaluationResult` | Camera |
+| 单目标 / 多目标透视与正交入镜 | ✅ v0.1 | `MxCameraTargetSnapshot` / `MxCameraTargetGroupState` | Camera |
+| target lost grace / fallback / request conflict 诊断 | ✅ v0.1 | `MxCameraDiagnosticCodes` | Camera |
+| shake / impulse clamp | ✅ v0.1 | `MxCameraRequestKind.Shake` / `Impulse` | Camera |
+| Unity Camera LateUpdate apply adapter | ✅ v0.1 | `MxCameraUnityRig.ApplyLate()` | Camera.Unity |
+| Transform / Renderer bounds target binder | ✅ v0.1 | `MxCameraTransformTargetBinder` / `MxCameraRendererBoundsTargetBinder` | Camera.Unity |
+| Animation presentation event bridge | ✅ v0.1 | `MxCameraPresentationEventSink` | Camera.Animation |
+| Debug UI snapshot | ✅ v0.1 | `CameraDebugSource` | DebugUI.Adapters |
+| Profile authoring adapter | ✅ v0.1 | `MxCameraProfileAuthoringAsset` / `MxFramework/Camera/Create Profile Asset` | Camera.Unity + Camera.Editor |
+
+→ 接口：`Interfaces/Camera.md`
+→ 测试：`Tests/Camera/`
+→ Demo 接入：`RuntimeCombatShowcaseInputController` 通过 `MxCameraUnityRig` 收敛核心 follow/orbit，并用 `MxCameraFacingBasisResolver` 给 Character Control 组合根提供 camera-facing basis。
+→ **边界**: Camera 是表现层，不进入 Gameplay / Combat authority、Runtime result hash、Replay hash 或 SaveState 默认内容；Unity Camera / Transform 只存在于 adapter 层。
+
 ---
 
 ## 2. 配置系统：用配置数据驱动运行时

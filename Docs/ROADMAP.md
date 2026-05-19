@@ -1068,11 +1068,12 @@
 
 任务：
 - #231 / `Tasks/CAMERA_MANAGEMENT_01_DESIGN.md`：相机模块设计契约、noEngine / Unity backend 边界、request 解析、多目标入镜算法、诊断语义和 implementation slices。
-- 后续 #TBD：`MxFramework.Camera` noEngine core，包含 profile、request、target group solver、service、Null backend 和 tests。
-- 后续 #TBD：`MxFramework.Camera.Unity` backend MVP，包含 Unity rig、target binder、LateUpdate apply、single / group follow PlayMode 验证。
-- 后续 #TBD：Demo migration，把一个现有 Runtime Showcase / Playable Demo 的散落 camera logic 收敛到 `MxCameraUnityRig`。
-- 后续 #TBD：Animation / Combat presentation event sink，把 camera shake / focus / impulse 接入表现事件。
-- 后续 #TBD：Camera Debug UI source 和 Editor authoring / validation MVP。
+- #234：`MxFramework.Camera` noEngine core，包含 profile、request、target group solver、service、Null backend 和 tests。
+- #235：`MxFramework.Camera.Unity` backend MVP，包含 Unity rig、target binder、LateUpdate apply、single / group follow 验证。
+- #236：Demo migration，把 `RuntimeCombatShowcaseInputController` 的核心 camera follow / orbit logic 收敛到 `MxCameraUnityRig`。
+- #237：Animation / Combat presentation event sink，把 camera shake / focus / impulse 接入表现事件。
+- #238：Camera Debug UI source。
+- #239：Camera profile authoring / validation MVP。
 
 完成条件：
 - `MxFramework.Camera` 无 UnityEngine / UnityEditor / Cinemachine / Input System 引用。
@@ -1082,4 +1083,4 @@
 - Character Control camera-facing 输入通过组合根 resolver 接入，core 不反向依赖 Camera。
 - Debug snapshot 可定位 active profile、target group、framing bounds、shake queue 和 recent errors。
 
-**状态**: 📋 #231 Design in review
+**状态**: 🔄 #234-#239 implementation in progress

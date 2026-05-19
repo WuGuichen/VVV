@@ -1,4 +1,10 @@
+using System.Collections.Generic;
+using MxFramework.Camera;
+using MxFramework.Camera.Unity;
+using MxFramework.CharacterControl;
+using MxFramework.Core.Math;
 using MxFramework.Input;
+using MxFramework.Runtime;
 using MxFramework.UI.Toolkit;
 using UnityEngine;
 
@@ -12,7 +18,7 @@ namespace MxFramework.Demo
         private const float ClickDragThreshold = 6f;
         private const float FixedStepEpsilon = 0.0001f;
 
-        [SerializeField] private Camera _camera;
+        [SerializeField] private UnityEngine.Camera _camera;
         [SerializeField] private float _orbitYaw = 0f;
         [SerializeField] private float _orbitPitch = 35f;
         [SerializeField] private float _orbitDistance = 8f;
@@ -28,6 +34,7 @@ namespace MxFramework.Demo
         private RuntimeCombatShowcaseRunner _runner;
         private MxRuntimeHudController _hud;
         private IInputProvider _input;
+        private MxCameraUnityRig _cameraRig;
         private FakeInputProvider _characterControlInput;
         private InputSnapshot _latestInput;
         private Transform _selectedDragMarker;
@@ -46,7 +53,10 @@ namespace MxFramework.Demo
             _characterControlInput = new FakeInputProvider();
             ResolveInput();
             ResolveCamera();
-            ApplyCameraOrbit();
+            ResolveCameraRig();
+            if (_runner != null)
+                _runner.SetCharacterControlFacingBasisProvider(ResolveCharacterFacingBasis);
+            ApplyCameraRig();
         }
 
         private void Update()
@@ -65,8 +75,12 @@ namespace MxFramework.Demo
 
         private void LateUpdate()
         {
-            if (_isOrbiting || (!IsPointerOverHud(_latestInput.Point) && _latestInput.Scroll.y != 0f))
-                ApplyCameraOrbit();
+            if (_runner == null || !_runner.IsInitialized)
+                return;
+
+            ResolveCamera();
+            ResolveCameraRig();
+            ApplyCameraRig();
         }
 
         private void HandleSelectionAndDrag(InputSnapshot input)
@@ -300,34 +314,88 @@ namespace MxFramework.Demo
         private void ResolveCamera()
         {
             if (_camera == null)
-                _camera = Camera.main;
+                _camera = UnityEngine.Camera.main;
         }
 
-        private void ApplyCameraOrbit()
+        private void ResolveCameraRig()
         {
-            if (_camera == null)
+            if (_cameraRig == null && _camera != null)
+                _cameraRig = MxCameraUnityRig.EnsureFor(_camera);
+        }
+
+        private void ApplyCameraRig()
+        {
+            if (_cameraRig == null || _runner == null)
                 return;
 
-            Vector3 pivot = GetCameraPivot();
-            Quaternion rotation = Quaternion.Euler(_orbitPitch, _orbitYaw, 0f);
-            _camera.transform.position = pivot + rotation * new Vector3(0f, 0f, -_orbitDistance);
-            _camera.transform.rotation = rotation;
+            var targets = new List<MxCameraTargetSnapshot>(2);
+            AddTargetSnapshot(targets, _runner.PlayerMarker, "combat-showcase.player", isPrimary: true);
+            AddTargetSnapshot(targets, _runner.EnemyMarker, "combat-showcase.enemy", isPrimary: false);
+            _cameraRig.EvaluateAndApplyLate(
+                _runner.CurrentFrame.Value,
+                new[] { CreateCameraProfile() },
+                targets);
         }
 
-        private Vector3 GetCameraPivot()
+        private MxCameraProfileDefinition CreateCameraProfile()
         {
-            Transform player = _runner.PlayerMarker;
-            Transform enemy = _runner.EnemyMarker;
-            if (player != null && enemy != null)
-                return Vector3.Lerp(player.position, enemy.position, 0.5f);
+            return new MxCameraProfileDefinition
+            {
+                ProfileId = new MxCameraProfileId("combat-showcase.orbit"),
+                Mode = MxCameraMode.GroupFollowPerspective,
+                Distance = _orbitDistance,
+                MinDistance = _minOrbitDistance,
+                MaxDistance = _maxOrbitDistance,
+                FieldOfView = 60f,
+                MinFieldOfView = 35f,
+                MaxFieldOfView = 75f,
+                TargetPadding = 1.25f,
+                TargetLostGraceFrames = 8,
+                MaxTargetRadius = 40f,
+                ShakeLimit = 0.35f,
+                Pitch = _orbitPitch,
+                Yaw = _orbitYaw,
+                FallbackPosition = new MxCameraVector3(0f, 6f, -_orbitDistance),
+                FallbackFocus = MxCameraVector3.Zero
+            };
+        }
 
-            if (player != null)
-                return player.position;
+        private static void AddTargetSnapshot(List<MxCameraTargetSnapshot> targets, Transform target, string targetRef, bool isPrimary)
+        {
+            if (target == null)
+                return;
 
-            if (enemy != null)
-                return enemy.position;
+            targets.Add(new MxCameraTargetSnapshot(
+                new MxCameraTargetRef(targetRef),
+                MxCameraUnityConversions.ToCameraVector(target.position),
+                MxCameraUnityConversions.ToCameraVector(target.forward),
+                MxCameraUnityConversions.ToCameraVector(target.up),
+                MxCameraVector3.Zero,
+                MxCameraUnityConversions.ToCameraVector(target.position + Vector3.up * 0.5f),
+                new MxCameraVector3(0.65f, 1f, 0.65f),
+                1f,
+                isPrimary,
+                true,
+                Time.frameCount));
+        }
 
-            return Vector3.zero;
+        private CharacterFacingBasis ResolveCharacterFacingBasis(RuntimeFrame frame)
+        {
+            MxCameraState state = _cameraRig != null && _cameraRig.LastEvaluationResult != null
+                ? _cameraRig.LastEvaluationResult.State
+                : MxCameraState.Empty;
+            MxCameraFacingBasis basis = MxCameraFacingBasisResolver.Resolve(state);
+            return CharacterFacingBasis.FromForward(ToFixVector3(basis.Forward));
+        }
+
+        private static FixVector3 ToFixVector3(MxCameraVector3 value)
+        {
+            return new FixVector3(ToFix64(value.X), Fix64.Zero, ToFix64(value.Z));
+        }
+
+        private static Fix64 ToFix64(float value)
+        {
+            return Fix64.FromRatio((long)Mathf.Round(value * 10000f), 10000L);
         }
 
         private void ResolveInput()
