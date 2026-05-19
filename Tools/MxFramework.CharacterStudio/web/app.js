@@ -44,10 +44,37 @@ const FIELD_GROUP_LABELS = {
   modelTransform: "模型尺寸 / 旋转 / 位置修正",
   base: "基础属性",
   binding: "引用关系",
+  combat: "战斗映射",
+  usage: "用途",
   localPose: "局部变换",
+  poseParent: "局部父空间",
   shape: "形状尺寸",
   trace: "轨迹"
 };
+
+const BODY_PART_KIND_OPTIONS = ["Unknown", "Bone", "Primitive", "Virtual"];
+const POSE_PARENT_KIND_OPTIONS = ["ModelRoot", "SkeletonRoot", "Bone", "Locator", "BodyPart", "Socket", "WorldPreview"];
+const SOCKET_USAGE_OPTIONS = ["Unknown", "Weapon", "Vfx", "Camera", "Ui", "Gameplay"];
+const SOCKET_HANDEDNESS_OPTIONS = [
+  { value: "None", label: "无" },
+  { value: "Left", label: "左手" },
+  { value: "Right", label: "右手" },
+  { value: "Both", label: "双手" }
+];
+const SOCKET_SIDE_OPTIONS = [
+  { value: "Center", label: "中心" },
+  { value: "Left", label: "左" },
+  { value: "Right", label: "右" },
+  { value: "Front", label: "前" },
+  { value: "Back", label: "后" }
+];
+const EQUIP_SLOT_OPTIONS = [
+  { value: "mainHand", label: "主手" },
+  { value: "offHand", label: "副手" },
+  { value: "twoHand", label: "双手" },
+  { value: "naturalWeapon", label: "天然武器" }
+];
+const TRACE_SAMPLE_RULE_OPTIONS = ["LineSegment", "CapsuleSweep", "FixedSamples"];
 
 const KIND_LABELS = {
   manifest: "清单",
@@ -416,10 +443,24 @@ function clearCurrentModelBinding() {
 
 function ensureModelWrapperPose(resource) {
   resource.importHints = resource.importHints || {};
-  resource.importHints.modelWrapperPose = resource.importHints.modelWrapperPose || {};
-  const pose = resource.importHints.modelWrapperPose;
-  pose.parentKind = pose.parentKind || "ModelRoot";
-  pose.parentPath = pose.parentPath || "";
+  return ensureLocalPose(resource.importHints, "modelWrapperPose", { parentKind: "ModelRoot", parentPath: "" });
+}
+
+function ensureLocalPose(owner, posePath, defaults = {}) {
+  if (!owner) return null;
+  let pose = getNested(owner, posePath);
+  if (!pose) {
+    pose = {};
+    setNested(owner, posePath, pose);
+  }
+  ensurePoseObject(pose, defaults);
+  return pose;
+}
+
+function ensurePoseObject(pose, defaults = {}) {
+  if (!pose) return null;
+  pose.parentKind = pose.parentKind || defaults.parentKind || "ModelRoot";
+  pose.parentPath = pose.parentPath ?? defaults.parentPath ?? "";
   pose.position = pose.position || {};
   pose.rotation = pose.rotation || {};
   pose.scale = pose.scale || {};
@@ -844,7 +885,7 @@ async function loadThreeRuntime() {
   return threeRuntimePromise;
 }
 
-async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null, attachmentPose = null, wrapperPose = null }) {
+async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null, bindingPose = null, attachmentPose = null, wrapperPose = null }) {
   try {
     const gltf = await new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
     const root = gltf.scene;
@@ -852,6 +893,7 @@ async function addGltfResource({ THREE, loader, content, pickables, url, objectP
     const bindingRoot = new THREE.Group();
     bindingRoot.name = `${root.name || "model"}_binding`;
     if (position) bindingRoot.position.copy(position);
+    applyLocalPose(THREE, bindingRoot, bindingPose);
     applyLocalPose(THREE, bindingRoot, attachmentPose);
 
     const modelWrapper = new THREE.Group();
@@ -942,7 +984,7 @@ function addColliderMeshes(THREE, content, pickables, colliders) {
       geometry = new THREE.SphereGeometry(Number(collider.radius || 0.12), 20, 12);
     }
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(toVector3(THREE, collider.localPose?.position));
+    applyLocalPose(THREE, mesh, collider.localPose);
     makeSelectable(mesh, objectPath, pickables);
     content.add(mesh);
   }
@@ -954,7 +996,7 @@ function addSocketMeshes(THREE, content, pickables, sockets) {
     const selected = state.selectedPath === objectPath;
     const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, emissive: selected ? 0x442000 : 0x000000 });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), material);
-    mesh.position.copy(toVector3(THREE, socket.localPose?.position));
+    applyLocalPose(THREE, mesh, socket.localPose);
     makeSelectable(mesh, objectPath, pickables);
     content.add(mesh);
   }
@@ -981,7 +1023,6 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
   for (const attachment of attachments) {
     const objectPath = `geometry/weapon_attachments/${attachment.weaponId}`;
     const socket = socketsById[attachment.attachSocketId];
-    const position = toVector3(THREE, socket?.localPose?.position);
     const resource = resources.find(entry => entry.resourceKey === attachment.previewResourceKey);
     let loaded = false;
     if (resource?.relativePath) {
@@ -993,7 +1034,7 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
         url: packageUrl(resource.relativePath),
         objectPath,
         name: attachment.weaponId,
-        position,
+        bindingPose: socket?.localPose,
         attachmentPose: attachment.localGripPose,
         wrapperPose: resource.importHints?.modelWrapperPose
       });
@@ -1002,7 +1043,7 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
       const selected = state.selectedPath === objectPath;
       const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, transparent: true, opacity: 0.74 });
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.08), material);
-      mesh.position.copy(position);
+      applyLocalPose(THREE, mesh, socket?.localPose);
       applyLocalPose(THREE, mesh, attachment.localGripPose);
       mesh.position.x += attachment.equipSlot === "offHand" ? -0.12 : 0.12;
       makeSelectable(mesh, objectPath, pickables);
@@ -1088,7 +1129,23 @@ function renderInspector() {
 function normalizeInspectorTarget(target) {
   if (target.kind === "resource" && target.value?.typeId === "model") {
     ensureModelWrapperPose(target.value);
+  } else if (target.kind === "collider") {
+    ensureLocalPose(target.value, "localPose", { parentKind: "BodyPart", parentPath: target.value.partId || "" });
+  } else if (target.kind === "socket") {
+    ensureLocalPose(target.value, "localPose", defaultSocketPoseParent(target.value));
+  } else if (target.kind === "weapon") {
+    ensureLocalPose(target.value, "localGripPose", { parentKind: "Socket", parentPath: target.value.attachSocketId || "" });
+  } else if (target.kind === "trace") {
+    ensureLocalPose(target.value, "startPose", { parentKind: "Locator", parentPath: target.value.startLocatorPath || "" });
+    ensureLocalPose(target.value, "endPose", { parentKind: "Locator", parentPath: target.value.endLocatorPath || "" });
   }
+}
+
+function defaultSocketPoseParent(socket) {
+  if (socket?.bonePath) return { parentKind: "Bone", parentPath: socket.bonePath };
+  if (socket?.locatorPath) return { parentKind: "Locator", parentPath: socket.locatorPath };
+  if (socket?.parentPartId) return { parentKind: "BodyPart", parentPath: socket.parentPartId };
+  return { parentKind: "ModelRoot", parentPath: "" };
 }
 
 function editableFields(kind, value = null) {
@@ -1104,13 +1161,32 @@ function editableFields(kind, value = null) {
     modelScaleField("importHints.modelWrapperPose.scale.y", "缩放 Y"),
     modelScaleField("importHints.modelWrapperPose.scale.z", "缩放 Z")
   ];
+  if (kind === "part") return [
+    field("partId", { label: "部位 ID", group: "base" }),
+    field("displayName", { label: "显示名", group: "base" }),
+    field("partKind", { label: "部位类型", type: "select", options: BODY_PART_KIND_OPTIONS, group: "binding" }),
+    field("parentPartId", { label: "父部位", type: "select", options: bodyPartOptions("无"), group: "binding" }),
+    field("bonePath", { label: "代表骨骼路径", group: "binding" }),
+    field("locatorId", { label: "代表 Locator", group: "binding" }),
+    field("defaultHitZoneId", { label: "默认命中区域", group: "combat" }),
+    field("reactionGroupId", { label: "受击反应组", group: "combat" }),
+    tagsField("tags", "标签")
+  ];
   if (kind === "collider") return [
     field("shape", { label: "碰撞形状", type: "select", options: ["Capsule", "Box", "Sphere"], group: "base" }),
-    field("partId", { label: "身体部位", group: "base" }),
+    field("partId", { label: "身体部位", type: "select", options: bodyPartOptions(), group: "binding" }),
     field("hitZoneId", { label: "命中区域", group: "base" }),
+    poseParentKindField("localPose.parentKind"),
+    poseParentPathField("localPose.parentPath"),
     positionField("localPose.position.x", "中心 X", "localPose"),
     positionField("localPose.position.y", "中心 Y", "localPose"),
     positionField("localPose.position.z", "中心 Z", "localPose"),
+    rotationField("localPose.eulerHint.x", "旋转 X"),
+    rotationField("localPose.eulerHint.y", "旋转 Y"),
+    rotationField("localPose.eulerHint.z", "旋转 Z"),
+    localScaleField("localPose.scale.x", "局部缩放 X"),
+    localScaleField("localPose.scale.y", "局部缩放 Y"),
+    localScaleField("localPose.scale.z", "局部缩放 Z"),
     sizeField("size.x", "盒体尺寸 X"),
     sizeField("size.y", "盒体尺寸 Y"),
     sizeField("size.z", "盒体尺寸 Z"),
@@ -1122,42 +1198,101 @@ function editableFields(kind, value = null) {
   ];
   if (kind === "socket") return [
     field("socketId", { label: "挂点 ID", group: "base" }),
-    field("parentPartId", { label: "父部位", group: "base" }),
+    field("parentPartId", { label: "父部位", type: "select", options: bodyPartOptions("无"), group: "binding" }),
     field("bonePath", { label: "骨骼路径", group: "binding" }),
     field("locatorPath", { label: "Locator 路径", group: "binding" }),
+    poseParentKindField("localPose.parentKind"),
+    poseParentPathField("localPose.parentPath"),
     positionField("localPose.position.x", "局部位置 X", "localPose"),
     positionField("localPose.position.y", "局部位置 Y", "localPose"),
     positionField("localPose.position.z", "局部位置 Z", "localPose"),
-    field("usage", { label: "挂点用途", type: "select", options: ["Weapon", "Vfx", "Camera", "Ui", "Gameplay"], group: "base" }),
-    field("handedness", { label: "左右手", type: "select", options: [{ value: "None", label: "无" }, { value: "Left", label: "左手" }, { value: "Right", label: "右手" }, { value: "Both", label: "双手" }], group: "base" })
+    rotationField("localPose.eulerHint.x", "局部旋转 X"),
+    rotationField("localPose.eulerHint.y", "局部旋转 Y"),
+    rotationField("localPose.eulerHint.z", "局部旋转 Z"),
+    field("usage", { label: "挂点用途", type: "select", options: SOCKET_USAGE_OPTIONS, group: "usage" }),
+    field("mirrorPairSocketId", { label: "镜像挂点", type: "select", options: socketOptions("无"), group: "usage" }),
+    field("handedness", { label: "左右手", type: "select", options: SOCKET_HANDEDNESS_OPTIONS, group: "usage" }),
+    field("sideTag", { label: "侧向标签", type: "select", options: SOCKET_SIDE_OPTIONS, group: "usage" }),
+    tagsField("tags", "标签")
   ];
   if (kind === "weapon") return [
     field("weaponId", { label: "武器 ID", group: "base" }),
-    field("equipSlot", { label: "装备槽", type: "select", options: [{ value: "mainHand", label: "主手" }, { value: "offHand", label: "副手" }], group: "base" }),
-    field("attachSocketId", { label: "绑定挂点", group: "binding" }),
+    field("equipSlot", { label: "装备槽", type: "select", options: EQUIP_SLOT_OPTIONS, group: "base" }),
+    field("attachSocketId", { label: "绑定挂点", type: "select", options: socketOptions(), group: "binding" }),
+    poseParentKindField("localGripPose.parentKind"),
+    poseParentPathField("localGripPose.parentPath"),
     positionField("localGripPose.position.x", "握持偏移 X", "localPose"),
     positionField("localGripPose.position.y", "握持偏移 Y", "localPose"),
     positionField("localGripPose.position.z", "握持偏移 Z", "localPose"),
-    field("previewResourceKey", { label: "预览模型资源", group: "binding" }),
-    field("traceId", { label: "攻击轨迹 ID", group: "trace" }),
-    positiveField("traceRadius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" })
+    rotationField("localGripPose.eulerHint.x", "握持旋转 X"),
+    rotationField("localGripPose.eulerHint.y", "握持旋转 Y"),
+    rotationField("localGripPose.eulerHint.z", "握持旋转 Z"),
+    field("previewResourceKey", { label: "预览模型资源", type: "select", options: modelResourceOptions("无"), group: "binding" }),
+    field("traceId", { label: "攻击轨迹 ID", type: "select", options: traceOptions("无"), group: "trace" }),
+    field("traceStartSocketId", { label: "轨迹起点挂点", type: "select", options: socketOptions("继承绑定挂点"), group: "trace" }),
+    field("traceEndSocketId", { label: "轨迹终点挂点", type: "select", options: socketOptions("无"), group: "trace" }),
+    positiveField("traceRadius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" }),
+    field("traceSampleRule", { label: "轨迹采样规则", type: "select", options: TRACE_SAMPLE_RULE_OPTIONS, group: "trace" })
   ];
   if (kind === "trace") return [
     field("traceId", { label: "轨迹 ID", group: "base" }),
     field("weaponId", { label: "武器 ID", group: "base" }),
-    field("equipSlot", { label: "装备槽", type: "select", options: [{ value: "mainHand", label: "主手" }, { value: "offHand", label: "副手" }], group: "base" }),
+    field("equipSlot", { label: "装备槽", type: "select", options: EQUIP_SLOT_OPTIONS, group: "base" }),
     field("startLocatorPath", { label: "起点 Locator", group: "binding" }),
     field("endLocatorPath", { label: "终点 Locator", group: "binding" }),
+    poseParentKindField("startPose.parentKind", "起点父空间"),
+    poseParentPathField("startPose.parentPath", "起点父路径"),
     positionField("startPose.position.x", "起点 X", "localPose"),
     positionField("startPose.position.y", "起点 Y", "localPose"),
     positionField("startPose.position.z", "起点 Z", "localPose"),
+    rotationField("startPose.eulerHint.x", "起点旋转 X"),
+    rotationField("startPose.eulerHint.y", "起点旋转 Y"),
+    rotationField("startPose.eulerHint.z", "起点旋转 Z"),
+    poseParentKindField("endPose.parentKind", "终点父空间"),
+    poseParentPathField("endPose.parentPath", "终点父路径"),
     positionField("endPose.position.x", "终点 X", "localPose"),
     positionField("endPose.position.y", "终点 Y", "localPose"),
     positionField("endPose.position.z", "终点 Z", "localPose"),
+    rotationField("endPose.eulerHint.x", "终点旋转 X"),
+    rotationField("endPose.eulerHint.y", "终点旋转 Y"),
+    rotationField("endPose.eulerHint.z", "终点旋转 Z"),
     positiveField("radius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" }),
-    field("sampleRule", { label: "采样规则", type: "select", options: ["LineSegment", "CapsuleSweep", "FixedSamples"], group: "trace" })
+    field("sampleRule", { label: "采样规则", type: "select", options: TRACE_SAMPLE_RULE_OPTIONS, group: "trace" }),
+    integerField("fixedSampleCount", "固定采样数", { min: 1, max: 64, group: "trace" }),
+    tagsField("actionKeys", "动作 Key")
   ];
   return [];
+}
+
+function withEmptyOption(options, label = "无") {
+  return [{ value: "", label }, ...options];
+}
+
+function bodyPartOptions(emptyLabel = "") {
+  const options = (state.package?.geometry?.bodyParts || [])
+    .filter(part => part?.partId)
+    .map(part => ({ value: part.partId, label: part.displayName ? `${part.displayName} (${part.partId})` : part.partId }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function socketOptions(emptyLabel = "") {
+  const options = (state.package?.geometry?.sockets || [])
+    .filter(socket => socket?.socketId)
+    .map(socket => ({ value: socket.socketId, label: socket.socketId }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function traceOptions(emptyLabel = "") {
+  const options = (state.package?.geometry?.traces || [])
+    .filter(trace => trace?.traceId)
+    .map(trace => ({ value: trace.traceId, label: trace.traceId }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function modelResourceOptions(emptyLabel = "") {
+  const options = getModelResources(state.package)
+    .map(resource => ({ value: resource.resourceKey, label: getResourceDisplayName(resource) }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
 }
 
 function field(path, options = {}) {
@@ -1185,11 +1320,31 @@ function modelPositionField(path, label) {
 }
 
 function modelRotationField(path, label) {
-  return field(path, { label, type: "number", min: -360, max: 360, step: 1, unit: "deg", group: "modelTransform", fallback: 0 });
+  return rotationField(path, label, "modelTransform");
 }
 
 function modelScaleField(path, label) {
   return field(path, { label, type: "number", min: 0.001, max: 100, step: 0.01, group: "modelTransform", fallback: 1 });
+}
+
+function rotationField(path, label, group = "localPose") {
+  return field(path, { label, type: "number", min: -360, max: 360, step: 1, unit: "deg", group, fallback: 0 });
+}
+
+function localScaleField(path, label, group = "localPose") {
+  return field(path, { label, type: "number", min: 0.001, max: 100, step: 0.01, group, fallback: 1 });
+}
+
+function poseParentKindField(path, label = "父空间类型") {
+  return field(path, { label, type: "select", options: POSE_PARENT_KIND_OPTIONS, group: "poseParent" });
+}
+
+function poseParentPathField(path, label = "父空间路径") {
+  return field(path, { label, group: "poseParent" });
+}
+
+function tagsField(path, label, group = "base") {
+  return field(path, { label, type: "text", dataType: "stringList", group });
 }
 
 function sizeField(path, label) {
@@ -1315,6 +1470,12 @@ function readInspectorInputValue(input) {
     return clampFieldNumber(value, input);
   }
   if (type === "boolean") return input.value === "true";
+  if (type === "stringList") {
+    return input.value
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
   return input.value;
 }
 
@@ -1333,14 +1494,15 @@ function formatFieldValue(value, type) {
     const number = Number(value);
     return Number.isFinite(number) ? String(Number(number.toFixed(6))) : "";
   }
+  if (type === "stringList") {
+    return Array.isArray(value) ? value.join(", ") : String(value || "");
+  }
   return String(value);
 }
 
 function afterInspectorFieldEdited(target, path) {
-  if (target.kind !== "resource" || target.value?.typeId !== "model") return;
-  if (path.startsWith("importHints.modelWrapperPose.eulerHint.")) {
-    syncModelWrapperRotationFromEuler(target.value);
-  }
+  const posePath = getPosePathFromEulerField(path);
+  if (posePath) syncPoseRotationFromEuler(target.value, posePath);
 }
 
 function resetModelWrapperPose(resource) {
@@ -1353,6 +1515,22 @@ function resetModelWrapperPose(resource) {
 
 function syncModelWrapperRotationFromEuler(resource) {
   const pose = ensureModelWrapperPose(resource);
+  syncPoseQuaternion(pose);
+}
+
+function getPosePathFromEulerField(path) {
+  const marker = ".eulerHint.";
+  const index = path.indexOf(marker);
+  return index >= 0 ? path.slice(0, index) : "";
+}
+
+function syncPoseRotationFromEuler(owner, posePath) {
+  const pose = ensureLocalPose(owner, posePath);
+  syncPoseQuaternion(pose);
+}
+
+function syncPoseQuaternion(pose) {
+  if (!pose) return;
   pose.rotation = quaternionFromEulerDegrees(
     pose.eulerHint?.x || 0,
     pose.eulerHint?.y || 0,

@@ -17,6 +17,8 @@ internal static class CharacterPackageTests
         ResourceKeyGenerator_GeneratesStablePackageLocalKey();
         CoordinateConvention_JsonRoundTrip_PreservesUnityTargetConvention();
         Schemas_ExposeC0ContractFields();
+        BodyPartAuthoring_JsonRoundTrip_PreservesSkeletonBindingFields();
+        SkeletonBindingValidation_ReportsBrokenReferences();
         IronVanguardSample_ValidatesAsReady();
         IronVanguardSample_ResourceFilesAndHashesValidate();
         ResourceDependencyGraph_MissingDependencyBlocksImport();
@@ -29,6 +31,7 @@ internal static class CharacterPackageTests
         IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan();
         Compiler_ApplicationResourceKeysAreCharacterReferences();
         Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash();
+        Compiler_SkeletonBindingsFlowToGeometryBindingAndHashes();
         Compiler_UnsupportedConvexShape_BlocksExport();
         Compiler_MissingSocket_BlocksSpawnOnly();
         Compiler_MissingResource_BlocksImport();
@@ -185,6 +188,7 @@ internal static class CharacterPackageTests
     {
         IReadOnlyList<ConfigSchema> schemas = CharacterResourcePackageSchemas.CreateAll();
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.ManifestSchemaId) != null, "manifest schema missing.");
+        Require(FindSchema(schemas, CharacterResourcePackageSchemas.BodyPartSchemaId) != null, "body part schema missing.");
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId) != null, "collider schema missing.");
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.ValidationIssueSchemaId) != null, "validation issue schema missing.");
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.CompilerResultSchemaId) != null, "compiler result schema missing.");
@@ -195,18 +199,93 @@ internal static class CharacterPackageTests
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "hashes.contentHash"), "resource content hash field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "importHints.targetPathPolicy"), "resource target path policy field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "importHints.modelWrapperPose.scale"), "resource model wrapper scale field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyPartSchemaId), "bonePath"), "body part bonePath field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyPartSchemaId), "locatorId"), "body part locatorId field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "shape"), "collider shape field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "hitZoneId"), "collider hit zone field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.SocketSchemaId), "mirrorPairSocketId"), "socket mirror pair field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.SocketSchemaId), "tags"), "socket tags field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.WeaponAttachmentSchemaId), "traceRadius"), "weapon trace radius field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.WeaponAttachmentSchemaId), "traceEndSocketId"), "weapon trace end socket field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ValidationIssueSchemaId), "gate"), "validation gate field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.CompilerResultSchemaId), "resolverVerificationPlan"), "compiler resolver verification plan field missing.");
         Require(HasEnumOption("character.resourceSourceFormat", "glb"), "resource source format glb option missing.");
         Require(HasEnumOption("character.resourceSourceFormat", "fbx"), "resource source format fbx future option missing.");
         Require(HasEnumOption("character.importTargetPathPolicy", "generatedCharacterPackage"), "import target path policy option missing.");
+        Require(HasEnumOption("character.bodyPartKind", "Bone"), "body part kind Bone option missing.");
+        Require(HasEnumOption("character.poseParentKind", "Socket"), "pose parent Socket option missing.");
         Require(HasEnumOption("character.validationGate", "Unknown"), "validation gate Unknown option missing.");
         Require(HasEnumOption("character.validationGate", "Reserved1000"), "validation gate reserved option missing.");
         Require(HasEnumOption("character.compilerStatus", "ImportBlocked"), "compiler status ImportBlocked option missing.");
         Require(HasEnumOption("character.colliderShape", "Convex"), "reserved convex shape option missing.");
+    }
+
+    private static void BodyPartAuthoring_JsonRoundTrip_PreservesSkeletonBindingFields()
+    {
+        var geometry = new CharacterAuthoringGeometry();
+        geometry.BodyParts.Add(new CharacterBodyPartAuthoring
+        {
+            PartId = "right_hand",
+            DisplayName = "Right Hand",
+            PartKind = CharacterAuthoringBodyPartKind.Bone,
+            ParentPartId = "torso",
+            BonePath = "Armature/Hips/Spine/RightHand",
+            LocatorId = "bone.RightHand",
+            DefaultHitZoneId = "hit.right_hand",
+            ReactionGroupId = "reaction.humanoid.limb",
+            Tags = new List<string> { "hand", "weapon" }
+        });
+
+        string json = JsonSerializer.Serialize(geometry, JsonOptions);
+        CharacterAuthoringGeometry roundTrip = JsonSerializer.Deserialize<CharacterAuthoringGeometry>(json, JsonOptions);
+
+        Require(roundTrip != null && roundTrip.BodyParts.Count == 1, "body part geometry should roundtrip.");
+        CharacterBodyPartAuthoring part = roundTrip.BodyParts[0];
+        Require(part.PartKind == CharacterAuthoringBodyPartKind.Bone, "body part kind should roundtrip.");
+        Require(part.BonePath == "Armature/Hips/Spine/RightHand", "bonePath should roundtrip.");
+        Require(part.LocatorId == "bone.RightHand", "locatorId should roundtrip.");
+        Require(part.Tags.Count == 2 && part.Tags.Contains("weapon"), "body part tags should roundtrip.");
+    }
+
+    private static void SkeletonBindingValidation_ReportsBrokenReferences()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterBodyPartAuthoring torso = package.Geometry.BodyParts.Find(part => part.PartId == "torso") ?? package.Geometry.BodyParts[0];
+        torso.PartKind = CharacterAuthoringBodyPartKind.Bone;
+        torso.BonePath = string.Empty;
+        torso.LocatorId = string.Empty;
+
+        CharacterBodyColliderProfile collider = package.Geometry.Colliders[0];
+        collider.Shape = CharacterColliderShape.Sphere;
+        collider.Radius = 0f;
+        package.Geometry.Colliders.Add(new CharacterBodyColliderProfile
+        {
+            ColliderId = collider.ColliderId,
+            PartId = torso.PartId,
+            HitZoneId = "hit.duplicate",
+            Shape = CharacterColliderShape.Sphere,
+            Radius = 0.2f
+        });
+
+        package.Geometry.Sockets.Add(new CharacterSocketProfile
+        {
+            SocketId = "brokenMirror",
+            ParentPartId = torso.PartId,
+            Usage = CharacterSocketUsage.Weapon,
+            MirrorPairSocketId = "missing.socket"
+        });
+
+        package.Geometry.WeaponAttachments[0].TraceStartSocketId = "missing.trace.start";
+        package.Geometry.WeaponAttachments[0].TraceRadius = -0.01f;
+
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package);
+
+        Require(HasValidationIssue(report, CharacterAuthoringValidationCodes.MissingBodyPartLocator, CharacterAuthoringValidationGate.SpawnBlocked), "missing representative bone/locator should block spawn.");
+        Require(HasValidationIssue(report, CharacterAuthoringValidationCodes.DuplicateCollider, CharacterAuthoringValidationGate.ExportBlocked), "duplicate collider id should block export.");
+        Require(HasValidationIssue(report, CharacterAuthoringValidationCodes.InvalidColliderDimensions, CharacterAuthoringValidationGate.SpawnBlocked), "invalid collider dimensions should block spawn.");
+        Require(HasValidationIssue(report, CharacterAuthoringValidationCodes.MissingMirrorSocket, CharacterAuthoringValidationGate.SpawnBlocked), "missing mirror socket should block spawn.");
+        Require(HasValidationIssue(report, CharacterAuthoringValidationCodes.MissingAttachmentTraceSocket, CharacterAuthoringValidationGate.SpawnBlocked), "missing trace socket should block spawn.");
+        Require(HasValidationIssue(report, CharacterAuthoringValidationCodes.InvalidAttachmentTraceRadius, CharacterAuthoringValidationGate.SpawnBlocked), "negative trace radius should block spawn.");
     }
 
     private static void IronVanguardSample_ValidatesAsReady()
@@ -400,6 +479,85 @@ internal static class CharacterPackageTests
         Require(baselineImportHash != adjustedImportHash, "model wrapper pose should affect import hash.");
         Require(baseline.Hashes.ResourceMappingHash != adjusted.Hashes.ResourceMappingHash, "model wrapper pose should affect resource mapping hash.");
         Require(mappedBody != null && mappedBody.ModelWrapperPose.Scale.X == 1.25f, "resource mapping should carry model wrapper pose.");
+    }
+
+    private static void Compiler_SkeletonBindingsFlowToGeometryBindingAndHashes()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterBodyPartAuthoring handPart = package.Geometry.BodyParts.Find(part => part.PartId == "right_hand") ?? package.Geometry.BodyParts[0];
+        handPart.PartKind = CharacterAuthoringBodyPartKind.Bone;
+        handPart.BonePath = "Armature/Hips/Spine/RightShoulder/RightArm/RightForeArm/RightHand";
+        handPart.LocatorId = "bone.RightHand";
+        handPart.Tags = new List<string> { "hand", "main" };
+
+        CharacterBodyColliderProfile collider = package.Geometry.Colliders[0];
+        collider.PartId = handPart.PartId;
+        collider.LocalPose = new CharacterAuthoringLocalPose
+        {
+            Position = new CharacterAuthoringVector3(0.01f, 0.02f, 0.03f),
+            Scale = new CharacterAuthoringVector3(1f, 1f, 1f)
+        };
+
+        CharacterSocketProfile mainHand = package.Geometry.Sockets.Find(socket => socket.SocketId == "mainHand") ?? package.Geometry.Sockets[0];
+        mainHand.ParentPartId = handPart.PartId;
+        mainHand.BonePath = handPart.BonePath;
+        mainHand.LocatorPath = string.Empty;
+        mainHand.LocalPose = new CharacterAuthoringLocalPose
+        {
+            Position = new CharacterAuthoringVector3(0.05f, 0.01f, 0.02f),
+            EulerHint = new CharacterAuthoringVector3(0f, 90f, 0f),
+            Scale = new CharacterAuthoringVector3(1f, 1f, 1f)
+        };
+        mainHand.MirrorPairSocketId = "offHand";
+        mainHand.Handedness = CharacterSocketHandedness.Right;
+        mainHand.SideTag = CharacterSocketSideTag.Right;
+        mainHand.Tags = new List<string> { "weapon", "main" };
+
+        CharacterSocketProfile offHand = package.Geometry.Sockets.Find(socket => socket.SocketId == "offHand");
+        if (offHand == null)
+        {
+            offHand = new CharacterSocketProfile
+            {
+                SocketId = "offHand",
+                ParentPartId = handPart.PartId,
+                BonePath = "Armature/Hips/Spine/LeftShoulder/LeftArm/LeftForeArm/LeftHand",
+                Usage = CharacterSocketUsage.Weapon
+            };
+            package.Geometry.Sockets.Add(offHand);
+        }
+
+        WeaponAttachmentProfile attachment = package.Geometry.WeaponAttachments.Find(item => item.WeaponId == "weapon.iron_sword") ?? package.Geometry.WeaponAttachments[0];
+        attachment.AttachSocketId = "mainHand";
+        attachment.LocalGripPose = new CharacterAuthoringLocalPose
+        {
+            Position = new CharacterAuthoringVector3(0f, -0.02f, 0.01f),
+            Scale = new CharacterAuthoringVector3(1f, 1f, 1f)
+        };
+        attachment.TraceId = "trace.iron_sword.blade";
+        attachment.TraceStartSocketId = "mainHand";
+        attachment.TraceEndSocketId = "offHand";
+        attachment.TraceRadius = 0.123f;
+        attachment.TraceSampleRule = WeaponTraceSampleRule.FixedSamples;
+
+        CharacterAuthoringCompileResult baseline = Compile(package);
+        CharacterBodyPartBinding partBinding = baseline.GeometryBinding.BodyParts.Find(part => part.PartId == handPart.PartId);
+        CharacterBodyColliderBinding colliderBinding = baseline.GeometryBinding.BodyColliders.Find(item => item.ColliderId == collider.ColliderId);
+        CharacterSocketBinding socketBinding = baseline.GeometryBinding.Sockets.Find(socket => socket.SocketId == "mainHand");
+        CharacterWeaponAttachmentBinding attachmentBinding = baseline.GeometryBinding.WeaponAttachments.Find(item => item.WeaponId == attachment.WeaponId);
+
+        Require(partBinding != null && partBinding.BonePath == handPart.BonePath && partBinding.Tags.Contains("main"), "geometry binding should carry body part bone binding.");
+        Require(colliderBinding != null && colliderBinding.LocalPose.ParentKind == CharacterPoseParentKind.BodyPart && colliderBinding.LocalPose.ParentPath == handPart.PartId, "collider local pose should default to its body part parent.");
+        Require(socketBinding != null && socketBinding.LocalPose.ParentKind == CharacterPoseParentKind.Bone && socketBinding.LocalPose.ParentPath == handPart.BonePath, "socket local pose should default to bone parent.");
+        Require(socketBinding.MirrorPairSocketId == "offHand" && socketBinding.SideTag == CharacterSocketSideTag.Right && socketBinding.Tags.Contains("weapon"), "socket binding should carry mirror, side and tags.");
+        Require(attachmentBinding != null && attachmentBinding.LocalGripPose.ParentKind == CharacterPoseParentKind.Socket && attachmentBinding.LocalGripPose.ParentPath == "mainHand", "weapon grip pose should default to attach socket parent.");
+        Require(attachmentBinding.TraceEndSocketId == "offHand" && attachmentBinding.TraceRadius == 0.123f && attachmentBinding.TraceSampleRule == WeaponTraceSampleRule.FixedSamples, "weapon attachment trace overrides should flow to geometry binding.");
+        Require(baseline.SourceMappings.Exists(mapping => mapping.TargetPath == "sockets/mainHand" && mapping.TargetField == "socket"), "source mappings should include socket geometry binding targets.");
+
+        mainHand.SideTag = CharacterSocketSideTag.Left;
+        CharacterAuthoringCompileResult changed = Compile(package);
+
+        Require(baseline.Hashes.SourcePackageHash != changed.Hashes.SourcePackageHash, "socket side tag should affect source package hash.");
+        Require(baseline.Hashes.GeometryBindingHash != changed.Hashes.GeometryBindingHash, "socket side tag should affect geometry binding hash.");
     }
 
     private static void Compiler_ApplicationResourceKeysAreCharacterReferences()
@@ -639,6 +797,18 @@ internal static class CharacterPackageTests
         for (int i = 0; i < result.GateReport.Issues.Count; i++)
         {
             CharacterAuthoringValidationIssue issue = result.GateReport.Issues[i];
+            if (issue.Code == code && issue.Gate == gate)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasValidationIssue(CharacterAuthoringValidationReport report, string code, CharacterAuthoringValidationGate gate)
+    {
+        for (int i = 0; i < report.Issues.Count; i++)
+        {
+            CharacterAuthoringValidationIssue issue = report.Issues[i];
             if (issue.Code == code && issue.Gate == gate)
                 return true;
         }

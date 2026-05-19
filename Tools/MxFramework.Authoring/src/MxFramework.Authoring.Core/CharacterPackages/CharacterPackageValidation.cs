@@ -54,12 +54,22 @@ namespace MxFramework.Authoring
         public const string MissingBodyProfile = "CHARPKG_MISSING_BODY_PROFILE";
         public const string MissingBodyPart = "CHARPKG_MISSING_BODY_PART";
         public const string DuplicateBodyPart = "CHARPKG_DUPLICATE_BODY_PART";
+        public const string MissingBodyPartLocator = "CHARPKG_MISSING_BODY_PART_LOCATOR";
         public const string MissingColliderPart = "CHARPKG_MISSING_COLLIDER_PART";
+        public const string DuplicateCollider = "CHARPKG_DUPLICATE_COLLIDER";
         public const string MissingColliderHitZone = "CHARPKG_MISSING_COLLIDER_HIT_ZONE";
         public const string UnsupportedColliderShape = "CHARPKG_UNSUPPORTED_COLLIDER_SHAPE";
+        public const string InvalidColliderDimensions = "CHARPKG_INVALID_COLLIDER_DIMENSIONS";
+        public const string MissingSocketId = "CHARPKG_MISSING_SOCKET_ID";
+        public const string DuplicateSocket = "CHARPKG_DUPLICATE_SOCKET";
         public const string MissingSocketPart = "CHARPKG_MISSING_SOCKET_PART";
+        public const string MissingSocketLocator = "CHARPKG_MISSING_SOCKET_LOCATOR";
+        public const string MissingMirrorSocket = "CHARPKG_MISSING_MIRROR_SOCKET";
+        public const string SelfMirrorSocket = "CHARPKG_SELF_MIRROR_SOCKET";
         public const string MissingAttachmentSocket = "CHARPKG_MISSING_ATTACHMENT_SOCKET";
+        public const string MissingAttachmentTraceSocket = "CHARPKG_MISSING_ATTACHMENT_TRACE_SOCKET";
         public const string MissingAttachmentTrace = "CHARPKG_MISSING_ATTACHMENT_TRACE";
+        public const string InvalidAttachmentTraceRadius = "CHARPKG_INVALID_ATTACHMENT_TRACE_RADIUS";
     }
 
     public sealed class CharacterAuthoringValidationIssue
@@ -397,11 +407,13 @@ namespace MxFramework.Authoring
                     "Body geometry profile id is required.", "Set bodyProfile.profileId.");
 
             var partIds = new HashSet<string>();
+            var parts = new List<CharacterBodyPartAuthoring>();
             for (int i = 0; i < geometry.BodyParts.Count; i++)
             {
                 CharacterBodyPartAuthoring part = geometry.BodyParts[i];
                 if (part == null)
                     continue;
+                parts.Add(part);
                 if (string.IsNullOrWhiteSpace(part.PartId))
                 {
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
@@ -414,6 +426,23 @@ namespace MxFramework.Authoring
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
                         CharacterAuthoringValidationCodes.DuplicateBodyPart, "geometry/body_parts.json", "geometry/bodyParts/" + part.PartId, "partId",
                         "partId must be unique in one geometry profile.", "Rename or merge duplicate body parts.");
+            }
+
+            for (int i = 0; i < parts.Count; i++)
+            {
+                CharacterBodyPartAuthoring part = parts[i];
+                string objectPath = "geometry/bodyParts/" + (!string.IsNullOrWhiteSpace(part.PartId) ? part.PartId : i.ToString());
+                if (!string.IsNullOrWhiteSpace(part.ParentPartId) && !partIds.Contains(part.ParentPartId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingBodyPart, "geometry/body_parts.json", objectPath, "parentPartId",
+                        "body part parentPartId does not exist in the same part set.", "Use an existing body part id or clear parentPartId.");
+
+                if (part.PartKind == CharacterAuthoringBodyPartKind.Bone &&
+                    string.IsNullOrWhiteSpace(part.BonePath) &&
+                    string.IsNullOrWhiteSpace(part.LocatorId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingBodyPartLocator, "geometry/body_parts.json", objectPath, "bonePath",
+                        "bone body part must resolve to a representative bone path or locator id.", "Set bonePath or locatorId, for example bone.Head.");
             }
 
             var traceIds = new HashSet<string>();
@@ -430,14 +459,47 @@ namespace MxFramework.Authoring
                 CharacterSocketProfile socket = geometry.Sockets[i];
                 if (socket == null)
                     continue;
-                if (!string.IsNullOrWhiteSpace(socket.SocketId))
-                    socketIds.Add(socket.SocketId);
+                string objectPath = "geometry/sockets/" + (!string.IsNullOrWhiteSpace(socket.SocketId) ? socket.SocketId : i.ToString());
+                if (string.IsNullOrWhiteSpace(socket.SocketId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingSocketId, "geometry/sockets.json", objectPath, "socketId",
+                        "socketId is required for socket references.", "Set a stable socket id such as mainHand.");
+                else if (!socketIds.Add(socket.SocketId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.DuplicateSocket, "geometry/sockets.json", objectPath, "socketId",
+                        "socketId must be unique in one geometry profile.", "Rename or merge duplicate sockets.");
+
                 if (!string.IsNullOrWhiteSpace(socket.ParentPartId) && !partIds.Contains(socket.ParentPartId))
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
                         CharacterAuthoringValidationCodes.MissingSocketPart, "geometry/sockets.json", "geometry/sockets/" + socket.SocketId, "parentPartId",
                         "socket parentPartId does not exist in body parts.", "Use an existing body part id or add the missing body part.");
+
+                if (string.IsNullOrWhiteSpace(socket.ParentPartId) &&
+                    string.IsNullOrWhiteSpace(socket.BonePath) &&
+                    string.IsNullOrWhiteSpace(socket.LocatorPath))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingSocketLocator, "geometry/sockets.json", objectPath, "bonePath",
+                        "socket must bind to a parent body part, bone path or locator path.", "Set parentPartId, bonePath or locatorPath.");
             }
 
+            for (int i = 0; i < geometry.Sockets.Count; i++)
+            {
+                CharacterSocketProfile socket = geometry.Sockets[i];
+                if (socket == null || string.IsNullOrWhiteSpace(socket.MirrorPairSocketId))
+                    continue;
+
+                string objectPath = "geometry/sockets/" + (!string.IsNullOrWhiteSpace(socket.SocketId) ? socket.SocketId : i.ToString());
+                if (string.Equals(socket.SocketId, socket.MirrorPairSocketId, System.StringComparison.Ordinal))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.SelfMirrorSocket, "geometry/sockets.json", objectPath, "mirrorPairSocketId",
+                        "socket mirrorPairSocketId cannot point to itself.", "Use the opposite socket id or clear mirrorPairSocketId.");
+                else if (!socketIds.Contains(socket.MirrorPairSocketId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingMirrorSocket, "geometry/sockets.json", objectPath, "mirrorPairSocketId",
+                        "socket mirrorPairSocketId references a missing socket.", "Use an existing socket id or clear mirrorPairSocketId.");
+            }
+
+            var colliderIds = new HashSet<string>();
             for (int i = 0; i < geometry.Colliders.Count; i++)
             {
                 CharacterBodyColliderProfile collider = geometry.Colliders[i];
@@ -445,6 +507,11 @@ namespace MxFramework.Authoring
                     continue;
 
                 string objectPath = "geometry/colliders/" + (!string.IsNullOrWhiteSpace(collider.ColliderId) ? collider.ColliderId : i.ToString());
+                if (!string.IsNullOrWhiteSpace(collider.ColliderId) && !colliderIds.Add(collider.ColliderId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
+                        CharacterAuthoringValidationCodes.DuplicateCollider, "geometry/body_colliders.json", objectPath, "colliderId",
+                        "colliderId must be unique in one geometry profile.", "Rename or merge duplicate colliders.");
+
                 if (!IsSupportedV1Shape(collider.Shape))
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
                         CharacterAuthoringValidationCodes.UnsupportedColliderShape, "geometry/body_colliders.json", objectPath, "shape",
@@ -459,6 +526,8 @@ namespace MxFramework.Authoring
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
                         CharacterAuthoringValidationCodes.MissingColliderHitZone, "geometry/body_colliders.json", objectPath, "hitZoneId",
                         "collider hitZoneId is required for BodyPartHitZoneResolver mapping.", "Set a stable hit zone id, for example hit.head.");
+
+                ValidateColliderDimensions(report, collider, objectPath);
             }
 
             for (int i = 0; i < geometry.WeaponAttachments.Count; i++)
@@ -477,7 +546,51 @@ namespace MxFramework.Authoring
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
                         CharacterAuthoringValidationCodes.MissingAttachmentTrace, "geometry/weapon_attachments.json", objectPath, "traceId",
                         "weapon attachment references a missing trace.", "Create the trace or clear traceId.");
+
+                if (!string.IsNullOrWhiteSpace(attachment.TraceStartSocketId) && !socketIds.Contains(attachment.TraceStartSocketId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingAttachmentTraceSocket, "geometry/weapon_attachments.json", objectPath, "traceStartSocketId",
+                        "weapon attachment traceStartSocketId references a missing socket.", "Use an existing socket id or clear traceStartSocketId.");
+
+                if (!string.IsNullOrWhiteSpace(attachment.TraceEndSocketId) && !socketIds.Contains(attachment.TraceEndSocketId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.MissingAttachmentTraceSocket, "geometry/weapon_attachments.json", objectPath, "traceEndSocketId",
+                        "weapon attachment traceEndSocketId references a missing socket.", "Use an existing socket id or clear traceEndSocketId.");
+
+                if (attachment.TraceRadius < 0f)
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                        CharacterAuthoringValidationCodes.InvalidAttachmentTraceRadius, "geometry/weapon_attachments.json", objectPath, "traceRadius",
+                        "weapon attachment traceRadius must be zero or positive.", "Use 0 to inherit the trace profile radius, or set a positive override.");
             }
+        }
+
+        private static void ValidateColliderDimensions(CharacterAuthoringValidationReport report, CharacterBodyColliderProfile collider, string objectPath)
+        {
+            if (collider == null)
+                return;
+
+            bool invalid = false;
+            string field = "radius";
+            if (collider.Shape == CharacterColliderShape.Sphere)
+            {
+                invalid = collider.Radius <= 0f;
+            }
+            else if (collider.Shape == CharacterColliderShape.Capsule)
+            {
+                invalid = collider.Radius <= 0f || collider.Height <= 0f;
+                field = collider.Radius <= 0f ? "radius" : "height";
+            }
+            else if (collider.Shape == CharacterColliderShape.Box)
+            {
+                CharacterAuthoringVector3 size = collider.Size;
+                invalid = size == null || size.X <= 0f || size.Y <= 0f || size.Z <= 0f;
+                field = "size";
+            }
+
+            if (invalid)
+                Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.SpawnBlocked,
+                    CharacterAuthoringValidationCodes.InvalidColliderDimensions, "geometry/body_colliders.json", objectPath, field,
+                    "collider dimensions must be positive for the selected shape.", "Set radius/height/size to positive meter values.");
         }
 
         private static void Add(
