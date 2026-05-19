@@ -34,8 +34,54 @@ internal static class CharacterPackageCommands
         {
             string packagePath = Program.RequireOption(args, "--package");
             CharacterResourcePackage package = ReadPackage(packagePath, options);
-            CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package);
+            bool checkHashes = Program.HasFlag(args, "--check-hashes");
+            var validationOptions = new CharacterResourcePackageValidationOptions
+            {
+                PackageRootPath = packagePath,
+                ValidateResourceFiles = Program.HasFlag(args, "--check-files") || checkHashes,
+                ValidateResourceHashes = checkHashes
+            };
+            CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package, validationOptions);
             Console.Write(report.ToText());
+            return report.HasBlockingIssues ? Program.ExitValidationBlocked : Program.ExitReady;
+        }
+
+        if (args.Length >= 2 && args[1] == "resources")
+        {
+            string packagePath = Program.RequireOption(args, "--package");
+            CharacterResourcePackage package = ReadPackage(packagePath, options);
+            CharacterPackageDependencyGraph graph = CharacterPackageResourcePipeline.BuildDependencyGraph(package.ResourceCatalog);
+            var summary = new
+            {
+                package.Manifest.PackageId,
+                package.Manifest.StableId,
+                package.Manifest.Version,
+                resourceCount = package.ResourceCatalog.Entries.Count,
+                graph,
+                entries = package.ResourceCatalog.Entries.Select(entry => new
+                {
+                    entry.ResourceKey,
+                    entry.LocalId,
+                    entry.StableId,
+                    entry.TypeId,
+                    entry.Usage,
+                    entry.SourceFormat,
+                    entry.RelativePath,
+                    declaredContentHash = CharacterPackageResourcePipeline.GetDeclaredContentHash(entry),
+                    importHash = CharacterPackageResourcePipeline.ComputeImportHash(entry),
+                    dependencyHash = CharacterPackageResourcePipeline.ComputeDependencyHash(entry, package.ResourceCatalog)
+                }).ToList()
+            };
+            Console.WriteLine(JsonSerializer.Serialize(summary, options));
+            return Program.ExitReady;
+        }
+
+        if (args.Length >= 2 && args[1] == "hash")
+        {
+            string packagePath = Program.RequireOption(args, "--package");
+            CharacterResourcePackage package = ReadPackage(packagePath, options);
+            CharacterPackageResourceHashReport report = CharacterPackageResourcePipeline.BuildHashReport(package, packagePath);
+            Console.WriteLine(JsonSerializer.Serialize(report, options));
             return report.HasBlockingIssues ? Program.ExitValidationBlocked : Program.ExitReady;
         }
 

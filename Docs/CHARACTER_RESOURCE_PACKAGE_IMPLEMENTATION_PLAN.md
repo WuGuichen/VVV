@@ -176,25 +176,35 @@ C0 不做资源文件存在性、hash 计算、依赖图、import/write plan 或
 
 | 类型 | 职责 |
 | --- | --- |
-| `CharacterPackageResourceEntry` | 单个资源条目。 |
-| `CharacterPackageImportHint` | Unity target path、scale、material policy、animation policy。 |
-| `CharacterPackageDependencyGraph` | 资源依赖关系。 |
-| `CharacterPackageHashReport` | source hash、resource hash、dependency hash。 |
-| `CharacterPackageConflictReport` | duplicate key、path conflict、hash mismatch。 |
+| `CharacterPackageResourceEntry` | 单个资源条目，包含 package-local `ResourceKey`、`localId`、`stableId`、type、usage、source format、relative path、tags。 |
+| `CharacterPackageResourceHashes` | `contentHash`、`importHash`、`dependencyHash`，默认算法为 `sha256`。 |
+| `CharacterPackageImportHint` | Unity target path policy、target relative path、scale、material policy、animation policy、axis hint、collision/physics data policy。 |
+| `CharacterPackageResourceDependency` | 包内资源依赖边，记录 target ResourceKey、required、relation 和是否影响 dependency hash。 |
+| `CharacterPackageDependencyGraph` | 从 catalog 派生的 nodes / edges 资源依赖图。 |
+| `CharacterPackageResourceHashReport` | 文件存在性、声明 content hash、计算 content/import/dependency hash 和 diagnostics。 |
+| `CharacterPackageConflictPolicy` | same stable id、hash unchanged、hash changed 时的 skip/report/upgrade/variant 策略。 |
+| `CharacterPackageResourceProvenance` | source tool、source file、authoring schema version、license、origin、created/modified metadata。 |
+| `CharacterPackagePreviewMetadata` | thumbnail、preview mesh、placeholder 和 camera preset 元数据。 |
+| `CharacterPackageResourceKeyGenerator` | package-local `ResourceKey` 稳定生成和语法校验。 |
 
 CLI 命令：
 
 ```bash
 mx-authoring character resources --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
 mx-authoring character hash --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
+mx-authoring character validate --package Tools/MxFramework.Authoring/samples/character-iron-vanguard --check-files --check-hashes
 ```
 
 验收：
 
 - package-local `ResourceKey` 生成稳定。
-- missing file、duplicate key、hash mismatch 都有稳定 diagnostics。
+- missing file、duplicate ResourceKey / stableId、missing dependency、duplicate dependency、self dependency、hash mismatch、unsupported resource format 都有稳定 diagnostics。
 - import hints 不写死 Unity 绝对路径，使用 project-relative target policy。
 - 包内资源不要求已经存在于 Unity 项目。
+- v1 source format：model / animation 首选 glTF / GLB；FBX 记录为 future / optional warning。
+- Iron Vanguard 和 Slime 样例包带 package-local catalog、placeholder 资源文件和可校验 content hash。
+
+注意：C0.5 只固定资源管线契约和 noEngine 校验，不确认 Unity 6 Editor 是否内置 glTF / GLB 导入。#222 / #224 在生成 Unity import/write plan 前必须明确采用 importer package、格式转换或 placeholder 策略。
 
 ### C0.6：Authoring Compiler
 

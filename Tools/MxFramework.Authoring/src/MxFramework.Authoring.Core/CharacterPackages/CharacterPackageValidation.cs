@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace MxFramework.Authoring
@@ -32,8 +33,23 @@ namespace MxFramework.Authoring
         public const string RotationMustBeQuaternion = "CHARPKG_ROTATION_MUST_BE_QUATERNION";
         public const string MissingResourceCatalog = "CHARPKG_MISSING_RESOURCE_CATALOG";
         public const string MissingResourceKey = "CHARPKG_MISSING_RESOURCE_KEY";
+        public const string InvalidResourceKey = "CHARPKG_INVALID_RESOURCE_KEY";
         public const string DuplicateResourceKey = "CHARPKG_DUPLICATE_RESOURCE_KEY";
+        public const string MissingResourceLocalId = "CHARPKG_MISSING_RESOURCE_LOCAL_ID";
+        public const string MissingResourceStableId = "CHARPKG_MISSING_RESOURCE_STABLE_ID";
+        public const string DuplicateResourceStableId = "CHARPKG_DUPLICATE_RESOURCE_STABLE_ID";
         public const string MissingResourcePath = "CHARPKG_MISSING_RESOURCE_PATH";
+        public const string InvalidResourcePath = "CHARPKG_INVALID_RESOURCE_PATH";
+        public const string MissingResourceFile = "CHARPKG_MISSING_RESOURCE_FILE";
+        public const string MissingResourceHash = "CHARPKG_MISSING_RESOURCE_HASH";
+        public const string ResourceHashMismatch = "CHARPKG_RESOURCE_HASH_MISMATCH";
+        public const string UnsupportedResourceFormat = "CHARPKG_UNSUPPORTED_RESOURCE_FORMAT";
+        public const string FutureResourceFormat = "CHARPKG_FUTURE_RESOURCE_FORMAT";
+        public const string InvalidImportTargetPath = "CHARPKG_INVALID_IMPORT_TARGET_PATH";
+        public const string MissingResourceDependency = "CHARPKG_MISSING_RESOURCE_DEPENDENCY";
+        public const string DuplicateResourceDependency = "CHARPKG_DUPLICATE_RESOURCE_DEPENDENCY";
+        public const string SelfResourceDependency = "CHARPKG_SELF_RESOURCE_DEPENDENCY";
+        public const string MissingPreviewResource = "CHARPKG_MISSING_PREVIEW_RESOURCE";
         public const string MissingGeometry = "CHARPKG_MISSING_GEOMETRY";
         public const string MissingBodyProfile = "CHARPKG_MISSING_BODY_PROFILE";
         public const string MissingBodyPart = "CHARPKG_MISSING_BODY_PART";
@@ -110,7 +126,15 @@ namespace MxFramework.Authoring
     {
         public static CharacterAuthoringValidationReport Validate(CharacterResourcePackage package)
         {
+            return Validate(package, new CharacterResourcePackageValidationOptions());
+        }
+
+        public static CharacterAuthoringValidationReport Validate(CharacterResourcePackage package, CharacterResourcePackageValidationOptions options)
+        {
             var report = new CharacterAuthoringValidationReport();
+            if (options == null)
+                options = new CharacterResourcePackageValidationOptions();
+
             if (package == null)
             {
                 Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
@@ -122,7 +146,7 @@ namespace MxFramework.Authoring
             CharacterPackageManifest manifest = package.Manifest;
             report.PackageId = manifest != null ? manifest.PackageId : string.Empty;
             ValidateManifest(report, manifest);
-            ValidateResourceCatalog(report, package.ResourceCatalog);
+            ValidateResourceCatalog(report, package.ResourceCatalog, options);
             ValidateGeometry(report, package.Geometry);
             return report;
         }
@@ -179,7 +203,7 @@ namespace MxFramework.Authoring
                     "Quaternion is the only authoritative v1 rotation storage.", "Store quaternion values; keep Euler only as UI display hints.");
         }
 
-        private static void ValidateResourceCatalog(CharacterAuthoringValidationReport report, CharacterPackageResourceCatalog catalog)
+        private static void ValidateResourceCatalog(CharacterAuthoringValidationReport report, CharacterPackageResourceCatalog catalog, CharacterResourcePackageValidationOptions options)
         {
             if (catalog == null)
             {
@@ -190,12 +214,17 @@ namespace MxFramework.Authoring
             }
 
             var keys = new HashSet<string>();
+            var stableIds = new HashSet<string>();
+            bool hasPreview = false;
             for (int i = 0; i < catalog.Entries.Count; i++)
             {
                 CharacterPackageResourceEntry entry = catalog.Entries[i];
                 string objectPath = "resourceCatalog/entries/" + i;
                 if (entry == null)
                     continue;
+
+                if (string.Equals(entry.TypeId, CharacterPackageResourceTypeIds.Preview, System.StringComparison.OrdinalIgnoreCase))
+                    hasPreview = true;
 
                 if (string.IsNullOrWhiteSpace(entry.ResourceKey))
                 {
@@ -205,15 +234,150 @@ namespace MxFramework.Authoring
                     continue;
                 }
 
+                if (!CharacterPackageResourceKeyGenerator.IsValidResourceKey(entry.ResourceKey))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
+                        CharacterAuthoringValidationCodes.InvalidResourceKey, "resource_catalog.json", objectPath, "resourceKey",
+                        "resourceKey contains unsupported characters.", "Use lowercase letters, digits, '.', '_' and '-' only.");
+
                 if (!keys.Add(entry.ResourceKey))
                     Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
                         CharacterAuthoringValidationCodes.DuplicateResourceKey, "resource_catalog.json", objectPath, "resourceKey",
                         "resourceKey must be unique within one character package.", "Rename or remove the duplicate resource entry.");
 
+                if (string.IsNullOrWhiteSpace(entry.LocalId))
+                    Add(report, CharacterAuthoringValidationSeverity.Warning, CharacterAuthoringValidationGate.WarningOnly,
+                        CharacterAuthoringValidationCodes.MissingResourceLocalId, "resource_catalog.json", objectPath, "localId",
+                        "localId is empty; ResourceKey generation cannot be reproduced deterministically.", "Set a package-local localId such as model.body.");
+
+                if (string.IsNullOrWhiteSpace(entry.StableId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
+                        CharacterAuthoringValidationCodes.MissingResourceStableId, "resource_catalog.json", objectPath, "stableId",
+                        "stableId is required for cross-version import, diagnostics and conflict handling.", "Set a long-term stable id for this resource.");
+                else if (!stableIds.Add(entry.StableId))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ExportBlocked,
+                        CharacterAuthoringValidationCodes.DuplicateResourceStableId, "resource_catalog.json", objectPath, "stableId",
+                        "stableId must be unique within one character package.", "Rename or remove the duplicate resource entry.");
+
                 if (string.IsNullOrWhiteSpace(entry.RelativePath))
                     Add(report, CharacterAuthoringValidationSeverity.Warning, CharacterAuthoringValidationGate.WarningOnly,
                         CharacterAuthoringValidationCodes.MissingResourcePath, "resource_catalog.json", objectPath, "relativePath",
                         "relativePath is empty; #223 will define stricter resource file validation.", "Set a package-relative path when the resource exists in this package.");
+                else if (!CharacterPackageResourcePipeline.IsSafePackageRelativePath(entry.RelativePath))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                        CharacterAuthoringValidationCodes.InvalidResourcePath, "resource_catalog.json", objectPath, "relativePath",
+                        "relativePath must stay inside the character package.", "Use a package-relative path without absolute roots or '..'.");
+
+                if (entry.ImportHints != null && !string.IsNullOrWhiteSpace(entry.ImportHints.TargetRelativePath) &&
+                    !CharacterPackageResourcePipeline.IsSafePackageRelativePath(entry.ImportHints.TargetRelativePath))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                        CharacterAuthoringValidationCodes.InvalidImportTargetPath, "resource_catalog.json", objectPath, "importHints.targetRelativePath",
+                        "Unity target path must be project-relative and must not escape the generated character package root.", "Use a generated package relative path.");
+
+                ValidateResourceFormat(report, entry, objectPath);
+                ValidateResourceFile(report, entry, objectPath, options);
+            }
+
+            for (int i = 0; i < catalog.Entries.Count; i++)
+            {
+                CharacterPackageResourceEntry entry = catalog.Entries[i];
+                if (entry == null)
+                    continue;
+                ValidateResourceDependencies(report, entry, "resourceCatalog/entries/" + i, keys);
+            }
+
+            if (options.ValidatePreviewResources && !hasPreview)
+                Add(report, CharacterAuthoringValidationSeverity.Warning, CharacterAuthoringValidationGate.WarningOnly,
+                    CharacterAuthoringValidationCodes.MissingPreviewResource, "resource_catalog.json", "resourceCatalog", "entries",
+                    "package has no preview resource entry.", "Add a preview thumbnail or preview mesh resource so external tools can show the package without loading full runtime data.");
+        }
+
+        private static void ValidateResourceFormat(CharacterAuthoringValidationReport report, CharacterPackageResourceEntry entry, string objectPath)
+        {
+            if (entry == null || string.IsNullOrWhiteSpace(entry.RelativePath))
+                return;
+
+            if (CharacterPackageResourcePipeline.IsFutureFormat(entry))
+            {
+                Add(report, CharacterAuthoringValidationSeverity.Warning, CharacterAuthoringValidationGate.WarningOnly,
+                    CharacterAuthoringValidationCodes.FutureResourceFormat, "resource_catalog.json", objectPath, "sourceFormat",
+                    "FBX is recorded as future/optional in the v1 resource package pipeline.", "Prefer glTF/GLB for v1, or add an importer/conversion step before Unity import.");
+                return;
+            }
+
+            if (!CharacterPackageResourcePipeline.IsSupportedV1Format(entry))
+                Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                    CharacterAuthoringValidationCodes.UnsupportedResourceFormat, "resource_catalog.json", objectPath, "sourceFormat",
+                    "resource source format is not supported by the v1 character package contract.", "Use glTF/GLB for models and animation, png/jpg/tga for textures/previews, json for config/material/vfx descriptors, or wav/ogg for audio.");
+        }
+
+        private static void ValidateResourceFile(CharacterAuthoringValidationReport report, CharacterPackageResourceEntry entry, string objectPath, CharacterResourcePackageValidationOptions options)
+        {
+            if (entry == null || options == null || !options.ValidateResourceFiles)
+                return;
+
+            if (string.IsNullOrWhiteSpace(entry.RelativePath))
+            {
+                Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                    CharacterAuthoringValidationCodes.MissingResourceFile, "resource_catalog.json", objectPath, "relativePath",
+                    "resource file validation is enabled but relativePath is empty.", "Set relativePath or remove this resource entry.");
+                return;
+            }
+
+            string path = CharacterPackageResourcePipeline.ResolvePackagePath(options.PackageRootPath, entry.RelativePath);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                    CharacterAuthoringValidationCodes.MissingResourceFile, entry.RelativePath, objectPath, "relativePath",
+                    "resource file is missing from the character package.", "Place the resource at the declared package-relative path or update resource_catalog.json.");
+                return;
+            }
+
+            if (!options.ValidateResourceHashes)
+                return;
+
+            string declaredHash = CharacterPackageResourcePipeline.GetDeclaredContentHash(entry);
+            if (string.IsNullOrWhiteSpace(declaredHash))
+            {
+                Add(report, CharacterAuthoringValidationSeverity.Warning, CharacterAuthoringValidationGate.WarningOnly,
+                    CharacterAuthoringValidationCodes.MissingResourceHash, "resource_catalog.json", objectPath, "hashes.contentHash",
+                    "resource file exists but no content hash is declared.", "Record a sha256 content hash before publishing or importing this package.");
+                return;
+            }
+
+            string actualHash = CharacterPackageHashUtility.ComputeFileSha256(path);
+            if (!string.Equals(declaredHash, actualHash, System.StringComparison.OrdinalIgnoreCase))
+                Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                    CharacterAuthoringValidationCodes.ResourceHashMismatch, entry.RelativePath, objectPath, "hashes.contentHash",
+                    "declared content hash does not match the package file.", "Recompute hashes after changing source assets.");
+        }
+
+        private static void ValidateResourceDependencies(CharacterAuthoringValidationReport report, CharacterPackageResourceEntry entry, string objectPath, HashSet<string> keys)
+        {
+            if (entry == null || entry.Dependencies == null)
+                return;
+
+            var dependencies = new HashSet<string>();
+            for (int i = 0; i < entry.Dependencies.Count; i++)
+            {
+                CharacterPackageResourceDependency dependency = entry.Dependencies[i];
+                if (dependency == null || string.IsNullOrWhiteSpace(dependency.ResourceKey))
+                    continue;
+
+                string dependencyPath = objectPath + "/dependencies/" + i;
+                if (string.Equals(entry.ResourceKey, dependency.ResourceKey, System.StringComparison.Ordinal))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                        CharacterAuthoringValidationCodes.SelfResourceDependency, "resource_catalog.json", dependencyPath, "resourceKey",
+                        "resource dependency cannot point to itself.", "Remove the self dependency.");
+
+                if (!dependencies.Add(dependency.ResourceKey))
+                    Add(report, CharacterAuthoringValidationSeverity.Warning, CharacterAuthoringValidationGate.WarningOnly,
+                        CharacterAuthoringValidationCodes.DuplicateResourceDependency, "resource_catalog.json", dependencyPath, "resourceKey",
+                        "resource dependency is duplicated on the same resource entry.", "Keep one dependency edge per target ResourceKey.");
+
+                if (!keys.Contains(dependency.ResourceKey))
+                    Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
+                        CharacterAuthoringValidationCodes.MissingResourceDependency, "resource_catalog.json", dependencyPath, "resourceKey",
+                        "resource dependency references a missing package-local ResourceKey.", "Add the dependency resource to resource_catalog.json or remove this edge.");
             }
         }
 
