@@ -125,6 +125,16 @@ Assets/Scripts/MxFramework/
 
 目标：让一个角色资源包能被纯 C# 读取、校验、序列化 roundtrip。
 
+当前 C0 落点：
+
+```text
+Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/
+Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/CharacterPackageCommands.cs
+Tools/MxFramework.Authoring/tests/MxFramework.Authoring.Tests/CharacterPackageTests.cs
+Tools/MxFramework.Authoring/samples/character-iron-vanguard/
+Tools/MxFramework.Authoring/samples/character-slime/
+```
+
 新增核心类型：
 
 | 类型 | 职责 |
@@ -144,6 +154,7 @@ CLI 命令：
 ```bash
 mx-authoring character inspect --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
 mx-authoring character validate --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
+mx-authoring character schema
 ```
 
 验收：
@@ -152,6 +163,8 @@ mx-authoring character validate --package Tools/MxFramework.Authoring/samples/ch
 - JSON roundtrip 后 stable id、ResourceKey、local pose、collider size 不丢失。
 - unsupported shape，例如 convex/custom mesh，输出稳定 warning 或 error。
 - Core 不依赖 Unity API。
+
+C0 不做资源文件存在性、hash 计算、依赖图、import/write plan 或 generated config patch，这些分别属于 #223 和 #224。
 
 ### C0.5：包内资源管线
 

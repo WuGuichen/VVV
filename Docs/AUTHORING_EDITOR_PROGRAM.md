@@ -198,6 +198,15 @@ CharacterPackage/
 
 该包既是外部 3D 装配编辑器的输入输出，也是 Unity Character Importer Bridge 的导入输入。包内资源通过 package-local `ResourceKey`、relative path、hash 和 import hints 表达，导入 Unity 后再映射到项目 ResourceCatalog。
 
+C0 契约已经在 `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/` 固定：
+
+- `CharacterPackageManifest`：包身份、schema、坐标、依赖、hash 占位。
+- `CharacterPackageResourceCatalog`：包内 ResourceKey、relative path、type、variant、hash 和 import hints。
+- `CharacterAuthoringGeometry`：body geometry、body parts、colliders、sockets、weapon attachments、traces。
+- `CharacterAuthoringValidationIssue`：stable code、severity、gate、sourcePath、sourceObjectPath、field、suggestedFix。
+
+第一版 v1 collider shape 只允许 `Capsule`、`Box`、`Sphere`；`Convex` / `CustomMesh` 保留为 future enum，校验会输出 `CHARPKG_UNSUPPORTED_COLLIDER_SHAPE`。
+
 编辑输出建议包含：
 
 ```text

@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "1.0",
+  "entries": [
+    {
+      "resourceKey": "char.iron_vanguard.model.body",
+      "typeId": "model",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/models/iron_vanguard.glb",
+      "hash": "sha256:placeholder-body-model",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/iron_vanguard.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.iron_vanguard",
+          "character.model"
+        ],
+        "metadata": {
+          "authoringOnly": "false"
+        }
+      },
+      "dependencies": [],
+      "tags": [
+        "body"
+      ]
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.sword.model",
+      "typeId": "model",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/models/iron_sword.glb",
+      "hash": "sha256:placeholder-sword-model",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/iron_sword.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.iron_vanguard",
+          "weapon.model"
+        ],
+        "metadata": {}
+      },
+      "dependencies": [],
+      "tags": [
+        "weapon",
+        "sword"
+      ]
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.shield.model",
+      "typeId": "model",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/models/kite_shield.glb",
+      "hash": "sha256:placeholder-shield-model",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/kite_shield.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.iron_vanguard",
+          "weapon.model"
+        ],
+        "metadata": {}
+      },
+      "dependencies": [],
+      "tags": [
+        "weapon",
+        "shield"
+      ]
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.locomotion",
+      "typeId": "animation",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/animations/locomotion.glb",
+      "hash": "sha256:placeholder-locomotion",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/animations/locomotion.glb",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "splitByClipNames",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.iron_vanguard",
+          "character.animation"
+        ],
+        "metadata": {
+          "clips": "idle,walk,run"
+        }
+      },
+      "dependencies": [
+        {
+          "resourceKey": "char.iron_vanguard.model.body",
+          "required": true
+        }
+      ],
+      "tags": [
+        "animation"
+      ]
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.combat",
+      "typeId": "animation",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/animations/combat.glb",
+      "hash": "sha256:placeholder-combat",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/animations/combat.glb",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "splitByClipNames",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.iron_vanguard",
+          "character.animation"
+        ],
+        "metadata": {
+          "clips": "sword_attack,shield_guard,unarmed_attack"
+        }
+      },
+      "dependencies": [
+        {
+          "resourceKey": "char.iron_vanguard.model.body",
+          "required": true
+        }
+      ],
+      "tags": [
+        "animation",
+        "combat"
+      ]
+    },
+    {
+      "resourceKey": "char.iron_vanguard.preview.thumbnail",
+      "typeId": "preview",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "relativePath": "previews/thumbnail.png",
+      "hash": "sha256:placeholder-thumbnail",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "previews/thumbnail.png",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.iron_vanguard",
+          "character.preview"
+        ],
+        "metadata": {}
+      },
+      "dependencies": [],
+      "tags": [
+        "preview"
+      ]
+    }
+  ]
+}

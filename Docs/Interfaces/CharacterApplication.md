@@ -15,6 +15,13 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 - 依赖：`MxFramework.Config`
 - `noEngineReferences=true`
 
+外部角色资源包 C0 契约当前落点：
+
+- `MxFramework.Authoring.Core`
+- 路径：`Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/`
+- 依赖：无 Unity 依赖，不引用 `UnityEngine` / `UnityEditor`
+- 样例：`Tools/MxFramework.Authoring/samples/character-iron-vanguard/`、`Tools/MxFramework.Authoring/samples/character-slime/`
+
 ## 公开接口
 
 | 类型 | 用途 |
@@ -51,6 +58,26 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 | `CharacterPackageResolver` | 聚合以上 resolver，输出 `CharacterResolvedProfile`、validation report 和 resource report |
 
 首批稳定诊断 code 使用 `CHAR_*` 字符串，例如 `CHAR_EQUIPMENT_STATE_TIE`、`CHAR_MISSING_ABILITY_LOADOUT`、`CHAR_MISSING_COMBAT_ACTION`、`CHAR_MISSING_RESOURCE_KEY`、`CHAR_UNMAPPED_HIT_ZONE`。
+
+## 外部角色资源包 C0 契约
+
+| 类型 | 用途 |
+| --- | --- |
+| `CharacterResourcePackage` | 外部 3D 角色装配编辑器和 Unity Importer Bridge 共用的角色包聚合对象 |
+| `CharacterPackageManifest` | package id、stable id、版本、schema、坐标系、依赖和 hash 占位 |
+| `CharacterPackageCoordinateConvention` | Unity 目标坐标约定：Y+ up、Z+ forward、1 unit = 1 meter、quaternion 权威 |
+| `CharacterPackageResourceCatalog` / `CharacterPackageResourceEntry` | 包内 `ResourceKey`、type、variant、relative path、hash、import hints 和资源依赖 |
+| `CharacterBodyGeometryProfile` | 身高、半径、默认 capsule、质量、模型根、骨骼根和 locator 根 |
+| `CharacterBodyPartAuthoring` | 人形、奇幻生物和简单几何体共用的身体部位定义 |
+| `CharacterBodyColliderProfile` | v1 capsule / box / sphere collider，绑定 partId 和 hitZoneId |
+| `CharacterSocketProfile` | 武器、VFX、相机、UI、Gameplay socket / locator 绑定 |
+| `WeaponAttachmentProfile` | 武器到装备槽和 socket 的挂接姿态、预览资源和 trace 摘要 |
+| `WeaponTraceProfile` | trace 起止姿态、半径、采样规则和 action key 绑定 |
+| `CharacterAuthoringValidationIssue` / `CharacterAuthoringValidationReport` | 稳定 code、severity、gate、sourcePath、sourceObjectPath、field、suggestedFix |
+| `CharacterResourcePackageSchemas` | C0 authoring schema 和 enum domain 导出入口 |
+| `CharacterResourcePackageValidator` | C0 纯校验：包身份、坐标、resource key、body part、collider、socket、attachment、v1 shape gate |
+
+`CharacterAuthoringValidationGate` v1 固定为 `Unknown`、`ExportBlocked`、`ImportBlocked`、`SpawnBlocked`、`WarningOnly`，并保留 `Reserved1000+` 扩展位。`ExportBlocked` 只表示不能保存为可导入 / 可分发产物，不禁止 editor draft save。
 
 ## ID 规则
 

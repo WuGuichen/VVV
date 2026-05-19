@@ -10,6 +10,8 @@ Tools/MxFramework.Authoring/
   src/MxFramework.Authoring.Cli/    # authoring CLI
   tests/MxFramework.Authoring.Tests/# 无第三方依赖的测试控制台
   samples/buff-preview/             # Buff Preview ModPackage 样例
+  samples/character-iron-vanguard/   # Character Resource Package 人形样例
+  samples/character-slime/           # Character Resource Package 非人形样例
   samples/project-manifest/         # Project Authoring Manifest 样例
 ```
 
@@ -28,6 +30,8 @@ dotnet run --no-build --project Tools/MxFramework.Authoring/tests/MxFramework.Au
 dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- workflow context --workflow buff.create --step type-fields
 dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- manifest export
 dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- manifest inspect --manifest Tools/MxFramework.Authoring/samples/project-manifest/project-authoring-manifest.json
+dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- character inspect --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
+dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- character validate --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
 dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- validate --package Tools/MxFramework.Authoring/samples/buff-preview
 dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- merge-preview --package Tools/MxFramework.Authoring/samples/buff-preview
 dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- report --package Tools/MxFramework.Authoring/samples/buff-preview --out Tools/MxFramework.Authoring/samples/buff-preview/reports
@@ -44,5 +48,8 @@ dotnet run --no-build --project Tools/MxFramework.Authoring/src/MxFramework.Auth
 - Report bundle 写文件：`mod.json`、`validation_report.json`、`validation_report.txt`、`merge_preview.json`、`report_index.json`。
 - 步骤级 AI context。
 - Project Authoring Manifest export / inspect。
+- Character Resource Package C0 契约：manifest、package-local resource catalog、body geometry、collider、socket、weapon attachment、trace、validation issue DTO。
+- Character Resource Package CLI：`character inspect` / `character validate` / `character schema`。
+- Iron Vanguard 人形样例和 Training Slime 非人形样例。
 
-不包含外部 UI、运行时预览连接、Unity Bridge 导出和真实项目数据导入。
+不包含外部 UI、角色资源导入、Authoring Compiler、Unity Bridge 导出和 Runtime Spawn。

@@ -52,6 +52,7 @@ internal static class Program
             PreviewClient_DeserializesResultStatusFields().GetAwaiter().GetResult();
             EditorServer_PreviewUnavailableDoesNotThrow500();
             EditorServer_RunPreviewReturnsStructuredApplyFailure().GetAwaiter().GetResult();
+            CharacterPackageTests.RunAll();
             ModDiagnoseCommandTests.RunAll();
             Console.WriteLine("MxFramework.Authoring.Tests passed.");
             return 0;

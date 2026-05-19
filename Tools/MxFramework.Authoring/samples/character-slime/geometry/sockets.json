@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "1.0",
+  "sockets": [
+    {
+      "socketId": "topVfx",
+      "parentPartId": "shell",
+      "bonePath": "",
+      "locatorPath": "locators/top_vfx",
+      "localPose": {
+        "parentKind": "ModelRoot",
+        "parentPath": "model.root",
+        "position": {
+          "x": 0.0,
+          "y": 0.94,
+          "z": 0.0
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "usage": "Vfx",
+      "mirrorPairSocketId": "",
+      "handedness": "None",
+      "sideTag": "Center",
+      "tags": [
+        "vfx"
+      ]
+    },
+    {
+      "socketId": "frontAttack",
+      "parentPartId": "front_face",
+      "bonePath": "",
+      "locatorPath": "locators/front_attack",
+      "localPose": {
+        "parentKind": "BodyPart",
+        "parentPath": "front_face",
+        "position": {
+          "x": 0.0,
+          "y": 0.48,
+          "z": 0.48
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "usage": "Gameplay",
+      "mirrorPairSocketId": "",
+      "handedness": "None",
+      "sideTag": "Front",
+      "tags": [
+        "innateWeapon",
+        "attackOrigin"
+      ]
+    }
+  ]
+}

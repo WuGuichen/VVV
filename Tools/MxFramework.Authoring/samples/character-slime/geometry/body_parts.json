@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "bodyParts": [
+    {
+      "partId": "core",
+      "displayName": "核心",
+      "partKind": "Primitive",
+      "parentPartId": "",
+      "locatorId": "primitive.sphere.center",
+      "defaultHitZoneId": "hit.core",
+      "reactionGroupId": "reaction.slime.core",
+      "tags": [
+        "core",
+        "weakPoint"
+      ]
+    },
+    {
+      "partId": "shell",
+      "displayName": "外壳",
+      "partKind": "Primitive",
+      "parentPartId": "core",
+      "locatorId": "primitive.sphere.outer",
+      "defaultHitZoneId": "hit.shell",
+      "reactionGroupId": "reaction.slime.shell",
+      "tags": [
+        "body"
+      ]
+    },
+    {
+      "partId": "front_face",
+      "displayName": "正面",
+      "partKind": "Virtual",
+      "parentPartId": "shell",
+      "locatorId": "locator.front_face",
+      "defaultHitZoneId": "hit.front_face",
+      "reactionGroupId": "reaction.slime.face",
+      "tags": [
+        "front",
+        "expression"
+      ]
+    }
+  ]
+}

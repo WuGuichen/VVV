@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "1.0",
+  "colliders": [
+    {
+      "colliderId": "torso_capsule",
+      "partId": "torso",
+      "hitZoneId": "hit.torso",
+      "shape": "Capsule",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Spine",
+        "position": {
+          "x": 0.0,
+          "y": 0.95,
+          "z": 0.0
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "size": {
+        "x": 0.62,
+        "y": 1.14,
+        "z": 0.42
+      },
+      "radius": 0.31,
+      "height": 1.14,
+      "priority": 10,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 1.0,
+      "postureDamageScaleOverride": 1.0,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor"
+    },
+    {
+      "colliderId": "head_sphere",
+      "partId": "head",
+      "hitZoneId": "hit.head",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Head",
+        "position": {
+          "x": 0.0,
+          "y": 1.68,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "size": {
+        "x": 0.28,
+        "y": 0.28,
+        "z": 0.28
+      },
+      "radius": 0.18,
+      "height": 0.0,
+      "priority": 30,
+      "isWeakPoint": true,
+      "damageMultiplierOverride": 1.35,
+      "postureDamageScaleOverride": 1.2,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor"
+    },
+    {
+      "colliderId": "right_hand_sphere",
+      "partId": "right_hand",
+      "hitZoneId": "hit.right_hand",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.RightHand",
+        "position": {
+          "x": 0.34,
+          "y": 1.02,
+          "z": 0.06
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "size": {
+        "x": 0.18,
+        "y": 0.18,
+        "z": 0.18
+      },
+      "radius": 0.11,
+      "height": 0.0,
+      "priority": 20,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 0.85,
+      "postureDamageScaleOverride": 0.8,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor"
+    },
+    {
+      "colliderId": "left_hand_sphere",
+      "partId": "left_hand",
+      "hitZoneId": "hit.left_hand",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.LeftHand",
+        "position": {
+          "x": -0.34,
+          "y": 1.02,
+          "z": 0.06
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "size": {
+        "x": 0.18,
+        "y": 0.18,
+        "z": 0.18
+      },
+      "radius": 0.11,
+      "height": 0.0,
+      "priority": 20,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 0.85,
+      "postureDamageScaleOverride": 0.8,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor"
+    }
+  ]
+}

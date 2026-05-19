@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "authoringNote": "C0 nonhumanoid sample only. Slime uses primitive body parts, sphere colliders and gameplay sockets with the same DTOs as humanoids.",
+  "characterStableId": "char.training_slime",
+  "bodyProfileStableId": "body.training_slime.authoring",
+  "equipmentSchemaStableId": "equip_schema.innate_weapon",
+  "loadouts": [
+    "equip_loadout.training_slime.innate"
+  ],
+  "resourceKeys": [
+    "char.training_slime.model.body",
+    "char.training_slime.preview.thumbnail"
+  ]
+}

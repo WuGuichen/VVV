@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0",
+  "entries": [
+    {
+      "resourceKey": "char.training_slime.model.body",
+      "typeId": "model",
+      "variant": "default",
+      "packageId": "training_slime",
+      "relativePath": "resources/models/training_slime.glb",
+      "hash": "sha256:placeholder-slime-model",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/training_slime.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.training_slime",
+          "character.model"
+        ],
+        "metadata": {
+          "primitiveAuthoring": "true"
+        }
+      },
+      "dependencies": [],
+      "tags": [
+        "body",
+        "primitive"
+      ]
+    },
+    {
+      "resourceKey": "char.training_slime.preview.thumbnail",
+      "typeId": "preview",
+      "variant": "default",
+      "packageId": "training_slime",
+      "relativePath": "previews/thumbnail.png",
+      "hash": "sha256:placeholder-slime-thumbnail",
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "previews/thumbnail.png",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "labels": [
+          "package.training_slime",
+          "character.preview"
+        ],
+        "metadata": {}
+      },
+      "dependencies": [],
+      "tags": [
+        "preview"
+      ]
+    }
+  ]
+}

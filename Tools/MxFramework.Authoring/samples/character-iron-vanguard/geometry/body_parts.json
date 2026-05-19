@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0",
+  "bodyParts": [
+    {
+      "partId": "torso",
+      "displayName": "躯干",
+      "partKind": "Bone",
+      "parentPartId": "",
+      "locatorId": "bone.Spine",
+      "defaultHitZoneId": "hit.torso",
+      "reactionGroupId": "reaction.humanoid.body",
+      "tags": [
+        "core"
+      ]
+    },
+    {
+      "partId": "head",
+      "displayName": "头部",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "locatorId": "bone.Head",
+      "defaultHitZoneId": "hit.head",
+      "reactionGroupId": "reaction.humanoid.head",
+      "tags": [
+        "weakPoint"
+      ]
+    },
+    {
+      "partId": "right_hand",
+      "displayName": "右手",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "locatorId": "bone.RightHand",
+      "defaultHitZoneId": "hit.right_hand",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "hand"
+      ]
+    },
+    {
+      "partId": "left_hand",
+      "displayName": "左手",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "locatorId": "bone.LeftHand",
+      "defaultHitZoneId": "hit.left_hand",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "hand"
+      ]
+    },
+    {
+      "partId": "right_leg",
+      "displayName": "右腿",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "locatorId": "bone.RightLeg",
+      "defaultHitZoneId": "hit.right_leg",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "leg"
+      ]
+    },
+    {
+      "partId": "left_leg",
+      "displayName": "左腿",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "locatorId": "bone.LeftLeg",
+      "defaultHitZoneId": "hit.left_leg",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "leg"
+      ]
+    }
+  ]
+}
