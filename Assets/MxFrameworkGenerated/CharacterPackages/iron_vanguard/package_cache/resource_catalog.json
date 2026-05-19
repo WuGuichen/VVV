@@ -1,0 +1,415 @@
+{
+  "schemaVersion": "1.0",
+  "entries": [
+    {
+      "resourceKey": "char.iron_vanguard.model.body",
+      "localId": "model.body",
+      "stableId": "charpkg.iron_vanguard.resource.model.body",
+      "typeId": "model",
+      "variant": "default",
+      "usage": "characterModel",
+      "sourceFormat": "glb",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/models/iron_vanguard.glb",
+      "hash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+        "importHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/iron_vanguard.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "upAxis": "Y+",
+        "forwardAxis": "Z+",
+        "collisionPolicy": "authoringGeometryOnly",
+        "physicsDataPolicy": "separateGeometryBinding",
+        "labels": [
+          "package.iron_vanguard",
+          "character.model"
+        ],
+        "metadata": {
+          "authoringOnly": "false",
+          "placeholderResource": "true"
+        }
+      },
+      "dependencies": [],
+      "tags": [
+        "body"
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewMeshResourceKey": "char.iron_vanguard.model.body",
+        "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewCameraPresetId": "humanoidFullBody",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "resources/models/iron_vanguard.glb",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.sword.model",
+      "localId": "weapon.sword.model",
+      "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
+      "typeId": "model",
+      "variant": "default",
+      "usage": "weaponModel",
+      "sourceFormat": "glb",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/models/iron_sword.glb",
+      "hash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+        "importHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/iron_sword.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "upAxis": "Y+",
+        "forwardAxis": "Z+",
+        "collisionPolicy": "authoringTraceOnly",
+        "physicsDataPolicy": "separateGeometryBinding",
+        "labels": [
+          "package.iron_vanguard",
+          "weapon.model"
+        ],
+        "metadata": {
+          "placeholderResource": "true"
+        }
+      },
+      "dependencies": [],
+      "tags": [
+        "weapon",
+        "sword"
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewMeshResourceKey": "char.iron_vanguard.weapon.sword.model",
+        "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewCameraPresetId": "weaponCloseup",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "resources/models/iron_sword.glb",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.shield.model",
+      "localId": "weapon.shield.model",
+      "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
+      "typeId": "model",
+      "variant": "default",
+      "usage": "weaponModel",
+      "sourceFormat": "glb",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/models/kite_shield.glb",
+      "hash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+        "importHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/models/kite_shield.glb",
+        "scale": 1.0,
+        "materialPolicy": "importEmbeddedOrPackageMaterials",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "upAxis": "Y+",
+        "forwardAxis": "Z+",
+        "collisionPolicy": "authoringTraceOnly",
+        "physicsDataPolicy": "separateGeometryBinding",
+        "labels": [
+          "package.iron_vanguard",
+          "weapon.model"
+        ],
+        "metadata": {
+          "placeholderResource": "true"
+        }
+      },
+      "dependencies": [],
+      "tags": [
+        "weapon",
+        "shield"
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewMeshResourceKey": "char.iron_vanguard.weapon.shield.model",
+        "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewCameraPresetId": "weaponCloseup",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "resources/models/kite_shield.glb",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.locomotion",
+      "localId": "anim.locomotion",
+      "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+      "typeId": "animation",
+      "variant": "default",
+      "usage": "animationClipGroup",
+      "sourceFormat": "glb",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/animations/locomotion.glb",
+      "hash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+        "importHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
+        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+      },
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/animations/locomotion.glb",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "splitByClipNames",
+        "providerId": "unityAsset",
+        "upAxis": "Y+",
+        "forwardAxis": "Z+",
+        "collisionPolicy": "",
+        "physicsDataPolicy": "",
+        "labels": [
+          "package.iron_vanguard",
+          "character.animation"
+        ],
+        "metadata": {
+          "clips": "idle,walk,run",
+          "placeholderResource": "true"
+        }
+      },
+      "dependencies": [
+        {
+          "resourceKey": "char.iron_vanguard.model.body",
+          "required": true,
+          "relation": "retargetsToSkeleton",
+          "affectsDependencyHash": true
+        }
+      ],
+      "tags": [
+        "animation"
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewMeshResourceKey": "char.iron_vanguard.model.body",
+        "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewCameraPresetId": "humanoidFullBody",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "resources/animations/locomotion.glb",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.combat",
+      "localId": "anim.combat",
+      "stableId": "charpkg.iron_vanguard.resource.anim.combat",
+      "typeId": "animation",
+      "variant": "default",
+      "usage": "animationClipGroup",
+      "sourceFormat": "glb",
+      "packageId": "iron_vanguard",
+      "relativePath": "resources/animations/combat.glb",
+      "hash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+        "importHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
+        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+      },
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "resources/animations/combat.glb",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "splitByClipNames",
+        "providerId": "unityAsset",
+        "upAxis": "Y+",
+        "forwardAxis": "Z+",
+        "collisionPolicy": "",
+        "physicsDataPolicy": "",
+        "labels": [
+          "package.iron_vanguard",
+          "character.animation"
+        ],
+        "metadata": {
+          "clips": "sword_attack,shield_guard,unarmed_attack",
+          "placeholderResource": "true"
+        }
+      },
+      "dependencies": [
+        {
+          "resourceKey": "char.iron_vanguard.model.body",
+          "required": true,
+          "relation": "retargetsToSkeleton",
+          "affectsDependencyHash": true
+        }
+      ],
+      "tags": [
+        "animation",
+        "combat"
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewMeshResourceKey": "char.iron_vanguard.model.body",
+        "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewCameraPresetId": "humanoidFullBody",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "resources/animations/combat.glb",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
+    },
+    {
+      "resourceKey": "char.iron_vanguard.preview.thumbnail",
+      "localId": "preview.thumbnail",
+      "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
+      "typeId": "preview",
+      "variant": "default",
+      "usage": "previewThumbnail",
+      "sourceFormat": "png",
+      "packageId": "iron_vanguard",
+      "relativePath": "previews/thumbnail.png",
+      "hash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+        "importHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "importHints": {
+        "targetPathPolicy": "generatedCharacterPackage",
+        "targetRelativePath": "previews/thumbnail.png",
+        "scale": 1.0,
+        "materialPolicy": "",
+        "animationPolicy": "",
+        "providerId": "unityAsset",
+        "upAxis": "",
+        "forwardAxis": "",
+        "collisionPolicy": "",
+        "physicsDataPolicy": "",
+        "labels": [
+          "package.iron_vanguard",
+          "character.preview"
+        ],
+        "metadata": {
+          "placeholderResource": "true"
+        }
+      },
+      "dependencies": [],
+      "tags": [
+        "preview"
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewMeshResourceKey": "",
+        "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "previewCameraPresetId": "thumbnail",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "previews/thumbnail.png",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
+    }
+  ]
+}

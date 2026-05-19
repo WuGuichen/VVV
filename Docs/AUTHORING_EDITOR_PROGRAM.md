@@ -220,6 +220,15 @@ mx-authoring character compile --package <CharacterPackage> --out <dir> --check-
 
 `ExportBlocked` 只允许保存草稿；`ImportBlocked` 不允许调用 Unity 写项目；`SpawnBlocked` 可以导入但 Runtime Spawn 不可用；`WarningOnly` 可以继续但必须显示 diagnostics。
 
+C2 Unity 导入桥已经固定为同一条 CLI / Unity Editor command 双入口：
+
+```bash
+mx-authoring character import-unity --package <CharacterPackage> --project-root <UnityProjectRoot> --check-files --check-hashes
+Unity -batchmode -projectPath <UnityProjectRoot> -executeMethod MxFramework.Editor.CharacterImport.CharacterPackageImportCommand.Import -characterPackage <CharacterPackage> -quit
+```
+
+外部编辑器可以直接调用 CLI，或在需要 Unity `AssetDatabase.Refresh()` 时调用 batchmode command。两者都复用 C0.6 `CharacterAuthoringCompiler`，写入 `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/`，并产出 `package_cache/import_report.json`。
+
 编辑输出建议包含：
 
 ```text

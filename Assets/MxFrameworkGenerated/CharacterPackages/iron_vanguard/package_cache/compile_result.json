@@ -1,0 +1,2315 @@
+{
+  "format": "mx.characterAuthoringCompileResult.v1",
+  "schemaVersion": "1.0",
+  "packageId": "iron_vanguard",
+  "packageStableId": "charpkg.iron_vanguard",
+  "isDeterministicFullCompile": true,
+  "status": "Ready",
+  "hashes": {
+    "algorithm": "sha256",
+    "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f",
+    "generatedConfigHash": "sha256:9c2ac42323bd2c7f10f81cba7bca7fb7c3408efd26a3d3bf0cba913d583e4710",
+    "geometryBindingHash": "sha256:ffc7175e57cd5a035110d63c9182b4a655767366138f9f86159f585d514ce8ae",
+    "resourceMappingHash": "sha256:22ce7bb03da3d4b27a2c502d9b4e2de7493f73d94df87a35aa2eb6dc94ae3800",
+    "writePlanHash": "sha256:d316f660073612b632e550e8ebddcde59b0c33f3b33d20c5e6e7e5bb5a27ccc6"
+  },
+  "gateReport": {
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "status": "Ready",
+    "exportBlocked": false,
+    "importBlocked": false,
+    "spawnBlocked": false,
+    "warningOnly": false,
+    "issues": []
+  },
+  "generatedConfigPatch": {
+    "format": "mx.characterApplicationConfigPatchBundle.v1",
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "layer": "Generated",
+    "patch": {
+      "schemaVersion": "1.0",
+      "source": "mx.characterApplicationConfigPatchBundle.v1",
+      "entries": [
+        {
+          "operation": "Upsert",
+          "source": "CharacterConfig",
+          "id": "710001",
+          "layer": "Generated",
+          "fields": {
+            "CharacterId": "710001",
+            "StableId": "char.iron_vanguard",
+            "NameText": "character.iron_vanguard.name",
+            "DescriptionText": "character.iron_vanguard.desc",
+            "AttributeProfileId": "720001",
+            "BodyProfileId": "730001",
+            "EquipmentSchemaId": "750001",
+            "DefaultLoadoutId": "760003",
+            "BaseAbilityLoadoutId": "790001",
+            "PresentationProfileId": "810001",
+            "DefaultControllerKind": "HumanInput",
+            "DefaultControllerProfileId": "controller.human.default",
+            "DefaultSpawnTags": [
+              "sample",
+              "iron_vanguard"
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterAttributeProfileConfig",
+          "id": "720001",
+          "layer": "Generated",
+          "fields": {
+            "AttributeProfileId": "720001",
+            "StableId": "attr.iron_vanguard.base",
+            "Attributes": [
+              {
+                "AttributeId": "920001",
+                "StableId": "attr.hp",
+                "Group": "Vital",
+                "BaseValue": "160",
+                "InitialValue": "160",
+                "MinValue": "0",
+                "MaxValue": "160"
+              },
+              {
+                "AttributeId": "920002",
+                "StableId": "attr.stamina",
+                "Group": "Resource",
+                "BaseValue": "100",
+                "InitialValue": "100",
+                "MinValue": "0",
+                "MaxValue": "100"
+              },
+              {
+                "AttributeId": "920003",
+                "StableId": "attr.posture",
+                "Group": "Pressure",
+                "BaseValue": "80",
+                "InitialValue": "80",
+                "MinValue": "0",
+                "MaxValue": "80"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyProfileConfig",
+          "id": "730001",
+          "layer": "Generated",
+          "fields": {
+            "BodyProfileId": "730001",
+            "StableId": "body.iron_vanguard.authoring",
+            "BodyKind": "Humanoid",
+            "PartSetId": "iron_vanguard_parts",
+            "DefaultMotionProfileId": "motion.iron_vanguard.default",
+            "DefaultPhysicsProfileId": "physics.humanoid.medium",
+            "Sockets": [
+              {
+                "SocketId": "mainHand",
+                "ParentPartId": "right_hand",
+                "LocatorId": "locators/right_hand_weapon"
+              },
+              {
+                "SocketId": "offHand",
+                "ParentPartId": "left_hand",
+                "LocatorId": "locators/left_hand_weapon"
+              },
+              {
+                "SocketId": "back",
+                "ParentPartId": "torso",
+                "LocatorId": "locators/back_mount"
+              },
+              {
+                "SocketId": "headVfx",
+                "ParentPartId": "head",
+                "LocatorId": "locators/head_vfx"
+              }
+            ],
+            "HitZoneBindings": [
+              {
+                "HitZoneId": "hit.torso",
+                "PartId": "torso",
+                "Priority": "10",
+                "IsWeakPoint": "false",
+                "DamageMultiplierOverride": "1",
+                "PostureDamageScaleOverride": "1"
+              },
+              {
+                "HitZoneId": "hit.head",
+                "PartId": "head",
+                "Priority": "30",
+                "IsWeakPoint": "true",
+                "DamageMultiplierOverride": "1.35",
+                "PostureDamageScaleOverride": "1.2"
+              },
+              {
+                "HitZoneId": "hit.right_hand",
+                "PartId": "right_hand",
+                "Priority": "20",
+                "IsWeakPoint": "false",
+                "DamageMultiplierOverride": "0.85",
+                "PostureDamageScaleOverride": "0.8"
+              },
+              {
+                "HitZoneId": "hit.left_hand",
+                "PartId": "left_hand",
+                "Priority": "20",
+                "IsWeakPoint": "false",
+                "DamageMultiplierOverride": "0.85",
+                "PostureDamageScaleOverride": "0.8"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentSchemaConfig",
+          "id": "750001",
+          "layer": "Generated",
+          "fields": {
+            "EquipmentSchemaId": "750001",
+            "StableId": "equip_schema.humanoid.hands",
+            "Slots": [
+              {
+                "SlotId": "mainHand",
+                "Kind": "MainHand",
+                "DisplayName": "Main Hand",
+                "AllowedWeaponCategories": [
+                  "OneHandMelee",
+                  "Tool",
+                  "Catalyst"
+                ],
+                "RequiredTags": []
+              },
+              {
+                "SlotId": "offHand",
+                "Kind": "OffHand",
+                "DisplayName": "Off Hand",
+                "AllowedWeaponCategories": [
+                  "Shield"
+                ],
+                "RequiredTags": []
+              }
+            ],
+            "ExclusiveGroups": [
+              {
+                "GroupId": "hands",
+                "SlotIds": [
+                  "mainHand",
+                  "offHand"
+                ],
+                "MaxFilledCount": "2"
+              }
+            ],
+            "AllowedStateIds": [
+              "770001",
+              "770002",
+              "770003"
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterPresentationProfileConfig",
+          "id": "810001",
+          "layer": "Generated",
+          "fields": {
+            "PresentationProfileId": "810001",
+            "StableId": "mx.presentation.iron_vanguard",
+            "DefaultAnimationProfileId": "anim.iron_vanguard.default",
+            "ResourceKeys": [
+              {
+                "Id": "char.iron_vanguard.model.body",
+                "TypeId": "GameObject",
+                "UsageKind": "Model",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              },
+              {
+                "Id": "char.iron_vanguard.weapon.sword.model",
+                "TypeId": "GameObject",
+                "UsageKind": "WeaponModel",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              },
+              {
+                "Id": "char.iron_vanguard.weapon.shield.model",
+                "TypeId": "GameObject",
+                "UsageKind": "WeaponModel",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              },
+              {
+                "Id": "char.iron_vanguard.anim.locomotion",
+                "TypeId": "AnimationClipGroup",
+                "UsageKind": "AnimationProfile",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              },
+              {
+                "Id": "char.iron_vanguard.anim.combat",
+                "TypeId": "AnimationClipGroup",
+                "UsageKind": "AnimationProfile",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              },
+              {
+                "Id": "char.iron_vanguard.preview.thumbnail",
+                "TypeId": "Sprite",
+                "UsageKind": "Ui",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              }
+            ],
+            "PresentationTags": [
+              "humanoid",
+              "package:iron_vanguard"
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "SpawnProfileConfig",
+          "id": "820001",
+          "layer": "Generated",
+          "fields": {
+            "SpawnProfileId": "820001",
+            "StableId": "mx.spawn.iron_vanguard.default",
+            "CharacterId": "710001",
+            "TeamId": "team.neutral",
+            "ControllerKind": "HumanInput",
+            "EquipmentLoadoutId": "760003",
+            "SpawnPose": {
+              "AnchorId": "spawn.default",
+              "X": "0",
+              "Y": "0",
+              "Z": "0",
+              "YawDegrees": "0"
+            },
+            "RuntimeAiPlannerProfileId": "",
+            "DebugName": "Iron Vanguard"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyPartConfig",
+          "id": "740001",
+          "layer": "Generated",
+          "fields": {
+            "BodyPartConfigId": "740001",
+            "StableId": "mx.body_part.iron_vanguard_parts.torso",
+            "PartSetId": "iron_vanguard_parts",
+            "PartId": "torso",
+            "ParentPartId": "",
+            "PartKind": "Torso",
+            "LocatorId": "bone.Spine",
+            "HitZoneId": "hit.torso",
+            "ReactionGroupId": "reaction.humanoid.body",
+            "DamageMultiplier": "1",
+            "ImpulseScale": "1",
+            "StaggerScale": "1",
+            "PostureDamageScale": "1",
+            "IsCritical": "false"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyPartConfig",
+          "id": "740002",
+          "layer": "Generated",
+          "fields": {
+            "BodyPartConfigId": "740002",
+            "StableId": "mx.body_part.iron_vanguard_parts.head",
+            "PartSetId": "iron_vanguard_parts",
+            "PartId": "head",
+            "ParentPartId": "torso",
+            "PartKind": "Head",
+            "LocatorId": "bone.Head",
+            "HitZoneId": "hit.head",
+            "ReactionGroupId": "reaction.humanoid.head",
+            "DamageMultiplier": "1.25",
+            "ImpulseScale": "1",
+            "StaggerScale": "1",
+            "PostureDamageScale": "1.4",
+            "IsCritical": "true"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyPartConfig",
+          "id": "740003",
+          "layer": "Generated",
+          "fields": {
+            "BodyPartConfigId": "740003",
+            "StableId": "mx.body_part.iron_vanguard_parts.right_hand",
+            "PartSetId": "iron_vanguard_parts",
+            "PartId": "right_hand",
+            "ParentPartId": "torso",
+            "PartKind": "Hand",
+            "LocatorId": "bone.RightHand",
+            "HitZoneId": "hit.right_hand",
+            "ReactionGroupId": "reaction.humanoid.limb",
+            "DamageMultiplier": "1",
+            "ImpulseScale": "1",
+            "StaggerScale": "1",
+            "PostureDamageScale": "1",
+            "IsCritical": "false"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyPartConfig",
+          "id": "740004",
+          "layer": "Generated",
+          "fields": {
+            "BodyPartConfigId": "740004",
+            "StableId": "mx.body_part.iron_vanguard_parts.left_hand",
+            "PartSetId": "iron_vanguard_parts",
+            "PartId": "left_hand",
+            "ParentPartId": "torso",
+            "PartKind": "Hand",
+            "LocatorId": "bone.LeftHand",
+            "HitZoneId": "hit.left_hand",
+            "ReactionGroupId": "reaction.humanoid.limb",
+            "DamageMultiplier": "1",
+            "ImpulseScale": "1",
+            "StaggerScale": "1",
+            "PostureDamageScale": "1",
+            "IsCritical": "false"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyPartConfig",
+          "id": "740005",
+          "layer": "Generated",
+          "fields": {
+            "BodyPartConfigId": "740005",
+            "StableId": "mx.body_part.iron_vanguard_parts.right_leg",
+            "PartSetId": "iron_vanguard_parts",
+            "PartId": "right_leg",
+            "ParentPartId": "torso",
+            "PartKind": "Leg",
+            "LocatorId": "bone.RightLeg",
+            "HitZoneId": "hit.right_leg",
+            "ReactionGroupId": "reaction.humanoid.limb",
+            "DamageMultiplier": "1",
+            "ImpulseScale": "1",
+            "StaggerScale": "1",
+            "PostureDamageScale": "1",
+            "IsCritical": "false"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CharacterBodyPartConfig",
+          "id": "740006",
+          "layer": "Generated",
+          "fields": {
+            "BodyPartConfigId": "740006",
+            "StableId": "mx.body_part.iron_vanguard_parts.left_leg",
+            "PartSetId": "iron_vanguard_parts",
+            "PartId": "left_leg",
+            "ParentPartId": "torso",
+            "PartKind": "Leg",
+            "LocatorId": "bone.LeftLeg",
+            "HitZoneId": "hit.left_leg",
+            "ReactionGroupId": "reaction.humanoid.limb",
+            "DamageMultiplier": "1",
+            "ImpulseScale": "1",
+            "StaggerScale": "1",
+            "PostureDamageScale": "1",
+            "IsCritical": "false"
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "WeaponConfig",
+          "id": "780001",
+          "layer": "Generated",
+          "fields": {
+            "WeaponId": "780001",
+            "StableId": "mx.weapon.weapon.iron_sword",
+            "Category": "OneHandMelee",
+            "Tags": [
+              "blade",
+              "one_hand"
+            ],
+            "OccupiesSlots": [
+              "mainHand"
+            ],
+            "GrantedAbilityLoadoutId": "790002",
+            "WeaponPresentationProfileId": "presentation.weapon.iron_sword",
+            "WeaponCombatProfileId": "combat.weapon.iron_sword",
+            "WeaponResourceProfileId": "resource.weapon.iron_sword",
+            "ResourceKeys": [
+              {
+                "Id": "char.iron_vanguard.weapon.sword.model",
+                "TypeId": "GameObject",
+                "UsageKind": "WeaponModel",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              }
+            ],
+            "TraceBindings": [
+              {
+                "TraceProfileId": "trace.iron_sword.blade",
+                "SlotId": "mainHand",
+                "SocketId": "mainHand",
+                "Length": "0.82",
+                "Radius": "0.055"
+              }
+            ],
+            "BaseModifiers": []
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "WeaponConfig",
+          "id": "780002",
+          "layer": "Generated",
+          "fields": {
+            "WeaponId": "780002",
+            "StableId": "mx.weapon.weapon.kite_shield",
+            "Category": "Shield",
+            "Tags": [
+              "shield",
+              "one_hand"
+            ],
+            "OccupiesSlots": [
+              "offHand"
+            ],
+            "GrantedAbilityLoadoutId": "790003",
+            "WeaponPresentationProfileId": "presentation.weapon.kite_shield",
+            "WeaponCombatProfileId": "combat.weapon.kite_shield",
+            "WeaponResourceProfileId": "resource.weapon.kite_shield",
+            "ResourceKeys": [
+              {
+                "Id": "char.iron_vanguard.weapon.shield.model",
+                "TypeId": "GameObject",
+                "UsageKind": "WeaponModel",
+                "Variant": "",
+                "PackageId": "iron_vanguard",
+                "PreloadGroupId": "character.iron_vanguard"
+              }
+            ],
+            "TraceBindings": [],
+            "BaseModifiers": []
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentLoadoutConfig",
+          "id": "760001",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "760001",
+            "StableId": "equip_loadout.iron_vanguard.unarmed",
+            "EquipmentSchemaId": "750001",
+            "Slots": []
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentStateConfig",
+          "id": "770001",
+          "layer": "Generated",
+          "fields": {
+            "StateId": "770001",
+            "StableId": "equip_state.iron_vanguard.unarmed",
+            "EquipmentSchemaId": "750001",
+            "Priority": "0",
+            "MatchRules": [
+              {
+                "RequiredFilledSlots": [],
+                "RequiredEmptySlots": [
+                  "mainHand",
+                  "offHand"
+                ],
+                "RequiredWeaponCategoriesBySlot": [],
+                "RequiredWeaponTagsBySlot": [],
+                "ForbiddenWeaponTagsBySlot": []
+              }
+            ],
+            "GrantedAbilityLoadoutId": "0",
+            "CombatActionSetId": "800001",
+            "AnimationProfileId": "anim.iron_vanguard.unarmed",
+            "Tags": [
+              "equip_loadout.iron_vanguard.unarmed"
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentLoadoutConfig",
+          "id": "760002",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "760002",
+            "StableId": "equip_loadout.iron_vanguard.single_sword",
+            "EquipmentSchemaId": "750001",
+            "Slots": [
+              {
+                "SlotId": "mainHand",
+                "WeaponId": "780001",
+                "WeaponInstanceStableId": "weapon.instance.weapon.iron_sword.001"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentStateConfig",
+          "id": "770002",
+          "layer": "Generated",
+          "fields": {
+            "StateId": "770002",
+            "StableId": "equip_state.iron_vanguard.single_sword",
+            "EquipmentSchemaId": "750001",
+            "Priority": "10",
+            "MatchRules": [
+              {
+                "RequiredFilledSlots": [
+                  "mainHand"
+                ],
+                "RequiredEmptySlots": [
+                  "offHand"
+                ],
+                "RequiredWeaponCategoriesBySlot": [
+                  "mainHand:OneHandMelee"
+                ],
+                "RequiredWeaponTagsBySlot": [
+                  "mainHand:blade"
+                ],
+                "ForbiddenWeaponTagsBySlot": []
+              }
+            ],
+            "GrantedAbilityLoadoutId": "0",
+            "CombatActionSetId": "800002",
+            "AnimationProfileId": "anim.iron_vanguard.single_sword",
+            "Tags": [
+              "equip_loadout.iron_vanguard.single_sword",
+              "blade"
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentLoadoutConfig",
+          "id": "760003",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "760003",
+            "StableId": "equip_loadout.iron_vanguard.sword_shield",
+            "EquipmentSchemaId": "750001",
+            "Slots": [
+              {
+                "SlotId": "mainHand",
+                "WeaponId": "780001",
+                "WeaponInstanceStableId": "weapon.instance.weapon.iron_sword.001"
+              },
+              {
+                "SlotId": "offHand",
+                "WeaponId": "780002",
+                "WeaponInstanceStableId": "weapon.instance.weapon.kite_shield.001"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "EquipmentStateConfig",
+          "id": "770003",
+          "layer": "Generated",
+          "fields": {
+            "StateId": "770003",
+            "StableId": "equip_state.iron_vanguard.sword_shield",
+            "EquipmentSchemaId": "750001",
+            "Priority": "20",
+            "MatchRules": [
+              {
+                "RequiredFilledSlots": [
+                  "mainHand",
+                  "offHand"
+                ],
+                "RequiredEmptySlots": [],
+                "RequiredWeaponCategoriesBySlot": [
+                  "mainHand:OneHandMelee",
+                  "offHand:Shield"
+                ],
+                "RequiredWeaponTagsBySlot": [
+                  "mainHand:blade",
+                  "offHand:shield"
+                ],
+                "ForbiddenWeaponTagsBySlot": []
+              }
+            ],
+            "GrantedAbilityLoadoutId": "790102",
+            "CombatActionSetId": "800003",
+            "AnimationProfileId": "anim.iron_vanguard.sword_shield",
+            "Tags": [
+              "equip_loadout.iron_vanguard.sword_shield",
+              "blade",
+              "shield"
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "AbilityLoadoutConfig",
+          "id": "790001",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "790001",
+            "StableId": "mx.ability_loadout.base",
+            "AbilityIds": [
+              "900001"
+            ],
+            "RemoveAbilityIds": [],
+            "SlotBindings": [
+              {
+                "SlotId": "evade",
+                "AbilityId": "900001",
+                "InputIntentId": "intent.dodge"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "AbilityLoadoutConfig",
+          "id": "790002",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "790002",
+            "StableId": "mx.ability_loadout.weapon.iron_sword",
+            "AbilityIds": [
+              "900002"
+            ],
+            "RemoveAbilityIds": [],
+            "SlotBindings": [
+              {
+                "SlotId": "primary",
+                "AbilityId": "900002",
+                "InputIntentId": "intent.primary"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "AbilityLoadoutConfig",
+          "id": "790003",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "790003",
+            "StableId": "mx.ability_loadout.weapon.kite_shield",
+            "AbilityIds": [
+              "900003"
+            ],
+            "RemoveAbilityIds": [],
+            "SlotBindings": [
+              {
+                "SlotId": "guard",
+                "AbilityId": "900003",
+                "InputIntentId": "intent.guard"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "AbilityLoadoutConfig",
+          "id": "790102",
+          "layer": "Generated",
+          "fields": {
+            "LoadoutId": "790102",
+            "StableId": "mx.ability_loadout.equip_loadout.iron_vanguard.sword_shield",
+            "AbilityIds": [
+              "900102"
+            ],
+            "RemoveAbilityIds": [],
+            "SlotBindings": [
+              {
+                "SlotId": "secondary",
+                "AbilityId": "900102",
+                "InputIntentId": "intent.secondary"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CombatActionSetConfig",
+          "id": "800001",
+          "layer": "Generated",
+          "fields": {
+            "ActionSetId": "800001",
+            "StableId": "action_set.iron_vanguard.unarmed",
+            "Actions": [
+              {
+                "ActionKey": "primary",
+                "CombatActionId": "910001",
+                "TraceProfileIdOverride": "",
+                "AnimationActionKey": "punch"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CombatActionSetConfig",
+          "id": "800002",
+          "layer": "Generated",
+          "fields": {
+            "ActionSetId": "800002",
+            "StableId": "action_set.iron_vanguard.single_sword",
+            "Actions": [
+              {
+                "ActionKey": "primary",
+                "CombatActionId": "910011",
+                "TraceProfileIdOverride": "trace.iron_sword.blade",
+                "AnimationActionKey": "slash"
+              }
+            ]
+          }
+        },
+        {
+          "operation": "Upsert",
+          "source": "CombatActionSetConfig",
+          "id": "800003",
+          "layer": "Generated",
+          "fields": {
+            "ActionSetId": "800003",
+            "StableId": "action_set.iron_vanguard.sword_shield",
+            "Actions": [
+              {
+                "ActionKey": "primary",
+                "CombatActionId": "910021",
+                "TraceProfileIdOverride": "trace.iron_sword.blade",
+                "AnimationActionKey": "slash"
+              },
+              {
+                "ActionKey": "guard",
+                "CombatActionId": "910022",
+                "TraceProfileIdOverride": "",
+                "AnimationActionKey": "shield_guard"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "generatedReferences": [
+      {
+        "tableName": "CharacterConfig",
+        "generatedId": 710001,
+        "stableId": "char.iron_vanguard",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "characterStableId"
+      },
+      {
+        "tableName": "CharacterAttributeProfileConfig",
+        "generatedId": 720001,
+        "stableId": "attr.iron_vanguard.base",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "attributeProfileStableId"
+      },
+      {
+        "tableName": "CharacterBodyProfileConfig",
+        "generatedId": 730001,
+        "stableId": "body.iron_vanguard.authoring",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "bodyProfileStableId"
+      },
+      {
+        "tableName": "EquipmentSchemaConfig",
+        "generatedId": 750001,
+        "stableId": "equip_schema.humanoid.hands",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "equipmentSchemaStableId"
+      },
+      {
+        "tableName": "CharacterPresentationProfileConfig",
+        "generatedId": 810001,
+        "stableId": "mx.presentation.iron_vanguard",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "presentationProfile"
+      },
+      {
+        "tableName": "SpawnProfileConfig",
+        "generatedId": 820001,
+        "stableId": "mx.spawn.iron_vanguard.default",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "spawnProfile"
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "generatedId": 740001,
+        "stableId": "mx.body_part.iron_vanguard_parts.torso",
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/0"
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "generatedId": 740002,
+        "stableId": "mx.body_part.iron_vanguard_parts.head",
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/1"
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "generatedId": 740003,
+        "stableId": "mx.body_part.iron_vanguard_parts.right_hand",
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/2"
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "generatedId": 740004,
+        "stableId": "mx.body_part.iron_vanguard_parts.left_hand",
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/3"
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "generatedId": 740005,
+        "stableId": "mx.body_part.iron_vanguard_parts.right_leg",
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/4"
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "generatedId": 740006,
+        "stableId": "mx.body_part.iron_vanguard_parts.left_leg",
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/5"
+      },
+      {
+        "tableName": "WeaponConfig",
+        "generatedId": 780001,
+        "stableId": "mx.weapon.weapon.iron_sword",
+        "sourcePath": "geometry/weapon_attachments.json",
+        "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword"
+      },
+      {
+        "tableName": "WeaponConfig",
+        "generatedId": 780002,
+        "stableId": "mx.weapon.weapon.kite_shield",
+        "sourcePath": "geometry/weapon_attachments.json",
+        "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield"
+      },
+      {
+        "tableName": "EquipmentLoadoutConfig",
+        "generatedId": 760001,
+        "stableId": "equip_loadout.iron_vanguard.unarmed",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "loadouts/0"
+      },
+      {
+        "tableName": "EquipmentStateConfig",
+        "generatedId": 770001,
+        "stableId": "equip_state.iron_vanguard.unarmed",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "loadouts/0"
+      },
+      {
+        "tableName": "EquipmentLoadoutConfig",
+        "generatedId": 760002,
+        "stableId": "equip_loadout.iron_vanguard.single_sword",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "loadouts/1"
+      },
+      {
+        "tableName": "EquipmentStateConfig",
+        "generatedId": 770002,
+        "stableId": "equip_state.iron_vanguard.single_sword",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "loadouts/1"
+      },
+      {
+        "tableName": "EquipmentLoadoutConfig",
+        "generatedId": 760003,
+        "stableId": "equip_loadout.iron_vanguard.sword_shield",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "loadouts/2"
+      },
+      {
+        "tableName": "EquipmentStateConfig",
+        "generatedId": 770003,
+        "stableId": "equip_state.iron_vanguard.sword_shield",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "loadouts/2"
+      },
+      {
+        "tableName": "AbilityLoadoutConfig",
+        "generatedId": 790001,
+        "stableId": "mx.ability_loadout.base",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "baseAbilityLoadout"
+      },
+      {
+        "tableName": "AbilityLoadoutConfig",
+        "generatedId": 790002,
+        "stableId": "mx.ability_loadout.weapon.iron_sword",
+        "sourcePath": "geometry/weapon_attachments.json",
+        "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword"
+      },
+      {
+        "tableName": "AbilityLoadoutConfig",
+        "generatedId": 790003,
+        "stableId": "mx.ability_loadout.weapon.kite_shield",
+        "sourcePath": "geometry/weapon_attachments.json",
+        "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield"
+      },
+      {
+        "tableName": "AbilityLoadoutConfig",
+        "generatedId": 790102,
+        "stableId": "mx.ability_loadout.equip_loadout.iron_vanguard.sword_shield",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "equip_loadout.iron_vanguard.sword_shield"
+      },
+      {
+        "tableName": "CombatActionSetConfig",
+        "generatedId": 800001,
+        "stableId": "action_set.iron_vanguard.unarmed",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "equip_loadout.iron_vanguard.unarmed"
+      },
+      {
+        "tableName": "CombatActionSetConfig",
+        "generatedId": 800002,
+        "stableId": "action_set.iron_vanguard.single_sword",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "equip_loadout.iron_vanguard.single_sword"
+      },
+      {
+        "tableName": "CombatActionSetConfig",
+        "generatedId": 800003,
+        "stableId": "action_set.iron_vanguard.sword_shield",
+        "sourcePath": "config/character_application.json",
+        "sourceObjectPath": "equip_loadout.iron_vanguard.sword_shield"
+      }
+    ]
+  },
+  "geometryBinding": {
+    "format": "mx.characterGeometryBinding.v1",
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "bodyProfileStableId": "body.iron_vanguard.authoring",
+    "coordinateConversion": {
+      "sourceConvention": {
+        "upAxis": "YPositive",
+        "forwardAxis": "ZPositive",
+        "handedness": "LeftHanded",
+        "unitScaleMeters": 1,
+        "rotationStorage": "Quaternion",
+        "roundTripPositionTolerance": 0.0001,
+        "roundTripRotationToleranceDegrees": 0.01
+      },
+      "targetConvention": {
+        "upAxis": "YPositive",
+        "forwardAxis": "ZPositive",
+        "handedness": "LeftHanded",
+        "unitScaleMeters": 1,
+        "rotationStorage": "Quaternion",
+        "roundTripPositionTolerance": 0.0001,
+        "roundTripRotationToleranceDegrees": 0.01
+      },
+      "requiresConversion": false,
+      "positionScale": 1,
+      "axisConversion": "identity",
+      "rotationConversion": "identity"
+    },
+    "bodyProfile": {
+      "profileId": "geometry.iron_vanguard.body",
+      "bodyKind": "Skeletal",
+      "bodyScale": 1,
+      "heightMeters": 1.86,
+      "radiusMeters": 0.34,
+      "massKg": 86,
+      "defaultCapsule": {
+        "height": 1.86,
+        "radius": 0.34,
+        "center": {
+          "x": 0,
+          "y": 0.93,
+          "z": 0
+        }
+      },
+      "defaultPhysicsProfileId": "physics.humanoid.medium",
+      "modelRootStableId": "model.root",
+      "skeletonRootStableId": "armature.humanoid",
+      "locatorRootStableId": "locators.root"
+    },
+    "bodyColliders": [
+      {
+        "colliderId": "torso_capsule",
+        "partId": "torso",
+        "hitZoneId": "hit.torso",
+        "shape": "Capsule",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.Spine",
+          "position": {
+            "x": 0,
+            "y": 0.95,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "size": {
+          "x": 0.62,
+          "y": 1.14,
+          "z": 0.42
+        },
+        "radius": 0.31,
+        "height": 1.14,
+        "priority": 10,
+        "isWeakPoint": false,
+        "damageMultiplierOverride": 1,
+        "postureDamageScaleOverride": 1,
+        "physicsLayer": "character.body",
+        "materialStableId": "physics.material.flesh_armor",
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/torso_capsule"
+      },
+      {
+        "colliderId": "head_sphere",
+        "partId": "head",
+        "hitZoneId": "hit.head",
+        "shape": "Sphere",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.Head",
+          "position": {
+            "x": 0,
+            "y": 1.68,
+            "z": 0.02
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "size": {
+          "x": 0.28,
+          "y": 0.28,
+          "z": 0.28
+        },
+        "radius": 0.18,
+        "height": 0,
+        "priority": 30,
+        "isWeakPoint": true,
+        "damageMultiplierOverride": 1.35,
+        "postureDamageScaleOverride": 1.2,
+        "physicsLayer": "character.body",
+        "materialStableId": "physics.material.flesh_armor",
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/head_sphere"
+      },
+      {
+        "colliderId": "right_hand_sphere",
+        "partId": "right_hand",
+        "hitZoneId": "hit.right_hand",
+        "shape": "Sphere",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.RightHand",
+          "position": {
+            "x": 0.34,
+            "y": 1.02,
+            "z": 0.06
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "size": {
+          "x": 0.18,
+          "y": 0.18,
+          "z": 0.18
+        },
+        "radius": 0.11,
+        "height": 0,
+        "priority": 20,
+        "isWeakPoint": false,
+        "damageMultiplierOverride": 0.85,
+        "postureDamageScaleOverride": 0.8,
+        "physicsLayer": "character.body",
+        "materialStableId": "physics.material.flesh_armor",
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/right_hand_sphere"
+      },
+      {
+        "colliderId": "left_hand_sphere",
+        "partId": "left_hand",
+        "hitZoneId": "hit.left_hand",
+        "shape": "Sphere",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.LeftHand",
+          "position": {
+            "x": -0.34,
+            "y": 1.02,
+            "z": 0.06
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "size": {
+          "x": 0.18,
+          "y": 0.18,
+          "z": 0.18
+        },
+        "radius": 0.11,
+        "height": 0,
+        "priority": 20,
+        "isWeakPoint": false,
+        "damageMultiplierOverride": 0.85,
+        "postureDamageScaleOverride": 0.8,
+        "physicsLayer": "character.body",
+        "materialStableId": "physics.material.flesh_armor",
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/left_hand_sphere"
+      }
+    ],
+    "hitZoneBindings": [
+      {
+        "hitZoneId": "hit.torso",
+        "partId": "torso",
+        "priority": 10,
+        "isWeakPoint": false,
+        "damageMultiplierOverride": 1,
+        "postureDamageScaleOverride": 1,
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/torso_capsule"
+      },
+      {
+        "hitZoneId": "hit.head",
+        "partId": "head",
+        "priority": 30,
+        "isWeakPoint": true,
+        "damageMultiplierOverride": 1.35,
+        "postureDamageScaleOverride": 1.2,
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/head_sphere"
+      },
+      {
+        "hitZoneId": "hit.right_hand",
+        "partId": "right_hand",
+        "priority": 20,
+        "isWeakPoint": false,
+        "damageMultiplierOverride": 0.85,
+        "postureDamageScaleOverride": 0.8,
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/right_hand_sphere"
+      },
+      {
+        "hitZoneId": "hit.left_hand",
+        "partId": "left_hand",
+        "priority": 20,
+        "isWeakPoint": false,
+        "damageMultiplierOverride": 0.85,
+        "postureDamageScaleOverride": 0.8,
+        "sourcePath": "geometry/body_colliders.json",
+        "sourceObjectPath": "geometry/colliders/left_hand_sphere"
+      }
+    ],
+    "sockets": [
+      {
+        "socketId": "mainHand",
+        "parentPartId": "right_hand",
+        "bonePath": "Armature/Hips/Spine/RightShoulder/RightArm/RightForeArm/RightHand",
+        "locatorPath": "locators/right_hand_weapon",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.RightHand",
+          "position": {
+            "x": 0.03,
+            "y": 0,
+            "z": 0.02
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0.7071068,
+            "z": 0,
+            "w": 0.7071068
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 90,
+            "z": 0
+          }
+        },
+        "usage": "Weapon",
+        "sourcePath": "geometry/sockets.json",
+        "sourceObjectPath": "geometry/sockets/mainHand"
+      },
+      {
+        "socketId": "offHand",
+        "parentPartId": "left_hand",
+        "bonePath": "Armature/Hips/Spine/LeftShoulder/LeftArm/LeftForeArm/LeftHand",
+        "locatorPath": "locators/left_hand_weapon",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.LeftHand",
+          "position": {
+            "x": -0.03,
+            "y": 0,
+            "z": 0.02
+          },
+          "rotation": {
+            "x": 0,
+            "y": -0.7071068,
+            "z": 0,
+            "w": 0.7071068
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": -90,
+            "z": 0
+          }
+        },
+        "usage": "Weapon",
+        "sourcePath": "geometry/sockets.json",
+        "sourceObjectPath": "geometry/sockets/offHand"
+      },
+      {
+        "socketId": "back",
+        "parentPartId": "torso",
+        "bonePath": "Armature/Hips/Spine/Chest",
+        "locatorPath": "locators/back_mount",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.Chest",
+          "position": {
+            "x": 0,
+            "y": 1.34,
+            "z": -0.22
+          },
+          "rotation": {
+            "x": 0,
+            "y": 1,
+            "z": 0,
+            "w": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 180,
+            "z": 0
+          }
+        },
+        "usage": "Weapon",
+        "sourcePath": "geometry/sockets.json",
+        "sourceObjectPath": "geometry/sockets/back"
+      },
+      {
+        "socketId": "headVfx",
+        "parentPartId": "head",
+        "bonePath": "Armature/Hips/Spine/Neck/Head",
+        "locatorPath": "locators/head_vfx",
+        "localPose": {
+          "parentKind": "Bone",
+          "parentPath": "bone.Head",
+          "position": {
+            "x": 0,
+            "y": 1.86,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "usage": "Vfx",
+        "sourcePath": "geometry/sockets.json",
+        "sourceObjectPath": "geometry/sockets/headVfx"
+      }
+    ],
+    "weaponAttachments": [
+      {
+        "weaponId": "weapon.iron_sword",
+        "equipSlot": "mainHand",
+        "attachSocketId": "mainHand",
+        "localGripPose": {
+          "parentKind": "Socket",
+          "parentPath": "mainHand",
+          "position": {
+            "x": 0,
+            "y": -0.02,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "previewResourceKey": "char.iron_vanguard.weapon.sword.model",
+        "traceId": "trace.iron_sword.blade",
+        "sourcePath": "geometry/weapon_attachments.json",
+        "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword"
+      },
+      {
+        "weaponId": "weapon.kite_shield",
+        "equipSlot": "offHand",
+        "attachSocketId": "offHand",
+        "localGripPose": {
+          "parentKind": "Socket",
+          "parentPath": "offHand",
+          "position": {
+            "x": 0,
+            "y": -0.01,
+            "z": 0.05
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "previewResourceKey": "char.iron_vanguard.weapon.shield.model",
+        "traceId": "",
+        "sourcePath": "geometry/weapon_attachments.json",
+        "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield"
+      }
+    ],
+    "weaponTraces": [
+      {
+        "traceId": "trace.iron_sword.blade",
+        "weaponId": "weapon.iron_sword",
+        "equipSlot": "mainHand",
+        "startLocatorPath": "weapon/iron_sword/blade_root",
+        "endLocatorPath": "weapon/iron_sword/blade_tip",
+        "startPose": {
+          "parentKind": "Socket",
+          "parentPath": "mainHand",
+          "position": {
+            "x": 0,
+            "y": 0.12,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "endPose": {
+          "parentKind": "Socket",
+          "parentPath": "mainHand",
+          "position": {
+            "x": 0,
+            "y": 0.94,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        "radius": 0.055,
+        "sampleRule": "CapsuleSweep",
+        "fixedSampleCount": 6,
+        "actionKeys": [
+          "primary",
+          "heavy"
+        ],
+        "sourcePath": "geometry/traces.json",
+        "sourceObjectPath": "geometry/traces/trace.iron_sword.blade"
+      }
+    ]
+  },
+  "resourceMapping": {
+    "format": "mx.characterResourceMapping.v1",
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "entries": [
+      {
+        "packageResourceKey": "char.iron_vanguard.model.body",
+        "projectResourceKey": "char.iron_vanguard.model.body",
+        "stableId": "charpkg.iron_vanguard.resource.model.body",
+        "typeId": "model",
+        "usage": "characterModel",
+        "sourceFormat": "glb",
+        "sourceRelativePath": "resources/models/iron_vanguard.glb",
+        "declaredContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+        "importHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "providerId": "unityAsset",
+        "targetPathPolicy": "generatedCharacterPackage",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+        "conflictAction": "reportWhenHashChanged"
+      },
+      {
+        "packageResourceKey": "char.iron_vanguard.weapon.sword.model",
+        "projectResourceKey": "char.iron_vanguard.weapon.sword.model",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
+        "typeId": "model",
+        "usage": "weaponModel",
+        "sourceFormat": "glb",
+        "sourceRelativePath": "resources/models/iron_sword.glb",
+        "declaredContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+        "importHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "providerId": "unityAsset",
+        "targetPathPolicy": "generatedCharacterPackage",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+        "conflictAction": "reportWhenHashChanged"
+      },
+      {
+        "packageResourceKey": "char.iron_vanguard.weapon.shield.model",
+        "projectResourceKey": "char.iron_vanguard.weapon.shield.model",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
+        "typeId": "model",
+        "usage": "weaponModel",
+        "sourceFormat": "glb",
+        "sourceRelativePath": "resources/models/kite_shield.glb",
+        "declaredContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+        "importHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "providerId": "unityAsset",
+        "targetPathPolicy": "generatedCharacterPackage",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+        "conflictAction": "reportWhenHashChanged"
+      },
+      {
+        "packageResourceKey": "char.iron_vanguard.anim.locomotion",
+        "projectResourceKey": "char.iron_vanguard.anim.locomotion",
+        "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+        "typeId": "animation",
+        "usage": "animationClipGroup",
+        "sourceFormat": "glb",
+        "sourceRelativePath": "resources/animations/locomotion.glb",
+        "declaredContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+        "importHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
+        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c",
+        "providerId": "unityAsset",
+        "targetPathPolicy": "generatedCharacterPackage",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+        "conflictAction": "reportWhenHashChanged"
+      },
+      {
+        "packageResourceKey": "char.iron_vanguard.anim.combat",
+        "projectResourceKey": "char.iron_vanguard.anim.combat",
+        "stableId": "charpkg.iron_vanguard.resource.anim.combat",
+        "typeId": "animation",
+        "usage": "animationClipGroup",
+        "sourceFormat": "glb",
+        "sourceRelativePath": "resources/animations/combat.glb",
+        "declaredContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+        "importHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
+        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c",
+        "providerId": "unityAsset",
+        "targetPathPolicy": "generatedCharacterPackage",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+        "conflictAction": "reportWhenHashChanged"
+      },
+      {
+        "packageResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "projectResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
+        "typeId": "preview",
+        "usage": "previewThumbnail",
+        "sourceFormat": "png",
+        "sourceRelativePath": "previews/thumbnail.png",
+        "declaredContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+        "importHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "providerId": "unityAsset",
+        "targetPathPolicy": "generatedCharacterPackage",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+        "conflictAction": "reportWhenHashChanged"
+      }
+    ]
+  },
+  "unityImportWritePlan": {
+    "format": "mx.characterUnityImportWritePlan.v1",
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "targetRootPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard",
+    "targetPathPolicy": "generatedCharacterPackage",
+    "canWriteToUnityProject": true,
+    "canSpawnAfterImport": true,
+    "writes": [
+      {
+        "kind": "generatedConfigPatch",
+        "owner": "AuthoringCompiler",
+        "sourcePath": "compiler/generated_config_patch.json",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_application_config_patch.json",
+        "writePolicy": "Recreate",
+        "contentHash": "sha256:9c2ac42323bd2c7f10f81cba7bca7fb7c3408efd26a3d3bf0cba913d583e4710"
+      },
+      {
+        "kind": "geometryBinding",
+        "owner": "AuthoringCompiler",
+        "sourcePath": "compiler/geometry_binding.json",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_geometry_binding.json",
+        "writePolicy": "Recreate",
+        "contentHash": "sha256:ffc7175e57cd5a035110d63c9182b4a655767366138f9f86159f585d514ce8ae"
+      },
+      {
+        "kind": "resourceMapping",
+        "owner": "AuthoringCompiler",
+        "sourcePath": "compiler/resource_mapping.json",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
+        "writePolicy": "Recreate",
+        "contentHash": "sha256:22ce7bb03da3d4b27a2c502d9b4e2de7493f73d94df87a35aa2eb6dc94ae3800"
+      },
+      {
+        "kind": "resourceFile",
+        "owner": "UnityImporter",
+        "sourcePath": "resources/models/iron_vanguard.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+        "writePolicy": "CopyIfHashChanged",
+        "contentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164"
+      },
+      {
+        "kind": "resourceFile",
+        "owner": "UnityImporter",
+        "sourcePath": "resources/models/iron_sword.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+        "writePolicy": "CopyIfHashChanged",
+        "contentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96"
+      },
+      {
+        "kind": "resourceFile",
+        "owner": "UnityImporter",
+        "sourcePath": "resources/models/kite_shield.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+        "writePolicy": "CopyIfHashChanged",
+        "contentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4"
+      },
+      {
+        "kind": "resourceFile",
+        "owner": "UnityImporter",
+        "sourcePath": "resources/animations/locomotion.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+        "writePolicy": "CopyIfHashChanged",
+        "contentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b"
+      },
+      {
+        "kind": "resourceFile",
+        "owner": "UnityImporter",
+        "sourcePath": "resources/animations/combat.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+        "writePolicy": "CopyIfHashChanged",
+        "contentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d"
+      },
+      {
+        "kind": "resourceFile",
+        "owner": "UnityImporter",
+        "sourcePath": "previews/thumbnail.png",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+        "writePolicy": "CopyIfHashChanged",
+        "contentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775"
+      }
+    ]
+  },
+  "resolverVerificationPlan": {
+    "schemaVersion": "1.0",
+    "expectedResolverEntrypoint": "CharacterPackageResolver.Resolve",
+    "status": "Ready",
+    "characterStableId": "char.iron_vanguard",
+    "defaultLoadoutStableId": "equip_loadout.iron_vanguard.sword_shield",
+    "expectedActiveEquipmentStateStableId": "equip_state.iron_vanguard.sword_shield",
+    "expectedCombatActionSetStableId": "action_set.iron_vanguard.sword_shield",
+    "expectedAnimationProfileId": "anim.iron_vanguard.sword_shield",
+    "requiredTables": [
+      {
+        "tableName": "AbilityLoadoutConfig",
+        "rowCount": 4,
+        "generatedIds": [
+          790001,
+          790002,
+          790003,
+          790102
+        ],
+        "stableIds": [
+          "mx.ability_loadout.base",
+          "mx.ability_loadout.weapon.iron_sword",
+          "mx.ability_loadout.weapon.kite_shield",
+          "mx.ability_loadout.equip_loadout.iron_vanguard.sword_shield"
+        ]
+      },
+      {
+        "tableName": "CharacterAttributeProfileConfig",
+        "rowCount": 1,
+        "generatedIds": [
+          720001
+        ],
+        "stableIds": [
+          "attr.iron_vanguard.base"
+        ]
+      },
+      {
+        "tableName": "CharacterBodyPartConfig",
+        "rowCount": 6,
+        "generatedIds": [
+          740001,
+          740002,
+          740003,
+          740004,
+          740005,
+          740006
+        ],
+        "stableIds": [
+          "mx.body_part.iron_vanguard_parts.torso",
+          "mx.body_part.iron_vanguard_parts.head",
+          "mx.body_part.iron_vanguard_parts.right_hand",
+          "mx.body_part.iron_vanguard_parts.left_hand",
+          "mx.body_part.iron_vanguard_parts.right_leg",
+          "mx.body_part.iron_vanguard_parts.left_leg"
+        ]
+      },
+      {
+        "tableName": "CharacterBodyProfileConfig",
+        "rowCount": 1,
+        "generatedIds": [
+          730001
+        ],
+        "stableIds": [
+          "body.iron_vanguard.authoring"
+        ]
+      },
+      {
+        "tableName": "CharacterConfig",
+        "rowCount": 1,
+        "generatedIds": [
+          710001
+        ],
+        "stableIds": [
+          "char.iron_vanguard"
+        ]
+      },
+      {
+        "tableName": "CharacterPresentationProfileConfig",
+        "rowCount": 1,
+        "generatedIds": [
+          810001
+        ],
+        "stableIds": [
+          "mx.presentation.iron_vanguard"
+        ]
+      },
+      {
+        "tableName": "CombatActionSetConfig",
+        "rowCount": 3,
+        "generatedIds": [
+          800001,
+          800002,
+          800003
+        ],
+        "stableIds": [
+          "action_set.iron_vanguard.unarmed",
+          "action_set.iron_vanguard.single_sword",
+          "action_set.iron_vanguard.sword_shield"
+        ]
+      },
+      {
+        "tableName": "EquipmentLoadoutConfig",
+        "rowCount": 3,
+        "generatedIds": [
+          760001,
+          760002,
+          760003
+        ],
+        "stableIds": [
+          "equip_loadout.iron_vanguard.unarmed",
+          "equip_loadout.iron_vanguard.single_sword",
+          "equip_loadout.iron_vanguard.sword_shield"
+        ]
+      },
+      {
+        "tableName": "EquipmentSchemaConfig",
+        "rowCount": 1,
+        "generatedIds": [
+          750001
+        ],
+        "stableIds": [
+          "equip_schema.humanoid.hands"
+        ]
+      },
+      {
+        "tableName": "EquipmentStateConfig",
+        "rowCount": 3,
+        "generatedIds": [
+          770001,
+          770002,
+          770003
+        ],
+        "stableIds": [
+          "equip_state.iron_vanguard.unarmed",
+          "equip_state.iron_vanguard.single_sword",
+          "equip_state.iron_vanguard.sword_shield"
+        ]
+      },
+      {
+        "tableName": "SpawnProfileConfig",
+        "rowCount": 1,
+        "generatedIds": [
+          820001
+        ],
+        "stableIds": [
+          "mx.spawn.iron_vanguard.default"
+        ]
+      },
+      {
+        "tableName": "WeaponConfig",
+        "rowCount": 2,
+        "generatedIds": [
+          780001,
+          780002
+        ],
+        "stableIds": [
+          "mx.weapon.weapon.iron_sword",
+          "mx.weapon.weapon.kite_shield"
+        ]
+      }
+    ],
+    "knownAbilityIds": [
+      900001,
+      900002,
+      900003,
+      900102
+    ],
+    "requiredResourceKeys": [
+      "char.iron_vanguard.anim.combat",
+      "char.iron_vanguard.anim.locomotion",
+      "char.iron_vanguard.model.body",
+      "char.iron_vanguard.preview.thumbnail",
+      "char.iron_vanguard.weapon.shield.model",
+      "char.iron_vanguard.weapon.sword.model"
+    ],
+    "diagnostics": []
+  },
+  "dependencyGraph": {
+    "schemaVersion": "1.0",
+    "nodes": [
+      {
+        "resourceKey": "char.iron_vanguard.model.body",
+        "stableId": "charpkg.iron_vanguard.resource.model.body",
+        "typeId": "model",
+        "usage": "characterModel",
+        "relativePath": "resources/models/iron_vanguard.glb"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.weapon.sword.model",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
+        "typeId": "model",
+        "usage": "weaponModel",
+        "relativePath": "resources/models/iron_sword.glb"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.weapon.shield.model",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
+        "typeId": "model",
+        "usage": "weaponModel",
+        "relativePath": "resources/models/kite_shield.glb"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.anim.locomotion",
+        "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+        "typeId": "animation",
+        "usage": "animationClipGroup",
+        "relativePath": "resources/animations/locomotion.glb"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.anim.combat",
+        "stableId": "charpkg.iron_vanguard.resource.anim.combat",
+        "typeId": "animation",
+        "usage": "animationClipGroup",
+        "relativePath": "resources/animations/combat.glb"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.preview.thumbnail",
+        "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
+        "typeId": "preview",
+        "usage": "previewThumbnail",
+        "relativePath": "previews/thumbnail.png"
+      }
+    ],
+    "edges": [
+      {
+        "fromResourceKey": "char.iron_vanguard.anim.locomotion",
+        "toResourceKey": "char.iron_vanguard.model.body",
+        "required": true,
+        "relation": "retargetsToSkeleton",
+        "affectsDependencyHash": true
+      },
+      {
+        "fromResourceKey": "char.iron_vanguard.anim.combat",
+        "toResourceKey": "char.iron_vanguard.model.body",
+        "required": true,
+        "relation": "retargetsToSkeleton",
+        "affectsDependencyHash": true
+      }
+    ]
+  },
+  "resourceHashReport": {
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "entries": [
+      {
+        "resourceKey": "char.iron_vanguard.model.body",
+        "relativePath": "resources/models/iron_vanguard.glb",
+        "exists": true,
+        "declaredContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+        "computedContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+        "computedImportHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.weapon.sword.model",
+        "relativePath": "resources/models/iron_sword.glb",
+        "exists": true,
+        "declaredContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+        "computedContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+        "computedImportHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.weapon.shield.model",
+        "relativePath": "resources/models/kite_shield.glb",
+        "exists": true,
+        "declaredContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+        "computedContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+        "computedImportHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.anim.locomotion",
+        "relativePath": "resources/animations/locomotion.glb",
+        "exists": true,
+        "declaredContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+        "computedContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+        "computedImportHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
+        "computedDependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.anim.combat",
+        "relativePath": "resources/animations/combat.glb",
+        "exists": true,
+        "declaredContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+        "computedContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+        "computedImportHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
+        "computedDependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.preview.thumbnail",
+        "relativePath": "previews/thumbnail.png",
+        "exists": true,
+        "declaredContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+        "computedContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+        "computedImportHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "diagnostics": {
+      "schemaVersion": "1.0",
+      "packageId": "iron_vanguard",
+      "issues": [],
+      "hasBlockingIssues": false
+    },
+    "hasBlockingIssues": false
+  },
+  "sourceMappings": [
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "characterStableId",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterConfig/710001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "attributeProfileStableId",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterAttributeProfileConfig/720001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "bodyProfileStableId",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyProfileConfig/730001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "equipmentSchemaStableId",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentSchemaConfig/750001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "presentationProfile",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterPresentationProfileConfig/810001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "spawnProfile",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "SpawnProfileConfig/820001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/0",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyPartConfig/740001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/1",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyPartConfig/740002",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/2",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyPartConfig/740003",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/3",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyPartConfig/740004",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/4",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyPartConfig/740005",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/5",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CharacterBodyPartConfig/740006",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "WeaponConfig/780001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "WeaponConfig/780002",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "loadouts/0",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentLoadoutConfig/760001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "loadouts/0",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentStateConfig/770001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "loadouts/1",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentLoadoutConfig/760002",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "loadouts/1",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentStateConfig/770002",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "loadouts/2",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentLoadoutConfig/760003",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "loadouts/2",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "EquipmentStateConfig/770003",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "baseAbilityLoadout",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "AbilityLoadoutConfig/790001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "AbilityLoadoutConfig/790002",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "AbilityLoadoutConfig/790003",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "equip_loadout.iron_vanguard.sword_shield",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "AbilityLoadoutConfig/790102",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "equip_loadout.iron_vanguard.unarmed",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CombatActionSetConfig/800001",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "equip_loadout.iron_vanguard.single_sword",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CombatActionSetConfig/800002",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "config/character_application.json",
+      "sourceObjectPath": "equip_loadout.iron_vanguard.sword_shield",
+      "targetKind": "CharacterApplicationConfig",
+      "targetPath": "CombatActionSetConfig/800003",
+      "targetField": "StableId"
+    },
+    {
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/torso_capsule",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyColliders/torso_capsule",
+      "targetField": "collider"
+    },
+    {
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/head_sphere",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyColliders/head_sphere",
+      "targetField": "collider"
+    },
+    {
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/right_hand_sphere",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyColliders/right_hand_sphere",
+      "targetField": "collider"
+    },
+    {
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/left_hand_sphere",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyColliders/left_hand_sphere",
+      "targetField": "collider"
+    },
+    {
+      "sourcePath": "resources/models/iron_vanguard.glb",
+      "sourceObjectPath": "char.iron_vanguard.model.body",
+      "targetKind": "UnityImportTarget",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+      "targetField": "ResourceKey"
+    },
+    {
+      "sourcePath": "resources/models/iron_sword.glb",
+      "sourceObjectPath": "char.iron_vanguard.weapon.sword.model",
+      "targetKind": "UnityImportTarget",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+      "targetField": "ResourceKey"
+    },
+    {
+      "sourcePath": "resources/models/kite_shield.glb",
+      "sourceObjectPath": "char.iron_vanguard.weapon.shield.model",
+      "targetKind": "UnityImportTarget",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+      "targetField": "ResourceKey"
+    },
+    {
+      "sourcePath": "resources/animations/locomotion.glb",
+      "sourceObjectPath": "char.iron_vanguard.anim.locomotion",
+      "targetKind": "UnityImportTarget",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+      "targetField": "ResourceKey"
+    },
+    {
+      "sourcePath": "resources/animations/combat.glb",
+      "sourceObjectPath": "char.iron_vanguard.anim.combat",
+      "targetKind": "UnityImportTarget",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+      "targetField": "ResourceKey"
+    },
+    {
+      "sourcePath": "previews/thumbnail.png",
+      "sourceObjectPath": "char.iron_vanguard.preview.thumbnail",
+      "targetKind": "UnityImportTarget",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+      "targetField": "ResourceKey"
+    }
+  ]
+}
