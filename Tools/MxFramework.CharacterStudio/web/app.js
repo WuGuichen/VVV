@@ -75,6 +75,14 @@ const EQUIP_SLOT_OPTIONS = [
   { value: "naturalWeapon", label: "天然武器" }
 ];
 const TRACE_SAMPLE_RULE_OPTIONS = ["LineSegment", "CapsuleSweep", "FixedSamples"];
+const COMMON_BODY_PART_IDS = ["root", "torso", "head", "right_hand", "left_hand", "right_leg", "left_leg", "main_hand", "off_hand"];
+const COMMON_SOCKET_IDS = ["mainHand", "offHand", "back", "headVfx", "camera", "uiAnchor"];
+const COMMON_TAGS = [
+  "body", "core", "critical", "hand", "leg", "main", "offhand", "stow",
+  "weapon", "weakPoint", "characterstudio-bind", "characterstudio-import", "converted-from-fbx"
+];
+const COMMON_ACTION_KEYS = ["primary", "secondary", "guard", "punch", "slash", "shield_guard"];
+const COMMON_REACTION_GROUPS = ["reaction.humanoid.body", "reaction.humanoid.head", "reaction.humanoid.limb", "react.body"];
 
 const KIND_LABELS = {
   manifest: "清单",
@@ -1150,7 +1158,7 @@ function defaultSocketPoseParent(socket) {
 
 function editableFields(kind, value = null) {
   if (kind === "resource" && value?.typeId === "model") return [
-    field("usage", { label: "资源用途", type: "select", options: MODEL_USAGE_OPTIONS, group: "resource" }),
+    field("usage", { label: "资源用途", type: "select", options: MODEL_USAGE_OPTIONS, group: "resource", help: "声明模型是主体、武器、动画或通用资源，会影响预览和可选替换目标。" }),
     modelPositionField("importHints.modelWrapperPose.position.x", "位置 X"),
     modelPositionField("importHints.modelWrapperPose.position.y", "位置 Y"),
     modelPositionField("importHints.modelWrapperPose.position.z", "位置 Z"),
@@ -1162,22 +1170,22 @@ function editableFields(kind, value = null) {
     modelScaleField("importHints.modelWrapperPose.scale.z", "缩放 Z")
   ];
   if (kind === "part") return [
-    field("partId", { label: "部位 ID", group: "base" }),
-    field("displayName", { label: "显示名", group: "base" }),
-    field("partKind", { label: "部位类型", type: "select", options: BODY_PART_KIND_OPTIONS, group: "binding" }),
-    field("parentPartId", { label: "父部位", type: "select", options: bodyPartOptions("无"), group: "binding" }),
-    field("bonePath", { label: "代表骨骼路径", group: "binding" }),
-    field("locatorId", { label: "代表 Locator", group: "binding" }),
-    field("defaultHitZoneId", { label: "默认命中区域", group: "combat" }),
-    field("reactionGroupId", { label: "受击反应组", group: "combat" }),
-    tagsField("tags", "标签")
+    identityField("partId", "部位 ID", bodyPartIdSuggestions(), "稳定部位 ID；被碰撞体、挂点和父部位引用。"),
+    field("displayName", { label: "显示名", group: "base", help: "给主创看的名称，不参与引用匹配。" }),
+    field("partKind", { label: "部位类型", type: "select", options: BODY_PART_KIND_OPTIONS, group: "binding", help: "Bone 跟随骨骼，Primitive 用于简单体，Virtual 用于逻辑部位。" }),
+    field("parentPartId", { label: "父部位", type: "select", options: bodyPartOptions("无"), group: "binding", help: "选择身体层级中的父部位。" }),
+    bonePathField("bonePath", "代表骨骼路径", "绑定骨骼角色时建议从已有骨骼路径中选择。"),
+    locatorField("locatorId", "代表 Locator", "骨骼别名、locator 或 primitive anchor；会被局部父空间引用。"),
+    datalistField("defaultHitZoneId", "默认命中区域", hitZoneOptions(), "部位默认命中区域，可被碰撞体覆盖。", "combat"),
+    datalistField("reactionGroupId", "受击反应组", reactionGroupOptions(), "受击反应分组，建议复用已有分组。", "combat"),
+    tagsField("tags", "标签", tagOptions(), "选择已有标签；标签会影响筛选、导入和生成配置。")
   ];
   if (kind === "collider") return [
-    field("shape", { label: "碰撞形状", type: "select", options: ["Capsule", "Box", "Sphere"], group: "base" }),
-    field("partId", { label: "身体部位", type: "select", options: bodyPartOptions(), group: "binding" }),
-    field("hitZoneId", { label: "命中区域", group: "base" }),
+    field("shape", { label: "碰撞形状", type: "select", options: ["Capsule", "Box", "Sphere"], group: "base", help: "当前运行时导入只使用 Capsule / Box / Sphere。" }),
+    field("partId", { label: "身体部位", type: "select", options: bodyPartOptions(), group: "binding", help: "选择碰撞体绑定并跟随的身体部位。" }),
+    datalistField("hitZoneId", "命中区域", hitZoneOptions(), "命中区域 ID；通常选择部位默认 hit zone。"),
     poseParentKindField("localPose.parentKind"),
-    poseParentPathField("localPose.parentPath"),
+    poseParentPathField("localPose.parentPath", "父空间路径", value?.localPose?.parentKind),
     positionField("localPose.position.x", "中心 X", "localPose"),
     positionField("localPose.position.y", "中心 Y", "localPose"),
     positionField("localPose.position.z", "中心 Z", "localPose"),
@@ -1193,55 +1201,55 @@ function editableFields(kind, value = null) {
     positiveField("radius", "半径", { max: 10, step: 0.01, unit: "m", group: "shape" }),
     positiveField("height", "高度", { max: 10, step: 0.01, unit: "m", group: "shape" }),
     integerField("priority", "优先级", { min: 0, max: 1000, group: "base" }),
-    field("isWeakPoint", { label: "是否弱点", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "base" }),
+    field("isWeakPoint", { label: "是否弱点", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "base", help: "弱点会影响命中解析和伤害倍率。" }),
     positiveField("damageMultiplierOverride", "伤害倍率", { max: 100, step: 0.01, group: "base" })
   ];
   if (kind === "socket") return [
-    field("socketId", { label: "挂点 ID", group: "base" }),
-    field("parentPartId", { label: "父部位", type: "select", options: bodyPartOptions("无"), group: "binding" }),
-    field("bonePath", { label: "骨骼路径", group: "binding" }),
-    field("locatorPath", { label: "Locator 路径", group: "binding" }),
+    identityField("socketId", "挂点 ID", socketIdSuggestions(), "稳定挂点 ID；武器挂接、轨迹起点/终点会引用它。"),
+    field("parentPartId", { label: "父部位", type: "select", options: bodyPartOptions("无"), group: "binding", help: "选择挂点默认跟随的身体部位。" }),
+    bonePathField("bonePath", "骨骼路径", "该挂点跟随的骨骼路径；优先从候选中选择。"),
+    locatorField("locatorPath", "Locator 路径", "模型内 locator 或导入时约定的挂点路径。"),
     poseParentKindField("localPose.parentKind"),
-    poseParentPathField("localPose.parentPath"),
+    poseParentPathField("localPose.parentPath", "父空间路径", value?.localPose?.parentKind),
     positionField("localPose.position.x", "局部位置 X", "localPose"),
     positionField("localPose.position.y", "局部位置 Y", "localPose"),
     positionField("localPose.position.z", "局部位置 Z", "localPose"),
     rotationField("localPose.eulerHint.x", "局部旋转 X"),
     rotationField("localPose.eulerHint.y", "局部旋转 Y"),
     rotationField("localPose.eulerHint.z", "局部旋转 Z"),
-    field("usage", { label: "挂点用途", type: "select", options: SOCKET_USAGE_OPTIONS, group: "usage" }),
-    field("mirrorPairSocketId", { label: "镜像挂点", type: "select", options: socketOptions("无"), group: "usage" }),
-    field("handedness", { label: "左右手", type: "select", options: SOCKET_HANDEDNESS_OPTIONS, group: "usage" }),
-    field("sideTag", { label: "侧向标签", type: "select", options: SOCKET_SIDE_OPTIONS, group: "usage" }),
-    tagsField("tags", "标签")
+    field("usage", { label: "挂点用途", type: "select", options: SOCKET_USAGE_OPTIONS, group: "usage", help: "Weapon 用于装备挂接，Vfx/Camera/Ui/Gameplay 用于其他运行时挂点。" }),
+    field("mirrorPairSocketId", { label: "镜像挂点", type: "select", options: socketOptions("无"), group: "usage", help: "左右手或左右侧挂点可互相引用，便于镜像编辑。" }),
+    field("handedness", { label: "左右手", type: "select", options: SOCKET_HANDEDNESS_OPTIONS, group: "usage", help: "声明该挂点适用左手、右手、双手或无手性。" }),
+    field("sideTag", { label: "侧向标签", type: "select", options: SOCKET_SIDE_OPTIONS, group: "usage", help: "用于区分左、右、前、后或中心侧向。" }),
+    tagsField("tags", "标签", tagOptions(), "选择已有标签；用于区分 weapon/main/offhand/stow 等用途。")
   ];
   if (kind === "weapon") return [
-    field("weaponId", { label: "武器 ID", group: "base" }),
-    field("equipSlot", { label: "装备槽", type: "select", options: EQUIP_SLOT_OPTIONS, group: "base" }),
-    field("attachSocketId", { label: "绑定挂点", type: "select", options: socketOptions(), group: "binding" }),
+    identityField("weaponId", "武器 ID", weaponIdSuggestions(), "稳定武器配置 ID；动画、轨迹和预览资源会围绕它关联。"),
+    field("equipSlot", { label: "装备槽", type: "select", options: EQUIP_SLOT_OPTIONS, group: "base", help: "选择武器占用的角色装备槽。" }),
+    field("attachSocketId", { label: "绑定挂点", type: "select", options: socketOptions(), group: "binding", help: "选择武器预览和运行时挂接的角色挂点。" }),
     poseParentKindField("localGripPose.parentKind"),
-    poseParentPathField("localGripPose.parentPath"),
+    poseParentPathField("localGripPose.parentPath", "父空间路径", value?.localGripPose?.parentKind),
     positionField("localGripPose.position.x", "握持偏移 X", "localPose"),
     positionField("localGripPose.position.y", "握持偏移 Y", "localPose"),
     positionField("localGripPose.position.z", "握持偏移 Z", "localPose"),
     rotationField("localGripPose.eulerHint.x", "握持旋转 X"),
     rotationField("localGripPose.eulerHint.y", "握持旋转 Y"),
     rotationField("localGripPose.eulerHint.z", "握持旋转 Z"),
-    field("previewResourceKey", { label: "预览模型资源", type: "select", options: modelResourceOptions("无"), group: "binding" }),
-    field("traceId", { label: "攻击轨迹 ID", type: "select", options: traceOptions("无"), group: "trace" }),
-    field("traceStartSocketId", { label: "轨迹起点挂点", type: "select", options: socketOptions("继承绑定挂点"), group: "trace" }),
-    field("traceEndSocketId", { label: "轨迹终点挂点", type: "select", options: socketOptions("无"), group: "trace" }),
+    field("previewResourceKey", { label: "预览模型资源", type: "select", options: modelResourceOptions("无"), group: "binding", help: "选择该武器引用的模型资源；清空只解除引用，不删除资源。" }),
+    field("traceId", { label: "攻击轨迹 ID", type: "select", options: traceOptions("无"), group: "trace", help: "选择该武器使用的攻击轨迹配置。" }),
+    field("traceStartSocketId", { label: "轨迹起点挂点", type: "select", options: socketOptions("继承绑定挂点"), group: "trace", help: "选择轨迹起点挂点；为空时继承绑定挂点。" }),
+    field("traceEndSocketId", { label: "轨迹终点挂点", type: "select", options: socketOptions("无"), group: "trace", help: "可选终点挂点，用于更明确的武器攻击段。" }),
     positiveField("traceRadius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" }),
-    field("traceSampleRule", { label: "轨迹采样规则", type: "select", options: TRACE_SAMPLE_RULE_OPTIONS, group: "trace" })
+    field("traceSampleRule", { label: "轨迹采样规则", type: "select", options: TRACE_SAMPLE_RULE_OPTIONS, group: "trace", help: "选择运行时如何从起点到终点生成攻击命中采样。" })
   ];
   if (kind === "trace") return [
-    field("traceId", { label: "轨迹 ID", group: "base" }),
-    field("weaponId", { label: "武器 ID", group: "base" }),
-    field("equipSlot", { label: "装备槽", type: "select", options: EQUIP_SLOT_OPTIONS, group: "base" }),
-    field("startLocatorPath", { label: "起点 Locator", group: "binding" }),
-    field("endLocatorPath", { label: "终点 Locator", group: "binding" }),
+    identityField("traceId", "轨迹 ID", traceIdSuggestions(), "稳定攻击轨迹 ID；武器配置可按 ID 引用。"),
+    field("weaponId", { label: "武器 ID", type: "select", options: weaponOptions(), group: "base", help: "选择此轨迹归属的武器配置。" }),
+    field("equipSlot", { label: "装备槽", type: "select", options: EQUIP_SLOT_OPTIONS, group: "base", help: "选择该轨迹在角色装备状态中的槽位。" }),
+    locatorField("startLocatorPath", "起点 Locator", "轨迹起点 locator；优先选择已有 locator。"),
+    locatorField("endLocatorPath", "终点 Locator", "轨迹终点 locator；优先选择已有 locator。"),
     poseParentKindField("startPose.parentKind", "起点父空间"),
-    poseParentPathField("startPose.parentPath", "起点父路径"),
+    poseParentPathField("startPose.parentPath", "起点父路径", value?.startPose?.parentKind),
     positionField("startPose.position.x", "起点 X", "localPose"),
     positionField("startPose.position.y", "起点 Y", "localPose"),
     positionField("startPose.position.z", "起点 Z", "localPose"),
@@ -1249,7 +1257,7 @@ function editableFields(kind, value = null) {
     rotationField("startPose.eulerHint.y", "起点旋转 Y"),
     rotationField("startPose.eulerHint.z", "起点旋转 Z"),
     poseParentKindField("endPose.parentKind", "终点父空间"),
-    poseParentPathField("endPose.parentPath", "终点父路径"),
+    poseParentPathField("endPose.parentPath", "终点父路径", value?.endPose?.parentKind),
     positionField("endPose.position.x", "终点 X", "localPose"),
     positionField("endPose.position.y", "终点 Y", "localPose"),
     positionField("endPose.position.z", "终点 Z", "localPose"),
@@ -1257,9 +1265,9 @@ function editableFields(kind, value = null) {
     rotationField("endPose.eulerHint.y", "终点旋转 Y"),
     rotationField("endPose.eulerHint.z", "终点旋转 Z"),
     positiveField("radius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" }),
-    field("sampleRule", { label: "采样规则", type: "select", options: TRACE_SAMPLE_RULE_OPTIONS, group: "trace" }),
+    field("sampleRule", { label: "采样规则", type: "select", options: TRACE_SAMPLE_RULE_OPTIONS, group: "trace", help: "LineSegment 线段，CapsuleSweep 胶囊扫掠，FixedSamples 固定采样点。" }),
     integerField("fixedSampleCount", "固定采样数", { min: 1, max: 64, group: "trace" }),
-    tagsField("actionKeys", "动作 Key")
+    tagsField("actionKeys", "动作 Key", actionKeyOptions(), "选择会触发该轨迹的动作 key。")
   ];
   return [];
 }
@@ -1295,6 +1303,134 @@ function modelResourceOptions(emptyLabel = "") {
   return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
 }
 
+function weaponOptions(emptyLabel = "") {
+  const options = collectOptions(
+    (state.package?.geometry?.weaponAttachments || []).map(attachment => attachment?.weaponId),
+    (state.package?.geometry?.traces || []).map(trace => trace?.weaponId)
+  );
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function bodyPartIdSuggestions() {
+  return collectOptions(COMMON_BODY_PART_IDS, (state.package?.geometry?.bodyParts || []).map(part => part?.partId));
+}
+
+function socketIdSuggestions() {
+  return collectOptions(COMMON_SOCKET_IDS, (state.package?.geometry?.sockets || []).map(socket => socket?.socketId));
+}
+
+function weaponIdSuggestions() {
+  return collectOptions(
+    (state.package?.geometry?.weaponAttachments || []).map(attachment => attachment?.weaponId),
+    (state.package?.geometry?.traces || []).map(trace => trace?.weaponId),
+    getModelResources(state.package).filter(resource => resource.usage === "weaponModel").map(resource => resource.localId || resource.resourceKey)
+  );
+}
+
+function traceIdSuggestions() {
+  return collectOptions(
+    (state.package?.geometry?.traces || []).map(trace => trace?.traceId),
+    (state.package?.geometry?.weaponAttachments || []).map(attachment => attachment?.traceId)
+  );
+}
+
+function bonePathOptions() {
+  return collectOptions(
+    (state.package?.geometry?.bodyParts || []).map(part => part?.bonePath),
+    (state.package?.geometry?.sockets || []).map(socket => socket?.bonePath),
+    collectPoseParentPaths("Bone")
+  );
+}
+
+function locatorPathOptions() {
+  return collectOptions(
+    (state.package?.geometry?.bodyParts || []).map(part => part?.locatorId),
+    (state.package?.geometry?.sockets || []).flatMap(socket => [socket?.locatorPath]),
+    (state.package?.geometry?.traces || []).flatMap(trace => [trace?.startLocatorPath, trace?.endLocatorPath]),
+    collectPoseParentPaths("Locator")
+  );
+}
+
+function hitZoneOptions() {
+  return collectOptions(
+    (state.package?.geometry?.bodyParts || []).map(part => part?.defaultHitZoneId),
+    (state.package?.geometry?.colliders || []).map(collider => collider?.hitZoneId)
+  );
+}
+
+function reactionGroupOptions() {
+  return collectOptions(
+    COMMON_REACTION_GROUPS,
+    (state.package?.geometry?.bodyParts || []).map(part => part?.reactionGroupId)
+  );
+}
+
+function tagOptions() {
+  return collectOptions(
+    COMMON_TAGS,
+    (state.package?.geometry?.bodyParts || []).flatMap(part => part?.tags || []),
+    (state.package?.geometry?.sockets || []).flatMap(socket => socket?.tags || []),
+    (state.package?.resourceCatalog?.entries || []).flatMap(resource => resource?.tags || [])
+  );
+}
+
+function actionKeyOptions() {
+  return collectOptions(COMMON_ACTION_KEYS, (state.package?.geometry?.traces || []).flatMap(trace => trace?.actionKeys || []));
+}
+
+function collectPoseParentPaths(parentKind) {
+  const geometry = state.package?.geometry || {};
+  const poses = [
+    ...(geometry.colliders || []).map(item => item?.localPose),
+    ...(geometry.sockets || []).map(item => item?.localPose),
+    ...(geometry.weaponAttachments || []).map(item => item?.localGripPose),
+    ...(geometry.traces || []).flatMap(item => [item?.startPose, item?.endPose])
+  ];
+  return poses
+    .filter(pose => pose?.parentKind === parentKind)
+    .map(pose => pose.parentPath);
+}
+
+function collectOptions(...sources) {
+  const seen = new Set();
+  const values = [];
+  for (const source of sources) {
+    const items = Array.isArray(source) ? source : [source];
+    for (const item of items) {
+      if (item == null) continue;
+      const value = String(item).trim();
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      values.push({ value, label: value });
+    }
+  }
+  values.sort((a, b) => a.label.localeCompare(b.label));
+  return values;
+}
+
+function identityField(path, label, suggestions, help, group = "base") {
+  return datalistField(path, label, suggestions, help, group);
+}
+
+function datalistField(path, label, suggestions, help, group = "base") {
+  const first = normalizeOptions(suggestions)[0];
+  return field(path, {
+    label,
+    group,
+    suggestions,
+    placeholder: first ? first.value : "",
+    help
+  });
+}
+
+function bonePathField(path, label, help) {
+  return datalistField(path, label, bonePathOptions(), help, "binding");
+}
+
+function locatorField(path, label, help) {
+  return datalistField(path, label, locatorPathOptions(), help, "binding");
+}
+
 function field(path, options = {}) {
   return {
     path,
@@ -1302,12 +1438,15 @@ function field(path, options = {}) {
     dataType: options.dataType || options.type || "text",
     label: options.label || path,
     options: options.options || null,
+    suggestions: options.suggestions || null,
     group: options.group || "base",
     min: options.min,
     max: options.max,
     step: options.step,
     unit: options.unit || "",
-    fallback: options.fallback
+    fallback: options.fallback,
+    placeholder: options.placeholder || "",
+    help: options.help || ""
   };
 }
 
@@ -1336,15 +1475,33 @@ function localScaleField(path, label, group = "localPose") {
 }
 
 function poseParentKindField(path, label = "父空间类型") {
-  return field(path, { label, type: "select", options: POSE_PARENT_KIND_OPTIONS, group: "poseParent" });
+  return field(path, {
+    label,
+    type: "select",
+    options: POSE_PARENT_KIND_OPTIONS,
+    group: "poseParent",
+    help: "选择局部位置、旋转和缩放相对的父空间；切换后父路径会改成对应的可选项。"
+  });
 }
 
-function poseParentPathField(path, label = "父空间路径") {
-  return field(path, { label, group: "poseParent" });
+function poseParentPathField(path, label = "父空间路径", parentKind = "") {
+  if (parentKind === "BodyPart") {
+    return field(path, { label, type: "select", options: bodyPartOptions("无"), group: "poseParent", help: "选择该局部姿态相对的身体部位。" });
+  }
+  if (parentKind === "Socket") {
+    return field(path, { label, type: "select", options: socketOptions("无"), group: "poseParent", help: "选择该局部姿态相对的挂点。" });
+  }
+  if (parentKind === "Bone") {
+    return field(path, { label, group: "poseParent", suggestions: bonePathOptions(), help: "选择该局部姿态相对的骨骼路径。" });
+  }
+  if (parentKind === "Locator") {
+    return field(path, { label, group: "poseParent", suggestions: locatorPathOptions(), help: "选择该局部姿态相对的 locator 路径。" });
+  }
+  return field(path, { label, group: "poseParent", help: "ModelRoot / SkeletonRoot / WorldPreview 通常不需要填写路径。" });
 }
 
-function tagsField(path, label, group = "base") {
-  return field(path, { label, type: "text", dataType: "stringList", group });
+function tagsField(path, label, options = tagOptions(), help = "", group = "base") {
+  return field(path, { label, type: "multiSelect", dataType: "stringList", options, group, help });
 }
 
 function sizeField(path, label) {
@@ -1410,21 +1567,31 @@ function renderField(target, fieldSpec) {
   if (spec.type === "select") {
     const normalized = typeof value === "boolean" ? String(value) : (value || "");
     const options = spec.options || [];
-    return `<div class="field"><label>${escapeHtml(label)}</label><select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}">${options.map(option => renderSelectOption(option, normalized)).join("")}</select><span class="field-meta">${escapeHtml(spec.path)}</span></div>`;
+    return `<div class="field"><label>${escapeHtml(label)}</label><select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>${renderFieldHint(spec)}</div>`;
+  }
+  if (spec.type === "multiSelect") {
+    const selected = new Set(Array.isArray(value) ? value.map(item => String(item)) : String(value || "").split(",").map(item => item.trim()).filter(Boolean));
+    const options = normalizeOptions(spec.options || []);
+    return `<div class="field field-wide"><label>${escapeHtml(label)}</label><div class="choice-list">${options.map(option => renderCheckboxOption(spec, option, selected)).join("")}</div>${renderFieldHint(spec)}</div>`;
   }
   const inputType = spec.type === "number" ? "number" : "text";
+  const datalistId = spec.suggestions ? `list-${safeDomId(spec.path)}` : "";
   const attrs = [
     `type="${escapeHtml(inputType)}"`,
     `data-field="${escapeHtml(spec.path)}"`,
     `data-type="${escapeHtml(spec.dataType)}"`,
     `data-fallback="${escapeHtml(String(spec.fallback ?? (spec.type === "number" ? 0 : "")))}"`
   ];
+  const title = renderTitleAttribute(spec);
+  if (title) attrs.push(title);
+  if (spec.placeholder) attrs.push(`placeholder="${escapeHtml(spec.placeholder)}"`);
+  if (datalistId) attrs.push(`list="${escapeHtml(datalistId)}"`);
   if (spec.min !== undefined) attrs.push(`min="${escapeHtml(String(spec.min))}"`, `data-min="${escapeHtml(String(spec.min))}"`);
   if (spec.max !== undefined) attrs.push(`max="${escapeHtml(String(spec.max))}"`, `data-max="${escapeHtml(String(spec.max))}"`);
   if (spec.step !== undefined) attrs.push(`step="${escapeHtml(String(spec.step))}"`);
   if (spec.type === "number") attrs.push(`inputmode="decimal"`);
   const displayValue = formatFieldValue(value, spec.dataType);
-  return `<div class="field"><label>${escapeHtml(label)}</label><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}"><span class="field-meta">${escapeHtml(spec.path)}</span></div>`;
+  return `<div class="field"><label>${escapeHtml(label)}</label><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}">${renderDatalist(datalistId, spec.suggestions)}${renderFieldHint(spec)}</div>`;
 }
 
 function normalizeFieldSpec(fieldSpec) {
@@ -1445,6 +1612,37 @@ function renderSelectOption(option, normalizedValue) {
   return `<option value="${escapeHtml(normalized.value)}"${String(normalized.value) === String(normalizedValue) ? " selected" : ""}>${escapeHtml(normalized.label)}</option>`;
 }
 
+function renderCheckboxOption(spec, option, selected) {
+  const value = String(option.value ?? "");
+  const id = `choice-${safeDomId(spec.path)}-${safeDomId(value)}`;
+  return `<label class="choice" for="${escapeHtml(id)}"><input id="${escapeHtml(id)}" type="checkbox" value="${escapeHtml(value)}" data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${selected.has(value) ? " checked" : ""}><span>${escapeHtml(option.label || value)}</span></label>`;
+}
+
+function renderDatalist(id, suggestions) {
+  if (!id || !suggestions) return "";
+  const options = normalizeOptions(suggestions);
+  if (options.length === 0) return "";
+  return `<datalist id="${escapeHtml(id)}">${options.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label || option.value)}</option>`).join("")}</datalist>`;
+}
+
+function renderFieldHint(spec) {
+  return spec.help ? `<span class="field-help">${escapeHtml(spec.help)}</span>` : "";
+}
+
+function renderTitleAttribute(spec) {
+  return spec.help ? ` title="${escapeHtml(spec.help)}"` : "";
+}
+
+function normalizeOptions(options) {
+  return (options || []).map(option => typeof option === "object" && option !== null
+    ? { value: String(option.value ?? ""), label: String(option.label || option.value || "") }
+    : { value: String(option ?? ""), label: String(option ?? "") });
+}
+
+function safeDomId(value) {
+  return String(value || "field").replace(/[^a-zA-Z0-9_-]+/g, "-");
+}
+
 function commitInspectorField(target, input) {
   const value = readInspectorInputValue(input);
   if (value === undefined) return undefined;
@@ -1457,6 +1655,7 @@ function commitInspectorField(target, input) {
   state.dirty = true;
   renderShellStatus();
   renderViewport();
+  if (shouldRefreshInspectorForField(input.dataset.field)) renderInspector();
   if (input.dataset.field === "usage") renderResourceLibrary();
   return value;
 }
@@ -1470,6 +1669,11 @@ function readInspectorInputValue(input) {
     return clampFieldNumber(value, input);
   }
   if (type === "boolean") return input.value === "true";
+  if (type === "stringList" && input.type === "checkbox") {
+    return Array.from(input.closest(".field")?.querySelectorAll('input[type="checkbox"][data-field]') || [])
+      .filter(item => item.checked)
+      .map(item => item.value);
+  }
   if (type === "stringList") {
     return input.value
       .split(",")
@@ -1503,6 +1707,33 @@ function formatFieldValue(value, type) {
 function afterInspectorFieldEdited(target, path) {
   const posePath = getPosePathFromEulerField(path);
   if (posePath) syncPoseRotationFromEuler(target.value, posePath);
+  if (path.endsWith(".parentKind")) applyPoseParentDefault(target, path.slice(0, -".parentKind".length));
+}
+
+function shouldRefreshInspectorForField(path) {
+  return path.endsWith(".parentKind");
+}
+
+function applyPoseParentDefault(target, posePath) {
+  const pose = getNested(target.value, posePath);
+  if (!pose) return;
+  if (pose.parentKind === "BodyPart") {
+    pose.parentPath = target.value.partId || target.value.parentPartId || firstValue(bodyPartOptions()) || "";
+  } else if (pose.parentKind === "Socket") {
+    pose.parentPath = target.value.attachSocketId || firstValue(socketOptions()) || "";
+  } else if (pose.parentKind === "Bone") {
+    pose.parentPath = target.value.bonePath || firstValue(bonePathOptions()) || "";
+  } else if (pose.parentKind === "Locator") {
+    const traceLocator = posePath === "endPose" ? target.value.endLocatorPath : target.value.startLocatorPath;
+    pose.parentPath = target.value.locatorPath || target.value.locatorId || traceLocator || firstValue(locatorPathOptions()) || "";
+  } else {
+    pose.parentPath = "";
+  }
+}
+
+function firstValue(options) {
+  const first = normalizeOptions(options)[0];
+  return first ? first.value : "";
 }
 
 function resetModelWrapperPose(resource) {

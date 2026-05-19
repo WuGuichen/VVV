@@ -475,6 +475,10 @@ h2 {
   gap: 4px;
 }
 
+.field-wide {
+  grid-column: 1 / -1;
+}
+
 .field label {
   color: var(--muted);
   font-size: 12px;
@@ -495,10 +499,48 @@ h2 {
   background: #fffaf0;
 }
 
+.choice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.choice {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.choice input {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+.choice:has(input:checked) {
+  border-color: rgba(31, 122, 122, 0.5);
+  background: #e9f4f3;
+  color: var(--accent);
+}
+
 .field-meta {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
