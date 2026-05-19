@@ -751,9 +751,10 @@ async function renderThreeViewport(renderId) {
     });
   }
   if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile);
+  content.updateMatrixWorld(true);
 
-  if (state.layers.colliders) addColliderMeshes(THREE, content, pickables, geometry.colliders || []);
-  if (state.layers.sockets) addSocketMeshes(THREE, content, pickables, geometry.sockets || []);
+  if (state.layers.colliders) addColliderMeshes(THREE, content, pickables, geometry.colliders || [], bodyBoneRecords);
+  if (state.layers.sockets) addSocketMeshes(THREE, content, pickables, geometry.sockets || [], bodyBoneRecords);
   if (state.layers.traces) addTraceMeshes(THREE, content, pickables, (geometry.traces || []).filter(trace => activeSlots.has(trace.equipSlot)));
   if (state.layers.weapons) {
     await addWeaponMeshes({
@@ -764,6 +765,7 @@ async function renderThreeViewport(renderId) {
       resources,
       packageUrl,
       socketsById,
+      bodyBoneRecords,
       attachments: (geometry.weaponAttachments || []).filter(attachment => activeSlots.has(attachment.equipSlot))
     });
   }
@@ -1089,6 +1091,116 @@ function applyLocalPose(THREE, object, pose) {
   object.scale.z *= numberOrDefault(scale.z, 1);
 }
 
+function getEffectiveSocketPose(socket) {
+  if (!socket) return null;
+  const pose = socket.localPose ? clone(socket.localPose) : {};
+  if (pose.parentKind) return pose;
+  if (socket.bonePath) {
+    pose.parentKind = "Bone";
+    pose.parentPath = socket.bonePath;
+  } else if (socket.locatorPath) {
+    pose.parentKind = "Locator";
+    pose.parentPath = socket.locatorPath;
+  } else if (socket.parentPartId) {
+    pose.parentKind = "BodyPart";
+    pose.parentPath = socket.parentPartId;
+  }
+  return pose;
+}
+
+function resolvePoseParentContent(THREE, content, pose, boneRecords, name) {
+  if (pose?.parentKind !== "Bone") return content;
+  const record = findBoneRecordForValue(boneRecords, pose.parentPath);
+  if (!record?.bone) return content;
+
+  content.updateMatrixWorld(true);
+  record.bone.updateWorldMatrix(true, false);
+  const parent = new THREE.Group();
+  parent.name = name || "bone_pose_parent";
+  const localMatrix = new THREE.Matrix4()
+    .copy(content.matrixWorld)
+    .invert()
+    .multiply(record.bone.matrixWorld);
+  localMatrix.decompose(parent.position, parent.quaternion, parent.scale);
+  content.add(parent);
+  return parent;
+}
+
+function findBoneRecordForValue(records, value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  const exact = (records || []).find(record =>
+    normalized === record.path
+    || normalized === record.alias
+    || normalized === record.name
+  );
+  if (exact) return exact;
+
+  const requestedKeys = getBoneMatchKeys(normalized);
+  if (requestedKeys.size === 0) return null;
+  const ranked = (records || [])
+    .map(record => ({ record, rank: getBoneRecordMatchRank(record, requestedKeys) }))
+    .filter(item => item.rank > 0)
+    .sort((a, b) => b.rank - a.rank || a.record.depth - b.record.depth);
+  return ranked[0]?.record || null;
+}
+
+function getBoneRecordMatchRank(record, requestedKeys) {
+  const nameKey = normalizeBoneMatchText(record.name);
+  const aliasKey = normalizeBoneMatchText(String(record.alias || "").replace(/^bone\./i, ""));
+  const pathKey = normalizeBoneMatchText((record.path || "").split("/").filter(Boolean).pop() || "");
+  if (requestedKeys.has(nameKey) || requestedKeys.has(aliasKey) || requestedKeys.has(pathKey)) return 3;
+
+  const semanticKey = getSemanticBoneKey(`${nameKey} ${aliasKey} ${pathKey}`);
+  if (semanticKey && requestedKeys.has(semanticKey) && isPrimarySemanticBoneRecord(record, semanticKey)) return 2;
+
+  const recordKeys = getBoneMatchKeys(`${record.path || ""} ${record.alias || ""} ${record.name || ""}`);
+  return Array.from(requestedKeys).some(key => recordKeys.has(key)) ? 1 : 0;
+}
+
+function getBoneMatchKeys(value) {
+  const keys = new Set();
+  const text = String(value || "");
+  const lastSegment = text.split(/[\/\s]+/).filter(Boolean).pop() || text;
+  for (const candidate of [text, lastSegment, text.replace(/^bone\./i, ""), lastSegment.replace(/^bone\./i, "")]) {
+    const normalized = candidate.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    if (normalized) keys.add(normalized);
+    const semantic = getSemanticBoneKey(normalized);
+    if (semantic) keys.add(semantic);
+  }
+  return keys;
+}
+
+function normalizeBoneMatchText(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function getSemanticBoneKey(value) {
+  if (!value) return "";
+  if (/righthand|handr|rhand/.test(value)) return "right_hand";
+  if (/lefthand|handl|lhand/.test(value)) return "left_hand";
+  if (/rightfoot|footr|rfoot/.test(value)) return "right_foot";
+  if (/leftfoot|footl|lfoot/.test(value)) return "left_foot";
+  if (/head|skull/.test(value)) return "head";
+  if (/neck/.test(value)) return "neck";
+  if (/chest|breast/.test(value)) return "chest";
+  if (/hips|hip|pelvis/.test(value)) return "hips";
+  return "";
+}
+
+function isPrimarySemanticBoneRecord(record, semanticKey) {
+  const text = normalizeBoneMatchText(`${record.name || ""} ${(record.path || "").split("/").filter(Boolean).pop() || ""}`);
+  if (semanticKey === "right_hand") return /^(righthand|handr|rhand)$/.test(text);
+  if (semanticKey === "left_hand") return /^(lefthand|handl|lhand)$/.test(text);
+  if (semanticKey === "right_foot") return /^(rightfoot|footr|rfoot)$/.test(text);
+  if (semanticKey === "left_foot") return /^(leftfoot|footl|lfoot)$/.test(text);
+  if (semanticKey === "head") return /^(head|skull)$/.test(text);
+  if (semanticKey === "neck") return /^neck$/.test(text);
+  if (semanticKey === "chest") return /^(chest|breast)$/.test(text);
+  if (semanticKey === "hips") return /^(hips|hip|pelvis)$/.test(text);
+  return false;
+}
+
 function degreesToRadians(value) {
   return Number(value || 0) * Math.PI / 180;
 }
@@ -1111,7 +1223,7 @@ function addFallbackBody(THREE, content, pickables, body = {}) {
   content.add(mesh);
 }
 
-function addColliderMeshes(THREE, content, pickables, colliders) {
+function addColliderMeshes(THREE, content, pickables, colliders, bodyBoneRecords = []) {
   for (const collider of colliders) {
     const objectPath = `geometry/colliders/${collider.colliderId}`;
     const selected = state.selectedPath === objectPath;
@@ -1134,21 +1246,24 @@ function addColliderMeshes(THREE, content, pickables, colliders) {
       geometry = new THREE.SphereGeometry(Number(collider.radius || 0.12), 20, 12);
     }
     const mesh = new THREE.Mesh(geometry, material);
+    const parent = resolvePoseParentContent(THREE, content, collider.localPose, bodyBoneRecords, `collider_${collider.colliderId}_parent`);
     applyLocalPose(THREE, mesh, collider.localPose);
     makeSelectable(mesh, objectPath, pickables);
-    content.add(mesh);
+    parent.add(mesh);
   }
 }
 
-function addSocketMeshes(THREE, content, pickables, sockets) {
+function addSocketMeshes(THREE, content, pickables, sockets, bodyBoneRecords = []) {
   for (const socket of sockets) {
     const objectPath = `geometry/sockets/${socket.socketId}`;
     const selected = state.selectedPath === objectPath;
     const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, emissive: selected ? 0x442000 : 0x000000 });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), material);
-    applyLocalPose(THREE, mesh, socket.localPose);
+    const pose = getEffectiveSocketPose(socket);
+    const parent = resolvePoseParentContent(THREE, content, pose, bodyBoneRecords, `socket_${socket.socketId}_parent`);
+    applyLocalPose(THREE, mesh, pose);
     makeSelectable(mesh, objectPath, pickables);
-    content.add(mesh);
+    parent.add(mesh);
   }
 }
 
@@ -1169,23 +1284,30 @@ function addTraceMeshes(THREE, content, pickables, traces) {
   }
 }
 
-async function addWeaponMeshes({ THREE, loader, content, pickables, resources, packageUrl, socketsById, attachments }) {
+async function addWeaponMeshes({ THREE, loader, content, pickables, resources, packageUrl, socketsById, bodyBoneRecords = [], attachments }) {
   for (const attachment of attachments) {
     const objectPath = `geometry/weapon_attachments/${attachment.weaponId}`;
     const socket = socketsById[attachment.attachSocketId];
     const resource = resources.find(entry => entry.resourceKey === attachment.previewResourceKey);
+    const socketPose = getEffectiveSocketPose(socket);
+    const gripPose = attachment.localGripPose || null;
+    const directBoneGrip = gripPose?.parentKind === "Bone";
+    const parentPose = directBoneGrip ? gripPose : socketPose;
+    const bindingPose = directBoneGrip ? gripPose : socketPose;
+    const attachmentPose = directBoneGrip ? null : gripPose;
+    const parent = resolvePoseParentContent(THREE, content, parentPose, bodyBoneRecords, `weapon_${attachment.weaponId}_parent`);
     let loaded = false;
     if (resource?.relativePath) {
       loaded = await addGltfResource({
         THREE,
         loader,
-        content,
+        content: parent,
         pickables,
         url: packageUrl(resource.relativePath),
         objectPath,
         name: attachment.weaponId,
-        bindingPose: socket?.localPose,
-        attachmentPose: attachment.localGripPose,
+        bindingPose,
+        attachmentPose,
         wrapperPose: resource.importHints?.modelWrapperPose
       });
     }
@@ -1193,11 +1315,11 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
       const selected = state.selectedPath === objectPath;
       const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, transparent: true, opacity: 0.74 });
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.08), material);
-      applyLocalPose(THREE, mesh, socket?.localPose);
-      applyLocalPose(THREE, mesh, attachment.localGripPose);
+      applyLocalPose(THREE, mesh, bindingPose);
+      applyLocalPose(THREE, mesh, attachmentPose);
       mesh.position.x += attachment.equipSlot === "offHand" ? -0.12 : 0.12;
       makeSelectable(mesh, objectPath, pickables);
-      content.add(mesh);
+      parent.add(mesh);
     }
   }
 }
