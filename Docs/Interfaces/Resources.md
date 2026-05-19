@@ -47,9 +47,9 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - 普通 Resource Catalog 覆盖 Unity 资产和 provider 资源，例如 `AudioClip`、`AnimationClip`、`Texture2D`、`GameObject`、AssetBundle 和 RemoteBundle。FMOD bank `.bank` 文件和 FMOD event path/guid 不进入普通 Catalog；它们通过 Audio/FMOD 设置、`AudioEventDefinition` 和后续单独批准的 bank manifest/provider 管理。
 - `ResourceKey.Id` 使用小写命名空间，允许小写字母、数字、`.`、`_`、`-`。
 - Character Resource Package 的 package-local `ResourceKey` 生成规则为 `char.<packageId>.<typeSegment>.<localId>[.<variant>]`，其中 `animation` 的 key segment 固定为 `anim`；所有段落先归一为小写、`.`、`_`、`-` 和数字。
-- Character Resource Package catalog 不等同于 Unity 项目 ResourceCatalog。包内 catalog 只记录包内 relative path、source format、content/import/dependency hash、import hints、dependency graph、conflict policy 和 provenance；Unity Importer Bridge 导入后再把 package-local `ResourceKey` 映射到项目 ResourceCatalog entry。
+- Character Resource Package catalog 不等同于 Unity 项目 ResourceCatalog。包内 catalog 只记录包内 relative path、source format、content/import/dependency hash、import hints、dependency graph、conflict policy 和 provenance；C0.6 `CharacterAuthoringCompiler` 先输出 `CharacterPackageResourceMapping` 和 `CharacterUnityImportWritePlan`，Unity Importer Bridge 导入后再把 package-local `ResourceKey` 映射到项目 ResourceCatalog entry。
 - Character Resource Package C0.5 不保存 `UnityEngine.Object`、Prefab、`AnimationClip`、Material 或 Unity asset GUID。Unity target path 只能通过 `importHints.targetPathPolicy` + project-relative `targetRelativePath` 表达，绝不能是绝对路径或逃逸路径。
-- Character Resource Package v1 source format 以 glTF / GLB 作为模型和动画组目标；FBX 只作为 future / optional warning。Unity 侧是否可直接导入 glTF/GLB 由 #222 / #224 的 Importer Bridge / Compiler 切片确认。
+- Character Resource Package v1 source format 以 glTF / GLB 作为模型和动画组目标；FBX 只作为 future / optional warning。C0.6 compiler 不假设 Unity 可直接导入 glTF/GLB，只输出 import target 和 hash；Unity 侧是否可直接导入由 #222 Importer Bridge 切片确认。
 - 常用 Unity 资产类型使用 `ResourceTypeIds`，内置常量包括 `GameObject`、`Texture2D`、`Sprite`、`AudioClip`、`AnimationClip`、`AvatarMask`、`TextAsset`、`Material`、UI Toolkit 资源类型和基础 `String` / `Object`；调用方优先通过 `Load<T>` 获得类型检查。
 - 同一 Catalog 内 `id + type + variant` 必须唯一。
 - 全局冲突默认失败；高层覆盖必须设置 `allowOverride`，并保持类型一致。

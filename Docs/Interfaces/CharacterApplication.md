@@ -15,7 +15,7 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 - 依赖：`MxFramework.Config`
 - `noEngineReferences=true`
 
-外部角色资源包 C0 / C0.5 契约当前落点：
+外部角色资源包 C0 / C0.5 / C0.6 契约当前落点：
 
 - `MxFramework.Authoring.Core`
 - 路径：`Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/`
@@ -59,11 +59,12 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 
 首批稳定诊断 code 使用 `CHAR_*` 字符串，例如 `CHAR_EQUIPMENT_STATE_TIE`、`CHAR_MISSING_ABILITY_LOADOUT`、`CHAR_MISSING_COMBAT_ACTION`、`CHAR_MISSING_RESOURCE_KEY`、`CHAR_UNMAPPED_HIT_ZONE`。
 
-## 外部角色资源包 C0 / C0.5 契约
+## 外部角色资源包 C0 / C0.5 / C0.6 契约
 
 | 类型 | 用途 |
 | --- | --- |
 | `CharacterResourcePackage` | 外部 3D 角色装配编辑器和 Unity Importer Bridge 共用的角色包聚合对象 |
+| `CharacterApplicationAuthoringSummary` | `config/character_application.json` 的轻量摘要，记录角色、身体、属性、装备 schema、loadout 和资源 key 等 compiler 输入线索 |
 | `CharacterPackageManifest` | package id、stable id、版本、schema、坐标系、依赖和 hash 占位 |
 | `CharacterPackageCoordinateConvention` | Unity 目标坐标约定：Y+ up、Z+ forward、1 unit = 1 meter、quaternion 权威 |
 | `CharacterPackageResourceCatalog` / `CharacterPackageResourceEntry` | 包内 `ResourceKey`、local id、stable id、type、variant、usage、source format、relative path、hash、import hints、资源依赖、冲突策略、预览和来源元数据 |
@@ -82,12 +83,23 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 | `CharacterAuthoringValidationIssue` / `CharacterAuthoringValidationReport` | 稳定 code、severity、gate、sourcePath、sourceObjectPath、field、suggestedFix |
 | `CharacterResourcePackageSchemas` | C0 authoring schema 和 enum domain 导出入口 |
 | `CharacterResourcePackageValidator` | C0 / C0.5 纯校验：包身份、坐标、resource key、stable id、body part、collider、socket、attachment、v1 shape gate、resource path、format、dependency graph、file/hash check |
+| `CharacterAuthoringCompiler` | C0.6 纯 compiler，共享于外部编辑器和 Unity Importer Bridge，不引用 Unity API |
+| `CharacterAuthoringCompileRequest` / `CharacterAuthoringCompileOptions` | compiler 输入和策略，输入主对象是 `CharacterResourcePackage`，project source index / ResourceCatalog summary 只是可选校验上下文 |
+| `CharacterAuthoringCompileResult` | compiler 总输出，包含 config patch、geometry binding、resource mapping、write plan、hash、gate、resolver verification 和 source mapping |
+| `CharacterAuthoringCompiledConfigPatch` | 生成的 Character Application 12 表 patch bundle；字段是静态配置初始值和引用关系，不保存 runtime current state |
+| `CharacterAuthoringGeometryBinding` | collider、hit zone、socket、weapon attachment、trace 和 coordinate conversion plan |
+| `CharacterPackageResourceMapping` | package-local `ResourceKey` 到 Unity project ResourceCatalog/import target 的映射 |
+| `CharacterUnityImportWritePlan` | Unity Importer Bridge 后续执行的资源拷贝、generated config、geometry binding、resource mapping 写入计划 |
+| `CharacterResolverVerificationPlan` | 导入后应交给 `CharacterPackageResolver.Resolve` 的表集合、默认 loadout、预期 active equipment state、combat action set、animation profile、known ability ids 和 required resources |
+| `CharacterPackageSourceMapping` | 包内 path / object 到生成配置字段或 Unity target 的 source mapping |
 
 C0.5 package-local ResourceKey 规则为 `char.<packageId>.<typeSegment>.<localId>[.<variant>]`。Unity 项目 ResourceCatalog 是导入后的映射目标，不是角色资源包的源头；C0.5 DTO 不保存 `UnityEngine.Object`、Prefab、`AnimationClip`、Material、Unity asset GUID 或绝对路径。
 
-C0.5 v1 source format 把 glTF / GLB 作为模型和动画组的目标格式，FBX 仅为 future / optional warning。Unity 6 Editor 侧 glTF/GLB 实际导入能力不由 C0.5 假设，必须在 #222 / #224 的 Importer Bridge / Compiler 中确认 importer package、格式转换或 placeholder 策略。
+C0.5 v1 source format 把 glTF / GLB 作为模型和动画组的目标格式，FBX 仅为 future / optional warning。Unity 6 Editor 侧 glTF/GLB 实际导入能力不由 C0.5 / C0.6 假设；C0.6 只输出确定性的 import/write plan，#222 Unity Importer Bridge 必须确认 importer package、格式转换或 placeholder 策略。
 
 `CharacterAuthoringValidationGate` v1 固定为 `Unknown`、`ExportBlocked`、`ImportBlocked`、`SpawnBlocked`、`WarningOnly`，并保留 `Reserved1000+` 扩展位。`ExportBlocked` 只表示不能保存为可导入 / 可分发产物，不禁止 editor draft save。
+
+C0.6 compiler status 固定为 `Ready`、`WarningOnly`、`SpawnBlocked`、`ImportBlocked`、`ExportBlocked`。`ImportBlocked` 时 `UnityImportWritePlan.CanWriteToUnityProject=false`；`SpawnBlocked` 时可以导入但 `CanSpawnAfterImport=false`；coordinate mismatch 如果可转换则是 `WarningOnly` 并写入 `CharacterCoordinateConversionPlan`。
 
 ## ID 规则
 

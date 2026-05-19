@@ -505,6 +505,7 @@ internal static class Program
         Console.WriteLine("  editor serve [--root <repoRoot>] [--port <port>] [--package <relative>]");
         Console.WriteLine("  character inspect --package <path>");
         Console.WriteLine("  character validate --package <path>");
+        Console.WriteLine("  character compile --package <path> [--out <dir>] [--check-files] [--check-hashes] [--strict]");
         Console.WriteLine("  character schema");
         Console.WriteLine("  package validate --package <path>");
         Console.WriteLine("  manifest export");

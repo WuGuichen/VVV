@@ -152,7 +152,7 @@ CharacterPackage/
 | `preview` | thumbnail、preview mesh、placeholder 和 camera preset 元数据。 |
 | `provenance` | source tool、source file、license、origin、createdBy、modifiedBy 等来源信息。 |
 
-C0.5 固定 glTF / GLB 为 v1 模型和动画组的目标格式。FBX 可以出现在 catalog 中，但只作为 future / optional 触发 warning。Unity 6 项目内的 glTF/GLB 实际导入能力不在 C0.5 中假设，必须在 #222 / #224 通过 importer package、转换步骤或 placeholder 策略补齐。
+C0.5 固定 glTF / GLB 为 v1 模型和动画组的目标格式。FBX 可以出现在 catalog 中，但只作为 future / optional 触发 warning。Unity 6 项目内的 glTF/GLB 实际导入能力不在 C0.5 / C0.6 中假设；C0.6 只输出 import/write plan，#222 必须通过 importer package、转换步骤或 placeholder 策略补齐。
 
 ## 3D Authoring 数据
 
@@ -257,6 +257,41 @@ Compiler 是外部编辑器和 Unity Importer 的共同权威。
 
 Compiler 必须是 noEngine 纯逻辑，不读取 Unity 场景对象，不写 Runtime world。
 
+C0.6 的实际输出格式已经固定为：
+
+| 输出 | 格式 |
+| --- | --- |
+| compile result | `mx.characterAuthoringCompileResult.v1` |
+| config patch bundle | `mx.characterApplicationConfigPatchBundle.v1` |
+| geometry binding | `mx.characterGeometryBinding.v1` |
+| resource mapping | `mx.characterResourceMapping.v1` |
+| Unity write plan | `mx.characterUnityImportWritePlan.v1` |
+
+CLI 入口：
+
+```bash
+mx-authoring character compile \
+  --package Tools/MxFramework.Authoring/samples/character-iron-vanguard \
+  --out Temp/MxFrameworkAuthoring/character-iron-vanguard \
+  --check-files \
+  --check-hashes
+```
+
+`--out` 会写出：
+
+- `compile_result.json`
+- `generated_config_patch.json`
+- `geometry_binding.json`
+- `resource_mapping.json`
+- `unity_import_write_plan.json`
+- `gate_report.txt`
+
+Compiler 的输入是角色资源包本身。`Project Authoring Manifest`、existing project ResourceCatalog summary 或 Unity import target context 只是校验和冲突判断辅助，不能变成外部编辑器保存角色包的前置条件。
+
+`generated_config_patch.json` 对齐 12 张 Character Application 表，但它仍是配置初始值和引用关系，不包含当前 HP、冷却、Buff、装备实例、resource handle 或 view 实例等运行时状态。Unity Importer 后续负责把 patch bundle 适配到项目配置源；Runtime Spawn 只消费导入后的配置和 binding。
+
+`resolverVerificationPlan` 是 C0.6 和 #216 resolver 之间的衔接契约。它声明导入后应该交给 `CharacterPackageResolver.Resolve` 的表集合、默认 loadout、预期 active equipment state、combat action set、animation profile、known ability ids 和 required resources。v1 是确定性全量编译，不要求 collider/socket 的 partial compile 或 incremental resolver diff API。
+
 ## Gate Policy
 
 所有失败必须结构化输出，不允许静默 fallback。
@@ -294,10 +329,21 @@ v1 gate 字面值已经固定：
 - `CHARPKG_MISSING_MODEL_RESOURCE`
 - `CHARPKG_RESOURCE_HASH_MISMATCH`
 - `CHARPKG_UNSUPPORTED_COLLIDER_SHAPE`
+- `CHARPKG_RESOURCE_KEY_CONFLICT`
+- `CHARPKG_COORDINATE_TARGET_MISMATCH`
+- `CHARPKG_STRICT_WARNING_BLOCKED`
 - `CHARPKG_SOCKET_BONE_MISSING`
 - `CHARPKG_UNMAPPED_HIT_ZONE`
 - `CHARPKG_IMPORT_PATH_CONFLICT`
 - `CHAR_EQUIPMENT_STATE_TIE`
+
+C0.6 gate 语义：
+
+- unsupported convex/custom collider：`ExportBlocked`。
+- missing file、hash mismatch、ResourceKey 与目标项目同 key 不同 hash：`ImportBlocked`。
+- missing socket、missing collider part、missing hit zone：`SpawnBlocked`。
+- source coordinate convention 与 Unity target convention 不一致但可转换：`WarningOnly`，同时输出 coordinate conversion plan。
+- `--strict` 或 `--no-warnings` 下出现 warning：提升为 `ImportBlocked`。
 
 ## Unity Importer Bridge
 
@@ -458,7 +504,7 @@ C0 已用同一套 DTO 表达 `Training Slime`：`Primitive` body kind、`core/s
 | 非人形角色后补会推翻结构 | C0 必须用 Drake / Slime 作为契约样例校验。 |
 | 运行时状态污染配置 | 所有当前值只进入 runtime state / SaveState，不进入 config。 |
 | 过早支持复杂碰撞和动画 | v1 只支持 capsule / box / sphere，不做完整动画状态机编辑。 |
-| Unity glTF/GLB 导入能力不确定 | C0.5 只声明源格式契约；#222 / #224 必须确认 Unity importer package、转换器或 placeholder 策略。 |
+| Unity glTF/GLB 导入能力不确定 | C0.5 只声明源格式契约；C0.6 只输出 import/write plan；#222 必须确认 Unity importer package、转换器或 placeholder 策略。 |
 
 ## Done Definition
 
@@ -467,7 +513,7 @@ C0 已用同一套 DTO 表达 `Training Slime`：`Primitive` body kind、`core/s
 - `Iron Vanguard` 角色资源包可以被外部编辑器打开、编辑、保存。
 - 用户能在 3D 视口调整 body collider、socket、weapon trace。
 - 用户能切换 unarmed、single sword、sword shield 三种 loadout，并看到 resolver 输出。
-- Compiler 能输出 generated config patch、geometry binding、resource mapping、gate report。
+- Compiler 能输出 generated config patch、geometry binding、resource mapping、write plan、gate report 和 resolver verification plan。
 - Unity Importer 能导入包内资源并生成 ResourceCatalog 映射。
 - Runtime Spawn 能生成可活动角色实例，并显示 resolved profile、runtime ids、equipment state、abilities、resource issues。
 - SaveState roundtrip 能恢复角色 config binding，并重新解析 active equipment state。

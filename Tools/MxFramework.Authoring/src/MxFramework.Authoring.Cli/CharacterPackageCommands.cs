@@ -85,6 +85,43 @@ internal static class CharacterPackageCommands
             return report.HasBlockingIssues ? Program.ExitValidationBlocked : Program.ExitReady;
         }
 
+        if (args.Length >= 2 && args[1] == "compile")
+        {
+            string packagePath = Program.RequireOption(args, "--package");
+            string outDir = Program.GetOption(args, "--out", string.Empty);
+            bool checkHashes = Program.HasFlag(args, "--check-hashes");
+            CharacterResourcePackage package = ReadPackage(packagePath, options);
+            CharacterAuthoringCompileResult result = CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest
+            {
+                Package = package,
+                PackageRootPath = packagePath,
+                Options = new CharacterAuthoringCompileOptions
+                {
+                    Strict = Program.HasFlag(args, "--strict"),
+                    AllowWarnings = !Program.HasFlag(args, "--no-warnings"),
+                    ValidateResourceFiles = Program.HasFlag(args, "--check-files") || checkHashes,
+                    ValidateResourceHashes = checkHashes,
+                    GeneratedRootPath = Program.GetOption(args, "--unity-root", "Assets/MxFrameworkGenerated/CharacterPackages"),
+                    TargetUnityPathPolicy = Program.GetOption(args, "--target-path-policy", CharacterPackageImportTargetPathPolicies.GeneratedCharacterPackage)
+                }
+            });
+
+            if (!string.IsNullOrWhiteSpace(outDir))
+            {
+                WriteCompileOutputs(outDir, result, options);
+                Console.WriteLine("compileResult=" + Path.Combine(outDir, "compile_result.json"));
+                Console.WriteLine("status=" + result.Status);
+            }
+            else
+            {
+                Console.WriteLine(JsonSerializer.Serialize(result, options));
+            }
+
+            return result.GateReport.ExportBlocked || result.GateReport.ImportBlocked
+                ? Program.ExitValidationBlocked
+                : Program.ExitReady;
+        }
+
         if (args.Length >= 2 && args[1] == "schema")
         {
             var schema = new
@@ -112,10 +149,52 @@ internal static class CharacterPackageCommands
             Manifest = ReadRequired<CharacterPackageManifest>(packagePath, "manifest.json", options),
             ResourceCatalog = ReadOptional<CharacterPackageResourceCatalog>(packagePath, "resource_catalog.json", options) ?? new CharacterPackageResourceCatalog(),
             Geometry = ReadGeometry(packagePath, options),
+            ApplicationConfig = ReadOptional<CharacterApplicationAuthoringSummary>(packagePath, Path.Combine("config", "character_application.json"), options) ?? new CharacterApplicationAuthoringSummary(),
             ValidationReport = ReadOptional<CharacterAuthoringValidationReport>(packagePath, Path.Combine("validation", "last_report.json"), options) ?? new CharacterAuthoringValidationReport()
         };
 
         return package;
+    }
+
+    private static void WriteCompileOutputs(string outDir, CharacterAuthoringCompileResult result, JsonSerializerOptions options)
+    {
+        Directory.CreateDirectory(outDir);
+        File.WriteAllText(Path.Combine(outDir, "compile_result.json"), JsonSerializer.Serialize(result, options));
+        File.WriteAllText(Path.Combine(outDir, "generated_config_patch.json"), JsonSerializer.Serialize(result.GeneratedConfigPatch, options));
+        File.WriteAllText(Path.Combine(outDir, "geometry_binding.json"), JsonSerializer.Serialize(result.GeometryBinding, options));
+        File.WriteAllText(Path.Combine(outDir, "resource_mapping.json"), JsonSerializer.Serialize(result.ResourceMapping, options));
+        File.WriteAllText(Path.Combine(outDir, "unity_import_write_plan.json"), JsonSerializer.Serialize(result.UnityImportWritePlan, options));
+        File.WriteAllText(Path.Combine(outDir, "gate_report.txt"), GateReportToText(result.GateReport));
+    }
+
+    private static string GateReportToText(CharacterCompilerGateReport report)
+    {
+        if (report == null)
+            return string.Empty;
+
+        using var writer = new StringWriter();
+        writer.WriteLine("MxFramework Character Authoring Compiler Gate Report");
+        writer.WriteLine("package=" + report.PackageId);
+        writer.WriteLine("status=" + report.Status);
+        for (int i = 0; i < report.Issues.Count; i++)
+        {
+            CharacterAuthoringValidationIssue issue = report.Issues[i];
+            writer.Write(issue.Severity);
+            writer.Write(" gate=");
+            writer.Write(issue.Gate);
+            writer.Write(" code=");
+            writer.Write(issue.Code);
+            writer.Write(" sourcePath=");
+            writer.Write(issue.SourcePath);
+            writer.Write(" object=");
+            writer.Write(issue.SourceObjectPath);
+            writer.Write(" field=");
+            writer.Write(issue.Field);
+            writer.Write(" message=");
+            writer.WriteLine(issue.Message);
+        }
+
+        return writer.ToString();
     }
 
     private static CharacterAuthoringGeometry ReadGeometry(string packagePath, JsonSerializerOptions options)
