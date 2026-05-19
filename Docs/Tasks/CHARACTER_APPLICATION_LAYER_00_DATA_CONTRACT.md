@@ -6,7 +6,7 @@
 
 > 角色资源包、外部 3D 装配编辑器、Unity 导入和 Runtime Spawn 的完整主线见 `Docs/CHARACTER_RESOURCE_PACKAGE_AUTHORING.md`；工程实现方案见 `Docs/CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md`。
 
-> #221 已把 Character Resource Package C0 authoring 契约落到 `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/`，并提供 `character-iron-vanguard` 与 `character-slime` 样例。该契约仍属于外部 authoring / import 前置数据，不改变本文件中 12 张运行时配置表的 source-of-truth 边界。
+> #221 已把 Character Resource Package C0 authoring 契约落到 `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/`，并提供 `character-iron-vanguard` 与 `character-slime` 样例。#223 已补 package-local resource catalog、hash 和 dependency graph。#224 已补 C0.6 Authoring Compiler，输出 generated config patch、geometry binding、resource mapping、Unity write plan、gate report 和 resolver verification plan。该契约仍属于外部 authoring / import 前置数据，不改变本文件中 12 张运行时配置表的 source-of-truth 边界。
 
 ## 目标
 
@@ -935,6 +935,17 @@ Workstation 至少输出 4 个稳定产物：
 | `CharacterResourceDependencyReport` | 当前角色生成 / 装备 / 表现需要的资源 |
 | `CharacterDebugContext` | 给 Debug UI、命令行报告和 Development Agent 使用的可读上下文 |
 
+外部 3D 装配编辑器导入前还必须调用 C0.6 `CharacterAuthoringCompiler`，并显示 compiler 产物：
+
+| 输出 | 用途 |
+| --- | --- |
+| `CharacterAuthoringCompiledConfigPatch` | 生成的 12 表 config patch bundle |
+| `CharacterAuthoringGeometryBinding` | collider / hit zone / socket / weapon attachment / trace binding |
+| `CharacterPackageResourceMapping` | package-local `ResourceKey` 到 Unity import target 的映射 |
+| `CharacterUnityImportWritePlan` | Unity Importer Bridge 的写入计划 |
+| `CharacterCompilerGateReport` | `ExportBlocked` / `ImportBlocked` / `SpawnBlocked` / `WarningOnly` gate |
+| `CharacterResolverVerificationPlan` | 导入后交给 `CharacterPackageResolver.Resolve` 的完整表集合和预期解析结果 |
+
 校验项：
 
 - 所有 config 引用存在。
@@ -1066,6 +1077,7 @@ CharacterSpawnRequest
 - BodyPartHitZoneResolver 有确定性映射和未映射处理。
 - ResourceDependencyResolver 能列出角色生成需要的 ResourceKey。
 - Workstation 能输出稳定 `CharacterValidationReport`。
+- C0.6 Authoring Compiler 能从 `CharacterResourcePackage` 生成确定性 config patch、geometry binding、resource mapping、write plan、gate report 和 resolver verification plan，且不写 runtime current state。
 - `Iron Vanguard`、`Drake`、`Slime` 三个样例都能通过配置校验。
 
 如果同一任务包含 runtime spawning，则该任务升级为应用层可玩实现，需要 Unity scene 或 runner 验证。

@@ -204,7 +204,7 @@ mx-authoring character validate --package Tools/MxFramework.Authoring/samples/ch
 - v1 source format：model / animation 首选 glTF / GLB；FBX 记录为 future / optional warning。
 - Iron Vanguard 和 Slime 样例包带 package-local catalog、placeholder 资源文件和可校验 content hash。
 
-注意：C0.5 只固定资源管线契约和 noEngine 校验，不确认 Unity 6 Editor 是否内置 glTF / GLB 导入。#222 / #224 在生成 Unity import/write plan 前必须明确采用 importer package、格式转换或 placeholder 策略。
+注意：C0.5 只固定资源管线契约和 noEngine 校验，不确认 Unity 6 Editor 是否内置 glTF / GLB 导入。C0.6 只生成确定性的 import/write plan，不执行 Unity 导入；#222 必须明确采用 importer package、格式转换或 placeholder 策略。
 
 ### C0.6：Authoring Compiler
 
@@ -216,10 +216,15 @@ mx-authoring character validate --package Tools/MxFramework.Authoring/samples/ch
 
 | 类型 | 职责 |
 | --- | --- |
-| `CharacterAuthoringCompileRequest` | package、source index、target context、options。 |
-| `CharacterAuthoringCompileResult` | config patch、geometry binding、mapping、write plan、reports。 |
-| `CharacterAuthoringGateReport` | ExportBlocked / ImportBlocked / SpawnBlocked / WarningOnly。 |
+| `CharacterAuthoringCompileRequest` | `CharacterResourcePackage`、package root、可选 existing config source index、可选 project ResourceCatalog summary、compile options。输入是角色资源包本身，不是 Unity Project Authoring Pack。 |
+| `CharacterAuthoringCompileOptions` | strict、allow warnings、resource file/hash 校验、target output format、Unity generated root、target path policy、target coordinate convention。 |
+| `CharacterAuthoringCompileResult` | compiler 总结果，包含 config patch、geometry binding、resource mapping、write plan、dependency graph、hash report、gate report、resolver verification plan 和 source mapping。 |
+| `CharacterCompilerGateReport` | `ExportBlocked` / `ImportBlocked` / `SpawnBlocked` / `WarningOnly` 聚合状态和结构化 diagnostics。 |
+| `CharacterAuthoringCompiledConfigPatch` | 生成的 Character Application patch bundle，表名对齐 12 张 Character Application 表，字段仍是配置初始值和引用，不保存运行时当前值。 |
+| `CharacterAuthoringGeometryBinding` | body collider、hit zone、socket、weapon attachment、trace 和 coordinate conversion plan。 |
+| `CharacterPackageResourceMapping` | package-local `ResourceKey` 到 Unity project ResourceCatalog/import target 的映射。 |
 | `CharacterUnityImportWritePlan` | Unity importer 要执行的资源导入和配置写入计划。 |
+| `CharacterResolverVerificationPlan` | 声明导入后应交给 `CharacterPackageResolver.Resolve` 的表集合、默认 loadout、预期 active equipment state、combat action set、animation profile、known ability ids 和 required resources。 |
 | `CharacterPackageSourceMapping` | 包内路径到生成配置字段和 Unity target 的映射。 |
 
 CLI 命令：
@@ -227,16 +232,36 @@ CLI 命令：
 ```bash
 mx-authoring character compile \
   --package Tools/MxFramework.Authoring/samples/character-iron-vanguard \
-  --out Temp/MxFrameworkAuthoring/character-iron-vanguard
+  --out Temp/MxFrameworkAuthoring/character-iron-vanguard \
+  --check-files \
+  --check-hashes
 ```
+
+`--out` 目录固定输出：
+
+| 文件 | 说明 |
+| --- | --- |
+| `compile_result.json` | 完整 compiler result。 |
+| `generated_config_patch.json` | 生成的 Character Application config patch bundle。 |
+| `geometry_binding.json` | 几何、部位、碰撞体、socket、trace binding。 |
+| `resource_mapping.json` | package-local `ResourceKey` 到 Unity import target 的映射。 |
+| `unity_import_write_plan.json` | Unity Importer Bridge 后续执行的写入计划。 |
+| `gate_report.txt` | 面向人阅读的 gate diagnostics 摘要。 |
 
 验收：
 
-- Iron Vanguard 能编译出 config patch、geometry binding、resource mapping、gate report。
-- 编译后能调用 #216 resolver 得到唯一 `CharacterResolvedProfile`。
-- `ImportBlocked` 时不会生成 write plan。
-- `SpawnBlocked` 时可以生成导入计划，但 runtime spawn 标记不可用。
+- Iron Vanguard 能编译出 config patch、geometry binding、resource mapping、write plan、gate report、resolver verification plan。
+- compiler 输出可以被 Unity Importer 后续适配为完整 `CharacterPackageResolver.Resolve` 输入；v1 不要求 incremental diff resolver API。
+- `ExportBlocked` 时外部编辑器只能保存 draft，不能保存为可导入产物。
+- `ImportBlocked` 时 `UnityImportWritePlan.CanWriteToUnityProject=false`，Unity Importer 不得写项目资源或配置。
+- `SpawnBlocked` 时可以生成导入计划，但 `CanSpawnAfterImport=false`，Runtime Spawn 不得生成实例。
+- `WarningOnly` 时允许继续，但必须保留稳定 issue code 和 source mapping。
+- `sourcePackageHash`、`generatedConfigHash`、`geometryBindingHash`、`resourceMappingHash`、`writePlanHash` 对同一输入稳定。
+- v1 只支持 capsule / box / sphere collider；convex/custom mesh 触发 `ExportBlocked`。
+- missing socket 触发 `SpawnBlocked`，missing resource / hash mismatch / ResourceKey conflict 触发 `ImportBlocked`，coordinate mismatch 触发 `WarningOnly` 并生成 conversion plan。
 - 外部编辑器和 Unity Importer 都只能消费这个 compile result，不各自写转换逻辑。
+
+C0.6 仍不做 Unity Editor 写入和 glTF/GLB 实际导入验证。它只输出确定性的 import/write plan；是否使用 Unity glTF importer package、格式转换器或 placeholder 策略属于 C2 Unity Importer Bridge。
 
 ## 外部 3D 编辑器实现
 

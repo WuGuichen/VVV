@@ -12,6 +12,7 @@ namespace MxFramework.Authoring
         public const string WeaponAttachmentSchemaId = "WeaponAttachmentProfile";
         public const string WeaponTraceSchemaId = "WeaponTraceProfile";
         public const string ValidationIssueSchemaId = "CharacterAuthoringValidationIssue";
+        public const string CompilerResultSchemaId = "CharacterAuthoringCompileResult";
 
         public static IReadOnlyList<ConfigSchema> CreateAll()
         {
@@ -24,7 +25,8 @@ namespace MxFramework.Authoring
                 CreateSocketSchema(),
                 CreateWeaponAttachmentSchema(),
                 CreateWeaponTraceSchema(),
-                CreateValidationIssueSchema()
+                CreateValidationIssueSchema(),
+                CreateCompilerResultSchema()
             };
         }
 
@@ -49,7 +51,8 @@ namespace MxFramework.Authoring
                 CreateSocketSideTagEnum(),
                 CreateTraceSampleRuleEnum(),
                 CreateValidationSeverityEnum(),
-                CreateValidationGateEnum()
+                CreateValidationGateEnum(),
+                CreateCompilerStatusEnum()
             };
         }
 
@@ -193,6 +196,26 @@ namespace MxFramework.Authoring
             return schema;
         }
 
+        public static ConfigSchema CreateCompilerResultSchema()
+        {
+            var schema = CreateSchema(CompilerResultSchemaId, "角色 Authoring Compiler 结果");
+            Add(schema, "format", "格式", FieldType.String, true, "identity", "身份", description: "固定为 mx.characterAuthoringCompileResult.v1。");
+            Add(schema, "packageId", "包 ID", FieldType.String, true, "identity", "身份");
+            Add(schema, "packageStableId", "包 StableId", FieldType.String, true, "identity", "身份");
+            Add(schema, "isDeterministicFullCompile", "确定性全量编译", FieldType.Boolean, true, "compile", "编译");
+            Add(schema, "status", "编译状态", FieldType.Enum, true, "gate", "Gate", enumId: "character.compilerStatus");
+            Add(schema, "hashes.sourcePackageHash", "源包 Hash", FieldType.String, true, "hash", "Hash");
+            Add(schema, "hashes.generatedConfigHash", "生成配置 Hash", FieldType.String, true, "hash", "Hash");
+            Add(schema, "hashes.resourceMappingHash", "资源映射 Hash", FieldType.String, true, "hash", "Hash");
+            Add(schema, "generatedConfigPatch", "生成配置 Patch", FieldType.String, true, "output", "输出");
+            Add(schema, "geometryBinding", "几何绑定", FieldType.String, true, "output", "输出");
+            Add(schema, "resourceMapping", "资源映射", FieldType.String, true, "output", "输出");
+            Add(schema, "unityImportWritePlan", "Unity 写入计划", FieldType.String, true, "output", "输出");
+            Add(schema, "resolverVerificationPlan", "Resolver 验证计划", FieldType.String, true, "output", "输出");
+            Add(schema, "sourceMappings", "Source Mapping", FieldType.String, true, "source", "来源", isList: true);
+            return schema;
+        }
+
         private static ConfigSchema CreateSchema(string id, string displayName)
         {
             return new ConfigSchema
@@ -309,6 +332,11 @@ namespace MxFramework.Authoring
         private static EnumDomain CreateValidationGateEnum()
         {
             return Enum("character.validationGate", ("Unknown", 0), ("ExportBlocked", 10), ("ImportBlocked", 20), ("SpawnBlocked", 30), ("WarningOnly", 40), ("Reserved1000", 1000), ("Reserved1001", 1001), ("Reserved1002", 1002));
+        }
+
+        private static EnumDomain CreateCompilerStatusEnum()
+        {
+            return Enum("character.compilerStatus", ("Ready", 0), ("WarningOnly", 1), ("SpawnBlocked", 2), ("ImportBlocked", 3), ("ExportBlocked", 4));
         }
 
         private static EnumDomain Enum(string id, params (string Name, int Value)[] options)

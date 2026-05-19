@@ -26,6 +26,13 @@ internal static class CharacterPackageTests
         InvalidImportTargetPath_BlocksImport();
         UnsupportedConvexShape_ProducesExportBlockedIssue();
         SlimeSample_UsesSameDtoForPrimitiveBody();
+        IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan();
+        Compiler_UnsupportedConvexShape_BlocksExport();
+        Compiler_MissingSocket_BlocksSpawnOnly();
+        Compiler_MissingResource_BlocksImport();
+        Compiler_CoordinateMismatch_ReportsWarningOnly();
+        Compiler_HashMismatch_BlocksImport();
+        Compiler_ResourceKeyConflict_BlocksImport();
     }
 
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
@@ -166,6 +173,7 @@ internal static class CharacterPackageTests
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.ManifestSchemaId) != null, "manifest schema missing.");
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId) != null, "collider schema missing.");
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.ValidationIssueSchemaId) != null, "validation issue schema missing.");
+        Require(FindSchema(schemas, CharacterResourcePackageSchemas.CompilerResultSchemaId) != null, "compiler result schema missing.");
 
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ManifestSchemaId), "coordinateConvention"), "manifest coordinate field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "localId"), "resource localId field missing.");
@@ -176,11 +184,13 @@ internal static class CharacterPackageTests
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "hitZoneId"), "collider hit zone field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.WeaponAttachmentSchemaId), "traceRadius"), "weapon trace radius field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ValidationIssueSchemaId), "gate"), "validation gate field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.CompilerResultSchemaId), "resolverVerificationPlan"), "compiler resolver verification plan field missing.");
         Require(HasEnumOption("character.resourceSourceFormat", "glb"), "resource source format glb option missing.");
         Require(HasEnumOption("character.resourceSourceFormat", "fbx"), "resource source format fbx future option missing.");
         Require(HasEnumOption("character.importTargetPathPolicy", "generatedCharacterPackage"), "import target path policy option missing.");
         Require(HasEnumOption("character.validationGate", "Unknown"), "validation gate Unknown option missing.");
         Require(HasEnumOption("character.validationGate", "Reserved1000"), "validation gate reserved option missing.");
+        Require(HasEnumOption("character.compilerStatus", "ImportBlocked"), "compiler status ImportBlocked option missing.");
         Require(HasEnumOption("character.colliderShape", "Convex"), "reserved convex shape option missing.");
     }
 
@@ -321,6 +331,149 @@ internal static class CharacterPackageTests
         Require(package.Geometry.BodyParts.Exists(part => part.PartId == "core" && part.PartKind == CharacterAuthoringBodyPartKind.Primitive), "slime core part missing.");
         Require(package.Geometry.Colliders.Exists(collider => collider.Shape == CharacterColliderShape.Sphere && collider.PartId == "core"), "slime core sphere collider missing.");
         Require(package.Geometry.Sockets.Exists(socket => socket.SocketId == "frontAttack" && socket.Usage == CharacterSocketUsage.Gameplay), "slime gameplay socket missing.");
+    }
+
+    private static void IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterAuthoringCompileResult result = Compile(package, checkFiles: true, checkHashes: true);
+        CharacterAuthoringCompileResult second = Compile(LoadSample("character-iron-vanguard"), checkFiles: true, checkHashes: true);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.Ready, "Iron Vanguard compiler status should be Ready.");
+        Require(result.IsDeterministicFullCompile, "v1 compiler should declare deterministic full compile.");
+        Require(result.Hashes.SourcePackageHash == second.Hashes.SourcePackageHash, "source package hash should be deterministic.");
+        Require(result.Hashes.GeneratedConfigHash == second.Hashes.GeneratedConfigHash, "generated config hash should be deterministic.");
+        Require(result.GeneratedConfigPatch.Patch.Entries.Exists(entry => entry.Source == CharacterApplicationCompilerTableNames.CharacterConfig), "compiler should generate CharacterConfig patch entry.");
+        Require(result.GeneratedConfigPatch.Patch.Entries.Exists(entry => entry.Source == CharacterApplicationCompilerTableNames.EquipmentStateConfig), "compiler should generate EquipmentStateConfig patch entries.");
+        Require(result.GeneratedConfigPatch.Patch.Entries.Exists(entry => entry.Source == CharacterApplicationCompilerTableNames.CombatActionSetConfig), "compiler should generate CombatActionSetConfig patch entries.");
+        Require(result.GeometryBinding.BodyColliders.Exists(collider => collider.ColliderId == "head_sphere" && collider.Shape == CharacterColliderShape.Sphere), "compiler geometry binding should include body collider data.");
+        Require(result.GeometryBinding.WeaponAttachments.Exists(attachment => attachment.WeaponId == "weapon.iron_sword" && attachment.TraceId == "trace.iron_sword.blade"), "compiler geometry binding should include weapon attachment and trace binding.");
+        Require(result.ResourceMapping.Entries.Exists(entry => entry.PackageResourceKey == "char.iron_vanguard.model.body" && entry.ImportTargetPath.Contains("Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard")), "compiler resource mapping should map package ResourceKey to Unity import target.");
+        Require(result.UnityImportWritePlan.CanWriteToUnityProject, "Ready compiler result should be importable.");
+        Require(result.UnityImportWritePlan.CanSpawnAfterImport, "Ready compiler result should be spawnable after import.");
+        Require(result.UnityImportWritePlan.Writes.Exists(write => write.Kind == CharacterAuthoringCompilerWriteKinds.GeneratedConfigPatch), "write plan should include generated config patch target.");
+        Require(result.UnityImportWritePlan.Writes.Exists(write => write.Kind == CharacterAuthoringCompilerWriteKinds.ResourceFile && write.SourcePath == "resources/models/iron_vanguard.glb"), "write plan should include resource file copy target.");
+        Require(result.ResolverVerificationPlan.Status == "Ready", "resolver verification plan should be ready.");
+        Require(result.ResolverVerificationPlan.ExpectedResolverEntrypoint == "CharacterPackageResolver.Resolve", "resolver verification plan should name the runtime resolver.");
+        Require(result.ResolverVerificationPlan.DefaultLoadoutStableId == "equip_loadout.iron_vanguard.sword_shield", "default loadout should be sword shield.");
+        Require(result.ResolverVerificationPlan.ExpectedActiveEquipmentStateStableId == "equip_state.iron_vanguard.sword_shield", "default active equipment state should match sword shield.");
+        Require(result.ResolverVerificationPlan.RequiredTables.Count >= 12, "resolver verification plan should enumerate all Character Application tables.");
+        Require(result.ResolverVerificationPlan.KnownAbilityIds.Contains(900001), "resolver verification plan should include generated base ability ids.");
+    }
+
+    private static void Compiler_UnsupportedConvexShape_BlocksExport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.Geometry.Colliders[0].Shape = CharacterColliderShape.Convex;
+
+        CharacterAuthoringCompileResult result = Compile(package);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.ExportBlocked, "convex collider should block export/importable artifact.");
+        Require(!result.UnityImportWritePlan.CanWriteToUnityProject, "ExportBlocked result must not be writable to Unity project.");
+        Require(HasCompilerIssue(result, CharacterAuthoringValidationCodes.UnsupportedColliderShape, CharacterAuthoringValidationGate.ExportBlocked), "unsupported collider shape should keep stable ExportBlocked issue.");
+    }
+
+    private static void Compiler_MissingSocket_BlocksSpawnOnly()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.Geometry.WeaponAttachments[0].AttachSocketId = "missing.socket";
+
+        CharacterAuthoringCompileResult result = Compile(package);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.SpawnBlocked, "missing weapon socket should block spawn.");
+        Require(result.UnityImportWritePlan.CanWriteToUnityProject, "SpawnBlocked result can still import resources/config.");
+        Require(!result.UnityImportWritePlan.CanSpawnAfterImport, "SpawnBlocked result must not spawn after import.");
+        Require(HasCompilerIssue(result, CharacterAuthoringValidationCodes.MissingAttachmentSocket, CharacterAuthoringValidationGate.SpawnBlocked), "missing attachment socket should keep stable SpawnBlocked issue.");
+    }
+
+    private static void Compiler_MissingResource_BlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries[0].RelativePath = "resources/models/missing.glb";
+
+        CharacterAuthoringCompileResult result = Compile(package, checkFiles: true);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.ImportBlocked, "missing resource should block import.");
+        Require(!result.UnityImportWritePlan.CanWriteToUnityProject, "ImportBlocked result must not write Unity project.");
+        Require(HasCompilerIssue(result, CharacterAuthoringValidationCodes.MissingResourceFile, CharacterAuthoringValidationGate.ImportBlocked), "missing resource should keep stable ImportBlocked issue.");
+    }
+
+    private static void Compiler_CoordinateMismatch_ReportsWarningOnly()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.Manifest.CoordinateConvention.UpAxis = CharacterCoordinateAxis.ZPositive;
+
+        CharacterAuthoringCompileResult result = Compile(package);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.WarningOnly, "coordinate mismatch should be warning-only when conversion plan is available.");
+        Require(result.GeometryBinding.CoordinateConversion.RequiresConversion, "coordinate mismatch should emit conversion plan.");
+        Require(result.UnityImportWritePlan.CanWriteToUnityProject, "WarningOnly result should remain importable.");
+        Require(HasCompilerIssue(result, CharacterAuthoringCompilerValidationCodes.CoordinateTargetMismatch, CharacterAuthoringValidationGate.WarningOnly), "coordinate mismatch should use stable compiler warning code.");
+    }
+
+    private static void Compiler_HashMismatch_BlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries[0].Hashes.ContentHash = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+
+        CharacterAuthoringCompileResult result = Compile(package, checkFiles: true, checkHashes: true);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.ImportBlocked, "hash mismatch should block import.");
+        Require(HasCompilerIssue(result, CharacterAuthoringValidationCodes.ResourceHashMismatch, CharacterAuthoringValidationGate.ImportBlocked), "hash mismatch should keep stable ImportBlocked issue.");
+    }
+
+    private static void Compiler_ResourceKeyConflict_BlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        var projectCatalog = new CharacterPackageResourceCatalog();
+        projectCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = package.ResourceCatalog.Entries[0].ResourceKey,
+            StableId = package.ResourceCatalog.Entries[0].StableId,
+            TypeId = package.ResourceCatalog.Entries[0].TypeId,
+            Usage = package.ResourceCatalog.Entries[0].Usage,
+            RelativePath = "Assets/Existing/iron_vanguard.glb",
+            Hashes = new CharacterPackageResourceHashes
+            {
+                ContentHash = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            }
+        });
+
+        CharacterAuthoringCompileResult result = Compile(package, projectCatalog: projectCatalog);
+
+        Require(result.Status == CharacterAuthoringCompilerStatus.ImportBlocked, "ResourceKey conflict with different hash should block import.");
+        Require(HasCompilerIssue(result, CharacterAuthoringCompilerValidationCodes.ResourceKeyConflict, CharacterAuthoringValidationGate.ImportBlocked), "ResourceKey conflict should use stable compiler issue code.");
+    }
+
+    private static CharacterAuthoringCompileResult Compile(
+        CharacterResourcePackage package,
+        bool checkFiles = false,
+        bool checkHashes = false,
+        CharacterPackageResourceCatalog projectCatalog = null)
+    {
+        return CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest
+        {
+            Package = package,
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            ExistingProjectResourceCatalogSummary = projectCatalog,
+            Options = new CharacterAuthoringCompileOptions
+            {
+                ValidateResourceFiles = checkFiles || checkHashes,
+                ValidateResourceHashes = checkHashes
+            }
+        });
+    }
+
+    private static bool HasCompilerIssue(CharacterAuthoringCompileResult result, string code, CharacterAuthoringValidationGate gate)
+    {
+        for (int i = 0; i < result.GateReport.Issues.Count; i++)
+        {
+            CharacterAuthoringValidationIssue issue = result.GateReport.Issues[i];
+            if (issue.Code == code && issue.Gate == gate)
+                return true;
+        }
+
+        return false;
     }
 
     private static CharacterResourcePackage LoadSample(string sampleName)
