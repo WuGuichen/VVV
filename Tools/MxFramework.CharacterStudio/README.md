@@ -4,6 +4,12 @@ CharacterStudio is the external browser workstation for authoring Character Reso
 
 ## Run
 
+Install the browser 3D dependency once:
+
+```bash
+npm --prefix Tools/MxFramework.CharacterStudio install
+```
+
 From the repository root:
 
 ```bash
@@ -23,7 +29,8 @@ The root `index.html` redirects to `web/` for static repo servers.
 
 - package discovery and package tree for the Iron Vanguard Character Resource Package;
 - read-only resource, geometry, validation, and import report browsing;
-- SVG viewport overlays for body profile, colliders, sockets, weapon attachments, and traces;
+- Three.js viewport for package GLB resources, with selectable colliders, sockets, weapon attachments, and traces;
+- SVG viewport fallback when `node_modules/three` has not been installed;
 - inspector draft edits for colliders, sockets, attachments, and traces;
 - save through `/api/character/save`, which validates with the Authoring Core gate before writing package JSON;
 - compile diagnostics through `/api/character/compile`;

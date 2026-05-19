@@ -23,6 +23,9 @@ const state = {
 };
 
 const el = {};
+let threeRuntimePromise = null;
+let viewportRenderId = 0;
+let viewportCleanup = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
@@ -228,6 +231,141 @@ function renderViewport() {
     el.viewport.innerHTML = `<div class="empty">No package loaded.</div>`;
     return;
   }
+
+  if (viewportCleanup) {
+    viewportCleanup();
+    viewportCleanup = null;
+  }
+
+  const renderId = ++viewportRenderId;
+  el.viewport.innerHTML = `<div class="viewport3d" aria-label="3D character viewport"><div class="viewport-status">Loading 3D preview...</div></div>`;
+  renderThreeViewport(renderId).catch(error => {
+    if (renderId !== viewportRenderId) return;
+    renderSvgViewport(`3D preview unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  });
+}
+
+async function renderThreeViewport(renderId) {
+  const runtime = await loadThreeRuntime();
+  if (renderId !== viewportRenderId) return;
+
+  const { THREE, GLTFLoader, OrbitControls } = runtime;
+  const host = el.viewport.querySelector(".viewport3d");
+  if (!host) return;
+
+  host.innerHTML = "";
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf8fafb);
+
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
+  camera.position.set(2.35, 1.55, 3.15);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  host.append(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.target.set(0, 0.95, 0);
+  controls.minDistance = 0.75;
+  controls.maxDistance = 8;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8c2c9, 1.8));
+  const key = new THREE.DirectionalLight(0xffffff, 1.7);
+  key.position.set(2.5, 3.5, 2.5);
+  scene.add(key);
+  scene.add(new THREE.GridHelper(3.2, 16, 0xd6dde2, 0xe6ecef));
+
+  const content = new THREE.Group();
+  const pickables = [];
+  scene.add(content);
+
+  const loader = new GLTFLoader();
+  const packageUrl = relative => encodeURI(`/${state.packageRelative}/${relative}`);
+  const resources = state.package.resourceCatalog?.entries || [];
+  const geometry = state.package.geometry || {};
+  const socketsById = Object.fromEntries((geometry.sockets || []).map(socket => [socket.socketId, socket]));
+  const activeSlots = new Set((LOADOUTS.find(loadout => loadout.id === state.activeLoadout) || LOADOUTS[0]).slots);
+
+  const bodyResource = resources.find(resource => resource.usage === "characterModel")
+    || resources.find(resource => resource.resourceKey === geometry.bodyProfile?.modelRootStableId)
+    || resources.find(resource => resource.typeId === "model");
+  let loadedBody = false;
+  if (bodyResource?.relativePath) {
+    loadedBody = await addGltfResource({
+      THREE,
+      loader,
+      content,
+      pickables,
+      url: packageUrl(bodyResource.relativePath),
+      objectPath: `resources/${bodyResource.resourceKey}`,
+      name: bodyResource.localId || bodyResource.resourceKey
+    });
+  }
+  if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile);
+
+  if (state.layers.colliders) addColliderMeshes(THREE, content, pickables, geometry.colliders || []);
+  if (state.layers.sockets) addSocketMeshes(THREE, content, pickables, geometry.sockets || []);
+  if (state.layers.traces) addTraceMeshes(THREE, content, pickables, (geometry.traces || []).filter(trace => activeSlots.has(trace.equipSlot)));
+  if (state.layers.weapons) {
+    await addWeaponMeshes({
+      THREE,
+      loader,
+      content,
+      pickables,
+      resources,
+      packageUrl,
+      socketsById,
+      attachments: (geometry.weaponAttachments || []).filter(attachment => activeSlots.has(attachment.equipSlot))
+    });
+  }
+
+  frameContent(THREE, camera, controls, content, geometry.bodyProfile);
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.params.Line = { threshold: 0.08 };
+  const pointer = new THREE.Vector2();
+  const onPointerDown = event => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(pickables, true)
+      .find(item => findObjectPath(item.object));
+    const objectPath = hit ? findObjectPath(hit.object) : "";
+    if (objectPath) selectPath(objectPath);
+  };
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
+
+  const resize = () => {
+    const width = Math.max(1, host.clientWidth);
+    const height = Math.max(1, host.clientHeight);
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  };
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(host);
+  resize();
+
+  let frame = 0;
+  const animate = () => {
+    controls.update();
+    renderer.render(scene, camera);
+    frame = requestAnimationFrame(animate);
+  };
+  animate();
+
+  viewportCleanup = () => {
+    cancelAnimationFrame(frame);
+    resizeObserver.disconnect();
+    renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+    renderer.dispose();
+  };
+}
+
+function renderSvgViewport(message = "") {
   const g = state.package.geometry || {};
   const selected = state.selectedPath;
   const activeSlots = new Set((LOADOUTS.find(l => l.id === state.activeLoadout) || LOADOUTS[0]).slots);
@@ -296,13 +434,181 @@ function renderViewport() {
     }
   }
 
-  el.viewport.innerHTML = `<svg viewBox="0 0 100 100" role="img" aria-label="Character package viewport"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#edf1f3" stroke-width="0.6"/></pattern></defs><rect width="100" height="100" fill="url(#grid)"/><text x="4" y="7" font-size="3.5" fill="#61717f">${escapeHtml(state.package.manifest?.packageId || "character")}</text>${shapes.join("")}</svg>`;
+  el.viewport.innerHTML = `<div class="viewport-fallback">${message ? `<div class="viewport-status">${escapeHtml(message)}</div>` : ""}<svg viewBox="0 0 100 100" role="img" aria-label="Character package viewport"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#edf1f3" stroke-width="0.6"/></pattern></defs><rect width="100" height="100" fill="url(#grid)"/><text x="4" y="7" font-size="3.5" fill="#61717f">${escapeHtml(state.package.manifest?.packageId || "character")}</text>${shapes.join("")}</svg></div>`;
   el.viewport.querySelectorAll("[data-object-path]").forEach(item => {
     item.addEventListener("click", event => {
       event.stopPropagation();
       selectPath(item.getAttribute("data-object-path"));
     });
   });
+}
+
+async function loadThreeRuntime() {
+  if (!threeRuntimePromise) {
+    threeRuntimePromise = Promise.all([
+      import("../node_modules/three/build/three.module.js"),
+      import("../node_modules/three/examples/jsm/loaders/GLTFLoader.js"),
+      import("../node_modules/three/examples/jsm/controls/OrbitControls.js")
+    ]).then(([THREE, loaderModule, controlsModule]) => ({
+      THREE,
+      GLTFLoader: loaderModule.GLTFLoader,
+      OrbitControls: controlsModule.OrbitControls
+    }));
+  }
+  return threeRuntimePromise;
+}
+
+async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null }) {
+  try {
+    const gltf = await new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
+    const root = gltf.scene;
+    root.name = name || objectPath;
+    if (position) root.position.copy(position);
+    makeSelectable(root, objectPath, pickables);
+    content.add(root);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function addFallbackBody(THREE, content, pickables, body = {}) {
+  const height = Number(body.heightMeters || body.defaultCapsule?.height || 1.8);
+  const radius = Number(body.radiusMeters || body.defaultCapsule?.radius || 0.34);
+  const material = new THREE.MeshStandardMaterial({ color: 0xcddde0, roughness: 0.72, metalness: 0.05 });
+  const geometry = THREE.CapsuleGeometry
+    ? new THREE.CapsuleGeometry(radius, Math.max(0.01, height - radius * 2), 8, 18)
+    : new THREE.CylinderGeometry(radius, radius, height, 18);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = height / 2;
+  makeSelectable(mesh, "geometry/body", pickables);
+  content.add(mesh);
+}
+
+function addColliderMeshes(THREE, content, pickables, colliders) {
+  for (const collider of colliders) {
+    const objectPath = `geometry/colliders/${collider.colliderId}`;
+    const selected = state.selectedPath === objectPath;
+    const material = new THREE.MeshBasicMaterial({
+      color: selected ? 0xffa11f : 0x1f7a7a,
+      transparent: true,
+      opacity: selected ? 0.42 : 0.24,
+      wireframe: !selected,
+      depthWrite: false
+    });
+    let geometry;
+    if (collider.shape === "Box") {
+      const size = collider.size || {};
+      geometry = new THREE.BoxGeometry(Number(size.x || 0.25), Number(size.y || 0.25), Number(size.z || 0.25));
+    } else if (collider.shape === "Capsule" && THREE.CapsuleGeometry) {
+      const radius = Number(collider.radius || 0.12);
+      const height = Number(collider.height || 0.5);
+      geometry = new THREE.CapsuleGeometry(radius, Math.max(0.01, height - radius * 2), 8, 16);
+    } else {
+      geometry = new THREE.SphereGeometry(Number(collider.radius || 0.12), 20, 12);
+    }
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(toVector3(THREE, collider.localPose?.position));
+    makeSelectable(mesh, objectPath, pickables);
+    content.add(mesh);
+  }
+}
+
+function addSocketMeshes(THREE, content, pickables, sockets) {
+  for (const socket of sockets) {
+    const objectPath = `geometry/sockets/${socket.socketId}`;
+    const selected = state.selectedPath === objectPath;
+    const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, emissive: selected ? 0x442000 : 0x000000 });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), material);
+    mesh.position.copy(toVector3(THREE, socket.localPose?.position));
+    makeSelectable(mesh, objectPath, pickables);
+    content.add(mesh);
+  }
+}
+
+function addTraceMeshes(THREE, content, pickables, traces) {
+  for (const trace of traces) {
+    const objectPath = `geometry/traces/${trace.traceId}`;
+    const selected = state.selectedPath === objectPath;
+    const points = [
+      toVector3(THREE, trace.startPose?.position),
+      toVector3(THREE, trace.endPose?.position)
+    ];
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color: selected ? 0xffa11f : 0xc24141, linewidth: 2 })
+    );
+    makeSelectable(line, objectPath, pickables);
+    content.add(line);
+  }
+}
+
+async function addWeaponMeshes({ THREE, loader, content, pickables, resources, packageUrl, socketsById, attachments }) {
+  for (const attachment of attachments) {
+    const objectPath = `geometry/weapon_attachments/${attachment.weaponId}`;
+    const socket = socketsById[attachment.attachSocketId];
+    const position = toVector3(THREE, socket?.localPose?.position);
+    const resource = resources.find(entry => entry.resourceKey === attachment.previewResourceKey);
+    let loaded = false;
+    if (resource?.relativePath) {
+      loaded = await addGltfResource({
+        THREE,
+        loader,
+        content,
+        pickables,
+        url: packageUrl(resource.relativePath),
+        objectPath,
+        name: attachment.weaponId,
+        position
+      });
+    }
+    if (!loaded) {
+      const selected = state.selectedPath === objectPath;
+      const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, transparent: true, opacity: 0.74 });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.08), material);
+      mesh.position.copy(position);
+      mesh.position.x += attachment.equipSlot === "offHand" ? -0.12 : 0.12;
+      makeSelectable(mesh, objectPath, pickables);
+      content.add(mesh);
+    }
+  }
+}
+
+function frameContent(THREE, camera, controls, content, body = {}) {
+  const box = new THREE.Box3().setFromObject(content);
+  if (!box.isEmpty()) {
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const radius = Math.max(size.x, size.y, size.z, 1);
+    controls.target.copy(center);
+    controls.target.y = Math.max(0.8, center.y);
+    camera.position.set(center.x + radius * 1.2, controls.target.y + radius * 0.55, center.z + radius * 1.7);
+    camera.near = Math.max(0.01, radius / 100);
+    camera.far = Math.max(100, radius * 20);
+    camera.updateProjectionMatrix();
+  } else {
+    controls.target.set(0, Number(body.heightMeters || 1.8) / 2, 0);
+  }
+  controls.update();
+}
+
+function makeSelectable(object, objectPath, pickables) {
+  object.userData.objectPath = objectPath;
+  object.traverse?.(child => { child.userData.objectPath = objectPath; });
+  pickables.push(object);
+}
+
+function findObjectPath(object) {
+  let cursor = object;
+  while (cursor) {
+    if (cursor.userData?.objectPath) return cursor.userData.objectPath;
+    cursor = cursor.parent;
+  }
+  return "";
+}
+
+function toVector3(THREE, value = {}) {
+  return new THREE.Vector3(Number(value.x || 0), Number(value.y || 0), Number(value.z || 0));
 }
 
 function renderInspector() {
