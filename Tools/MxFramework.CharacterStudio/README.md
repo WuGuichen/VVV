@@ -30,7 +30,7 @@ The root `index.html` redirects to `web/` for static repo servers.
 - package discovery and package tree for the Iron Vanguard Character Resource Package;
 - read-only resource, geometry, validation, and import report browsing;
 - Chinese-first workstation labels and actions;
-- model import into the selected Character Resource Package for body, main-hand weapon, off-hand weapon, or preview models;
+- model import into the selected Character Resource Package plus a model resource library for selecting which imported resource replaces the body, main-hand slot, or off-hand slot;
 - Three.js viewport for package GLB resources, with selectable colliders, sockets, weapon attachments, and traces;
 - SVG viewport fallback when `node_modules/three` has not been installed;
 - inspector draft edits for colliders, sockets, attachments, and traces;
@@ -40,7 +40,7 @@ The root `index.html` redirects to `web/` for static repo servers.
 
 Static file preview still opens the sample package, but save, compile, and import require `editor serve`.
 
-`导入模型` writes the selected `.glb` / `.gltf` file into the current package under `resources/models/`, updates `resource_catalog.json`, and saves through the same validation gate as normal draft edits. `.fbx` input is accepted as an import source only: the Authoring server converts it through the local `fbx2gltf` dependency, stores the generated `.glb`, and records `sourceFormat: "glb"` in the package catalog. `导入 Unity` is a separate step that writes the compiled package outputs into the Unity project.
+`导入模型` writes the selected `.glb` / `.gltf` file into the current package under `resources/models/`, updates `resource_catalog.json`, and saves through the same validation gate as normal draft edits. `角色主体模型` replaces the body model resource, `主手槽武器模型` / `副手槽武器模型` replace the preview model referenced by the current weapon attachment slot, and `仅导入资源` only adds a catalog resource without binding it to the body or a weapon slot. The `导入资源` strip lists model resources with thumbnail, name, usage, format, and current body/weapon-slot binding; clicking a resource thumbnail binds it to the current target selected in the model-purpose dropdown and marks the package dirty. `.fbx` input is accepted as an import source only: the Authoring server converts it through the local `fbx2gltf` dependency, stores the generated `.glb`, and records `sourceFormat: "glb"` in the package catalog. `导入 Unity` is a separate step that writes the compiled package outputs into the Unity project.
 
 FBX conversion requires the CharacterStudio npm dependencies:
 

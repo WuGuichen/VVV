@@ -832,7 +832,9 @@ internal static class EditorServer
 
         entry.TypeId = CharacterPackageResourceTypeIds.Model;
         entry.Variant = string.IsNullOrWhiteSpace(entry.Variant) ? "default" : entry.Variant;
-        entry.Usage = isBody ? CharacterPackageResourceUsageIds.CharacterModel : CharacterPackageResourceUsageIds.WeaponModel;
+        entry.Usage = isBody
+            ? CharacterPackageResourceUsageIds.CharacterModel
+            : (isWeapon ? CharacterPackageResourceUsageIds.WeaponModel : CharacterPackageResourceUsageIds.PreviewMesh);
         entry.SourceFormat = extension.TrimStart('.');
         entry.PackageId = packageId;
         entry.RelativePath = relativePath;

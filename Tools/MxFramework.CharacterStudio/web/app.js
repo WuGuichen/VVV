@@ -6,6 +6,33 @@ const LOADOUTS = [
   { id: "sword_shield", label: "剑盾", slots: ["mainHand", "offHand"] }
 ];
 
+const MODEL_IMPORT_ROLES = {
+  body: {
+    label: "角色主体模型",
+    title: "替换角色主体模型资源",
+    pending: "正在导入角色主体模型",
+    done: "角色主体模型已导入"
+  },
+  mainHand: {
+    label: "主手槽武器模型",
+    title: "替换当前 mainHand 槽引用的武器预览模型；不创建新的武器定义",
+    pending: "正在导入主手槽武器模型",
+    done: "主手槽武器模型已导入并绑定到 mainHand"
+  },
+  offHand: {
+    label: "副手槽武器模型",
+    title: "替换当前 offHand 槽引用的武器预览模型；不创建新的武器定义",
+    pending: "正在导入副手槽武器模型",
+    done: "副手槽武器模型已导入并绑定到 offHand"
+  },
+  preview: {
+    label: "仅选中资源",
+    title: "仅导入到资源目录，不自动挂到角色主体或武器槽",
+    pending: "正在导入资源目录模型",
+    done: "模型已导入资源目录"
+  }
+};
+
 const KIND_LABELS = {
   manifest: "清单",
   resources: "资源",
@@ -48,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "packageSelect", "reloadButton", "saveButton", "compileButton", "importButton",
     "modelImportRole", "modelImportButton", "modelFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
+    "resourceLibraryTarget", "modelResourceList",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
   ]) el[id] = document.getElementById(id);
@@ -68,6 +96,15 @@ document.addEventListener("DOMContentLoaded", () => {
   el.modelFileInput.addEventListener("change", () => {
     const file = el.modelFileInput.files?.[0];
     if (file) importModel(file);
+  });
+  el.modelImportRole.addEventListener("change", () => {
+    updateModelImportTitle();
+    renderResourceLibrary();
+  });
+  el.modelResourceList.addEventListener("click", event => {
+    const button = event.target.closest("button[data-resource-key]");
+    if (!button) return;
+    bindModelResource(button.dataset.resourceKey);
   });
   el.copyReportButton.addEventListener("click", () => copyReport());
   el.packageSelect.addEventListener("change", event => {
@@ -172,6 +209,7 @@ function render() {
   renderSummary();
   renderTree();
   renderLoadouts();
+  renderResourceLibrary();
   renderViewport();
   renderInspector();
   renderDiagnostics();
@@ -187,6 +225,188 @@ function renderShellStatus() {
   el.modelImportRole.disabled = !state.canWrite || !state.package;
   el.compileButton.disabled = !state.apiAvailable || !state.package;
   el.importButton.disabled = !state.apiAvailable || !state.package || state.dirty || isImportBlocked();
+  updateModelImportTitle();
+}
+
+function getModelImportRole() {
+  return MODEL_IMPORT_ROLES[el.modelImportRole?.value] || MODEL_IMPORT_ROLES.preview;
+}
+
+function updateModelImportTitle() {
+  if (!el.modelImportButton || !el.modelImportRole) return;
+  el.modelImportButton.title = `${getModelImportRole().title}。支持 GLB/GLTF；FBX 会先转换为 GLB。`;
+}
+
+function renderResourceLibrary() {
+  if (!el.modelResourceList || !el.resourceLibraryTarget) return;
+  const targetRole = el.modelImportRole?.value || "preview";
+  const roleInfo = getModelImportRole();
+  el.resourceLibraryTarget.textContent = targetRole === "preview"
+    ? "当前目标：仅选中资源"
+    : `当前替换目标：${roleInfo.label}`;
+
+  const resources = getModelResources(state.package);
+  if (!resources.length) {
+    el.modelResourceList.innerHTML = `<div class="empty">暂无模型资源。</div>`;
+    return;
+  }
+
+  el.modelResourceList.innerHTML = resources.map(resource => {
+    const path = `resources/${resource.resourceKey}`;
+    const selected = path === state.selectedPath;
+    const binding = describeResourceBinding(resource, state.package);
+    const thumbnailUrl = getResourceThumbnailUrl(resource, state.package);
+    const sourceName = resource.provenance?.sourceFile || resource.relativePath || resource.localId || resource.resourceKey;
+    const imported = (resource.tags || []).some(tag => tag === "characterstudio-import" || tag === "converted-from-fbx");
+    const thumb = thumbnailUrl
+      ? `<img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(getResourceDisplayName(resource))}">`
+      : `<span>${escapeHtml(getResourceInitial(resource))}</span>`;
+    return `
+      <button type="button" class="resource-card ${selected ? "active" : ""}" data-resource-key="${escapeHtml(resource.resourceKey || "")}" title="${escapeHtml(sourceName)}">
+        <span class="resource-thumb">${thumb}</span>
+        <span class="resource-info">
+          <strong>${escapeHtml(getResourceDisplayName(resource))}</strong>
+          <span>${escapeHtml(binding || "未绑定到角色或武器槽")}</span>
+          <span>${escapeHtml(resource.usage || "usage?")} / ${escapeHtml(resource.sourceFormat || "format?")}${imported ? " / imported" : ""}</span>
+        </span>
+      </button>`;
+  }).join("");
+}
+
+function getModelResources(pkg) {
+  return (pkg?.resourceCatalog?.entries || [])
+    .filter(resource => resource && resource.typeId === "model" && resource.resourceKey)
+    .sort((a, b) => getResourceSortKey(a, pkg).localeCompare(getResourceSortKey(b, pkg)));
+}
+
+function getResourceSortKey(resource, pkg) {
+  const binding = describeResourceBinding(resource, pkg);
+  const rank = binding.includes("角色主体") ? "0" : binding.includes("mainHand") ? "1" : binding.includes("offHand") ? "2" : "3";
+  return `${rank}:${getResourceDisplayName(resource)}`;
+}
+
+function getResourceDisplayName(resource) {
+  const source = resource.provenance?.sourceFile || resource.localId || resource.resourceKey || resource.relativePath || "model";
+  const name = String(source).split("/").pop().replace(/\.(glb|gltf|fbx)$/i, "");
+  return name || "model";
+}
+
+function getResourceInitial(resource) {
+  const name = getResourceDisplayName(resource);
+  return name.slice(0, 2).toUpperCase();
+}
+
+function describeResourceBinding(resource, pkg) {
+  const bindings = [];
+  if (resource.usage === "characterModel") bindings.push("角色主体");
+  for (const attachment of pkg?.geometry?.weaponAttachments || []) {
+    if (attachment.previewResourceKey === resource.resourceKey) {
+      bindings.push(`${attachment.equipSlot || "slot"}:${attachment.weaponId || "weapon"}`);
+    }
+  }
+  return bindings.join(" / ");
+}
+
+function getResourceThumbnailUrl(resource, pkg) {
+  const previewKey = resource.preview?.thumbnailResourceKey || resource.preview?.placeholderResourceKey || "";
+  const preview = (pkg?.resourceCatalog?.entries || []).find(entry => entry.resourceKey === previewKey);
+  if (!preview?.relativePath) return "";
+  return encodeURI(`/${state.packageRelative}/${preview.relativePath}`);
+}
+
+function bindModelResource(resourceKey) {
+  if (!resourceKey || !state.package) return;
+  const resource = (state.package.resourceCatalog?.entries || []).find(entry => entry.resourceKey === resourceKey);
+  if (!resource) return;
+
+  const role = el.modelImportRole?.value || "preview";
+  const path = `resources/${resource.resourceKey}`;
+  if (!state.canWrite || role === "preview") {
+    state.selectedPath = path;
+    state.message = role === "preview"
+      ? `已选中资源：${getResourceDisplayName(resource)}`
+      : "静态预览只能选中资源，不能替换绑定。";
+    renderTree();
+    renderResourceLibrary();
+    renderViewport();
+    renderInspector();
+    renderShellStatus();
+    return;
+  }
+
+  if (role === "body") {
+    bindBodyModelResource(resource);
+  } else if (role === "mainHand" || role === "offHand") {
+    if (!bindWeaponSlotResource(role, resource)) return;
+  } else {
+    state.selectedPath = path;
+    render();
+    return;
+  }
+
+  ensureApplicationResourceKey(resource.resourceKey);
+  touchModelResource(resource, role);
+  state.selectedPath = path;
+  state.dirty = true;
+  state.message = `${getResourceDisplayName(resource)} 已设为${getModelImportRole().label}。保存后写入资源包。`;
+  render();
+}
+
+function bindBodyModelResource(resource) {
+  for (const entry of getModelResources(state.package)) {
+    if (entry.resourceKey !== resource.resourceKey && entry.usage === "characterModel") {
+      entry.usage = "previewMesh";
+      removeTag(entry.tags, "body");
+    }
+  }
+  resource.usage = "characterModel";
+  addTagValue(resource, "body");
+}
+
+function bindWeaponSlotResource(slot, resource) {
+  const attachments = state.package?.geometry?.weaponAttachments || [];
+  const attachment = attachments.find(item => item.equipSlot === slot);
+  if (!attachment) {
+    state.message = `没有找到 ${slot} 武器挂载项，无法替换。`;
+    renderShellStatus();
+    return false;
+  }
+
+  attachment.previewResourceKey = resource.resourceKey;
+  if (resource.usage !== "characterModel") {
+    resource.usage = "weaponModel";
+  }
+  addTagValue(resource, "weapon");
+  addTagValue(resource, slot);
+  return true;
+}
+
+function ensureApplicationResourceKey(resourceKey) {
+  const appConfig = state.package.applicationConfig || {};
+  state.package.applicationConfig = appConfig;
+  appConfig.resourceKeys = Array.isArray(appConfig.resourceKeys) ? appConfig.resourceKeys : [];
+  if (!appConfig.resourceKeys.includes(resourceKey)) appConfig.resourceKeys.push(resourceKey);
+}
+
+function touchModelResource(resource, role) {
+  resource.provenance = resource.provenance || {};
+  resource.provenance.modifiedUtc = new Date().toISOString();
+  addTagValue(resource, "characterstudio-bind");
+  addTagValue(resource, role);
+}
+
+function addTagValue(resource, tag) {
+  if (!tag) return;
+  resource.tags = Array.isArray(resource.tags) ? resource.tags : [];
+  if (!resource.tags.some(existing => String(existing).toLowerCase() === String(tag).toLowerCase())) {
+    resource.tags.push(tag);
+  }
+}
+
+function removeTag(tags, tag) {
+  if (!Array.isArray(tags)) return;
+  const index = tags.findIndex(existing => String(existing).toLowerCase() === String(tag).toLowerCase());
+  if (index >= 0) tags.splice(index, 1);
 }
 
 function renderSummary() {
@@ -784,9 +1004,11 @@ async function importModel(file) {
     return;
   }
 
+  const role = el.modelImportRole.value;
+  const roleInfo = getModelImportRole();
   state.message = extension === "fbx"
-    ? `正在转换并导入 FBX：${file.name}`
-    : `正在导入模型：${file.name}`;
+    ? `${roleInfo.pending}，并转换 FBX：${file.name}`
+    : `${roleInfo.pending}：${file.name}`;
   renderShellStatus();
   try {
     const bytesBase64 = await readFileAsBase64(file);
@@ -795,7 +1017,7 @@ async function importModel(file) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fileName: file.name,
-        role: el.modelImportRole.value,
+        role,
         bytesBase64
       })
     });
@@ -811,9 +1033,10 @@ async function importModel(file) {
     state.dirty = false;
     state.canWrite = Boolean(data.canWrite);
     state.apiAvailable = true;
+    state.selectedPath = findImportedModelPath(role, data.package, file.name) || state.selectedPath;
     state.message = extension === "fbx"
-      ? `FBX 已转换为 GLB 并导入：${file.name}`
-      : `模型已导入：${file.name}`;
+      ? `${roleInfo.done}，FBX 已转换为 GLB：${file.name}`
+      : `${roleInfo.done}：${file.name}`;
     render();
   } catch (error) {
     state.message = `模型导入失败：${error instanceof Error ? error.message : String(error)}`;
@@ -831,6 +1054,26 @@ function readFileAsBase64(file) {
     reader.addEventListener("error", () => reject(reader.error || new Error("File read failed.")));
     reader.readAsDataURL(file);
   });
+}
+
+function findImportedModelPath(role, pkg, sourceFileName) {
+  const resources = pkg?.resourceCatalog?.entries || [];
+  if (role === "body") {
+    const entry = resources.find(resource => resource.usage === "characterModel" || resource.localId === "model.body");
+    return entry?.resourceKey ? `resources/${entry.resourceKey}` : "geometry/body";
+  }
+
+  if (role === "mainHand" || role === "offHand") {
+    const attachment = (pkg?.geometry?.weaponAttachments || []).find(item => item.equipSlot === role);
+    if (attachment?.previewResourceKey && resources.some(resource => resource.resourceKey === attachment.previewResourceKey)) {
+      return `resources/${attachment.previewResourceKey}`;
+    }
+    return attachment?.weaponId ? `geometry/weapon_attachments/${attachment.weaponId}` : "";
+  }
+
+  const bySource = resources.find(resource => resource.provenance?.sourceFile === sourceFileName);
+  if (bySource?.resourceKey) return `resources/${bySource.resourceKey}`;
+  return "";
 }
 
 async function compilePackage() {
@@ -878,6 +1121,7 @@ function selectPath(path) {
   if (!path) return;
   state.selectedPath = path;
   renderTree();
+  renderResourceLibrary();
   renderViewport();
   renderInspector();
 }

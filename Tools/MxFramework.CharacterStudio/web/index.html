@@ -24,10 +24,10 @@
       <div class="toolbar">
         <select id="packageSelect" title="角色资源包"></select>
         <select id="modelImportRole" title="模型用途">
-          <option value="body">主体模型</option>
-          <option value="mainHand">主手武器</option>
-          <option value="offHand">副手武器</option>
-          <option value="preview">预览模型</option>
+          <option value="body">角色主体模型</option>
+          <option value="mainHand">主手槽武器模型</option>
+          <option value="offHand">副手槽武器模型</option>
+          <option value="preview">仅导入资源</option>
         </select>
         <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
         <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入模型</button>
@@ -59,6 +59,13 @@
           </div>
         </div>
         <div id="loadoutTabs" class="tabs"></div>
+        <div class="resource-library">
+          <div class="resource-library-head">
+            <strong>导入资源</strong>
+            <span id="resourceLibraryTarget">点击资源图选择替换目标</span>
+          </div>
+          <div id="modelResourceList" class="model-resource-list" aria-label="Model resources"></div>
+        </div>
         <div id="viewport" class="viewport" aria-label="Character viewport"></div>
       </section>
 
