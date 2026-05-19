@@ -1,6 +1,6 @@
 # Character Application 接口
 
-> 状态：#216 完成纯解析器与 diagnostics。本文记录已经落地的静态配置接口、resolver DTO 和 noEngine 解析器；不包含工作台 UI 或 Runtime Spawn 实现。
+> 状态：#216 完成纯解析器与 diagnostics；#218 第一切片新增 Runtime Spawn binding plan。本文记录已经落地的静态配置接口、resolver DTO、noEngine 解析器和导入产物到 runtime binding plan 的最小桥接；不包含工作台 UI 或完整可玩场景。
 
 ## 职责
 
@@ -14,6 +14,14 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 - 路径：`Assets/Scripts/MxFramework/Character.Application/`
 - 依赖：`MxFramework.Config`
 - `noEngineReferences=true`
+
+Runtime Spawn 第一切片：
+
+- `MxFramework.Character.RuntimeSpawn`
+- 路径：`Assets/Scripts/MxFramework/Character.RuntimeSpawn/`
+- 依赖：`MxFramework.Character.Application`、`MxFramework.Config`、`MxFramework.Resources`、`MxFramework.Runtime`、`MxFramework.Gameplay`、`MxFramework.Combat`、`MxFramework.CharacterControl`
+- `noEngineReferences=true`
+- 职责：只消费 #222 导入后的 `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/` 产物，读取 config patch / geometry binding / resource mapping / import report，复用 `CharacterPackageResolver`，输出 `CharacterRuntimeBinding` 和 Gameplay / Combat / Resource / Weapon binding plan。
 
 外部角色资源包 C0 / C0.5 / C0.6 契约当前落点：
 
@@ -103,6 +111,18 @@ C0.5 v1 source format 把 glTF / GLB 作为模型和动画组的目标格式，F
 C0.6 compiler status 固定为 `Ready`、`WarningOnly`、`SpawnBlocked`、`ImportBlocked`、`ExportBlocked`。`ImportBlocked` 时 `UnityImportWritePlan.CanWriteToUnityProject=false`；`SpawnBlocked` 时可以导入但 `CanSpawnAfterImport=false`；coordinate mismatch 如果可转换则是 `WarningOnly` 并写入 `CharacterCoordinateConversionPlan`。
 
 C2 Unity Importer Bridge 固定为 CLI + Unity Editor command 双入口。CLI 命令为 `character import-unity --package <path> --project-root <repo> --check-files --check-hashes`；Unity 入口为菜单 `MxFramework/Character/Import Character Package...`、`MxFramework/Character/Reimport Last Character Package` 和 batchmode `MxFramework.Editor.CharacterImport.CharacterPackageImportCommand.Import`。导入目标是 `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/`，其中 `package_cache/import_report.json` 是审计报告，`config/unity_resource_catalog.json` 是 Unity 项目 ResourceCatalog 映射，`config/character_config_patch.json` 和 `config/geometry_binding.json` 是后续 Workstation / Runtime Spawn 的稳定输入。
+
+## Runtime Spawn 第一切片
+
+| 类型 | 用途 |
+| --- | --- |
+| `CharacterImportedPackageJson` | 从 #222 导入目录读取 `character_config_patch.json`、`geometry_binding.json`、`resource_catalog_mapping.json`、`unity_resource_catalog.json` 和 `import_report.json` |
+| `CharacterImportedPackage` | 导入后角色包的 runtime 可消费聚合对象 |
+| `CharacterRuntimeSpawnResolver` | 执行 gate 检查、`SpawnPlanResolver`、`CharacterPackageResolver`，并生成 binding plan |
+| `CharacterRuntimeBinding` | 第一切片输出，绑定 `CharacterControlEntityRef`、`CharacterSpawnPlan`、`CharacterResolvedProfile`、hash、Gameplay plan、Combat body plan、weapon attachment plan 和 resource preload plan |
+| `CharacterRuntimeSpawnModule` | `RuntimeHost` 模块入口，消费排队的 `CharacterSpawnRequest` 并保存 `CharacterRuntimeSpawnResult` |
+
+第一切片仍是 `Runtime Slice`，不是完整 Playable。它不会实例化真实 Unity view、不会创建完整 Gameplay / Combat world，也不会接入 CharacterControl 输入源；这些内容由后续 Runtime Showcase / playable 切片完成。`SpawnBlocked` 导入报告会返回 `CharacterRuntimeSpawnStatus.SpawnBlocked`，不会创建 `CharacterRuntimeBinding`。
 
 ## ID 规则
 
