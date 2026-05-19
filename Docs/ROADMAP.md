@@ -1053,3 +1053,33 @@
 - 现有 Diagnostics / Logging / Resources / Runtime / Gameplay / Combat 测试不回退。
 
 **状态**: 🔄 #185-#187 implementation in review
+
+## Phase 14: Camera Management
+
+目标：补齐框架级运行时相机管理能力，提供 noEngine 相机契约、自研 Unity Camera backend、多目标入镜、profile blend、shake / focus、Character Control facing basis 辅助和 Debug UI 诊断。
+
+阶段边界：
+- 首版自研轻量相机系统，不引入 Cinemachine 硬依赖。
+- `MxFramework.Camera` 只保存 profile、request、target snapshot、group framing、evaluated state、evaluation result 和 diagnostics，不引用 UnityEngine / UnityEditor / Input System / UI Toolkit。
+- Unity Camera、Transform、FOV、orthographic size 和 LateUpdate 应用放在 `MxFramework.Camera.Unity`。
+- 相机是表现层能力，不进入 Gameplay / Combat authority、Runtime result hash、Replay hash 或 SaveState 默认内容。
+- 多目标入镜是首版核心能力，覆盖玩家 + 敌人、多人本地、Boss / arena framing 和正交俯视视角。
+- request 解析、target lost、fallback、backend failure 必须有稳定诊断码，不能静默 fallback。
+
+任务：
+- #231 / `Tasks/CAMERA_MANAGEMENT_01_DESIGN.md`：相机模块设计契约、noEngine / Unity backend 边界、request 解析、多目标入镜算法、诊断语义和 implementation slices。
+- 后续 #TBD：`MxFramework.Camera` noEngine core，包含 profile、request、target group solver、service、Null backend 和 tests。
+- 后续 #TBD：`MxFramework.Camera.Unity` backend MVP，包含 Unity rig、target binder、LateUpdate apply、single / group follow PlayMode 验证。
+- 后续 #TBD：Demo migration，把一个现有 Runtime Showcase / Playable Demo 的散落 camera logic 收敛到 `MxCameraUnityRig`。
+- 后续 #TBD：Animation / Combat presentation event sink，把 camera shake / focus / impulse 接入表现事件。
+- 后续 #TBD：Camera Debug UI source 和 Editor authoring / validation MVP。
+
+完成条件：
+- `MxFramework.Camera` 无 UnityEngine / UnityEditor / Cinemachine / Input System 引用。
+- noEngine tests 覆盖单目标、多目标、target lost、profile blend、zoom、shake 和 diagnostics。
+- Unity PlayMode tests 覆盖实际 Camera transform / FOV / orthographic size 应用和 LateUpdate 顺序。
+- 至少一个 Demo 使用相机 backend 代替手写 `Camera.main` / orbit / follow。
+- Character Control camera-facing 输入通过组合根 resolver 接入，core 不反向依赖 Camera。
+- Debug snapshot 可定位 active profile、target group、framing bounds、shake queue 和 recent errors。
+
+**状态**: 📋 #231 Design in review
