@@ -663,7 +663,44 @@ if (report.HasErrors)
 }
 ```
 
-### 7.1 Mod Package 运行时边界（单包 / LoadPlan / 多包 Merge）
+### 7.1 Character Application 配置契约
+
+`MxFramework.Character.Application` 提供角色应用层第一批固定配置表。它只描述静态数据和引用关系，不生成运行时角色实例。
+
+```csharp
+using System.Collections.Generic;
+using MxFramework.CharacterApplication;
+using MxFramework.Config;
+
+var characters = new ConfigTable<CharacterConfig>(CharacterConfig.CreateSchema());
+characters.Add(new CharacterConfig(
+    new CharacterConfigId(710001),
+    "mx.character.iron_vanguard",
+    new LocalizedTextKey("character.iron_vanguard.name"),
+    new LocalizedTextKey("character.iron_vanguard.desc"),
+    new CharacterAttributeProfileId(720001),
+    new CharacterBodyProfileId(730001),
+    new EquipmentSchemaId(750001),
+    new EquipmentLoadoutId(760001),
+    new AbilityLoadoutId(790001),
+    new CharacterPresentationProfileId(810001),
+    CharacterControllerKind.HumanInput,
+    "controller.human.default",
+    new[] { "sample", "vanguard" }));
+
+ConfigSchema characterSchema = CharacterConfig.CreateSchema();
+IReadOnlyList<ConfigSchema> allCharacterSchemas = CharacterApplicationConfigSchemas.CreateAll();
+```
+
+约定：
+
+- `IConfigData.Id` 保持 `int`，跨表字段使用 `CharacterConfigId`、`EquipmentLoadoutId` 等 typed id。
+- `StableId` 用于 SaveState、Mod、调试报告和跨版本迁移。
+- `CharacterAttributeProfileConfig` 使用 `BaseValue` / `InitialValue`，运行时当前值由 runtime state 保存。
+- `CombatActionSetConfig` 只做动作绑定，不复制 Combat action timeline 权威字段。
+- 空手、单武器、多槽位武器都通过 `EquipmentLoadoutConfig` 和后续 resolver 解释。
+
+### 7.2 Mod Package 运行时边界（单包 / LoadPlan / 多包 Merge）
 
 - 单包加载：`RuntimeModPackageLoader.LoadFromDirectory(path)` 只负责读取一个包并返回 `RuntimeConfigPatchBundle`，不处理跨包顺序。
 - 包发现与排序：`RuntimeModPackageDiscovery.Discover(containers)` + `RuntimeModPackageLoadPlanBuilder.Build(catalog)` 只产出 `OrderedItems/SkippedItems`，不修改配置表。
@@ -678,7 +715,7 @@ Loadout v0 约定：
 - `enabledPackageKeys == []` 时启用 0 个包。
 - loadout 中缺失 key 不中断流程，写入 `LoadPlan.Warnings`。
 
-### 7.2 Mod Diagnostic CLI（命令行诊断）
+### 7.3 Mod Diagnostic CLI（命令行诊断）
 
 `mod diagnose` 命令在 CLI 中执行完整的包发现→加载计划→合并诊断管道，输出 JSON 快照。
 
@@ -722,7 +759,7 @@ dotnet run --project src/MxFramework.Authoring.Cli -- mod diagnose -c /path/to/M
 - `success`：整体是否成功（有 Error 则 false）
 - `format`：固定为 `mx.modDiagnosticSnapshot.v1`
 
-### 7.3 Mod Diagnostic Snapshot（运行时诊断统一入口）
+### 7.4 Mod Diagnostic Snapshot（运行时诊断统一入口）
 
 - 目的：把 `catalog + loadout + loadPlan + mergeResult` 汇总成单一快照，不改变运行时行为。
 - 构建 API：
@@ -746,7 +783,7 @@ dotnet run --project src/MxFramework.Authoring.Cli -- mod diagnose -c /path/to/M
 - skipped（invalid/disabled）包不参与合并，但会记录进报告。
 - ordered 包在 merge 阶段加载失败会直接返回 `Success=false`，并包含 `packageId/path/error`。
 
-### 7.4 EditorServer 诊断 API（Authoring Editor）
+### 7.5 EditorServer 诊断 API（Authoring Editor）
 
 `editor serve` 提供 Mod 诊断 API：
 

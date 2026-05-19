@@ -38,6 +38,7 @@
         "MxFramework.Input",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
+        "MxFramework.Character.Application",
         "MxFramework.CharacterControl",
         "MxFramework.CharacterControl.Animation",
         "MxFramework.CharacterControl.Input",
