@@ -766,8 +766,8 @@ async function renderThreeViewport(renderId) {
     });
   }
 
-  syncPreviewBones(bodyBoneRecords);
   content.updateMatrixWorld(true);
+  syncPreviewBones(THREE, bodyBoneRecords);
   addBoneGizmos(THREE, scene, pickables, bodyBoneRecords);
   frameContent(THREE, camera, controls, content, geometry.bodyProfile);
   host.insertAdjacentHTML("beforeend", renderBonePicker());
@@ -971,17 +971,34 @@ function getPreviewBonePath(object, root) {
   return names.join("/");
 }
 
-function syncPreviewBones(records) {
+function syncPreviewBones(THREE, records) {
   const previewBones = (records || [])
-    .map(record => ({
-      name: record.name || "",
-      path: record.path || "",
-      alias: record.alias || "",
-      parentPath: record.parentPath || "",
-      depth: Number.isFinite(record.depth) ? record.depth : 0
-    }))
+    .map(record => {
+      const point = new THREE.Vector3();
+      record.bone?.getWorldPosition(point);
+      return {
+        name: record.name || "",
+        path: record.path || "",
+        alias: record.alias || "",
+        parentPath: record.parentPath || "",
+        depth: Number.isFinite(record.depth) ? record.depth : 0,
+        position: {
+          x: numberOrDefault(point.x, 0),
+          y: numberOrDefault(point.y, 0),
+          z: numberOrDefault(point.z, 0)
+        }
+      };
+    })
     .filter(record => record.path);
-  const key = JSON.stringify(previewBones.map(record => [record.path, record.alias, record.parentPath, record.depth]));
+  const key = JSON.stringify(previewBones.map(record => [
+    record.path,
+    record.alias,
+    record.parentPath,
+    record.depth,
+    Number(record.position.x.toFixed(4)),
+    Number(record.position.y.toFixed(4)),
+    Number(record.position.z.toFixed(4))
+  ]));
   if (key === state.previewBoneKey) return;
   state.previewBones = previewBones;
   state.previewBoneKey = key;
@@ -1241,14 +1258,15 @@ function renderBonePicker() {
     }).join("");
   const nodes = layout.nodes.map(node => {
     const selected = isBoneRecordSelected(node.record, selectedValue);
-    return `<g class="bone-node ${selected ? "selected" : ""}" data-bone-path="${escapeHtml(node.record.path)}" data-bone-alias="${escapeHtml(node.record.alias || "")}" data-bone-name="${escapeHtml(node.record.name || "")}" transform="translate(${node.x} ${node.y})"><circle r="${selected ? 4.2 : 3.2}"></circle><text x="7" y="3">${escapeHtml(node.record.name || node.record.path)}</text></g>`;
+    const label = getBoneMapLabel(node.record, selected);
+    return `<g class="bone-node ${selected ? "selected" : ""}" data-bone-path="${escapeHtml(node.record.path)}" data-bone-alias="${escapeHtml(node.record.alias || "")}" data-bone-name="${escapeHtml(node.record.name || "")}" transform="translate(${node.x} ${node.y})"><title>${escapeHtml(node.record.path)}</title><circle r="${selected ? 4.2 : 3.1}"></circle>${label ? `<text x="7" y="3">${escapeHtml(label)}</text>` : ""}</g>`;
   }).join("");
 
   return `
-    <div class="bone-picker" aria-label="骨骼选择">
+    <div class="bone-picker ${layout.mode === "map" ? "bone-map" : "bone-tree"}" aria-label="骨骼选择">
       <div class="bone-picker-head">
         <strong>骨骼</strong>
-        <span>${escapeHtml(title)}</span>
+        <span>${escapeHtml(title)}${layout.mode === "map" ? " · 2D" : ""}</span>
       </div>
       <svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="Skeleton picker">
         <g class="bone-links">${lines}</g>
@@ -1284,11 +1302,46 @@ function boneRecordFromPath(path) {
     path: value,
     alias: value.startsWith("bone.") ? value : "",
     parentPath,
-    depth: Math.max(0, value.split("/").length - 1)
+    depth: Math.max(0, value.split("/").length - 1),
+    position: null
   };
 }
 
 function layoutBonePicker(records) {
+  const trimmed = records.slice(0, 128);
+  if (trimmed.filter(hasBonePosition).length >= 3) return layoutBoneMap(trimmed);
+  return layoutBoneTree(trimmed);
+}
+
+function layoutBoneMap(records) {
+  const width = 320;
+  const height = 320;
+  const margin = 26;
+  const positioned = records.filter(hasBonePosition);
+  const xs = positioned.map(record => record.position.x);
+  const ys = positioned.map(record => record.position.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const rangeX = Math.max(0.001, maxX - minX);
+  const rangeY = Math.max(0.001, maxY - minY);
+  const scale = Math.min((width - margin * 2) / rangeX, (height - margin * 2) / rangeY) * 0.92;
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const nodes = records
+    .filter(hasBonePosition)
+    .map(record => ({
+      record,
+      parent: getBoneParentPath(record, records),
+      x: Math.round((width / 2 + (record.position.x - centerX) * scale) * 10) / 10,
+      y: Math.round((height / 2 - (record.position.y - centerY) * scale) * 10) / 10
+    }));
+  const byPath = new Map(nodes.map(node => [node.record.path, node]));
+  return { nodes, byPath, width, height, mode: "map" };
+}
+
+function layoutBoneTree(records) {
   const nodes = records.slice(0, 96).map((record, index) => {
     const depth = Math.min(7, Number.isFinite(record.depth) ? record.depth : Math.max(0, String(record.path || "").split("/").length - 1));
     return {
@@ -1301,7 +1354,58 @@ function layoutBonePicker(records) {
   const byPath = new Map(nodes.map(node => [node.record.path, node]));
   const width = Math.max(220, Math.max(...nodes.map(node => node.x), 0) + 150);
   const height = Math.max(76, nodes.length * 20 + 20);
-  return { nodes, byPath, width, height };
+  return { nodes, byPath, width, height, mode: "tree" };
+}
+
+function hasBonePosition(record) {
+  const position = record?.position;
+  return Number.isFinite(position?.x) && Number.isFinite(position?.y);
+}
+
+function getBoneMapLabel(record, selected = false) {
+  const side = getBoneSideLabel(record);
+  const kind = getBoneKindLabel(record);
+  if (selected) return `${side}${kind || record.name || "骨骼"}`;
+  if (!isPrimaryBoneLabel(record, kind)) return "";
+  return `${side}${kind}`;
+}
+
+function isPrimaryBoneLabel(record, kind) {
+  const name = getBoneNameSearchText(record);
+  if (kind === "手") return /(^|[._-])hand[lr]?\b|right\s*hand|left\s*hand|righthand|lefthand|wrist/.test(name);
+  if (kind === "脚") return /(^|[._-])foot[lr]?\b|right\s*foot|left\s*foot|rightfoot|leftfoot|ankle/.test(name);
+  if (kind === "头" || kind === "颈") return true;
+  if (kind === "胸") return /chest/.test(name);
+  if (kind === "髋") return /^(hip|hips|pelvis)$/.test(name);
+  return false;
+}
+
+function getBoneSideLabel(record) {
+  const text = getBoneSearchText(record);
+  if (/(^|[^a-z])(left|lhand|handl|lfoot|footl|lshoulder|shoulderl|larm|arml|lleg|legl|lthigh|thighl|lshin|shinl|lpelvis|pelvisl|lefthand|leftfoot)([^a-z]|$)/i.test(text)) return "左";
+  if (/(^|[^a-z])(right|rhand|handr|rfoot|footr|rshoulder|shoulderr|rarm|armr|rleg|legr|rthigh|thighr|rshin|shinr|rpelvis|pelvisr|righthand|rightfoot)([^a-z]|$)/i.test(text)) return "右";
+  return "";
+}
+
+function getBoneKindLabel(record) {
+  const text = getBoneNameSearchText(record) || getBoneSearchText(record);
+  if (/head|skull/.test(text)) return "头";
+  if (/neck/.test(text)) return "颈";
+  if (/finger|thumb|pinky|ring|index|middle/.test(text)) return "手指";
+  if (/hand|wrist|palm/.test(text)) return "手";
+  if (/foot|ankle|toe|heel/.test(text)) return "脚";
+  if (/chest|breast/.test(text)) return "胸";
+  if (/hip|hips|pelvis/.test(text)) return "髋";
+  if (/spine/.test(text)) return "躯干";
+  return "";
+}
+
+function getBoneSearchText(record) {
+  return `${record?.name || ""} ${record?.path || ""} ${record?.alias || ""}`.toLowerCase();
+}
+
+function getBoneNameSearchText(record) {
+  return `${record?.name || ""} ${record?.alias || ""}`.toLowerCase();
 }
 
 function getBoneParentPath(record, records) {
@@ -1383,7 +1487,12 @@ function getCurrentBoneSelectionValue() {
 function isBoneRecordSelected(record, selectedValue) {
   const value = String(selectedValue || "");
   if (!value) return false;
-  return value === record.path || value === record.alias || value === record.name;
+  if (value === record.path || value === record.alias || value === record.name) return true;
+  if (state.previewBones.some(bone => value === bone.path || value === bone.alias || value === bone.name)) return false;
+  const selectedKind = getBoneKindLabel({ name: value, path: value, alias: value });
+  if (!selectedKind) return false;
+  const selectedSide = getBoneSideLabel({ name: value, path: value, alias: value });
+  return selectedKind === getBoneKindLabel(record) && selectedSide === getBoneSideLabel(record);
 }
 
 function getBoneFieldLabel(fieldPath) {
