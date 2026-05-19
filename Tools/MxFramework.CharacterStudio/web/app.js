@@ -79,7 +79,7 @@ const COMMON_BODY_PART_IDS = ["root", "torso", "head", "right_hand", "left_hand"
 const COMMON_SOCKET_IDS = ["mainHand", "offHand", "back", "headVfx", "camera", "uiAnchor"];
 const COMMON_TAGS = [
   "body", "core", "critical", "hand", "leg", "main", "offhand", "stow",
-  "weapon", "weakPoint", "characterstudio-bind", "characterstudio-import", "converted-from-fbx"
+  "weapon", "vfx", "weakPoint", "characterstudio-bind", "characterstudio-import", "converted-from-fbx"
 ];
 const COMMON_ACTION_KEYS = ["primary", "secondary", "guard", "punch", "slash", "shield_guard"];
 const COMMON_REACTION_GROUPS = ["reaction.humanoid.body", "reaction.humanoid.head", "reaction.humanoid.limb", "react.body"];
@@ -113,7 +113,11 @@ const state = {
   canWrite: false,
   apiAvailable: false,
   message: "",
-  userSelectedPackage: false
+  userSelectedPackage: false,
+  previewBones: [],
+  previewBoneKey: "",
+  activeBoneFieldPath: "",
+  highlightedBoneValue: ""
 };
 
 const el = {};
@@ -205,6 +209,10 @@ async function loadPackages() {
 }
 
 async function loadPackageState() {
+  state.previewBones = [];
+  state.previewBoneKey = "";
+  state.activeBoneFieldPath = "";
+  state.highlightedBoneValue = "";
   const apiState = await readJson(`/api/character/state?package=${encodeURIComponent(state.packageRelative)}`, null);
   if (apiState && apiState.package) {
     state.package = clone(apiState.package);
@@ -726,6 +734,7 @@ async function renderThreeViewport(renderId) {
   const bodyResource = resources.find(resource => isBodyModelBinding(resource, state.package))
     || resources.find(resource => bodyRootKey && (resource.resourceKey === bodyRootKey || resource.stableId === bodyRootKey));
   let loadedBody = false;
+  let bodyBoneRecords = [];
   if (bodyResource?.relativePath) {
     loadedBody = await addGltfResource({
       THREE,
@@ -735,7 +744,8 @@ async function renderThreeViewport(renderId) {
       url: packageUrl(bodyResource.relativePath),
       objectPath: `resources/${bodyResource.resourceKey}`,
       name: bodyResource.localId || bodyResource.resourceKey,
-      wrapperPose: bodyResource.importHints?.modelWrapperPose
+      wrapperPose: bodyResource.importHints?.modelWrapperPose,
+      boneSink: records => { bodyBoneRecords = records; }
     });
   }
   if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile);
@@ -756,7 +766,12 @@ async function renderThreeViewport(renderId) {
     });
   }
 
+  syncPreviewBones(bodyBoneRecords);
+  content.updateMatrixWorld(true);
+  addBoneGizmos(THREE, scene, pickables, bodyBoneRecords);
   frameContent(THREE, camera, controls, content, geometry.bodyProfile);
+  host.insertAdjacentHTML("beforeend", renderBonePicker());
+  wireBonePicker(host);
 
   const raycaster = new THREE.Raycaster();
   raycaster.params.Line = { threshold: 0.08 };
@@ -767,7 +782,12 @@ async function renderThreeViewport(renderId) {
     pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
     raycaster.setFromCamera(pointer, camera);
     const hit = raycaster.intersectObjects(pickables, true)
-      .find(item => findObjectPath(item.object));
+      .find(item => findBonePick(item.object) || findObjectPath(item.object));
+    const bonePick = hit ? findBonePick(hit.object) : null;
+    if (bonePick) {
+      applyBonePick(bonePick);
+      return;
+    }
     const objectPath = hit ? findObjectPath(hit.object) : "";
     if (objectPath) selectPath(objectPath);
   };
@@ -869,13 +889,14 @@ function renderSvgViewport(message = "") {
     }
   }
 
-  el.viewport.innerHTML = `<div class="viewport-fallback">${message ? `<div class="viewport-status">${escapeHtml(message)}</div>` : ""}<svg viewBox="0 0 100 100" role="img" aria-label="Character package viewport"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#edf1f3" stroke-width="0.6"/></pattern></defs><rect width="100" height="100" fill="url(#grid)"/><text x="4" y="7" font-size="3.5" fill="#61717f">${escapeHtml(state.package.manifest?.packageId || "character")}</text>${shapes.join("")}</svg></div>`;
+  el.viewport.innerHTML = `<div class="viewport-fallback">${message ? `<div class="viewport-status">${escapeHtml(message)}</div>` : ""}<svg viewBox="0 0 100 100" role="img" aria-label="Character package viewport"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#edf1f3" stroke-width="0.6"/></pattern></defs><rect width="100" height="100" fill="url(#grid)"/><text x="4" y="7" font-size="3.5" fill="#61717f">${escapeHtml(state.package.manifest?.packageId || "character")}</text>${shapes.join("")}</svg>${renderBonePicker()}</div>`;
   el.viewport.querySelectorAll("[data-object-path]").forEach(item => {
     item.addEventListener("click", event => {
       event.stopPropagation();
       selectPath(item.getAttribute("data-object-path"));
     });
   });
+  wireBonePicker(el.viewport);
 }
 
 async function loadThreeRuntime() {
@@ -893,11 +914,12 @@ async function loadThreeRuntime() {
   return threeRuntimePromise;
 }
 
-async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null, bindingPose = null, attachmentPose = null, wrapperPose = null }) {
+async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null, bindingPose = null, attachmentPose = null, wrapperPose = null, boneSink = null }) {
   try {
     const gltf = await new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
     const root = gltf.scene;
     root.name = name || objectPath;
+    const boneRecords = collectBoneRecords(root);
     const bindingRoot = new THREE.Group();
     bindingRoot.name = `${root.name || "model"}_binding`;
     if (position) bindingRoot.position.copy(position);
@@ -912,10 +934,110 @@ async function addGltfResource({ THREE, loader, content, pickables, url, objectP
 
     makeSelectable(bindingRoot, objectPath, pickables);
     content.add(bindingRoot);
+    if (boneSink) boneSink(boneRecords);
     return true;
   } catch {
     return false;
   }
+}
+
+function collectBoneRecords(root) {
+  const records = [];
+  root.traverse(object => {
+    if (!object.isBone) return;
+    const path = getPreviewBonePath(object, root);
+    if (!path) return;
+    const parentPath = object.parent?.isBone ? getPreviewBonePath(object.parent, root) : "";
+    const depth = Math.max(0, path.split("/").length - 1);
+    records.push({
+      bone: object,
+      name: object.name || path.split("/").pop() || path,
+      path,
+      alias: object.name ? `bone.${object.name}` : "",
+      parentPath,
+      depth
+    });
+  });
+  return records;
+}
+
+function getPreviewBonePath(object, root) {
+  const names = [];
+  let cursor = object;
+  while (cursor && cursor !== root) {
+    if (cursor.name) names.unshift(cursor.name);
+    cursor = cursor.parent;
+  }
+  return names.join("/");
+}
+
+function syncPreviewBones(records) {
+  const previewBones = (records || [])
+    .map(record => ({
+      name: record.name || "",
+      path: record.path || "",
+      alias: record.alias || "",
+      parentPath: record.parentPath || "",
+      depth: Number.isFinite(record.depth) ? record.depth : 0
+    }))
+    .filter(record => record.path);
+  const key = JSON.stringify(previewBones.map(record => [record.path, record.alias, record.parentPath, record.depth]));
+  if (key === state.previewBoneKey) return;
+  state.previewBones = previewBones;
+  state.previewBoneKey = key;
+  renderInspector();
+}
+
+function addBoneGizmos(THREE, scene, pickables, boneRecords) {
+  if (!boneRecords?.length) return;
+  const selectedValue = getCurrentBoneSelectionValue();
+  const group = new THREE.Group();
+  group.name = "characterstudio_bone_picker";
+  const pointGeometry = new THREE.SphereGeometry(0.018, 12, 8);
+  const selectedPointGeometry = new THREE.SphereGeometry(0.034, 16, 10);
+  for (const record of boneRecords) {
+    const selected = isBoneRecordSelected(record, selectedValue);
+    const point = new THREE.Vector3();
+    record.bone.getWorldPosition(point);
+    const material = new THREE.MeshBasicMaterial({
+      color: selected ? 0xffa11f : 0x277f8e,
+      transparent: true,
+      opacity: selected ? 0.95 : 0.58,
+      depthTest: false
+    });
+    const marker = new THREE.Mesh(selected ? selectedPointGeometry : pointGeometry, material);
+    marker.position.copy(point);
+    marker.renderOrder = selected ? 42 : 40;
+    setBonePickData(marker, record);
+    pickables.push(marker);
+    group.add(marker);
+
+    if (!record.bone.parent?.isBone) continue;
+    const parent = new THREE.Vector3();
+    record.bone.parent.getWorldPosition(parent);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([parent, point]),
+      new THREE.LineBasicMaterial({
+        color: selected ? 0xffa11f : 0x277f8e,
+        transparent: true,
+        opacity: selected ? 0.9 : 0.36,
+        depthTest: false
+      })
+    );
+    line.renderOrder = selected ? 41 : 39;
+    setBonePickData(line, record);
+    pickables.push(line);
+    group.add(line);
+  }
+  scene.add(group);
+}
+
+function setBonePickData(object, record) {
+  object.userData.bonePick = {
+    name: record.name || "",
+    path: record.path || "",
+    alias: record.alias || ""
+  };
 }
 
 function applyLocalPose(THREE, object, pose) {
@@ -1093,6 +1215,183 @@ function findObjectPath(object) {
   return "";
 }
 
+function findBonePick(object) {
+  let cursor = object;
+  while (cursor) {
+    if (cursor.userData?.bonePick) return cursor.userData.bonePick;
+    cursor = cursor.parent;
+  }
+  return null;
+}
+
+function renderBonePicker() {
+  const target = findTarget(state.selectedPath);
+  const fieldPath = getActiveBoneFieldPath(target);
+  const bones = getBonePickerRecords();
+  if (!fieldPath || bones.length === 0) return "";
+
+  const selectedValue = getNested(target.value, fieldPath) || state.highlightedBoneValue || "";
+  const layout = layoutBonePicker(bones);
+  const title = getBoneFieldLabel(fieldPath);
+  const lines = layout.nodes
+    .filter(node => node.parent && layout.byPath.has(node.parent))
+    .map(node => {
+      const parent = layout.byPath.get(node.parent);
+      return `<line x1="${parent.x}" y1="${parent.y}" x2="${node.x}" y2="${node.y}" />`;
+    }).join("");
+  const nodes = layout.nodes.map(node => {
+    const selected = isBoneRecordSelected(node.record, selectedValue);
+    return `<g class="bone-node ${selected ? "selected" : ""}" data-bone-path="${escapeHtml(node.record.path)}" data-bone-alias="${escapeHtml(node.record.alias || "")}" data-bone-name="${escapeHtml(node.record.name || "")}" transform="translate(${node.x} ${node.y})"><circle r="${selected ? 4.2 : 3.2}"></circle><text x="7" y="3">${escapeHtml(node.record.name || node.record.path)}</text></g>`;
+  }).join("");
+
+  return `
+    <div class="bone-picker" aria-label="骨骼选择">
+      <div class="bone-picker-head">
+        <strong>骨骼</strong>
+        <span>${escapeHtml(title)}</span>
+      </div>
+      <svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="Skeleton picker">
+        <g class="bone-links">${lines}</g>
+        <g class="bone-nodes">${nodes}</g>
+      </svg>
+    </div>`;
+}
+
+function wireBonePicker(root) {
+  root.querySelectorAll("[data-bone-path]").forEach(item => {
+    item.addEventListener("click", event => {
+      event.stopPropagation();
+      applyBonePick({
+        path: item.getAttribute("data-bone-path") || "",
+        alias: item.getAttribute("data-bone-alias") || "",
+        name: item.getAttribute("data-bone-name") || ""
+      });
+    });
+  });
+}
+
+function getBonePickerRecords() {
+  if (state.previewBones.length > 0) return state.previewBones;
+  return normalizeOptions(bonePathOptions()).map(option => boneRecordFromPath(option.value));
+}
+
+function boneRecordFromPath(path) {
+  const value = String(path || "");
+  const name = value.includes("/") ? value.split("/").filter(Boolean).pop() : value.replace(/^bone\./, "");
+  const parentPath = value.includes("/") ? value.split("/").slice(0, -1).join("/") : "";
+  return {
+    name: name || value,
+    path: value,
+    alias: value.startsWith("bone.") ? value : "",
+    parentPath,
+    depth: Math.max(0, value.split("/").length - 1)
+  };
+}
+
+function layoutBonePicker(records) {
+  const nodes = records.slice(0, 96).map((record, index) => {
+    const depth = Math.min(7, Number.isFinite(record.depth) ? record.depth : Math.max(0, String(record.path || "").split("/").length - 1));
+    return {
+      record,
+      parent: getBoneParentPath(record, records),
+      x: 14 + depth * 28,
+      y: 18 + index * 20
+    };
+  });
+  const byPath = new Map(nodes.map(node => [node.record.path, node]));
+  const width = Math.max(220, Math.max(...nodes.map(node => node.x), 0) + 150);
+  const height = Math.max(76, nodes.length * 20 + 20);
+  return { nodes, byPath, width, height };
+}
+
+function getBoneParentPath(record, records) {
+  if (record.parentPath) return record.parentPath;
+  const paths = new Set(records.map(item => item.path));
+  const parts = String(record.path || "").split("/");
+  while (parts.length > 1) {
+    parts.pop();
+    const parent = parts.join("/");
+    if (paths.has(parent)) return parent;
+  }
+  return "";
+}
+
+function getActiveBoneFieldPath(target) {
+  if (state.activeBoneFieldPath && isBoneFieldPathForTarget(target, state.activeBoneFieldPath)) {
+    return state.activeBoneFieldPath;
+  }
+  return getDefaultBoneFieldPath(target);
+}
+
+function getDefaultBoneFieldPath(target) {
+  if (!target?.value) return "";
+  if (target.kind === "part") return "bonePath";
+  if (target.kind === "socket") return "bonePath";
+  if (target.kind === "collider" && target.value.localPose?.parentKind === "Bone") return "localPose.parentPath";
+  if (target.kind === "weapon" && target.value.localGripPose?.parentKind === "Bone") return "localGripPose.parentPath";
+  if (target.kind === "trace") {
+    if (target.value.startPose?.parentKind === "Bone") return "startPose.parentPath";
+    if (target.value.endPose?.parentKind === "Bone") return "endPose.parentPath";
+  }
+  return "";
+}
+
+function isBoneFieldPathForTarget(target, fieldPath) {
+  if (!target?.value || !fieldPath) return false;
+  if (fieldPath === "bonePath") return target.kind === "part" || target.kind === "socket";
+  if (fieldPath.endsWith(".parentPath")) {
+    const posePath = fieldPath.slice(0, -".parentPath".length);
+    return getNested(target.value, `${posePath}.parentKind`) === "Bone";
+  }
+  return false;
+}
+
+function activateBoneField(fieldPath) {
+  if (!fieldPath) return;
+  state.activeBoneFieldPath = fieldPath;
+  const target = findTarget(state.selectedPath);
+  state.highlightedBoneValue = getNested(target.value, fieldPath) || "";
+  renderViewport();
+}
+
+function applyBonePick(pick) {
+  const target = findTarget(state.selectedPath);
+  const fieldPath = getActiveBoneFieldPath(target);
+  if (!fieldPath || !target.value) return;
+  const value = getBoneValueForField(fieldPath, pick);
+  setNested(target.value, fieldPath, value);
+  afterInspectorFieldEdited(target, fieldPath);
+  state.activeBoneFieldPath = fieldPath;
+  state.highlightedBoneValue = value;
+  state.dirty = true;
+  renderShellStatus();
+  renderViewport();
+  renderInspector();
+}
+
+function getBoneValueForField(fieldPath, pick) {
+  if (fieldPath.endsWith(".parentPath")) return pick.alias || pick.path || pick.name || "";
+  return pick.path || pick.alias || pick.name || "";
+}
+
+function getCurrentBoneSelectionValue() {
+  const target = findTarget(state.selectedPath);
+  const fieldPath = getActiveBoneFieldPath(target);
+  return fieldPath ? (getNested(target.value, fieldPath) || state.highlightedBoneValue || "") : state.highlightedBoneValue;
+}
+
+function isBoneRecordSelected(record, selectedValue) {
+  const value = String(selectedValue || "");
+  if (!value) return false;
+  return value === record.path || value === record.alias || value === record.name;
+}
+
+function getBoneFieldLabel(fieldPath) {
+  if (fieldPath === "bonePath") return "骨骼路径";
+  if (fieldPath.endsWith(".parentPath")) return "父空间骨骼";
+  return "骨骼";
+}
+
 function toVector3(THREE, value = {}) {
   return new THREE.Vector3(Number(value.x || 0), Number(value.y || 0), Number(value.z || 0));
 }
@@ -1111,7 +1410,13 @@ function renderInspector() {
     return;
   }
   el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div>${renderFieldSections(target, fields)}`;
+  const boneInputs = [];
   el.inspector.querySelectorAll("[data-field]").forEach(input => {
+    if (input.dataset.picker === "bone") {
+      boneInputs.push(input);
+      input.addEventListener("focus", () => activateBoneField(input.dataset.field));
+      input.addEventListener("click", () => activateBoneField(input.dataset.field));
+    }
     input.addEventListener("input", () => {
       commitInspectorField(target, input);
     });
@@ -1122,6 +1427,9 @@ function renderInspector() {
       }
     });
   });
+  if (!boneInputs.some(input => input.dataset.field === state.activeBoneFieldPath)) {
+    state.activeBoneFieldPath = boneInputs[0]?.dataset.field || "";
+  }
   el.inspector.querySelectorAll("[data-inspector-action]").forEach(button => {
     button.addEventListener("click", () => {
       if (button.dataset.inspectorAction !== "resetModelWrapperPose") return;
@@ -1178,7 +1486,7 @@ function editableFields(kind, value = null) {
     locatorField("locatorId", "代表 Locator", "骨骼别名、locator 或 primitive anchor；会被局部父空间引用。"),
     datalistField("defaultHitZoneId", "默认命中区域", hitZoneOptions(), "部位默认命中区域，可被碰撞体覆盖。", "combat"),
     datalistField("reactionGroupId", "受击反应组", reactionGroupOptions(), "受击反应分组，建议复用已有分组。", "combat"),
-    tagsField("tags", "标签", tagOptions(), "选择已有标签；标签会影响筛选、导入和生成配置。")
+    tagsField("tags", "可选标签", tagOptions(), "标签用于项目自定义筛选和生成规则；不影响基础引用关系。")
   ];
   if (kind === "collider") return [
     field("shape", { label: "碰撞形状", type: "select", options: ["Capsule", "Box", "Sphere"], group: "base", help: "当前运行时导入只使用 Capsule / Box / Sphere。" }),
@@ -1217,11 +1525,11 @@ function editableFields(kind, value = null) {
     rotationField("localPose.eulerHint.x", "局部旋转 X"),
     rotationField("localPose.eulerHint.y", "局部旋转 Y"),
     rotationField("localPose.eulerHint.z", "局部旋转 Z"),
-    field("usage", { label: "挂点用途", type: "select", options: SOCKET_USAGE_OPTIONS, group: "usage", help: "Weapon 用于装备挂接，Vfx/Camera/Ui/Gameplay 用于其他运行时挂点。" }),
+    field("usage", { label: "默认用途", type: "select", options: SOCKET_USAGE_OPTIONS, group: "usage", help: "用于过滤可选挂接、自动绑定和校验提示，不是硬性权限；不确定时选 Unknown。" }),
     field("mirrorPairSocketId", { label: "镜像挂点", type: "select", options: socketOptions("无"), group: "usage", help: "左右手或左右侧挂点可互相引用，便于镜像编辑。" }),
     field("handedness", { label: "左右手", type: "select", options: SOCKET_HANDEDNESS_OPTIONS, group: "usage", help: "声明该挂点适用左手、右手、双手或无手性。" }),
     field("sideTag", { label: "侧向标签", type: "select", options: SOCKET_SIDE_OPTIONS, group: "usage", help: "用于区分左、右、前、后或中心侧向。" }),
-    tagsField("tags", "标签", tagOptions(), "选择已有标签；用于区分 weapon/main/offhand/stow 等用途。")
+    tagsField("tags", "可选标签", tagOptions(), "标签用于项目自定义筛选，例如 main/offhand/stow；不确定可以留空。")
   ];
   if (kind === "weapon") return [
     identityField("weaponId", "武器 ID", weaponIdSuggestions(), "稳定武器配置 ID；动画、轨迹和预览资源会围绕它关联。"),
@@ -1336,6 +1644,7 @@ function traceIdSuggestions() {
 
 function bonePathOptions() {
   return collectOptions(
+    state.previewBones.flatMap(bone => [bone.path, bone.alias]),
     (state.package?.geometry?.bodyParts || []).map(part => part?.bonePath),
     (state.package?.geometry?.sockets || []).map(socket => socket?.bonePath),
     collectPoseParentPaths("Bone")
@@ -1424,7 +1733,9 @@ function datalistField(path, label, suggestions, help, group = "base") {
 }
 
 function bonePathField(path, label, help) {
-  return datalistField(path, label, bonePathOptions(), help, "binding");
+  const spec = datalistField(path, label, bonePathOptions(), help, "binding");
+  spec.picker = "bone";
+  return spec;
 }
 
 function locatorField(path, label, help) {
@@ -1446,7 +1757,8 @@ function field(path, options = {}) {
     unit: options.unit || "",
     fallback: options.fallback,
     placeholder: options.placeholder || "",
-    help: options.help || ""
+    help: options.help || "",
+    picker: options.picker || ""
   };
 }
 
@@ -1492,7 +1804,7 @@ function poseParentPathField(path, label = "父空间路径", parentKind = "") {
     return field(path, { label, type: "select", options: socketOptions("无"), group: "poseParent", help: "选择该局部姿态相对的挂点。" });
   }
   if (parentKind === "Bone") {
-    return field(path, { label, group: "poseParent", suggestions: bonePathOptions(), help: "选择该局部姿态相对的骨骼路径。" });
+    return field(path, { label, group: "poseParent", suggestions: bonePathOptions(), help: "选择该局部姿态相对的骨骼路径。", picker: "bone" });
   }
   if (parentKind === "Locator") {
     return field(path, { label, group: "poseParent", suggestions: locatorPathOptions(), help: "选择该局部姿态相对的 locator 路径。" });
@@ -1567,7 +1879,7 @@ function renderField(target, fieldSpec) {
   if (spec.type === "select") {
     const normalized = typeof value === "boolean" ? String(value) : (value || "");
     const options = spec.options || [];
-    return `<div class="field"><label>${escapeHtml(label)}</label><select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>${renderFieldHint(spec)}</div>`;
+    return `<div class="field"><label>${escapeHtml(label)}</label><select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderPickerAttribute(spec)}${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>${renderFieldHint(spec)}</div>`;
   }
   if (spec.type === "multiSelect") {
     const selected = new Set(Array.isArray(value) ? value.map(item => String(item)) : String(value || "").split(",").map(item => item.trim()).filter(Boolean));
@@ -1582,6 +1894,8 @@ function renderField(target, fieldSpec) {
     `data-type="${escapeHtml(spec.dataType)}"`,
     `data-fallback="${escapeHtml(String(spec.fallback ?? (spec.type === "number" ? 0 : "")))}"`
   ];
+  const picker = renderPickerAttribute(spec);
+  if (picker) attrs.push(picker);
   const title = renderTitleAttribute(spec);
   if (title) attrs.push(title);
   if (spec.placeholder) attrs.push(`placeholder="${escapeHtml(spec.placeholder)}"`);
@@ -1633,6 +1947,10 @@ function renderTitleAttribute(spec) {
   return spec.help ? ` title="${escapeHtml(spec.help)}"` : "";
 }
 
+function renderPickerAttribute(spec) {
+  return spec.picker ? ` data-picker="${escapeHtml(spec.picker)}"` : "";
+}
+
 function normalizeOptions(options) {
   return (options || []).map(option => typeof option === "object" && option !== null
     ? { value: String(option.value ?? ""), label: String(option.label || option.value || "") }
@@ -1652,6 +1970,10 @@ function commitInspectorField(target, input) {
   }
   setNested(target.value, input.dataset.field, value);
   afterInspectorFieldEdited(target, input.dataset.field);
+  if (input.dataset.picker === "bone") {
+    state.activeBoneFieldPath = input.dataset.field;
+    state.highlightedBoneValue = value;
+  }
   state.dirty = true;
   renderShellStatus();
   renderViewport();
@@ -1723,6 +2045,8 @@ function applyPoseParentDefault(target, posePath) {
     pose.parentPath = target.value.attachSocketId || firstValue(socketOptions()) || "";
   } else if (pose.parentKind === "Bone") {
     pose.parentPath = target.value.bonePath || firstValue(bonePathOptions()) || "";
+    state.activeBoneFieldPath = `${posePath}.parentPath`;
+    state.highlightedBoneValue = pose.parentPath;
   } else if (pose.parentKind === "Locator") {
     const traceLocator = posePath === "endPose" ? target.value.endLocatorPath : target.value.startLocatorPath;
     pose.parentPath = target.value.locatorPath || target.value.locatorId || traceLocator || firstValue(locatorPathOptions()) || "";
@@ -1988,6 +2312,9 @@ async function copyReport() {
 function selectPath(path) {
   if (!path) return;
   state.selectedPath = path;
+  const target = findTarget(path);
+  state.activeBoneFieldPath = getDefaultBoneFieldPath(target);
+  state.highlightedBoneValue = state.activeBoneFieldPath ? (getNested(target.value, state.activeBoneFieldPath) || "") : "";
   renderTree();
   renderResourceLibrary();
   renderViewport();

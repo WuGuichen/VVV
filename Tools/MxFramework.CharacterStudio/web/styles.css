@@ -418,6 +418,85 @@ h2 {
   box-shadow: var(--shadow);
 }
 
+.bone-picker {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: min(320px, calc(100% - 20px));
+  max-height: min(52%, 420px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+  overflow: auto;
+}
+
+.bone-picker-head {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bone-picker-head strong {
+  font-size: 12px;
+}
+
+.bone-picker-head span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.bone-picker svg {
+  height: auto;
+  min-height: 96px;
+  max-height: 360px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.bone-links line {
+  stroke: rgba(39, 127, 142, 0.35);
+  stroke-width: 1.2;
+}
+
+.bone-node {
+  cursor: pointer;
+}
+
+.bone-node circle {
+  fill: #e7f5f4;
+  stroke: var(--accent);
+  stroke-width: 1.2;
+}
+
+.bone-node text {
+  fill: var(--text);
+  font-size: 10px;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.86);
+  stroke-width: 2px;
+}
+
+.bone-node:hover circle,
+.bone-node.selected circle {
+  fill: #fff4df;
+  stroke: var(--accent-2);
+}
+
+.bone-node.selected text {
+  fill: #734515;
+  font-weight: 700;
+}
+
 .viewport [data-object-path] {
   cursor: pointer;
 }
