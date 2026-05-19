@@ -117,7 +117,8 @@ const state = {
   previewBones: [],
   previewBoneKey: "",
   activeBoneFieldPath: "",
-  highlightedBoneValue: ""
+  highlightedBoneValue: "",
+  bonePickerOpen: false
 };
 
 const el = {};
@@ -213,6 +214,7 @@ async function loadPackageState() {
   state.previewBoneKey = "";
   state.activeBoneFieldPath = "";
   state.highlightedBoneValue = "";
+  state.bonePickerOpen = false;
   const apiState = await readJson(`/api/character/state?package=${encodeURIComponent(state.packageRelative)}`, null);
   if (apiState && apiState.package) {
     state.package = clone(apiState.package);
@@ -768,10 +770,10 @@ async function renderThreeViewport(renderId) {
 
   content.updateMatrixWorld(true);
   syncPreviewBones(THREE, bodyBoneRecords);
-  addBoneGizmos(THREE, scene, pickables, bodyBoneRecords);
+  if (state.bonePickerOpen && getActiveBoneFieldPath(findTarget(state.selectedPath))) {
+    addBoneGizmos(THREE, scene, pickables, bodyBoneRecords);
+  }
   frameContent(THREE, camera, controls, content, geometry.bodyProfile);
-  host.insertAdjacentHTML("beforeend", renderBonePicker());
-  wireBonePicker(host);
 
   const raycaster = new THREE.Raycaster();
   raycaster.params.Line = { threshold: 0.08 };
@@ -889,14 +891,13 @@ function renderSvgViewport(message = "") {
     }
   }
 
-  el.viewport.innerHTML = `<div class="viewport-fallback">${message ? `<div class="viewport-status">${escapeHtml(message)}</div>` : ""}<svg viewBox="0 0 100 100" role="img" aria-label="Character package viewport"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#edf1f3" stroke-width="0.6"/></pattern></defs><rect width="100" height="100" fill="url(#grid)"/><text x="4" y="7" font-size="3.5" fill="#61717f">${escapeHtml(state.package.manifest?.packageId || "character")}</text>${shapes.join("")}</svg>${renderBonePicker()}</div>`;
+  el.viewport.innerHTML = `<div class="viewport-fallback">${message ? `<div class="viewport-status">${escapeHtml(message)}</div>` : ""}<svg viewBox="0 0 100 100" role="img" aria-label="Character package viewport"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#edf1f3" stroke-width="0.6"/></pattern></defs><rect width="100" height="100" fill="url(#grid)"/><text x="4" y="7" font-size="3.5" fill="#61717f">${escapeHtml(state.package.manifest?.packageId || "character")}</text>${shapes.join("")}</svg></div>`;
   el.viewport.querySelectorAll("[data-object-path]").forEach(item => {
     item.addEventListener("click", event => {
       event.stopPropagation();
       selectPath(item.getAttribute("data-object-path"));
     });
   });
-  wireBonePicker(el.viewport);
 }
 
 async function loadThreeRuntime() {
@@ -1242,6 +1243,7 @@ function findBonePick(object) {
 }
 
 function renderBonePicker() {
+  if (!state.bonePickerOpen) return "";
   const target = findTarget(state.selectedPath);
   const fieldPath = getActiveBoneFieldPath(target);
   const bones = getBonePickerRecords();
@@ -1267,6 +1269,7 @@ function renderBonePicker() {
       <div class="bone-picker-head">
         <strong>骨骼</strong>
         <span>${escapeHtml(title)}${layout.mode === "map" ? " · 2D" : ""}</span>
+        <button type="button" data-picker-action="closeBonePicker">收起</button>
       </div>
       <svg viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="Skeleton picker">
         <g class="bone-links">${lines}</g>
@@ -1276,6 +1279,14 @@ function renderBonePicker() {
 }
 
 function wireBonePicker(root) {
+  root.querySelectorAll('[data-picker-action="closeBonePicker"]').forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      state.bonePickerOpen = false;
+      renderViewport();
+      renderInspector();
+    });
+  });
   root.querySelectorAll("[data-bone-path]").forEach(item => {
     item.addEventListener("click", event => {
       event.stopPropagation();
@@ -1450,12 +1461,24 @@ function isBoneFieldPathForTarget(target, fieldPath) {
   return false;
 }
 
-function activateBoneField(fieldPath) {
+function activateBoneField(fieldPath, open = true) {
   if (!fieldPath) return;
-  state.activeBoneFieldPath = fieldPath;
   const target = findTarget(state.selectedPath);
-  state.highlightedBoneValue = getNested(target.value, fieldPath) || "";
-  renderViewport();
+  const highlightedValue = getNested(target.value, fieldPath) || "";
+  const shouldRefreshInspector = state.activeBoneFieldPath !== fieldPath || state.bonePickerOpen !== open;
+  const shouldRestoreFocus = shouldRefreshInspector && document.activeElement?.dataset?.field === fieldPath;
+  const shouldRefreshViewport = shouldRefreshInspector || state.highlightedBoneValue !== highlightedValue;
+  state.activeBoneFieldPath = fieldPath;
+  state.bonePickerOpen = open;
+  state.highlightedBoneValue = highlightedValue;
+  if (shouldRefreshViewport) renderViewport();
+  if (shouldRefreshInspector) {
+    renderInspector();
+    if (shouldRestoreFocus) {
+      const nextInput = Array.from(el.inspector.querySelectorAll("[data-field]")).find(input => input.dataset.field === fieldPath);
+      nextInput?.focus({ preventScroll: true });
+    }
+  }
 }
 
 function applyBonePick(pick) {
@@ -1466,6 +1489,7 @@ function applyBonePick(pick) {
   setNested(target.value, fieldPath, value);
   afterInspectorFieldEdited(target, fieldPath);
   state.activeBoneFieldPath = fieldPath;
+  state.bonePickerOpen = true;
   state.highlightedBoneValue = value;
   state.dirty = true;
   renderShellStatus();
@@ -1538,7 +1562,15 @@ function renderInspector() {
   });
   if (!boneInputs.some(input => input.dataset.field === state.activeBoneFieldPath)) {
     state.activeBoneFieldPath = boneInputs[0]?.dataset.field || "";
+    state.bonePickerOpen = false;
   }
+  el.inspector.querySelectorAll('[data-picker-action="openBonePicker"]').forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      activateBoneField(button.dataset.pickerField);
+    });
+  });
+  wireBonePicker(el.inspector);
   el.inspector.querySelectorAll("[data-inspector-action]").forEach(button => {
     button.addEventListener("click", () => {
       if (button.dataset.inspectorAction !== "resetModelWrapperPose") return;
@@ -2014,6 +2046,12 @@ function renderField(target, fieldSpec) {
   if (spec.step !== undefined) attrs.push(`step="${escapeHtml(String(spec.step))}"`);
   if (spec.type === "number") attrs.push(`inputmode="decimal"`);
   const displayValue = formatFieldValue(value, spec.dataType);
+  if (spec.picker === "bone") {
+    const isOpen = state.bonePickerOpen && state.activeBoneFieldPath === spec.path;
+    const className = isOpen ? "field field-wide" : "field";
+    const picker = `<button type="button" class="picker-button" data-picker-action="openBonePicker" data-picker-field="${escapeHtml(spec.path)}">选择</button>`;
+    return `<div class="${className}"><label>${escapeHtml(label)}</label><div class="field-control"><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}">${picker}</div>${renderDatalist(datalistId, spec.suggestions)}${renderFieldHint(spec)}${isOpen ? renderBonePicker() : ""}</div>`;
+  }
   return `<div class="field"><label>${escapeHtml(label)}</label><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}">${renderDatalist(datalistId, spec.suggestions)}${renderFieldHint(spec)}</div>`;
 }
 
@@ -2155,6 +2193,7 @@ function applyPoseParentDefault(target, posePath) {
   } else if (pose.parentKind === "Bone") {
     pose.parentPath = target.value.bonePath || firstValue(bonePathOptions()) || "";
     state.activeBoneFieldPath = `${posePath}.parentPath`;
+    state.bonePickerOpen = true;
     state.highlightedBoneValue = pose.parentPath;
   } else if (pose.parentKind === "Locator") {
     const traceLocator = posePath === "endPose" ? target.value.endLocatorPath : target.value.startLocatorPath;
@@ -2423,6 +2462,7 @@ function selectPath(path) {
   state.selectedPath = path;
   const target = findTarget(path);
   state.activeBoneFieldPath = getDefaultBoneFieldPath(target);
+  state.bonePickerOpen = false;
   state.highlightedBoneValue = state.activeBoneFieldPath ? (getNested(target.value, state.activeBoneFieldPath) || "") : "";
   renderTree();
   renderResourceLibrary();
