@@ -29,6 +29,8 @@ The root `index.html` redirects to `web/` for static repo servers.
 
 - package discovery and package tree for the Iron Vanguard Character Resource Package;
 - read-only resource, geometry, validation, and import report browsing;
+- Chinese-first workstation labels and actions;
+- model import into the selected Character Resource Package for body, main-hand weapon, off-hand weapon, or preview models;
 - Three.js viewport for package GLB resources, with selectable colliders, sockets, weapon attachments, and traces;
 - SVG viewport fallback when `node_modules/three` has not been installed;
 - inspector draft edits for colliders, sockets, attachments, and traces;
@@ -37,6 +39,8 @@ The root `index.html` redirects to `web/` for static repo servers.
 - Unity import bridge through `/api/character/import-unity`.
 
 Static file preview still opens the sample package, but save, compile, and import require `editor serve`.
+
+`导入模型` writes the selected `.glb` / `.gltf` file into the current package under `resources/models/`, updates `resource_catalog.json`, and saves through the same validation gate as normal draft edits. `导入 Unity` is a separate step that writes the compiled package outputs into the Unity project.
 
 ## Smoke
 

@@ -69,20 +69,20 @@ internal static class EditorServer
 
         if (path == "/api/character/packages" && context.Request.HttpMethod == "GET")
         {
-            WriteJson(context.Response, ListCharacterPackages(rootPath, jsonOptions), jsonOptions);
+            WriteJson(context.Response, ListCharacterPackages(rootPath, defaultPackage, jsonOptions), jsonOptions);
             return;
         }
 
         if (path == "/api/character/state" && context.Request.HttpMethod == "GET")
         {
-            string characterPackage = ResolveCharacterPackageRelative(context, rootPath);
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             WriteJson(context.Response, ReadCharacterState(rootPath, characterPackage, jsonOptions), jsonOptions);
             return;
         }
 
         if (path == "/api/character/save" && context.Request.HttpMethod == "POST")
         {
-            string characterPackage = ResolveCharacterPackageRelative(context, rootPath);
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
             CharacterStudioSaveRequest request = JsonSerializer.Deserialize<CharacterStudioSaveRequest>(body, jsonOptions) ?? new CharacterStudioSaveRequest();
             if (request.package == null)
@@ -92,9 +92,19 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/character/import-model" && context.Request.HttpMethod == "POST")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            CharacterStudioModelImportRequest request = JsonSerializer.Deserialize<CharacterStudioModelImportRequest>(body, jsonOptions) ?? new CharacterStudioModelImportRequest();
+            ImportCharacterModel(rootPath, characterPackage, request, jsonOptions);
+            WriteJson(context.Response, ReadCharacterState(rootPath, characterPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
         if (path == "/api/character/compile" && (context.Request.HttpMethod == "GET" || context.Request.HttpMethod == "POST"))
         {
-            string characterPackage = ResolveCharacterPackageRelative(context, rootPath);
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             bool checkHashes = string.Equals(context.Request.QueryString["checkHashes"], "true", StringComparison.OrdinalIgnoreCase);
             WriteJson(context.Response, CompileCharacterPackage(rootPath, characterPackage, checkFiles: true, checkHashes: checkHashes, jsonOptions), jsonOptions);
             return;
@@ -107,7 +117,7 @@ internal static class EditorServer
                 ? new CharacterStudioImportRequest()
                 : (JsonSerializer.Deserialize<CharacterStudioImportRequest>(body, jsonOptions) ?? new CharacterStudioImportRequest());
             string characterPackage = string.IsNullOrWhiteSpace(request.package)
-                ? ResolveCharacterPackageRelative(context, rootPath)
+                ? ResolveCharacterPackageRelative(context, rootPath, defaultPackage)
                 : request.package;
             ResolveSafePath(rootPath, characterPackage);
             WriteJson(context.Response, RunCharacterImport(rootPath, characterPackage, request, jsonOptions), jsonOptions);
@@ -340,11 +350,11 @@ internal static class EditorServer
         return requested;
     }
 
-    private static string ResolveCharacterPackageRelative(HttpListenerContext context, string rootPath)
+    private static string ResolveCharacterPackageRelative(HttpListenerContext context, string rootPath, string defaultPackage)
     {
         string requested = context.Request.QueryString["package"];
         if (string.IsNullOrEmpty(requested))
-            return DefaultCharacterPackageRelativePath;
+            return IsCharacterPackage(rootPath, defaultPackage) ? defaultPackage : DefaultCharacterPackageRelativePath;
         ResolveSafePath(rootPath, requested);
         return requested;
     }
@@ -454,42 +464,84 @@ internal static class EditorServer
         return result;
     }
 
-    private static List<object> ListCharacterPackages(string rootPath, JsonSerializerOptions jsonOptions)
+    private static List<object> ListCharacterPackages(string rootPath, string defaultPackage, JsonSerializerOptions jsonOptions)
     {
         var result = new List<object>();
+        AddCharacterPackageListItem(result, rootPath, defaultPackage, jsonOptions);
+
         string samplesDir = Path.Combine(rootPath, SamplesRelativePath);
         if (!Directory.Exists(samplesDir))
             return result;
 
         foreach (string dir in Directory.GetDirectories(samplesDir).OrderBy(p => p, StringComparer.Ordinal))
         {
-            string manifestPath = Path.Combine(dir, "manifest.json");
-            string resourceCatalogPath = Path.Combine(dir, "resource_catalog.json");
-            if (!File.Exists(manifestPath) || !File.Exists(resourceCatalogPath))
-                continue;
-
-            try
-            {
-                CharacterPackageManifest manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(manifestPath), jsonOptions) ?? new CharacterPackageManifest();
-                if (manifest.Kind != CharacterResourcePackageKind.Character)
-                    continue;
-
-                string relative = Path.GetRelativePath(rootPath, dir).Replace('\\', '/');
-                result.Add(new
-                {
-                    relative,
-                    packageId = manifest.PackageId,
-                    stableId = manifest.StableId,
-                    version = manifest.Version,
-                    kind = manifest.Kind
-                });
-            }
-            catch
-            {
-            }
+            string relative = Path.GetRelativePath(rootPath, dir).Replace('\\', '/');
+            AddCharacterPackageListItem(result, rootPath, relative, jsonOptions);
         }
 
         return result;
+    }
+
+    private static void AddCharacterPackageListItem(List<object> result, string rootPath, string relative, JsonSerializerOptions jsonOptions)
+    {
+        if (string.IsNullOrWhiteSpace(relative))
+            return;
+        string packagePath;
+        try
+        {
+            packagePath = ResolveSafePath(rootPath, relative);
+        }
+        catch
+        {
+            return;
+        }
+
+        string manifestPath = Path.Combine(packagePath, "manifest.json");
+        string resourceCatalogPath = Path.Combine(packagePath, "resource_catalog.json");
+        if (!File.Exists(manifestPath) || !File.Exists(resourceCatalogPath))
+            return;
+
+        try
+        {
+            CharacterPackageManifest manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(manifestPath), jsonOptions) ?? new CharacterPackageManifest();
+            if (manifest.Kind != CharacterResourcePackageKind.Character)
+                return;
+
+            string normalized = Path.GetRelativePath(rootPath, packagePath).Replace('\\', '/');
+            if (result.Any(item => string.Equals(GetAnonymousProperty(item, "relative"), normalized, StringComparison.Ordinal)))
+                return;
+            result.Add(new
+            {
+                relative = normalized,
+                packageId = manifest.PackageId,
+                stableId = manifest.StableId,
+                version = manifest.Version,
+                kind = manifest.Kind
+            });
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool IsCharacterPackage(string rootPath, string relative)
+    {
+        if (string.IsNullOrWhiteSpace(relative))
+            return false;
+        try
+        {
+            string packagePath = ResolveSafePath(rootPath, relative);
+            return File.Exists(Path.Combine(packagePath, "manifest.json")) && File.Exists(Path.Combine(packagePath, "resource_catalog.json"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string GetAnonymousProperty(object value, string propertyName)
+    {
+        return value?.GetType().GetProperty(propertyName)?.GetValue(value)?.ToString() ?? string.Empty;
     }
 
     private static object ReadCharacterState(string rootPath, string packageRelative, JsonSerializerOptions jsonOptions)
@@ -585,6 +637,150 @@ internal static class EditorServer
             traces = package.Geometry.Traces
         }, jsonOptions);
         WriteJsonFileAtomic(Path.Combine(packagePath, "validation", "last_report.json"), validation, jsonOptions);
+    }
+
+    private static void ImportCharacterModel(
+        string rootPath,
+        string packageRelative,
+        CharacterStudioModelImportRequest request,
+        JsonSerializerOptions jsonOptions)
+    {
+        if (string.IsNullOrWhiteSpace(request.fileName))
+            throw new ArgumentException("fileName is required.");
+        if (string.IsNullOrWhiteSpace(request.bytesBase64))
+            throw new ArgumentException("bytesBase64 is required.");
+
+        string extension = Path.GetExtension(request.fileName).ToLowerInvariant();
+        if (extension != ".glb" && extension != ".gltf")
+            throw new ArgumentException("Only .glb and .gltf model files are supported.");
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(request.bytesBase64);
+        }
+        catch (FormatException ex)
+        {
+            throw new ArgumentException("bytesBase64 is not valid base64.", ex);
+        }
+
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        if (!Directory.Exists(packagePath))
+            throw new DirectoryNotFoundException("Character package directory was not found: " + packageRelative);
+
+        string fileStem = CharacterPackageResourceKeyGenerator.NormalizeSegment(Path.GetFileNameWithoutExtension(request.fileName)).Replace('.', '_');
+        string relativePath = ("resources/models/" + fileStem + extension).Replace('\\', '/');
+        string outputPath = Path.Combine(packagePath, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        File.WriteAllBytes(outputPath, bytes);
+
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        CharacterPackageResourceEntry entry = ResolveModelImportEntry(package, request.role, fileStem);
+        ApplyModelImportEntry(package, entry, request, relativePath, outputPath, extension);
+        SaveCharacterPackage(rootPath, packageRelative, package, jsonOptions);
+    }
+
+    private static CharacterPackageResourceEntry ResolveModelImportEntry(CharacterResourcePackage package, string role, string fileStem)
+    {
+        CharacterPackageResourceCatalog catalog = package.ResourceCatalog ?? new CharacterPackageResourceCatalog();
+        package.ResourceCatalog = catalog;
+        string normalizedRole = string.IsNullOrWhiteSpace(role) ? "preview" : role.Trim();
+
+        CharacterPackageResourceEntry entry = null;
+        if (normalizedRole.Equals("body", StringComparison.OrdinalIgnoreCase))
+        {
+            entry = catalog.Entries.FirstOrDefault(item =>
+                item != null && (string.Equals(item.Usage, CharacterPackageResourceUsageIds.CharacterModel, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(item.LocalId, "model.body", StringComparison.OrdinalIgnoreCase)));
+        }
+        else if (normalizedRole.Equals("mainHand", StringComparison.OrdinalIgnoreCase) || normalizedRole.Equals("offHand", StringComparison.OrdinalIgnoreCase))
+        {
+            WeaponAttachmentProfile attachment = package.Geometry?.WeaponAttachments?.FirstOrDefault(item =>
+                item != null && string.Equals(item.EquipSlot, normalizedRole, StringComparison.OrdinalIgnoreCase));
+            if (attachment != null && !string.IsNullOrWhiteSpace(attachment.PreviewResourceKey))
+                entry = CharacterPackageResourcePipeline.FindByKey(catalog, attachment.PreviewResourceKey);
+        }
+
+        if (entry == null)
+        {
+            entry = new CharacterPackageResourceEntry();
+            catalog.Entries.Add(entry);
+        }
+
+        return entry;
+    }
+
+    private static void ApplyModelImportEntry(
+        CharacterResourcePackage package,
+        CharacterPackageResourceEntry entry,
+        CharacterStudioModelImportRequest request,
+        string relativePath,
+        string outputPath,
+        string extension)
+    {
+        string packageId = package.Manifest?.PackageId ?? string.Empty;
+        string normalizedRole = string.IsNullOrWhiteSpace(request.role) ? "preview" : request.role.Trim();
+        bool isBody = normalizedRole.Equals("body", StringComparison.OrdinalIgnoreCase);
+        bool isWeapon = normalizedRole.Equals("mainHand", StringComparison.OrdinalIgnoreCase) || normalizedRole.Equals("offHand", StringComparison.OrdinalIgnoreCase);
+        string fileStem = CharacterPackageResourceKeyGenerator.NormalizeSegment(Path.GetFileNameWithoutExtension(request.fileName));
+        string localId = isBody ? "model.body" : (isWeapon ? ("weapon." + normalizedRole + ".model") : ("model." + fileStem));
+
+        if (string.IsNullOrWhiteSpace(entry.ResourceKey))
+            entry.ResourceKey = isBody
+                ? CharacterPackageResourceKeyGenerator.Generate(packageId, CharacterPackageResourceTypeIds.Model, "body")
+                : CharacterPackageResourceKeyGenerator.Generate(packageId, CharacterPackageResourceTypeIds.Model, localId);
+        if (string.IsNullOrWhiteSpace(entry.LocalId))
+            entry.LocalId = localId;
+        if (string.IsNullOrWhiteSpace(entry.StableId))
+            entry.StableId = "charpkg." + CharacterPackageResourceKeyGenerator.NormalizeSegment(packageId) + ".resource." + CharacterPackageResourceKeyGenerator.NormalizeSegment(entry.LocalId);
+
+        entry.TypeId = CharacterPackageResourceTypeIds.Model;
+        entry.Variant = string.IsNullOrWhiteSpace(entry.Variant) ? "default" : entry.Variant;
+        entry.Usage = isBody ? CharacterPackageResourceUsageIds.CharacterModel : CharacterPackageResourceUsageIds.WeaponModel;
+        entry.SourceFormat = extension.TrimStart('.');
+        entry.PackageId = packageId;
+        entry.RelativePath = relativePath;
+        entry.Hash = CharacterPackageHashUtility.ComputeFileSha256(outputPath);
+        entry.Hashes ??= new CharacterPackageResourceHashes();
+        entry.Hashes.ContentHash = entry.Hash;
+        entry.Hashes.ImportHash = CharacterPackageResourcePipeline.ComputeImportHash(entry);
+        entry.Hashes.DependencyHash = CharacterPackageResourcePipeline.ComputeDependencyHash(entry, package.ResourceCatalog);
+        entry.ImportHints ??= new CharacterPackageImportHint();
+        entry.ImportHints.TargetPathPolicy = CharacterPackageImportTargetPathPolicies.GeneratedCharacterPackage;
+        entry.ImportHints.TargetRelativePath = relativePath;
+        entry.ImportHints.Scale = entry.ImportHints.Scale <= 0 ? 1f : entry.ImportHints.Scale;
+        entry.ImportHints.ProviderId = string.IsNullOrWhiteSpace(entry.ImportHints.ProviderId) ? "unityAsset" : entry.ImportHints.ProviderId;
+        entry.ImportHints.MaterialPolicy = string.IsNullOrWhiteSpace(entry.ImportHints.MaterialPolicy) ? "importEmbeddedOrPackageMaterials" : entry.ImportHints.MaterialPolicy;
+        entry.ImportHints.CollisionPolicy = string.IsNullOrWhiteSpace(entry.ImportHints.CollisionPolicy) ? "authoringGeometryOnly" : entry.ImportHints.CollisionPolicy;
+        entry.ImportHints.PhysicsDataPolicy = string.IsNullOrWhiteSpace(entry.ImportHints.PhysicsDataPolicy) ? "separateGeometryBinding" : entry.ImportHints.PhysicsDataPolicy;
+        entry.ImportHints.UpAxis = string.IsNullOrWhiteSpace(entry.ImportHints.UpAxis) ? "Y+" : entry.ImportHints.UpAxis;
+        entry.ImportHints.ForwardAxis = string.IsNullOrWhiteSpace(entry.ImportHints.ForwardAxis) ? "Z+" : entry.ImportHints.ForwardAxis;
+        entry.Tags ??= new List<string>();
+        AddTag(entry.Tags, "characterstudio-import");
+        AddTag(entry.Tags, normalizedRole);
+        entry.Provenance ??= new CharacterPackageResourceProvenance();
+        entry.Provenance.SourceTool = "CharacterStudio";
+        entry.Provenance.SourceFile = request.fileName;
+        string now = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+        if (string.IsNullOrWhiteSpace(entry.Provenance.CreatedUtc))
+            entry.Provenance.CreatedUtc = now;
+        entry.Provenance.ModifiedUtc = now;
+
+        if (isWeapon && package.Geometry?.WeaponAttachments != null)
+        {
+            WeaponAttachmentProfile attachment = package.Geometry.WeaponAttachments.FirstOrDefault(item =>
+                item != null && string.Equals(item.EquipSlot, normalizedRole, StringComparison.OrdinalIgnoreCase));
+            if (attachment != null)
+                attachment.PreviewResourceKey = entry.ResourceKey;
+        }
+    }
+
+    private static void AddTag(List<string> tags, string tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+            return;
+        if (!tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+            tags.Add(tag);
     }
 
     private static object RunCharacterImport(
@@ -1047,6 +1243,13 @@ internal static class EditorServer
         public string unityRoot { get; set; } = string.Empty;
         public bool checkHashes { get; set; }
         public bool dryRun { get; set; }
+    }
+
+    private sealed class CharacterStudioModelImportRequest
+    {
+        public string fileName { get; set; } = string.Empty;
+        public string role { get; set; } = "body";
+        public string bytesBase64 { get; set; } = string.Empty;
     }
 
     private sealed class CharacterBodyPartsFile

@@ -1,10 +1,25 @@
 const DEFAULT_PACKAGE = "Tools/MxFramework.Authoring/samples/character-iron-vanguard";
 const LAYERS = { colliders: true, sockets: true, traces: true, weapons: true };
 const LOADOUTS = [
-  { id: "unarmed", label: "Unarmed", slots: [] },
-  { id: "single_sword", label: "Single Sword", slots: ["mainHand"] },
-  { id: "sword_shield", label: "Sword Shield", slots: ["mainHand", "offHand"] }
+  { id: "unarmed", label: "徒手", slots: [] },
+  { id: "single_sword", label: "单手剑", slots: ["mainHand"] },
+  { id: "sword_shield", label: "剑盾", slots: ["mainHand", "offHand"] }
 ];
+
+const KIND_LABELS = {
+  manifest: "清单",
+  resources: "资源",
+  resource: "资源",
+  config: "配置",
+  body: "身体",
+  part: "部位",
+  collider: "碰撞体",
+  socket: "挂点",
+  weapon: "武器",
+  trace: "轨迹",
+  validation: "诊断",
+  issue: "问题"
+};
 
 const state = {
   packages: [],
@@ -19,7 +34,8 @@ const state = {
   dirty: false,
   canWrite: false,
   apiAvailable: false,
-  message: ""
+  message: "",
+  userSelectedPackage: false
 };
 
 const el = {};
@@ -30,6 +46,7 @@ let viewportCleanup = null;
 document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
     "packageSelect", "reloadButton", "saveButton", "compileButton", "importButton",
+    "modelImportRole", "modelImportButton", "modelFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
@@ -39,9 +56,23 @@ document.addEventListener("DOMContentLoaded", () => {
   el.saveButton.addEventListener("click", () => savePackage());
   el.compileButton.addEventListener("click", () => compilePackage());
   el.importButton.addEventListener("click", () => importUnity());
+  el.modelImportButton.addEventListener("click", () => {
+    if (!state.canWrite) {
+      state.message = "静态预览不能导入模型。请通过 Authoring server 打开页面。";
+      renderShellStatus();
+      return;
+    }
+    el.modelFileInput.value = "";
+    el.modelFileInput.click();
+  });
+  el.modelFileInput.addEventListener("change", () => {
+    const file = el.modelFileInput.files?.[0];
+    if (file) importModel(file);
+  });
   el.copyReportButton.addEventListener("click", () => copyReport());
   el.packageSelect.addEventListener("change", event => {
     state.packageRelative = event.target.value;
+    state.userSelectedPackage = true;
     state.selectedPath = "manifest";
     loadAll();
   });
@@ -73,7 +104,9 @@ async function loadPackages() {
   } else {
     state.packages = [{ relative: DEFAULT_PACKAGE, packageId: "iron_vanguard", kind: "character" }];
   }
-  if (!state.packages.some(pkg => pkg.relative === state.packageRelative)) {
+  if (!state.userSelectedPackage && state.packages.length > 0) {
+    state.packageRelative = state.packages[0].relative;
+  } else if (!state.packages.some(pkg => pkg.relative === state.packageRelative)) {
     state.packageRelative = state.packages[0].relative;
   }
   el.packageSelect.innerHTML = state.packages.map(pkg => {
@@ -91,7 +124,7 @@ async function loadPackageState() {
     state.canWrite = Boolean(apiState.canWrite);
     state.apiAvailable = true;
     state.dirty = false;
-    state.message = "Authoring server connected.";
+    state.message = "已连接 Authoring 服务。";
     return;
   }
 
@@ -101,7 +134,7 @@ async function loadPackageState() {
   state.canWrite = false;
   state.apiAvailable = false;
   state.dirty = false;
-  state.message = "Static preview: start the Authoring server to save, compile, or import.";
+  state.message = "静态预览：请启动 Authoring server 后再保存、预检、导入模型或导入 Unity。";
 }
 
 async function readStaticPackage(root) {
@@ -146,10 +179,12 @@ function render() {
 }
 
 function renderShellStatus() {
-  el.subtitle.textContent = state.message || "Character Resource Package external workstation";
+  el.subtitle.textContent = state.message || "角色资源包外部装配工作台";
   el.dirtyBadge.textContent = state.dirty ? "dirty" : "clean";
   el.dirtyBadge.className = `badge ${state.dirty ? "warn" : "ok"}`;
   el.saveButton.disabled = !state.canWrite || !state.package;
+  el.modelImportButton.disabled = !state.canWrite || !state.package;
+  el.modelImportRole.disabled = !state.canWrite || !state.package;
   el.compileButton.disabled = !state.apiAvailable || !state.package;
   el.importButton.disabled = !state.apiAvailable || !state.package || state.dirty || isImportBlocked();
 }
@@ -162,12 +197,12 @@ function renderSummary() {
   }
   const geometry = pkg.geometry || {};
   el.packageSummary.innerHTML = [
-    summaryCell("Package", pkg.manifest?.packageId || "-"),
-    summaryCell("Version", pkg.manifest?.version || "-"),
-    summaryCell("Resources", (pkg.resourceCatalog?.entries || []).length),
-    summaryCell("Colliders", (geometry.colliders || []).length),
-    summaryCell("Sockets", (geometry.sockets || []).length),
-    summaryCell("Traces", (geometry.traces || []).length)
+    summaryCell("资源包", pkg.manifest?.packageId || "-"),
+    summaryCell("版本", pkg.manifest?.version || "-"),
+    summaryCell("资源", (pkg.resourceCatalog?.entries || []).length),
+    summaryCell("碰撞体", (geometry.colliders || []).length),
+    summaryCell("挂点", (geometry.sockets || []).length),
+    summaryCell("轨迹", (geometry.traces || []).length)
   ].join("");
 }
 
@@ -179,7 +214,7 @@ function renderTree() {
   const nodes = buildTree(state.package);
   el.packageTree.innerHTML = nodes.map(node => {
     const active = node.path === state.selectedPath ? " active" : "";
-    return `<button class="${active}" type="button" data-path="${escapeHtml(node.path)}" style="padding-left:${8 + node.depth * 14}px"><span class="kind">${escapeHtml(node.kind)}</span><span class="label">${escapeHtml(node.label)}</span></button>`;
+    return `<button class="${active}" type="button" data-path="${escapeHtml(node.path)}" style="padding-left:${8 + node.depth * 14}px"><span class="kind">${escapeHtml(KIND_LABELS[node.kind] || node.kind)}</span><span class="label">${escapeHtml(node.label)}</span></button>`;
   }).join("");
   el.packageTree.querySelectorAll("button[data-path]").forEach(button => {
     button.addEventListener("click", () => selectPath(button.dataset.path));
@@ -191,16 +226,16 @@ function buildTree(pkg) {
   const g = pkg.geometry || {};
   const nodes = [
     node("manifest", "manifest", "manifest", 0),
-    node("resources", "resources", "resource catalog", 0),
+    node("resources", "resources", "资源目录", 0),
     ...grouped((pkg.resourceCatalog?.entries || []), "resource", entry => `resources/${entry.resourceKey || entry.localId}`, entry => entry.resourceKey || entry.relativePath || "resource", 1),
-    node("config", "config", "character application", 0),
+    node("config", "config", "角色配置", 0),
     node("geometry/body", "body", g.bodyProfile?.profileId || "body geometry", 0),
     ...grouped((g.bodyParts || []), "part", part => `geometry/body_parts/${part.partId}`, part => part.partId || "part", 1),
     ...grouped((g.colliders || []), "collider", collider => `geometry/colliders/${collider.colliderId}`, collider => collider.colliderId || "collider", 1),
     ...grouped((g.sockets || []), "socket", socket => `geometry/sockets/${socket.socketId}`, socket => socket.socketId || "socket", 1),
     ...grouped((g.weaponAttachments || []), "weapon", attachment => `geometry/weapon_attachments/${attachment.weaponId}`, attachment => `${attachment.equipSlot || "slot"}:${attachment.weaponId || "weapon"}`, 1),
     ...grouped((g.traces || []), "trace", trace => `geometry/traces/${trace.traceId}`, trace => trace.traceId || "trace", 1),
-    node("validation", "validation", "validation/gates", 0),
+    node("validation", "validation", "诊断与门禁", 0),
     ...grouped((state.validation?.issues || []), "issue", (_, index) => `validation/issues/${index}`, issue => issue.code || issue.message || "issue", 1)
   ];
   return nodes;
@@ -228,7 +263,7 @@ function renderLoadouts() {
 
 function renderViewport() {
   if (!state.package) {
-    el.viewport.innerHTML = `<div class="empty">No package loaded.</div>`;
+    el.viewport.innerHTML = `<div class="empty">未加载资源包。</div>`;
     return;
   }
 
@@ -238,10 +273,10 @@ function renderViewport() {
   }
 
   const renderId = ++viewportRenderId;
-  el.viewport.innerHTML = `<div class="viewport3d" aria-label="3D character viewport"><div class="viewport-status">Loading 3D preview...</div></div>`;
+  el.viewport.innerHTML = `<div class="viewport3d" aria-label="3D 角色预览"><div class="viewport-status">正在加载 3D 预览...</div></div>`;
   renderThreeViewport(renderId).catch(error => {
     if (renderId !== viewportRenderId) return;
-    renderSvgViewport(`3D preview unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    renderSvgViewport(`3D 预览不可用：${error instanceof Error ? error.message : String(error)}`);
   });
 }
 
@@ -615,7 +650,7 @@ function renderInspector() {
   const target = findTarget(state.selectedPath);
   el.selectionBadge.textContent = target.kind || "none";
   if (!target.value) {
-    el.inspector.innerHTML = `<div class="empty">Select a package object.</div>`;
+    el.inspector.innerHTML = `<div class="empty">请选择一个资源包对象。</div>`;
     return;
   }
   const fields = editableFields(target.kind);
@@ -682,7 +717,7 @@ function renderDiagnostics() {
   }
   const issues = [...validationIssues, ...gateIssues];
   if (issues.length === 0) {
-    rows.push(`<div class="empty">No diagnostics.</div>`);
+    rows.push(`<div class="empty">暂无诊断。</div>`);
   } else {
     for (const issue of issues) {
       const cls = issue.severity === "Error" || issue.gate === "ImportBlocked" || issue.gate === "ExportBlocked" ? "error" : "warning";
@@ -700,7 +735,7 @@ function renderDiagnostics() {
 function renderImportStatus() {
   const report = state.importResult?.report || state.importResult || null;
   if (!report) {
-    el.importStatus.innerHTML = `<div class="empty">No import report loaded.</div>`;
+    el.importStatus.innerHTML = `<div class="empty">暂无 Unity 导入报告。</div>`;
     return;
   }
   const operations = report.operations || [];
@@ -713,7 +748,7 @@ function renderImportStatus() {
 
 async function savePackage() {
   if (!state.canWrite) {
-    state.message = "Static preview cannot save. Start the Authoring server.";
+    state.message = "静态预览不能保存。请启动 Authoring server。";
     renderShellStatus();
     return;
   }
@@ -731,19 +766,78 @@ async function savePackage() {
   state.package = data.package;
   state.validation = data.validation;
   state.dirty = false;
-  state.message = "Package saved and validated.";
+  state.message = "资源包已保存并完成校验。";
   render();
+}
+
+async function importModel(file) {
+  if (!state.canWrite) {
+    state.message = "静态预览不能导入模型。请启动 Authoring server。";
+    renderShellStatus();
+    return;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!["glb", "gltf"].includes(extension)) {
+    state.message = "仅支持导入 .glb 或 .gltf 模型。";
+    renderShellStatus();
+    return;
+  }
+
+  state.message = `正在导入模型：${file.name}`;
+  renderShellStatus();
+  try {
+    const bytesBase64 = await readFileAsBase64(file);
+    const response = await fetch(`/api/character/import-model?package=${encodeURIComponent(state.packageRelative)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        role: el.modelImportRole.value,
+        bytesBase64
+      })
+    });
+    if (!response.ok) {
+      state.message = await response.text();
+      renderShellStatus();
+      return;
+    }
+    const data = await response.json();
+    state.package = data.package;
+    state.validation = data.validation || data.package?.validationReport || { issues: [] };
+    state.importResult = data.importReport || state.importResult;
+    state.dirty = false;
+    state.canWrite = Boolean(data.canWrite);
+    state.apiAvailable = true;
+    state.message = `模型已导入：${file.name}`;
+    render();
+  } catch (error) {
+    state.message = `模型导入失败：${error instanceof Error ? error.message : String(error)}`;
+    renderShellStatus();
+  }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const value = String(reader.result || "");
+      resolve(value.includes(",") ? value.slice(value.indexOf(",") + 1) : value);
+    });
+    reader.addEventListener("error", () => reject(reader.error || new Error("File read failed.")));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function compilePackage() {
   const data = await readJson(`/api/character/compile?package=${encodeURIComponent(state.packageRelative)}&checkHashes=false`, null);
   if (!data) {
-    state.message = "Compile failed or server unavailable.";
+    state.message = "预检失败，或 Authoring server 不可用。";
     renderShellStatus();
     return;
   }
   state.compileResult = data;
-  state.message = `Compile status: ${data.status || "Unknown"}`;
+  state.message = `预检状态：${data.status || "Unknown"}`;
   renderDiagnostics();
 }
 
@@ -756,11 +850,11 @@ async function importUnity() {
       body: JSON.stringify({ package: state.packageRelative, unityRoot: "Assets/MxFrameworkGenerated/CharacterPackages", checkHashes: false, dryRun: false })
     });
     state.importResult = await response.json();
-    state.message = response.ok && state.importResult.success ? "Import completed." : "Import failed.";
+    state.message = response.ok && state.importResult.success ? "Unity 导入完成。" : "Unity 导入失败。";
     renderShellStatus();
     renderImportStatus();
   } catch (error) {
-    state.message = `Import request failed: ${error instanceof Error ? error.message : String(error)}`;
+    state.message = `Unity 导入请求失败：${error instanceof Error ? error.message : String(error)}`;
     renderShellStatus();
   }
 }
@@ -772,7 +866,7 @@ async function copyReport() {
     import: state.importResult
   }, null, 2);
   await navigator.clipboard?.writeText(text);
-  state.message = "Report copied.";
+  state.message = "报告已复制。";
   renderShellStatus();
 }
 

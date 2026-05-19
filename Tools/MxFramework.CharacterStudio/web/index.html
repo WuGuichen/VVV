@@ -19,21 +19,29 @@
     <header class="topbar">
       <div>
         <h1>CharacterStudio</h1>
-        <p id="subtitle">Character Resource Package external workstation</p>
+        <p id="subtitle">角色资源包外部装配工作台</p>
       </div>
       <div class="toolbar">
-        <select id="packageSelect" title="Character package"></select>
-        <button id="reloadButton" type="button" title="Reload package">刷新</button>
-        <button id="saveButton" type="button" title="Validate and save package draft">保存</button>
-        <button id="compileButton" type="button" title="Run character compile">预检</button>
-        <button id="importButton" type="button" title="Run Unity import bridge">导入 Unity</button>
+        <select id="packageSelect" title="角色资源包"></select>
+        <select id="modelImportRole" title="模型用途">
+          <option value="body">主体模型</option>
+          <option value="mainHand">主手武器</option>
+          <option value="offHand">副手武器</option>
+          <option value="preview">预览模型</option>
+        </select>
+        <input id="modelFileInput" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden>
+        <button id="modelImportButton" type="button" title="导入 GLB/GLTF 到当前角色资源包">导入模型</button>
+        <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
+        <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
+        <button id="compileButton" type="button" title="运行 Character compile 预检">预检</button>
+        <button id="importButton" type="button" title="把当前资源包导入 Unity 工程">导入 Unity</button>
       </div>
     </header>
 
     <main class="workspace">
       <aside class="tree-panel">
         <div class="panel-heading">
-          <h2>Package</h2>
+          <h2>资源包</h2>
           <span id="dirtyBadge" class="badge">clean</span>
         </div>
         <div id="packageSummary" class="summary"></div>
@@ -42,12 +50,12 @@
 
       <section class="viewport-panel">
         <div class="panel-heading">
-          <h2>Viewport</h2>
+          <h2>3D 预览</h2>
           <div class="segmented" id="layerToggles">
-            <button data-layer="colliders" class="active" type="button">Colliders</button>
-            <button data-layer="sockets" class="active" type="button">Sockets</button>
-            <button data-layer="traces" class="active" type="button">Traces</button>
-            <button data-layer="weapons" class="active" type="button">Weapons</button>
+            <button data-layer="colliders" class="active" type="button">碰撞体</button>
+            <button data-layer="sockets" class="active" type="button">挂点</button>
+            <button data-layer="traces" class="active" type="button">轨迹</button>
+            <button data-layer="weapons" class="active" type="button">武器</button>
           </div>
         </div>
         <div id="loadoutTabs" class="tabs"></div>
@@ -57,7 +65,7 @@
       <aside class="inspector-panel">
         <section>
           <div class="panel-heading">
-            <h2>Inspector</h2>
+            <h2>属性</h2>
             <span id="selectionBadge" class="badge">none</span>
           </div>
           <div id="inspector" class="inspector"></div>
@@ -65,15 +73,15 @@
 
         <section>
           <div class="panel-heading">
-            <h2>Diagnostics</h2>
-            <button id="copyReportButton" type="button" title="Copy diagnostic report">复制</button>
+            <h2>诊断</h2>
+            <button id="copyReportButton" type="button" title="复制诊断报告">复制</button>
           </div>
           <div id="diagnostics" class="diagnostics"></div>
         </section>
 
         <section>
           <div class="panel-heading">
-            <h2>Import</h2>
+            <h2>Unity 导入</h2>
           </div>
           <div id="importStatus" class="diagnostics"></div>
         </section>
