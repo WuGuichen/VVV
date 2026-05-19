@@ -783,13 +783,15 @@ async function renderThreeViewport(renderId) {
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(pickables, true)
-      .find(item => findBonePick(item.object) || findObjectPath(item.object));
-    const bonePick = hit ? findBonePick(hit.object) : null;
-    if (bonePick) {
+    const hits = raycaster.intersectObjects(pickables, true);
+    const boneHit = state.bonePickerOpen ? hits.find(item => findBonePick(item.object)) : null;
+    if (boneHit) {
+      const bonePick = findBonePick(boneHit.object);
       applyBonePick(bonePick);
       return;
     }
+    if (state.bonePickerOpen) return;
+    const hit = hits.find(item => findObjectPath(item.object));
     const objectPath = hit ? findObjectPath(hit.object) : "";
     if (objectPath) selectPath(objectPath);
   };
