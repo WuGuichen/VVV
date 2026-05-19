@@ -6,6 +6,8 @@
 
 Character Application 是角色应用层的数据聚合契约。它不让 Runtime / Gameplay / Combat / Resources / Animation / CharacterControl 反向依赖角色概念，而是在应用层用配置引用把这些模块编排起来。
 
+角色资源包 authoring 主线见 `Docs/CHARACTER_RESOURCE_PACKAGE_AUTHORING.md`，工程实现见 `Docs/CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md`。该主线把模型、贴图、动画、武器资源、geometry、socket、trace 和角色配置放在同一个 Character Resource Package 中，由外部 3D 装配编辑器编辑，再通过 Unity Importer Bridge 导入项目。
+
 当前程序集：
 
 - `MxFramework.Character.Application`
@@ -61,6 +63,7 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 
 - 配置只保存初始值、规则和引用关系，不保存运行时当前 HP、冷却、Buff 实例、装备实例或资源 handle。
 - 角色一定有装备状态系统，但不强绑定某一件武器；空手、单武器、多槽位武器都通过 `EquipmentLoadoutConfig` 和 `EquipmentStateResolver` 解释。
+- 外部角色编辑器的源头是 Character Resource Package，不是 Unity 导出的模型工作包；Unity 侧导入后才生成项目内 ResourceCatalog 映射和可用配置。
 - `CombatActionSetConfig` 不复制 Combat action timeline 的 duration、hit window 或 cancel window 权威字段。
 - 表现资源只保存 `CharacterResourceKeyEntry`，不直接保存 `UnityEngine.Object`、Prefab、`AnimationClip` 或 Material。
 - Resolver 是纯函数：不读取 Unity 场景对象，不写 Runtime / Gameplay / Combat world，不做真实资源加载。

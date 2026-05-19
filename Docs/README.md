@@ -33,6 +33,8 @@
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、模块边界、加载契约和阶段切片。 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、命名、Catalog、临时资产归档和 FMOD 边界规范。 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画/物理协作方案和落地阶段。 |
+| `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包、外部 3D 装配编辑器、Unity 导入和 Runtime Spawn 总方案。 |
+| `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程实现方案：模块拆分、目录、CLI、Tauri 编辑器、Unity Importer 和测试矩阵。 |
 | `API_STANDARDS.md` | API 命名、兼容性、GC、Unity 依赖标准。 |
 | `WORKFLOW.md` | 项目日常开发、验收、提交和推送流程。 |
 | `GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查。 |
@@ -55,6 +57,8 @@
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部主创编辑器总规划。 |
 | `AUTHORING_EDITOR_USAGE.md` | Buff 外部编辑器怎么开、怎么用、限制在哪。 |
 | `AUTHORING_WORKFLOW.md` | 创作流程跨 Unity/Mod Editor/AI/CLI 协作。 |
+| `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包创作管线：包格式、3D 装配、Compiler、Unity Importer、Runtime Spawn。 |
+| `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包创作管线的工程落地方案。 |
 | `WGAME_BUFF_AUTHORING_WORKFLOW.md` | 结合 WGame 类型的 Buff 创作流水线。 |
 
 ---
@@ -76,6 +80,7 @@
 | `Interfaces/AppFlow.md` | App / Scene Flow 状态和场景切换 |
 | `Interfaces/Input.md` | Unity Input System 上层的输入意图、上下文和重绑定接口 |
 | `Interfaces/CharacterControl.md` | Character Control 角色控制编排接口 |
+| `Interfaces/CharacterApplication.md` | Character Application 角色配置聚合、纯 resolver 和 diagnostics 接口 |
 | `Interfaces/DebugUI.md` | Debug UI source registry、snapshot aggregation、Toolkit overlay 和 source adapter 接入方式 |
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |
 | `Interfaces/Editor.md` | Editor 工具接口 |

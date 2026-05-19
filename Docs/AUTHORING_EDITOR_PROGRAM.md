@@ -143,7 +143,14 @@ MVP 不做：
 
 ## 数据交换
 
-外部编辑器只依赖导出的项目工作包，不直接读取 Unity 项目源码。
+外部编辑器不直接读取 Unity 项目源码。不同内容类型使用不同交换载体：
+
+- 表格 / Patch 型内容，例如 Buff、Ability authoring contract、配置修复，优先消费项目工作包提供的 schema、enum、reference、localization 摘要。
+- 资源聚合型内容，例如角色，必须以内容资源包为源头。角色模型、贴图、动画、武器资源、geometry、socket、trace 和角色配置放在同一个 `Character Resource Package` 中，外部编辑器直接打开和保存该包，Unity 只负责导入。
+
+角色创作管线见 `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md`，工程实现见 `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md`。它不能要求 Unity 先导出模型或骨骼工作包给外部编辑器。
+
+### Project Authoring Manifest
 
 项目工作包建议包含：
 
@@ -167,6 +174,29 @@ ProjectAuthoringManifest/
     zh_cn.json
     en_us.json
 ```
+
+### Character Resource Package
+
+角色资源包建议包含：
+
+```text
+CharacterPackage/
+  manifest.json
+  resource_catalog.json
+  resources/
+    models/
+    textures/
+    materials/
+    animations/
+    audio/
+    vfx/
+  previews/
+  config/
+  geometry/
+  validation/
+```
+
+该包既是外部 3D 装配编辑器的输入输出，也是 Unity Character Importer Bridge 的导入输入。包内资源通过 package-local `ResourceKey`、relative path、hash 和 import hints 表达，导入 Unity 后再映射到项目 ResourceCatalog。
 
 编辑输出建议包含：
 
