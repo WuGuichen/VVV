@@ -36,6 +36,11 @@ namespace MxFramework.Authoring
                 CreateCoordinateAxisEnum(),
                 CreateCoordinateHandednessEnum(),
                 CreateRotationStorageEnum(),
+                CreateResourceTypeEnum(),
+                CreateResourceSourceFormatEnum(),
+                CreateResourceUsageEnum(),
+                CreateImportTargetPathPolicyEnum(),
+                CreateConflictActionEnum(),
                 CreateBodyKindEnum(),
                 CreatePoseParentKindEnum(),
                 CreateColliderShapeEnum(),
@@ -68,13 +73,24 @@ namespace MxFramework.Authoring
         {
             var schema = CreateSchema(ResourceCatalogSchemaId, "角色包资源目录");
             Add(schema, "resourceKey", "ResourceKey", FieldType.String, true, "identity", "身份");
-            Add(schema, "typeId", "资源类型", FieldType.String, true, "identity", "身份");
+            Add(schema, "localId", "包内 LocalId", FieldType.String, true, "identity", "身份", description: "ResourceKey 生成使用的包内稳定局部 ID，例如 model.body。");
+            Add(schema, "stableId", "资源 StableId", FieldType.String, true, "identity", "身份", description: "跨版本、冲突处理和诊断使用的长期稳定资源 ID。");
+            Add(schema, "typeId", "资源类型", FieldType.Enum, true, "identity", "身份", enumId: "character.resourceType");
             Add(schema, "variant", "变体", FieldType.String, false, "identity", "身份");
+            Add(schema, "usage", "用途", FieldType.Enum, true, "identity", "身份", enumId: "character.resourceUsage");
+            Add(schema, "sourceFormat", "源格式", FieldType.Enum, true, "format", "格式", enumId: "character.resourceSourceFormat");
             Add(schema, "packageId", "包 ID", FieldType.String, true, "identity", "身份");
             Add(schema, "relativePath", "包内相对路径", FieldType.AssetPath, false, "path", "路径");
-            Add(schema, "hash", "资源 Hash", FieldType.String, false, "hash", "Hash");
+            Add(schema, "hash", "资源 Hash 兼容字段", FieldType.String, false, "hash", "Hash");
+            Add(schema, "hashes.contentHash", "内容 Hash", FieldType.String, true, "hash", "Hash");
+            Add(schema, "hashes.importHash", "导入 Hash", FieldType.String, false, "hash", "Hash");
+            Add(schema, "hashes.dependencyHash", "依赖 Hash", FieldType.String, false, "hash", "Hash");
             Add(schema, "importHints", "导入提示", FieldType.String, false, "import", "导入");
+            Add(schema, "importHints.targetPathPolicy", "Unity 目标路径策略", FieldType.Enum, false, "import", "导入", enumId: "character.importTargetPathPolicy");
             Add(schema, "dependencies", "资源依赖", FieldType.Reference, false, "dependency", "依赖", referenceSource: ResourceCatalogSchemaId, isList: true);
+            Add(schema, "conflictPolicy", "冲突策略", FieldType.String, false, "conflict", "冲突");
+            Add(schema, "preview", "预览元数据", FieldType.String, false, "preview", "预览");
+            Add(schema, "provenance", "来源元数据", FieldType.String, false, "provenance", "来源");
             return schema;
         }
 
@@ -223,6 +239,31 @@ namespace MxFramework.Authoring
         private static EnumDomain CreateRotationStorageEnum()
         {
             return Enum("character.rotationStorage", ("Unknown", 0), ("Quaternion", 1));
+        }
+
+        private static EnumDomain CreateResourceTypeEnum()
+        {
+            return Enum("character.resourceType", ("model", 1), ("texture", 2), ("material", 3), ("animation", 4), ("audio", 5), ("vfx", 6), ("preview", 7), ("config", 8), ("geometry", 9));
+        }
+
+        private static EnumDomain CreateResourceSourceFormatEnum()
+        {
+            return Enum("character.resourceSourceFormat", ("gltf", 1), ("glb", 2), ("fbx", 100), ("png", 10), ("jpg", 11), ("jpeg", 12), ("tga", 13), ("json", 20), ("materialJson", 21), ("animationGroupJson", 22), ("wav", 30), ("ogg", 31), ("vfxJson", 40));
+        }
+
+        private static EnumDomain CreateResourceUsageEnum()
+        {
+            return Enum("character.resourceUsage", ("characterModel", 1), ("weaponModel", 2), ("texture", 3), ("material", 4), ("animationClipGroup", 5), ("audioCue", 6), ("vfxCue", 7), ("previewThumbnail", 8), ("previewMesh", 9), ("characterConfig", 10), ("geometryAuthoring", 11));
+        }
+
+        private static EnumDomain CreateImportTargetPathPolicyEnum()
+        {
+            return Enum("character.importTargetPathPolicy", ("generatedCharacterPackage", 1), ("packageRelativeMirror", 2), ("projectResourceCatalogOnly", 3));
+        }
+
+        private static EnumDomain CreateConflictActionEnum()
+        {
+            return Enum("character.resourceConflictAction", ("skipWhenHashUnchanged", 1), ("reportWhenHashChanged", 2), ("requireExplicitUpgrade", 3), ("createVariant", 4));
         }
 
         private static EnumDomain CreateBodyKindEnum()

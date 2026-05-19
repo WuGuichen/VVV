@@ -14,9 +14,16 @@ internal static class CharacterPackageTests
     {
         ValidationIssue_JsonRoundTrip_PreservesGateAndSourceFields();
         ResourceCatalogEntry_JsonRoundTrip_PreservesResourceFields();
+        ResourceKeyGenerator_GeneratesStablePackageLocalKey();
         CoordinateConvention_JsonRoundTrip_PreservesUnityTargetConvention();
         Schemas_ExposeC0ContractFields();
         IronVanguardSample_ValidatesAsReady();
+        IronVanguardSample_ResourceFilesAndHashesValidate();
+        ResourceDependencyGraph_MissingDependencyBlocksImport();
+        ResourceDependencyGraph_DuplicateDependencyProducesDiagnostic();
+        MissingResourceFile_BlocksImport();
+        ResourceHashMismatch_BlocksImport();
+        InvalidImportTargetPath_BlocksImport();
         UnsupportedConvexShape_ProducesExportBlockedIssue();
         SlimeSample_UsesSameDtoForPrimitiveBody();
     }
@@ -67,17 +74,43 @@ internal static class CharacterPackageTests
         catalog.Entries.Add(new CharacterPackageResourceEntry
         {
             ResourceKey = "char.test.model.body",
+            LocalId = "model.body",
+            StableId = "charpkg.test.resource.model.body",
             TypeId = CharacterPackageResourceTypeIds.Model,
             Variant = "default",
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceFormat = CharacterPackageResourceFormatIds.Glb,
             PackageId = "test",
             RelativePath = "resources/models/test.glb",
             Hash = "sha256:abc",
+            Hashes = new CharacterPackageResourceHashes
+            {
+                ContentHash = "sha256:abc",
+                ImportHash = "sha256:def",
+                DependencyHash = "sha256:123"
+            },
             ImportHints = new CharacterPackageImportHint
             {
                 TargetPathPolicy = "generatedCharacterPackage",
                 TargetRelativePath = "resources/models/test.glb",
                 Scale = 1f,
-                ProviderId = "unityAsset"
+                ProviderId = "unityAsset",
+                UpAxis = "Y+",
+                ForwardAxis = "Z+",
+                CollisionPolicy = "authoringGeometryOnly",
+                PhysicsDataPolicy = "separateGeometryBinding"
+            },
+            Preview = new CharacterPackagePreviewMetadata
+            {
+                ThumbnailResourceKey = "char.test.preview.thumbnail",
+                PreviewMeshResourceKey = "char.test.model.body",
+                IsPlaceholder = true
+            },
+            Provenance = new CharacterPackageResourceProvenance
+            {
+                SourceTool = "unit-test",
+                SourceFile = "resources/models/test.glb",
+                AuthoringSchemaVersion = "1.0"
             }
         });
 
@@ -87,9 +120,26 @@ internal static class CharacterPackageTests
         Require(roundTrip != null && roundTrip.Entries.Count == 1, "catalog entry should roundtrip.");
         CharacterPackageResourceEntry entry = roundTrip.Entries[0];
         Require(entry.ResourceKey == "char.test.model.body", "resourceKey should roundtrip.");
+        Require(entry.LocalId == "model.body", "localId should roundtrip.");
+        Require(entry.StableId == "charpkg.test.resource.model.body", "stableId should roundtrip.");
+        Require(entry.Usage == CharacterPackageResourceUsageIds.CharacterModel, "usage should roundtrip.");
+        Require(entry.SourceFormat == CharacterPackageResourceFormatIds.Glb, "sourceFormat should roundtrip.");
         Require(entry.RelativePath == "resources/models/test.glb", "relativePath should roundtrip.");
         Require(entry.Hash == "sha256:abc", "hash should roundtrip.");
+        Require(entry.Hashes.ImportHash == "sha256:def", "import hash should roundtrip.");
         Require(entry.ImportHints.ProviderId == "unityAsset", "import hint should roundtrip.");
+        Require(entry.ImportHints.CollisionPolicy == "authoringGeometryOnly", "collision policy should roundtrip.");
+        Require(entry.Preview.ThumbnailResourceKey == "char.test.preview.thumbnail", "preview metadata should roundtrip.");
+        Require(entry.Provenance.SourceTool == "unit-test", "provenance should roundtrip.");
+    }
+
+    private static void ResourceKeyGenerator_GeneratesStablePackageLocalKey()
+    {
+        string key = CharacterPackageResourceKeyGenerator.Generate("iron_vanguard", CharacterPackageResourceTypeIds.Animation, "Locomotion");
+
+        Require(key == "char.iron_vanguard.anim.locomotion", "resource key generator should use stable normalized package/type/local segments.");
+        Require(CharacterPackageResourceKeyGenerator.IsValidResourceKey(key), "generated key should be valid ResourceKey syntax.");
+        Require(!CharacterPackageResourceKeyGenerator.IsValidResourceKey("Char.Bad Key"), "invalid resource key should be rejected.");
     }
 
     private static void CoordinateConvention_JsonRoundTrip_PreservesUnityTargetConvention()
@@ -118,10 +168,17 @@ internal static class CharacterPackageTests
         Require(FindSchema(schemas, CharacterResourcePackageSchemas.ValidationIssueSchemaId) != null, "validation issue schema missing.");
 
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ManifestSchemaId), "coordinateConvention"), "manifest coordinate field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "localId"), "resource localId field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "stableId"), "resource stableId field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "hashes.contentHash"), "resource content hash field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "importHints.targetPathPolicy"), "resource target path policy field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "shape"), "collider shape field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "hitZoneId"), "collider hit zone field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.WeaponAttachmentSchemaId), "traceRadius"), "weapon trace radius field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ValidationIssueSchemaId), "gate"), "validation gate field missing.");
+        Require(HasEnumOption("character.resourceSourceFormat", "glb"), "resource source format glb option missing.");
+        Require(HasEnumOption("character.resourceSourceFormat", "fbx"), "resource source format fbx future option missing.");
+        Require(HasEnumOption("character.importTargetPathPolicy", "generatedCharacterPackage"), "import target path policy option missing.");
         Require(HasEnumOption("character.validationGate", "Unknown"), "validation gate Unknown option missing.");
         Require(HasEnumOption("character.validationGate", "Reserved1000"), "validation gate reserved option missing.");
         Require(HasEnumOption("character.colliderShape", "Convex"), "reserved convex shape option missing.");
@@ -137,6 +194,107 @@ internal static class CharacterPackageTests
         Require(package.Geometry.Colliders.Exists(c => c.ColliderId == "head_sphere" && c.Shape == CharacterColliderShape.Sphere), "head collider missing.");
         Require(package.Geometry.Sockets.Exists(s => s.SocketId == "mainHand"), "main hand socket missing.");
         Require(package.Geometry.WeaponAttachments.Exists(a => a.WeaponId == "weapon.iron_sword" && a.TraceRadius > 0f), "sword attachment trace data missing.");
+    }
+
+    private static void IronVanguardSample_ResourceFilesAndHashesValidate()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package, new CharacterResourcePackageValidationOptions
+        {
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            ValidateResourceFiles = true,
+            ValidateResourceHashes = true
+        });
+        CharacterPackageResourceHashReport hashReport = CharacterPackageResourcePipeline.BuildHashReport(package, FindSamplePath("character-iron-vanguard"));
+
+        Require(!report.HasBlockingIssues, "Iron Vanguard resource files and hashes should validate: " + report.ToText());
+        Require(!hashReport.HasBlockingIssues, "Iron Vanguard hash report should not block: " + hashReport.Diagnostics.ToText());
+        Require(hashReport.Entries.Exists(entry => entry.ResourceKey == "char.iron_vanguard.model.body" && entry.Exists && entry.DeclaredContentHash == entry.ComputedContentHash), "body model hash report should include matching computed hash.");
+    }
+
+    private static void ResourceDependencyGraph_MissingDependencyBlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries[0].Dependencies.Add(new CharacterPackageResourceDependency
+        {
+            ResourceKey = "char.iron_vanguard.missing.texture",
+            Required = true,
+            Relation = "uses"
+        });
+
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package);
+
+        Require(report.HasBlockingIssues, "missing resource dependency should block import.");
+        Require(report.Issues.Exists(issue =>
+            issue.Code == CharacterAuthoringValidationCodes.MissingResourceDependency &&
+            issue.Gate == CharacterAuthoringValidationGate.ImportBlocked), "missing dependency should produce stable ImportBlocked issue.");
+    }
+
+    private static void ResourceDependencyGraph_DuplicateDependencyProducesDiagnostic()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterPackageResourceEntry combat = package.ResourceCatalog.Entries.Find(entry => entry.ResourceKey == "char.iron_vanguard.anim.combat");
+        Require(combat != null, "combat animation resource missing from sample.");
+        combat.Dependencies.Add(new CharacterPackageResourceDependency
+        {
+            ResourceKey = "char.iron_vanguard.model.body",
+            Required = true,
+            Relation = "retargetsToSkeleton"
+        });
+
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package);
+        CharacterPackageDependencyGraph graph = CharacterPackageResourcePipeline.BuildDependencyGraph(package.ResourceCatalog);
+
+        Require(report.Issues.Exists(issue => issue.Code == CharacterAuthoringValidationCodes.DuplicateResourceDependency), "duplicate dependency should produce stable diagnostic.");
+        Require(graph.Edges.Exists(edge => edge.FromResourceKey == "char.iron_vanguard.anim.combat" && edge.ToResourceKey == "char.iron_vanguard.model.body"), "dependency graph should include combat -> body edge.");
+    }
+
+    private static void ResourceHashMismatch_BlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries[0].Hashes.ContentHash = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package, new CharacterResourcePackageValidationOptions
+        {
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            ValidateResourceFiles = true,
+            ValidateResourceHashes = true
+        });
+
+        Require(report.HasBlockingIssues, "hash mismatch should block import.");
+        Require(report.Issues.Exists(issue =>
+            issue.Code == CharacterAuthoringValidationCodes.ResourceHashMismatch &&
+            issue.Gate == CharacterAuthoringValidationGate.ImportBlocked), "hash mismatch should produce stable ImportBlocked issue.");
+    }
+
+    private static void MissingResourceFile_BlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries[0].RelativePath = "resources/models/missing.glb";
+
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package, new CharacterResourcePackageValidationOptions
+        {
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            ValidateResourceFiles = true
+        });
+
+        Require(report.HasBlockingIssues, "missing resource file should block import.");
+        Require(report.Issues.Exists(issue =>
+            issue.Code == CharacterAuthoringValidationCodes.MissingResourceFile &&
+            issue.Gate == CharacterAuthoringValidationGate.ImportBlocked), "missing resource file should produce stable ImportBlocked issue.");
+    }
+
+    private static void InvalidImportTargetPath_BlocksImport()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries[0].ImportHints.TargetRelativePath = "../outside.glb";
+
+        CharacterAuthoringValidationReport report = CharacterResourcePackageValidator.Validate(package);
+
+        Require(report.HasBlockingIssues, "invalid Unity target path should block import.");
+        Require(report.Issues.Exists(issue =>
+            issue.Code == CharacterAuthoringValidationCodes.InvalidImportTargetPath &&
+            issue.Gate == CharacterAuthoringValidationGate.ImportBlocked), "invalid import target path should produce stable ImportBlocked issue.");
     }
 
     private static void UnsupportedConvexShape_ProducesExportBlockedIssue()
@@ -167,9 +325,13 @@ internal static class CharacterPackageTests
 
     private static CharacterResourcePackage LoadSample(string sampleName)
     {
+        return CharacterPackageCommands.ReadPackage(FindSamplePath(sampleName), MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+    }
+
+    private static string FindSamplePath(string sampleName)
+    {
         string root = FindRepoRoot();
-        string packagePath = Path.Combine(root, "Tools", "MxFramework.Authoring", "samples", sampleName);
-        return CharacterPackageCommands.ReadPackage(packagePath, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+        return Path.Combine(root, "Tools", "MxFramework.Authoring", "samples", sampleName);
     }
 
     private static string FindRepoRoot()

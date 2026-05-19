@@ -196,16 +196,19 @@ CharacterPackage/
   validation/
 ```
 
-该包既是外部 3D 装配编辑器的输入输出，也是 Unity Character Importer Bridge 的导入输入。包内资源通过 package-local `ResourceKey`、relative path、hash 和 import hints 表达，导入 Unity 后再映射到项目 ResourceCatalog。
+该包既是外部 3D 装配编辑器的输入输出，也是 Unity Character Importer Bridge 的导入输入。包内资源通过 package-local `ResourceKey`、local id、stable id、relative path、source format、content/import/dependency hash、dependency graph、conflict policy、provenance、preview metadata 和 import hints 表达，导入 Unity 后再映射到项目 ResourceCatalog。
 
-C0 契约已经在 `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/` 固定：
+C0 / C0.5 契约已经在 `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/` 固定：
 
 - `CharacterPackageManifest`：包身份、schema、坐标、依赖、hash 占位。
-- `CharacterPackageResourceCatalog`：包内 ResourceKey、relative path、type、variant、hash 和 import hints。
+- `CharacterPackageResourceCatalog`：包内 ResourceKey、local id、stable id、relative path、type、variant、usage、source format、hash、import hints、dependency edge、conflict policy、preview 和 provenance。
+- `CharacterPackageResourcePipeline`：ResourceKey 生成、dependency graph、content/import/dependency hash report、资源格式和路径校验。
 - `CharacterAuthoringGeometry`：body geometry、body parts、colliders、sockets、weapon attachments、traces。
 - `CharacterAuthoringValidationIssue`：stable code、severity、gate、sourcePath、sourceObjectPath、field、suggestedFix。
 
 第一版 v1 collider shape 只允许 `Capsule`、`Box`、`Sphere`；`Convex` / `CustomMesh` 保留为 future enum，校验会输出 `CHARPKG_UNSUPPORTED_COLLIDER_SHAPE`。
+
+C0.5 资源格式契约把 glTF / GLB 作为 v1 模型和动画组的目标格式；FBX 只记录为 future / optional。当前尚未确认 Unity 6 Editor 项目内是否具备内置 glTF/GLB 导入能力，因此 #222 / #224 在真正写 Unity Importer 前必须补 importer package、转换步骤或继续使用 placeholder 资源的明确策略。
 
 编辑输出建议包含：
 

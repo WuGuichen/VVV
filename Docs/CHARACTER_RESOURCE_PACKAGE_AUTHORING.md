@@ -136,12 +136,23 @@ CharacterPackage/
 | 字段 | 说明 |
 | --- | --- |
 | `resourceKey` | 包内稳定资源 key，例如 `char.iron_vanguard.model.body`。 |
+| `localId` | ResourceKey 生成用的包内局部 ID，例如 `model.body`、`anim.combat`。 |
+| `stableId` | 长期稳定资源 ID，用于跨版本、导入冲突、诊断和迁移。 |
 | `typeId` | model、texture、material、animation、audio、vfx、preview。 |
 | `variant` | 可选变体，例如 `default`、`lod0`、`combat`。 |
+| `usage` | characterModel、weaponModel、animationClipGroup、previewThumbnail 等用途。 |
+| `sourceFormat` | gltf、glb、png、jpg、tga、json、wav、ogg 等包内源格式；fbx 为 future / optional。 |
 | `relativePath` | 包内相对路径。 |
-| `hash` | 内容 hash。 |
-| `importHints` | Unity 导入路径、scale、材质策略、动画切分策略等。 |
-| `dependencies` | 该资源依赖的其他包内 ResourceKey。 |
+| `hash` / `hashes.contentHash` | 内容 hash；`hash` 是兼容字段，C0.5 使用 `hashes` 作为权威结构。 |
+| `hashes.importHash` | 由 source format 和 import hints 计算的导入语义 hash。 |
+| `hashes.dependencyHash` | 由依赖边和依赖资源 content hash 计算的依赖语义 hash。 |
+| `importHints` | Unity target path policy、target relative path、scale、材质策略、动画切分策略、坐标提示、collision/physics policy。 |
+| `dependencies` | 该资源依赖的其他包内 ResourceKey，形成 package-local dependency graph。 |
+| `conflictPolicy` | 同 stable id、hash 未变、hash 变化时的 skip/report/upgrade/variant 策略。 |
+| `preview` | thumbnail、preview mesh、placeholder 和 camera preset 元数据。 |
+| `provenance` | source tool、source file、license、origin、createdBy、modifiedBy 等来源信息。 |
+
+C0.5 固定 glTF / GLB 为 v1 模型和动画组的目标格式。FBX 可以出现在 catalog 中，但只作为 future / optional 触发 warning。Unity 6 项目内的 glTF/GLB 实际导入能力不在 C0.5 中假设，必须在 #222 / #224 通过 importer package、转换步骤或 placeholder 策略补齐。
 
 ## 3D Authoring 数据
 
@@ -447,6 +458,7 @@ C0 已用同一套 DTO 表达 `Training Slime`：`Primitive` body kind、`core/s
 | 非人形角色后补会推翻结构 | C0 必须用 Drake / Slime 作为契约样例校验。 |
 | 运行时状态污染配置 | 所有当前值只进入 runtime state / SaveState，不进入 config。 |
 | 过早支持复杂碰撞和动画 | v1 只支持 capsule / box / sphere，不做完整动画状态机编辑。 |
+| Unity glTF/GLB 导入能力不确定 | C0.5 只声明源格式契约；#222 / #224 必须确认 Unity importer package、转换器或 placeholder 策略。 |
 
 ## Done Definition
 

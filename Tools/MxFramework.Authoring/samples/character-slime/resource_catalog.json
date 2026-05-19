@@ -3,11 +3,21 @@
   "entries": [
     {
       "resourceKey": "char.training_slime.model.body",
+      "localId": "model.body",
+      "stableId": "charpkg.training_slime.resource.model.body",
       "typeId": "model",
       "variant": "default",
+      "usage": "characterModel",
+      "sourceFormat": "glb",
       "packageId": "training_slime",
       "relativePath": "resources/models/training_slime.glb",
-      "hash": "sha256:placeholder-slime-model",
+      "hash": "sha256:75785f6dbd5f7e72926f01985aff3371fe881a8b74bdaebb0fb61f727531a357",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:75785f6dbd5f7e72926f01985aff3371fe881a8b74bdaebb0fb61f727531a357",
+        "importHash": "sha256:a119f6cc522b59784e015d49192284dc4b430b4f25aa7a73453062890b0401ff",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
         "targetRelativePath": "resources/models/training_slime.glb",
@@ -15,27 +25,66 @@
         "materialPolicy": "importEmbeddedOrPackageMaterials",
         "animationPolicy": "",
         "providerId": "unityAsset",
+        "upAxis": "Y+",
+        "forwardAxis": "Z+",
+        "collisionPolicy": "authoringGeometryOnly",
+        "physicsDataPolicy": "separateGeometryBinding",
         "labels": [
           "package.training_slime",
           "character.model"
         ],
         "metadata": {
-          "primitiveAuthoring": "true"
+          "primitiveAuthoring": "true",
+          "placeholderResource": "true"
         }
       },
       "dependencies": [],
       "tags": [
         "body",
         "primitive"
-      ]
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.training_slime.preview.thumbnail",
+        "previewMeshResourceKey": "char.training_slime.model.body",
+        "placeholderResourceKey": "char.training_slime.preview.thumbnail",
+        "previewCameraPresetId": "primitiveCore",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "resources/models/training_slime.glb",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
     },
     {
       "resourceKey": "char.training_slime.preview.thumbnail",
+      "localId": "preview.thumbnail",
+      "stableId": "charpkg.training_slime.resource.preview.thumbnail",
       "typeId": "preview",
       "variant": "default",
+      "usage": "previewThumbnail",
+      "sourceFormat": "png",
       "packageId": "training_slime",
       "relativePath": "previews/thumbnail.png",
-      "hash": "sha256:placeholder-slime-thumbnail",
+      "hash": "sha256:748915486d27db53f696c922ae89c24856b65e1fd8b74ab073893ff406446e40",
+      "hashes": {
+        "algorithm": "sha256",
+        "contentHash": "sha256:748915486d27db53f696c922ae89c24856b65e1fd8b74ab073893ff406446e40",
+        "importHash": "sha256:bf6ddc2ea9e9df8d140ebf125170abb8bac15d1bca65831e7adf24d4aba6706c",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
         "targetRelativePath": "previews/thumbnail.png",
@@ -43,16 +92,46 @@
         "materialPolicy": "",
         "animationPolicy": "",
         "providerId": "unityAsset",
+        "upAxis": "",
+        "forwardAxis": "",
+        "collisionPolicy": "",
+        "physicsDataPolicy": "",
         "labels": [
           "package.training_slime",
           "character.preview"
         ],
-        "metadata": {}
+        "metadata": {
+          "placeholderResource": "true"
+        }
       },
       "dependencies": [],
       "tags": [
         "preview"
-      ]
+      ],
+      "conflictPolicy": {
+        "sameStableIdAction": "reportWhenHashChanged",
+        "hashUnchangedAction": "skipWhenHashUnchanged",
+        "hashChangedAction": "reportWhenHashChanged",
+        "allowOverwrite": false
+      },
+      "preview": {
+        "thumbnailResourceKey": "char.training_slime.preview.thumbnail",
+        "previewMeshResourceKey": "",
+        "placeholderResourceKey": "char.training_slime.preview.thumbnail",
+        "previewCameraPresetId": "thumbnail",
+        "isPlaceholder": true
+      },
+      "provenance": {
+        "sourceTool": "MxFramework.Authoring.Sample",
+        "sourceFile": "previews/thumbnail.png",
+        "authoringSchemaVersion": "1.0",
+        "license": "sample-placeholder",
+        "origin": "mxframework-sample",
+        "createdBy": "MxFramework",
+        "modifiedBy": "MxFramework",
+        "createdUtc": "2026-05-19T00:00:00Z",
+        "modifiedUtc": "2026-05-19T00:00:00Z"
+      }
     }
   ]
 }
