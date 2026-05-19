@@ -356,6 +356,7 @@ h2 {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .resource-library-head strong {

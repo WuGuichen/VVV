@@ -148,10 +148,10 @@ let viewportCleanup = null;
 document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
     "packageSelect", "reloadButton", "saveButton", "compileButton", "importButton",
-    "modelImportRole", "modelImportButton", "modelFileInput",
+    "modelImportRole", "modelImportButton", "modelFileInput", "modelReplaceFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
     "workspace", "treeCollapseButton", "previewPoseSelect", "previewMotionSelect", "resetCameraButton",
-    "resourceLibraryTarget", "modelResourceList", "clearModelBindingButton",
+    "resourceLibraryTarget", "modelResourceList", "downloadResourceButton", "replaceResourceButton", "clearModelBindingButton",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
   ]) el[id] = document.getElementById(id);
@@ -172,6 +172,11 @@ document.addEventListener("DOMContentLoaded", () => {
   el.modelFileInput.addEventListener("change", () => {
     const file = el.modelFileInput.files?.[0];
     if (file) importModel(file);
+  });
+  el.modelReplaceFileInput.addEventListener("change", () => {
+    const file = el.modelReplaceFileInput.files?.[0];
+    const resource = getSelectedModelResource();
+    if (file && resource?.resourceKey) importModel(file, { resourceKey: resource.resourceKey });
   });
   el.modelImportRole.addEventListener("change", () => {
     updateModelImportTitle();
@@ -200,6 +205,8 @@ document.addEventListener("DOMContentLoaded", () => {
     bindModelResource(button.dataset.resourceKey);
   });
   el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
+  el.downloadResourceButton.addEventListener("click", downloadSelectedResource);
+  el.replaceResourceButton.addEventListener("click", replaceSelectedResource);
   el.copyReportButton.addEventListener("click", () => copyReport());
   el.packageSelect.addEventListener("change", event => {
     state.packageRelative = event.target.value;
@@ -334,6 +341,9 @@ function renderShellStatus() {
   el.saveButton.disabled = !state.canWrite || !state.package;
   el.modelImportButton.disabled = !state.canWrite || !state.package;
   el.modelImportRole.disabled = !state.canWrite || !state.package;
+  const selectedModelResource = getSelectedModelResource();
+  el.downloadResourceButton.disabled = !selectedModelResource?.relativePath;
+  el.replaceResourceButton.disabled = !state.canWrite || !selectedModelResource?.resourceKey;
   el.clearModelBindingButton.disabled = !state.canWrite || !state.package || el.modelImportRole.value === "preview";
   el.compileButton.disabled = !state.apiAvailable || !state.package;
   el.importButton.disabled = !state.apiAvailable || !state.package || state.dirty || isImportBlocked();
@@ -353,9 +363,13 @@ function renderResourceLibrary() {
   if (!el.modelResourceList || !el.resourceLibraryTarget) return;
   const targetRole = el.modelImportRole?.value || "preview";
   const roleInfo = getModelImportRole();
-  el.resourceLibraryTarget.textContent = targetRole === "preview"
+  const selectedResource = getSelectedModelResource();
+  const selectedText = selectedResource
+    ? `；选中：${getResourceDisplayName(selectedResource)} -> ${selectedResource.relativePath || "未设置路径"}`
+    : "";
+  el.resourceLibraryTarget.textContent = (targetRole === "preview"
     ? "当前目标：仅选中资源"
-    : `当前替换目标：${roleInfo.label}`;
+    : `当前替换目标：${roleInfo.label}`) + selectedText;
 
   const resources = getModelResources(state.package);
   if (!resources.length) {
@@ -2655,7 +2669,7 @@ async function savePackage() {
   render();
 }
 
-async function importModel(file) {
+async function importModel(file, options = {}) {
   if (!state.canWrite) {
     state.message = "静态预览不能导入模型。请启动 Authoring server。";
     renderShellStatus();
@@ -2671,9 +2685,10 @@ async function importModel(file) {
 
   const role = el.modelImportRole.value;
   const roleInfo = getModelImportRole();
+  const replacing = Boolean(options.resourceKey);
   state.message = extension === "fbx"
-    ? `${roleInfo.pending}，并转换 FBX：${file.name}`
-    : `${roleInfo.pending}：${file.name}`;
+    ? `${replacing ? "正在替换选中资源" : roleInfo.pending}，并转换 FBX：${file.name}`
+    : `${replacing ? "正在替换选中资源" : roleInfo.pending}：${file.name}`;
   renderShellStatus();
   try {
     const bytesBase64 = await readFileAsBase64(file);
@@ -2683,6 +2698,7 @@ async function importModel(file) {
       body: JSON.stringify({
         fileName: file.name,
         role,
+        resourceKey: options.resourceKey || "",
         bytesBase64
       })
     });
@@ -2698,15 +2714,64 @@ async function importModel(file) {
     state.dirty = false;
     state.canWrite = Boolean(data.canWrite);
     state.apiAvailable = true;
-    state.selectedPath = findImportedModelPath(role, data.package, file.name) || state.selectedPath;
+    state.selectedPath = options.resourceKey
+      ? `resources/${options.resourceKey}`
+      : findImportedModelPath(role, data.package, file.name) || state.selectedPath;
     state.message = extension === "fbx"
-      ? `${roleInfo.done}，FBX 已转换为 GLB：${file.name}`
-      : `${roleInfo.done}：${file.name}`;
+      ? `${replacing ? "选中资源已替换" : roleInfo.done}，FBX 已转换为 GLB：${file.name}`
+      : `${replacing ? "选中资源已替换" : roleInfo.done}：${file.name}`;
     render();
   } catch (error) {
     state.message = `模型导入失败：${error instanceof Error ? error.message : String(error)}`;
     renderShellStatus();
   }
+}
+
+function getSelectedModelResource() {
+  const selectedKey = state.selectedPath?.startsWith("resources/") ? state.selectedPath.slice(10) : "";
+  if (!selectedKey) return null;
+  return getModelResources(state.package).find(resource => resource.resourceKey === selectedKey) || null;
+}
+
+function getPackageResourceUrl(resource) {
+  if (!resource?.relativePath) return "";
+  return encodeURI(`/${state.packageRelative}/${resource.relativePath}`);
+}
+
+function downloadSelectedResource() {
+  const resource = getSelectedModelResource();
+  const url = getPackageResourceUrl(resource);
+  if (!url) {
+    state.message = "当前没有可下载的选中资源。";
+    renderShellStatus();
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = String(resource.relativePath).split("/").pop() || getResourceDisplayName(resource);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  state.message = `已导出源文件副本：${getResourceDisplayName(resource)}。编辑后可用“替换选中”回收更新。`;
+  renderShellStatus();
+}
+
+function replaceSelectedResource() {
+  const resource = getSelectedModelResource();
+  if (!resource?.resourceKey) {
+    state.message = "请先在导入资源列表中选中一个模型资源。";
+    renderShellStatus();
+    return;
+  }
+  if (!state.canWrite) {
+    state.message = "静态预览不能替换资源。请启动 Authoring server。";
+    renderShellStatus();
+    return;
+  }
+
+  el.modelReplaceFileInput.value = "";
+  el.modelReplaceFileInput.click();
 }
 
 function readFileAsBase64(file) {

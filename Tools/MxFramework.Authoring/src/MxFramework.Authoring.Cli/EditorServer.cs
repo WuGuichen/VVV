@@ -722,14 +722,26 @@ internal static class EditorServer
             targetExtension = ".glb";
         }
 
-        string relativePath = ("resources/models/" + fileStem + targetExtension).Replace('\\', '/');
-        string outputPath = Path.Combine(packagePath, relativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-        File.WriteAllBytes(outputPath, packageModelBytes);
-
         CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
-        CharacterPackageResourceEntry entry = ResolveModelImportEntry(package, request.role, fileStem);
-        ApplyModelImportEntry(package, entry, request, relativePath, outputPath, targetExtension, convertedFromFbx);
+        string contentHash = CharacterPackageHashUtility.ComputeSha256(packageModelBytes);
+        string defaultRelativePath = ("resources/models/" + fileStem + targetExtension).Replace('\\', '/');
+        CharacterPackageResourceEntry entry = ResolveModelImportEntry(package, request.role, fileStem, contentHash, defaultRelativePath, request.resourceKey);
+        string existingExtension = Path.GetExtension(entry.RelativePath ?? string.Empty);
+        string relativePath = !string.IsNullOrWhiteSpace(request.resourceKey)
+            && !string.IsNullOrWhiteSpace(entry.RelativePath)
+            && string.Equals(existingExtension, targetExtension, StringComparison.OrdinalIgnoreCase)
+            ? entry.RelativePath
+            : defaultRelativePath;
+        string outputPath = Path.Combine(packagePath, relativePath);
+        bool shouldWriteFile = !File.Exists(outputPath)
+            || !string.Equals(CharacterPackageHashUtility.ComputeFileSha256(outputPath), contentHash, StringComparison.OrdinalIgnoreCase);
+        if (shouldWriteFile)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            File.WriteAllBytes(outputPath, packageModelBytes);
+        }
+
+        ApplyModelImportEntry(package, entry, request, relativePath, contentHash, targetExtension, convertedFromFbx);
         SaveCharacterPackage(rootPath, packageRelative, package, jsonOptions);
     }
 
@@ -818,16 +830,25 @@ internal static class EditorServer
         throw new FileNotFoundException("FBX conversion requires FBX2glTF. Run `npm --prefix Tools/MxFramework.CharacterStudio install`, or set MXFRAMEWORK_FBX2GLTF to the converter executable.", packageConverterPath);
     }
 
-    private static CharacterPackageResourceEntry ResolveModelImportEntry(CharacterResourcePackage package, string role, string fileStem)
+    private static CharacterPackageResourceEntry ResolveModelImportEntry(
+        CharacterResourcePackage package,
+        string role,
+        string fileStem,
+        string contentHash,
+        string relativePath,
+        string requestedResourceKey)
     {
         CharacterPackageResourceCatalog catalog = package.ResourceCatalog ?? new CharacterPackageResourceCatalog();
         package.ResourceCatalog = catalog;
         string normalizedRole = string.IsNullOrWhiteSpace(role) ? "preview" : role.Trim();
 
         CharacterPackageResourceEntry entry = null;
+        if (!string.IsNullOrWhiteSpace(requestedResourceKey))
+            entry = CharacterPackageResourcePipeline.FindByKey(catalog, requestedResourceKey);
+
         if (normalizedRole.Equals("body", StringComparison.OrdinalIgnoreCase))
         {
-            entry = catalog.Entries.FirstOrDefault(item =>
+            entry ??= catalog.Entries.FirstOrDefault(item =>
                 item != null && (string.Equals(item.Usage, CharacterPackageResourceUsageIds.CharacterModel, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(item.LocalId, "model.body", StringComparison.OrdinalIgnoreCase)));
         }
@@ -836,8 +857,14 @@ internal static class EditorServer
             WeaponAttachmentProfile attachment = package.Geometry?.WeaponAttachments?.FirstOrDefault(item =>
                 item != null && string.Equals(item.EquipSlot, normalizedRole, StringComparison.OrdinalIgnoreCase));
             if (attachment != null && !string.IsNullOrWhiteSpace(attachment.PreviewResourceKey))
-                entry = CharacterPackageResourcePipeline.FindByKey(catalog, attachment.PreviewResourceKey);
+                entry ??= CharacterPackageResourcePipeline.FindByKey(catalog, attachment.PreviewResourceKey);
         }
+
+        entry ??= FindModelResourceByContentHash(catalog, contentHash);
+        entry ??= catalog.Entries.FirstOrDefault(item =>
+            item != null
+            && string.Equals(item.TypeId, CharacterPackageResourceTypeIds.Model, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(NormalizePackageRelativePath(item.RelativePath), NormalizePackageRelativePath(relativePath), StringComparison.Ordinal));
 
         if (entry == null)
         {
@@ -853,7 +880,7 @@ internal static class EditorServer
         CharacterPackageResourceEntry entry,
         CharacterStudioModelImportRequest request,
         string relativePath,
-        string outputPath,
+        string contentHash,
         string extension,
         bool convertedFromFbx)
     {
@@ -898,7 +925,7 @@ internal static class EditorServer
         if (convertedFromFbx)
             AddTag(entry.Tags, "converted-from-fbx");
 
-        entry.Hash = CharacterPackageHashUtility.ComputeFileSha256(outputPath);
+        entry.Hash = contentHash;
         entry.Hashes ??= new CharacterPackageResourceHashes();
         entry.Hashes.Algorithm = "sha256";
         entry.Hashes.ContentHash = entry.Hash;
@@ -920,6 +947,23 @@ internal static class EditorServer
             if (attachment != null)
                 attachment.PreviewResourceKey = entry.ResourceKey;
         }
+    }
+
+    private static CharacterPackageResourceEntry FindModelResourceByContentHash(CharacterPackageResourceCatalog catalog, string contentHash)
+    {
+        string normalizedHash = CharacterPackageHashUtility.NormalizeSha256(contentHash);
+        if (catalog == null || string.IsNullOrWhiteSpace(normalizedHash))
+            return null;
+
+        return catalog.Entries.FirstOrDefault(item =>
+            item != null
+            && string.Equals(item.TypeId, CharacterPackageResourceTypeIds.Model, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(CharacterPackageHashUtility.NormalizeSha256(CharacterPackageResourcePipeline.GetDeclaredContentHash(item)), normalizedHash, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizePackageRelativePath(string path)
+    {
+        return string.IsNullOrWhiteSpace(path) ? string.Empty : path.Replace('\\', '/').TrimStart('/');
     }
 
     private static void AddTag(List<string> tags, string tag)
@@ -1396,6 +1440,7 @@ internal static class EditorServer
     {
         public string fileName { get; set; } = string.Empty;
         public string role { get; set; } = "body";
+        public string resourceKey { get; set; } = string.Empty;
         public string bytesBase64 { get; set; } = string.Empty;
     }
 
