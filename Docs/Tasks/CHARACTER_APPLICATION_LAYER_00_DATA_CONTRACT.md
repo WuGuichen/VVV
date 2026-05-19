@@ -4,6 +4,8 @@
 > 范围：角色应用层数据契约、纯解析器契约、校验契约、运行时状态边界和验证场景
 > 交付等级：设计契约
 
+> 角色资源包、外部 3D 装配编辑器、Unity 导入和 Runtime Spawn 的完整主线见 `Docs/CHARACTER_RESOURCE_PACKAGE_AUTHORING.md`；工程实现方案见 `Docs/CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md`。
+
 ## 目标
 
 角色是框架进入应用层后的第一个聚合对象。它不是让底层模块反向依赖的新基础类型，而是一个标准组合契约：通过 Runtime、Gameplay、Combat、Character Control、Resources、Animation、Input、UI、Debug 和 SaveState，把一个可在游戏世界里活动的 Actor 创建并驱动起来。
