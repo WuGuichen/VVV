@@ -1,0 +1,3 @@
+MxFramework Character Authoring Compiler Gate Report
+package=iron_vanguard
+status=Ready

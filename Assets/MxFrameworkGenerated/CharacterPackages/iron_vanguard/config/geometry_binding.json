@@ -1,0 +1,555 @@
+{
+  "format": "mx.characterGeometryBinding.v1",
+  "schemaVersion": "1.0",
+  "packageId": "iron_vanguard",
+  "bodyProfileStableId": "body.iron_vanguard.authoring",
+  "coordinateConversion": {
+    "sourceConvention": {
+      "upAxis": "YPositive",
+      "forwardAxis": "ZPositive",
+      "handedness": "LeftHanded",
+      "unitScaleMeters": 1,
+      "rotationStorage": "Quaternion",
+      "roundTripPositionTolerance": 0.0001,
+      "roundTripRotationToleranceDegrees": 0.01
+    },
+    "targetConvention": {
+      "upAxis": "YPositive",
+      "forwardAxis": "ZPositive",
+      "handedness": "LeftHanded",
+      "unitScaleMeters": 1,
+      "rotationStorage": "Quaternion",
+      "roundTripPositionTolerance": 0.0001,
+      "roundTripRotationToleranceDegrees": 0.01
+    },
+    "requiresConversion": false,
+    "positionScale": 1,
+    "axisConversion": "identity",
+    "rotationConversion": "identity"
+  },
+  "bodyProfile": {
+    "profileId": "geometry.iron_vanguard.body",
+    "bodyKind": "Skeletal",
+    "bodyScale": 1,
+    "heightMeters": 1.86,
+    "radiusMeters": 0.34,
+    "massKg": 86,
+    "defaultCapsule": {
+      "height": 1.86,
+      "radius": 0.34,
+      "center": {
+        "x": 0,
+        "y": 0.93,
+        "z": 0
+      }
+    },
+    "defaultPhysicsProfileId": "physics.humanoid.medium",
+    "modelRootStableId": "model.root",
+    "skeletonRootStableId": "armature.humanoid",
+    "locatorRootStableId": "locators.root"
+  },
+  "bodyColliders": [
+    {
+      "colliderId": "torso_capsule",
+      "partId": "torso",
+      "hitZoneId": "hit.torso",
+      "shape": "Capsule",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Spine",
+        "position": {
+          "x": 0,
+          "y": 0.95,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "size": {
+        "x": 0.62,
+        "y": 1.14,
+        "z": 0.42
+      },
+      "radius": 0.31,
+      "height": 1.14,
+      "priority": 10,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 1,
+      "postureDamageScaleOverride": 1,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor",
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/torso_capsule"
+    },
+    {
+      "colliderId": "head_sphere",
+      "partId": "head",
+      "hitZoneId": "hit.head",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Head",
+        "position": {
+          "x": 0,
+          "y": 1.68,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "size": {
+        "x": 0.28,
+        "y": 0.28,
+        "z": 0.28
+      },
+      "radius": 0.18,
+      "height": 0,
+      "priority": 30,
+      "isWeakPoint": true,
+      "damageMultiplierOverride": 1.35,
+      "postureDamageScaleOverride": 1.2,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor",
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/head_sphere"
+    },
+    {
+      "colliderId": "right_hand_sphere",
+      "partId": "right_hand",
+      "hitZoneId": "hit.right_hand",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.RightHand",
+        "position": {
+          "x": 0.34,
+          "y": 1.02,
+          "z": 0.06
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "size": {
+        "x": 0.18,
+        "y": 0.18,
+        "z": 0.18
+      },
+      "radius": 0.11,
+      "height": 0,
+      "priority": 20,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 0.85,
+      "postureDamageScaleOverride": 0.8,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor",
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/right_hand_sphere"
+    },
+    {
+      "colliderId": "left_hand_sphere",
+      "partId": "left_hand",
+      "hitZoneId": "hit.left_hand",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.LeftHand",
+        "position": {
+          "x": -0.34,
+          "y": 1.02,
+          "z": 0.06
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "size": {
+        "x": 0.18,
+        "y": 0.18,
+        "z": 0.18
+      },
+      "radius": 0.11,
+      "height": 0,
+      "priority": 20,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 0.85,
+      "postureDamageScaleOverride": 0.8,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.flesh_armor",
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/left_hand_sphere"
+    }
+  ],
+  "hitZoneBindings": [
+    {
+      "hitZoneId": "hit.torso",
+      "partId": "torso",
+      "priority": 10,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 1,
+      "postureDamageScaleOverride": 1,
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/torso_capsule"
+    },
+    {
+      "hitZoneId": "hit.head",
+      "partId": "head",
+      "priority": 30,
+      "isWeakPoint": true,
+      "damageMultiplierOverride": 1.35,
+      "postureDamageScaleOverride": 1.2,
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/head_sphere"
+    },
+    {
+      "hitZoneId": "hit.right_hand",
+      "partId": "right_hand",
+      "priority": 20,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 0.85,
+      "postureDamageScaleOverride": 0.8,
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/right_hand_sphere"
+    },
+    {
+      "hitZoneId": "hit.left_hand",
+      "partId": "left_hand",
+      "priority": 20,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 0.85,
+      "postureDamageScaleOverride": 0.8,
+      "sourcePath": "geometry/body_colliders.json",
+      "sourceObjectPath": "geometry/colliders/left_hand_sphere"
+    }
+  ],
+  "sockets": [
+    {
+      "socketId": "mainHand",
+      "parentPartId": "right_hand",
+      "bonePath": "Armature/Hips/Spine/RightShoulder/RightArm/RightForeArm/RightHand",
+      "locatorPath": "locators/right_hand_weapon",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.RightHand",
+        "position": {
+          "x": 0.03,
+          "y": 0,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0.7071068,
+          "z": 0,
+          "w": 0.7071068
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 90,
+          "z": 0
+        }
+      },
+      "usage": "Weapon",
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/mainHand"
+    },
+    {
+      "socketId": "offHand",
+      "parentPartId": "left_hand",
+      "bonePath": "Armature/Hips/Spine/LeftShoulder/LeftArm/LeftForeArm/LeftHand",
+      "locatorPath": "locators/left_hand_weapon",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.LeftHand",
+        "position": {
+          "x": -0.03,
+          "y": 0,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0,
+          "y": -0.7071068,
+          "z": 0,
+          "w": 0.7071068
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": -90,
+          "z": 0
+        }
+      },
+      "usage": "Weapon",
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/offHand"
+    },
+    {
+      "socketId": "back",
+      "parentPartId": "torso",
+      "bonePath": "Armature/Hips/Spine/Chest",
+      "locatorPath": "locators/back_mount",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Chest",
+        "position": {
+          "x": 0,
+          "y": 1.34,
+          "z": -0.22
+        },
+        "rotation": {
+          "x": 0,
+          "y": 1,
+          "z": 0,
+          "w": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 180,
+          "z": 0
+        }
+      },
+      "usage": "Weapon",
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/back"
+    },
+    {
+      "socketId": "headVfx",
+      "parentPartId": "head",
+      "bonePath": "Armature/Hips/Spine/Neck/Head",
+      "locatorPath": "locators/head_vfx",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Head",
+        "position": {
+          "x": 0,
+          "y": 1.86,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "usage": "Vfx",
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/headVfx"
+    }
+  ],
+  "weaponAttachments": [
+    {
+      "weaponId": "weapon.iron_sword",
+      "equipSlot": "mainHand",
+      "attachSocketId": "mainHand",
+      "localGripPose": {
+        "parentKind": "Socket",
+        "parentPath": "mainHand",
+        "position": {
+          "x": 0,
+          "y": -0.02,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "previewResourceKey": "char.iron_vanguard.weapon.sword.model",
+      "traceId": "trace.iron_sword.blade",
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword"
+    },
+    {
+      "weaponId": "weapon.kite_shield",
+      "equipSlot": "offHand",
+      "attachSocketId": "offHand",
+      "localGripPose": {
+        "parentKind": "Socket",
+        "parentPath": "offHand",
+        "position": {
+          "x": 0,
+          "y": -0.01,
+          "z": 0.05
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "previewResourceKey": "char.iron_vanguard.weapon.shield.model",
+      "traceId": "",
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield"
+    }
+  ],
+  "weaponTraces": [
+    {
+      "traceId": "trace.iron_sword.blade",
+      "weaponId": "weapon.iron_sword",
+      "equipSlot": "mainHand",
+      "startLocatorPath": "weapon/iron_sword/blade_root",
+      "endLocatorPath": "weapon/iron_sword/blade_tip",
+      "startPose": {
+        "parentKind": "Socket",
+        "parentPath": "mainHand",
+        "position": {
+          "x": 0,
+          "y": 0.12,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "endPose": {
+        "parentKind": "Socket",
+        "parentPath": "mainHand",
+        "position": {
+          "x": 0,
+          "y": 0.94,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "eulerHint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      "radius": 0.055,
+      "sampleRule": "CapsuleSweep",
+      "fixedSampleCount": 6,
+      "actionKeys": [
+        "primary",
+        "heavy"
+      ],
+      "sourcePath": "geometry/traces.json",
+      "sourceObjectPath": "geometry/traces/trace.iron_sword.blade"
+    }
+  ]
+}

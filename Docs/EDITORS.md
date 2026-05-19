@@ -128,6 +128,7 @@ MxFramework.Editor (asmdef)
 
 - Unity Editor 不承担外部主创编辑器职责；完整 Buff 创作、Mod 打包和实时预览入口应在外部桌面编辑器中实现。
 - Unity Editor Bridge 负责导出 Schema、Enum、资源索引、多语言索引、引用索引和提交前报告。
+- Character Resource Package 由 `MxFramework > Character > Import Character Package...` 导入；该入口只调用 Authoring CLI / Importer Bridge、刷新 AssetDatabase、输出报告，不承担 3D 装配主创 UI。
 - Unity Editor 可以提供运行时连接状态和开发者诊断，但不再提供内置创作流程页。
 - 所有正式面板使用 UI Toolkit，IMGUI 只用于临时调试工具。
 - 每个模块面板都必须同时考虑 `编辑模式` 和 `运行模式`。

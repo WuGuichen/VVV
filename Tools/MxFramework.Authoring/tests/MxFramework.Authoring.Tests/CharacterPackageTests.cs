@@ -33,6 +33,9 @@ internal static class CharacterPackageTests
         Compiler_CoordinateMismatch_ReportsWarningOnly();
         Compiler_HashMismatch_BlocksImport();
         Compiler_ResourceKeyConflict_BlocksImport();
+        UnityImportBridge_ImportsIronVanguardAndSkipsRepeat();
+        UnityImportBridge_SpawnBlockedWritesButMarksNotSpawnable();
+        UnityImportBridge_ImportBlockedDoesNotWriteProjectTarget();
     }
 
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
@@ -445,6 +448,119 @@ internal static class CharacterPackageTests
         Require(HasCompilerIssue(result, CharacterAuthoringCompilerValidationCodes.ResourceKeyConflict, CharacterAuthoringValidationGate.ImportBlocked), "ResourceKey conflict should use stable compiler issue code.");
     }
 
+    private static void UnityImportBridge_ImportsIronVanguardAndSkipsRepeat()
+    {
+        string root = Path.Combine(FindRepoRoot(), "Temp", "MxFrameworkAuthoringTests", "issue222-import-ready");
+        ResetDirectory(root);
+
+        int firstExit = CharacterPackageCommands.Dispatch(new[]
+        {
+            "character",
+            "import-unity",
+            "--package",
+            FindSamplePath("character-iron-vanguard"),
+            "--project-root",
+            root,
+            "--check-files",
+            "--check-hashes"
+        }, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+
+        string targetRoot = Path.Combine(root, "Assets", "MxFrameworkGenerated", "CharacterPackages", "iron_vanguard");
+        string reportPath = Path.Combine(targetRoot, "package_cache", "import_report.json");
+        string catalogPath = Path.Combine(targetRoot, "config", "unity_resource_catalog.json");
+        Require(firstExit == MxFramework.Authoring.Cli.Program.ExitReady, "first Unity import should be ready.");
+        Require(File.Exists(Path.Combine(targetRoot, "resources", "models", "iron_vanguard.glb")), "Unity import should copy model resource.");
+        Require(File.Exists(Path.Combine(targetRoot, "generated", "character_application_config_patch.json")), "Unity import should write compiler config patch target.");
+        Require(File.Exists(Path.Combine(targetRoot, "config", "geometry_binding.json")), "Unity import should write readable config geometry binding alias.");
+        Require(File.Exists(catalogPath), "Unity import should write project ResourceCatalog JSON.");
+
+        CharacterUnityImportReport firstReport = JsonSerializer.Deserialize<CharacterUnityImportReport>(File.ReadAllText(reportPath), JsonOptions);
+        Require(firstReport != null && firstReport.Status == CharacterAuthoringCompilerStatus.Ready.ToString(), "first import report should be Ready.");
+        Require(firstReport.AddedCount > 0, "first import should add files.");
+        string catalogJson = File.ReadAllText(catalogPath);
+        Require(catalogJson.Contains("\"provider\": \"memory\""), "generated Unity ResourceCatalog should use v1 memory provider bridge.");
+        Require(catalogJson.Contains("\"assetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb\""), "generated ResourceCatalog should preserve Unity assetPath mapping.");
+
+        int secondExit = CharacterPackageCommands.Dispatch(new[]
+        {
+            "character",
+            "import-unity",
+            "--package",
+            FindSamplePath("character-iron-vanguard"),
+            "--project-root",
+            root,
+            "--check-files",
+            "--check-hashes"
+        }, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+
+        CharacterUnityImportReport secondReport = JsonSerializer.Deserialize<CharacterUnityImportReport>(File.ReadAllText(reportPath), JsonOptions);
+        Require(secondExit == MxFramework.Authoring.Cli.Program.ExitReady, "second Unity import should be ready.");
+        Require(secondReport != null && secondReport.SkippedCount >= firstReport.AddedCount, "repeat import should skip unchanged write plan targets.");
+        Require(secondReport.AddedCount == 0 && secondReport.UpdatedCount == 0, "repeat import should not rewrite unchanged targets.");
+    }
+
+    private static void UnityImportBridge_ImportBlockedDoesNotWriteProjectTarget()
+    {
+        string root = Path.Combine(FindRepoRoot(), "Temp", "MxFrameworkAuthoringTests", "issue222-import-blocked");
+        ResetDirectory(root);
+        string packageCopy = Path.Combine(root, "package-copy");
+        CopyDirectory(FindSamplePath("character-iron-vanguard"), packageCopy);
+        File.Delete(Path.Combine(packageCopy, "resources", "models", "iron_vanguard.glb"));
+
+        string reportOut = Path.Combine(root, "report-out");
+        int exit = CharacterPackageCommands.Dispatch(new[]
+        {
+            "character",
+            "import-unity",
+            "--package",
+            packageCopy,
+            "--project-root",
+            root,
+            "--check-files",
+            "--check-hashes",
+            "--report-out",
+            reportOut
+        }, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+
+        string targetRoot = Path.Combine(root, "Assets", "MxFrameworkGenerated", "CharacterPackages", "iron_vanguard");
+        Require(exit == MxFramework.Authoring.Cli.Program.ExitValidationBlocked, "ImportBlocked package should return validation-blocked exit.");
+        Require(!Directory.Exists(targetRoot), "ImportBlocked package must not write Unity project target root.");
+        CharacterUnityImportReport report = JsonSerializer.Deserialize<CharacterUnityImportReport>(File.ReadAllText(Path.Combine(reportOut, "import_report.json")), JsonOptions);
+        Require(report != null && report.Status == CharacterAuthoringCompilerStatus.ImportBlocked.ToString(), "blocked import report should preserve ImportBlocked status.");
+        Require(report.Issues.Exists(issue => issue.Code == CharacterAuthoringValidationCodes.MissingResourceFile), "blocked import report should include missing resource diagnostic.");
+    }
+
+    private static void UnityImportBridge_SpawnBlockedWritesButMarksNotSpawnable()
+    {
+        string root = Path.Combine(FindRepoRoot(), "Temp", "MxFrameworkAuthoringTests", "issue222-import-spawn-blocked");
+        ResetDirectory(root);
+        string packageCopy = Path.Combine(root, "package-copy");
+        CopyDirectory(FindSamplePath("character-iron-vanguard"), packageCopy);
+        string attachmentsPath = Path.Combine(packageCopy, "geometry", "weapon_attachments.json");
+        File.WriteAllText(attachmentsPath, File.ReadAllText(attachmentsPath).Replace("\"attachSocketId\": \"mainHand\"", "\"attachSocketId\": \"missing.socket\""));
+
+        int exit = CharacterPackageCommands.Dispatch(new[]
+        {
+            "character",
+            "import-unity",
+            "--package",
+            packageCopy,
+            "--project-root",
+            root,
+            "--check-files",
+            "--check-hashes"
+        }, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+
+        string targetRoot = Path.Combine(root, "Assets", "MxFrameworkGenerated", "CharacterPackages", "iron_vanguard");
+        string reportPath = Path.Combine(targetRoot, "package_cache", "import_report.json");
+        Require(exit == MxFramework.Authoring.Cli.Program.ExitReady, "SpawnBlocked import should still complete project writes.");
+        Require(File.Exists(Path.Combine(targetRoot, "config", "geometry_binding.json")), "SpawnBlocked import should write geometry binding for inspection.");
+        CharacterUnityImportReport report = JsonSerializer.Deserialize<CharacterUnityImportReport>(File.ReadAllText(reportPath), JsonOptions);
+        Require(report != null && report.Status == CharacterAuthoringCompilerStatus.SpawnBlocked.ToString(), "SpawnBlocked import report should preserve status.");
+        Require(!report.CanSpawnAfterImport, "SpawnBlocked import must mark runtime spawn unavailable.");
+        Require(report.Issues.Exists(issue => issue.Code == CharacterAuthoringValidationCodes.MissingAttachmentSocket), "SpawnBlocked report should include socket diagnostic.");
+    }
+
     private static CharacterAuthoringCompileResult Compile(
         CharacterResourcePackage package,
         bool checkFiles = false,
@@ -499,6 +615,22 @@ internal static class CharacterPackageTests
         }
 
         throw new DirectoryNotFoundException("Could not locate WGameFramework repo root from " + Directory.GetCurrentDirectory());
+    }
+
+    private static void ResetDirectory(string path)
+    {
+        if (Directory.Exists(path))
+            Directory.Delete(path, true);
+        Directory.CreateDirectory(path);
+    }
+
+    private static void CopyDirectory(string source, string target)
+    {
+        Directory.CreateDirectory(target);
+        foreach (string directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(target, Path.GetRelativePath(source, directory)));
+        foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+            File.Copy(file, Path.Combine(target, Path.GetRelativePath(source, file)), overwrite: true);
     }
 
     private static ConfigSchema FindSchema(IReadOnlyList<ConfigSchema> schemas, string schemaId)

@@ -90,6 +90,7 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 | `CharacterAuthoringGeometryBinding` | collider、hit zone、socket、weapon attachment、trace 和 coordinate conversion plan |
 | `CharacterPackageResourceMapping` | package-local `ResourceKey` 到 Unity project ResourceCatalog/import target 的映射 |
 | `CharacterUnityImportWritePlan` | Unity Importer Bridge 后续执行的资源拷贝、generated config、geometry binding、resource mapping 写入计划 |
+| `CharacterUnityImportBridge` / `CharacterUnityImportReport` | C2 导入桥执行 C0.6 write plan，输出 added / updated / skipped / conflicts / errors、hash、gate 和 source mapping 审计报告 |
 | `CharacterResolverVerificationPlan` | 导入后应交给 `CharacterPackageResolver.Resolve` 的表集合、默认 loadout、预期 active equipment state、combat action set、animation profile、known ability ids 和 required resources |
 | `CharacterPackageSourceMapping` | 包内 path / object 到生成配置字段或 Unity target 的 source mapping |
 
@@ -100,6 +101,8 @@ C0.5 v1 source format 把 glTF / GLB 作为模型和动画组的目标格式，F
 `CharacterAuthoringValidationGate` v1 固定为 `Unknown`、`ExportBlocked`、`ImportBlocked`、`SpawnBlocked`、`WarningOnly`，并保留 `Reserved1000+` 扩展位。`ExportBlocked` 只表示不能保存为可导入 / 可分发产物，不禁止 editor draft save。
 
 C0.6 compiler status 固定为 `Ready`、`WarningOnly`、`SpawnBlocked`、`ImportBlocked`、`ExportBlocked`。`ImportBlocked` 时 `UnityImportWritePlan.CanWriteToUnityProject=false`；`SpawnBlocked` 时可以导入但 `CanSpawnAfterImport=false`；coordinate mismatch 如果可转换则是 `WarningOnly` 并写入 `CharacterCoordinateConversionPlan`。
+
+C2 Unity Importer Bridge 固定为 CLI + Unity Editor command 双入口。CLI 命令为 `character import-unity --package <path> --project-root <repo> --check-files --check-hashes`；Unity 入口为菜单 `MxFramework/Character/Import Character Package...`、`MxFramework/Character/Reimport Last Character Package` 和 batchmode `MxFramework.Editor.CharacterImport.CharacterPackageImportCommand.Import`。导入目标是 `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/`，其中 `package_cache/import_report.json` 是审计报告，`config/unity_resource_catalog.json` 是 Unity 项目 ResourceCatalog 映射，`config/character_config_patch.json` 和 `config/geometry_binding.json` 是后续 Workstation / Runtime Spawn 的稳定输入。
 
 ## ID 规则
 

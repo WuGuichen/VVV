@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "character.package.iron_vanguard",
+  "packageId": "iron_vanguard",
+  "entries": [
+    {
+      "id": "char.iron_vanguard.model.body",
+      "type": "GameObject",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "provider": "memory",
+      "address": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+      "labels": [
+        "character.model",
+        "character.resourcePackage",
+        "character.type.model",
+        "character.usage.charactermodel",
+        "package.iron_vanguard",
+        "tag.body"
+      ],
+      "dependencies": [],
+      "hash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+      "size": 168,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+        "packageResourceKey": "char.iron_vanguard.model.body",
+        "stableId": "charpkg.iron_vanguard.resource.model.body",
+        "sourceRelativePath": "resources/models/iron_vanguard.glb",
+        "sourceFormat": "glb",
+        "usage": "characterModel",
+        "requestedProviderId": "unityAsset",
+        "importHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "generatedBy": "CharacterUnityImportBridge",
+        "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f"
+      }
+    },
+    {
+      "id": "char.iron_vanguard.weapon.sword.model",
+      "type": "GameObject",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "provider": "memory",
+      "address": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+      "labels": [
+        "character.resourcePackage",
+        "character.type.model",
+        "character.usage.weaponmodel",
+        "package.iron_vanguard",
+        "tag.sword",
+        "tag.weapon",
+        "weapon.model"
+      ],
+      "dependencies": [],
+      "hash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+      "size": 169,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+        "packageResourceKey": "char.iron_vanguard.weapon.sword.model",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
+        "sourceRelativePath": "resources/models/iron_sword.glb",
+        "sourceFormat": "glb",
+        "usage": "weaponModel",
+        "requestedProviderId": "unityAsset",
+        "importHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "generatedBy": "CharacterUnityImportBridge",
+        "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f"
+      }
+    },
+    {
+      "id": "char.iron_vanguard.weapon.shield.model",
+      "type": "GameObject",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "provider": "memory",
+      "address": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+      "labels": [
+        "character.resourcePackage",
+        "character.type.model",
+        "character.usage.weaponmodel",
+        "package.iron_vanguard",
+        "tag.shield",
+        "tag.weapon",
+        "weapon.model"
+      ],
+      "dependencies": [],
+      "hash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+      "size": 175,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+        "packageResourceKey": "char.iron_vanguard.weapon.shield.model",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
+        "sourceRelativePath": "resources/models/kite_shield.glb",
+        "sourceFormat": "glb",
+        "usage": "weaponModel",
+        "requestedProviderId": "unityAsset",
+        "importHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "generatedBy": "CharacterUnityImportBridge",
+        "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f"
+      }
+    },
+    {
+      "id": "char.iron_vanguard.anim.locomotion",
+      "type": "AnimationClip",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "provider": "memory",
+      "address": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+      "labels": [
+        "character.animation",
+        "character.resourcePackage",
+        "character.type.animation",
+        "character.usage.animationclipgroup",
+        "package.iron_vanguard",
+        "tag.animation"
+      ],
+      "dependencies": [
+        {
+          "id": "char.iron_vanguard.model.body",
+          "type": "GameObject",
+          "variant": "",
+          "packageId": "iron_vanguard"
+        }
+      ],
+      "hash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+      "size": 108,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+        "packageResourceKey": "char.iron_vanguard.anim.locomotion",
+        "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+        "sourceRelativePath": "resources/animations/locomotion.glb",
+        "sourceFormat": "glb",
+        "usage": "animationClipGroup",
+        "requestedProviderId": "unityAsset",
+        "importHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
+        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c",
+        "generatedBy": "CharacterUnityImportBridge",
+        "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f"
+      }
+    },
+    {
+      "id": "char.iron_vanguard.anim.combat",
+      "type": "AnimationClip",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "provider": "memory",
+      "address": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+      "labels": [
+        "character.animation",
+        "character.resourcePackage",
+        "character.type.animation",
+        "character.usage.animationclipgroup",
+        "package.iron_vanguard",
+        "tag.animation",
+        "tag.combat"
+      ],
+      "dependencies": [
+        {
+          "id": "char.iron_vanguard.model.body",
+          "type": "GameObject",
+          "variant": "",
+          "packageId": "iron_vanguard"
+        }
+      ],
+      "hash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+      "size": 131,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+        "packageResourceKey": "char.iron_vanguard.anim.combat",
+        "stableId": "charpkg.iron_vanguard.resource.anim.combat",
+        "sourceRelativePath": "resources/animations/combat.glb",
+        "sourceFormat": "glb",
+        "usage": "animationClipGroup",
+        "requestedProviderId": "unityAsset",
+        "importHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
+        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c",
+        "generatedBy": "CharacterUnityImportBridge",
+        "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f"
+      }
+    },
+    {
+      "id": "char.iron_vanguard.preview.thumbnail",
+      "type": "Texture2D",
+      "variant": "default",
+      "packageId": "iron_vanguard",
+      "provider": "memory",
+      "address": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+      "labels": [
+        "character.preview",
+        "character.resourcePackage",
+        "character.type.preview",
+        "character.usage.previewthumbnail",
+        "package.iron_vanguard",
+        "tag.preview"
+      ],
+      "dependencies": [],
+      "hash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+      "size": 61,
+      "allowOverride": false,
+      "providerData": {
+        "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+        "packageResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
+        "sourceRelativePath": "previews/thumbnail.png",
+        "sourceFormat": "png",
+        "usage": "previewThumbnail",
+        "requestedProviderId": "unityAsset",
+        "importHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "generatedBy": "CharacterUnityImportBridge",
+        "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f"
+      }
+    }
+  ]
+}

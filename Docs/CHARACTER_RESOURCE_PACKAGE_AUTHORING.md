@@ -362,6 +362,21 @@ Unity Importer Bridge 的职责是把角色资源包导入 Unity 项目。
   -> 输出导入报告
 ```
 
+当前第一版提供两个等价入口：
+
+```bash
+# 外部编辑器 / CI 直接调用
+dotnet run --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- \
+  character import-unity --package <CharacterPackage> --project-root <UnityProjectRoot> --check-files --check-hashes
+
+# Unity batchmode 调用
+Unity -batchmode -projectPath <UnityProjectRoot> \
+  -executeMethod MxFramework.Editor.CharacterImport.CharacterPackageImportCommand.Import \
+  -characterPackage <CharacterPackage> -quit
+```
+
+导入后默认写到 `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/`。其中 `package_cache/import_report.json` 是审计入口，`config/character_config_patch.json`、`config/geometry_binding.json`、`config/resource_catalog_mapping.json` 和 `config/unity_resource_catalog.json` 是 Runtime Spawn / Workstation 后续消费的第一批稳定 JSON 产物。`unity_resource_catalog.json` 第一版使用 `memory` provider 和 `providerData.assetPath` 映射到 Unity 项目内导入资源，不把 Unity 对象写入 noEngine 配置。
+
 Importer 不做：
 
 - 不成为主创 UI。

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using MxFramework.Authoring;
 
@@ -122,6 +123,11 @@ internal static class CharacterPackageCommands
                 : Program.ExitReady;
         }
 
+        if (args.Length >= 2 && args[1] == "import-unity")
+        {
+            return ImportUnity(args, options);
+        }
+
         if (args.Length >= 2 && args[1] == "schema")
         {
             var schema = new
@@ -135,6 +141,65 @@ internal static class CharacterPackageCommands
 
         Console.Error.WriteLine("error: unknown character command.");
         return Program.ExitToolError;
+    }
+
+    private static int ImportUnity(string[] args, JsonSerializerOptions options)
+    {
+        string packagePath = Program.RequireOption(args, "--package");
+        string projectRoot = Program.GetOption(args, "--project-root", Directory.GetCurrentDirectory());
+        string generatedRoot = Program.GetOption(args, "--unity-root", "Assets/MxFrameworkGenerated/CharacterPackages");
+        string reportOut = Program.GetOption(args, "--report-out", string.Empty);
+        bool checkHashes = Program.HasFlag(args, "--check-hashes");
+
+        CharacterResourcePackage package = ReadPackage(packagePath, options);
+        CharacterAuthoringCompileResult result = CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest
+        {
+            Package = package,
+            PackageRootPath = packagePath,
+            Options = new CharacterAuthoringCompileOptions
+            {
+                Strict = Program.HasFlag(args, "--strict"),
+                AllowWarnings = !Program.HasFlag(args, "--no-warnings"),
+                ValidateResourceFiles = Program.HasFlag(args, "--check-files") || checkHashes,
+                ValidateResourceHashes = checkHashes,
+                GeneratedRootPath = generatedRoot,
+                TargetUnityPathPolicy = Program.GetOption(args, "--target-path-policy", CharacterPackageImportTargetPathPolicies.GeneratedCharacterPackage)
+            }
+        });
+
+        CharacterUnityImportReport report = CharacterUnityImportBridge.Execute(new CharacterUnityImportBridgeRequest
+        {
+            CompileResult = result,
+            PackageRootPath = packagePath,
+            ProjectRootPath = projectRoot,
+            SourcePackageVersion = package.Manifest != null ? package.Manifest.Version : string.Empty,
+            DryRun = Program.HasFlag(args, "--dry-run"),
+            GeneratedArtifacts = CreateGeneratedArtifacts(result, options),
+            AdditionalWrites = CreateUnityImportAdditionalWrites(packagePath, package, result, options)
+        });
+
+        string projectReportPath = CombineProjectPath(result.UnityImportWritePlan.TargetRootPath, "package_cache/import_report.json");
+        report.ReportPath = projectReportPath;
+        string reportJson = JsonSerializer.Serialize(report, options);
+        string reportText = CreateUnityImportReportText(report);
+
+        if (report.CanWriteToUnityProject && !report.DryRun && report.ErrorCount == 0 && report.ConflictCount == 0)
+        {
+            WriteProjectText(projectRoot, projectReportPath, reportJson);
+            WriteProjectText(projectRoot, CombineProjectPath(result.UnityImportWritePlan.TargetRootPath, "package_cache/import_report.txt"), reportText);
+        }
+
+        if (!string.IsNullOrWhiteSpace(reportOut))
+        {
+            Directory.CreateDirectory(reportOut);
+            File.WriteAllText(Path.Combine(reportOut, "import_report.json"), reportJson);
+            File.WriteAllText(Path.Combine(reportOut, "import_report.txt"), reportText);
+        }
+
+        Console.Write(reportText);
+        return report.Status == "Failed" || result.GateReport.ExportBlocked || result.GateReport.ImportBlocked
+            ? Program.ExitValidationBlocked
+            : Program.ExitReady;
     }
 
     internal static CharacterResourcePackage ReadPackage(string packagePath, JsonSerializerOptions options)
@@ -165,6 +230,408 @@ internal static class CharacterPackageCommands
         File.WriteAllText(Path.Combine(outDir, "resource_mapping.json"), JsonSerializer.Serialize(result.ResourceMapping, options));
         File.WriteAllText(Path.Combine(outDir, "unity_import_write_plan.json"), JsonSerializer.Serialize(result.UnityImportWritePlan, options));
         File.WriteAllText(Path.Combine(outDir, "gate_report.txt"), GateReportToText(result.GateReport));
+    }
+
+    private static List<CharacterUnityImportGeneratedArtifact> CreateGeneratedArtifacts(
+        CharacterAuthoringCompileResult result,
+        JsonSerializerOptions options)
+    {
+        var artifacts = new List<CharacterUnityImportGeneratedArtifact>();
+        if (result == null)
+            return artifacts;
+
+        artifacts.Add(CreateGeneratedArtifact(
+            "compiler/generated_config_patch.json",
+            JsonSerializer.Serialize(result.GeneratedConfigPatch, options)));
+        artifacts.Add(CreateGeneratedArtifact(
+            "compiler/geometry_binding.json",
+            JsonSerializer.Serialize(result.GeometryBinding, options)));
+        artifacts.Add(CreateGeneratedArtifact(
+            "compiler/resource_mapping.json",
+            JsonSerializer.Serialize(result.ResourceMapping, options)));
+        return artifacts;
+    }
+
+    private static CharacterUnityImportGeneratedArtifact CreateGeneratedArtifact(string sourcePath, string content)
+    {
+        content ??= string.Empty;
+        return new CharacterUnityImportGeneratedArtifact
+        {
+            SourcePath = sourcePath,
+            Content = content,
+            ContentHash = CharacterPackageHashUtility.ComputeTextSha256(content)
+        };
+    }
+
+    private static List<CharacterUnityImportWriteInput> CreateUnityImportAdditionalWrites(
+        string packagePath,
+        CharacterResourcePackage package,
+        CharacterAuthoringCompileResult result,
+        JsonSerializerOptions options)
+    {
+        var writes = new List<CharacterUnityImportWriteInput>();
+        if (result == null || result.UnityImportWritePlan == null)
+            return writes;
+
+        string targetRoot = result.UnityImportWritePlan.TargetRootPath;
+        string configPatch = EnsureTrailingNewline(JsonSerializer.Serialize(result.GeneratedConfigPatch, options));
+        string geometryBinding = EnsureTrailingNewline(JsonSerializer.Serialize(result.GeometryBinding, options));
+        string resourceMapping = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResourceMapping, options));
+        string resolverPlan = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResolverVerificationPlan, options));
+        string unityCatalog = CreateUnityResourceCatalogJson(packagePath, package, result, options);
+        string compileResult = EnsureTrailingNewline(JsonSerializer.Serialize(result, options));
+        string writePlan = EnsureTrailingNewline(JsonSerializer.Serialize(result.UnityImportWritePlan, options));
+        string resourceHashReport = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResourceHashReport, options));
+        string dependencyGraph = EnsureTrailingNewline(JsonSerializer.Serialize(result.DependencyGraph, options));
+        string gateReportText = GateReportToText(result.GateReport);
+
+        AddContentWrite(writes, "packageCache", "package/manifest.json", CombineProjectPath(targetRoot, "package_cache/manifest.json"), ReadPackageFile(packagePath, "manifest.json"), "Recreate");
+        AddContentWrite(writes, "packageCache", "package/resource_catalog.json", CombineProjectPath(targetRoot, "package_cache/resource_catalog.json"), ReadPackageFile(packagePath, "resource_catalog.json"), "Recreate");
+        AddContentWrite(writes, "packageCache", "compiler/compile_result.json", CombineProjectPath(targetRoot, "package_cache/compile_result.json"), compileResult, "Recreate");
+        AddContentWrite(writes, "packageCache", "compiler/unity_import_write_plan.json", CombineProjectPath(targetRoot, "package_cache/unity_import_write_plan.json"), writePlan, "Recreate");
+        AddContentWrite(writes, "packageCache", "compiler/resource_hash_report.json", CombineProjectPath(targetRoot, "package_cache/resource_hash_report.json"), resourceHashReport, "Recreate");
+        AddContentWrite(writes, "packageCache", "compiler/dependency_graph.json", CombineProjectPath(targetRoot, "package_cache/dependency_graph.json"), dependencyGraph, "Recreate");
+        AddContentWrite(writes, "packageCache", "compiler/gate_report.txt", CombineProjectPath(targetRoot, "package_cache/gate_report.txt"), gateReportText, "Recreate");
+
+        AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.GeneratedConfigPatch, "compiler/generated_config_patch.json", CombineProjectPath(targetRoot, "config/character_config_patch.json"), configPatch, "Recreate");
+        AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.GeometryBinding, "compiler/geometry_binding.json", CombineProjectPath(targetRoot, "config/geometry_binding.json"), geometryBinding, "Recreate");
+        AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.ResourceMapping, "compiler/resource_mapping.json", CombineProjectPath(targetRoot, "config/resource_catalog_mapping.json"), resourceMapping, "Recreate");
+        AddContentWrite(writes, "resolverVerificationPlan", "compiler/resolver_verification_plan.json", CombineProjectPath(targetRoot, "config/resolver_verification_plan.json"), resolverPlan, "Recreate");
+        AddContentWrite(writes, "unityResourceCatalog", "compiler/unity_resource_catalog.json", CombineProjectPath(targetRoot, "config/unity_resource_catalog.json"), unityCatalog, "Recreate");
+        return writes;
+    }
+
+    private static void AddContentWrite(
+        List<CharacterUnityImportWriteInput> writes,
+        string kind,
+        string sourcePath,
+        string targetPath,
+        string content,
+        string writePolicy)
+    {
+        content = EnsureTrailingNewline(content);
+        writes.Add(new CharacterUnityImportWriteInput
+        {
+            Kind = kind,
+            Owner = CharacterAuthoringCompilerOwnerKinds.UnityImporter,
+            SourcePath = sourcePath,
+            TargetPath = targetPath,
+            WritePolicy = writePolicy,
+            Content = content,
+            ContentHash = CharacterPackageHashUtility.ComputeTextSha256(content)
+        });
+    }
+
+    private static string CreateUnityResourceCatalogJson(
+        string packagePath,
+        CharacterResourcePackage package,
+        CharacterAuthoringCompileResult result,
+        JsonSerializerOptions options)
+    {
+        CharacterPackageResourceCatalog packageCatalog = package != null ? package.ResourceCatalog : null;
+        CharacterPackageResourceMapping mapping = result != null ? result.ResourceMapping : null;
+        var sourceByKey = new Dictionary<string, CharacterPackageResourceEntry>(StringComparer.Ordinal);
+        if (packageCatalog != null)
+        {
+            for (int i = 0; i < packageCatalog.Entries.Count; i++)
+            {
+                CharacterPackageResourceEntry entry = packageCatalog.Entries[i];
+                if (entry != null && !string.IsNullOrWhiteSpace(entry.ResourceKey))
+                    sourceByKey[entry.ResourceKey] = entry;
+            }
+        }
+
+        var mappingByPackageKey = new Dictionary<string, CharacterPackageResourceMappingEntry>(StringComparer.Ordinal);
+        var entries = new List<UnityResourceCatalogEntryDto>();
+        if (mapping != null)
+        {
+            for (int i = 0; i < mapping.Entries.Count; i++)
+            {
+                CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
+                if (entry == null)
+                    continue;
+
+                mappingByPackageKey[entry.PackageResourceKey] = entry;
+            }
+
+            for (int i = 0; i < mapping.Entries.Count; i++)
+            {
+                CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
+                if (entry == null)
+                    continue;
+
+                CharacterPackageResourceEntry sourceEntry;
+                sourceByKey.TryGetValue(entry.PackageResourceKey, out sourceEntry);
+                entries.Add(CreateUnityResourceCatalogEntry(packagePath, result, sourceEntry, entry, mappingByPackageKey));
+            }
+        }
+
+        var dto = new UnityResourceCatalogDto
+        {
+            schemaVersion = 1,
+            catalogId = "character.package." + (result != null ? result.PackageId : string.Empty),
+            packageId = result != null ? result.PackageId : string.Empty,
+            entries = entries.ToArray()
+        };
+        return EnsureTrailingNewline(JsonSerializer.Serialize(dto, options));
+    }
+
+    private static UnityResourceCatalogEntryDto CreateUnityResourceCatalogEntry(
+        string packagePath,
+        CharacterAuthoringCompileResult result,
+        CharacterPackageResourceEntry sourceEntry,
+        CharacterPackageResourceMappingEntry mapping,
+        Dictionary<string, CharacterPackageResourceMappingEntry> mappingByPackageKey)
+    {
+        string packageId = result != null ? result.PackageId : string.Empty;
+        string typeId = MapUnityResourceTypeId(mapping.TypeId);
+        var providerData = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["assetPath"] = mapping.ImportTargetPath,
+            ["packageResourceKey"] = mapping.PackageResourceKey,
+            ["stableId"] = mapping.StableId,
+            ["sourceRelativePath"] = mapping.SourceRelativePath,
+            ["sourceFormat"] = mapping.SourceFormat,
+            ["usage"] = mapping.Usage,
+            ["requestedProviderId"] = mapping.ProviderId,
+            ["importHash"] = mapping.ImportHash,
+            ["dependencyHash"] = mapping.DependencyHash,
+            ["generatedBy"] = "CharacterUnityImportBridge",
+            ["sourcePackageHash"] = result != null && result.Hashes != null ? result.Hashes.SourcePackageHash : string.Empty
+        };
+
+        return new UnityResourceCatalogEntryDto
+        {
+            id = mapping.ProjectResourceKey,
+            type = typeId,
+            variant = sourceEntry != null ? sourceEntry.Variant : string.Empty,
+            packageId = packageId,
+            provider = "memory",
+            address = mapping.ImportTargetPath,
+            labels = BuildUnityResourceLabels(packageId, sourceEntry, mapping),
+            dependencies = BuildUnityResourceDependencies(packageId, sourceEntry, mappingByPackageKey),
+            hash = mapping.DeclaredContentHash,
+            size = GetPackageResourceSize(packagePath, mapping.SourceRelativePath),
+            allowOverride = false,
+            providerData = providerData
+        };
+    }
+
+    private static string[] BuildUnityResourceLabels(
+        string packageId,
+        CharacterPackageResourceEntry sourceEntry,
+        CharacterPackageResourceMappingEntry mapping)
+    {
+        var labels = new SortedSet<string>(StringComparer.Ordinal);
+        labels.Add("package." + packageId);
+        labels.Add("character.resourcePackage");
+        if (!string.IsNullOrWhiteSpace(mapping.Usage))
+            labels.Add("character.usage." + NormalizeLabelSegment(mapping.Usage));
+        if (!string.IsNullOrWhiteSpace(mapping.TypeId))
+            labels.Add("character.type." + NormalizeLabelSegment(mapping.TypeId));
+
+        if (sourceEntry != null)
+        {
+            if (sourceEntry.ImportHints != null && sourceEntry.ImportHints.Labels != null)
+            {
+                for (int i = 0; i < sourceEntry.ImportHints.Labels.Count; i++)
+                    labels.Add(sourceEntry.ImportHints.Labels[i]);
+            }
+
+            if (sourceEntry.Tags != null)
+            {
+                for (int i = 0; i < sourceEntry.Tags.Count; i++)
+                    labels.Add("tag." + NormalizeLabelSegment(sourceEntry.Tags[i]));
+            }
+        }
+
+        var result = new string[labels.Count];
+        labels.CopyTo(result);
+        return result;
+    }
+
+    private static UnityResourceKeyDto[] BuildUnityResourceDependencies(
+        string packageId,
+        CharacterPackageResourceEntry sourceEntry,
+        Dictionary<string, CharacterPackageResourceMappingEntry> mappingByPackageKey)
+    {
+        if (sourceEntry == null || sourceEntry.Dependencies == null || sourceEntry.Dependencies.Count == 0)
+            return Array.Empty<UnityResourceKeyDto>();
+
+        var dependencies = new List<UnityResourceKeyDto>();
+        for (int i = 0; i < sourceEntry.Dependencies.Count; i++)
+        {
+            CharacterPackageResourceDependency dependency = sourceEntry.Dependencies[i];
+            if (dependency == null || string.IsNullOrWhiteSpace(dependency.ResourceKey))
+                continue;
+
+            CharacterPackageResourceMappingEntry target;
+            if (!mappingByPackageKey.TryGetValue(dependency.ResourceKey, out target))
+                continue;
+
+            dependencies.Add(new UnityResourceKeyDto
+            {
+                id = target.ProjectResourceKey,
+                type = MapUnityResourceTypeId(target.TypeId),
+                variant = string.Empty,
+                packageId = packageId
+            });
+        }
+
+        return dependencies.ToArray();
+    }
+
+    private static long GetPackageResourceSize(string packagePath, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(packagePath) || string.IsNullOrWhiteSpace(relativePath))
+            return 0;
+
+        string fullPath = Path.GetFullPath(Path.Combine(packagePath, relativePath));
+        string root = Path.GetFullPath(packagePath);
+        if (!root.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+            root += Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(root, StringComparison.Ordinal) || !File.Exists(fullPath))
+            return 0;
+        return new FileInfo(fullPath).Length;
+    }
+
+    private static string MapUnityResourceTypeId(string packageTypeId)
+    {
+        switch (packageTypeId)
+        {
+            case CharacterPackageResourceTypeIds.Model:
+            case CharacterPackageResourceTypeIds.Vfx:
+                return "GameObject";
+            case CharacterPackageResourceTypeIds.Texture:
+            case CharacterPackageResourceTypeIds.Preview:
+                return "Texture2D";
+            case CharacterPackageResourceTypeIds.Material:
+                return "Material";
+            case CharacterPackageResourceTypeIds.Animation:
+                return "AnimationClip";
+            case CharacterPackageResourceTypeIds.Audio:
+                return "AudioClip";
+            case CharacterPackageResourceTypeIds.Config:
+            case CharacterPackageResourceTypeIds.Geometry:
+                return "TextAsset";
+            default:
+                return "Object";
+        }
+    }
+
+    private static string NormalizeLabelSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var builder = new StringBuilder(value.Length);
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = char.ToLowerInvariant(value[i]);
+            bool valid = (c >= 'a' && c <= 'z')
+                || (c >= '0' && c <= '9')
+                || c == '.'
+                || c == '_'
+                || c == '-';
+            builder.Append(valid ? c : '.');
+        }
+
+        return builder.ToString().Trim('.');
+    }
+
+    private static string ReadPackageFile(string packagePath, string relativePath)
+    {
+        string path = Path.Combine(packagePath, relativePath);
+        return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+    }
+
+    private static string EnsureTrailingNewline(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return "\n";
+        return content.EndsWith("\n", StringComparison.Ordinal) ? content : content + "\n";
+    }
+
+    private static void WriteProjectText(string projectRoot, string projectRelativePath, string content)
+    {
+        string fullPath = Path.GetFullPath(Path.Combine(projectRoot, projectRelativePath));
+        string root = Path.GetFullPath(projectRoot);
+        if (!root.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+            root += Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(root, StringComparison.Ordinal))
+            throw new InvalidOperationException("target path escapes Unity project root: " + projectRelativePath);
+
+        string directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+        File.WriteAllText(fullPath, EnsureTrailingNewline(content));
+    }
+
+    private static string CombineProjectPath(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left))
+            return (right ?? string.Empty).Replace('\\', '/');
+        if (string.IsNullOrWhiteSpace(right))
+            return left.Replace('\\', '/');
+        return left.TrimEnd('/', '\\').Replace('\\', '/') + "/" + right.TrimStart('/', '\\').Replace('\\', '/');
+    }
+
+    private static string CreateUnityImportReportText(CharacterUnityImportReport report)
+    {
+        if (report == null)
+            return string.Empty;
+
+        var builder = new StringBuilder();
+        builder.AppendLine("MxFramework Character Unity Import Report");
+        builder.Append("package=").Append(report.PackageId).AppendLine();
+        builder.Append("status=").Append(report.Status).AppendLine();
+        builder.Append("targetRoot=").Append(report.TargetRootPath).AppendLine();
+        builder.Append("canWrite=").Append(report.CanWriteToUnityProject).AppendLine();
+        builder.Append("canSpawn=").Append(report.CanSpawnAfterImport).AppendLine();
+        builder.Append("added=").Append(report.AddedCount)
+            .Append(" updated=").Append(report.UpdatedCount)
+            .Append(" skipped=").Append(report.SkippedCount)
+            .Append(" conflicts=").Append(report.ConflictCount)
+            .Append(" errors=").Append(report.ErrorCount)
+            .AppendLine();
+        builder.Append("sourcePackageHash=").Append(report.SourcePackageHash).AppendLine();
+        builder.Append("resourceMappingHash=").Append(report.ResourceMappingHash).AppendLine();
+        builder.AppendLine("issues:");
+        if (report.Issues.Count == 0)
+        {
+            builder.AppendLine("- none");
+        }
+        else
+        {
+            for (int i = 0; i < report.Issues.Count; i++)
+            {
+                CharacterAuthoringValidationIssue issue = report.Issues[i];
+                builder.Append("- ")
+                    .Append(issue.Severity)
+                    .Append(" gate=").Append(issue.Gate)
+                    .Append(" code=").Append(issue.Code)
+                    .Append(" sourcePath=").Append(issue.SourcePath)
+                    .Append(" object=").Append(issue.SourceObjectPath)
+                    .Append(" field=").Append(issue.Field)
+                    .Append(" message=").Append(issue.Message)
+                    .AppendLine();
+            }
+        }
+
+        builder.AppendLine("operations:");
+        for (int i = 0; i < report.Operations.Count; i++)
+        {
+            CharacterUnityImportOperation operation = report.Operations[i];
+            builder.Append("- ")
+                .Append(operation.Action)
+                .Append(" kind=").Append(operation.Kind)
+                .Append(" source=").Append(operation.SourcePath)
+                .Append(" target=").Append(operation.TargetPath)
+                .Append(" hash=").Append(operation.ContentHash)
+                .AppendLine();
+        }
+
+        return builder.ToString();
     }
 
     private static string GateReportToText(CharacterCompilerGateReport report)
@@ -245,6 +712,38 @@ internal static class CharacterPackageCommands
         if (!File.Exists(path))
             return null;
         return JsonSerializer.Deserialize<T>(File.ReadAllText(path), options) ?? new T();
+    }
+
+    private sealed class UnityResourceCatalogDto
+    {
+        public int schemaVersion { get; set; } = 1;
+        public string catalogId { get; set; } = string.Empty;
+        public string packageId { get; set; } = string.Empty;
+        public UnityResourceCatalogEntryDto[] entries { get; set; } = Array.Empty<UnityResourceCatalogEntryDto>();
+    }
+
+    private sealed class UnityResourceCatalogEntryDto
+    {
+        public string id { get; set; } = string.Empty;
+        public string type { get; set; } = string.Empty;
+        public string variant { get; set; } = string.Empty;
+        public string packageId { get; set; } = string.Empty;
+        public string provider { get; set; } = string.Empty;
+        public string address { get; set; } = string.Empty;
+        public string[] labels { get; set; } = Array.Empty<string>();
+        public UnityResourceKeyDto[] dependencies { get; set; } = Array.Empty<UnityResourceKeyDto>();
+        public string hash { get; set; } = string.Empty;
+        public long size { get; set; }
+        public bool allowOverride { get; set; }
+        public Dictionary<string, string> providerData { get; set; } = new();
+    }
+
+    private sealed class UnityResourceKeyDto
+    {
+        public string id { get; set; } = string.Empty;
+        public string type { get; set; } = string.Empty;
+        public string variant { get; set; } = string.Empty;
+        public string packageId { get; set; } = string.Empty;
     }
 
     private sealed class CharacterBodyPartsDocument

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0",
+  "nodes": [
+    {
+      "resourceKey": "char.iron_vanguard.model.body",
+      "stableId": "charpkg.iron_vanguard.resource.model.body",
+      "typeId": "model",
+      "usage": "characterModel",
+      "relativePath": "resources/models/iron_vanguard.glb"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.sword.model",
+      "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
+      "typeId": "model",
+      "usage": "weaponModel",
+      "relativePath": "resources/models/iron_sword.glb"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.shield.model",
+      "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
+      "typeId": "model",
+      "usage": "weaponModel",
+      "relativePath": "resources/models/kite_shield.glb"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.locomotion",
+      "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+      "typeId": "animation",
+      "usage": "animationClipGroup",
+      "relativePath": "resources/animations/locomotion.glb"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.combat",
+      "stableId": "charpkg.iron_vanguard.resource.anim.combat",
+      "typeId": "animation",
+      "usage": "animationClipGroup",
+      "relativePath": "resources/animations/combat.glb"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.preview.thumbnail",
+      "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
+      "typeId": "preview",
+      "usage": "previewThumbnail",
+      "relativePath": "previews/thumbnail.png"
+    }
+  ],
+  "edges": [
+    {
+      "fromResourceKey": "char.iron_vanguard.anim.locomotion",
+      "toResourceKey": "char.iron_vanguard.model.body",
+      "required": true,
+      "relation": "retargetsToSkeleton",
+      "affectsDependencyHash": true
+    },
+    {
+      "fromResourceKey": "char.iron_vanguard.anim.combat",
+      "toResourceKey": "char.iron_vanguard.model.body",
+      "required": true,
+      "relation": "retargetsToSkeleton",
+      "affectsDependencyHash": true
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "1.0",
+  "expectedResolverEntrypoint": "CharacterPackageResolver.Resolve",
+  "status": "Ready",
+  "characterStableId": "char.iron_vanguard",
+  "defaultLoadoutStableId": "equip_loadout.iron_vanguard.sword_shield",
+  "expectedActiveEquipmentStateStableId": "equip_state.iron_vanguard.sword_shield",
+  "expectedCombatActionSetStableId": "action_set.iron_vanguard.sword_shield",
+  "expectedAnimationProfileId": "anim.iron_vanguard.sword_shield",
+  "requiredTables": [
+    {
+      "tableName": "AbilityLoadoutConfig",
+      "rowCount": 4,
+      "generatedIds": [
+        790001,
+        790002,
+        790003,
+        790102
+      ],
+      "stableIds": [
+        "mx.ability_loadout.base",
+        "mx.ability_loadout.weapon.iron_sword",
+        "mx.ability_loadout.weapon.kite_shield",
+        "mx.ability_loadout.equip_loadout.iron_vanguard.sword_shield"
+      ]
+    },
+    {
+      "tableName": "CharacterAttributeProfileConfig",
+      "rowCount": 1,
+      "generatedIds": [
+        720001
+      ],
+      "stableIds": [
+        "attr.iron_vanguard.base"
+      ]
+    },
+    {
+      "tableName": "CharacterBodyPartConfig",
+      "rowCount": 6,
+      "generatedIds": [
+        740001,
+        740002,
+        740003,
+        740004,
+        740005,
+        740006
+      ],
+      "stableIds": [
+        "mx.body_part.iron_vanguard_parts.torso",
+        "mx.body_part.iron_vanguard_parts.head",
+        "mx.body_part.iron_vanguard_parts.right_hand",
+        "mx.body_part.iron_vanguard_parts.left_hand",
+        "mx.body_part.iron_vanguard_parts.right_leg",
+        "mx.body_part.iron_vanguard_parts.left_leg"
+      ]
+    },
+    {
+      "tableName": "CharacterBodyProfileConfig",
+      "rowCount": 1,
+      "generatedIds": [
+        730001
+      ],
+      "stableIds": [
+        "body.iron_vanguard.authoring"
+      ]
+    },
+    {
+      "tableName": "CharacterConfig",
+      "rowCount": 1,
+      "generatedIds": [
+        710001
+      ],
+      "stableIds": [
+        "char.iron_vanguard"
+      ]
+    },
+    {
+      "tableName": "CharacterPresentationProfileConfig",
+      "rowCount": 1,
+      "generatedIds": [
+        810001
+      ],
+      "stableIds": [
+        "mx.presentation.iron_vanguard"
+      ]
+    },
+    {
+      "tableName": "CombatActionSetConfig",
+      "rowCount": 3,
+      "generatedIds": [
+        800001,
+        800002,
+        800003
+      ],
+      "stableIds": [
+        "action_set.iron_vanguard.unarmed",
+        "action_set.iron_vanguard.single_sword",
+        "action_set.iron_vanguard.sword_shield"
+      ]
+    },
+    {
+      "tableName": "EquipmentLoadoutConfig",
+      "rowCount": 3,
+      "generatedIds": [
+        760001,
+        760002,
+        760003
+      ],
+      "stableIds": [
+        "equip_loadout.iron_vanguard.unarmed",
+        "equip_loadout.iron_vanguard.single_sword",
+        "equip_loadout.iron_vanguard.sword_shield"
+      ]
+    },
+    {
+      "tableName": "EquipmentSchemaConfig",
+      "rowCount": 1,
+      "generatedIds": [
+        750001
+      ],
+      "stableIds": [
+        "equip_schema.humanoid.hands"
+      ]
+    },
+    {
+      "tableName": "EquipmentStateConfig",
+      "rowCount": 3,
+      "generatedIds": [
+        770001,
+        770002,
+        770003
+      ],
+      "stableIds": [
+        "equip_state.iron_vanguard.unarmed",
+        "equip_state.iron_vanguard.single_sword",
+        "equip_state.iron_vanguard.sword_shield"
+      ]
+    },
+    {
+      "tableName": "SpawnProfileConfig",
+      "rowCount": 1,
+      "generatedIds": [
+        820001
+      ],
+      "stableIds": [
+        "mx.spawn.iron_vanguard.default"
+      ]
+    },
+    {
+      "tableName": "WeaponConfig",
+      "rowCount": 2,
+      "generatedIds": [
+        780001,
+        780002
+      ],
+      "stableIds": [
+        "mx.weapon.weapon.iron_sword",
+        "mx.weapon.weapon.kite_shield"
+      ]
+    }
+  ],
+  "knownAbilityIds": [
+    900001,
+    900002,
+    900003,
+    900102
+  ],
+  "requiredResourceKeys": [
+    "char.iron_vanguard.anim.combat",
+    "char.iron_vanguard.anim.locomotion",
+    "char.iron_vanguard.model.body",
+    "char.iron_vanguard.preview.thumbnail",
+    "char.iron_vanguard.weapon.shield.model",
+    "char.iron_vanguard.weapon.sword.model"
+  ],
+  "diagnostics": []
+}

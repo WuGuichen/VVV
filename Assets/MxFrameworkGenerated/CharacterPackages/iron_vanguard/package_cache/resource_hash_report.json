@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "packageId": "iron_vanguard",
+  "entries": [
+    {
+      "resourceKey": "char.iron_vanguard.model.body",
+      "relativePath": "resources/models/iron_vanguard.glb",
+      "exists": true,
+      "declaredContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+      "computedContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
+      "computedImportHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+      "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.sword.model",
+      "relativePath": "resources/models/iron_sword.glb",
+      "exists": true,
+      "declaredContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+      "computedContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
+      "computedImportHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+      "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.weapon.shield.model",
+      "relativePath": "resources/models/kite_shield.glb",
+      "exists": true,
+      "declaredContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+      "computedContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
+      "computedImportHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+      "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.locomotion",
+      "relativePath": "resources/animations/locomotion.glb",
+      "exists": true,
+      "declaredContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+      "computedContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
+      "computedImportHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
+      "computedDependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.anim.combat",
+      "relativePath": "resources/animations/combat.glb",
+      "exists": true,
+      "declaredContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+      "computedContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
+      "computedImportHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
+      "computedDependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+    },
+    {
+      "resourceKey": "char.iron_vanguard.preview.thumbnail",
+      "relativePath": "previews/thumbnail.png",
+      "exists": true,
+      "declaredContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+      "computedContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+      "computedImportHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+      "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "diagnostics": {
+    "schemaVersion": "1.0",
+    "packageId": "iron_vanguard",
+    "issues": [],
+    "hasBlockingIssues": false
+  },
+  "hasBlockingIssues": false
+}

@@ -387,6 +387,18 @@ Unity -batchmode -projectPath <project> \
   -quit
 ```
 
+外部编辑器和 CI 也可以直接调用同一条 Authoring CLI 导入桥：
+
+```bash
+dotnet run --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- \
+  character import-unity \
+  --package <CharacterPackage> \
+  --project-root <UnityProjectRoot> \
+  --unity-root Assets/MxFrameworkGenerated/CharacterPackages \
+  --check-files \
+  --check-hashes
+```
+
 ### Importer 执行流程
 
 ```text
@@ -410,19 +422,33 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/
     manifest.json
     resource_catalog.json
     compile_result.json
+    unity_import_write_plan.json
+    resource_hash_report.json
+    dependency_graph.json
+    gate_report.txt
     import_report.json
+    import_report.txt
   resources/
     models/
     textures/
     materials/
     animations/
+  previews/
   config/
     character_config_patch.json
     geometry_binding.json
     resource_catalog_mapping.json
+    resolver_verification_plan.json
+    unity_resource_catalog.json
+  generated/
+    character_application_config_patch.json
+    character_geometry_binding.json
+    character_resource_mapping.json
 ```
 
 如需 ScriptableObject adapter，只作为 Unity 侧索引和菜单友好入口；noEngine runtime config 仍以 JSON / Config source 为权威。
+
+当前 C2 第一版实现采用“文件导入 + ResourceCatalog 映射”策略：资源文件按 C0.6 `CharacterUnityImportWritePlan` 复制到 Unity 项目 `Assets/` 下，`config/unity_resource_catalog.json` 使用 `memory` provider + `providerData.assetPath` 指向导入后的项目资源路径，保留 package-local ResourceKey、stable id、source path、content/import/dependency hash 和 source package hash。实际 glTF / GLB 是否能被 Unity 解析为 `GameObject` / `AnimationClip` 由项目安装的 importer package 决定；该桥接不私自实现模型格式转换，也不把 `UnityEngine.Object` 写入 noEngine config。
 
 ### 资源导入策略
 
@@ -431,7 +457,9 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/
 - hash 未变可跳过。
 - hash 变化但 stable id 相同，输出 update report。
 - 资源导入失败时，不写 config patch。
-- config patch 写入成功后，运行 `CharacterPackageResolver` 做一致性检查。
+- config patch 写入成功后，保留 `resolver_verification_plan.json`；真正调用 `CharacterPackageResolver` 做导入后一致性检查属于 Runtime Spawn / Workstation 接入切片。
+- `ExportBlocked` / `ImportBlocked` 时不写 Unity 项目目标；如果传入 `--report-out`，只在外部报告目录输出 import report。
+- `SpawnBlocked` 时允许写入项目目标，但 `import_report.json.canSpawnAfterImport=false`，Runtime Spawn 不得使用该包生成角色。
 
 ## Runtime Spawn 实现
 
