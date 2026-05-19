@@ -1,4 +1,6 @@
 using System.Net;
+using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using MxFramework.Authoring;
@@ -10,6 +12,7 @@ namespace MxFramework.Authoring.Cli;
 internal static class EditorServer
 {
     private const string DefaultPackageRelativePath = "Tools/MxFramework.Authoring/samples/buff-preview";
+    private const string DefaultCharacterPackageRelativePath = "Tools/MxFramework.Authoring/samples/character-iron-vanguard";
     private const string ManifestRelativePath = "Tools/MxFramework.Authoring/samples/project-manifest/project-authoring-manifest.json";
     private const string SamplesRelativePath = "Tools/MxFramework.Authoring/samples";
 
@@ -22,6 +25,7 @@ internal static class EditorServer
         listener.Start();
         Console.WriteLine("MxFramework Authoring Editor");
         Console.WriteLine($"URL: http://127.0.0.1:{port}/Tools/MxFramework.Authoring.Editor/web/");
+        Console.WriteLine($"CharacterStudio URL: http://127.0.0.1:{port}/Tools/MxFramework.CharacterStudio/web/");
         Console.WriteLine($"Default package: {defaultPackage}");
 
         while (true)
@@ -60,6 +64,53 @@ internal static class EditorServer
         if (path == "/api/packages" && context.Request.HttpMethod == "GET")
         {
             WriteJson(context.Response, ListPackages(rootPath), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/packages" && context.Request.HttpMethod == "GET")
+        {
+            WriteJson(context.Response, ListCharacterPackages(rootPath, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/state" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath);
+            WriteJson(context.Response, ReadCharacterState(rootPath, characterPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/save" && context.Request.HttpMethod == "POST")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath);
+            string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            CharacterStudioSaveRequest request = JsonSerializer.Deserialize<CharacterStudioSaveRequest>(body, jsonOptions) ?? new CharacterStudioSaveRequest();
+            if (request.package == null)
+                throw new ArgumentException("package is required.");
+            SaveCharacterPackage(rootPath, characterPackage, request.package, jsonOptions);
+            WriteJson(context.Response, ReadCharacterState(rootPath, characterPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/compile" && (context.Request.HttpMethod == "GET" || context.Request.HttpMethod == "POST"))
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath);
+            bool checkHashes = string.Equals(context.Request.QueryString["checkHashes"], "true", StringComparison.OrdinalIgnoreCase);
+            WriteJson(context.Response, CompileCharacterPackage(rootPath, characterPackage, checkFiles: true, checkHashes: checkHashes, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/import-unity" && context.Request.HttpMethod == "POST")
+        {
+            string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            CharacterStudioImportRequest request = string.IsNullOrWhiteSpace(body)
+                ? new CharacterStudioImportRequest()
+                : (JsonSerializer.Deserialize<CharacterStudioImportRequest>(body, jsonOptions) ?? new CharacterStudioImportRequest());
+            string characterPackage = string.IsNullOrWhiteSpace(request.package)
+                ? ResolveCharacterPackageRelative(context, rootPath)
+                : request.package;
+            ResolveSafePath(rootPath, characterPackage);
+            WriteJson(context.Response, RunCharacterImport(rootPath, characterPackage, request, jsonOptions), jsonOptions);
             return;
         }
 
@@ -289,10 +340,24 @@ internal static class EditorServer
         return requested;
     }
 
+    private static string ResolveCharacterPackageRelative(HttpListenerContext context, string rootPath)
+    {
+        string requested = context.Request.QueryString["package"];
+        if (string.IsNullOrEmpty(requested))
+            return DefaultCharacterPackageRelativePath;
+        ResolveSafePath(rootPath, requested);
+        return requested;
+    }
+
     private static string ResolveSafePath(string rootPath, string relative)
     {
-        string fullPath = Path.GetFullPath(Path.Combine(rootPath, relative));
-        if (!fullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+        string normalizedRoot = Path.GetFullPath(rootPath);
+        string rootPrefix = normalizedRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? normalizedRoot
+            : normalizedRoot + Path.DirectorySeparatorChar;
+        string fullPath = Path.GetFullPath(Path.Combine(normalizedRoot, relative));
+        if (!string.Equals(fullPath, normalizedRoot, StringComparison.OrdinalIgnoreCase)
+            && !fullPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("path escapes root: " + relative);
         return fullPath;
     }
@@ -387,6 +452,234 @@ internal static class EditorServer
             }
         }
         return result;
+    }
+
+    private static List<object> ListCharacterPackages(string rootPath, JsonSerializerOptions jsonOptions)
+    {
+        var result = new List<object>();
+        string samplesDir = Path.Combine(rootPath, SamplesRelativePath);
+        if (!Directory.Exists(samplesDir))
+            return result;
+
+        foreach (string dir in Directory.GetDirectories(samplesDir).OrderBy(p => p, StringComparer.Ordinal))
+        {
+            string manifestPath = Path.Combine(dir, "manifest.json");
+            string resourceCatalogPath = Path.Combine(dir, "resource_catalog.json");
+            if (!File.Exists(manifestPath) || !File.Exists(resourceCatalogPath))
+                continue;
+
+            try
+            {
+                CharacterPackageManifest manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(manifestPath), jsonOptions) ?? new CharacterPackageManifest();
+                if (manifest.Kind != CharacterResourcePackageKind.Character)
+                    continue;
+
+                string relative = Path.GetRelativePath(rootPath, dir).Replace('\\', '/');
+                result.Add(new
+                {
+                    relative,
+                    packageId = manifest.PackageId,
+                    stableId = manifest.StableId,
+                    version = manifest.Version,
+                    kind = manifest.Kind
+                });
+            }
+            catch
+            {
+            }
+        }
+
+        return result;
+    }
+
+    private static object ReadCharacterState(string rootPath, string packageRelative, JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        CharacterAuthoringValidationReport validation = CharacterResourcePackageValidator.Validate(package, new CharacterResourcePackageValidationOptions
+        {
+            PackageRootPath = packagePath,
+            ValidateResourceFiles = true,
+            ValidateResourceHashes = false
+        });
+
+        string importReportPath = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", package.Manifest.PackageId, "package_cache", "import_report.json");
+
+        return new
+        {
+            packageRelative,
+            canWrite = true,
+            package,
+            validation,
+            importReport = File.Exists(importReportPath) ? ReadOptionalJson(rootPath, importReportPath) : null
+        };
+    }
+
+    private static CharacterAuthoringCompileResult CompileCharacterPackage(
+        string rootPath,
+        string packageRelative,
+        bool checkFiles,
+        bool checkHashes,
+        JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        return CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest
+        {
+            Package = package,
+            PackageRootPath = packagePath,
+            Options = new CharacterAuthoringCompileOptions
+            {
+                ValidateResourceFiles = checkFiles || checkHashes,
+                ValidateResourceHashes = checkHashes
+            }
+        });
+    }
+
+    private static void SaveCharacterPackage(
+        string rootPath,
+        string packageRelative,
+        CharacterResourcePackage package,
+        JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        if (!Directory.Exists(packagePath))
+            throw new DirectoryNotFoundException("Character package directory was not found: " + packageRelative);
+
+        CharacterAuthoringValidationReport validation = CharacterResourcePackageValidator.Validate(package, new CharacterResourcePackageValidationOptions
+        {
+            PackageRootPath = packagePath,
+            ValidateResourceFiles = true,
+            ValidateResourceHashes = false
+        });
+        if (HasValidationGate(validation, CharacterAuthoringValidationGate.ExportBlocked))
+            throw new ArgumentException("ExportBlocked package draft was not saved: " + validation.ToText());
+
+        WriteJsonFileAtomic(Path.Combine(packagePath, "manifest.json"), package.Manifest, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "resource_catalog.json"), package.ResourceCatalog, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "config", "character_application.json"), package.ApplicationConfig, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "geometry", "body_geometry.json"), package.Geometry.BodyProfile, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "geometry", "body_parts.json"), new CharacterBodyPartsFile
+        {
+            schemaVersion = package.Geometry.SchemaVersion,
+            bodyParts = package.Geometry.BodyParts
+        }, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "geometry", "body_colliders.json"), new CharacterBodyCollidersFile
+        {
+            schemaVersion = package.Geometry.SchemaVersion,
+            colliders = package.Geometry.Colliders
+        }, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "geometry", "sockets.json"), new CharacterSocketsFile
+        {
+            schemaVersion = package.Geometry.SchemaVersion,
+            sockets = package.Geometry.Sockets
+        }, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "geometry", "weapon_attachments.json"), new CharacterWeaponAttachmentsFile
+        {
+            schemaVersion = package.Geometry.SchemaVersion,
+            attachments = package.Geometry.WeaponAttachments
+        }, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "geometry", "traces.json"), new CharacterTracesFile
+        {
+            schemaVersion = package.Geometry.SchemaVersion,
+            traces = package.Geometry.Traces
+        }, jsonOptions);
+        WriteJsonFileAtomic(Path.Combine(packagePath, "validation", "last_report.json"), validation, jsonOptions);
+    }
+
+    private static object RunCharacterImport(
+        string rootPath,
+        string packageRelative,
+        CharacterStudioImportRequest request,
+        JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        string cliProject = Path.Combine(rootPath, "Tools", "MxFramework.Authoring", "src", "MxFramework.Authoring.Cli", "MxFramework.Authoring.Cli.csproj");
+        string reportOut = Path.Combine(rootPath, "Temp", "MxFrameworkAuthoring", "CharacterStudio", "import-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(reportOut);
+
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = rootPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add("--project");
+        startInfo.ArgumentList.Add(cliProject);
+        startInfo.ArgumentList.Add("--");
+        startInfo.ArgumentList.Add("character");
+        startInfo.ArgumentList.Add("import-unity");
+        startInfo.ArgumentList.Add("--package");
+        startInfo.ArgumentList.Add(packagePath);
+        startInfo.ArgumentList.Add("--project-root");
+        startInfo.ArgumentList.Add(rootPath);
+        startInfo.ArgumentList.Add("--unity-root");
+        startInfo.ArgumentList.Add(string.IsNullOrWhiteSpace(request.unityRoot) ? "Assets/MxFrameworkGenerated/CharacterPackages" : request.unityRoot);
+        startInfo.ArgumentList.Add("--report-out");
+        startInfo.ArgumentList.Add(reportOut);
+        startInfo.ArgumentList.Add("--check-files");
+        if (request.checkHashes)
+            startInfo.ArgumentList.Add("--check-hashes");
+        if (request.dryRun)
+            startInfo.ArgumentList.Add("--dry-run");
+
+        using Process process = Process.Start(startInfo);
+        if (process == null)
+            throw new InvalidOperationException("Failed to launch character import command.");
+
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        bool exited = process.WaitForExit(120000);
+        if (!exited)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            try { process.WaitForExit(); } catch { }
+            string timedOutStdout = stdoutTask.GetAwaiter().GetResult();
+            string timedOutStderr = stderrTask.GetAwaiter().GetResult();
+            return new { success = false, timedOut = true, exitCode = -1, stdout = timedOutStdout, stderr = timedOutStderr, reportOut };
+        }
+
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
+        string reportPath = Path.Combine(reportOut, "import_report.json");
+        return new
+        {
+            success = process.ExitCode == 0,
+            timedOut = false,
+            exitCode = process.ExitCode,
+            stdout,
+            stderr,
+            reportOut = Path.GetRelativePath(rootPath, reportOut).Replace('\\', '/'),
+            report = File.Exists(reportPath) ? ReadOptionalJson(rootPath, reportPath) : null
+        };
+    }
+
+    private static void WriteJsonFileAtomic<T>(string path, T value, JsonSerializerOptions jsonOptions)
+    {
+        string directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        string temp = path + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(value, jsonOptions) + Environment.NewLine);
+        if (File.Exists(path))
+            File.Replace(temp, path, null);
+        else
+            File.Move(temp, path);
+    }
+
+    private static bool HasValidationGate(CharacterAuthoringValidationReport report, CharacterAuthoringValidationGate gate)
+    {
+        if (report == null || report.Issues == null)
+            return false;
+        for (int i = 0; i < report.Issues.Count; i++)
+        {
+            if (report.Issues[i] != null && report.Issues[i].Gate == gate)
+                return true;
+        }
+
+        return false;
     }
 
     private static object ReadState(string rootPath, string packageRelative)
@@ -741,6 +1034,49 @@ internal static class EditorServer
             ".json" => "application/json; charset=utf-8",
             _ => "application/octet-stream"
         };
+    }
+
+    private sealed class CharacterStudioSaveRequest
+    {
+        public CharacterResourcePackage package { get; set; }
+    }
+
+    private sealed class CharacterStudioImportRequest
+    {
+        public string package { get; set; } = string.Empty;
+        public string unityRoot { get; set; } = string.Empty;
+        public bool checkHashes { get; set; }
+        public bool dryRun { get; set; }
+    }
+
+    private sealed class CharacterBodyPartsFile
+    {
+        public string schemaVersion { get; set; } = "1.0";
+        public List<CharacterBodyPartAuthoring> bodyParts { get; set; } = new();
+    }
+
+    private sealed class CharacterBodyCollidersFile
+    {
+        public string schemaVersion { get; set; } = "1.0";
+        public List<CharacterBodyColliderProfile> colliders { get; set; } = new();
+    }
+
+    private sealed class CharacterSocketsFile
+    {
+        public string schemaVersion { get; set; } = "1.0";
+        public List<CharacterSocketProfile> sockets { get; set; } = new();
+    }
+
+    private sealed class CharacterWeaponAttachmentsFile
+    {
+        public string schemaVersion { get; set; } = "1.0";
+        public List<WeaponAttachmentProfile> attachments { get; set; } = new();
+    }
+
+    private sealed class CharacterTracesFile
+    {
+        public string schemaVersion { get; set; } = "1.0";
+        public List<WeaponTraceProfile> traces { get; set; } = new();
     }
 
     private sealed class ExportRequest

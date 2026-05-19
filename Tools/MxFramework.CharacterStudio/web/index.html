@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework CharacterStudio</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>CharacterStudio</h1>
+        <p id="subtitle">Character Resource Package external workstation</p>
+      </div>
+      <div class="toolbar">
+        <select id="packageSelect" title="Character package"></select>
+        <button id="reloadButton" type="button" title="Reload package">刷新</button>
+        <button id="saveButton" type="button" title="Validate and save package draft">保存</button>
+        <button id="compileButton" type="button" title="Run character compile">预检</button>
+        <button id="importButton" type="button" title="Run Unity import bridge">导入 Unity</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="tree-panel">
+        <div class="panel-heading">
+          <h2>Package</h2>
+          <span id="dirtyBadge" class="badge">clean</span>
+        </div>
+        <div id="packageSummary" class="summary"></div>
+        <nav id="packageTree" class="tree" aria-label="Package resource tree"></nav>
+      </aside>
+
+      <section class="viewport-panel">
+        <div class="panel-heading">
+          <h2>Viewport</h2>
+          <div class="segmented" id="layerToggles">
+            <button data-layer="colliders" class="active" type="button">Colliders</button>
+            <button data-layer="sockets" class="active" type="button">Sockets</button>
+            <button data-layer="traces" class="active" type="button">Traces</button>
+            <button data-layer="weapons" class="active" type="button">Weapons</button>
+          </div>
+        </div>
+        <div id="loadoutTabs" class="tabs"></div>
+        <div id="viewport" class="viewport" aria-label="Character viewport"></div>
+      </section>
+
+      <aside class="inspector-panel">
+        <section>
+          <div class="panel-heading">
+            <h2>Inspector</h2>
+            <span id="selectionBadge" class="badge">none</span>
+          </div>
+          <div id="inspector" class="inspector"></div>
+        </section>
+
+        <section>
+          <div class="panel-heading">
+            <h2>Diagnostics</h2>
+            <button id="copyReportButton" type="button" title="Copy diagnostic report">复制</button>
+          </div>
+          <div id="diagnostics" class="diagnostics"></div>
+        </section>
+
+        <section>
+          <div class="panel-heading">
+            <h2>Import</h2>
+          </div>
+          <div id="importStatus" class="diagnostics"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "mxframework-character-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency CharacterStudio workstation for MxFramework Character Resource Packages.",
+  "scripts": {
+    "smoke": "node scripts/smoke.mjs",
+    "serve": "dotnet run --project ../MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- editor serve --root ../.. --port 4873 --package Tools/MxFramework.Authoring/samples/character-iron-vanguard"
+  }
+}
