@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MxFramework.CharacterControl;
 using MxFramework.Combat.Animation;
@@ -141,6 +142,7 @@ namespace MxFramework.Demo
         private bool _lastResultWasHit;
         private RuntimeCombatShowcaseMotionAdapter _motionAdapter;
         private RuntimeCombatCharacterControlSlice _characterControlSlice;
+        private Func<RuntimeFrame, CharacterFacingBasis> _characterControlFacingBasisProvider;
 
         public bool IsInitialized { get; private set; }
         public CombatFrame CurrentFrame => _clock.CurrentFrame;
@@ -178,6 +180,13 @@ namespace MxFramework.Demo
             : "Motion waiting";
         public Transform PlayerMarker => _playerMarker;
         public Transform EnemyMarker => _enemyMarker;
+
+        public void SetCharacterControlFacingBasisProvider(Func<RuntimeFrame, CharacterFacingBasis> facingBasisProvider)
+        {
+            _characterControlFacingBasisProvider = facingBasisProvider;
+            if (_characterControlSlice != null)
+                _characterControlSlice.SetFacingBasisProvider(facingBasisProvider);
+        }
         public RuntimeCombatShowcaseAuthoringConfig AuthoringPreviewConfig => _authoringConfig;
         public string AuthoringPreviewSummary => _authoringConfig.HasAuthoringPreview
             ? $"{_authoringConfig.SourceSummary} | ActionId={_actionId} TraceId={_traceId} | {_authoringConfig.ValidationSummary}"
@@ -895,7 +904,7 @@ namespace MxFramework.Demo
         private RuntimeCombatCharacterControlSlice EnsureCharacterControlSlice()
         {
             if (_characterControlSlice == null)
-                _characterControlSlice = new RuntimeCombatCharacterControlSlice(_actionId);
+                _characterControlSlice = new RuntimeCombatCharacterControlSlice(_actionId, _characterControlFacingBasisProvider);
 
             return _characterControlSlice;
         }
@@ -1350,9 +1359,9 @@ namespace MxFramework.Demo
 
             collider.enabled = false;
             if (Application.isPlaying)
-                Object.Destroy(collider);
+                UnityEngine.Object.Destroy(collider);
             else
-                Object.DestroyImmediate(collider);
+                UnityEngine.Object.DestroyImmediate(collider);
         }
 
         private LineRenderer CreateLineRenderer(string name, bool loop)
@@ -1473,7 +1482,7 @@ namespace MxFramework.Demo
             if (_hitDebugMarker == null || !_hitDebugMarker.gameObject.activeSelf)
                 return;
 
-            Camera camera = Camera.main;
+            UnityEngine.Camera camera = UnityEngine.Camera.main;
             if (_resultLabel != null && camera != null)
                 _resultLabel.transform.rotation = Quaternion.LookRotation(_resultLabel.transform.position - camera.transform.position, Vector3.up);
 

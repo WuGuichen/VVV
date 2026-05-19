@@ -10,7 +10,8 @@
         "MxFramework.Config.Runtime",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
-        "MxFramework.CharacterControl"
+        "MxFramework.CharacterControl",
+        "MxFramework.Camera"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,0 +1,16 @@
+{
+    "name": "MxFramework.Camera.Unity",
+    "rootNamespace": "MxFramework.Camera.Unity",
+    "references": [
+        "MxFramework.Camera"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -24,6 +24,7 @@
 | Resources | `Docs/Interfaces/Resources.md` | `Assets/Scripts/MxFramework/Resources/` | `Assets/Scripts/MxFramework/Tests/Resources/` |
 | Animation | `Docs/Interfaces/Animation.md` | `Assets/Scripts/MxFramework/Animation*/` | `Assets/Scripts/MxFramework/Tests/Animation/` |
 | Audio | `Docs/Interfaces/Audio.md` | `Assets/Scripts/MxFramework/Audio*/` | `Assets/Scripts/MxFramework/Tests/Audio/` |
+| Camera | `Docs/Interfaces/Camera.md` | `Assets/Scripts/MxFramework/Camera*/` | `Assets/Scripts/MxFramework/Tests/Camera/` |
 | AI | `Docs/Interfaces/AI.md` | `Assets/Scripts/MxFramework/AI/` | `Assets/Scripts/MxFramework/Tests/AI/` |
 | Diagnostics | `Docs/Interfaces/Diagnostics.md` | `Assets/Scripts/MxFramework/Diagnostics/` | `Assets/Scripts/MxFramework/Tests/Diagnostics/` |
 | Debug UI | `Docs/Interfaces/DebugUI.md` | `Assets/Scripts/MxFramework/DebugUI*/` | `Assets/Scripts/MxFramework/Tests/DebugUI/` |
@@ -72,6 +73,8 @@
 `MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat、CharacterControl、Config Runtime 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。`MxFramework.DebugUI.Input` 是可选 Unity/Input 桥，不进入 noEngine 依赖矩阵。Performance counters、Simulation Harness、hot reload observation 与 command gate diagnostics 归入观察 / 报告 API，默认不改变 Runtime authority、Replay、SaveState 或 hash。
 
 `MxFramework.Character.Application` 是应用层配置与纯解析器契约，当前只依赖 `MxFramework.Config`。它保存 Character 聚合所需的静态表、typed id、schema 元数据、resolved profile 和 diagnostics，不拥有 Runtime / Gameplay / Combat / Resources / Animation / CharacterControl 的权威状态；Runtime Spawn 也必须保持下层模块不反向依赖 Character Application。
+
+`MxFramework.Camera` 是表现层 noEngine 模块，只依赖 Core。Unity Camera 应用放在 `MxFramework.Camera.Unity`；Animation 表现事件到相机 request 的桥接放在 `MxFramework.Camera.Animation`；Debug UI 只通过 adapter 读取 `MxCameraDebugSnapshot`。Camera 默认不进入 Gameplay / Combat authority、Runtime hash、Replay hash 或 SaveState。
 
 ## AI Terminology
 
