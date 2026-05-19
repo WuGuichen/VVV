@@ -29,8 +29,8 @@
           <option value="offHand">副手武器</option>
           <option value="preview">预览模型</option>
         </select>
-        <input id="modelFileInput" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden>
-        <button id="modelImportButton" type="button" title="导入 GLB/GLTF 到当前角色资源包">导入模型</button>
+        <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
+        <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入模型</button>
         <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
         <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
         <button id="compileButton" type="button" title="运行 Character compile 预检">预检</button>

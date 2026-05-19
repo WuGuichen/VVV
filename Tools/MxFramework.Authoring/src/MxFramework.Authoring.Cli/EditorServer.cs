@@ -1,6 +1,7 @@
 using System.Net;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using MxFramework.Authoring;
@@ -650,9 +651,9 @@ internal static class EditorServer
         if (string.IsNullOrWhiteSpace(request.bytesBase64))
             throw new ArgumentException("bytesBase64 is required.");
 
-        string extension = Path.GetExtension(request.fileName).ToLowerInvariant();
-        if (extension != ".glb" && extension != ".gltf")
-            throw new ArgumentException("Only .glb and .gltf model files are supported.");
+        string sourceExtension = Path.GetExtension(request.fileName).ToLowerInvariant();
+        if (sourceExtension != ".glb" && sourceExtension != ".gltf" && sourceExtension != ".fbx")
+            throw new ArgumentException("Only .glb, .gltf, and .fbx model files are supported.");
 
         byte[] bytes;
         try
@@ -669,15 +670,109 @@ internal static class EditorServer
             throw new DirectoryNotFoundException("Character package directory was not found: " + packageRelative);
 
         string fileStem = CharacterPackageResourceKeyGenerator.NormalizeSegment(Path.GetFileNameWithoutExtension(request.fileName)).Replace('.', '_');
-        string relativePath = ("resources/models/" + fileStem + extension).Replace('\\', '/');
+        string targetExtension = sourceExtension;
+        byte[] packageModelBytes = bytes;
+        bool convertedFromFbx = sourceExtension == ".fbx";
+        if (convertedFromFbx)
+        {
+            packageModelBytes = ConvertFbxToGlb(rootPath, fileStem, request.fileName, bytes);
+            targetExtension = ".glb";
+        }
+
+        string relativePath = ("resources/models/" + fileStem + targetExtension).Replace('\\', '/');
         string outputPath = Path.Combine(packagePath, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-        File.WriteAllBytes(outputPath, bytes);
+        File.WriteAllBytes(outputPath, packageModelBytes);
 
         CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
         CharacterPackageResourceEntry entry = ResolveModelImportEntry(package, request.role, fileStem);
-        ApplyModelImportEntry(package, entry, request, relativePath, outputPath, extension);
+        ApplyModelImportEntry(package, entry, request, relativePath, outputPath, targetExtension, convertedFromFbx);
         SaveCharacterPackage(rootPath, packageRelative, package, jsonOptions);
+    }
+
+    private static byte[] ConvertFbxToGlb(string rootPath, string fileStem, string originalFileName, byte[] bytes)
+    {
+        string converterPath = ResolveFbx2GltfPath(rootPath);
+        string conversionRoot = Path.Combine(rootPath, "Temp", "MxFrameworkAuthoring", "CharacterStudio", "fbx-imports", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(conversionRoot);
+
+        string sourceName = string.IsNullOrWhiteSpace(fileStem) ? "model" : fileStem;
+        string sourcePath = Path.Combine(conversionRoot, sourceName + ".fbx");
+        string outputBasePath = Path.Combine(conversionRoot, sourceName);
+        string outputPath = outputBasePath + ".glb";
+        File.WriteAllBytes(sourcePath, bytes);
+
+        var startInfo = new ProcessStartInfo(converterPath)
+        {
+            WorkingDirectory = conversionRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("--input");
+        startInfo.ArgumentList.Add(sourcePath);
+        startInfo.ArgumentList.Add("--output");
+        startInfo.ArgumentList.Add(outputBasePath);
+        startInfo.ArgumentList.Add("--binary");
+
+        using Process process = Process.Start(startInfo);
+        if (process == null)
+            throw new InvalidOperationException("Failed to launch FBX2glTF converter.");
+
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        bool exited = process.WaitForExit(120000);
+        if (!exited)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            try { process.WaitForExit(); } catch { }
+            throw new InvalidOperationException("FBX to GLB conversion timed out: " + originalFileName);
+        }
+
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
+        if (process.ExitCode != 0 || !File.Exists(outputPath))
+        {
+            string detail = string.Join("\n", new[] { stdout, stderr }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            if (string.IsNullOrWhiteSpace(detail))
+                detail = "FBX2glTF did not produce a GLB output.";
+            throw new InvalidOperationException("FBX to GLB conversion failed for " + originalFileName + ": " + detail);
+        }
+
+        return File.ReadAllBytes(outputPath);
+    }
+
+    private static string ResolveFbx2GltfPath(string rootPath)
+    {
+        string overridePath = Environment.GetEnvironmentVariable("MXFRAMEWORK_FBX2GLTF") ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(overridePath))
+        {
+            string fullOverridePath = Path.GetFullPath(overridePath);
+            if (File.Exists(fullOverridePath))
+                return fullOverridePath;
+            throw new FileNotFoundException("MXFRAMEWORK_FBX2GLTF points to a missing converter executable.", fullOverridePath);
+        }
+
+        string platformDirectory;
+        string executableName = "FBX2glTF";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            platformDirectory = "Darwin";
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            platformDirectory = "Windows_NT";
+            executableName = "FBX2glTF.exe";
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            platformDirectory = "Linux";
+        else
+            throw new PlatformNotSupportedException("FBX conversion is only wired for macOS, Linux, and Windows.");
+
+        string packageConverterPath = Path.Combine(rootPath, "Tools", "MxFramework.CharacterStudio", "node_modules", "fbx2gltf", "bin", platformDirectory, executableName);
+        if (File.Exists(packageConverterPath))
+            return packageConverterPath;
+
+        throw new FileNotFoundException("FBX conversion requires FBX2glTF. Run `npm --prefix Tools/MxFramework.CharacterStudio install`, or set MXFRAMEWORK_FBX2GLTF to the converter executable.", packageConverterPath);
     }
 
     private static CharacterPackageResourceEntry ResolveModelImportEntry(CharacterResourcePackage package, string role, string fileStem)
@@ -716,7 +811,8 @@ internal static class EditorServer
         CharacterStudioModelImportRequest request,
         string relativePath,
         string outputPath,
-        string extension)
+        string extension,
+        bool convertedFromFbx)
     {
         string packageId = package.Manifest?.PackageId ?? string.Empty;
         string normalizedRole = string.IsNullOrWhiteSpace(request.role) ? "preview" : request.role.Trim();
@@ -758,8 +854,10 @@ internal static class EditorServer
         entry.Tags ??= new List<string>();
         AddTag(entry.Tags, "characterstudio-import");
         AddTag(entry.Tags, normalizedRole);
+        if (convertedFromFbx)
+            AddTag(entry.Tags, "converted-from-fbx");
         entry.Provenance ??= new CharacterPackageResourceProvenance();
-        entry.Provenance.SourceTool = "CharacterStudio";
+        entry.Provenance.SourceTool = convertedFromFbx ? "CharacterStudio/FBX2glTF" : "CharacterStudio";
         entry.Provenance.SourceFile = request.fileName;
         string now = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
         if (string.IsNullOrWhiteSpace(entry.Provenance.CreatedUtc))

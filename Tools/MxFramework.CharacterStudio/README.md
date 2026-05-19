@@ -40,7 +40,15 @@ The root `index.html` redirects to `web/` for static repo servers.
 
 Static file preview still opens the sample package, but save, compile, and import require `editor serve`.
 
-`导入模型` writes the selected `.glb` / `.gltf` file into the current package under `resources/models/`, updates `resource_catalog.json`, and saves through the same validation gate as normal draft edits. `导入 Unity` is a separate step that writes the compiled package outputs into the Unity project.
+`导入模型` writes the selected `.glb` / `.gltf` file into the current package under `resources/models/`, updates `resource_catalog.json`, and saves through the same validation gate as normal draft edits. `.fbx` input is accepted as an import source only: the Authoring server converts it through the local `fbx2gltf` dependency, stores the generated `.glb`, and records `sourceFormat: "glb"` in the package catalog. `导入 Unity` is a separate step that writes the compiled package outputs into the Unity project.
+
+FBX conversion requires the CharacterStudio npm dependencies:
+
+```bash
+npm --prefix Tools/MxFramework.CharacterStudio install
+```
+
+Set `MXFRAMEWORK_FBX2GLTF=/absolute/path/to/FBX2glTF` to use a custom converter binary.
 
 ## Smoke
 

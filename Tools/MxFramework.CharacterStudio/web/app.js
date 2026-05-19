@@ -778,13 +778,15 @@ async function importModel(file) {
   }
 
   const extension = file.name.split(".").pop()?.toLowerCase() || "";
-  if (!["glb", "gltf"].includes(extension)) {
-    state.message = "仅支持导入 .glb 或 .gltf 模型。";
+  if (!["glb", "gltf", "fbx"].includes(extension)) {
+    state.message = "仅支持导入 .glb、.gltf 或 .fbx 模型。";
     renderShellStatus();
     return;
   }
 
-  state.message = `正在导入模型：${file.name}`;
+  state.message = extension === "fbx"
+    ? `正在转换并导入 FBX：${file.name}`
+    : `正在导入模型：${file.name}`;
   renderShellStatus();
   try {
     const bytesBase64 = await readFileAsBase64(file);
@@ -809,7 +811,9 @@ async function importModel(file) {
     state.dirty = false;
     state.canWrite = Boolean(data.canWrite);
     state.apiAvailable = true;
-    state.message = `模型已导入：${file.name}`;
+    state.message = extension === "fbx"
+      ? `FBX 已转换为 GLB 并导入：${file.name}`
+      : `模型已导入：${file.name}`;
     render();
   } catch (error) {
     state.message = `模型导入失败：${error instanceof Error ? error.message : String(error)}`;

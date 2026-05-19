@@ -9,6 +9,7 @@
     "serve": "dotnet run --project ../MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- editor serve --root ../.. --port 4873 --package Tools/MxFramework.Authoring/samples/character-iron-vanguard"
   },
   "dependencies": {
+    "fbx2gltf": "^0.9.7-p1",
     "three": "^0.165.0"
   }
 }
