@@ -268,6 +268,16 @@ Compiler 必须是 noEngine 纯逻辑，不读取 Unity 场景对象，不写 Ru
 - message
 - suggested fix
 
+v1 gate 字面值已经固定：
+
+- `Unknown`：未知或旧版本无法解释的 gate。
+- `ExportBlocked`：禁止保存为可导入 / 可分发产物，但不禁止保存 editor draft。
+- `ImportBlocked`：Unity Importer 不得写入项目资源或配置。
+- `SpawnBlocked`：可以导入，但 Runtime Spawn 不得生成角色实例。
+- `WarningOnly`：允许继续，但必须进入报告。
+
+后续新增 gate 必须使用保留位升级或提升 authoring schema version。
+
 示例 code：
 
 - `CHARPKG_MISSING_MODEL_RESOURCE`
@@ -395,6 +405,8 @@ loadout：
 - weapon state：可以是 innate_weapon / body_weapon，不要求实体武器模型。
 
 这说明角色系统不能假设人形骨骼，也不能把武器写死为“手上拿的一把剑”。
+
+C0 已用同一套 DTO 表达 `Training Slime`：`Primitive` body kind、`core/shell/front_face` body parts、sphere colliders、`topVfx/frontAttack` sockets，并保留 innate weapon / body weapon 的后续编译空间。
 
 ## 分阶段实施
 

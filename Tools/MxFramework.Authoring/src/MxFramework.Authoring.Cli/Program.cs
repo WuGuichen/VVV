@@ -56,6 +56,9 @@ internal static class Program
 
     private static int Dispatch(string[] args)
     {
+        if (args.Length >= 2 && args[0] == "character")
+            return CharacterPackageCommands.Dispatch(args, JsonOptions);
+
         if (args.Length >= 2 && args[0] == "preview")
             return PreviewCommands.Dispatch(args, JsonOptions);
 
@@ -500,6 +503,9 @@ internal static class Program
         Console.WriteLine("MxFramework Authoring CLI");
         Console.WriteLine("Commands:");
         Console.WriteLine("  editor serve [--root <repoRoot>] [--port <port>] [--package <relative>]");
+        Console.WriteLine("  character inspect --package <path>");
+        Console.WriteLine("  character validate --package <path>");
+        Console.WriteLine("  character schema");
         Console.WriteLine("  package validate --package <path>");
         Console.WriteLine("  manifest export");
         Console.WriteLine("  manifest inspect --manifest <path>");

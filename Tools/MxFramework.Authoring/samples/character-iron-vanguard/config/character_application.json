@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "1.0",
+  "authoringNote": "C0 sample only. #224 Authoring Compiler will define the exact generated Character Application config patch.",
+  "characterStableId": "char.iron_vanguard",
+  "bodyProfileStableId": "body.iron_vanguard.authoring",
+  "attributeProfileStableId": "attr.iron_vanguard.base",
+  "equipmentSchemaStableId": "equip_schema.humanoid.hands",
+  "loadouts": [
+    "equip_loadout.iron_vanguard.unarmed",
+    "equip_loadout.iron_vanguard.single_sword",
+    "equip_loadout.iron_vanguard.sword_shield"
+  ],
+  "resourceKeys": [
+    "char.iron_vanguard.model.body",
+    "char.iron_vanguard.weapon.sword.model",
+    "char.iron_vanguard.weapon.shield.model",
+    "char.iron_vanguard.anim.locomotion",
+    "char.iron_vanguard.anim.combat",
+    "char.iron_vanguard.preview.thumbnail"
+  ],
+  "compileBoundary": {
+    "authoringOnly": [
+      "localPose.eulerHint",
+      "validation.last_report",
+      "preview metadata"
+    ],
+    "runtimeConfigCandidates": [
+      "body parts",
+      "hit zone bindings",
+      "socket ids",
+      "weapon attachment bindings",
+      "trace profiles",
+      "resource keys"
+    ]
+  }
+}

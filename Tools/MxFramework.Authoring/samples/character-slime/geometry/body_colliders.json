@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1.0",
+  "colliders": [
+    {
+      "colliderId": "shell_sphere",
+      "partId": "shell",
+      "hitZoneId": "hit.shell",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "ModelRoot",
+        "parentPath": "model.root",
+        "position": {
+          "x": 0.0,
+          "y": 0.46,
+          "z": 0.0
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 0.84,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "size": {
+        "x": 0.92,
+        "y": 0.78,
+        "z": 0.92
+      },
+      "radius": 0.46,
+      "height": 0.0,
+      "priority": 10,
+      "isWeakPoint": false,
+      "damageMultiplierOverride": 1.0,
+      "postureDamageScaleOverride": 1.0,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.slime"
+    },
+    {
+      "colliderId": "core_sphere",
+      "partId": "core",
+      "hitZoneId": "hit.core",
+      "shape": "Sphere",
+      "localPose": {
+        "parentKind": "ModelRoot",
+        "parentPath": "model.root",
+        "position": {
+          "x": 0.0,
+          "y": 0.52,
+          "z": 0.08
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "size": {
+        "x": 0.32,
+        "y": 0.32,
+        "z": 0.32
+      },
+      "radius": 0.16,
+      "height": 0.0,
+      "priority": 30,
+      "isWeakPoint": true,
+      "damageMultiplierOverride": 1.5,
+      "postureDamageScaleOverride": 1.35,
+      "physicsLayer": "character.body",
+      "materialStableId": "physics.material.slime_core"
+    }
+  ]
+}

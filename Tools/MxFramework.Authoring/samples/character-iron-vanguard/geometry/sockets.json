@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "sockets": [
+    {
+      "socketId": "mainHand",
+      "parentPartId": "right_hand",
+      "bonePath": "Armature/Hips/Spine/RightShoulder/RightArm/RightForeArm/RightHand",
+      "locatorPath": "locators/right_hand_weapon",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.RightHand",
+        "position": {
+          "x": 0.03,
+          "y": 0.0,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.7071068,
+          "z": 0.0,
+          "w": 0.7071068
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 90.0,
+          "z": 0.0
+        }
+      },
+      "usage": "Weapon",
+      "mirrorPairSocketId": "offHand",
+      "handedness": "Right",
+      "sideTag": "Right",
+      "tags": [
+        "weapon",
+        "main"
+      ]
+    },
+    {
+      "socketId": "offHand",
+      "parentPartId": "left_hand",
+      "bonePath": "Armature/Hips/Spine/LeftShoulder/LeftArm/LeftForeArm/LeftHand",
+      "locatorPath": "locators/left_hand_weapon",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.LeftHand",
+        "position": {
+          "x": -0.03,
+          "y": 0.0,
+          "z": 0.02
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": -0.7071068,
+          "z": 0.0,
+          "w": 0.7071068
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": -90.0,
+          "z": 0.0
+        }
+      },
+      "usage": "Weapon",
+      "mirrorPairSocketId": "mainHand",
+      "handedness": "Left",
+      "sideTag": "Left",
+      "tags": [
+        "weapon",
+        "offhand"
+      ]
+    },
+    {
+      "socketId": "back",
+      "parentPartId": "torso",
+      "bonePath": "Armature/Hips/Spine/Chest",
+      "locatorPath": "locators/back_mount",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Chest",
+        "position": {
+          "x": 0.0,
+          "y": 1.34,
+          "z": -0.22
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 1.0,
+          "z": 0.0,
+          "w": 0.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 180.0,
+          "z": 0.0
+        }
+      },
+      "usage": "Weapon",
+      "mirrorPairSocketId": "",
+      "handedness": "Both",
+      "sideTag": "Back",
+      "tags": [
+        "stow"
+      ]
+    },
+    {
+      "socketId": "headVfx",
+      "parentPartId": "head",
+      "bonePath": "Armature/Hips/Spine/Neck/Head",
+      "locatorPath": "locators/head_vfx",
+      "localPose": {
+        "parentKind": "Bone",
+        "parentPath": "bone.Head",
+        "position": {
+          "x": 0.0,
+          "y": 1.86,
+          "z": 0.0
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "usage": "Vfx",
+      "mirrorPairSocketId": "",
+      "handedness": "None",
+      "sideTag": "Center",
+      "tags": [
+        "vfx"
+      ]
+    }
+  ]
+}

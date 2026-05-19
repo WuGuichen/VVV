@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "traces": [
+    {
+      "traceId": "trace.iron_sword.blade",
+      "weaponId": "weapon.iron_sword",
+      "equipSlot": "mainHand",
+      "startLocatorPath": "weapon/iron_sword/blade_root",
+      "endLocatorPath": "weapon/iron_sword/blade_tip",
+      "startPose": {
+        "parentKind": "Socket",
+        "parentPath": "mainHand",
+        "position": {
+          "x": 0.0,
+          "y": 0.12,
+          "z": 0.0
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "endPose": {
+        "parentKind": "Socket",
+        "parentPath": "mainHand",
+        "position": {
+          "x": 0.0,
+          "y": 0.94,
+          "z": 0.0
+        },
+        "rotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        },
+        "eulerHint": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        }
+      },
+      "radius": 0.055,
+      "sampleRule": "CapsuleSweep",
+      "fixedSampleCount": 6,
+      "actionKeys": [
+        "primary",
+        "heavy"
+      ]
+    }
+  ]
+}

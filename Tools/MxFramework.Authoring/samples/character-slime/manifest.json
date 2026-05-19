@@ -1,0 +1,43 @@
+{
+  "packageId": "training_slime",
+  "stableId": "charpkg.training_slime",
+  "displayName": "Training Slime",
+  "version": "0.1.0",
+  "kind": "Character",
+  "packageSchemaVersion": "1.0",
+  "sourceSchemaVersion": "1.0",
+  "authoringSchemaVersion": "1.0",
+  "coordinateConvention": {
+    "upAxis": "YPositive",
+    "forwardAxis": "ZPositive",
+    "handedness": "LeftHanded",
+    "unitScaleMeters": 1.0,
+    "rotationStorage": "Quaternion",
+    "roundTripPositionTolerance": 0.0001,
+    "roundTripRotationToleranceDegrees": 0.01
+  },
+  "hashes": {
+    "algorithm": "sha256",
+    "sourcePackageHash": "sha256:pending-c0",
+    "resourceHash": "sha256:pending-c0",
+    "generatedConfigHash": "sha256:pending-c0"
+  },
+  "dependencies": [
+    {
+      "kind": "framework",
+      "stableId": "mxframework",
+      "versionRange": ">=0.6.50",
+      "optional": false
+    }
+  ],
+  "configFiles": [
+    "config/character_application.json"
+  ],
+  "authoringOnlyFiles": [
+    "geometry/body_geometry.json",
+    "geometry/body_parts.json",
+    "geometry/body_colliders.json",
+    "geometry/sockets.json",
+    "validation/last_report.json"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "profileId": "geometry.training_slime.body",
+  "bodyKind": "Primitive",
+  "bodyScale": 1.0,
+  "heightMeters": 0.92,
+  "radiusMeters": 0.46,
+  "massKg": 24.0,
+  "defaultCapsule": {
+    "height": 0.92,
+    "radius": 0.46,
+    "center": {
+      "x": 0.0,
+      "y": 0.46,
+      "z": 0.0
+    }
+  },
+  "defaultPhysicsProfileId": "physics.primitive.slime",
+  "modelRootStableId": "model.root",
+  "skeletonRootStableId": "",
+  "locatorRootStableId": "locators.root"
+}

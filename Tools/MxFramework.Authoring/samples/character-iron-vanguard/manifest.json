@@ -1,0 +1,45 @@
+{
+  "packageId": "iron_vanguard",
+  "stableId": "charpkg.iron_vanguard",
+  "displayName": "Iron Vanguard",
+  "version": "0.1.0",
+  "kind": "Character",
+  "packageSchemaVersion": "1.0",
+  "sourceSchemaVersion": "1.0",
+  "authoringSchemaVersion": "1.0",
+  "coordinateConvention": {
+    "upAxis": "YPositive",
+    "forwardAxis": "ZPositive",
+    "handedness": "LeftHanded",
+    "unitScaleMeters": 1.0,
+    "rotationStorage": "Quaternion",
+    "roundTripPositionTolerance": 0.0001,
+    "roundTripRotationToleranceDegrees": 0.01
+  },
+  "hashes": {
+    "algorithm": "sha256",
+    "sourcePackageHash": "sha256:pending-c0",
+    "resourceHash": "sha256:pending-c0",
+    "generatedConfigHash": "sha256:pending-c0"
+  },
+  "dependencies": [
+    {
+      "kind": "framework",
+      "stableId": "mxframework",
+      "versionRange": ">=0.6.50",
+      "optional": false
+    }
+  ],
+  "configFiles": [
+    "config/character_application.json"
+  ],
+  "authoringOnlyFiles": [
+    "geometry/body_geometry.json",
+    "geometry/body_parts.json",
+    "geometry/body_colliders.json",
+    "geometry/sockets.json",
+    "geometry/weapon_attachments.json",
+    "geometry/traces.json",
+    "validation/last_report.json"
+  ]
+}
