@@ -33,6 +33,22 @@ const MODEL_IMPORT_ROLES = {
   }
 };
 
+const MODEL_USAGE_OPTIONS = [
+  { value: "characterModel", label: "角色主体模型" },
+  { value: "weaponModel", label: "武器模型" },
+  { value: "previewMesh", label: "仅预览模型" }
+];
+
+const FIELD_GROUP_LABELS = {
+  resource: "资源身份",
+  modelTransform: "模型尺寸 / 旋转 / 位置修正",
+  base: "基础属性",
+  binding: "引用关系",
+  localPose: "局部变换",
+  shape: "形状尺寸",
+  trace: "轨迹"
+};
+
 const KIND_LABELS = {
   manifest: "清单",
   resources: "资源",
@@ -1045,13 +1061,26 @@ function renderInspector() {
     el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div><pre>${escapeHtml(JSON.stringify(target.value, null, 2))}</pre>`;
     return;
   }
-  el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div><div class="field-grid">${fields.map(field => renderField(target, field)).join("")}</div>`;
+  el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div>${renderFieldSections(target, fields)}`;
   el.inspector.querySelectorAll("[data-field]").forEach(input => {
     input.addEventListener("input", () => {
-      setNested(target.value, input.dataset.field, coerceValue(input.value, input.dataset.type));
+      commitInspectorField(target, input);
+    });
+    input.addEventListener("change", () => {
+      const value = commitInspectorField(target, input);
+      if (input.dataset.type === "number" && value !== undefined) {
+        input.value = formatFieldValue(value, "number");
+      }
+    });
+  });
+  el.inspector.querySelectorAll("[data-inspector-action]").forEach(button => {
+    button.addEventListener("click", () => {
+      if (button.dataset.inspectorAction !== "resetModelWrapperPose") return;
+      if (target.kind !== "resource" || target.value?.typeId !== "model") return;
+      resetModelWrapperPose(target.value);
       state.dirty = true;
-      renderShellStatus();
-      renderViewport();
+      state.message = "模型变换修正已重置。保存后写入资源包。";
+      render();
     });
   });
 }
@@ -1064,51 +1093,296 @@ function normalizeInspectorTarget(target) {
 
 function editableFields(kind, value = null) {
   if (kind === "resource" && value?.typeId === "model") return [
-    ["usage", "select", ["characterModel", "weaponModel", "previewMesh"]],
-    ["importHints.modelWrapperPose.position.x", "number"],
-    ["importHints.modelWrapperPose.position.y", "number"],
-    ["importHints.modelWrapperPose.position.z", "number"],
-    ["importHints.modelWrapperPose.eulerHint.x", "number"],
-    ["importHints.modelWrapperPose.eulerHint.y", "number"],
-    ["importHints.modelWrapperPose.eulerHint.z", "number"],
-    ["importHints.modelWrapperPose.scale.x", "number"],
-    ["importHints.modelWrapperPose.scale.y", "number"],
-    ["importHints.modelWrapperPose.scale.z", "number"]
+    field("usage", { label: "资源用途", type: "select", options: MODEL_USAGE_OPTIONS, group: "resource" }),
+    modelPositionField("importHints.modelWrapperPose.position.x", "位置 X"),
+    modelPositionField("importHints.modelWrapperPose.position.y", "位置 Y"),
+    modelPositionField("importHints.modelWrapperPose.position.z", "位置 Z"),
+    modelRotationField("importHints.modelWrapperPose.eulerHint.x", "旋转 X"),
+    modelRotationField("importHints.modelWrapperPose.eulerHint.y", "旋转 Y"),
+    modelRotationField("importHints.modelWrapperPose.eulerHint.z", "旋转 Z"),
+    modelScaleField("importHints.modelWrapperPose.scale.x", "缩放 X"),
+    modelScaleField("importHints.modelWrapperPose.scale.y", "缩放 Y"),
+    modelScaleField("importHints.modelWrapperPose.scale.z", "缩放 Z")
   ];
   if (kind === "collider") return [
-    ["shape", "select", ["Capsule", "Box", "Sphere"]],
-    ["partId"], ["hitZoneId"], ["localPose.position.x", "number"], ["localPose.position.y", "number"],
-    ["localPose.position.z", "number"], ["size.x", "number"], ["size.y", "number"], ["size.z", "number"],
-    ["radius", "number"], ["height", "number"], ["priority", "number"], ["isWeakPoint", "select", ["false", "true"]],
-    ["damageMultiplierOverride", "number"]
+    field("shape", { label: "碰撞形状", type: "select", options: ["Capsule", "Box", "Sphere"], group: "base" }),
+    field("partId", { label: "身体部位", group: "base" }),
+    field("hitZoneId", { label: "命中区域", group: "base" }),
+    positionField("localPose.position.x", "中心 X", "localPose"),
+    positionField("localPose.position.y", "中心 Y", "localPose"),
+    positionField("localPose.position.z", "中心 Z", "localPose"),
+    sizeField("size.x", "盒体尺寸 X"),
+    sizeField("size.y", "盒体尺寸 Y"),
+    sizeField("size.z", "盒体尺寸 Z"),
+    positiveField("radius", "半径", { max: 10, step: 0.01, unit: "m", group: "shape" }),
+    positiveField("height", "高度", { max: 10, step: 0.01, unit: "m", group: "shape" }),
+    integerField("priority", "优先级", { min: 0, max: 1000, group: "base" }),
+    field("isWeakPoint", { label: "是否弱点", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "base" }),
+    positiveField("damageMultiplierOverride", "伤害倍率", { max: 100, step: 0.01, group: "base" })
   ];
   if (kind === "socket") return [
-    ["socketId"], ["parentPartId"], ["bonePath"], ["locatorPath"], ["localPose.position.x", "number"],
-    ["localPose.position.y", "number"], ["localPose.position.z", "number"], ["usage", "select", ["Weapon", "Vfx", "Camera", "Ui", "Gameplay"]],
-    ["handedness", "select", ["None", "Left", "Right", "Both"]]
+    field("socketId", { label: "挂点 ID", group: "base" }),
+    field("parentPartId", { label: "父部位", group: "base" }),
+    field("bonePath", { label: "骨骼路径", group: "binding" }),
+    field("locatorPath", { label: "Locator 路径", group: "binding" }),
+    positionField("localPose.position.x", "局部位置 X", "localPose"),
+    positionField("localPose.position.y", "局部位置 Y", "localPose"),
+    positionField("localPose.position.z", "局部位置 Z", "localPose"),
+    field("usage", { label: "挂点用途", type: "select", options: ["Weapon", "Vfx", "Camera", "Ui", "Gameplay"], group: "base" }),
+    field("handedness", { label: "左右手", type: "select", options: [{ value: "None", label: "无" }, { value: "Left", label: "左手" }, { value: "Right", label: "右手" }, { value: "Both", label: "双手" }], group: "base" })
   ];
   if (kind === "weapon") return [
-    ["weaponId"], ["equipSlot"], ["attachSocketId"], ["localGripPose.position.x", "number"],
-    ["localGripPose.position.y", "number"], ["localGripPose.position.z", "number"], ["previewResourceKey"],
-    ["traceId"], ["traceRadius", "number"]
+    field("weaponId", { label: "武器 ID", group: "base" }),
+    field("equipSlot", { label: "装备槽", type: "select", options: [{ value: "mainHand", label: "主手" }, { value: "offHand", label: "副手" }], group: "base" }),
+    field("attachSocketId", { label: "绑定挂点", group: "binding" }),
+    positionField("localGripPose.position.x", "握持偏移 X", "localPose"),
+    positionField("localGripPose.position.y", "握持偏移 Y", "localPose"),
+    positionField("localGripPose.position.z", "握持偏移 Z", "localPose"),
+    field("previewResourceKey", { label: "预览模型资源", group: "binding" }),
+    field("traceId", { label: "攻击轨迹 ID", group: "trace" }),
+    positiveField("traceRadius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" })
   ];
   if (kind === "trace") return [
-    ["traceId"], ["weaponId"], ["equipSlot"], ["startLocatorPath"], ["endLocatorPath"],
-    ["startPose.position.x", "number"], ["startPose.position.y", "number"], ["startPose.position.z", "number"],
-    ["endPose.position.x", "number"], ["endPose.position.y", "number"], ["endPose.position.z", "number"],
-    ["radius", "number"], ["sampleRule", "select", ["LineSegment", "CapsuleSweep", "FixedSamples"]]
+    field("traceId", { label: "轨迹 ID", group: "base" }),
+    field("weaponId", { label: "武器 ID", group: "base" }),
+    field("equipSlot", { label: "装备槽", type: "select", options: [{ value: "mainHand", label: "主手" }, { value: "offHand", label: "副手" }], group: "base" }),
+    field("startLocatorPath", { label: "起点 Locator", group: "binding" }),
+    field("endLocatorPath", { label: "终点 Locator", group: "binding" }),
+    positionField("startPose.position.x", "起点 X", "localPose"),
+    positionField("startPose.position.y", "起点 Y", "localPose"),
+    positionField("startPose.position.z", "起点 Z", "localPose"),
+    positionField("endPose.position.x", "终点 X", "localPose"),
+    positionField("endPose.position.y", "终点 Y", "localPose"),
+    positionField("endPose.position.z", "终点 Z", "localPose"),
+    positiveField("radius", "轨迹半径", { max: 5, step: 0.01, unit: "m", group: "trace" }),
+    field("sampleRule", { label: "采样规则", type: "select", options: ["LineSegment", "CapsuleSweep", "FixedSamples"], group: "trace" })
   ];
   return [];
 }
 
-function renderField(target, fieldSpec) {
-  const [path, type = "text", options = null] = fieldSpec;
-  const value = getNested(target.value, path);
-  if (type === "select") {
-    const normalized = typeof value === "boolean" ? String(value) : (value || "");
-    return `<div class="field"><label>${escapeHtml(path)}</label><select data-field="${escapeHtml(path)}" data-type="${escapeHtml(path === "isWeakPoint" ? "boolean" : "text")}">${options.map(option => `<option value="${escapeHtml(option)}"${String(option) === String(normalized) ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></div>`;
+function field(path, options = {}) {
+  return {
+    path,
+    type: options.type || "text",
+    dataType: options.dataType || options.type || "text",
+    label: options.label || path,
+    options: options.options || null,
+    group: options.group || "base",
+    min: options.min,
+    max: options.max,
+    step: options.step,
+    unit: options.unit || "",
+    fallback: options.fallback
+  };
+}
+
+function positionField(path, label, group = "localPose") {
+  return field(path, { label, type: "number", min: -10, max: 10, step: 0.01, unit: "m", group, fallback: 0 });
+}
+
+function modelPositionField(path, label) {
+  return positionField(path, label, "modelTransform");
+}
+
+function modelRotationField(path, label) {
+  return field(path, { label, type: "number", min: -360, max: 360, step: 1, unit: "deg", group: "modelTransform", fallback: 0 });
+}
+
+function modelScaleField(path, label) {
+  return field(path, { label, type: "number", min: 0.001, max: 100, step: 0.01, group: "modelTransform", fallback: 1 });
+}
+
+function sizeField(path, label) {
+  return positiveField(path, label, { max: 10, step: 0.01, unit: "m", group: "shape" });
+}
+
+function positiveField(path, label, options = {}) {
+  return field(path, {
+    label,
+    type: "number",
+    min: options.min ?? 0,
+    max: options.max ?? 100,
+    step: options.step ?? 0.01,
+    unit: options.unit || "",
+    group: options.group || "base",
+    fallback: options.fallback ?? 0
+  });
+}
+
+function integerField(path, label, options = {}) {
+  return field(path, {
+    label,
+    type: "number",
+    min: options.min ?? 0,
+    max: options.max ?? 1000,
+    step: 1,
+    group: options.group || "base",
+    fallback: options.fallback ?? 0
+  });
+}
+
+function renderFieldSections(target, fields) {
+  const groups = [];
+  for (const fieldSpec of fields) {
+    const spec = normalizeFieldSpec(fieldSpec);
+    let group = groups.find(item => item.key === spec.group);
+    if (!group) {
+      group = { key: spec.group, fields: [] };
+      groups.push(group);
+    }
+    group.fields.push(spec);
   }
-  return `<div class="field"><label>${escapeHtml(path)}</label><input data-field="${escapeHtml(path)}" data-type="${escapeHtml(type)}" value="${escapeHtml(value == null ? "" : String(value))}"></div>`;
+
+  return groups.map(group => {
+    const heading = renderFieldSectionHeading(target, group.key);
+    return `<section class="field-section">${heading}<div class="field-grid">${group.fields.map(fieldSpec => renderField(target, fieldSpec)).join("")}</div></section>`;
+  }).join("");
+}
+
+function renderFieldSectionHeading(target, groupKey) {
+  const label = FIELD_GROUP_LABELS[groupKey] || groupKey || "属性";
+  const canResetModelPose = target.kind === "resource" && target.value?.typeId === "model" && groupKey === "modelTransform";
+  const action = canResetModelPose
+    ? `<button type="button" data-inspector-action="resetModelWrapperPose" title="重置模型包裹节点的位置、旋转和缩放">重置变换</button>`
+    : "";
+  return `<div class="field-section-head"><h3>${escapeHtml(label)}</h3>${action}</div>`;
+}
+
+function renderField(target, fieldSpec) {
+  const spec = normalizeFieldSpec(fieldSpec);
+  const value = getNested(target.value, spec.path);
+  const label = spec.unit ? `${spec.label} (${spec.unit})` : spec.label;
+  if (spec.type === "select") {
+    const normalized = typeof value === "boolean" ? String(value) : (value || "");
+    const options = spec.options || [];
+    return `<div class="field"><label>${escapeHtml(label)}</label><select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}">${options.map(option => renderSelectOption(option, normalized)).join("")}</select><span class="field-meta">${escapeHtml(spec.path)}</span></div>`;
+  }
+  const inputType = spec.type === "number" ? "number" : "text";
+  const attrs = [
+    `type="${escapeHtml(inputType)}"`,
+    `data-field="${escapeHtml(spec.path)}"`,
+    `data-type="${escapeHtml(spec.dataType)}"`,
+    `data-fallback="${escapeHtml(String(spec.fallback ?? (spec.type === "number" ? 0 : "")))}"`
+  ];
+  if (spec.min !== undefined) attrs.push(`min="${escapeHtml(String(spec.min))}"`, `data-min="${escapeHtml(String(spec.min))}"`);
+  if (spec.max !== undefined) attrs.push(`max="${escapeHtml(String(spec.max))}"`, `data-max="${escapeHtml(String(spec.max))}"`);
+  if (spec.step !== undefined) attrs.push(`step="${escapeHtml(String(spec.step))}"`);
+  if (spec.type === "number") attrs.push(`inputmode="decimal"`);
+  const displayValue = formatFieldValue(value, spec.dataType);
+  return `<div class="field"><label>${escapeHtml(label)}</label><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}"><span class="field-meta">${escapeHtml(spec.path)}</span></div>`;
+}
+
+function normalizeFieldSpec(fieldSpec) {
+  if (!Array.isArray(fieldSpec)) return fieldSpec;
+  const [path, type = "text", options = null] = fieldSpec;
+  return field(path, {
+    type,
+    dataType: path === "isWeakPoint" ? "boolean" : type,
+    options,
+    label: path
+  });
+}
+
+function renderSelectOption(option, normalizedValue) {
+  const normalized = typeof option === "object" && option !== null
+    ? { value: option.value, label: option.label || option.value }
+    : { value: option, label: option };
+  return `<option value="${escapeHtml(normalized.value)}"${String(normalized.value) === String(normalizedValue) ? " selected" : ""}>${escapeHtml(normalized.label)}</option>`;
+}
+
+function commitInspectorField(target, input) {
+  const value = readInspectorInputValue(input);
+  if (value === undefined) return undefined;
+  const rawNumber = input.dataset.type === "number" ? Number(input.value) : NaN;
+  if (Number.isFinite(rawNumber) && rawNumber !== value) {
+    input.value = formatFieldValue(value, "number");
+  }
+  setNested(target.value, input.dataset.field, value);
+  afterInspectorFieldEdited(target, input.dataset.field);
+  state.dirty = true;
+  renderShellStatus();
+  renderViewport();
+  if (input.dataset.field === "usage") renderResourceLibrary();
+  return value;
+}
+
+function readInspectorInputValue(input) {
+  const type = input.dataset.type || "text";
+  if (type === "number") {
+    const fallback = Number(input.dataset.fallback || 0);
+    const raw = Number(input.value);
+    const value = Number.isFinite(raw) ? raw : fallback;
+    return clampFieldNumber(value, input);
+  }
+  if (type === "boolean") return input.value === "true";
+  return input.value;
+}
+
+function clampFieldNumber(value, input) {
+  let number = value;
+  const min = input.dataset.min === undefined ? NaN : Number(input.dataset.min);
+  const max = input.dataset.max === undefined ? NaN : Number(input.dataset.max);
+  if (Number.isFinite(min)) number = Math.max(min, number);
+  if (Number.isFinite(max)) number = Math.min(max, number);
+  return number;
+}
+
+function formatFieldValue(value, type) {
+  if (value == null) return "";
+  if (type === "number") {
+    const number = Number(value);
+    return Number.isFinite(number) ? String(Number(number.toFixed(6))) : "";
+  }
+  return String(value);
+}
+
+function afterInspectorFieldEdited(target, path) {
+  if (target.kind !== "resource" || target.value?.typeId !== "model") return;
+  if (path.startsWith("importHints.modelWrapperPose.eulerHint.")) {
+    syncModelWrapperRotationFromEuler(target.value);
+  }
+}
+
+function resetModelWrapperPose(resource) {
+  const pose = ensureModelWrapperPose(resource);
+  pose.position = { x: 0, y: 0, z: 0 };
+  pose.rotation = { x: 0, y: 0, z: 0, w: 1 };
+  pose.scale = { x: 1, y: 1, z: 1 };
+  pose.eulerHint = { x: 0, y: 0, z: 0 };
+}
+
+function syncModelWrapperRotationFromEuler(resource) {
+  const pose = ensureModelWrapperPose(resource);
+  pose.rotation = quaternionFromEulerDegrees(
+    pose.eulerHint?.x || 0,
+    pose.eulerHint?.y || 0,
+    pose.eulerHint?.z || 0
+  );
+}
+
+function quaternionFromEulerDegrees(xDegrees, yDegrees, zDegrees) {
+  const x = degreesToRadians(xDegrees) / 2;
+  const y = degreesToRadians(yDegrees) / 2;
+  const z = degreesToRadians(zDegrees) / 2;
+  const c1 = Math.cos(x);
+  const c2 = Math.cos(y);
+  const c3 = Math.cos(z);
+  const s1 = Math.sin(x);
+  const s2 = Math.sin(y);
+  const s3 = Math.sin(z);
+  const quaternion = {
+    x: s1 * c2 * c3 + c1 * s2 * s3,
+    y: c1 * s2 * c3 - s1 * c2 * s3,
+    z: c1 * c2 * s3 + s1 * s2 * c3,
+    w: c1 * c2 * c3 - s1 * s2 * s3
+  };
+  const length = Math.hypot(quaternion.x, quaternion.y, quaternion.z, quaternion.w) || 1;
+  return {
+    x: Number((quaternion.x / length).toFixed(8)),
+    y: Number((quaternion.y / length).toFixed(8)),
+    z: Number((quaternion.z / length).toFixed(8)),
+    w: Number((quaternion.w / length).toFixed(8))
+  };
 }
 
 function renderDiagnostics() {
@@ -1367,12 +1641,6 @@ function setNested(obj, path, value) {
   cursor[parts[parts.length - 1]] = value;
 }
 
-function coerceValue(value, type) {
-  if (type === "number") return Number(value || 0);
-  if (type === "boolean") return value === "true";
-  return value;
-}
-
 function isImportBlocked() {
   const gate = state.compileResult?.gateReport;
   if (gate?.importBlocked || gate?.exportBlocked) return true;
@@ -1407,4 +1675,4 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-window.CharacterStudioTest = { buildTree, normalizeIssuePath, editableFields };
+window.CharacterStudioTest = { buildTree, normalizeIssuePath, editableFields, quaternionFromEulerDegrees };
