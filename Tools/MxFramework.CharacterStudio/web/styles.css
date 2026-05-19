@@ -111,10 +111,14 @@ h2 {
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: 300px minmax(480px, 1fr) 360px;
-  gap: 12px;
-  padding: 12px;
+  grid-template-columns: 280px minmax(560px, 1fr) 340px;
+  gap: 10px;
+  padding: 10px;
   min-height: 0;
+}
+
+.workspace.tree-collapsed {
+  grid-template-columns: 44px minmax(620px, 1fr) 340px;
 }
 
 .tree-panel,
@@ -149,13 +153,52 @@ h2 {
 }
 
 .panel-heading {
-  min-height: 42px;
-  padding: 10px 12px;
+  min-height: 40px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
   gap: 8px;
+}
+
+.panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.icon-button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.workspace.tree-collapsed .tree-panel {
+  gap: 0;
+}
+
+.workspace.tree-collapsed .tree-panel .panel-heading {
+  height: 100%;
+  min-height: calc(100vh - 96px);
+  align-items: center;
+  justify-content: flex-start;
+  flex-direction: column;
+  padding: 8px 6px;
+}
+
+.workspace.tree-collapsed .tree-panel h2,
+.workspace.tree-collapsed .tree-panel .badge,
+.workspace.tree-collapsed .tree-panel .summary,
+.workspace.tree-collapsed .tree-panel .tree {
+  display: none;
+}
+
+.workspace.tree-collapsed .tree-panel .panel-actions {
+  flex-direction: column;
 }
 
 .summary {
@@ -263,8 +306,41 @@ h2 {
 }
 
 .tabs {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--line);
+}
+
+.preview-controls {
+  min-height: 40px;
+  padding: 6px 10px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
+}
+
+.preview-controls label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preview-controls select {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.preview-controls button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .resource-library {
@@ -274,7 +350,7 @@ h2 {
 
 .resource-library-head {
   min-height: 34px;
-  padding: 8px 12px 0;
+  padding: 7px 10px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -303,20 +379,20 @@ h2 {
 }
 
 .model-resource-list {
-  padding: 8px 12px 10px;
+  padding: 7px 10px 9px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-  max-height: 168px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 7px;
+  max-height: 132px;
   overflow: auto;
 }
 
 .resource-card {
-  min-height: 76px;
-  padding: 7px;
+  min-height: 64px;
+  padding: 6px;
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 7px;
   text-align: left;
   background: #fff;
 }
@@ -327,8 +403,8 @@ h2 {
 }
 
 .resource-thumb {
-  width: 58px;
-  height: 58px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
@@ -371,10 +447,10 @@ h2 {
 }
 
 .viewport {
-  height: calc(100vh - 330px);
-  min-height: 380px;
-  padding: 12px;
-  background: linear-gradient(#f8fafb, #edf2f4);
+  height: calc(100vh - 318px);
+  min-height: 420px;
+  padding: 10px;
+  background: #f8fafb;
 }
 
 .viewport svg,
@@ -728,6 +804,10 @@ h2 {
   .workspace {
     grid-template-columns: 260px minmax(420px, 1fr) 320px;
   }
+
+  .workspace.tree-collapsed {
+    grid-template-columns: 44px minmax(520px, 1fr) 320px;
+  }
 }
 
 @media (max-width: 920px) {
@@ -753,9 +833,30 @@ h2 {
     gap: 10px;
   }
 
+  .workspace.tree-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .tree-panel,
   .viewport-panel {
     min-height: auto;
+  }
+
+  .workspace.tree-collapsed .tree-panel .panel-heading {
+    height: auto;
+    min-height: 42px;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+  }
+
+  .workspace.tree-collapsed .tree-panel h2,
+  .workspace.tree-collapsed .tree-panel .badge {
+    display: inline-flex;
+  }
+
+  .preview-controls {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .tree {

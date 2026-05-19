@@ -38,11 +38,14 @@
       </div>
     </header>
 
-    <main class="workspace">
+    <main id="workspace" class="workspace">
       <aside class="tree-panel">
         <div class="panel-heading">
           <h2>资源包</h2>
-          <span id="dirtyBadge" class="badge">clean</span>
+          <div class="panel-actions">
+            <span id="dirtyBadge" class="badge">clean</span>
+            <button id="treeCollapseButton" class="icon-button" type="button" title="折叠资源包栏" aria-label="折叠资源包栏">‹</button>
+          </div>
         </div>
         <div id="packageSummary" class="summary"></div>
         <nav id="packageTree" class="tree" aria-label="Package resource tree"></nav>
@@ -59,6 +62,11 @@
           </div>
         </div>
         <div id="loadoutTabs" class="tabs"></div>
+        <div class="preview-controls" aria-label="Preview controls">
+          <label>姿势<select id="previewPoseSelect"></select></label>
+          <label>骨骼运动<select id="previewMotionSelect"></select></label>
+          <button id="resetCameraButton" type="button" title="重置 3D 预览镜头">重置镜头</button>
+        </div>
         <div class="resource-library">
           <div class="resource-library-head">
             <strong>导入资源</strong>

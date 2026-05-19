@@ -84,6 +84,20 @@ const COMMON_TAGS = [
 const COMMON_ACTION_KEYS = ["primary", "secondary", "guard", "punch", "slash", "shield_guard"];
 const COMMON_REACTION_GROUPS = ["reaction.humanoid.body", "reaction.humanoid.head", "reaction.humanoid.limb", "react.body"];
 
+const PREVIEW_POSES = [
+  { id: "bind", label: "绑定姿势" },
+  { id: "guard", label: "持武防御" },
+  { id: "attack", label: "挥击预览" },
+  { id: "inspect", label: "展开检查" }
+];
+
+const PREVIEW_MOTIONS = [
+  { id: "none", label: "静止" },
+  { id: "breath", label: "呼吸" },
+  { id: "weapon_sway", label: "武器摆动" },
+  { id: "walk_cycle", label: "步行动作" }
+];
+
 const KIND_LABELS = {
   manifest: "清单",
   resources: "资源",
@@ -118,7 +132,12 @@ const state = {
   previewBoneKey: "",
   activeBoneFieldPath: "",
   highlightedBoneValue: "",
-  bonePickerOpen: false
+  bonePickerOpen: false,
+  previewPose: "bind",
+  previewMotion: "none",
+  viewportCameraState: null,
+  skipNextCameraRemember: false,
+  treeCollapsed: false
 };
 
 const el = {};
@@ -131,6 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "packageSelect", "reloadButton", "saveButton", "compileButton", "importButton",
     "modelImportRole", "modelImportButton", "modelFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
+    "workspace", "treeCollapseButton", "previewPoseSelect", "previewMotionSelect", "resetCameraButton",
     "resourceLibraryTarget", "modelResourceList", "clearModelBindingButton",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
@@ -156,6 +176,23 @@ document.addEventListener("DOMContentLoaded", () => {
   el.modelImportRole.addEventListener("change", () => {
     updateModelImportTitle();
     renderResourceLibrary();
+  });
+  el.treeCollapseButton.addEventListener("click", () => {
+    state.treeCollapsed = !state.treeCollapsed;
+    renderLayoutState();
+  });
+  el.previewPoseSelect.addEventListener("change", event => {
+    state.previewPose = event.target.value;
+    renderViewport();
+  });
+  el.previewMotionSelect.addEventListener("change", event => {
+    state.previewMotion = event.target.value;
+    renderViewport();
+  });
+  el.resetCameraButton.addEventListener("click", () => {
+    state.viewportCameraState = null;
+    state.skipNextCameraRemember = true;
+    renderViewport();
   });
   el.modelResourceList.addEventListener("click", event => {
     const button = event.target.closest("button[data-resource-key]");
@@ -215,6 +252,8 @@ async function loadPackageState() {
   state.activeBoneFieldPath = "";
   state.highlightedBoneValue = "";
   state.bonePickerOpen = false;
+  state.viewportCameraState = null;
+  state.skipNextCameraRemember = true;
   const apiState = await readJson(`/api/character/state?package=${encodeURIComponent(state.packageRelative)}`, null);
   if (apiState && apiState.package) {
     state.package = clone(apiState.package);
@@ -268,14 +307,24 @@ async function readStaticPackage(root) {
 
 function render() {
   renderShellStatus();
+  renderLayoutState();
   renderSummary();
   renderTree();
   renderLoadouts();
+  renderPreviewControls();
   renderResourceLibrary();
   renderViewport();
   renderInspector();
   renderDiagnostics();
   renderImportStatus();
+}
+
+function renderLayoutState() {
+  if (!el.workspace || !el.treeCollapseButton) return;
+  el.workspace.classList.toggle("tree-collapsed", state.treeCollapsed);
+  el.treeCollapseButton.textContent = state.treeCollapsed ? "›" : "‹";
+  el.treeCollapseButton.title = state.treeCollapsed ? "展开资源包栏" : "折叠资源包栏";
+  el.treeCollapseButton.setAttribute("aria-label", el.treeCollapseButton.title);
 }
 
 function renderShellStatus() {
@@ -670,6 +719,16 @@ function renderLoadouts() {
   });
 }
 
+function renderPreviewControls() {
+  if (!el.previewPoseSelect || !el.previewMotionSelect) return;
+  el.previewPoseSelect.innerHTML = PREVIEW_POSES
+    .map(pose => `<option value="${escapeHtml(pose.id)}"${pose.id === state.previewPose ? " selected" : ""}>${escapeHtml(pose.label)}</option>`)
+    .join("");
+  el.previewMotionSelect.innerHTML = PREVIEW_MOTIONS
+    .map(motion => `<option value="${escapeHtml(motion.id)}"${motion.id === state.previewMotion ? " selected" : ""}>${escapeHtml(motion.label)}</option>`)
+    .join("");
+}
+
 function renderViewport() {
   if (!state.package) {
     el.viewport.innerHTML = `<div class="empty">未加载资源包。</div>`;
@@ -751,6 +810,7 @@ async function renderThreeViewport(renderId) {
     });
   }
   if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile);
+  applyPreviewPose(THREE, bodyBoneRecords, state.previewPose);
   content.updateMatrixWorld(true);
 
   if (state.layers.colliders) addColliderMeshes(THREE, content, pickables, geometry.colliders || [], bodyBoneRecords);
@@ -776,6 +836,7 @@ async function renderThreeViewport(renderId) {
     addBoneGizmos(THREE, scene, pickables, bodyBoneRecords);
   }
   frameContent(THREE, camera, controls, content, geometry.bodyProfile);
+  restoreViewportCamera(THREE, camera, controls);
 
   const raycaster = new THREE.Raycaster();
   raycaster.params.Line = { threshold: 0.08 };
@@ -811,7 +872,10 @@ async function renderThreeViewport(renderId) {
   resize();
 
   let frame = 0;
+  const clock = new THREE.Clock();
   const animate = () => {
+    applyPreviewMotion(THREE, bodyBoneRecords, state.previewMotion, clock.getElapsedTime());
+    updateBoneParentGroups(THREE, content);
     controls.update();
     renderer.render(scene, camera);
     frame = requestAnimationFrame(animate);
@@ -819,6 +883,11 @@ async function renderThreeViewport(renderId) {
   animate();
 
   viewportCleanup = () => {
+    if (state.skipNextCameraRemember) {
+      state.skipNextCameraRemember = false;
+    } else {
+      rememberViewportCamera(camera, controls);
+    }
     cancelAnimationFrame(frame);
     resizeObserver.disconnect();
     renderer.domElement.removeEventListener("pointerdown", onPointerDown);
@@ -960,7 +1029,9 @@ function collectBoneRecords(root) {
       path,
       alias: object.name ? `bone.${object.name}` : "",
       parentPath,
-      depth
+      depth,
+      restQuaternion: object.quaternion.clone(),
+      posedQuaternion: object.quaternion.clone()
     });
   });
   return records;
@@ -1062,6 +1133,107 @@ function setBonePickData(object, record) {
   };
 }
 
+function applyPreviewPose(THREE, boneRecords, poseId) {
+  if (!boneRecords?.length) return;
+  resetPreviewBonePose(boneRecords);
+  const rotate = (semanticKey, x = 0, y = 0, z = 0) => {
+    const record = findPreviewBoneBySemantic(boneRecords, semanticKey);
+    if (!record?.bone) return;
+    record.bone.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(
+      degreesToRadians(x),
+      degreesToRadians(y),
+      degreesToRadians(z),
+      "XYZ"
+    )));
+  };
+
+  if (poseId === "guard") {
+    rotate("right_upper_arm", 0, 0, -28);
+    rotate("left_upper_arm", 0, 0, 28);
+    rotate("right_forearm", 0, 18, -42);
+    rotate("left_forearm", 0, -18, 42);
+    rotate("chest", 0, 10, 0);
+  } else if (poseId === "attack") {
+    rotate("right_upper_arm", -18, -16, -62);
+    rotate("right_forearm", 8, 28, -36);
+    rotate("left_upper_arm", 8, -8, 24);
+    rotate("chest", 0, -18, 0);
+    rotate("hips", 0, -8, 0);
+  } else if (poseId === "inspect") {
+    rotate("right_upper_arm", 0, 0, -86);
+    rotate("left_upper_arm", 0, 0, 86);
+    rotate("right_forearm", 0, 0, -8);
+    rotate("left_forearm", 0, 0, 8);
+    rotate("right_leg", 0, 0, -8);
+    rotate("left_leg", 0, 0, 8);
+  }
+
+  for (const record of boneRecords) {
+    record.posedQuaternion = record.bone.quaternion.clone();
+  }
+}
+
+function resetPreviewBonePose(boneRecords) {
+  for (const record of boneRecords || []) {
+    if (record?.bone && record.restQuaternion) record.bone.quaternion.copy(record.restQuaternion);
+  }
+}
+
+function applyPreviewMotion(THREE, boneRecords, motionId, time) {
+  if (!boneRecords?.length || motionId === "none") return;
+  for (const record of boneRecords) {
+    if (record?.bone && record.posedQuaternion) record.bone.quaternion.copy(record.posedQuaternion);
+  }
+
+  const apply = (semanticKey, x = 0, y = 0, z = 0) => {
+    const record = findPreviewBoneBySemantic(boneRecords, semanticKey);
+    if (!record?.bone) return;
+    record.bone.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(
+      degreesToRadians(x),
+      degreesToRadians(y),
+      degreesToRadians(z),
+      "XYZ"
+    )));
+  };
+
+  if (motionId === "breath") {
+    const sway = Math.sin(time * 2.1);
+    apply("chest", 1.8 * sway, 0, 0);
+    apply("neck", -0.9 * sway, 0, 0);
+  } else if (motionId === "weapon_sway") {
+    const sway = Math.sin(time * 3.2);
+    apply("right_hand", 0, 6 * sway, 4 * sway);
+    apply("left_hand", 0, -5 * sway, -3 * sway);
+    apply("chest", 0, 2 * sway, 0);
+  } else if (motionId === "walk_cycle") {
+    const cycle = Math.sin(time * 4);
+    apply("right_upper_arm", 14 * cycle, 0, 0);
+    apply("left_upper_arm", -14 * cycle, 0, 0);
+    apply("right_leg", -16 * cycle, 0, 0);
+    apply("left_leg", 16 * cycle, 0, 0);
+  }
+}
+
+function findPreviewBoneBySemantic(records, semanticKey) {
+  return (records || []).find(record => getPreviewBoneSemanticKey(record) === semanticKey) || null;
+}
+
+function getPreviewBoneSemanticKey(record) {
+  const value = normalizeBoneMatchText(`${record?.name || ""} ${(record?.path || "").split("/").filter(Boolean).pop() || ""}`);
+  if (/rightupperarm|upperarmr|rupperarm|rightarm/.test(value)) return "right_upper_arm";
+  if (/leftupperarm|upperarml|lupperarm|leftarm/.test(value)) return "left_upper_arm";
+  if (/rightforearm|forearmr|rforearm/.test(value)) return "right_forearm";
+  if (/leftforearm|forearml|lforearm/.test(value)) return "left_forearm";
+  if (/righthand|handr|rhand/.test(value)) return "right_hand";
+  if (/lefthand|handl|lhand/.test(value)) return "left_hand";
+  if (/rightleg|legr|rleg|rightthigh|thighr/.test(value)) return "right_leg";
+  if (/leftleg|legl|lleg|leftthigh|thighl/.test(value)) return "left_leg";
+  if (/chest|spine003|spine004|breast/.test(value)) return "chest";
+  if (/neck/.test(value)) return "neck";
+  if (/hips|hip|pelvis/.test(value)) return "hips";
+  return "";
+}
+
 function applyLocalPose(THREE, object, pose) {
   if (!object || !pose) return;
   const position = pose.position || {};
@@ -1113,17 +1285,30 @@ function resolvePoseParentContent(THREE, content, pose, boneRecords, name) {
   const record = findBoneRecordForValue(boneRecords, pose.parentPath);
   if (!record?.bone) return content;
 
-  content.updateMatrixWorld(true);
-  record.bone.updateWorldMatrix(true, false);
   const parent = new THREE.Group();
   parent.name = name || "bone_pose_parent";
+  parent.userData.boneParent = { bone: record.bone };
+  content.add(parent);
+  syncBoneParentGroup(THREE, content, parent);
+  return parent;
+}
+
+function updateBoneParentGroups(THREE, content) {
+  content.traverse(object => {
+    if (object.userData?.boneParent?.bone) syncBoneParentGroup(THREE, content, object);
+  });
+}
+
+function syncBoneParentGroup(THREE, content, parent) {
+  const bone = parent.userData?.boneParent?.bone;
+  if (!bone) return;
+  content.updateMatrixWorld(true);
+  bone.updateWorldMatrix(true, false);
   const localMatrix = new THREE.Matrix4()
     .copy(content.matrixWorld)
     .invert()
-    .multiply(record.bone.matrixWorld);
+    .multiply(bone.matrixWorld);
   localMatrix.decompose(parent.position, parent.quaternion, parent.scale);
-  content.add(parent);
-  return parent;
 }
 
 function findBoneRecordForValue(records, value) {
@@ -1339,6 +1524,22 @@ function frameContent(THREE, camera, controls, content, body = {}) {
   } else {
     controls.target.set(0, Number(body.heightMeters || 1.8) / 2, 0);
   }
+  controls.update();
+}
+
+function rememberViewportCamera(camera, controls) {
+  if (!camera || !controls) return;
+  state.viewportCameraState = {
+    position: camera.position.toArray(),
+    target: controls.target.toArray()
+  };
+}
+
+function restoreViewportCamera(THREE, camera, controls) {
+  const saved = state.viewportCameraState;
+  if (!saved?.position || !saved?.target) return;
+  camera.position.fromArray(saved.position);
+  controls.target.fromArray(saved.target);
   controls.update();
 }
 
