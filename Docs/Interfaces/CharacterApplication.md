@@ -1,6 +1,6 @@
 # Character Application 接口
 
-> 状态：#215 完成第一阶段配置 DTO / Schema / typed id 契约。本文只记录已经落地的静态配置接口，不包含 resolver、工作台 UI 或 Runtime Spawn 实现。
+> 状态：#216 完成纯解析器与 diagnostics。本文记录已经落地的静态配置接口、resolver DTO 和 noEngine 解析器；不包含工作台 UI 或 Runtime Spawn 实现。
 
 ## 职责
 
@@ -31,6 +31,25 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 | `SpawnProfileConfig` | 可复用生成预设；一次性覆盖由 `CharacterSpawnRequest` 表达 |
 | `CharacterApplicationConfigSchemas` | 12 张表的 schema 聚合入口 |
 
+## 纯解析器接口
+
+| 类型 | 用途 |
+| --- | --- |
+| `CharacterDiagnostic` / `CharacterValidationReport` | 稳定诊断项和聚合报告，包含 severity、stable code、来源表、来源 id、字段和消息 |
+| `CharacterResolvedProfile` | Workstation、Spawn、调试报告和测试共用的角色解析结果 |
+| `CharacterResourceDependencyReport` | 角色生成、装备、动画和 trace profile 的资源依赖摘要 |
+| `CharacterDebugContext` | 面向调试 UI / Development Agent 的稳定摘要 |
+| `EquipmentStateResolver` | 从 `EquipmentSchemaConfig` + `EquipmentLoadoutConfig` + weapon/state 配置解析 active equipment state |
+| `AbilityGrantResolver` | 按 base -> weapon -> equipment state -> runtime grant -> runtime disable 顺序合并能力 |
+| `CombatActionBindingResolver` | 校验 action key、CombatActionId、trace override 和 animation action key |
+| `BodyPartHitZoneResolver` | 从 hit zone 解析身体部位、伤害倍率、受击反应和姿态倍率 |
+| `ResourceDependencyResolver` | 收集表现资源、武器资源、动画 profile 和 trace profile 依赖 |
+| `SpawnPlanResolver` | 将 `SpawnProfileConfig` + `CharacterSpawnRequest` 解析成纯数据 spawn plan |
+| `SaveStateBindingResolver` | 校验 SaveState 中 config id / stable id 与当前配置的可重建性 |
+| `CharacterPackageResolver` | 聚合以上 resolver，输出 `CharacterResolvedProfile`、validation report 和 resource report |
+
+首批稳定诊断 code 使用 `CHAR_*` 字符串，例如 `CHAR_EQUIPMENT_STATE_TIE`、`CHAR_MISSING_ABILITY_LOADOUT`、`CHAR_MISSING_COMBAT_ACTION`、`CHAR_MISSING_RESOURCE_KEY`、`CHAR_UNMAPPED_HIT_ZONE`。
+
 ## ID 规则
 
 - 每张表都有独立 typed id，例如 `CharacterConfigId`、`EquipmentStateId`、`WeaponConfigId`。
@@ -41,11 +60,20 @@ Character Application 是角色应用层的数据聚合契约。它不让 Runtim
 ## 使用约定
 
 - 配置只保存初始值、规则和引用关系，不保存运行时当前 HP、冷却、Buff 实例、装备实例或资源 handle。
-- 角色一定有装备状态系统，但不强绑定某一件武器；空手、单武器、多槽位武器都通过 `EquipmentLoadoutConfig` 和后续 resolver 解释。
+- 角色一定有装备状态系统，但不强绑定某一件武器；空手、单武器、多槽位武器都通过 `EquipmentLoadoutConfig` 和 `EquipmentStateResolver` 解释。
 - `CombatActionSetConfig` 不复制 Combat action timeline 的 duration、hit window 或 cancel window 权威字段。
 - 表现资源只保存 `CharacterResourceKeyEntry`，不直接保存 `UnityEngine.Object`、Prefab、`AnimationClip` 或 Material。
-- #215 不实现 resolver；装备状态匹配、能力合并、部位 hit zone 解析和资源依赖解析归后续 Issue。
+- Resolver 是纯函数：不读取 Unity 场景对象，不写 Runtime / Gameplay / Combat world，不做真实资源加载。
+- 装备状态最高优先级并列时返回 `EquipmentStateResolveStatus.MultipleMatchingStates` 和 `CHAR_EQUIPMENT_STATE_TIE`，不随机选择。
+- 能力重复授予只保留一份并产生 diagnostic；同 slot 或同 input intent 冲突时保留第一条绑定并报告错误。
+- SaveState 恢复时 active equipment state 必须由当前装备重新解析，保存的 state id 只作为迁移 / mismatch 诊断线索。
 
 ## 测试入口
 
 `Assets/Scripts/MxFramework/Tests/CharacterApplication/`
+
+当前覆盖：
+
+- 12 张表 schema 与 typed reference。
+- Iron Vanguard 剑盾、单剑、空手三种 loadout 的 resolver 输出。
+- 装备状态优先级并列、缺失 ability loadout、缺失 Combat action、缺失资源 key、未映射 hit zone、SaveState active state mismatch。

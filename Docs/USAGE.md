@@ -665,7 +665,7 @@ if (report.HasErrors)
 
 ### 7.1 Character Application 配置契约
 
-`MxFramework.Character.Application` 提供角色应用层第一批固定配置表。它只描述静态数据和引用关系，不生成运行时角色实例。
+`MxFramework.Character.Application` 提供角色应用层第一批固定配置表和纯解析器。它只描述静态数据、引用关系和解析结果，不生成运行时角色实例。
 
 ```csharp
 using System.Collections.Generic;
@@ -692,13 +692,44 @@ ConfigSchema characterSchema = CharacterConfig.CreateSchema();
 IReadOnlyList<ConfigSchema> allCharacterSchemas = CharacterApplicationConfigSchemas.CreateAll();
 ```
 
+配置包可以先用纯解析器在 Workstation、测试或生成前检查中得到 resolved profile：
+
+```csharp
+CharacterPackageResolveResult result = CharacterPackageResolver.Resolve(
+    new CharacterPackageResolveRequest(
+        character,
+        attributeProfile,
+        bodyProfile,
+        bodyParts,
+        equipmentSchema,
+        selectedLoadout,
+        equipmentStates,
+        weapons,
+        abilityLoadouts,
+        combatActionSets,
+        presentationProfile));
+
+if (result.ValidationReport.HasErrors)
+{
+    // 展示 result.ValidationReport.Issues；例如 CHAR_EQUIPMENT_STATE_TIE。
+    return;
+}
+
+CharacterResolvedProfile profile = result.ResolvedProfile;
+EquipmentStateId activeState = profile.ActiveEquipmentStateId;
+CharacterAbilityId[] abilities = profile.EffectiveAbilityIds;
+CharacterResourceKeyEntry[] resources = profile.RequiredResources;
+```
+
 约定：
 
 - `IConfigData.Id` 保持 `int`，跨表字段使用 `CharacterConfigId`、`EquipmentLoadoutId` 等 typed id。
 - `StableId` 用于 SaveState、Mod、调试报告和跨版本迁移。
 - `CharacterAttributeProfileConfig` 使用 `BaseValue` / `InitialValue`，运行时当前值由 runtime state 保存。
 - `CombatActionSetConfig` 只做动作绑定，不复制 Combat action timeline 权威字段。
-- 空手、单武器、多槽位武器都通过 `EquipmentLoadoutConfig` 和后续 resolver 解释。
+- 空手、单武器、多槽位武器都通过 `EquipmentLoadoutConfig` 和 `EquipmentStateResolver` 解释。
+- Resolver 不读取 Unity 场景对象、不写运行时 world、不加载资源；失败通过 `CharacterDiagnostic.StableCode` 结构化输出。
+- SaveState 恢复时应重新解析装备得到 active state，保存的 active state id 只作为 mismatch 诊断线索。
 
 ### 7.2 Mod Package 运行时边界（单包 / LoadPlan / 多包 Merge）
 
