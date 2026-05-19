@@ -140,19 +140,21 @@ CharacterPackage/
 | `stableId` | 长期稳定资源 ID，用于跨版本、导入冲突、诊断和迁移。 |
 | `typeId` | model、texture、material、animation、audio、vfx、preview。 |
 | `variant` | 可选变体，例如 `default`、`lod0`、`combat`。 |
-| `usage` | characterModel、weaponModel、animationClipGroup、previewThumbnail 等用途。 |
+| `usage` | characterModel、weaponModel、animationClipGroup、previewThumbnail 等资源用途；它描述资源能力，不代表角色当前一定引用了该资源。 |
 | `sourceFormat` | gltf、glb、png、jpg、tga、json、wav、ogg 等包内源格式；fbx 为 future / optional。 |
 | `relativePath` | 包内相对路径。 |
 | `hash` / `hashes.contentHash` | 内容 hash；`hash` 是兼容字段，C0.5 使用 `hashes` 作为权威结构。 |
 | `hashes.importHash` | 由 source format 和 import hints 计算的导入语义 hash。 |
 | `hashes.dependencyHash` | 由依赖边和依赖资源 content hash 计算的依赖语义 hash。 |
 | `importHints` | Unity target path policy、target relative path、scale、材质策略、动画切分策略、坐标提示、collision/physics policy。 |
-| `dependencies` | 该资源依赖的其他包内 ResourceKey，形成 package-local dependency graph。 |
+| `dependencies` | 该资源依赖的其他包内 ResourceKey，形成 package-local dependency graph；依赖边用于导入校验和 hash，不等同于角色、武器或动画配置的当前引用。 |
 | `conflictPolicy` | 同 stable id、hash 未变、hash 变化时的 skip/report/upgrade/variant 策略。 |
 | `preview` | thumbnail、preview mesh、placeholder 和 camera preset 元数据。 |
 | `provenance` | source tool、source file、license、origin、createdBy、modifiedBy 等来源信息。 |
 
 C0.5 固定 glTF / GLB 为 v1 模型和动画组的目标格式。FBX 可以出现在 catalog 中，但只作为 future / optional 触发 warning。Unity 6 项目内的 glTF/GLB 实际导入能力不在 C0.5 / C0.6 中假设；C0.6 只输出 import/write plan，#222 必须通过 importer package、转换步骤或 placeholder 策略补齐。
+
+角色、武器、动画和资源目录是分层配置：`resource_catalog.json` 是可复用资源资产库；`config/character_application.json` 的 `resourceKeys` 表达角色当前直接引用的资源；weapon attachment / WeaponConfig 等配置可以继续单独引用自己的武器模型、轨迹或动画资源。移除某个角色或武器引用时，不应删除 catalog entry、依赖边或动画资源，只改变对应配置里的引用。
 
 ## 3D Authoring 数据
 

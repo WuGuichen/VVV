@@ -105,6 +105,7 @@ namespace MxFramework.Authoring
         public string TargetPathPolicy { get; set; } = string.Empty;
         public string TargetRelativePath { get; set; } = string.Empty;
         public float Scale { get; set; } = 1f;
+        public CharacterAuthoringLocalPose ModelWrapperPose { get; set; } = new CharacterAuthoringLocalPose();
         public string MaterialPolicy { get; set; } = string.Empty;
         public string AnimationPolicy { get; set; } = string.Empty;
         public string ProviderId { get; set; } = string.Empty;

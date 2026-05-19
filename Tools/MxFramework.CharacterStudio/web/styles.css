@@ -282,11 +282,24 @@ h2 {
   font-size: 12px;
 }
 
+.resource-library-head strong {
+  flex: 0 0 auto;
+}
+
 .resource-library-head span {
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.resource-library-head button {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .model-resource-list {

@@ -275,6 +275,7 @@ namespace MxFramework.Authoring
         public string ProviderId { get; set; } = string.Empty;
         public string TargetPathPolicy { get; set; } = string.Empty;
         public string ImportTargetPath { get; set; } = string.Empty;
+        public CharacterAuthoringLocalPose ModelWrapperPose { get; set; } = new CharacterAuthoringLocalPose();
         public string ConflictAction { get; set; } = string.Empty;
     }
 
@@ -371,7 +372,7 @@ namespace MxFramework.Authoring
             result.ResourceMapping = BuildResourceMapping(package, options);
             result.GeneratedConfigPatch = BuildConfigPatch(package, result.GeometryBinding, result.ResourceMapping);
             result.UnityImportWritePlan = BuildWritePlan(package, options, result.GateReport, result.ResourceMapping, result.GeneratedConfigPatch);
-            result.ResolverVerificationPlan = BuildResolverVerificationPlan(result.GeneratedConfigPatch, result.GateReport, result.ResourceMapping);
+            result.ResolverVerificationPlan = BuildResolverVerificationPlan(package.ApplicationConfig, result.GeneratedConfigPatch, result.GateReport, result.ResourceMapping);
             result.SourceMappings = BuildSourceMappings(result.GeneratedConfigPatch, result.GeometryBinding, result.ResourceMapping);
             result.Hashes = BuildHashes(package, result.GeneratedConfigPatch, result.GeometryBinding, result.ResourceMapping, result.UnityImportWritePlan);
             result.UnityImportWritePlan.Writes.Insert(0, new CharacterUnityImportWriteEntry
@@ -582,6 +583,7 @@ namespace MxFramework.Authoring
                     ProviderId = entry.ImportHints != null ? entry.ImportHints.ProviderId : string.Empty,
                     TargetPathPolicy = GetTargetPathPolicy(entry, options),
                     ImportTargetPath = CombineProjectPath(GetTargetRootPath(package, options), targetRelativePath),
+                    ModelWrapperPose = entry.ImportHints != null ? entry.ImportHints.ModelWrapperPose ?? new CharacterAuthoringLocalPose() : new CharacterAuthoringLocalPose(),
                     ConflictAction = entry.ConflictPolicy != null ? entry.ConflictPolicy.HashChangedAction : string.Empty
                 });
             }
@@ -708,7 +710,7 @@ namespace MxFramework.Authoring
                 ["PresentationProfileId"] = Int(ids.PresentationProfileId),
                 ["StableId"] = Str(presentationStableId),
                 ["DefaultAnimationProfileId"] = Str("anim." + packageSegment + ".default"),
-                ["ResourceKeys"] = BuildPresentationResourceKeys(resourceMapping),
+                ["ResourceKeys"] = BuildPresentationResourceKeys(package.ApplicationConfig, resourceMapping),
                 ["PresentationTags"] = List(MapBodyKind(body.BodyKind).ToLowerInvariant(), "package:" + packageSegment)
             });
 
@@ -979,6 +981,7 @@ namespace MxFramework.Authoring
         }
 
         private static CharacterResolverVerificationPlan BuildResolverVerificationPlan(
+            CharacterApplicationAuthoringSummary applicationConfig,
             CharacterAuthoringCompiledConfigPatch configPatch,
             CharacterCompilerGateReport gate,
             CharacterPackageResourceMapping resourceMapping)
@@ -1058,9 +1061,10 @@ namespace MxFramework.Authoring
 
             if (resourceMapping != null)
             {
-                for (int i = 0; i < resourceMapping.Entries.Count; i++)
+                List<CharacterPackageResourceMappingEntry> referencedEntries = GetReferencedResourceMappingEntries(applicationConfig, resourceMapping);
+                for (int i = 0; i < referencedEntries.Count; i++)
                 {
-                    string key = resourceMapping.Entries[i].ProjectResourceKey;
+                    string key = referencedEntries[i].ProjectResourceKey;
                     if (!string.IsNullOrWhiteSpace(key))
                         plan.RequiredResourceKeys.Add(key);
                 }
@@ -1353,14 +1357,15 @@ namespace MxFramework.Authoring
             return FieldValue.FromList(values);
         }
 
-        private static FieldValue BuildPresentationResourceKeys(CharacterPackageResourceMapping mapping)
+        private static FieldValue BuildPresentationResourceKeys(CharacterApplicationAuthoringSummary applicationConfig, CharacterPackageResourceMapping mapping)
         {
             var values = new List<FieldValue>();
             if (mapping != null)
             {
-                for (int i = 0; i < mapping.Entries.Count; i++)
+                List<CharacterPackageResourceMappingEntry> referencedEntries = GetReferencedResourceMappingEntries(applicationConfig, mapping);
+                for (int i = 0; i < referencedEntries.Count; i++)
                 {
-                    CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
+                    CharacterPackageResourceMappingEntry entry = referencedEntries[i];
                     values.Add(Map(
                         ("Id", Str(entry.ProjectResourceKey)),
                         ("TypeId", Str(MapResourceType(entry))),
@@ -1372,6 +1377,52 @@ namespace MxFramework.Authoring
             }
 
             return FieldValue.FromList(values);
+        }
+
+        private static List<CharacterPackageResourceMappingEntry> GetReferencedResourceMappingEntries(
+            CharacterApplicationAuthoringSummary applicationConfig,
+            CharacterPackageResourceMapping mapping)
+        {
+            var result = new List<CharacterPackageResourceMappingEntry>();
+            if (mapping == null || mapping.Entries == null)
+                return result;
+
+            List<string> resourceKeys = applicationConfig != null ? applicationConfig.ResourceKeys : null;
+            if (resourceKeys == null || resourceKeys.Count == 0)
+            {
+                for (int i = 0; i < mapping.Entries.Count; i++)
+                {
+                    if (mapping.Entries[i] != null)
+                        result.Add(mapping.Entries[i]);
+                }
+                return result;
+            }
+
+            var byPackageKey = new Dictionary<string, CharacterPackageResourceMappingEntry>(StringComparer.Ordinal);
+            for (int i = 0; i < mapping.Entries.Count; i++)
+            {
+                CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
+                if (entry == null || string.IsNullOrWhiteSpace(entry.PackageResourceKey))
+                    continue;
+                if (!byPackageKey.ContainsKey(entry.PackageResourceKey))
+                    byPackageKey.Add(entry.PackageResourceKey, entry);
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < resourceKeys.Count; i++)
+            {
+                string key = resourceKeys[i];
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+                if (!byPackageKey.TryGetValue(key, out CharacterPackageResourceMappingEntry entry))
+                    continue;
+
+                string identity = string.IsNullOrWhiteSpace(entry.ProjectResourceKey) ? entry.PackageResourceKey : entry.ProjectResourceKey;
+                if (seen.Add(identity))
+                    result.Add(entry);
+            }
+
+            return result;
         }
 
         private static FieldValue BuildWeaponResourceKeys(WeaponAttachmentProfile attachment, CharacterPackageResourceMapping resourceMapping)
@@ -2006,7 +2057,8 @@ namespace MxFramework.Authoring
             for (int i = 0; i < mapping.Entries.Count; i++)
             {
                 CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
-                builder.Append(entry.PackageResourceKey).Append('|').Append(entry.ProjectResourceKey).Append('|').Append(entry.ImportTargetPath).Append('|').Append(entry.DeclaredContentHash).Append('|').Append(entry.ImportHash).Append('|').Append(entry.DependencyHash).Append('\n');
+                builder.Append(entry.PackageResourceKey).Append('|').Append(entry.ProjectResourceKey).Append('|').Append(entry.ImportTargetPath).Append('|').Append(entry.DeclaredContentHash).Append('|').Append(entry.ImportHash).Append('|').Append(entry.DependencyHash).Append('|');
+                AppendPose(builder, entry.ModelWrapperPose);
             }
 
             return builder.ToString();
@@ -2022,6 +2074,51 @@ namespace MxFramework.Authoring
             for (int i = 0; i < plan.Writes.Count; i++)
                 builder.Append(plan.Writes[i].Kind).Append('|').Append(plan.Writes[i].SourcePath).Append('|').Append(plan.Writes[i].TargetPath).Append('|').Append(plan.Writes[i].ContentHash).Append('\n');
             return builder.ToString();
+        }
+
+        private static void AppendPose(StringBuilder builder, CharacterAuthoringLocalPose pose)
+        {
+            if (pose == null)
+            {
+                builder.Append("pose|null\n");
+                return;
+            }
+
+            builder.Append("pose|")
+                .Append(pose.ParentKind).Append('|')
+                .Append(pose.ParentPath).Append('|');
+            AppendVector(builder, pose.Position);
+            AppendQuaternion(builder, pose.Rotation);
+            AppendVector(builder, pose.Scale);
+            AppendVector(builder, pose.EulerHint);
+            builder.Append('\n');
+        }
+
+        private static void AppendVector(StringBuilder builder, CharacterAuthoringVector3 value)
+        {
+            if (value == null)
+            {
+                builder.Append("null|null|null|");
+                return;
+            }
+
+            builder.Append(value.X.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Z.ToString("R", CultureInfo.InvariantCulture)).Append('|');
+        }
+
+        private static void AppendQuaternion(StringBuilder builder, CharacterAuthoringQuaternion value)
+        {
+            if (value == null)
+            {
+                builder.Append("null|null|null|null|");
+                return;
+            }
+
+            builder.Append(value.X.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Z.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.W.ToString("R", CultureInfo.InvariantCulture)).Append('|');
         }
 
         private static string CanonicalFieldValue(FieldValue value)

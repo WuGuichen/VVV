@@ -90,6 +90,10 @@ namespace MxFramework.Authoring
             Add(schema, "hashes.dependencyHash", "依赖 Hash", FieldType.String, false, "hash", "Hash");
             Add(schema, "importHints", "导入提示", FieldType.String, false, "import", "导入");
             Add(schema, "importHints.targetPathPolicy", "Unity 目标路径策略", FieldType.Enum, false, "import", "导入", enumId: "character.importTargetPathPolicy");
+            Add(schema, "importHints.modelWrapperPose", "模型包裹节点 Pose", FieldType.String, false, "import", "导入", description: "导入模型实例外层 GameObject 的局部位移、旋转和缩放，用于把美术模型对齐到角色或武器槽。");
+            Add(schema, "importHints.modelWrapperPose.position", "模型包裹节点位移", FieldType.String, false, "import", "导入");
+            Add(schema, "importHints.modelWrapperPose.eulerHint", "模型包裹节点旋转", FieldType.String, false, "import", "导入", description: "Authoring UI 使用角度制编辑；Quaternion 仍是权威旋转存储。");
+            Add(schema, "importHints.modelWrapperPose.scale", "模型包裹节点缩放", FieldType.String, false, "import", "导入");
             Add(schema, "dependencies", "资源依赖", FieldType.Reference, false, "dependency", "依赖", referenceSource: ResourceCatalogSchemaId, isList: true);
             Add(schema, "conflictPolicy", "冲突策略", FieldType.String, false, "conflict", "冲突");
             Add(schema, "preview", "预览元数据", FieldType.String, false, "preview", "预览");

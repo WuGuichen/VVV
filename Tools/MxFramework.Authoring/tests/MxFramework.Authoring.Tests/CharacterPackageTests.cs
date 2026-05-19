@@ -27,6 +27,8 @@ internal static class CharacterPackageTests
         UnsupportedConvexShape_ProducesExportBlockedIssue();
         SlimeSample_UsesSameDtoForPrimitiveBody();
         IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan();
+        Compiler_ApplicationResourceKeysAreCharacterReferences();
+        Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash();
         Compiler_UnsupportedConvexShape_BlocksExport();
         Compiler_MissingSocket_BlocksSpawnOnly();
         Compiler_MissingResource_BlocksImport();
@@ -104,6 +106,12 @@ internal static class CharacterPackageTests
                 TargetPathPolicy = "generatedCharacterPackage",
                 TargetRelativePath = "resources/models/test.glb",
                 Scale = 1f,
+                ModelWrapperPose = new CharacterAuthoringLocalPose
+                {
+                    Position = new CharacterAuthoringVector3(0.1f, 0.2f, 0.3f),
+                    Scale = new CharacterAuthoringVector3(2f, 2f, 2f),
+                    EulerHint = new CharacterAuthoringVector3(0f, 90f, 0f)
+                },
                 ProviderId = "unityAsset",
                 UpAxis = "Y+",
                 ForwardAxis = "Z+",
@@ -138,6 +146,9 @@ internal static class CharacterPackageTests
         Require(entry.Hash == "sha256:abc", "hash should roundtrip.");
         Require(entry.Hashes.ImportHash == "sha256:def", "import hash should roundtrip.");
         Require(entry.ImportHints.ProviderId == "unityAsset", "import hint should roundtrip.");
+        Require(entry.ImportHints.ModelWrapperPose.Position.X == 0.1f, "model wrapper position should roundtrip.");
+        Require(entry.ImportHints.ModelWrapperPose.Scale.X == 2f, "model wrapper scale should roundtrip.");
+        Require(entry.ImportHints.ModelWrapperPose.EulerHint.Y == 90f, "model wrapper euler hint should roundtrip.");
         Require(entry.ImportHints.CollisionPolicy == "authoringGeometryOnly", "collision policy should roundtrip.");
         Require(entry.Preview.ThumbnailResourceKey == "char.test.preview.thumbnail", "preview metadata should roundtrip.");
         Require(entry.Provenance.SourceTool == "unit-test", "provenance should roundtrip.");
@@ -183,6 +194,7 @@ internal static class CharacterPackageTests
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "stableId"), "resource stableId field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "hashes.contentHash"), "resource content hash field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "importHints.targetPathPolicy"), "resource target path policy field missing.");
+        Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.ResourceCatalogSchemaId), "importHints.modelWrapperPose.scale"), "resource model wrapper scale field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "shape"), "collider shape field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.BodyColliderSchemaId), "hitZoneId"), "collider hit zone field missing.");
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.WeaponAttachmentSchemaId), "traceRadius"), "weapon trace radius field missing.");
@@ -362,6 +374,48 @@ internal static class CharacterPackageTests
         Require(result.ResolverVerificationPlan.ExpectedActiveEquipmentStateStableId == "equip_state.iron_vanguard.sword_shield", "default active equipment state should match sword shield.");
         Require(result.ResolverVerificationPlan.RequiredTables.Count >= 12, "resolver verification plan should enumerate all Character Application tables.");
         Require(result.ResolverVerificationPlan.KnownAbilityIds.Contains(900001), "resolver verification plan should include generated base ability ids.");
+    }
+
+    private static void Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterPackageResourceEntry body = package.ResourceCatalog.Entries.Find(entry => entry.ResourceKey == "char.iron_vanguard.model.body");
+        Require(body != null, "body model resource missing from sample.");
+
+        body.ImportHints.ModelWrapperPose = new CharacterAuthoringLocalPose();
+        string baselineImportHash = CharacterPackageResourcePipeline.ComputeImportHash(body);
+        CharacterAuthoringCompileResult baseline = Compile(package);
+
+        body.ImportHints.ModelWrapperPose = new CharacterAuthoringLocalPose
+        {
+            Position = new CharacterAuthoringVector3(0.05f, -0.1f, 0.2f),
+            Scale = new CharacterAuthoringVector3(1.25f, 1.25f, 1.25f),
+            EulerHint = new CharacterAuthoringVector3(0f, 90f, 0f)
+        };
+
+        string adjustedImportHash = CharacterPackageResourcePipeline.ComputeImportHash(body);
+        CharacterAuthoringCompileResult adjusted = Compile(package);
+        CharacterPackageResourceMappingEntry mappedBody = adjusted.ResourceMapping.Entries.Find(entry => entry.PackageResourceKey == "char.iron_vanguard.model.body");
+
+        Require(baselineImportHash != adjustedImportHash, "model wrapper pose should affect import hash.");
+        Require(baseline.Hashes.ResourceMappingHash != adjusted.Hashes.ResourceMappingHash, "model wrapper pose should affect resource mapping hash.");
+        Require(mappedBody != null && mappedBody.ModelWrapperPose.Scale.X == 1.25f, "resource mapping should carry model wrapper pose.");
+    }
+
+    private static void Compiler_ApplicationResourceKeysAreCharacterReferences()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ApplicationConfig.ResourceKeys.Remove("char.iron_vanguard.weapon.shield.model");
+
+        CharacterAuthoringCompileResult result = Compile(package);
+        PatchEntry presentation = result.GeneratedConfigPatch.Patch.Entries.Find(entry => entry.Source == CharacterApplicationCompilerTableNames.CharacterPresentationProfileConfig);
+        PatchEntry shieldWeapon = result.GeneratedConfigPatch.Patch.Entries.Find(entry =>
+            entry.Source == CharacterApplicationCompilerTableNames.WeaponConfig &&
+            entry.Fields.GetScalar("StableId") == "mx.weapon.weapon.kite_shield");
+
+        Require(result.ResourceMapping.Entries.Exists(entry => entry.PackageResourceKey == "char.iron_vanguard.weapon.shield.model"), "resource mapping should keep standalone catalog resources.");
+        Require(!ResourceKeysContain(presentation, "char.iron_vanguard.weapon.shield.model"), "character presentation references should follow application resource keys.");
+        Require(ResourceKeysContain(shieldWeapon, "char.iron_vanguard.weapon.shield.model"), "weapon config should keep its own model reference.");
     }
 
     private static void Compiler_UnsupportedConvexShape_BlocksExport()
@@ -669,6 +723,21 @@ internal static class CharacterPackageTests
                 if (enums[i].Options[j].Name == optionName)
                     return true;
             }
+        }
+
+        return false;
+    }
+
+    private static bool ResourceKeysContain(PatchEntry entry, string resourceKey)
+    {
+        if (entry == null || entry.Fields == null || !entry.Fields.TryGetValue("ResourceKeys", out FieldValue field) || field == null || field.List == null)
+            return false;
+
+        for (int i = 0; i < field.List.Count; i++)
+        {
+            FieldValue item = field.List[i];
+            if (item != null && item.Map != null && item.Map.GetScalar("Id") == resourceKey)
+                return true;
         }
 
         return false;

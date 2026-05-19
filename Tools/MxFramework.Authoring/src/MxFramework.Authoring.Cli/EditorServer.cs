@@ -599,6 +599,8 @@ internal static class EditorServer
         if (!Directory.Exists(packagePath))
             throw new DirectoryNotFoundException("Character package directory was not found: " + packageRelative);
 
+        RefreshCharacterResourceHashes(packagePath, package);
+
         CharacterAuthoringValidationReport validation = CharacterResourcePackageValidator.Validate(package, new CharacterResourcePackageValidationOptions
         {
             PackageRootPath = packagePath,
@@ -638,6 +640,47 @@ internal static class EditorServer
             traces = package.Geometry.Traces
         }, jsonOptions);
         WriteJsonFileAtomic(Path.Combine(packagePath, "validation", "last_report.json"), validation, jsonOptions);
+    }
+
+    private static void RefreshCharacterResourceHashes(string packagePath, CharacterResourcePackage package)
+    {
+        CharacterPackageResourceCatalog catalog = package.ResourceCatalog ?? new CharacterPackageResourceCatalog();
+        package.ResourceCatalog = catalog;
+
+        for (int i = 0; i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry == null)
+                continue;
+
+            entry.Hashes ??= new CharacterPackageResourceHashes();
+            entry.Hashes.Algorithm = "sha256";
+
+            string fullPath = CharacterPackageResourcePipeline.ResolvePackagePath(packagePath, entry.RelativePath);
+            if (!string.IsNullOrWhiteSpace(fullPath) && File.Exists(fullPath))
+            {
+                entry.Hash = CharacterPackageHashUtility.ComputeFileSha256(fullPath);
+                entry.Hashes.ContentHash = entry.Hash;
+            }
+
+            if (string.Equals(entry.TypeId, CharacterPackageResourceTypeIds.Model, StringComparison.OrdinalIgnoreCase))
+            {
+                entry.ImportHints ??= new CharacterPackageImportHint();
+                entry.ImportHints.ModelWrapperPose ??= new CharacterAuthoringLocalPose();
+            }
+
+            entry.Hashes.ImportHash = CharacterPackageResourcePipeline.ComputeImportHash(entry);
+        }
+
+        for (int i = 0; i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry == null)
+                continue;
+
+            entry.Hashes ??= new CharacterPackageResourceHashes();
+            entry.Hashes.DependencyHash = CharacterPackageResourcePipeline.ComputeDependencyHash(entry, catalog);
+        }
     }
 
     private static void ImportCharacterModel(
@@ -838,15 +881,11 @@ internal static class EditorServer
         entry.SourceFormat = extension.TrimStart('.');
         entry.PackageId = packageId;
         entry.RelativePath = relativePath;
-        entry.Hash = CharacterPackageHashUtility.ComputeFileSha256(outputPath);
-        entry.Hashes ??= new CharacterPackageResourceHashes();
-        entry.Hashes.ContentHash = entry.Hash;
-        entry.Hashes.ImportHash = CharacterPackageResourcePipeline.ComputeImportHash(entry);
-        entry.Hashes.DependencyHash = CharacterPackageResourcePipeline.ComputeDependencyHash(entry, package.ResourceCatalog);
         entry.ImportHints ??= new CharacterPackageImportHint();
         entry.ImportHints.TargetPathPolicy = CharacterPackageImportTargetPathPolicies.GeneratedCharacterPackage;
         entry.ImportHints.TargetRelativePath = relativePath;
         entry.ImportHints.Scale = entry.ImportHints.Scale <= 0 ? 1f : entry.ImportHints.Scale;
+        entry.ImportHints.ModelWrapperPose ??= new CharacterAuthoringLocalPose();
         entry.ImportHints.ProviderId = string.IsNullOrWhiteSpace(entry.ImportHints.ProviderId) ? "unityAsset" : entry.ImportHints.ProviderId;
         entry.ImportHints.MaterialPolicy = string.IsNullOrWhiteSpace(entry.ImportHints.MaterialPolicy) ? "importEmbeddedOrPackageMaterials" : entry.ImportHints.MaterialPolicy;
         entry.ImportHints.CollisionPolicy = string.IsNullOrWhiteSpace(entry.ImportHints.CollisionPolicy) ? "authoringGeometryOnly" : entry.ImportHints.CollisionPolicy;
@@ -858,6 +897,14 @@ internal static class EditorServer
         AddTag(entry.Tags, normalizedRole);
         if (convertedFromFbx)
             AddTag(entry.Tags, "converted-from-fbx");
+
+        entry.Hash = CharacterPackageHashUtility.ComputeFileSha256(outputPath);
+        entry.Hashes ??= new CharacterPackageResourceHashes();
+        entry.Hashes.Algorithm = "sha256";
+        entry.Hashes.ContentHash = entry.Hash;
+        entry.Hashes.ImportHash = CharacterPackageResourcePipeline.ComputeImportHash(entry);
+        entry.Hashes.DependencyHash = CharacterPackageResourcePipeline.ComputeDependencyHash(entry, package.ResourceCatalog);
+
         entry.Provenance ??= new CharacterPackageResourceProvenance();
         entry.Provenance.SourceTool = convertedFromFbx ? "CharacterStudio/FBX2glTF" : "CharacterStudio";
         entry.Provenance.SourceFile = request.fileName;

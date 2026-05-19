@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "packageSelect", "reloadButton", "saveButton", "compileButton", "importButton",
     "modelImportRole", "modelImportButton", "modelFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
-    "resourceLibraryTarget", "modelResourceList",
+    "resourceLibraryTarget", "modelResourceList", "clearModelBindingButton",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
   ]) el[id] = document.getElementById(id);
@@ -106,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!button) return;
     bindModelResource(button.dataset.resourceKey);
   });
+  el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
   el.copyReportButton.addEventListener("click", () => copyReport());
   el.packageSelect.addEventListener("change", event => {
     state.packageRelative = event.target.value;
@@ -223,6 +224,7 @@ function renderShellStatus() {
   el.saveButton.disabled = !state.canWrite || !state.package;
   el.modelImportButton.disabled = !state.canWrite || !state.package;
   el.modelImportRole.disabled = !state.canWrite || !state.package;
+  el.clearModelBindingButton.disabled = !state.canWrite || !state.package || el.modelImportRole.value === "preview";
   el.compileButton.disabled = !state.apiAvailable || !state.package;
   el.importButton.disabled = !state.apiAvailable || !state.package || state.dirty || isImportBlocked();
   updateModelImportTitle();
@@ -298,11 +300,14 @@ function getResourceInitial(resource) {
 
 function describeResourceBinding(resource, pkg) {
   const bindings = [];
-  if (resource.usage === "characterModel") bindings.push("角色主体");
+  if (isBodyModelBinding(resource, pkg)) bindings.push("角色主体");
   for (const attachment of pkg?.geometry?.weaponAttachments || []) {
     if (attachment.previewResourceKey === resource.resourceKey) {
       bindings.push(`${attachment.equipSlot || "slot"}:${attachment.weaponId || "weapon"}`);
     }
+  }
+  if (!bindings.length && isApplicationResourceReference(resource.resourceKey, pkg)) {
+    bindings.push("角色资源引用");
   }
   return bindings.join(" / ");
 }
@@ -318,6 +323,7 @@ function bindModelResource(resourceKey) {
   if (!resourceKey || !state.package) return;
   const resource = (state.package.resourceCatalog?.entries || []).find(entry => entry.resourceKey === resourceKey);
   if (!resource) return;
+  ensureModelWrapperPose(resource);
 
   const role = el.modelImportRole?.value || "preview";
   const path = `resources/${resource.resourceKey}`;
@@ -344,7 +350,9 @@ function bindModelResource(resourceKey) {
     return;
   }
 
-  ensureApplicationResourceKey(resource.resourceKey);
+  if (role === "body") {
+    ensureApplicationResourceKey(resource.resourceKey);
+  }
   touchModelResource(resource, role);
   state.selectedPath = path;
   state.dirty = true;
@@ -352,11 +360,75 @@ function bindModelResource(resourceKey) {
   render();
 }
 
+function clearCurrentModelBinding() {
+  if (!state.canWrite || !state.package) return;
+  const role = el.modelImportRole?.value || "preview";
+  if (role === "preview") return;
+
+  const removedKeys = [];
+  if (role === "body") {
+    for (const resource of getModelResources(state.package)) {
+      if (isBodyModelBinding(resource, state.package)) {
+        removedKeys.push(resource.resourceKey);
+        removeTag(resource.tags, "body");
+        removeApplicationResourceKey(resource.resourceKey);
+      }
+    }
+  } else {
+    const attachment = (state.package.geometry?.weaponAttachments || []).find(item => item.equipSlot === role);
+    if (!attachment) {
+      state.message = `没有找到 ${role} 武器挂载项。`;
+      renderShellStatus();
+      return;
+    }
+    if (attachment.previewResourceKey) removedKeys.push(attachment.previewResourceKey);
+    attachment.previewResourceKey = "";
+  }
+
+  for (const resourceKey of removedKeys) {
+    const resource = findModelResourceByKey(resourceKey);
+    if (resource && role !== "body") {
+      removeTag(resource.tags, role);
+    }
+  }
+
+  state.selectedPath = role === "body" ? "geometry/body" : findWeaponPathBySlot(role);
+  state.dirty = true;
+  state.message = `${getModelImportRole().label} 已移除。保存后写入资源包。`;
+  render();
+}
+
+function ensureModelWrapperPose(resource) {
+  resource.importHints = resource.importHints || {};
+  resource.importHints.modelWrapperPose = resource.importHints.modelWrapperPose || {};
+  const pose = resource.importHints.modelWrapperPose;
+  pose.parentKind = pose.parentKind || "ModelRoot";
+  pose.parentPath = pose.parentPath || "";
+  pose.position = pose.position || {};
+  pose.rotation = pose.rotation || {};
+  pose.scale = pose.scale || {};
+  pose.eulerHint = pose.eulerHint || {};
+  pose.position.x = Number(pose.position.x || 0);
+  pose.position.y = Number(pose.position.y || 0);
+  pose.position.z = Number(pose.position.z || 0);
+  pose.rotation.x = Number(pose.rotation.x || 0);
+  pose.rotation.y = Number(pose.rotation.y || 0);
+  pose.rotation.z = Number(pose.rotation.z || 0);
+  pose.rotation.w = Number(pose.rotation.w ?? 1);
+  pose.scale.x = Number(pose.scale.x || 1);
+  pose.scale.y = Number(pose.scale.y || 1);
+  pose.scale.z = Number(pose.scale.z || 1);
+  pose.eulerHint.x = Number(pose.eulerHint.x || 0);
+  pose.eulerHint.y = Number(pose.eulerHint.y || 0);
+  pose.eulerHint.z = Number(pose.eulerHint.z || 0);
+  return pose;
+}
+
 function bindBodyModelResource(resource) {
   for (const entry of getModelResources(state.package)) {
-    if (entry.resourceKey !== resource.resourceKey && entry.usage === "characterModel") {
-      entry.usage = "previewMesh";
+    if (entry.resourceKey !== resource.resourceKey && isBodyModelBinding(entry, state.package)) {
       removeTag(entry.tags, "body");
+      removeApplicationResourceKey(entry.resourceKey);
     }
   }
   resource.usage = "characterModel";
@@ -372,13 +444,27 @@ function bindWeaponSlotResource(slot, resource) {
     return false;
   }
 
+  const previousKey = attachment.previewResourceKey || "";
   attachment.previewResourceKey = resource.resourceKey;
   if (resource.usage !== "characterModel") {
     resource.usage = "weaponModel";
   }
   addTagValue(resource, "weapon");
   addTagValue(resource, slot);
+
+  if (previousKey && previousKey !== resource.resourceKey) {
+    const previousResource = findModelResourceByKey(previousKey);
+    if (previousResource) {
+      removeTag(previousResource.tags, slot);
+    }
+  }
+
   return true;
+}
+
+function findModelResourceByKey(resourceKey) {
+  if (!resourceKey) return null;
+  return getModelResources(state.package).find(resource => resource.resourceKey === resourceKey) || null;
 }
 
 function ensureApplicationResourceKey(resourceKey) {
@@ -386,6 +472,29 @@ function ensureApplicationResourceKey(resourceKey) {
   state.package.applicationConfig = appConfig;
   appConfig.resourceKeys = Array.isArray(appConfig.resourceKeys) ? appConfig.resourceKeys : [];
   if (!appConfig.resourceKeys.includes(resourceKey)) appConfig.resourceKeys.push(resourceKey);
+}
+
+function removeApplicationResourceKey(resourceKey) {
+  const resourceKeys = state.package?.applicationConfig?.resourceKeys;
+  if (!Array.isArray(resourceKeys)) return;
+  const index = resourceKeys.indexOf(resourceKey);
+  if (index >= 0) resourceKeys.splice(index, 1);
+}
+
+function isBodyModelBinding(resource, pkg) {
+  if (!resource?.resourceKey || resource.typeId !== "model") return false;
+  if (hasTag(resource, "body")) return true;
+  return resource.usage === "characterModel" && isApplicationResourceReference(resource.resourceKey, pkg);
+}
+
+function isApplicationResourceReference(resourceKey, pkg) {
+  const resourceKeys = pkg?.applicationConfig?.resourceKeys;
+  return Array.isArray(resourceKeys) && resourceKeys.includes(resourceKey);
+}
+
+function findWeaponPathBySlot(slot) {
+  const attachment = (state.package?.geometry?.weaponAttachments || []).find(item => item.equipSlot === slot);
+  return attachment?.weaponId ? `geometry/weapon_attachments/${attachment.weaponId}` : "resources";
 }
 
 function touchModelResource(resource, role) {
@@ -401,6 +510,11 @@ function addTagValue(resource, tag) {
   if (!resource.tags.some(existing => String(existing).toLowerCase() === String(tag).toLowerCase())) {
     resource.tags.push(tag);
   }
+}
+
+function hasTag(resource, tag) {
+  if (!Array.isArray(resource?.tags)) return false;
+  return resource.tags.some(existing => String(existing).toLowerCase() === String(tag).toLowerCase());
 }
 
 function removeTag(tags, tag) {
@@ -543,9 +657,9 @@ async function renderThreeViewport(renderId) {
   const socketsById = Object.fromEntries((geometry.sockets || []).map(socket => [socket.socketId, socket]));
   const activeSlots = new Set((LOADOUTS.find(loadout => loadout.id === state.activeLoadout) || LOADOUTS[0]).slots);
 
-  const bodyResource = resources.find(resource => resource.usage === "characterModel")
-    || resources.find(resource => resource.resourceKey === geometry.bodyProfile?.modelRootStableId)
-    || resources.find(resource => resource.typeId === "model");
+  const bodyRootKey = geometry.bodyProfile?.modelRootStableId || "";
+  const bodyResource = resources.find(resource => isBodyModelBinding(resource, state.package))
+    || resources.find(resource => bodyRootKey && (resource.resourceKey === bodyRootKey || resource.stableId === bodyRootKey));
   let loadedBody = false;
   if (bodyResource?.relativePath) {
     loadedBody = await addGltfResource({
@@ -555,7 +669,8 @@ async function renderThreeViewport(renderId) {
       pickables,
       url: packageUrl(bodyResource.relativePath),
       objectPath: `resources/${bodyResource.resourceKey}`,
-      name: bodyResource.localId || bodyResource.resourceKey
+      name: bodyResource.localId || bodyResource.resourceKey,
+      wrapperPose: bodyResource.importHints?.modelWrapperPose
     });
   }
   if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile);
@@ -713,18 +828,66 @@ async function loadThreeRuntime() {
   return threeRuntimePromise;
 }
 
-async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null }) {
+async function addGltfResource({ THREE, loader, content, pickables, url, objectPath, name, position = null, attachmentPose = null, wrapperPose = null }) {
   try {
     const gltf = await new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
     const root = gltf.scene;
     root.name = name || objectPath;
-    if (position) root.position.copy(position);
-    makeSelectable(root, objectPath, pickables);
-    content.add(root);
+    const bindingRoot = new THREE.Group();
+    bindingRoot.name = `${root.name || "model"}_binding`;
+    if (position) bindingRoot.position.copy(position);
+    applyLocalPose(THREE, bindingRoot, attachmentPose);
+
+    const modelWrapper = new THREE.Group();
+    modelWrapper.name = `${root.name || "model"}_wrapper`;
+    applyLocalPose(THREE, modelWrapper, wrapperPose);
+    modelWrapper.add(root);
+    bindingRoot.add(modelWrapper);
+
+    makeSelectable(bindingRoot, objectPath, pickables);
+    content.add(bindingRoot);
     return true;
   } catch {
     return false;
   }
+}
+
+function applyLocalPose(THREE, object, pose) {
+  if (!object || !pose) return;
+  const position = pose.position || {};
+  object.position.x += numberOrDefault(position.x, 0);
+  object.position.y += numberOrDefault(position.y, 0);
+  object.position.z += numberOrDefault(position.z, 0);
+
+  const rotation = pose.rotation || {};
+  const hasQuaternion = ["x", "y", "z"].some(key => Math.abs(numberOrDefault(rotation[key], 0)) > 0.000001)
+    || Math.abs(numberOrDefault(rotation.w, 1) - 1) > 0.000001;
+  if (hasQuaternion) {
+    object.quaternion.multiply(new THREE.Quaternion(
+      numberOrDefault(rotation.x, 0),
+      numberOrDefault(rotation.y, 0),
+      numberOrDefault(rotation.z, 0),
+      numberOrDefault(rotation.w, 1)
+    ).normalize());
+  } else if (pose.eulerHint) {
+    object.rotation.x += degreesToRadians(pose.eulerHint.x);
+    object.rotation.y += degreesToRadians(pose.eulerHint.y);
+    object.rotation.z += degreesToRadians(pose.eulerHint.z);
+  }
+
+  const scale = pose.scale || {};
+  object.scale.x *= numberOrDefault(scale.x, 1);
+  object.scale.y *= numberOrDefault(scale.y, 1);
+  object.scale.z *= numberOrDefault(scale.z, 1);
+}
+
+function degreesToRadians(value) {
+  return Number(value || 0) * Math.PI / 180;
+}
+
+function numberOrDefault(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function addFallbackBody(THREE, content, pickables, body = {}) {
@@ -814,7 +977,9 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
         url: packageUrl(resource.relativePath),
         objectPath,
         name: attachment.weaponId,
-        position
+        position,
+        attachmentPose: attachment.localGripPose,
+        wrapperPose: resource.importHints?.modelWrapperPose
       });
     }
     if (!loaded) {
@@ -822,6 +987,7 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
       const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, transparent: true, opacity: 0.74 });
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.08), material);
       mesh.position.copy(position);
+      applyLocalPose(THREE, mesh, attachment.localGripPose);
       mesh.position.x += attachment.equipSlot === "offHand" ? -0.12 : 0.12;
       makeSelectable(mesh, objectPath, pickables);
       content.add(mesh);
@@ -873,7 +1039,8 @@ function renderInspector() {
     el.inspector.innerHTML = `<div class="empty">请选择一个资源包对象。</div>`;
     return;
   }
-  const fields = editableFields(target.kind);
+  normalizeInspectorTarget(target);
+  const fields = editableFields(target.kind, target.value);
   if (fields.length === 0) {
     el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div><pre>${escapeHtml(JSON.stringify(target.value, null, 2))}</pre>`;
     return;
@@ -889,7 +1056,25 @@ function renderInspector() {
   });
 }
 
-function editableFields(kind) {
+function normalizeInspectorTarget(target) {
+  if (target.kind === "resource" && target.value?.typeId === "model") {
+    ensureModelWrapperPose(target.value);
+  }
+}
+
+function editableFields(kind, value = null) {
+  if (kind === "resource" && value?.typeId === "model") return [
+    ["usage", "select", ["characterModel", "weaponModel", "previewMesh"]],
+    ["importHints.modelWrapperPose.position.x", "number"],
+    ["importHints.modelWrapperPose.position.y", "number"],
+    ["importHints.modelWrapperPose.position.z", "number"],
+    ["importHints.modelWrapperPose.eulerHint.x", "number"],
+    ["importHints.modelWrapperPose.eulerHint.y", "number"],
+    ["importHints.modelWrapperPose.eulerHint.z", "number"],
+    ["importHints.modelWrapperPose.scale.x", "number"],
+    ["importHints.modelWrapperPose.scale.y", "number"],
+    ["importHints.modelWrapperPose.scale.z", "number"]
+  ];
   if (kind === "collider") return [
     ["shape", "select", ["Capsule", "Box", "Sphere"]],
     ["partId"], ["hitZoneId"], ["localPose.position.x", "number"], ["localPose.position.y", "number"],
