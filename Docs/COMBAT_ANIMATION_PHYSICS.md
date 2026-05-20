@@ -543,6 +543,7 @@ Query:
 - Body/Collider 注册和更新。
 - Ray、Sphere、Capsule、OBB、Sector 查询。
 - 稳定排序。
+- 当前落地顺序：M11D.1 已统一 query contract 并预留 OBB；M11D.2 已完成 broadphase v0；下一阶段 `Docs/Tasks/COMBAT_PHYSICS_M11D_3_OBB_QUERY_V0.md` 只补 OBB query vs AABB collider，不扩展 OBB collider 或角色运动。
 
 验收：
 
