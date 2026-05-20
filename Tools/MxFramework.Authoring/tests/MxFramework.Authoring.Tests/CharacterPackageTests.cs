@@ -20,6 +20,7 @@ internal static class CharacterPackageTests
         CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
         UnityAssetDatabaseProvider_ProjectsSnapshotAndUnavailableState();
         RuntimeCatalogProvider_ProjectsRuntimeReadyEntries();
+        ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
@@ -632,6 +633,92 @@ internal static class CharacterPackageTests
         AuthoringResourceCollection unavailable = new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
         Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "runtime provider should expose unavailable state without a catalog.");
         Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable runtime provider should emit a diagnostic.");
+    }
+
+    private static void ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates()
+    {
+        byte[] bodyBytes = System.Text.Encoding.UTF8.GetBytes("body");
+        string bodyHash = CharacterPackageHashUtility.ComputeSha256(bodyBytes);
+        var catalog = new CharacterPackageResourceCatalog();
+        catalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.model.existing",
+            StableId = "charpkg.test.resource.model.existing",
+            TypeId = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.PreviewMesh,
+            Hash = bodyHash
+        });
+
+        var staging = new AuthoringExternalImportStagingDocument
+        {
+            SourceRootLabel = "unit-test-folder",
+            MaxFileSizeBytes = 1024
+        };
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "body.glb",
+            RelativePath = "Characters/body.glb",
+            SizeBytes = bodyBytes.Length,
+            BytesBase64 = Convert.ToBase64String(bodyBytes)
+        });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "body.glb.meta",
+            RelativePath = "Characters/body.glb.meta",
+            SizeBytes = 12
+        });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "notes.txt",
+            RelativePath = "Characters/notes.txt",
+            SizeBytes = 3,
+            BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("txt"))
+        });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "large.wav",
+            RelativePath = "Audio/large.wav",
+            SizeBytes = 2048,
+            BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("wav"))
+        });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "icon.png",
+            RelativePath = "Textures/icon.png",
+            SizeBytes = 4,
+            BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("icon"))
+        });
+
+        AuthoringResourceCollection collection = ExternalImportStagingAuthoringResourceProvider.FromStagingDocument(
+            staging,
+            new AuthoringResourceProviderContext
+            {
+                ScopeId = "test",
+                PackageId = "test",
+                PackageResourceCatalog = catalog
+            });
+
+        Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.ExternalImportStaging, "external staging provider should be declared.");
+        Require(collection.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.IgnoredImportFile), ".meta files should be ignored as diagnostics instead of primary resources.");
+        Require(collection.Items.Count == 4, "hidden/meta file should not become a staged resource item.");
+
+        AuthoringResourceItem duplicate = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Characters/body.glb");
+        Require(duplicate != null && duplicate.ImportStatus == AuthoringResourceImportStatus.Conflict, "duplicate source hash should be staged as a conflict.");
+        Require(duplicate.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.SourceHashDuplicate), "duplicate source hash should be diagnosed.");
+        Require(duplicate.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "staged duplicate should not be runtime-loadable.");
+
+        AuthoringResourceItem unsupported = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Characters/notes.txt");
+        Require(unsupported != null && unsupported.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.UnsupportedFormat), "unsupported files should stay visible as diagnostics.");
+        Require(unsupported.BindingKind == AuthoringResourceBindingKind.ExternalSource, "unsupported files should remain external source bindings.");
+
+        AuthoringResourceItem tooLarge = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Audio/large.wav");
+        Require(tooLarge != null && tooLarge.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.SourceFileTooLarge), "oversized files should be diagnosed.");
+
+        AuthoringResourceItem icon = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Textures/icon.png");
+        Require(icon != null && icon.ImportStatus == AuthoringResourceImportStatus.New, "supported unique files should be importable staged items.");
+        Require(icon.Kind == CharacterPackageResourceTypeIds.Texture && icon.Usage == CharacterPackageResourceUsageIds.Texture, "texture import candidates should infer kind and usage.");
+        Require(icon.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "staged items should remain not runtime-loadable until promoted.");
+        Require(icon.Metadata["selectable"] == "true", "supported unique staged items should be selectable for promotion.");
     }
 
     private static void AuthoringResourceSelectionContracts_JsonRoundTrip()

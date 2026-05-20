@@ -8,6 +8,7 @@ const API = {
     return `/api/character/resource-plan?package=${encodeURIComponent(packageRelative)}${suffix}`;
   },
   inspect: (packageRelative, id) => `/api/authoring/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`,
+  stageImport: "/api/authoring/resources/stage-import",
   importResource: "/api/character/resources/import",
   reimportResource: "/api/character/resources/reimport",
   replaceSource: "/api/character/resources/replace-source"
@@ -336,32 +337,48 @@ async function importResourceFile(file) {
 }
 
 async function importResourceFolder(files) {
-  const preset = getSelectedImportPreset();
   const candidates = Array.from(files || []);
-  const ignored = candidates.filter(isIgnoredImportFile).length;
-  const importCandidates = candidates.filter(file => !isIgnoredImportFile(file));
-  const supported = importCandidates.filter(file => isFileSupportedByPreset(file, preset));
-  const skipped = importCandidates.length - supported.length;
-  if (supported.length === 0) {
-    state.lastActionMessage = `文件夹中没有匹配 ${preset.label} 的资源文件${formatFolderImportCountSuffix(skipped, ignored)}。`;
+  if (candidates.length === 0) return;
+
+  state.writeState = { status: "running", action: "stage-import", error: "" };
+  state.lastActionMessage = `扫描文件夹：0 / ${candidates.length}`;
+  render();
+
+  const staging = await stageImportFiles(candidates);
+  const stagedItems = asArray(pick(staging, "items")).map((raw, index) => normalizeItem(raw, index));
+  const diagnostics = asArray(pick(staging, "diagnostics"));
+  const ignored = diagnostics.filter(diagnostic => pick(diagnostic, "code") === "AUTH_RES_IMPORT_IGNORED_FILE").length;
+  const importable = stagedItems.filter(isImportableStagedItem);
+  const skipped = Math.max(0, candidates.length - ignored - importable.length);
+  if (importable.length === 0) {
+    state.writeState = { status: "idle", action: "", error: "" };
+    state.lastActionMessage = `文件夹中没有可导入资源${formatFolderImportCountSuffix(skipped, ignored)}。`;
+    if (diagnostics.length > 0) {
+      state.errors.push(apiError("导入预检", new Error(diagnostics.slice(0, 3).map(diagnostic => pick(diagnostic, "message") || pick(diagnostic, "code")).join("; "))));
+    }
     render();
     return;
   }
 
   state.writeState = { status: "running", action: "folder-import", error: "" };
-  state.lastActionMessage = `导入文件夹：0 / ${supported.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
+  state.lastActionMessage = `导入文件夹：0 / ${importable.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
   render();
 
   const failures = [];
   let selectedId = "";
-  for (let i = 0; i < supported.length; i++) {
-    const file = supported[i];
-    state.lastActionMessage = `导入文件夹：${i + 1} / ${supported.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
+  for (let i = 0; i < importable.length; i++) {
+    const staged = importable[i];
+    const file = findStagedSourceFile(candidates, staged);
+    if (!file) {
+      failures.push(`${staged.sourcePath || staged.displayName}: 找不到源文件`);
+      continue;
+    }
+    state.lastActionMessage = `导入文件夹：${i + 1} / ${importable.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
     renderStatus();
     try {
       const payload = await postJson(API.importResource, {
         package: state.packageRelative,
-        ...(await buildImportRequest(file, preset, true))
+        ...(await buildImportRequestFromStagedItem(file, staged))
       });
       selectedId = stringValue(pick(payload, "selectedResourceKey", "selectedId")) || selectedId;
     } catch (error) {
@@ -377,8 +394,8 @@ async function importResourceFolder(files) {
     ? { status: "error", action: "folder-import", error: `${failures.length} 个文件导入失败` }
     : { status: "idle", action: "", error: "" };
   state.lastActionMessage = failures.length > 0
-    ? `文件夹导入完成：成功 ${supported.length - failures.length}，失败 ${failures.length}${formatFolderImportCountSuffix(skipped, ignored)}`
-    : `文件夹导入完成：成功 ${supported.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
+    ? `文件夹导入完成：成功 ${importable.length - failures.length}，失败 ${failures.length}${formatFolderImportCountSuffix(skipped, ignored)}`
+    : `文件夹导入完成：成功 ${importable.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
   if (failures.length > 0) {
     state.errors.push(apiError("文件夹导入", new Error(failures.slice(0, 3).join("; "))));
   }
@@ -425,6 +442,62 @@ async function buildImportRequest(file, preset, fromFolder) {
     tags: fromFolder ? ["resourcelibrary-folder-import", preset.id] : [preset.id],
     bytesBase64: await readFileAsBase64(file)
   };
+}
+
+async function stageImportFiles(files) {
+  const stagedFiles = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    state.lastActionMessage = `扫描文件夹：${i + 1} / ${files.length}`;
+    renderStatus();
+    const ignored = isIgnoredImportFile(file);
+    stagedFiles.push({
+      fileName: file.name || "",
+      relativePath: getImportDisplayPath(file),
+      sizeBytes: file.size || 0,
+      bytesBase64: ignored ? "" : await readFileAsBase64(file)
+    });
+  }
+
+  return postJson(API.stageImport, {
+    package: state.packageRelative,
+    sourceRootLabel: "browser-folder",
+    files: stagedFiles
+  });
+}
+
+function isImportableStagedItem(item) {
+  return item?.sourceProviderId === "externalImportStaging"
+    && item?.runtimeAvailability === "NotRuntimeLoadable"
+    && item?.importStatus === "New"
+    && stringValue(pick(item.metadata, "selectable")) === "true"
+    && stringValue(pick(item.metadata, "supported")) === "true";
+}
+
+function findStagedSourceFile(files, staged) {
+  const relativePath = stringValue(pick(staged.metadata, "relativePath")) || staged.sourcePath || "";
+  return files.find(file => getImportDisplayPath(file) === relativePath || file.name === relativePath || file.name === staged.displayName);
+}
+
+async function buildImportRequestFromStagedItem(file, staged) {
+  const kind = stringValue(pick(staged.metadata, "detectedKind")) || staged.kind || "config";
+  const usage = stringValue(pick(staged.metadata, "detectedUsage")) || staged.usage || "characterConfig";
+  return {
+    fileName: file.name,
+    kind,
+    usage,
+    role: inferStagedRole(kind, usage),
+    localId: buildFolderLocalId(file, { id: kind }),
+    tags: ["resourcelibrary-folder-import", `auto-${kind}`],
+    bytesBase64: await readFileAsBase64(file)
+  };
+}
+
+function inferStagedRole(kind, usage) {
+  if (kind !== "model") return "";
+  if (usage === "characterModel") return "body";
+  if (usage === "weaponModel") return "preview";
+  return "preview";
 }
 
 async function executeResourceWrite(action, url, request, label) {
