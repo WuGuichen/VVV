@@ -53,6 +53,7 @@ Runtime Resource Orchestrator
 
 ## 核心原则
 
+- 当前仍处于框架构建阶段，不要求兼容历史角色包数据、旧 Authoring API、旧资源字段或旧样例资源。设计和实现应优先保证长期正确性；旧样例资源如果已经表达错误模型，可以直接重建或替换。
 - Authoring Resource Manager 是全局“可用资源集合和选择桥接”，不是“当前角色引用集合”，也不是 `MxFramework.Resources` runtime loader 的替代品。
 - Character package、Unity AssetDatabase、现有 `MxFramework.Resources.ResourceCatalog`、FMOD snapshot、external import staging 和 generated assets 都是 provider；任何单一 provider 都不能成为资源管理器的中心。
 - CharacterStudio、Animation Editor、Combat/VFX Editor、UI/Config Editor 通过同一套 query / inspect / picker API 消费资源管理器。
@@ -127,7 +128,6 @@ Provider 输出不能互相覆盖真实身份。例如 Unity GUID、runtime `res
 | 字段 | 说明 |
 | --- | --- |
 | `resourceId` | 资源管理器项 ID，用于 UI、API 和选择器；不要求可运行时加载 |
-| `libraryItemId` | 兼容字段；等价于 `resourceId`，旧文档/接口迁移期可保留 |
 | `stableId` | 长期稳定 ID，用于跨重命名、重复导入和引用持久化 |
 | `displayName` | 可读名称 |
 | `kind` | `Model`、`Animation`、`Texture`、`Material`、`AvatarMask`、`Vfx`、`Audio`、`Config`、`Generated` |
@@ -142,7 +142,7 @@ Provider 输出不能互相覆盖真实身份。例如 Unity GUID、runtime `res
 | `runtimeAvailability` | 运行时可用性 |
 | `diagnostics` | 结构化问题 |
 
-现有 package-local `resourceKey` 保留为兼容字段：它仍可标识包内源资源和当前 C0.6 `CharacterPackageResourceMapping` 输入，但不能作为所有资源管理器项的必填运行时身份。真正运行时可加载的 `resourceKey` 只来自 `runtimeCatalog` provider 或 Authoring Compiler 输出。
+旧 package-local `resourceKey` 不需要作为长期兼容字段保留。实现可以直接把过时角色包样例转换为 `resourceId` / `stableId` / provider-local key；真正运行时可加载的 `resourceKey` 只来自 `runtimeCatalog` provider 或 Authoring Compiler 输出。
 
 ### Binding Kind
 
@@ -243,7 +243,6 @@ ResourcePicker.Open(ResourceFieldSpec spec, ResourceConsumerContext context)
 | 字段 | 说明 |
 | --- | --- |
 | `resourceStableId` | 被选择的资源项 stable id |
-| `libraryItemStableId` | 兼容字段；旧角色包配置迁移期可保留 |
 | `sourceProviderId` | 选择时命中的 provider |
 | `bindingKind` | 期望绑定类型：UnityAsset / RuntimeResource / PackageResource / AudioCue 等 |
 | `expectedKind` | 选择时字段期望的 kind |
@@ -457,7 +456,6 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/config/fmod_audio_libr
 | `sourceStableId` | 源配置 stable id |
 | `sourceField` | 具体字段 |
 | `targetResourceStableId` | 目标资源项 |
-| `targetLibraryItemStableId` | 兼容字段；旧角色包引用图迁移期可保留 |
 | `targetResourceKey` | 编译后 runtime resource key，可为空 |
 | `sourceProviderId` | 命中的资源 provider |
 | `bindingKind` | authoring / runtime binding kind |
@@ -486,7 +484,7 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/config/fmod_audio_libr
 - Resource Manager Editor 是独立资源编辑器，负责全局资源发现、provider 同步、导入、替换、删除、标签、兼容性、引用图、Unity/FMOD/runtime catalog 同步状态和资源级 diagnostics。
 - CharacterStudio 是角色装配编辑器，只在编辑某个资源字段时消费资源选择器；它不应常驻展示“资源库里有多少资源”。
 - Animation Editor、Combat/VFX Editor、UI/Config Editor 也应通过同一套资源选择器消费 Authoring Resource Manager，不直接解析角色包资源目录。
-- CharacterStudio 中的资源选择入口必须由 `ResourceFieldSpec` 驱动，按字段展开可选资源列表，选择后写回 `ResourceSelectionRef` 或当前兼容字段。
+- CharacterStudio 中的资源选择入口必须由 `ResourceFieldSpec` 驱动，按字段展开可选资源列表，选择后写回 `ResourceSelectionRef`。
 - 运行时资源计划预览属于编译结果诊断，默认可以折叠；它不替代独立 Resource Manager Editor。
 
 独立 Resource Manager Editor 至少包含：
@@ -514,7 +512,7 @@ CharacterStudio 额外包含：
 
 ## Authoring Server / CLI
 
-Authoring server API 应围绕全局 Authoring Resource Manager Service。旧 `/api/character/resources` 可作为角色包兼容 alias，但新的编辑器不得只依赖 character 前缀 API：
+Authoring server API 应围绕全局 Authoring Resource Manager Service。旧 `/api/character/resources` 不需要长期保留；新实现可以删除或替换它，所有新编辑器必须使用 authoring resource API：
 
 | API | 用途 |
 | --- | --- |
@@ -572,7 +570,7 @@ character resources plan --package <path>
 - 独立 Resource Manager Editor 显示来自 Unity AssetDatabase、现有 runtime catalog、角色包、外部导入暂存、generated assets 和 FMOD snapshot 的资源。
 - CharacterStudio、Animation Editor、Combat/VFX Editor、UI/Config Editor 都把 Authoring Resource Manager 当作资源发现/选择 provider，不各自解析资源目录。
 - CharacterStudio 不常驻显示完整资源库，只在字段选择时弹出符合 `ResourceFieldSpec` 的资源列表。
-- 资源项以 `resourceId` / `stableId` 为统一身份；`libraryItemId` 只作为兼容别名；FMOD event 不拥有普通 runtime `resourceKey`。
+- 资源项以 `resourceId` / `stableId` 为统一身份；FMOD event 不拥有普通 runtime `resourceKey`。
 - Unity GUID、Unity path、package-local key、runtime `resourceKey`、FMOD path/guid 都作为 provider binding 保存，不互相冒充。
 - 字段选择器由 `ResourceFieldSpec` 驱动，选择结果保存为 `ResourceSelectionRef`。
 - Authoring Compiler 能把 `ResourceSelectionRef` 解析成 runtime resource catalog、domain resource plan、audio cue manifest 和 validation report。
