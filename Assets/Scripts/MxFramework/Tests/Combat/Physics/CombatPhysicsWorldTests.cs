@@ -276,30 +276,152 @@ namespace MxFramework.Tests.Combat.Physics
         }
 
         [Test]
-        public void ObbQuery_ReturnsExplicitUnsupportedState()
+        public void QueryObb_AxisAlignedMatchesEquivalentAabbOracle()
         {
             CombatPhysicsWorld world = CreateWorld();
-            var query = new CombatPhysicsQuery(
+            var aabbQuery = new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb, CombatPhysicsLayerMask.FromLayer(1)),
+                new FixVector3(Fix64.FromInt(-2), Fix64.FromInt(-2), Fix64.FromInt(-2)),
+                new FixVector3(Fix64.FromInt(4), Fix64.FromInt(2), Fix64.FromInt(2)));
+            var obbQuery = new CombatObbQuery(
                 Header(CombatQueryKind.Obb, CombatPhysicsLayerMask.FromLayer(1)),
-                CombatPhysicsShape.Obb(
-                    FixVector3.Zero,
+                new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+                new FixVector3(Fix64.FromInt(3), Fix64.FromInt(2), Fix64.FromInt(2)),
+                UnitX,
+                UnitY,
+                UnitZ);
+            var aabbHits = new List<CombatQueryResult>();
+            var obbHits = new List<CombatQueryResult>();
+
+            world.QueryAabb(aabbQuery, aabbHits);
+            int count = world.Query(CombatPhysicsQuery.From(obbQuery), obbHits);
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(CombatPhysicsQuery.From(obbQuery));
+
+            Assert.AreEqual(aabbHits.Count, count);
+            Assert.AreEqual(aabbHits.Count, obbHits.Count);
+            for (int i = 0; i < aabbHits.Count; i++)
+            {
+                Assert.AreEqual(aabbHits[i].TargetEntityId, obbHits[i].TargetEntityId);
+                Assert.AreEqual(aabbHits[i].TargetBodyId, obbHits[i].TargetBodyId);
+                Assert.AreEqual(aabbHits[i].TargetColliderId, obbHits[i].TargetColliderId);
+            }
+
+            Assert.IsFalse(report.IsUnsupported);
+            Assert.AreEqual(count, report.HitCount);
+        }
+
+        [Test]
+        public void QueryObb_CoversRotatedBoundaryContainmentSeparationAndThinBoxes()
+        {
+            CombatPhysicsWorld world = new CombatPhysicsWorld();
+            RegisterBodyWithAabbAt(world, entity: 2, body: 2, collider: 1, layer: 1, x: Fix64.One, y: Fix64.One, z: Fix64.Zero, halfSize: Fix64.Half);
+            RegisterBodyWithAabbAt(world, entity: 3, body: 3, collider: 1, layer: 1, x: Fix64.FromInt(5), y: Fix64.FromInt(5), z: Fix64.Zero, halfSize: Fix64.Half);
+            RegisterBodyWithAabbAt(world, entity: 4, body: 4, collider: 1, layer: 1, x: Fix64.FromRatio(3, 2), y: Fix64.Zero, z: Fix64.Zero, halfSize: Fix64.Half);
+            RegisterBodyWithAabbAt(world, entity: 5, body: 5, collider: 1, layer: 1, x: Fix64.Zero, y: Fix64.Zero, z: Fix64.Zero, halfSize: Fix64.Half);
+            var rotated = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb, CombatPhysicsLayerMask.FromLayer(1), queryId: 1),
+                FixVector3.Zero,
+                new FixVector3(Fix64.FromInt(2), Fix64.Half, Fix64.One),
+                new FixVector3(Fix64.One, Fix64.One, Fix64.Zero),
+                new FixVector3(-Fix64.One, Fix64.One, Fix64.Zero),
+                UnitZ));
+            var boundary = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb, CombatPhysicsLayerMask.FromLayer(1), queryId: 2),
+                FixVector3.Zero,
+                new FixVector3(Fix64.One, Fix64.One, Fix64.One),
+                UnitX,
+                UnitY,
+                UnitZ));
+            var thin = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb, CombatPhysicsLayerMask.FromLayer(1), queryId: 3),
+                FixVector3.Zero,
+                new FixVector3(Fix64.FromInt(2), Fix64.Zero, Fix64.One),
+                UnitX,
+                UnitY,
+                UnitZ));
+            var rotatedHits = new List<CombatQueryResult>();
+            var boundaryHits = new List<CombatQueryResult>();
+            var thinHits = new List<CombatQueryResult>();
+
+            world.Query(rotated, rotatedHits);
+            world.Query(boundary, boundaryHits);
+            world.Query(thin, thinHits);
+
+            AssertHasHit(rotatedHits, entity: 2);
+            AssertHasHit(rotatedHits, entity: 5);
+            AssertNoHit(rotatedHits, entity: 3);
+            AssertHasHit(boundaryHits, entity: 4);
+            AssertHasHit(boundaryHits, entity: 5);
+            AssertHasHit(thinHits, entity: 5);
+        }
+
+        [Test]
+        public void QueryObb_OrderAndBatchRemainStable()
+        {
+            CombatPhysicsWorld first = new CombatPhysicsWorld();
+            RegisterBodyWithAabb(first, entity: 4, body: 4, collider: 4, layer: 1, x: 1);
+            RegisterBodyWithAabb(first, entity: 2, body: 2, collider: 2, layer: 1, x: 1);
+
+            CombatPhysicsWorld second = new CombatPhysicsWorld();
+            RegisterBodyWithAabb(second, entity: 2, body: 2, collider: 2, layer: 1, x: 1);
+            RegisterBodyWithAabb(second, entity: 4, body: 4, collider: 4, layer: 1, x: 1);
+
+            CombatPhysicsQuery obb = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb, CombatPhysicsLayerMask.FromLayer(1), queryId: 30, sourceOrder: 30),
+                new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
+                new FixVector3(Fix64.FromInt(2), Fix64.One, Fix64.One),
+                UnitX,
+                UnitY,
+                UnitZ));
+            CombatPhysicsQuery ray = CombatPhysicsQuery.From(new CombatRayQuery(
+                Header(CombatQueryKind.Ray, CombatPhysicsLayerMask.FromLayer(1), queryId: 10, sourceOrder: 10),
+                FixVector3.Zero,
+                UnitX,
+                Fix64.FromInt(4)));
+            var firstHits = new List<CombatQueryResult>();
+            var secondHits = new List<CombatQueryResult>();
+            var firstBatch = new List<CombatPhysicsQueryBatchResult>();
+            var secondBatch = new List<CombatPhysicsQueryBatchResult>();
+
+            first.Query(obb, firstHits);
+            second.Query(obb, secondHits);
+            first.QueryBatch(new CombatPhysicsQueryBatch(new[] { obb, ray }), firstBatch);
+            second.QueryBatch(new CombatPhysicsQueryBatch(new[] { obb, ray }), secondBatch);
+
+            AssertResultsEqual(firstHits, secondHits);
+            Assert.AreEqual(2, firstHits.Count);
+            Assert.AreEqual(2, firstHits[0].TargetEntityId.Value);
+            Assert.AreEqual(4, firstHits[1].TargetEntityId.Value);
+            AssertBatchResultsEqual(firstBatch, secondBatch);
+            Assert.AreEqual(10, firstBatch[0].Query.Header.SourceOrder);
+            Assert.AreEqual(30, firstBatch[1].Query.Header.SourceOrder);
+            Assert.IsFalse(firstBatch[1].IsUnsupported);
+            Assert.AreEqual(2, firstBatch[1].HitCount);
+        }
+
+        [Test]
+        public void ExplainQuery_ReportsObbCandidatesFiltersAndHits()
+        {
+            CombatPhysicsWorld world = CreateWorld();
+            var query = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb, CombatPhysicsLayerMask.FromLayer(1)),
+                    new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero),
                     new FixVector3(Fix64.One, Fix64.One, Fix64.One),
                     UnitX,
                     UnitY,
                     UnitZ));
-            var hits = new List<CombatQueryResult>();
-            var batchResults = new List<CombatPhysicsQueryBatchResult>();
 
-            Assert.Throws<NotSupportedException>(() => world.Query(query, hits));
             CombatPhysicsQueryDebugReport report = world.ExplainQuery(query);
-            world.QueryBatch(new CombatPhysicsQueryBatch(new[] { query }), batchResults);
 
-            Assert.IsTrue(report.IsUnsupported);
-            StringAssert.Contains("OBB", report.UnsupportedReason);
-            Assert.AreEqual(0, report.HitCount);
-            Assert.AreEqual(1, batchResults.Count);
-            Assert.IsTrue(batchResults[0].IsUnsupported);
-            Assert.AreEqual(0, batchResults[0].Hits.Count);
+            Assert.IsFalse(report.IsUnsupported);
+            Assert.AreEqual(CombatPhysicsShapeKind.Obb, report.ShapeKind);
+            Assert.AreEqual(3, report.CandidateCount);
+            Assert.AreEqual(1, report.FilteredSourceCount);
+            Assert.AreEqual(1, report.FilteredLayerCount);
+            Assert.AreEqual(1, report.HitCount);
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.FilteredSource, report.Rows[0].Status);
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.Hit, report.Rows[1].Status);
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.FilteredLayer, report.Rows[2].Status);
         }
 
         [Test]
@@ -727,6 +849,30 @@ namespace MxFramework.Tests.Combat.Physics
             }
         }
 
+        private static void AssertHasHit(IReadOnlyList<CombatQueryResult> hits, int entity)
+        {
+            for (int i = 0; i < hits.Count; i++)
+            {
+                if (hits[i].TargetEntityId.Value == entity)
+                {
+                    return;
+                }
+            }
+
+            Assert.Fail("Expected OBB query to hit entity " + entity + ".");
+        }
+
+        private static void AssertNoHit(IReadOnlyList<CombatQueryResult> hits, int entity)
+        {
+            for (int i = 0; i < hits.Count; i++)
+            {
+                if (hits[i].TargetEntityId.Value == entity)
+                {
+                    Assert.Fail("Expected OBB query to miss entity " + entity + ".");
+                }
+            }
+        }
+
         private static void RegisterBodyWithAabb(
             CombatPhysicsWorld world,
             int entity,
@@ -745,6 +891,29 @@ namespace MxFramework.Tests.Combat.Physics
                 layer,
                 new FixVector3(-Fix64.Half, -Fix64.Half, -Fix64.Half),
                 new FixVector3(Fix64.Half, Fix64.Half, Fix64.Half)));
+        }
+
+        private static void RegisterBodyWithAabbAt(
+            CombatPhysicsWorld world,
+            int entity,
+            int body,
+            int collider,
+            int layer,
+            Fix64 x,
+            Fix64 y,
+            Fix64 z,
+            Fix64 halfSize)
+        {
+            world.UpsertBody(new CombatPhysicsBody(
+                new CombatEntityId(entity),
+                new CombatBodyId(body),
+                new FixVector3(x, y, z)));
+            world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+                new CombatBodyId(body),
+                new CombatColliderId(collider),
+                layer,
+                new FixVector3(-halfSize, -halfSize, -halfSize),
+                new FixVector3(halfSize, halfSize, halfSize)));
         }
 
         private static FixVector3 UnitX => new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero);

@@ -226,15 +226,14 @@ namespace MxFramework.Combat.Physics
             FixVector3 axisY,
             FixVector3 axisZ)
         {
-            if (halfExtents.X < Fix64.Zero || halfExtents.Y < Fix64.Zero || halfExtents.Z < Fix64.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(halfExtents), "OBB shape half extents cannot be negative.");
-            }
-
-            if (axisX.IsZero || axisY.IsZero || axisZ.IsZero)
-            {
-                throw new ArgumentException("OBB shape axes cannot be zero.");
-            }
+            CombatPhysicsObbMath.ValidateHalfExtents(halfExtents, nameof(halfExtents));
+            CombatPhysicsObbMath.NormalizeAxes(
+                axisX,
+                axisY,
+                axisZ,
+                out FixVector3 normalizedAxisX,
+                out FixVector3 normalizedAxisY,
+                out FixVector3 normalizedAxisZ);
 
             return new CombatPhysicsShape(
                 CombatPhysicsShapeKind.Obb,
@@ -249,9 +248,9 @@ namespace MxFramework.Combat.Physics
                 FixVector3.Zero,
                 Fix64.Zero,
                 halfExtents,
-                axisX,
-                axisY,
-                axisZ);
+                normalizedAxisX,
+                normalizedAxisY,
+                normalizedAxisZ);
         }
 
         public bool Equals(CombatPhysicsShape other)
