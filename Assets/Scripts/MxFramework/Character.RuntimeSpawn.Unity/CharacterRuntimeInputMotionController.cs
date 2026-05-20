@@ -184,7 +184,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return;
 
             InputSnapshot source = _inputProvider.Snapshot;
-            _motionInputProvider.SetContext(_inputProvider.CurrentContext);
+            _motionInputProvider.SetContext(_inputProvider.IsContextEnabled(InputContext.Gameplay)
+                ? InputContext.Gameplay
+                : _inputProvider.CurrentContext);
             _motionInputProvider.SetSnapshot(CreateContinuousMotionSnapshot(source));
 
             if (source.JumpPressed && !_lastSourceJumpPressed && _inputProvider.IsContextEnabled(InputContext.Gameplay))

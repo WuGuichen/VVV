@@ -123,6 +123,32 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
         }
 
         [Test]
+        public void StepFrame_ReadsMovementWhenGameplayHasDebugOverlay()
+        {
+            var go = new GameObject("character");
+            try
+            {
+                CharacterRuntimeControllerBinding binding = go.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureBinding(binding);
+                CharacterRuntimeInputMotionController controller = go.AddComponent<CharacterRuntimeInputMotionController>();
+                var input = new FakeInputProvider();
+                input.SetContext(InputContext.Gameplay);
+                input.PushContext(InputContext.Debug, InputContextPolicy.Overlay);
+                input.SetSnapshot(CreateMoveSnapshot(Vector2.up, jumpPressed: true));
+                controller.ConfigureInputProvider(input);
+
+                Assert.IsTrue(controller.StepFrame());
+
+                Assert.Greater(go.transform.position.z, 0f);
+                Assert.IsTrue(controller.LastMotionResult.JumpStarted);
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
         public void LocomotionBlend_ConsumesMotionVectorAndUsesFallbackWithoutClips()
         {
             var go = new GameObject("character");
