@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MxFramework.Resources;
+using MxFramework.Resources.Unity;
 using UnityEngine;
 
 namespace MxFramework.CharacterRuntimeSpawn.Unity
@@ -81,25 +82,41 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             _memoryProvider = new MemoryResourceProvider();
             var catalogEntries = new List<ResourceCatalogEntry>();
+            bool usesMemoryProvider = false;
+            bool usesResourcesProvider = false;
             for (int i = 0; i < _resources.Length; i++)
             {
                 CharacterRuntimeSerializedResource resource = _resources[i];
-                if (resource == null || resource.Asset == null || string.IsNullOrWhiteSpace(resource.Id))
+                if (resource == null || string.IsNullOrWhiteSpace(resource.Id))
                     continue;
 
                 string address = string.IsNullOrWhiteSpace(resource.Address) ? resource.Id : resource.Address;
-                _memoryProvider.Register(address, resource.Asset);
+                string providerId = string.IsNullOrWhiteSpace(resource.ProviderId) ? ResourcesProvider.Id : resource.ProviderId;
+                if (resource.Asset != null)
+                {
+                    providerId = _memoryProvider.ProviderId;
+                    _memoryProvider.Register(address, resource.Asset);
+                    usesMemoryProvider = true;
+                }
+                else if (string.Equals(providerId, ResourcesProvider.Id, StringComparison.Ordinal))
+                {
+                    usesResourcesProvider = true;
+                }
+
                 catalogEntries.Add(new ResourceCatalogEntry(
                     resource.Id,
                     string.IsNullOrWhiteSpace(resource.TypeId) ? ResourceTypeIds.GameObject : resource.TypeId,
-                    _memoryProvider.ProviderId,
+                    providerId,
                     address,
                     resource.Variant,
                     string.IsNullOrWhiteSpace(resource.PackageId) ? _packageId : resource.PackageId));
             }
 
             _resourceManager = new ResourceManager();
-            _resourceManager.RegisterProvider(_memoryProvider);
+            if (usesMemoryProvider)
+                _resourceManager.RegisterProvider(_memoryProvider);
+            if (usesResourcesProvider)
+                _resourceManager.RegisterProvider(new ResourcesProvider());
             _resourceManager.AddCatalog(new ResourceCatalog(_catalogId, _packageId, catalogEntries));
             _resourceManager.ValidateCatalogs();
         }
@@ -110,6 +127,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
     {
         [SerializeField] private string _id = string.Empty;
         [SerializeField] private string _typeId = ResourceTypeIds.GameObject;
+        [SerializeField] private string _providerId = ResourcesProvider.Id;
         [SerializeField] private string _variant = "default";
         [SerializeField] private string _packageId = string.Empty;
         [SerializeField] private string _address = string.Empty;
@@ -117,6 +135,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         public string Id => _id;
         public string TypeId => _typeId;
+        public string ProviderId => _providerId;
         public string Variant => _variant;
         public string PackageId => _packageId;
         public string Address => _address;

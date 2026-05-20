@@ -4,6 +4,7 @@ using System.IO;
 using MxFramework.CharacterRuntimeSpawn;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
+using MxFramework.Resources.Unity;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -16,6 +17,9 @@ namespace MxFramework.Editor.CharacterImport
     {
         private const string DefaultImportedPackageRoot = "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard";
         private const string PreviewScenePath = "Assets/Scenes/MxFramework/CharacterImportedPreview.unity";
+        private const string RuntimeResourcesRootName = "runtime_resources";
+        private const string UnityResourcesFolderName = "Resources";
+        private const string RuntimeResourcesAddressRoot = "MxFrameworkGenerated/CharacterPackages";
         private static string _previewMaterialFolder;
 
         [MenuItem("MxFramework/Character/Create Preview Prefab For Iron Vanguard", priority = 220)]
@@ -132,6 +136,7 @@ namespace MxFramework.Editor.CharacterImport
                 string prefabPath = prefabFolder + "/" + package.PackageId + "_character_preview.prefab";
                 rootObject.SetActive(true);
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(rootObject, prefabPath);
+                MirrorPrefabToRuntimeResources(root, package.PackageId, prefabPath);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
                 if (selectPrefab && prefab != null)
@@ -186,6 +191,7 @@ namespace MxFramework.Editor.CharacterImport
                     CreateModelWrapper("Model", resource, root.transform);
                     root.SetActive(true);
                     GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                    MirrorPrefabToRuntimeResources(importedPackageRoot, package.PackageId, prefabPath);
                     if (prefab != null)
                         result[GetAttachmentKey(attachment)] = prefab;
                 }
@@ -357,6 +363,56 @@ namespace MxFramework.Editor.CharacterImport
                 + SanitizeResourceIdSegment(attachment.EquipSlot) + "." + SanitizeResourceIdSegment(attachment.WeaponId);
         }
 
+        private static GameObject MirrorPrefabToRuntimeResources(string importedPackageRoot, string packageId, string sourcePrefabPath)
+        {
+            if (string.IsNullOrWhiteSpace(importedPackageRoot)
+                || string.IsNullOrWhiteSpace(packageId)
+                || string.IsNullOrWhiteSpace(sourcePrefabPath))
+            {
+                return null;
+            }
+
+            string targetPath = GetRuntimeResourcesAssetPath(importedPackageRoot, packageId, sourcePrefabPath);
+            EnsureFolderPath(Path.GetDirectoryName(targetPath)?.Replace('\\', '/'));
+            if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(targetPath) != null)
+                AssetDatabase.DeleteAsset(targetPath);
+
+            if (!AssetDatabase.CopyAsset(sourcePrefabPath, targetPath))
+            {
+                Debug.LogWarning("MxFramework Character Preview: failed to mirror prefab into Resources for runtime loading. source="
+                    + sourcePrefabPath + " target=" + targetPath);
+                return null;
+            }
+
+            return AssetDatabase.LoadAssetAtPath<GameObject>(targetPath);
+        }
+
+        private static string GetRuntimeResourcesAssetPath(string importedPackageRoot, string packageId, string sourcePrefabPath)
+        {
+            string relative = GetPackageRelativePath(importedPackageRoot, sourcePrefabPath);
+            return importedPackageRoot + "/" + RuntimeResourcesRootName + "/" + UnityResourcesFolderName + "/"
+                + RuntimeResourcesAddressRoot + "/" + packageId + "/" + relative;
+        }
+
+        private static string GetRuntimeResourcesAddress(string importedPackageRoot, string packageId, string sourcePrefabPath)
+        {
+            string relative = GetPackageRelativePath(importedPackageRoot, sourcePrefabPath);
+            string path = RuntimeResourcesAddressRoot + "/" + packageId + "/" + relative;
+            return path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)
+                ? path.Substring(0, path.Length - ".prefab".Length)
+                : path;
+        }
+
+        private static string GetPackageRelativePath(string importedPackageRoot, string assetPath)
+        {
+            string root = NormalizeProjectPath(importedPackageRoot).TrimEnd('/');
+            string normalized = NormalizeProjectPath(assetPath);
+            string prefix = root + "/";
+            return normalized.StartsWith(prefix, StringComparison.Ordinal)
+                ? normalized.Substring(prefix.Length)
+                : Path.GetFileName(normalized);
+        }
+
         private static GameObject CreateRuntimeResourceBootstrap(GameObject characterPrefab, string characterPrefabPath)
         {
             var loader = new GameObject("CharacterRuntimeResourceBootstrap");
@@ -375,35 +431,56 @@ namespace MxFramework.Editor.CharacterImport
                 resources.GetArrayElementAtIndex(0),
                 GetCharacterPrefabResourceId(package),
                 ResourceTypeIds.GameObject,
+                ResourcesProvider.Id,
                 "default",
                 package.PackageId,
-                characterPrefabPath,
-                characterPrefab);
+                GetRuntimeResourcesAddress(DefaultImportedPackageRoot, package.PackageId, characterPrefabPath),
+                null);
 
             for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
             {
                 CharacterWeaponAttachmentRuntimeBinding attachment = package.Geometry.WeaponAttachments[i];
                 string weaponPrefabPath = DefaultImportedPackageRoot + "/prefabs/weapons/"
                     + package.PackageId + "_" + SanitizeName(attachment.EquipSlot) + "_" + SanitizeName(attachment.WeaponId) + ".prefab";
-                GameObject weaponPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(weaponPrefabPath);
                 SetSerializedResource(
                     resources.GetArrayElementAtIndex(i + 1),
                     GetWeaponPrefabResourceId(package, attachment),
                     ResourceTypeIds.GameObject,
+                    ResourcesProvider.Id,
                     "default",
                     package.PackageId,
-                    weaponPrefabPath,
-                    weaponPrefab);
+                    GetRuntimeResourcesAddress(DefaultImportedPackageRoot, package.PackageId, weaponPrefabPath),
+                    null);
             }
 
             serialized.ApplyModifiedPropertiesWithoutUndo();
             return loader;
         }
 
+        private static void EnsureFolderPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || AssetDatabase.IsValidFolder(path))
+                return;
+
+            string[] segments = path.Split('/');
+            if (segments.Length == 0 || segments[0] != "Assets")
+                return;
+
+            string current = "Assets";
+            for (int i = 1; i < segments.Length; i++)
+            {
+                string next = current + "/" + segments[i];
+                if (!AssetDatabase.IsValidFolder(next))
+                    AssetDatabase.CreateFolder(current, segments[i]);
+                current = next;
+            }
+        }
+
         private static void SetSerializedResource(
             SerializedProperty property,
             string id,
             string typeId,
+            string providerId,
             string variant,
             string packageId,
             string address,
@@ -411,6 +488,7 @@ namespace MxFramework.Editor.CharacterImport
         {
             property.FindPropertyRelative("_id").stringValue = id;
             property.FindPropertyRelative("_typeId").stringValue = typeId;
+            property.FindPropertyRelative("_providerId").stringValue = providerId;
             property.FindPropertyRelative("_variant").stringValue = variant;
             property.FindPropertyRelative("_packageId").stringValue = packageId;
             property.FindPropertyRelative("_address").stringValue = address;

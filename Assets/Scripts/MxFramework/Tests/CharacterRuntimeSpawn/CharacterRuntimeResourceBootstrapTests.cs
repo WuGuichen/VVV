@@ -55,6 +55,66 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             }
         }
 
+        [Test]
+        public void EnsureResourceManager_AllowsResourcesProviderEntriesWithoutSceneAssetReferences()
+        {
+            var bootstrapObject = new GameObject("bootstrap");
+            try
+            {
+                CharacterRuntimeResourceBootstrap bootstrap = bootstrapObject.AddComponent<CharacterRuntimeResourceBootstrap>();
+                var serialized = new SerializedObject(bootstrap);
+                serialized.FindProperty("_catalogId").stringValue = "character.runtime.resources.test";
+                serialized.FindProperty("_packageId").stringValue = "test_package";
+                SerializedProperty resources = serialized.FindProperty("_resources");
+                resources.arraySize = 1;
+                SerializedProperty resource = resources.GetArrayElementAtIndex(0);
+                resource.FindPropertyRelative("_id").stringValue = "char.test.prefab.character_preview";
+                resource.FindPropertyRelative("_typeId").stringValue = ResourceTypeIds.GameObject;
+                resource.FindPropertyRelative("_providerId").stringValue = "resources";
+                resource.FindPropertyRelative("_variant").stringValue = "default";
+                resource.FindPropertyRelative("_packageId").stringValue = "test_package";
+                resource.FindPropertyRelative("_address").stringValue = "MxFrameworkGenerated/CharacterPackages/test/prefabs/character";
+                resource.FindPropertyRelative("_asset").objectReferenceValue = null;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                bootstrap.EnsureResourceManager();
+
+                ResourceDebugSnapshot snapshot = bootstrap.ResourceManager.CreateDebugSnapshot();
+                Assert.AreEqual(1, snapshot.ProviderCount);
+                Assert.AreEqual(1, snapshot.CatalogCount);
+                Assert.AreEqual(1, snapshot.EntryCount);
+            }
+            finally
+            {
+                Object.DestroyImmediate(bootstrapObject);
+            }
+        }
+
+        [Test]
+        public void EnsureResourceManager_UsesMemoryProviderWhenSceneAssetReferenceIsProvided()
+        {
+            var bootstrapObject = new GameObject("bootstrap");
+            var characterTemplate = new GameObject("character_template");
+            var weaponTemplate = new GameObject("weapon_template");
+            try
+            {
+                CharacterRuntimeResourceBootstrap bootstrap = bootstrapObject.AddComponent<CharacterRuntimeResourceBootstrap>();
+                ConfigureBootstrap(bootstrap, characterTemplate, weaponTemplate);
+
+                bootstrap.EnsureResourceManager();
+
+                ResourceDebugSnapshot snapshot = bootstrap.ResourceManager.CreateDebugSnapshot();
+                Assert.AreEqual(1, snapshot.ProviderCount);
+                Assert.AreEqual(2, snapshot.EntryCount);
+            }
+            finally
+            {
+                Object.DestroyImmediate(bootstrapObject);
+                Object.DestroyImmediate(characterTemplate);
+                Object.DestroyImmediate(weaponTemplate);
+            }
+        }
+
         private static void ConfigureBinder(CharacterDefaultEquipmentRuntimeBinder binder, Transform socketsRoot, Transform socket)
         {
             var serialized = new SerializedObject(binder);

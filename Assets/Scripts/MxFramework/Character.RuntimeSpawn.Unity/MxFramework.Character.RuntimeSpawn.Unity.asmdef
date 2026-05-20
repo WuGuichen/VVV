@@ -11,7 +11,8 @@
         "MxFramework.Gameplay",
         "MxFramework.Input",
         "MxFramework.Runtime",
-        "MxFramework.Resources"
+        "MxFramework.Resources",
+        "MxFramework.Resources.Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
