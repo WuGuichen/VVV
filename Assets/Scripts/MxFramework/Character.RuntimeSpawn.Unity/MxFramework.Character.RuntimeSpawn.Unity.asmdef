@@ -5,8 +5,12 @@
         "MxFramework.Character.RuntimeSpawn",
         "MxFramework.Character.Application",
         "MxFramework.CharacterControl",
+        "MxFramework.CharacterControl.Input",
         "MxFramework.Combat",
+        "MxFramework.Core",
         "MxFramework.Gameplay",
+        "MxFramework.Input",
+        "MxFramework.Runtime",
         "MxFramework.Resources"
     ],
     "includePlatforms": [],

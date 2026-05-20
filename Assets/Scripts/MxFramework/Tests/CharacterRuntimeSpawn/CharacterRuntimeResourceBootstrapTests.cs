@@ -23,6 +23,7 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
                 socket.SetParent(sockets, false);
                 CharacterRuntimeControllerBinding controllerBinding = characterTemplate.AddComponent<CharacterRuntimeControllerBinding>();
                 ConfigureControllerBinding(controllerBinding);
+                characterTemplate.AddComponent<CharacterRuntimeInputMotionController>().EnableInputMotion = false;
                 CharacterDefaultEquipmentRuntimeBinder binder = characterTemplate.AddComponent<CharacterDefaultEquipmentRuntimeBinder>();
                 ConfigureBinder(binder, sockets, socket);
 
@@ -44,6 +45,7 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
                 Assert.IsTrue(runtimeController.IsInitialized);
                 Assert.AreEqual(CharacterControlState.Locomotion, runtimeController.StateMachine.CurrentState);
                 Assert.AreEqual(1001, runtimeController.StateMachine.Entity.StableId);
+                Assert.NotNull(bootstrap.CharacterInstance.GetComponent<CharacterRuntimeInputMotionController>());
             }
             finally
             {
