@@ -6,8 +6,8 @@
       "resourceKey": "char.iron_vanguard.model.body",
       "relativePath": "resources/models/skeleton.glb",
       "exists": true,
-      "declaredContentHash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20",
-      "computedContentHash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20",
+      "declaredContentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
+      "computedContentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
       "computedImportHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
       "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
@@ -36,7 +36,7 @@
       "declaredContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
       "computedContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
       "computedImportHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
-      "computedDependencyHash": "sha256:a12136cfda1a5b0c0a3c05d5fcd81b3f7f91ec3c41704cb8231ca3921f67aba6"
+      "computedDependencyHash": "sha256:06c04771f3ff482c1142f6ad968e197d71541e726242fa520e125fc603bef48c"
     },
     {
       "resourceKey": "char.iron_vanguard.anim.combat",
@@ -45,7 +45,7 @@
       "declaredContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
       "computedContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
       "computedImportHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
-      "computedDependencyHash": "sha256:a12136cfda1a5b0c0a3c05d5fcd81b3f7f91ec3c41704cb8231ca3921f67aba6"
+      "computedDependencyHash": "sha256:06c04771f3ff482c1142f6ad968e197d71541e726242fa520e125fc603bef48c"
     },
     {
       "resourceKey": "char.iron_vanguard.preview.thumbnail",

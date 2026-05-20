@@ -21,7 +21,7 @@
       "sourcePath": "compiler/geometry_binding.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_geometry_binding.json",
       "writePolicy": "Recreate",
-      "contentHash": "sha256:8a62027b82bd29b20b4d53d9f2b61a8c0437b1071fc995aaeff4e6edc3fbc802"
+      "contentHash": "sha256:0af4c97f8f25d963ef1a0c0220a48740511c88bb676fc2fba38aa0c2c72fa2cb"
     },
     {
       "kind": "resourceMapping",
@@ -29,7 +29,7 @@
       "sourcePath": "compiler/resource_mapping.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
       "writePolicy": "Recreate",
-      "contentHash": "sha256:db49f8abb5715258ed51572a9914b082ac03bb3025b3db7eaee5362574d4e2a4"
+      "contentHash": "sha256:1eb1dafabb6872d0648034353330c0ce7e2682f38513eb051ad4abaeb3acc514"
     },
     {
       "kind": "resourceFile",
@@ -37,7 +37,7 @@
       "sourcePath": "resources/models/skeleton.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20"
+      "contentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf"
     },
     {
       "kind": "resourceFile",
