@@ -9,8 +9,8 @@ PORT="${1:-${MXFRAMEWORK_RESOURCE_LIBRARY_PORT:-4873}}"
 PACKAGE_RELATIVE="${2:-${MXFRAMEWORK_RESOURCE_LIBRARY_PACKAGE:-$DEFAULT_PACKAGE}}"
 OPEN_BROWSER="${MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER:-1}"
 URL="http://127.0.0.1:${PORT}/Tools/MxFramework.ResourceLibrary/web/?package=${PACKAGE_RELATIVE}"
-HEALTH_LIST_URL="http://127.0.0.1:${PORT}/api/character/resources?package=${PACKAGE_RELATIVE}"
-HEALTH_INSPECT_URL="http://127.0.0.1:${PORT}/api/character/resources/inspect?package=${PACKAGE_RELATIVE}&id=model.body"
+HEALTH_LIST_URL="http://127.0.0.1:${PORT}/api/authoring/resources?package=${PACKAGE_RELATIVE}"
+HEALTH_INSPECT_URL="http://127.0.0.1:${PORT}/api/authoring/resources/inspect?package=${PACKAGE_RELATIVE}&id=char.iron_vanguard.model.body"
 
 die() {
   printf '[ERROR] %s\n' "$*" >&2

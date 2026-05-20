@@ -31,10 +31,12 @@ assert(index.includes("deleteResourceButton") && index.includes("editTagsButton"
 assert(index.includes("复制详情 JSON") && index.includes("复制诊断 JSON"), "copy JSON actions should be visible");
 
 assert(app.includes("/api/character/packages"), "app should call character packages API");
-assert(app.includes("/api/character/resources?package="), "app should call resource list API");
+assert(app.includes("/api/authoring/resources?package="), "app should call authoring resource list API");
 assert(app.includes("/api/character/resource-plan?package="), "app should call resource plan API");
-assert(app.includes("/api/character/resources/inspect?package="), "app should call inspect API defensively");
+assert(app.includes("/api/authoring/resources/inspect?package="), "app should call authoring inspect API defensively");
 assert(app.includes("/api/character/resources/import") && app.includes("/api/character/resources/reimport") && app.includes("/api/character/resources/replace-source"), "app should call resource write API gates");
+assert(app.includes("resourceId") && app.includes("sourceProviderId") && app.includes("providerBindings"), "app should understand authoring resource identity and provider bindings");
+assert(app.includes("targetResourceId") && app.includes("targetProviderResourceKey") && app.includes("targetRuntimeResourceKey"), "app should match cross-consumer reference graph targets");
 assert(app.includes("postJson") && app.includes("readFileAsBase64"), "app should post write requests with uploaded file bytes");
 assert(app.includes("IMPORT_PRESETS") && app.includes("animationClipGroup") && app.includes("audioCue"), "app should define typed animation and audio import presets");
 assert(app.includes("importResourceFolder") && app.includes("webkitRelativePath"), "app should support folder import with stable local ids");

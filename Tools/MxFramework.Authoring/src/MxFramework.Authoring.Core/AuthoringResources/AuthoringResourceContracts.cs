@@ -209,6 +209,7 @@ namespace MxFramework.Authoring
         public string ScopeId { get; set; } = string.Empty;
         public List<AuthoringResourceProviderDescriptor> Providers { get; set; } = new List<AuthoringResourceProviderDescriptor>();
         public List<AuthoringResourceItem> Items { get; set; } = new List<AuthoringResourceItem>();
+        public AuthoringResourceReferenceGraph ReferenceGraph { get; set; } = new AuthoringResourceReferenceGraph();
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
         public List<AuthoringResourceDiagnostic> Diagnostics { get; set; } = new List<AuthoringResourceDiagnostic>();
     }

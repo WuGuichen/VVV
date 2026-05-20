@@ -2,12 +2,12 @@ const DEFAULT_PACKAGE = "Tools/MxFramework.Authoring/samples/character-iron-vang
 
 const API = {
   packages: "/api/character/packages",
-  resources: packageRelative => `/api/character/resources?package=${encodeURIComponent(packageRelative)}`,
+  resources: packageRelative => `/api/authoring/resources?package=${encodeURIComponent(packageRelative)}`,
   resourcePlan: (packageRelative, checkHashes = false) => {
     const suffix = checkHashes ? "&checkHashes=true" : "";
     return `/api/character/resource-plan?package=${encodeURIComponent(packageRelative)}${suffix}`;
   },
-  inspect: (packageRelative, id) => `/api/character/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`,
+  inspect: (packageRelative, id) => `/api/authoring/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`,
   importResource: "/api/character/resources/import",
   reimportResource: "/api/character/resources/reimport",
   replaceSource: "/api/character/resources/replace-source"
@@ -1053,16 +1053,25 @@ function getNormalizedItems() {
 }
 
 function normalizeItem(raw, index) {
-  const libraryItemId = stringValue(pick(raw, "libraryItemId", "id", "localId"));
-  const stableId = stringValue(pick(raw, "stableId", "libraryItemStableId"));
-  const resourceKey = stringValue(pick(raw, "resourceKey", "key"));
-  const key = libraryItemId || stableId || resourceKey || `resource-${index}`;
+  const resourceId = stringValue(pick(raw, "resourceId"));
+  const providerBindings = asArray(pick(raw, "providerBindings"));
+  const primaryBinding = getPrimaryProviderBinding(providerBindings);
+  const primaryProviderData = pick(primaryBinding, "providerData") || {};
+  const metadata = pick(raw, "metadata") || {};
+  const libraryItemId = stringValue(pick(raw, "libraryItemId", "id", "localId")) || resourceId;
+  const stableId = stringValue(pick(raw, "stableId", "libraryItemStableId", "resourceStableId"));
+  const runtimeResourceKey = stringValue(pick(raw, "runtimeResourceKey")) || stringValue(pick(primaryBinding, "runtimeResourceKey"));
+  const providerResourceKey = stringValue(pick(raw, "providerResourceKey")) || stringValue(pick(primaryBinding, "providerResourceKey"));
+  const packageResourceKey = stringValue(pick(raw, "packageResourceKey")) || stringValue(pick(primaryBinding, "packageResourceKey"));
+  const resourceKey = stringValue(pick(raw, "resourceKey", "key")) || runtimeResourceKey || packageResourceKey || providerResourceKey;
+  const key = resourceId || libraryItemId || stableId || resourceKey || `resource-${index}`;
   const tags = asArray(pick(raw, "tags")).map(String).filter(Boolean);
   const preview = pick(raw, "preview") || {};
   const diagnostics = asArray(pick(raw, "diagnostics"));
   const item = {
     key,
     raw,
+    resourceId,
     libraryItemId,
     stableId,
     displayName: stringValue(pick(raw, "displayName", "name", "localId")) || libraryItemId || resourceKey,
@@ -1073,13 +1082,19 @@ function normalizeItem(raw, index) {
     importStatus: stringValue(pick(raw, "importStatus", "status")),
     runtimeAvailability: stringValue(pick(raw, "runtimeAvailability", "runtimeStatus")),
     resourceKey,
-    providerId: stringValue(pick(raw, "providerId", "provider")),
-    hash: stringValue(pick(raw, "hash", "contentHash")),
-    sourcePath: stringValue(pick(raw, "sourcePath", "relativePath", "path")),
-    unityAssetPath: stringValue(pick(raw, "unityAssetPath")),
-    fmodEventPath: stringValue(pick(raw, "fmodEventPath")),
-    audioCueId: stringValue(pick(raw, "audioCueId")),
-    audioEventDefinitionId: stringValue(pick(raw, "audioEventDefinitionId")),
+    runtimeResourceKey,
+    providerResourceKey,
+    packageResourceKey,
+    providerId: stringValue(pick(raw, "providerId", "provider", "sourceProviderId")) || stringValue(pick(primaryBinding, "providerId")),
+    hash: stringValue(pick(raw, "hash", "contentHash")) || stringValue(pick(primaryBinding, "hash")) || stringValue(pick(metadata, "contentHash")),
+    sourcePath: stringValue(pick(raw, "sourcePath", "relativePath", "path")) || stringValue(pick(metadata, "relativePath")) || stringValue(pick(primaryBinding, "externalSourcePath")),
+    unityAssetPath: stringValue(pick(raw, "unityAssetPath")) || stringValue(pick(primaryBinding, "unityAssetPath")),
+    unityGuid: stringValue(pick(raw, "unityGuid")) || stringValue(pick(primaryBinding, "unityGuid")),
+    fmodEventPath: stringValue(pick(raw, "fmodEventPath")) || stringValue(pick(primaryBinding, "fmodEventPath")),
+    audioCueId: stringValue(pick(raw, "audioCueId")) || stringValue(pick(primaryProviderData, "audioCueId")),
+    audioEventDefinitionId: stringValue(pick(raw, "audioEventDefinitionId")) || stringValue(pick(primaryProviderData, "audioEventDefinitionId")),
+    providerBindings,
+    metadata,
     tags,
     preview,
     diagnostics
@@ -1116,6 +1131,9 @@ function getFilteredItems(items) {
       item.importStatus,
       item.runtimeAvailability,
       item.resourceKey,
+      item.runtimeResourceKey,
+      item.providerResourceKey,
+      item.packageResourceKey,
       item.sourcePath,
       item.unityAssetPath,
       item.tags.join(" ")
@@ -1186,9 +1204,10 @@ function getReferencesForItem(item) {
   const graph = pick(state.resourcesPayload, "referenceGraph") || {};
   const edges = asArray(pick(graph, "edges"));
   return edges.filter(edge => {
-    const targetStableId = stringValue(pick(edge, "targetLibraryItemStableId", "targetStableId"));
-    const targetResourceKey = stringValue(pick(edge, "targetResourceKey", "resourceKey"));
-    return matchesItem(item, targetStableId, targetResourceKey);
+    const targetStableId = stringValue(pick(edge, "targetLibraryItemStableId", "targetStableId", "targetResourceStableId"));
+    const targetResourceKey = stringValue(pick(edge, "targetResourceKey", "resourceKey", "targetProviderResourceKey", "targetRuntimeResourceKey"));
+    const targetResourceId = stringValue(pick(edge, "targetResourceId"));
+    return matchesItem(item, targetStableId, targetResourceKey, targetResourceId);
   });
 }
 
@@ -1196,9 +1215,10 @@ function getDiagnosticsForItem(item) {
   const diagnostics = [];
   diagnostics.push(...item.diagnostics);
   for (const diagnostic of getAllDiagnostics()) {
-    const stableId = stringValue(pick(diagnostic, "libraryItemStableId", "targetLibraryItemStableId"));
-    const resourceKey = stringValue(pick(diagnostic, "resourceKey", "targetResourceKey"));
-    if (matchesItem(item, stableId, resourceKey)) {
+    const stableId = stringValue(pick(diagnostic, "libraryItemStableId", "resourceStableId", "targetLibraryItemStableId"));
+    const resourceKey = stringValue(pick(diagnostic, "resourceKey", "runtimeResourceKey", "targetResourceKey"));
+    const resourceId = stringValue(pick(diagnostic, "resourceId", "targetResourceId"));
+    if (matchesItem(item, stableId, resourceKey, resourceId)) {
       diagnostics.push(diagnostic);
     }
   }
@@ -1315,12 +1335,21 @@ function isOrphanCandidate(item) {
   return asArray(pick(graph, "edges")).length > 0 && item.referenceCount === 0;
 }
 
-function matchesItem(item, stableId, resourceKey) {
+function matchesItem(item, stableId, resourceKey, resourceId = "") {
   return Boolean(
-    (stableId && item.stableId && stableId === item.stableId)
+    (resourceId && item.resourceId && resourceId === item.resourceId)
+    || (stableId && item.stableId && stableId === item.stableId)
     || (resourceKey && item.resourceKey && resourceKey === item.resourceKey)
+    || (resourceKey && item.runtimeResourceKey && resourceKey === item.runtimeResourceKey)
+    || (resourceKey && item.providerResourceKey && resourceKey === item.providerResourceKey)
+    || (resourceKey && item.packageResourceKey && resourceKey === item.packageResourceKey)
     || (resourceKey && item.libraryItemId && resourceKey === item.libraryItemId)
   );
+}
+
+function getPrimaryProviderBinding(bindings) {
+  const rows = asArray(bindings);
+  return rows.find(binding => pick(binding, "isPrimary") === true) || rows[0] || {};
 }
 
 function buildOptions(items, key) {

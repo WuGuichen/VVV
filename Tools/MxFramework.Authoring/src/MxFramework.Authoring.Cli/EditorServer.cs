@@ -116,6 +116,33 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/authoring/resources/inspect" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            string id = context.Request.QueryString["id"] ?? string.Empty;
+            object result = ReadAuthoringResourceInspect(rootPath, characterPackage, id, jsonOptions);
+            if (result == null)
+            {
+                WriteJson(context.Response, new
+                {
+                    error = "AUTH_RES_ITEM_MISSING",
+                    message = "Authoring resource item was not found.",
+                    id
+                }, jsonOptions, 404);
+                return;
+            }
+
+            WriteJson(context.Response, result, jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/resources/references" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            WriteJson(context.Response, ReadAuthoringResources(rootPath, characterPackage, jsonOptions).ReferenceGraph, jsonOptions);
+            return;
+        }
+
         if (path == "/api/authoring/resources/providers" && context.Request.HttpMethod == "GET")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -715,7 +742,7 @@ internal static class EditorServer
     {
         string packagePath = ResolveSafePath(rootPath, packageRelative);
         CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
-        return new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext
+        AuthoringResourceCollection collection = new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext
         {
             ScopeId = "characterPackage:" + (package.Manifest != null ? package.Manifest.PackageId : string.Empty),
             PackageId = package.Manifest != null ? package.Manifest.PackageId : string.Empty,
@@ -723,6 +750,387 @@ internal static class EditorServer
             ProjectRootPath = rootPath,
             PackageResourceCatalog = package.ResourceCatalog
         });
+        collection.ReferenceGraph = AuthoringResourceReferenceGraphBuilder.FromCharacterPackage(package, collection);
+        collection.Diagnostics.AddRange(collection.ReferenceGraph.Diagnostics);
+        return collection;
+    }
+
+    private static object ReadAuthoringResourceInspect(string rootPath, string packageRelative, string id, JsonSerializerOptions jsonOptions)
+    {
+        AuthoringResourceCollection collection = ReadAuthoringResources(rootPath, packageRelative, jsonOptions);
+        AuthoringResourceItem item = FindAuthoringResourceItem(collection, id);
+        if (item == null)
+            return null;
+
+        CharacterResourcePlanCompileResult plan = ReadCharacterResourcePlan(rootPath, packageRelative, checkFiles: true, checkHashes: false, jsonOptions);
+        List<AuthoringResourceReferenceEdge> references = collection.ReferenceGraph != null
+            ? collection.ReferenceGraph.FindReferencesToResource(item)
+            : new List<AuthoringResourceReferenceEdge>();
+        List<object> plans = BuildAuthoringResourceInspectPlans(item, plan);
+
+        return new
+        {
+            packageId = GetAuthoringResourceMetadata(item, "packageId"),
+            item,
+            authoring = BuildAuthoringResourceInspectAuthoring(item),
+            unity = BuildAuthoringResourceInspectUnity(item),
+            runtime = BuildAuthoringResourceInspectRuntime(item, plans),
+            references,
+            referenceImpact = new
+            {
+                referenceCount = references.Count,
+                blocksDelete = references.Count > 0,
+                destructiveDeleteAllowed = references.Count == 0
+            },
+            plans,
+            diagnostics = BuildAuthoringResourceInspectDiagnostics(item, collection, plan),
+            collection = new
+            {
+                scopeId = collection.ScopeId,
+                providers = collection.Providers,
+                diagnostics = collection.Diagnostics
+            }
+        };
+    }
+
+    private static AuthoringResourceItem FindAuthoringResourceItem(AuthoringResourceCollection collection, string id)
+    {
+        if (collection == null || collection.Items == null || string.IsNullOrWhiteSpace(id))
+            return null;
+
+        for (int i = 0; i < collection.Items.Count; i++)
+        {
+            AuthoringResourceItem item = collection.Items[i];
+            if (AuthoringResourceMatches(id, item, string.Empty))
+                return item;
+        }
+
+        return null;
+    }
+
+    private static object BuildAuthoringResourceInspectAuthoring(AuthoringResourceItem item)
+    {
+        return new
+        {
+            resourceId = item.ResourceId,
+            stableId = item.StableId,
+            sourceProviderId = item.SourceProviderId,
+            sourceKind = item.SourceKind,
+            bindingKind = item.BindingKind,
+            providerBindings = item.ProviderBindings,
+            sourcePath = FirstNonEmpty(GetAuthoringResourceMetadata(item, "relativePath"), GetAuthoringResourceExternalSourcePath(item)),
+            tags = item.Tags,
+            metadata = item.Metadata,
+            diagnostics = item.Diagnostics
+        };
+    }
+
+    private static object BuildAuthoringResourceInspectUnity(AuthoringResourceItem item)
+    {
+        AuthoringResourceProviderBinding binding = GetAuthoringUnityBinding(item);
+        return new
+        {
+            unityAssetGuid = binding != null ? binding.UnityGuid : string.Empty,
+            unityAssetPath = binding != null ? binding.UnityAssetPath : string.Empty,
+            importStatus = item.ImportStatus.ToString(),
+            diagnostics = item.Diagnostics != null ? item.Diagnostics.FindAll(diagnostic => diagnostic != null && (diagnostic.Code ?? string.Empty).IndexOf("UNITY", StringComparison.OrdinalIgnoreCase) >= 0) : new List<AuthoringResourceDiagnostic>(),
+            binding
+        };
+    }
+
+    private static object BuildAuthoringResourceInspectRuntime(AuthoringResourceItem item, List<object> plans)
+    {
+        AuthoringResourceProviderBinding binding = GetAuthoringRuntimeBinding(item) ?? GetAuthoringPrimaryBinding(item);
+        List<string> groupNames = GetPlanGroupNames(plans);
+        return new
+        {
+            runtimeBindingKind = item.BindingKind,
+            runtimeAvailability = item.RuntimeAvailability,
+            resourceKey = binding != null ? FirstNonEmpty(binding.RuntimeResourceKey, binding.PackageResourceKey, binding.ProviderResourceKey) : string.Empty,
+            runtimeResourceKey = binding != null ? binding.RuntimeResourceKey : string.Empty,
+            providerResourceKey = binding != null ? binding.ProviderResourceKey : string.Empty,
+            packageResourceKey = binding != null ? binding.PackageResourceKey : string.Empty,
+            providerId = binding != null ? binding.ProviderId : item.SourceProviderId,
+            address = binding != null ? binding.Address : string.Empty,
+            assetType = binding != null ? FirstNonEmpty(binding.AssetType, item.Kind) : item.Kind,
+            hash = binding != null ? FirstNonEmpty(binding.Hash, GetAuthoringResourceMetadata(item, "contentHash")) : GetAuthoringResourceMetadata(item, "contentHash"),
+            preloadPolicy = groupNames.Count > 0 ? groupNames[0] : AuthoringResourcePreloadPolicies.None,
+            includedRuntimePlanGroups = groupNames,
+            providerData = binding != null ? binding.ProviderData : new Dictionary<string, string>()
+        };
+    }
+
+    private static List<object> BuildAuthoringResourceInspectPlans(AuthoringResourceItem item, CharacterResourcePlanCompileResult result)
+    {
+        var plans = new List<object>();
+        if (item == null || result == null || result.CharacterResourcePlan == null)
+            return plans;
+
+        AddAuthoringPlanGroupIfContains(plans, CharacterResourcePlanGroups.SpawnCritical, result.CharacterResourcePlan.SpawnCritical, item);
+        AddAuthoringPlanGroupIfContains(plans, CharacterResourcePlanGroups.PresentationCritical, result.CharacterResourcePlan.PresentationCritical, item);
+        AddAuthoringPlanGroupIfContains(plans, CharacterResourcePlanGroups.EquipmentInitial, result.CharacterResourcePlan.EquipmentInitial, item);
+        AddAuthoringPlanGroupIfContains(plans, CharacterResourcePlanGroups.AnimationWarmup, result.CharacterResourcePlan.AnimationWarmup, item);
+        AddAuthoringPlanGroupIfContains(plans, CharacterResourcePlanGroups.VfxWarmup, result.CharacterResourcePlan.VfxWarmup, item);
+        AddAuthoringPlanGroupIfContains(plans, CharacterResourcePlanGroups.UiDeferred, result.CharacterResourcePlan.UiDeferred, item);
+
+        AudioCueManifestEntry cue = FindAuthoringAudioCue(result.AudioCueManifest, item);
+        if (cue != null)
+        {
+            plans.Add(new
+            {
+                groupName = CharacterResourcePlanGroups.Audio,
+                required = result.CharacterResourcePlan.Audio != null && result.CharacterResourcePlan.Audio.Required,
+                failurePolicy = result.CharacterResourcePlan.Audio != null ? result.CharacterResourcePlan.Audio.FailurePolicy : string.Empty,
+                resource = cue
+            });
+        }
+
+        return plans;
+    }
+
+    private static void AddAuthoringPlanGroupIfContains(List<object> plans, string groupName, CharacterResourcePlanGroup group, AuthoringResourceItem item)
+    {
+        if (plans == null || group == null || group.Resources == null || item == null)
+            return;
+
+        for (int i = 0; i < group.Resources.Count; i++)
+        {
+            CharacterResourcePlanResourceRef resource = group.Resources[i];
+            if (resource == null)
+                continue;
+
+            if (!AuthoringResourceMatches(resource.ResourceKey, item, string.Empty) &&
+                !AuthoringResourceMatches(resource.StableId, item, string.Empty))
+                continue;
+
+            plans.Add(new
+            {
+                groupName,
+                required = group.Required,
+                failurePolicy = group.FailurePolicy,
+                resource
+            });
+        }
+    }
+
+    private static List<object> BuildAuthoringResourceInspectDiagnostics(
+        AuthoringResourceItem item,
+        AuthoringResourceCollection collection,
+        CharacterResourcePlanCompileResult plan)
+    {
+        var diagnostics = new List<object>();
+        if (item == null)
+            return diagnostics;
+
+        if (item.Diagnostics != null)
+        {
+            for (int i = 0; i < item.Diagnostics.Count; i++)
+                AddAuthoringResourceDiagnostic(diagnostics, "item", item.Diagnostics[i], item);
+        }
+
+        if (collection != null && collection.Diagnostics != null)
+        {
+            for (int i = 0; i < collection.Diagnostics.Count; i++)
+                AddAuthoringResourceDiagnostic(diagnostics, "collection", collection.Diagnostics[i], item);
+        }
+
+        if (plan != null && plan.CharacterResourcePlan != null && plan.CharacterResourcePlan.Diagnostics != null)
+        {
+            for (int i = 0; i < plan.CharacterResourcePlan.Diagnostics.Count; i++)
+                AddAuthoringResourcePlanDiagnostic(diagnostics, "resourcePlan", plan.CharacterResourcePlan.Diagnostics[i], item);
+        }
+
+        if (plan != null && plan.ResourceValidationReport != null && plan.ResourceValidationReport.Diagnostics != null)
+        {
+            for (int i = 0; i < plan.ResourceValidationReport.Diagnostics.Count; i++)
+                AddAuthoringResourcePlanDiagnostic(diagnostics, "validationReport", plan.ResourceValidationReport.Diagnostics[i], item);
+        }
+
+        return diagnostics;
+    }
+
+    private static void AddAuthoringResourceDiagnostic(List<object> diagnostics, string source, AuthoringResourceDiagnostic diagnostic, AuthoringResourceItem item)
+    {
+        if (diagnostics == null || diagnostic == null || item == null)
+            return;
+
+        if (!AuthoringResourceMatches(diagnostic.ResourceId, item, string.Empty) &&
+            !AuthoringResourceMatches(diagnostic.ResourceStableId, item, string.Empty) &&
+            !AuthoringResourceMatches(diagnostic.RuntimeResourceKey, item, string.Empty))
+            return;
+
+        diagnostics.Add(new
+        {
+            source,
+            severity = diagnostic.Severity.ToString(),
+            code = diagnostic.Code,
+            message = diagnostic.Message,
+            suggestedFix = diagnostic.SuggestedFix,
+            resourceId = diagnostic.ResourceId,
+            resourceStableId = diagnostic.ResourceStableId,
+            runtimeResourceKey = diagnostic.RuntimeResourceKey,
+            providerId = diagnostic.ProviderId,
+            sourceConfigKind = diagnostic.SourceConfigKind,
+            sourceStableId = diagnostic.SourceStableId,
+            sourceField = diagnostic.SourceField
+        });
+    }
+
+    private static void AddAuthoringResourcePlanDiagnostic(List<object> diagnostics, string source, CharacterResourcePlanDiagnostic diagnostic, AuthoringResourceItem item)
+    {
+        if (diagnostics == null || diagnostic == null || item == null)
+            return;
+
+        if (!AuthoringResourceMatches(diagnostic.LibraryItemStableId, item, string.Empty) &&
+            !AuthoringResourceMatches(diagnostic.ResourceKey, item, string.Empty))
+            return;
+
+        diagnostics.Add(new
+        {
+            source,
+            severity = diagnostic.Severity,
+            code = diagnostic.Code,
+            message = diagnostic.Message,
+            suggestedFix = diagnostic.SuggestedFix,
+            libraryItemStableId = diagnostic.LibraryItemStableId,
+            resourceStableId = diagnostic.LibraryItemStableId,
+            resourceKey = diagnostic.ResourceKey,
+            sourceConfigKind = diagnostic.SourceConfigKind,
+            sourceField = diagnostic.SourceField
+        });
+    }
+
+    private static AudioCueManifestEntry FindAuthoringAudioCue(AudioCueManifestDocument manifest, AuthoringResourceItem item)
+    {
+        if (manifest == null || manifest.Cues == null || item == null)
+            return null;
+
+        for (int i = 0; i < manifest.Cues.Count; i++)
+        {
+            AudioCueManifestEntry cue = manifest.Cues[i];
+            if (cue == null)
+                continue;
+
+            if (AuthoringResourceMatches(cue.CueId, item, string.Empty) ||
+                AuthoringResourceMatches(cue.StableId, item, string.Empty) ||
+                AuthoringResourceMatches(cue.ResourceKey, item, string.Empty))
+                return cue;
+        }
+
+        return null;
+    }
+
+    private static bool AuthoringResourceMatches(string value, AuthoringResourceItem item, string id)
+    {
+        if (item == null)
+            return false;
+
+        string candidate = FirstNonEmpty(value, id);
+        if (string.IsNullOrWhiteSpace(candidate))
+            return false;
+
+        if (string.Equals(candidate, item.ResourceId, StringComparison.Ordinal) ||
+            string.Equals(candidate, item.StableId, StringComparison.Ordinal) ||
+            string.Equals(candidate, item.DisplayName, StringComparison.Ordinal))
+            return true;
+
+        if (item.Metadata != null)
+        {
+            string metadataValue;
+            if ((item.Metadata.TryGetValue("localId", out metadataValue) && string.Equals(candidate, metadataValue, StringComparison.Ordinal)) ||
+                (item.Metadata.TryGetValue("relativePath", out metadataValue) && string.Equals(candidate, metadataValue, StringComparison.Ordinal)))
+                return true;
+        }
+
+        if (item.ProviderBindings == null)
+            return false;
+
+        for (int i = 0; i < item.ProviderBindings.Count; i++)
+        {
+            AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+            if (binding == null)
+                continue;
+
+            if (string.Equals(candidate, binding.ProviderResourceKey, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.PackageResourceKey, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.RuntimeResourceKey, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.UnityGuid, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.UnityAssetPath, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.ExternalSourcePath, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.DisplayValue, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static AuthoringResourceProviderBinding GetAuthoringPrimaryBinding(AuthoringResourceItem item)
+    {
+        if (item == null || item.ProviderBindings == null || item.ProviderBindings.Count == 0)
+            return null;
+
+        for (int i = 0; i < item.ProviderBindings.Count; i++)
+        {
+            AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+            if (binding != null && binding.IsPrimary)
+                return binding;
+        }
+
+        return item.ProviderBindings[0];
+    }
+
+    private static AuthoringResourceProviderBinding GetAuthoringRuntimeBinding(AuthoringResourceItem item)
+    {
+        if (item == null || item.ProviderBindings == null)
+            return null;
+
+        for (int i = 0; i < item.ProviderBindings.Count; i++)
+        {
+            AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+            if (binding != null && !string.IsNullOrWhiteSpace(binding.RuntimeResourceKey))
+                return binding;
+        }
+
+        return null;
+    }
+
+    private static AuthoringResourceProviderBinding GetAuthoringUnityBinding(AuthoringResourceItem item)
+    {
+        if (item == null || item.ProviderBindings == null)
+            return null;
+
+        for (int i = 0; i < item.ProviderBindings.Count; i++)
+        {
+            AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+            if (binding != null && (!string.IsNullOrWhiteSpace(binding.UnityGuid) || !string.IsNullOrWhiteSpace(binding.UnityAssetPath)))
+                return binding;
+        }
+
+        return null;
+    }
+
+    private static string GetAuthoringResourceExternalSourcePath(AuthoringResourceItem item)
+    {
+        if (item == null || item.ProviderBindings == null)
+            return string.Empty;
+
+        for (int i = 0; i < item.ProviderBindings.Count; i++)
+        {
+            AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+            if (binding != null && !string.IsNullOrWhiteSpace(binding.ExternalSourcePath))
+                return binding.ExternalSourcePath;
+        }
+
+        return string.Empty;
+    }
+
+    private static string GetAuthoringResourceMetadata(AuthoringResourceItem item, string key)
+    {
+        if (item == null || item.Metadata == null || string.IsNullOrWhiteSpace(key))
+            return string.Empty;
+
+        string value;
+        return item.Metadata.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
     }
 
     private static CharacterResourcePlanCompileResult ReadCharacterResourcePlan(
