@@ -83,6 +83,10 @@ namespace MxFramework.Authoring
         public const string KindUsageMismatch = "AUTH_RES_KIND_USAGE_MISMATCH";
         public const string SourceFileMissing = "AUTH_RES_SOURCE_FILE_MISSING";
         public const string HashMismatch = "AUTH_RES_HASH_MISMATCH";
+        public const string UnsupportedFormat = "AUTH_RES_UNSUPPORTED_FORMAT";
+        public const string IgnoredImportFile = "AUTH_RES_IMPORT_IGNORED_FILE";
+        public const string SourceHashDuplicate = "AUTH_RES_SOURCE_HASH_DUPLICATE";
+        public const string SourceFileTooLarge = "AUTH_RES_SOURCE_FILE_TOO_LARGE";
         public const string UnityAssetMissing = "AUTH_RES_UNITY_ASSET_MISSING";
         public const string ProviderUnavailable = "AUTH_RES_PROVIDER_UNAVAILABLE";
         public const string NotRuntimeLoadable = "AUTH_RES_NOT_RUNTIME_LOADABLE";

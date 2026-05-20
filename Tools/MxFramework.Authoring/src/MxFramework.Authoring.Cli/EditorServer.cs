@@ -150,6 +150,16 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/authoring/resources/stage-import" && context.Request.HttpMethod == "POST")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            ExternalImportStageRequest request = ReadExternalImportStageRequest(context, jsonOptions);
+            if (!string.IsNullOrWhiteSpace(request.package))
+                characterPackage = request.package;
+            WriteJson(context.Response, StageExternalImport(rootPath, characterPackage, request, jsonOptions), jsonOptions);
+            return;
+        }
+
         if (path == "/api/authoring/resources/resolve-selection" && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -760,10 +770,12 @@ internal static class EditorServer
             UnityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
             RuntimeResourceCatalogPath = ToProjectRelativePath(rootPath, runtimeResourceCatalogPath)
         };
+        context.Metadata["externalImportStaging"] = "empty";
         AuthoringResourceCollection collection = AuthoringResourceCollectionMerger.Merge(
             new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(context),
             new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(context),
-            new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(context));
+            new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(context),
+            new ExternalImportStagingAuthoringResourceProvider().BuildResourceCollection(context));
         collection.ScopeId = scopeId;
         collection.ReferenceGraph = AuthoringResourceReferenceGraphBuilder.FromCharacterPackage(package, collection);
         collection.Diagnostics.AddRange(collection.ReferenceGraph.Diagnostics);
@@ -1206,6 +1218,41 @@ internal static class EditorServer
         return string.IsNullOrWhiteSpace(body)
             ? new ResourceLibraryWriteRequest()
             : (JsonSerializer.Deserialize<ResourceLibraryWriteRequest>(body, jsonOptions) ?? new ResourceLibraryWriteRequest());
+    }
+
+    private static ExternalImportStageRequest ReadExternalImportStageRequest(HttpListenerContext context, JsonSerializerOptions jsonOptions)
+    {
+        string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+        return string.IsNullOrWhiteSpace(body)
+            ? new ExternalImportStageRequest()
+            : (JsonSerializer.Deserialize<ExternalImportStageRequest>(body, jsonOptions) ?? new ExternalImportStageRequest());
+    }
+
+    private static AuthoringResourceCollection StageExternalImport(
+        string rootPath,
+        string packageRelative,
+        ExternalImportStageRequest request,
+        JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        string packageId = package.Manifest != null ? package.Manifest.PackageId : string.Empty;
+        var context = new AuthoringResourceProviderContext
+        {
+            ScopeId = "externalImportStaging:" + packageId,
+            PackageId = packageId,
+            PackagePath = packageRelative,
+            ProjectRootPath = rootPath,
+            PackageResourceCatalog = package.ResourceCatalog
+        };
+        var document = new AuthoringExternalImportStagingDocument
+        {
+            ScopeId = context.ScopeId,
+            SourceRootLabel = request.sourceRootLabel ?? string.Empty,
+            Files = request.files ?? new List<AuthoringExternalImportStagingFile>(),
+            MaxFileSizeBytes = request.maxFileSizeBytes
+        };
+        return ExternalImportStagingAuthoringResourceProvider.FromStagingDocument(document, context);
     }
 
     private static object ImportCharacterResource(
@@ -3216,6 +3263,14 @@ internal static class EditorServer
         public bool dryRun { get; set; }
         public bool importUnity { get; set; }
         public bool checkHashes { get; set; }
+    }
+
+    private sealed class ExternalImportStageRequest
+    {
+        public string package { get; set; } = string.Empty;
+        public string sourceRootLabel { get; set; } = string.Empty;
+        public long maxFileSizeBytes { get; set; } = 512L * 1024L * 1024L;
+        public List<AuthoringExternalImportStagingFile> files { get; set; } = new();
     }
 
     private sealed class AuthoringResourceSelectionRequest

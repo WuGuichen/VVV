@@ -34,6 +34,7 @@ assert(app.includes("/api/character/packages"), "app should call character packa
 assert(app.includes("/api/authoring/resources?package="), "app should call authoring resource list API");
 assert(app.includes("/api/character/resource-plan?package="), "app should call resource plan API");
 assert(app.includes("/api/authoring/resources/inspect?package="), "app should call authoring inspect API defensively");
+assert(app.includes("/api/authoring/resources/stage-import"), "app should call external import staging API before folder promotion");
 assert(app.includes("/api/character/resources/import") && app.includes("/api/character/resources/reimport") && app.includes("/api/character/resources/replace-source"), "app should call resource write API gates");
 assert(app.includes("resourceId") && app.includes("sourceProviderId") && app.includes("providerBindings"), "app should understand authoring resource identity and provider bindings");
 assert(app.includes("targetResourceId") && app.includes("targetProviderResourceKey") && app.includes("targetRuntimeResourceKey"), "app should match cross-consumer reference graph targets");
@@ -41,6 +42,7 @@ assert(app.includes("postJson") && app.includes("readFileAsBase64"), "app should
 assert(app.includes("IMPORT_PRESETS") && app.includes("animationClipGroup") && app.includes("audioCue"), "app should define typed animation and audio import presets");
 assert(app.includes("importResourceFolder") && app.includes("webkitRelativePath"), "app should support folder import with stable local ids");
 assert(app.includes("isIgnoredImportFile") && app.includes(".meta") && app.includes("忽略元数据"), "folder import should ignore editor metadata files separately from skipped resources");
+assert(app.includes("isImportableStagedItem") && app.includes("AUTH_RES_IMPORT_IGNORED_FILE") && app.includes("externalImportStaging"), "folder import should use staging diagnostics and provider items");
 assert(app.includes("inspectCache.clear") && app.includes("loadPackageData"), "write responses should refresh resource data");
 assert(app.includes("buildFallbackInspect") && app.includes("inspect endpoint 不可用"), "app should include inspect fallback behavior");
 assert(app.includes("onlyRuntimeLoadable") && app.includes("onlyDiagnostics"), "app should include client-side filters");
