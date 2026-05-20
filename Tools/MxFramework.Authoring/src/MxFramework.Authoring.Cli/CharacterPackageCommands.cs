@@ -388,6 +388,11 @@ internal static class CharacterPackageCommands
         var providerData = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["assetPath"] = mapping.ImportTargetPath,
+            ["unityAssetPath"] = mapping.ImportTargetPath,
+            ["unityAssetGuid"] = string.Empty,
+            ["unityMainObjectType"] = string.Empty,
+            ["importerKind"] = GuessUnityImporterKind(mapping.SourceFormat, mapping.ImportTargetPath),
+            ["importStatus"] = "PendingUnityImport",
             ["packageResourceKey"] = mapping.PackageResourceKey,
             ["stableId"] = mapping.StableId,
             ["sourceRelativePath"] = mapping.SourceRelativePath,
@@ -408,6 +413,11 @@ internal static class CharacterPackageCommands
             packageId = packageId,
             provider = "memory",
             address = mapping.ImportTargetPath,
+            unityAssetPath = mapping.ImportTargetPath,
+            unityAssetGuid = string.Empty,
+            unityMainObjectType = string.Empty,
+            importerKind = GuessUnityImporterKind(mapping.SourceFormat, mapping.ImportTargetPath),
+            importStatus = "PendingUnityImport",
             labels = BuildUnityResourceLabels(packageId, sourceEntry, mapping),
             dependencies = BuildUnityResourceDependencies(packageId, sourceEntry, mappingByPackageKey),
             hash = mapping.DeclaredContentHash,
@@ -516,6 +526,30 @@ internal static class CharacterPackageCommands
                 return "TextAsset";
             default:
                 return "Object";
+        }
+    }
+
+    private static string GuessUnityImporterKind(string sourceFormat, string importTargetPath)
+    {
+        string format = string.IsNullOrWhiteSpace(sourceFormat)
+            ? Path.GetExtension(importTargetPath ?? string.Empty).TrimStart('.')
+            : sourceFormat;
+        format = (format ?? string.Empty).ToLowerInvariant();
+
+        switch (format)
+        {
+            case CharacterPackageResourceFormatIds.Glb:
+            case CharacterPackageResourceFormatIds.Gltf:
+                return "unity-gltf";
+            case CharacterPackageResourceFormatIds.Fbx:
+                return "unity-fbx";
+            case CharacterPackageResourceFormatIds.Png:
+            case CharacterPackageResourceFormatIds.Jpg:
+            case CharacterPackageResourceFormatIds.Jpeg:
+            case CharacterPackageResourceFormatIds.Tga:
+                return "unity-texture";
+            default:
+                return string.IsNullOrWhiteSpace(format) ? "unity-asset" : "unity-" + format;
         }
     }
 
@@ -730,6 +764,11 @@ internal static class CharacterPackageCommands
         public string packageId { get; set; } = string.Empty;
         public string provider { get; set; } = string.Empty;
         public string address { get; set; } = string.Empty;
+        public string unityAssetPath { get; set; } = string.Empty;
+        public string unityAssetGuid { get; set; } = string.Empty;
+        public string unityMainObjectType { get; set; } = string.Empty;
+        public string importerKind { get; set; } = string.Empty;
+        public string importStatus { get; set; } = string.Empty;
         public string[] labels { get; set; } = Array.Empty<string>();
         public UnityResourceKeyDto[] dependencies { get; set; } = Array.Empty<UnityResourceKeyDto>();
         public string hash { get; set; } = string.Empty;

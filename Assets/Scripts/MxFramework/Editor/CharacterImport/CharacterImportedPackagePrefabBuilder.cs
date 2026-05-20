@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MxFramework.CharacterRuntimeSpawn;
+using MxFramework.Resources;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -92,7 +93,10 @@ namespace MxFramework.Editor.CharacterImport
                 return string.Empty;
             }
 
-            Dictionary<string, ResourcePreviewInfo> resources = ReadResourcePreviewInfos(root);
+            Dictionary<string, ResourcePreviewInfo> resources = ReadResourcePreviewInfos(package, root);
+            if (!ValidatePreviewResources(resources))
+                return string.Empty;
+
             EnsureFolder(root, "preview_materials");
             _previewMaterialFolder = root + "/preview_materials";
             GameObject rootObject = new GameObject(package.PackageId + "_CharacterPreview");
@@ -229,10 +233,16 @@ namespace MxFramework.Editor.CharacterImport
             if (resource == null || string.IsNullOrWhiteSpace(resource.AssetPath))
                 return null;
 
+            if (!resource.IsImportReady)
+            {
+                Debug.LogWarning("MxFramework Character Preview: model asset is not ready for prefab instantiation. Reimport the character package before building the prefab: " + resource.AssetPath + " status=" + resource.ImportStatus + FormatAssetGuid(resource.AssetGuid));
+                return null;
+            }
+
             GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(resource.AssetPath);
             if (asset == null)
             {
-                Debug.LogWarning("MxFramework Character Preview: model asset could not be loaded. Install/enable a GLB importer or reimport the asset: " + resource.AssetPath);
+                Debug.LogWarning("MxFramework Character Preview: model asset could not be loaded. Install/enable a GLB importer or reimport the asset: " + resource.AssetPath + FormatAssetGuid(resource.AssetGuid));
                 return null;
             }
 
@@ -298,7 +308,14 @@ namespace MxFramework.Editor.CharacterImport
             return null;
         }
 
-        private static Dictionary<string, ResourcePreviewInfo> ReadResourcePreviewInfos(string importedPackageRoot)
+        private static Dictionary<string, ResourcePreviewInfo> ReadResourcePreviewInfos(CharacterImportedPackage package, string importedPackageRoot)
+        {
+            Dictionary<string, ResourcePreviewInfo> result = ReadResourceMappingPreviewInfos(importedPackageRoot);
+            AddImportedCatalogPreviewInfos(package?.UnityResourceCatalog, result);
+            return result;
+        }
+
+        private static Dictionary<string, ResourcePreviewInfo> ReadResourceMappingPreviewInfos(string importedPackageRoot)
         {
             var result = new Dictionary<string, ResourcePreviewInfo>(StringComparer.Ordinal);
             string mappingPath = importedPackageRoot + "/config/resource_catalog_mapping.json";
@@ -324,10 +341,109 @@ namespace MxFramework.Editor.CharacterImport
                     key,
                     ReadString(entry, "usage"),
                     ReadString(entry, "importTargetPath"),
+                    string.Empty,
+                    string.Empty,
+                    false,
                     ParsePose(entry["modelWrapperPose"] as JObject));
             }
 
             return result;
+        }
+
+        private static void AddImportedCatalogPreviewInfos(ResourceCatalog catalog, Dictionary<string, ResourcePreviewInfo> result)
+        {
+            if (catalog == null)
+                return;
+
+            for (int i = 0; i < catalog.Entries.Count; i++)
+            {
+                ResourceCatalogEntry entry = catalog.Entries[i];
+                if (!string.Equals(entry.TypeId, ResourceTypeIds.GameObject, StringComparison.Ordinal))
+                    continue;
+
+                string assetGuid = GetProviderData(entry, "assetGuid");
+                if (string.IsNullOrWhiteSpace(assetGuid))
+                    assetGuid = GetProviderData(entry, "unityAssetGuid");
+                if (string.IsNullOrWhiteSpace(assetGuid))
+                    assetGuid = GetProviderData(entry, "assetGUID");
+                if (string.IsNullOrWhiteSpace(assetGuid))
+                    assetGuid = GetProviderData(entry, "guid");
+
+                string assetPath = ResolveImportedGameObjectAssetPath(entry, assetGuid);
+                if (string.IsNullOrWhiteSpace(assetPath))
+                    continue;
+
+                string key = GetProviderData(entry, "packageResourceKey");
+                if (string.IsNullOrWhiteSpace(key))
+                    key = entry.Id;
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                CharacterRuntimePose wrapperPose = result.TryGetValue(key, out ResourcePreviewInfo fallback)
+                    ? fallback.WrapperPose
+                    : new CharacterRuntimePose(string.Empty, string.Empty, default, default, new CharacterRuntimeVector3(1f, 1f, 1f));
+                string usage = GetProviderData(entry, "usage");
+                if (string.IsNullOrWhiteSpace(usage))
+                    usage = InferUsage(entry);
+                if (string.IsNullOrWhiteSpace(usage) && fallback != null)
+                    usage = fallback.Usage;
+
+                result[key] = new ResourcePreviewInfo(key, usage, assetPath, assetGuid, GetProviderData(entry, "importStatus"), true, wrapperPose);
+            }
+        }
+
+        private static string ResolveImportedGameObjectAssetPath(ResourceCatalogEntry entry, string assetGuid)
+        {
+            if (!string.IsNullOrWhiteSpace(assetGuid))
+            {
+                string guidPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+                if (CanLoadGameObject(guidPath))
+                    return guidPath;
+            }
+
+            string assetPath = GetProviderData(entry, "assetPath");
+            if (CanLoadGameObject(assetPath))
+                return assetPath;
+
+            if (CanLoadGameObject(entry.Address))
+                return entry.Address;
+
+            return string.Empty;
+        }
+
+        private static bool CanLoadGameObject(string assetPath)
+        {
+            return !string.IsNullOrWhiteSpace(assetPath)
+                && AssetDatabase.LoadAssetAtPath<GameObject>(assetPath) != null;
+        }
+
+        private static string GetProviderData(ResourceCatalogEntry entry, string key)
+        {
+            return entry != null
+                && entry.ProviderData != null
+                && entry.ProviderData.TryGetValue(key, out string value)
+                ? value
+                : string.Empty;
+        }
+
+        private static string InferUsage(ResourceCatalogEntry entry)
+        {
+            if (entry == null)
+                return string.Empty;
+
+            for (int i = 0; i < entry.Labels.Count; i++)
+            {
+                string label = entry.Labels[i] ?? string.Empty;
+                const string usagePrefix = "character.usage.";
+                if (label.StartsWith(usagePrefix, StringComparison.OrdinalIgnoreCase))
+                    return label.Substring(usagePrefix.Length);
+                if (label.Equals("character.model", StringComparison.OrdinalIgnoreCase))
+                    return "characterModel";
+                if (label.Equals("weapon.model", StringComparison.OrdinalIgnoreCase))
+                    return "weaponModel";
+            }
+
+            return string.Empty;
         }
 
         private static ResourcePreviewInfo FindResource(Dictionary<string, ResourcePreviewInfo> resources, string usage, string resourceKey)
@@ -342,6 +458,24 @@ namespace MxFramework.Editor.CharacterImport
             }
 
             return null;
+        }
+
+        private static bool ValidatePreviewResources(Dictionary<string, ResourcePreviewInfo> resources)
+        {
+            bool isValid = true;
+            foreach (ResourcePreviewInfo resource in resources.Values)
+            {
+                if (resource.IsImportReady || string.IsNullOrWhiteSpace(resource.AssetPath))
+                    continue;
+                if (!string.Equals(resource.Usage, "characterModel", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(resource.Usage, "weaponModel", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                Debug.LogError("MxFramework Character Preview: imported model is not ready for prefab generation. Reimport the package and wait for Unity AssetDatabase import: " + resource.AssetPath + " status=" + resource.ImportStatus + FormatAssetGuid(resource.AssetGuid));
+                isValid = false;
+            }
+
+            return isValid;
         }
 
         private static CharacterRuntimePose ParsePose(JObject obj)
@@ -518,6 +652,11 @@ namespace MxFramework.Editor.CharacterImport
             return string.Join("; ", parts);
         }
 
+        private static string FormatAssetGuid(string assetGuid)
+        {
+            return string.IsNullOrWhiteSpace(assetGuid) ? string.Empty : " guid=" + assetGuid;
+        }
+
         private static string ReadString(JObject obj, string key)
         {
             return obj == null ? string.Empty : (obj[key]?.Value<string>() ?? string.Empty);
@@ -539,17 +678,23 @@ namespace MxFramework.Editor.CharacterImport
 
         private sealed class ResourcePreviewInfo
         {
-            public ResourcePreviewInfo(string key, string usage, string assetPath, CharacterRuntimePose wrapperPose)
+            public ResourcePreviewInfo(string key, string usage, string assetPath, string assetGuid, string importStatus, bool isImportReady, CharacterRuntimePose wrapperPose)
             {
                 Key = key ?? string.Empty;
                 Usage = usage ?? string.Empty;
                 AssetPath = assetPath ?? string.Empty;
+                AssetGuid = assetGuid ?? string.Empty;
+                ImportStatus = importStatus ?? string.Empty;
+                IsImportReady = isImportReady;
                 WrapperPose = wrapperPose;
             }
 
             public string Key { get; }
             public string Usage { get; }
             public string AssetPath { get; }
+            public string AssetGuid { get; }
+            public string ImportStatus { get; }
+            public bool IsImportReady { get; }
             public CharacterRuntimePose WrapperPose { get; }
         }
     }

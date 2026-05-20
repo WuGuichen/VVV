@@ -692,6 +692,11 @@ internal static class CharacterPackageTests
         string catalogJson = File.ReadAllText(catalogPath);
         Require(catalogJson.Contains("\"provider\": \"memory\""), "generated Unity ResourceCatalog should use v1 memory provider bridge.");
         Require(catalogJson.Contains("\"assetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb\""), "generated ResourceCatalog should preserve Unity assetPath mapping.");
+        Require(catalogJson.Contains("\"unityAssetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb\""), "generated ResourceCatalog should expose Unity asset path for editor resolution.");
+        Require(catalogJson.Contains("\"unityAssetGuid\": \"\""), "CLI-generated ResourceCatalog should leave Unity GUID empty until AssetDatabase enrichment.");
+        Require(catalogJson.Contains("\"unityMainObjectType\": \"\""), "CLI-generated ResourceCatalog should leave Unity main object type empty until AssetDatabase enrichment.");
+        Require(catalogJson.Contains("\"importerKind\": \"unity-gltf\""), "generated ResourceCatalog should record expected Unity importer kind.");
+        Require(catalogJson.Contains("\"importStatus\": \"PendingUnityImport\""), "CLI-generated ResourceCatalog should mark entries pending Unity AssetDatabase import.");
 
         int secondExit = CharacterPackageCommands.Dispatch(new[]
         {

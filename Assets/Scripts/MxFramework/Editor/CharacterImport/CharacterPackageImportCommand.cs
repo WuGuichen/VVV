@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -150,6 +151,7 @@ namespace MxFramework.Editor.CharacterImport
                 if (process.ExitCode == 0)
                 {
                     EditorPrefs.SetString(LastPackagePreferenceKey, packagePath);
+                    RefreshImportedAssets(packagePath, generatedRoot);
                     UnityEngine.Debug.Log("MxFramework Character Import: completed for " + packagePath);
                 }
                 else
@@ -211,6 +213,45 @@ namespace MxFramework.Editor.CharacterImport
 
             string parent = Path.GetDirectoryName(packagePath);
             return string.IsNullOrWhiteSpace(parent) ? packagePath : parent;
+        }
+
+        private static void RefreshImportedAssets(string packagePath, string generatedRoot)
+        {
+            string packageId = ReadPackageId(packagePath);
+            if (string.IsNullOrWhiteSpace(packageId))
+                return;
+
+            string importedRoot = NormalizeProjectPath(generatedRoot.TrimEnd('/', '\\') + "/" + packageId);
+            AssetDatabase.ImportAsset(importedRoot, ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
+            CharacterUnityResourceCatalogUpdater.RefreshCatalog(importedRoot);
+            AssetDatabase.Refresh();
+        }
+
+        private static string ReadPackageId(string packagePath)
+        {
+            string manifestPath = Path.Combine(packagePath, "manifest.json");
+            if (!File.Exists(manifestPath))
+                return string.Empty;
+
+            try
+            {
+                JObject manifest = JObject.Parse(File.ReadAllText(manifestPath));
+                return manifest["packageId"]?.Value<string>() ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning("MxFramework Character Import: failed to read package manifest: " + ex.Message);
+                return string.Empty;
+            }
+        }
+
+        private static string NormalizeProjectPath(string path)
+        {
+            string full = Path.GetFullPath(path ?? string.Empty).Replace('\\', '/');
+            string project = Path.GetFullPath(".").Replace('\\', '/').TrimEnd('/') + "/";
+            return full.StartsWith(project, StringComparison.OrdinalIgnoreCase)
+                ? full.Substring(project.Length)
+                : (path ?? string.Empty).Replace('\\', '/');
         }
 
         private static string GetCommandLineValue(string key)
