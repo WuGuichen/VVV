@@ -60,6 +60,7 @@
 | `AUTHORING_WORKFLOW.md` | 创作流程跨 Unity/Mod Editor/AI/CLI 协作。 |
 | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包创作管线：包格式、3D 装配、Compiler、Unity Importer、Runtime Spawn。 |
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包创作管线的工程落地方案。 |
+| `Tasks/CHARACTER_RESOURCE_LIBRARY_00_DESIGN.md` | CharacterStudio 资源库设计：统一准备、分类、预览、选择和 Unity / 外部资源状态。 |
 | `WGAME_BUFF_AUTHORING_WORKFLOW.md` | 结合 WGame 类型的 Buff 创作流水线。 |
 
 ---
