@@ -338,8 +338,8 @@ code {
 }
 
 .resource-list {
-  flex: 1 1 auto;
-  min-height: 280px;
+  flex: 1 1 320px;
+  min-height: 0;
   padding: 10px;
   overflow: auto;
   display: flex;
@@ -817,39 +817,11 @@ tr:last-child td {
   }
 }
 
-@media (min-width: 901px) {
-  body {
-    overflow: hidden;
-  }
-
-  .app-shell {
-    height: 100vh;
-    min-height: 0;
-  }
-
-  .workspace {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
-  .resource-browser,
-  .summary-panel,
-  .inspector-panel {
-    height: 100%;
-    max-height: none;
-    overflow: hidden;
-  }
-}
-
 @media (max-width: 900px) {
   .app-shell {
     height: auto;
     min-height: 100vh;
     padding: 10px;
-  }
-
-  body {
-    overflow: auto;
   }
 
   .topbar,
