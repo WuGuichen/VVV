@@ -14,6 +14,7 @@ namespace MxFramework.Editor.CharacterImport
     {
         private const string DefaultImportedPackageRoot = "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard";
         private const string PreviewScenePath = "Assets/Scenes/MxFramework/CharacterImportedPreview.unity";
+        private static string _previewMaterialFolder;
 
         [MenuItem("MxFramework/Character/Create Preview Prefab For Iron Vanguard", priority = 220)]
         public static void CreateDefaultPreviewPrefab()
@@ -92,6 +93,8 @@ namespace MxFramework.Editor.CharacterImport
             }
 
             Dictionary<string, ResourcePreviewInfo> resources = ReadResourcePreviewInfos(root);
+            EnsureFolder(root, "preview_materials");
+            _previewMaterialFolder = root + "/preview_materials";
             GameObject rootObject = new GameObject(package.PackageId + "_CharacterPreview");
             try
             {
@@ -403,13 +406,36 @@ namespace MxFramework.Editor.CharacterImport
             if (renderer == null)
                 return;
 
-            var material = new Material(FindPreviewShader());
-            material.name = "CharacterPreviewMaterial";
+            Material material = GetOrCreatePreviewMaterial(color);
             if (material.HasProperty("_BaseColor"))
                 material.SetColor("_BaseColor", color);
             if (material.HasProperty("_Color"))
                 material.SetColor("_Color", color);
+            EditorUtility.SetDirty(material);
             renderer.sharedMaterial = material;
+        }
+
+        private static Material GetOrCreatePreviewMaterial(Color color)
+        {
+            string materialName = "CharacterPreview_" + ColorUtility.ToHtmlStringRGBA(color);
+            string materialPath = string.IsNullOrWhiteSpace(_previewMaterialFolder)
+                ? string.Empty
+                : _previewMaterialFolder + "/" + materialName + ".mat";
+            Material material = !string.IsNullOrWhiteSpace(materialPath)
+                ? AssetDatabase.LoadAssetAtPath<Material>(materialPath)
+                : null;
+            if (material != null)
+                return material;
+
+            material = new Material(FindPreviewShader())
+            {
+                name = materialName
+            };
+
+            if (!string.IsNullOrWhiteSpace(materialPath))
+                AssetDatabase.CreateAsset(material, materialPath);
+
+            return material;
         }
 
         private static Shader FindPreviewShader()
