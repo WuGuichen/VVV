@@ -16,27 +16,29 @@
 </head>
 <body>
   <div class="app">
-    <header class="topbar">
-      <div>
-        <h1>CharacterStudio</h1>
-        <p id="subtitle">角色资源包外部装配工作台</p>
-      </div>
-      <div class="toolbar">
-        <select id="packageSelect" title="角色资源包"></select>
-        <select id="modelImportRole" title="模型用途">
-          <option value="body">角色主体模型</option>
-          <option value="mainHand">主手槽武器模型</option>
-          <option value="offHand">副手槽武器模型</option>
-          <option value="preview">仅导入资源</option>
-        </select>
-        <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
-        <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入源资源</button>
-        <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
-        <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
-        <button id="compileButton" type="button" title="运行 Character compile，预检 Prefab 重建输入">Prefab 重建预检</button>
-        <button id="importButton" type="button" title="把当前资源包资源导入 Unity 工程">Unity 导入</button>
-      </div>
-    </header>
+    <div class="top-panel-container" id="topPanelContainer">
+      <header class="topbar">
+        <div>
+          <h1>CharacterStudio</h1>
+          <p id="subtitle">角色资源包外部装配工作台</p>
+        </div>
+        <div class="toolbar">
+          <select id="packageSelect" title="角色资源包"></select>
+          <select id="modelImportRole" title="模型用途">
+            <option value="body">角色主体模型</option>
+            <option value="mainHand">主手槽武器模型</option>
+            <option value="offHand">副手槽武器模型</option>
+            <option value="preview">仅导入资源</option>
+          </select>
+          <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
+          <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入源资源</button>
+          <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
+          <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
+          <button id="compileButton" type="button" title="运行 Character compile，预检 Prefab 重建输入">Prefab 重建预检</button>
+          <button id="importButton" type="button" title="把当前资源包资源导入 Unity 工程">Unity 导入</button>
+        </div>
+      </header>
+    </div>
 
     <main id="workspace" class="workspace">
       <aside class="tree-panel">
@@ -133,6 +135,44 @@
     </section>
   </div>
 
+  <button id="topToggleBtn" class="panel-toggle-btn top-toggle" type="button" title="折叠/展开顶栏">
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+  </button>
+
   <script type="module" src="./app.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const topContainer = document.getElementById("topPanelContainer");
+      const topToggle = document.getElementById("topToggleBtn");
+
+      function updateTogglePositions() {
+        if (!topContainer.classList.contains("collapsed")) {
+          const rect = topContainer.getBoundingClientRect();
+          topToggle.style.top = `${rect.bottom - 1}px`;
+        } else {
+          topToggle.style.top = '0px';
+        }
+      }
+
+      topToggle.addEventListener("click", () => {
+        topContainer.classList.toggle("collapsed");
+        topToggle.classList.toggle("floating");
+        const svg = topToggle.querySelector("svg");
+        if (topContainer.classList.contains("collapsed")) {
+          svg.style.transform = "rotate(180deg)";
+        } else {
+          svg.style.transform = "rotate(0deg)";
+        }
+        setTimeout(updateTogglePositions, 350);
+      });
+
+      window.addEventListener("resize", updateTogglePositions);
+
+      // Safety settlements
+      setTimeout(updateTogglePositions, 100);
+      setTimeout(updateTogglePositions, 500);
+      setTimeout(updateTogglePositions, 2000);
+    });
+  </script>
 </body>
 </html>

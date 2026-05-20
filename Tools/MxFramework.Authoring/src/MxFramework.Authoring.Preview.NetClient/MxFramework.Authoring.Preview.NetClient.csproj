@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>MxFramework.Authoring.Preview</RootNamespace>
+    <AssemblyName>MxFramework.Authoring.Preview.NetClient</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MxFramework.Authoring.Preview\MxFramework.Authoring.Preview.csproj" />
+  </ItemGroup>
+</Project>

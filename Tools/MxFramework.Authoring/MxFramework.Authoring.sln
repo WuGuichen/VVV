@@ -1,0 +1,42 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MxFramework.Authoring.Core", "src\MxFramework.Authoring.Core\MxFramework.Authoring.Core.csproj", "{9D827DB4-2C15-4FD7-9A9B-90E468B47930}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MxFramework.Authoring.Cli", "src\MxFramework.Authoring.Cli\MxFramework.Authoring.Cli.csproj", "{9DDBF1F6-B24F-49D0-9B0B-D2E7B015D54E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MxFramework.Authoring.Tests", "tests\MxFramework.Authoring.Tests\MxFramework.Authoring.Tests.csproj", "{E125CA28-7A9E-432F-B846-A3A37B4D61E3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MxFramework.Authoring.Preview", "src\MxFramework.Authoring.Preview\MxFramework.Authoring.Preview.csproj", "{2A7E5B12-3D11-4C2F-9E6F-7C5A4B8C9D01}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MxFramework.Authoring.Preview.NetClient", "src\MxFramework.Authoring.Preview.NetClient\MxFramework.Authoring.Preview.NetClient.csproj", "{B43F9C24-5E27-4A8B-90C1-1D2F3E4A5B62}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9D827DB4-2C15-4FD7-9A9B-90E468B47930}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D827DB4-2C15-4FD7-9A9B-90E468B47930}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D827DB4-2C15-4FD7-9A9B-90E468B47930}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D827DB4-2C15-4FD7-9A9B-90E468B47930}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9DDBF1F6-B24F-49D0-9B0B-D2E7B015D54E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DDBF1F6-B24F-49D0-9B0B-D2E7B015D54E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DDBF1F6-B24F-49D0-9B0B-D2E7B015D54E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DDBF1F6-B24F-49D0-9B0B-D2E7B015D54E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E125CA28-7A9E-432F-B846-A3A37B4D61E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E125CA28-7A9E-432F-B846-A3A37B4D61E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E125CA28-7A9E-432F-B846-A3A37B4D61E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E125CA28-7A9E-432F-B846-A3A37B4D61E3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A7E5B12-3D11-4C2F-9E6F-7C5A4B8C9D01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A7E5B12-3D11-4C2F-9E6F-7C5A4B8C9D01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A7E5B12-3D11-4C2F-9E6F-7C5A4B8C9D01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A7E5B12-3D11-4C2F-9E6F-7C5A4B8C9D01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B43F9C24-5E27-4A8B-90C1-1D2F3E4A5B62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B43F9C24-5E27-4A8B-90C1-1D2F3E4A5B62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B43F9C24-5E27-4A8B-90C1-1D2F3E4A5B62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B43F9C24-5E27-4A8B-90C1-1D2F3E4A5B62}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

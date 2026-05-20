@@ -9,28 +9,30 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">RL</div>
-        <div>
-          <h1>MxFramework 资源库编辑器</h1>
-          <p id="serverStatus">正在连接 Authoring 服务...</p>
+    <div class="top-panel-container" id="topPanelContainer">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">RL</div>
+          <div>
+            <h1>MxFramework 资源库编辑器</h1>
+            <p id="serverStatus">正在连接 Authoring 服务...</p>
+          </div>
         </div>
-      </div>
 
-      <div class="toolbar" aria-label="资源库编辑器工具栏">
-        <label class="package-field" for="packageSelect">
-          <span>当前角色包</span>
-          <select id="packageSelect"></select>
-        </label>
-        <button id="refreshButton" type="button">刷新</button>
-        <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">打开 CharacterStudio</a>
-        <button id="validateButton" type="button">运行资源验证</button>
-        <button id="viewPlanButton" type="button">查看当前 resource plan</button>
-      </div>
-    </header>
+        <div class="toolbar" aria-label="资源库编辑器工具栏">
+          <label class="package-field" for="packageSelect">
+            <span>当前角色包</span>
+            <select id="packageSelect"></select>
+          </label>
+          <button id="refreshButton" type="button">刷新</button>
+          <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">打开 CharacterStudio</a>
+          <button id="validateButton" type="button">运行资源验证</button>
+          <button id="viewPlanButton" type="button">查看当前 resource plan</button>
+        </div>
+      </header>
 
-    <section id="statusStrip" class="status-strip" aria-label="资源库状态"></section>
+      <section id="statusStrip" class="status-strip" aria-label="资源库状态"></section>
+    </div>
 
     <main class="workspace">
       <aside class="resource-browser" aria-label="资源浏览器">
@@ -47,39 +49,48 @@
             <input id="searchInput" type="search" placeholder="搜索名称、ID、路径或标签">
           </label>
 
-          <label class="filter-field" for="kindFilter">
-            <span>kind</span>
-            <select id="kindFilter"></select>
-          </label>
-          <label class="filter-field" for="usageFilter">
-            <span>usage</span>
-            <select id="usageFilter"></select>
-          </label>
-          <label class="filter-field" for="sourceFilter">
-            <span>source kind</span>
-            <select id="sourceFilter"></select>
-          </label>
-          <label class="filter-field" for="importFilter">
-            <span>import status</span>
-            <select id="importFilter"></select>
-          </label>
-          <label class="filter-field" for="runtimeFilter">
-            <span>runtime availability</span>
-            <select id="runtimeFilter"></select>
-          </label>
-          <label class="filter-field" for="tagFilter">
-            <span>tag</span>
-            <select id="tagFilter"></select>
-          </label>
+          <details class="advanced-filters">
+            <summary class="advanced-filters-summary">
+              <span>高级筛选过滤</span>
+            </summary>
+            <div class="advanced-filters-content">
+              <div class="filters-grid">
+                <label class="filter-field" for="kindFilter">
+                  <span>kind</span>
+                  <select id="kindFilter"></select>
+                </label>
+                <label class="filter-field" for="usageFilter">
+                  <span>usage</span>
+                  <select id="usageFilter"></select>
+                </label>
+                <label class="filter-field" for="sourceFilter">
+                  <span>source kind</span>
+                  <select id="sourceFilter"></select>
+                </label>
+                <label class="filter-field" for="importFilter">
+                  <span>import status</span>
+                  <select id="importFilter"></select>
+                </label>
+                <label class="filter-field" for="runtimeFilter">
+                  <span>runtime availability</span>
+                  <select id="runtimeFilter"></select>
+                </label>
+                <label class="filter-field" for="tagFilter">
+                  <span>tag</span>
+                  <select id="tagFilter"></select>
+                </label>
+              </div>
 
-          <div class="checkbox-grid">
-            <label><input id="onlyReferenced" type="checkbox"> 只看已引用</label>
-            <label><input id="onlyOrphan" type="checkbox"> 只看 orphan</label>
-            <label><input id="onlyRuntimeLoadable" type="checkbox"> 只看运行时可加载</label>
-            <label><input id="onlyDiagnostics" type="checkbox"> 只看有诊断</label>
-          </div>
+              <div class="checkbox-grid">
+                <label><input id="onlyReferenced" type="checkbox"> 只看已引用</label>
+                <label><input id="onlyOrphan" type="checkbox"> 只看 orphan</label>
+                <label><input id="onlyRuntimeLoadable" type="checkbox"> 只看运行时可加载</label>
+                <label><input id="onlyDiagnostics" type="checkbox"> 只看有诊断</label>
+              </div>
 
-          <button id="clearFiltersButton" class="secondary" type="button">清除筛选</button>
+              <button id="clearFiltersButton" class="secondary" type="button">清除筛选</button>
+            </div>
+          </details>
         </div>
 
         <div id="resourceList" class="resource-list" role="listbox" aria-label="资源列表"></div>
@@ -127,32 +138,103 @@
       </aside>
     </main>
 
-    <footer class="action-bar" aria-label="资源管理操作">
-      <div class="disabled-actions" aria-label="写操作入口">
-        <span class="action-label">写操作入口</span>
-        <input id="resourceImportFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
-        <input id="resourceImportFolderInput" type="file" hidden multiple webkitdirectory directory accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
-        <input id="resourceReplaceFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
-        <label class="import-preset-label" for="importPresetSelect">
-          <span>导入类型</span>
-          <select id="importPresetSelect" aria-label="导入类型"></select>
-        </label>
-        <button id="importResourceButton" type="button" title="通过 Authoring API 导入外部资源">导入资源</button>
-        <button id="importFolderButton" type="button" title="导入一个文件夹内的匹配资源">导入文件夹</button>
-        <button id="reimportResourceButton" type="button" title="重新计算当前资源的导入状态">重导</button>
-        <button id="replaceSourceButton" type="button" title="替换当前资源的源文件并保留资源身份">替换源</button>
-        <button id="deleteResourceButton" type="button" disabled title="等待 reference graph delete guard">删除资源</button>
-        <button id="editTagsButton" type="button" disabled title="等待 tag update API gate">编辑标签</button>
-        <span id="writeActionStatus" class="disabled-reason">已启用 import / reimport / replace-source；delete guard / tag update 仍锁定。</span>
-      </div>
-      <div class="copy-actions" aria-label="复制操作">
-        <button id="copyDetailJsonButton" type="button">复制详情 JSON</button>
-        <button id="copyDiagnosticsJsonButton" type="button">复制诊断 JSON</button>
-        <span id="copyStatus" class="copy-status" aria-live="polite"></span>
-      </div>
-    </footer>
+    <div class="bottom-panel-container" id="bottomPanelContainer">
+      <footer class="action-bar" aria-label="资源管理操作">
+        <div class="disabled-actions" aria-label="写操作入口">
+          <span class="action-label">写操作入口</span>
+          <input id="resourceImportFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+          <input id="resourceImportFolderInput" type="file" hidden multiple webkitdirectory directory accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+          <input id="resourceReplaceFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+          <label class="import-preset-label" for="importPresetSelect">
+            <span>导入类型</span>
+            <select id="importPresetSelect" aria-label="导入类型"></select>
+          </label>
+          <button id="importResourceButton" type="button" title="通过 Authoring API 导入外部资源">导入资源</button>
+          <button id="importFolderButton" type="button" title="导入一个文件夹内的匹配资源">导入文件夹</button>
+          <button id="reimportResourceButton" type="button" title="重新计算当前资源的导入状态">重导</button>
+          <button id="replaceSourceButton" type="button" title="替换当前资源的源文件并保留资源身份">替换源</button>
+          <button id="deleteResourceButton" type="button" disabled title="等待 reference graph delete guard">删除资源</button>
+          <button id="editTagsButton" type="button" disabled title="等待 tag update API gate">编辑标签</button>
+          <span id="writeActionStatus" class="disabled-reason">已启用 import / reimport / replace-source；delete guard / tag update 仍锁定。</span>
+        </div>
+        <div class="copy-actions" aria-label="复制操作">
+          <button id="copyDetailJsonButton" type="button">复制详情 JSON</button>
+          <button id="copyDiagnosticsJsonButton" type="button">复制诊断 JSON</button>
+          <span id="copyStatus" class="copy-status" aria-live="polite"></span>
+        </div>
+      </footer>
+    </div>
   </div>
 
+  <button id="topToggleBtn" class="panel-toggle-btn top-toggle" type="button" title="折叠/展开顶栏">
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+  </button>
+
+  <button id="bottomToggleBtn" class="panel-toggle-btn bottom-toggle" type="button" title="折叠/展开底栏">
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+  </button>
+
   <script src="./app.js" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const topContainer = document.getElementById("topPanelContainer");
+      const bottomContainer = document.getElementById("bottomPanelContainer");
+      const topToggle = document.getElementById("topToggleBtn");
+      const bottomToggle = document.getElementById("bottomToggleBtn");
+      const appShell = document.querySelector(".app-shell");
+
+      function updateTogglePositions() {
+        if (!topContainer.classList.contains("collapsed")) {
+          const rect = topContainer.getBoundingClientRect();
+          topToggle.style.top = `${rect.bottom - 1}px`;
+        } else {
+          topToggle.style.top = '0px';
+        }
+
+        if (!bottomContainer.classList.contains("collapsed")) {
+          const rect = bottomContainer.getBoundingClientRect();
+          bottomToggle.style.bottom = `${window.innerHeight - rect.top - 1}px`;
+        } else {
+          bottomToggle.style.bottom = '0px';
+        }
+      }
+
+      topToggle.addEventListener("click", () => {
+        topContainer.classList.toggle("collapsed");
+        topToggle.classList.toggle("floating");
+        const svg = topToggle.querySelector("svg");
+        if (topContainer.classList.contains("collapsed")) {
+          svg.style.transform = "rotate(180deg)";
+        } else {
+          svg.style.transform = "rotate(0deg)";
+        }
+        setTimeout(updateTogglePositions, 350);
+      });
+
+      bottomToggle.addEventListener("click", () => {
+        bottomContainer.classList.toggle("collapsed");
+        bottomToggle.classList.toggle("floating");
+        const svg = bottomToggle.querySelector("svg");
+        if (bottomContainer.classList.contains("collapsed")) {
+          svg.style.transform = "rotate(180deg)";
+        } else {
+          svg.style.transform = "rotate(0deg)";
+        }
+        setTimeout(updateTogglePositions, 350);
+      });
+
+      // Adaptive window resize positioning
+      window.addEventListener("resize", updateTogglePositions);
+
+      // Monitor child changes inside topContainer (e.g. statusStrip content populated asynchronously by app.js)
+      const observer = new MutationObserver(updateTogglePositions);
+      observer.observe(topContainer, { childList: true, subtree: true });
+
+      // Periodic safety check for height settlements
+      setTimeout(updateTogglePositions, 100);
+      setTimeout(updateTogglePositions, 500);
+      setTimeout(updateTogglePositions, 2000);
+    });
+  </script>
 </body>
 </html>
