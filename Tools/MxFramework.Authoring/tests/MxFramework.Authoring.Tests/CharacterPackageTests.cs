@@ -14,6 +14,9 @@ internal static class CharacterPackageTests
     {
         ValidationIssue_JsonRoundTrip_PreservesGateAndSourceFields();
         ResourceCatalogEntry_JsonRoundTrip_PreservesResourceFields();
+        ResourceLibraryItem_JsonRoundTrip_PreservesRuntimeContract();
+        ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
+        ResourceReferenceGraph_ValidatesBrokenReferencesAndOrphans();
         ResourceKeyGenerator_GeneratesStablePackageLocalKey();
         CoordinateConvention_JsonRoundTrip_PreservesUnityTargetConvention();
         Schemas_ExposeC0ContractFields();
@@ -29,6 +32,8 @@ internal static class CharacterPackageTests
         UnsupportedConvexShape_ProducesExportBlockedIssue();
         SlimeSample_UsesSameDtoForPrimitiveBody();
         IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan();
+        IronVanguardSample_CompilesResourcePlanArtifacts();
+        CharacterResourcesPlanCommand_WritesRuntimePlanArtifacts();
         Compiler_ApplicationResourceKeysAreCharacterReferences();
         Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash();
         Compiler_SkeletonBindingsFlowToGeometryBindingAndHashes();
@@ -155,6 +160,167 @@ internal static class CharacterPackageTests
         Require(entry.ImportHints.CollisionPolicy == "authoringGeometryOnly", "collision policy should roundtrip.");
         Require(entry.Preview.ThumbnailResourceKey == "char.test.preview.thumbnail", "preview metadata should roundtrip.");
         Require(entry.Provenance.SourceTool == "unit-test", "provenance should roundtrip.");
+    }
+
+    private static void ResourceLibraryItem_JsonRoundTrip_PreservesRuntimeContract()
+    {
+        var library = new CharacterResourceLibrary
+        {
+            PackageId = "test"
+        };
+        library.Items.Add(new ResourceLibraryItem
+        {
+            LibraryItemId = "lib.test.audio.hit",
+            StableId = "charpkg.test.resource.audio.hit",
+            DisplayName = "Hit Sfx",
+            Kind = CharacterPackageResourceTypeIds.Audio,
+            Usage = CharacterPackageResourceUsageIds.AudioCue,
+            SourceKind = ResourceLibrarySourceKind.FmodLibrary,
+            RuntimeBindingKind = RuntimeBindingKind.AudioCue,
+            ImportStatus = ResourceImportStatus.Clean,
+            RuntimeAvailability = ResourceRuntimeAvailability.AudioCueOnly,
+            FmodEventPath = "event:/Character/Test/Hit",
+            AudioCueId = "cue.character.test.hit",
+            AudioEventDefinitionId = "event.character.test.hit",
+            Tags = new List<string> { "combat", "hit" },
+            Diagnostics = new List<ResourceLibraryDiagnostic>
+            {
+                new ResourceLibraryDiagnostic
+                {
+                    Severity = CharacterAuthoringValidationSeverity.Warning,
+                    Code = ResourceLibraryDiagnosticCodes.FmodBankMissing,
+                    LibraryItemStableId = "charpkg.test.resource.audio.hit",
+                    SourceConfigKind = "audio",
+                    SourceField = "hitSfx",
+                    Message = "bank missing",
+                    SuggestedFix = "sync fmod banks"
+                }
+            }
+        });
+
+        string json = JsonSerializer.Serialize(library, JsonOptions);
+        CharacterResourceLibrary roundTrip = JsonSerializer.Deserialize<CharacterResourceLibrary>(json, JsonOptions);
+
+        Require(roundTrip != null && roundTrip.Items.Count == 1, "resource library should roundtrip.");
+        ResourceLibraryItem item = roundTrip.Items[0];
+        Require(item.StableId == "charpkg.test.resource.audio.hit", "library stable id should roundtrip.");
+        Require(item.SourceKind == ResourceLibrarySourceKind.FmodLibrary, "source kind should roundtrip.");
+        Require(item.RuntimeBindingKind == RuntimeBindingKind.AudioCue, "runtime binding kind should roundtrip.");
+        Require(item.RuntimeAvailability == ResourceRuntimeAvailability.AudioCueOnly, "runtime availability should roundtrip.");
+        Require(item.ImportStatus == ResourceImportStatus.Clean, "import status should roundtrip.");
+        Require(item.AudioCueId == "cue.character.test.hit", "audio cue id should roundtrip.");
+        Require(item.Diagnostics.Count == 1 && item.Diagnostics[0].Code == ResourceLibraryDiagnosticCodes.FmodBankMissing, "resource diagnostics should roundtrip.");
+    }
+
+    private static void ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference()
+    {
+        var library = new CharacterResourceLibrary();
+        library.Items.Add(new ResourceLibraryItem
+        {
+            LibraryItemId = "char.test.model.body",
+            StableId = "charpkg.test.resource.model.body",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceKind = ResourceLibrarySourceKind.UnityAsset,
+            RuntimeBindingKind = RuntimeBindingKind.ResourceManagerAsset,
+            RuntimeAvailability = ResourceRuntimeAvailability.RuntimeReady,
+            ImportStatus = ResourceImportStatus.Clean,
+            ResourceKey = "char.test.model.body.prefab",
+            ProviderId = "memory",
+            Hash = "sha256:abc",
+            Compatibility = new ResourceLibraryCompatibility
+            {
+                SkeletonStableId = "skeleton.test",
+                SlotId = "body"
+            }
+        });
+
+        var spec = new ResourceFieldSpec
+        {
+            FieldKey = "Character.Model",
+            DisplayName = "Character Model",
+            AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Model },
+            AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.CharacterModel },
+            AcceptedBindingKinds = new List<RuntimeBindingKind> { RuntimeBindingKind.ResourceManagerAsset },
+            RequireRuntimeLoadable = true,
+            RequireUnityImported = true,
+            PreloadPolicy = ResourceLibraryPreloadPolicies.SpawnCritical,
+            OutputKind = ResourceSelectionOutputKind.ResourceKey,
+            CompatibilityFilter = new ResourceCompatibilityFilter
+            {
+                SkeletonStableId = "skeleton.test",
+                SlotId = "body"
+            }
+        };
+
+        var selection = new ResourceSelectionRef
+        {
+            LibraryItemStableId = "charpkg.test.resource.model.body",
+            BindingKind = RuntimeBindingKind.ResourceManagerAsset
+        };
+
+        ResourceSelectionResolutionResult result = CharacterResourceLibraryBuilder.ResolveSelection(library, spec, selection);
+
+        Require(result.Accepted, "matching model selection should be accepted.");
+        Require(result.Diagnostics.Count == 0, "matching model selection should not produce diagnostics.");
+        Require(selection.ResourceKey == "char.test.model.body.prefab", "accepted selection should receive compiled ResourceKey.");
+        Require(selection.ProviderId == "memory", "accepted selection should receive provider id.");
+        Require(selection.ExpectedKind == CharacterPackageResourceTypeIds.Model, "accepted selection should refresh expected kind.");
+        Require(selection.ExpectedUsage == CharacterPackageResourceUsageIds.CharacterModel, "accepted selection should refresh expected usage.");
+        Require(selection.Hash == "sha256:abc", "accepted selection should receive hash.");
+    }
+
+    private static void ResourceReferenceGraph_ValidatesBrokenReferencesAndOrphans()
+    {
+        var library = new CharacterResourceLibrary();
+        library.Items.Add(new ResourceLibraryItem
+        {
+            LibraryItemId = "char.test.model.body",
+            StableId = "charpkg.test.resource.model.body",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            RuntimeBindingKind = RuntimeBindingKind.ResourceManagerAsset,
+            ResourceKey = "char.test.model.body"
+        });
+        library.Items.Add(new ResourceLibraryItem
+        {
+            LibraryItemId = "char.test.model.unused",
+            StableId = "charpkg.test.resource.model.unused",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.WeaponModel,
+            RuntimeBindingKind = RuntimeBindingKind.ResourceManagerAsset,
+            ResourceKey = "char.test.model.unused"
+        });
+        library.ReferenceGraph = CharacterResourceLibraryBuilder.BuildReferenceGraph(new[]
+        {
+            new ResourceReferenceEdge
+            {
+                SourceConfigKind = "character",
+                SourceStableId = "char.test",
+                SourceField = "model",
+                TargetLibraryItemStableId = "charpkg.test.resource.model.body",
+                TargetResourceKey = "char.test.model.body",
+                BindingKind = RuntimeBindingKind.ResourceManagerAsset,
+                IsRequiredAtRuntime = true,
+                PreloadPolicy = ResourceLibraryPreloadPolicies.SpawnCritical
+            },
+            new ResourceReferenceEdge
+            {
+                SourceConfigKind = "weapon",
+                SourceStableId = "weapon.test",
+                SourceField = "icon",
+                TargetLibraryItemStableId = "charpkg.test.resource.texture.missing",
+                BindingKind = RuntimeBindingKind.ResourceManagerAsset,
+                IsRequiredAtRuntime = false,
+                PreloadPolicy = ResourceLibraryPreloadPolicies.UiDeferred
+            }
+        });
+
+        List<ResourceLibraryDiagnostic> diagnostics = CharacterResourceLibraryBuilder.ValidateLibrary(library);
+
+        Require(library.ReferenceGraph.CountReferencesToStableId("charpkg.test.resource.model.body") == 1, "reference graph should count incoming references.");
+        Require(diagnostics.Exists(d => d.Code == ResourceLibraryDiagnosticCodes.ReferenceBroken && d.SourceField == "icon"), "broken graph edge should produce stable diagnostic.");
+        Require(diagnostics.Exists(d => d.Code == ResourceLibraryDiagnosticCodes.OrphanCandidate && d.LibraryItemStableId == "charpkg.test.resource.model.unused"), "unreferenced library item should be marked orphan candidate.");
     }
 
     private static void ResourceKeyGenerator_GeneratesStablePackageLocalKey()
@@ -453,6 +619,88 @@ internal static class CharacterPackageTests
         Require(result.ResolverVerificationPlan.ExpectedActiveEquipmentStateStableId == "equip_state.iron_vanguard.sword_shield", "default active equipment state should match sword shield.");
         Require(result.ResolverVerificationPlan.RequiredTables.Count >= 12, "resolver verification plan should enumerate all Character Application tables.");
         Require(result.ResolverVerificationPlan.KnownAbilityIds.Contains(900001), "resolver verification plan should include generated base ability ids.");
+    }
+
+    private static void IronVanguardSample_CompilesResourcePlanArtifacts()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        CharacterResourcePlanCompileResult result = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            ValidateResourceFiles = true,
+            ValidateResourceHashes = true
+        });
+        CharacterResourcePlanCompileResult second = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = LoadSample("character-iron-vanguard"),
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            ValidateResourceFiles = true,
+            ValidateResourceHashes = true
+        });
+
+        Require(result.RuntimeResourceCatalog.Format == CharacterResourcePlanFormats.RuntimeResourceCatalog, "runtime resource catalog should declare character runtime catalog format.");
+        Require(result.RuntimeResourceCatalog.SchemaVersion == 1, "runtime resource catalog should use ResourceCatalog schemaVersion 1.");
+        Require(result.RuntimeResourceCatalog.Entries.Count == 6, "Iron Vanguard runtime catalog should include the referenced ResourceManager-loadable entries.");
+        Require(result.RuntimeResourceCatalog.Entries.Exists(entry =>
+            entry.Id == "char.iron_vanguard.model.body" &&
+            entry.Type == "GameObject" &&
+            entry.Provider == "memory" &&
+            entry.ProviderData["packageResourceKey"] == "char.iron_vanguard.model.body"), "body model should map to ResourceCatalogEntry-compatible GameObject entry.");
+        Require(result.RuntimeResourceCatalog.Entries.Exists(entry =>
+            entry.Id == "char.iron_vanguard.anim.locomotion" &&
+            entry.Type == "AnimationClip"), "locomotion animation should map to AnimationClip runtime type.");
+        Require(result.CharacterResourcePlan.SpawnCritical.Resources.Count == 1, "resource plan should include SpawnCritical body resource.");
+        Require(result.CharacterResourcePlan.EquipmentInitial.Resources.Count == 2, "resource plan should include initial weapon equipment resources.");
+        Require(result.CharacterResourcePlan.AnimationWarmup.Resources.Count == 2, "resource plan should include animation warmup resources.");
+        Require(result.CharacterResourcePlan.UiDeferred.Resources.Count == 1, "resource plan should include deferred UI thumbnail resource.");
+        Require(result.CharacterResourcePlan.Audio.RequiredCues.Count == 0, "sample has no audio cues yet but should still expose Audio group.");
+        Require(result.AudioCueManifest.Format == CharacterResourcePlanFormats.AudioCueManifest, "audio cue manifest should be emitted even when empty.");
+        Require(result.ResourceValidationReport.Status == "Ready", "clean Iron Vanguard resource plan should be ready.");
+        Require(!result.ResourceValidationReport.HasErrors, "clean Iron Vanguard resource plan should not have errors.");
+        Require(result.ResourceValidationReport.GroupCounts.SpawnCritical == 1, "validation report should summarize SpawnCritical count.");
+        Require(result.CharacterResourcePlan.PlanHash == second.CharacterResourcePlan.PlanHash, "resource plan hash should be deterministic.");
+    }
+
+    private static void CharacterResourcesPlanCommand_WritesRuntimePlanArtifacts()
+    {
+        string root = Path.Combine(FindRepoRoot(), "Temp", "MxFrameworkAuthoringTests", "issue280-resource-plan");
+        ResetDirectory(root);
+
+        int exit = CharacterPackageCommands.Dispatch(new[]
+        {
+            "character",
+            "resources",
+            "plan",
+            "--package",
+            FindSamplePath("character-iron-vanguard"),
+            "--out",
+            root,
+            "--check-files",
+            "--check-hashes"
+        }, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+
+        string runtimeCatalogPath = Path.Combine(root, "runtime_resource_catalog.json");
+        string resourcePlanPath = Path.Combine(root, "character_resource_plan.json");
+        string audioManifestPath = Path.Combine(root, "audio_cue_manifest.json");
+        string validationReportPath = Path.Combine(root, "resource_validation_report.json");
+
+        Require(exit == MxFramework.Authoring.Cli.Program.ExitReady, "resource plan command should return ready for Iron Vanguard.");
+        Require(File.Exists(runtimeCatalogPath), "resource plan command should write runtime_resource_catalog.json.");
+        Require(File.Exists(resourcePlanPath), "resource plan command should write character_resource_plan.json.");
+        Require(File.Exists(audioManifestPath), "resource plan command should write audio_cue_manifest.json.");
+        Require(File.Exists(validationReportPath), "resource plan command should write resource_validation_report.json.");
+
+        string planJson = File.ReadAllText(resourcePlanPath);
+        Require(planJson.Contains("\"spawnCritical\""), "character resource plan should contain SpawnCritical group.");
+        Require(planJson.Contains("\"equipmentInitial\""), "character resource plan should contain EquipmentInitial group.");
+        Require(planJson.Contains("\"animationWarmup\""), "character resource plan should contain AnimationWarmup group.");
+        Require(planJson.Contains("\"uiDeferred\""), "character resource plan should contain UiDeferred group.");
+        Require(planJson.Contains("\"audio\""), "character resource plan should contain Audio group.");
+
+        ResourceValidationReportDocument report = JsonSerializer.Deserialize<ResourceValidationReportDocument>(File.ReadAllText(validationReportPath), JsonOptions);
+        Require(report != null && report.Status == "Ready", "resource validation report should deserialize as Ready.");
+        Require(report.GroupCounts.EquipmentInitial == 2 && report.GroupCounts.AnimationWarmup == 2, "resource validation report should include expected group counts.");
     }
 
     private static void Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash()
