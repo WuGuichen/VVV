@@ -7,7 +7,10 @@ const API = {
     const suffix = checkHashes ? "&checkHashes=true" : "";
     return `/api/character/resource-plan?package=${encodeURIComponent(packageRelative)}${suffix}`;
   },
-  inspect: (packageRelative, id) => `/api/character/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`
+  inspect: (packageRelative, id) => `/api/character/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`,
+  importResource: "/api/character/resources/import",
+  reimportResource: "/api/character/resources/reimport",
+  replaceSource: "/api/character/resources/replace-source"
 };
 
 const PLAN_GROUPS = [
@@ -44,6 +47,7 @@ const state = {
   filters: { ...FILTER_DEFAULTS },
   inspectCache: new Map(),
   inspectState: { id: "", status: "idle", payload: null, error: "" },
+  writeState: { status: "idle", action: "", error: "" },
   errors: [],
   lastActionMessage: ""
 };
@@ -70,7 +74,10 @@ function cacheElements() {
     "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "resourceList",
     "previewTitle", "previewSubtitle", "previewBody", "resourcePlanPanel",
     "planSummary", "planGrid", "inspectorStatus", "inspectorContent",
-    "copyDetailJsonButton", "copyDiagnosticsJsonButton", "copyStatus"
+    "resourceImportFileInput", "resourceReplaceFileInput", "importResourceButton",
+    "reimportResourceButton", "replaceSourceButton", "deleteResourceButton",
+    "editTagsButton", "writeActionStatus", "copyDetailJsonButton",
+    "copyDiagnosticsJsonButton", "copyStatus"
   ]) {
     el[id] = document.getElementById(id);
   }
@@ -141,6 +148,18 @@ function bindEvents() {
 
   el.copyDetailJsonButton.addEventListener("click", copyDetailJson);
   el.copyDiagnosticsJsonButton.addEventListener("click", copyDiagnosticsJson);
+  el.importResourceButton.addEventListener("click", () => {
+    el.resourceImportFileInput.value = "";
+    el.resourceImportFileInput.click();
+  });
+  el.replaceSourceButton.addEventListener("click", () => {
+    if (!getSelectedItem()) return;
+    el.resourceReplaceFileInput.value = "";
+    el.resourceReplaceFileInput.click();
+  });
+  el.reimportResourceButton.addEventListener("click", reimportSelectedResource);
+  el.resourceImportFileInput.addEventListener("change", event => importResourceFile(event.target.files?.[0]));
+  el.resourceReplaceFileInput.addEventListener("change", event => replaceSelectedResourceFile(event.target.files?.[0]));
 }
 
 async function loadAll(options = {}) {
@@ -164,8 +183,10 @@ async function loadPackageData() {
   const previousSelection = state.selectedResourceKey;
   if (items.length === 0) {
     state.selectedResourceKey = "";
-  } else if (!state.selectedResourceKey || !items.some(item => item.key === state.selectedResourceKey)) {
+  } else if (!state.selectedResourceKey || !items.some(item => selectionMatchesItem(item, state.selectedResourceKey))) {
     state.selectedResourceKey = items[0].key;
+  } else {
+    state.selectedResourceKey = items.find(item => selectionMatchesItem(item, state.selectedResourceKey))?.key || state.selectedResourceKey;
   }
   if (previousSelection !== state.selectedResourceKey) {
     state.inspectState = { id: "", status: "idle", payload: null, error: "" };
@@ -220,6 +241,83 @@ async function runResourceValidation() {
   render();
 }
 
+async function importResourceFile(file) {
+  if (!file) return;
+  const kind = inferKindFromFileName(file.name);
+  const usage = inferUsageForKind(kind);
+  const bytesBase64 = await readFileAsBase64(file);
+  await executeResourceWrite("import", API.importResource, {
+    fileName: file.name,
+    kind,
+    usage,
+    role: kind === "model" ? "preview" : "",
+    bytesBase64
+  }, "导入资源");
+}
+
+async function reimportSelectedResource() {
+  const item = getSelectedItem();
+  if (!item) return;
+  const id = getResourceWriteId(item);
+  if (!window.confirm(`重导资源 ${item.displayName || id}？`)) return;
+  await executeResourceWrite("reimport", API.reimportResource, { id }, "重导资源");
+}
+
+async function replaceSelectedResourceFile(file) {
+  const item = getSelectedItem();
+  if (!item || !file) return;
+
+  const nextFormat = inferFormatFromFileName(file.name);
+  const currentFormat = inferFormatFromFileName(item.sourcePath);
+  let allowFormatChange = false;
+  if (currentFormat && nextFormat && currentFormat !== nextFormat) {
+    allowFormatChange = window.confirm(`源文件格式将从 .${currentFormat} 改为 .${nextFormat}，确认替换？`);
+    if (!allowFormatChange) return;
+  }
+
+  const bytesBase64 = await readFileAsBase64(file);
+  await executeResourceWrite("replace-source", API.replaceSource, {
+    id: getResourceWriteId(item),
+    fileName: file.name,
+    role: inferModelRole(item),
+    allowFormatChange,
+    bytesBase64
+  }, "替换源文件");
+}
+
+async function executeResourceWrite(action, url, request, label) {
+  state.writeState = { status: "running", action, error: "" };
+  state.lastActionMessage = `${label}进行中...`;
+  render();
+
+  try {
+    const payload = await postJson(url, { package: state.packageRelative, ...request });
+    state.writeState = { status: "idle", action: "", error: "" };
+    state.lastActionMessage = `${label}完成`;
+    await applyWriteResponse(payload, request.id || request.resourceKey || "");
+  } catch (error) {
+    state.writeState = { status: "error", action, error: error.message };
+    state.lastActionMessage = `${label}失败：${error.message}`;
+    state.errors.push(apiError(label, error));
+    render();
+  }
+}
+
+async function applyWriteResponse(payload, fallbackSelection) {
+  state.inspectCache.clear();
+  const selectedId = stringValue(pick(payload, "selectedResourceKey", "selectedId")) || fallbackSelection || state.selectedResourceKey;
+  if (pick(payload, "resources")) {
+    state.resourcesPayload = pick(payload, "resources");
+  }
+  if (pick(payload, "resourcePlan")) {
+    state.resourcePlanPayload = pick(payload, "resourcePlan");
+  }
+  if (selectedId) {
+    state.selectedResourceKey = selectedId;
+  }
+  await loadPackageData();
+}
+
 async function selectResource(resourceKey) {
   state.selectedResourceKey = resourceKey;
   state.activeTab = "overview";
@@ -263,6 +361,34 @@ async function loadInspectForSelection() {
 
 async function fetchJson(url) {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const text = await response.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text.slice(0, 240) };
+    }
+  }
+  if (!response.ok) {
+    const message = data?.message || data?.error || response.statusText || "请求失败";
+    const error = new Error(`${response.status} ${message}`);
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+  return data;
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
   const text = await response.text();
   let data = null;
   if (text) {
@@ -649,10 +775,84 @@ function renderDiagnosticsTab(detail) {
 
 function renderActions() {
   const item = getSelectedItem();
+  const connected = Boolean(state.resourcesPayload);
+  const writeBusy = state.writeState.status === "running";
+  el.importResourceButton.disabled = !connected || writeBusy;
+  el.reimportResourceButton.disabled = !connected || !item || writeBusy;
+  el.replaceSourceButton.disabled = !connected || !item || writeBusy;
+  el.deleteResourceButton.disabled = true;
+  el.editTagsButton.disabled = true;
+  el.importResourceButton.title = connected ? "通过 Authoring API 导入外部资源" : "Authoring 资源 API 未连接";
+  el.reimportResourceButton.title = item ? "重新计算当前资源的导入状态和哈希" : "先选择一个资源项";
+  el.replaceSourceButton.title = item ? "替换当前资源源文件，并保留 stableId/resourceKey" : "先选择一个资源项";
+  if (state.writeState.status === "running") {
+    el.writeActionStatus.textContent = "写入中：正在通过 Authoring API 更新资源库。";
+  } else if (state.writeState.status === "error") {
+    el.writeActionStatus.textContent = `写入失败：${state.writeState.error}`;
+  } else if (item) {
+    el.writeActionStatus.textContent = `当前目标：${item.displayName || getResourceWriteId(item)}；delete guard / tag update 仍锁定。`;
+  } else {
+    el.writeActionStatus.textContent = "已启用 import / reimport / replace-source；delete guard / tag update 仍锁定。";
+  }
   el.copyDetailJsonButton.disabled = false;
   el.copyDiagnosticsJsonButton.disabled = false;
   el.copyDetailJsonButton.title = item ? "复制当前资源 inspect/fallback 详情" : "复制当前资源库摘要";
   el.copyDiagnosticsJsonButton.title = item ? "复制当前资源诊断" : "复制当前资源库全部诊断";
+}
+
+function getResourceWriteId(item) {
+  return item?.libraryItemId || item?.stableId || item?.resourceKey || item?.key || "";
+}
+
+function selectionMatchesItem(item, selection) {
+  return Boolean(
+    item.key === selection ||
+    item.libraryItemId === selection ||
+    item.stableId === selection ||
+    item.resourceKey === selection
+  );
+}
+
+function inferKindFromFileName(fileName) {
+  const format = inferFormatFromFileName(fileName);
+  if (["glb", "gltf", "fbx"].includes(format)) return "model";
+  if (["png", "jpg", "jpeg", "tga"].includes(format)) return "texture";
+  if (["wav", "ogg"].includes(format)) return "audio";
+  return "config";
+}
+
+function inferUsageForKind(kind) {
+  if (kind === "model") return "previewMesh";
+  if (kind === "texture") return "texture";
+  if (kind === "audio") return "audioCue";
+  if (kind === "animation") return "animationClipGroup";
+  return "characterConfig";
+}
+
+function inferFormatFromFileName(fileName) {
+  const value = String(fileName || "");
+  const index = value.lastIndexOf(".");
+  return index >= 0 ? value.slice(index + 1).toLowerCase() : "";
+}
+
+function inferModelRole(item) {
+  if (!item || item.kind !== "model") return "";
+  if (item.usage === "characterModel") return "body";
+  if (item.tags.includes("mainHand") || item.resourceKey.includes("mainhand")) return "mainHand";
+  if (item.tags.includes("offHand") || item.resourceKey.includes("offhand")) return "offHand";
+  return "preview";
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",").pop() : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error("读取文件失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function getNormalizedItems() {
