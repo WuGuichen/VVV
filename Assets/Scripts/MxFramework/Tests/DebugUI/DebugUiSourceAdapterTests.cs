@@ -197,6 +197,53 @@ namespace MxFramework.Tests.DebugUI
             Assert.AreEqual(1, FindCounter(gameplayCounters, "gameplay.abilityEventCount").Value);
         }
 
+        [Test]
+        public void UiCameraAdapter_MapsRigsAndDiagnostics()
+        {
+            var snapshot = new UiCameraDebugSnapshot(
+                new[]
+                {
+                    new UiCameraRigDebugSnapshot(
+                        "ui.preview.character",
+                        "PreviewTexture",
+                        available: true,
+                        stackBound: false,
+                        layerPolicyValid: true,
+                        uiLayerName: "MxUiPreview3D",
+                        targetTextureAssigned: true,
+                        targetTextureWidth: 256,
+                        targetTextureHeight: 128),
+                    new UiCameraRigDebugSnapshot(
+                        "ui.presentation",
+                        "Overlay3D",
+                        available: false,
+                        stackBound: false,
+                        layerPolicyValid: false,
+                        uiLayerName: "MxUi3D",
+                        targetTextureAssigned: false,
+                        targetTextureWidth: 0,
+                        targetTextureHeight: 0,
+                        code: "CAM_UI_LAYER_MASK_INVALID",
+                        message: "invalid mask")
+                },
+                new[]
+                {
+                    new UiCameraDiagnostic("CAM_UI_LAYER_MASK_INVALID", "ui.presentation", "invalid mask"),
+                    new UiCameraDiagnostic("CAM_UI_PREVIEW_TEXTURE_MISSING", "ui.preview.inventory", "texture missing")
+                });
+
+            FrameworkDebugSnapshot debugSnapshot = new UiCameraDebugSource(() => snapshot).CreateSnapshot();
+
+            Assert.AreEqual("UICamera", debugSnapshot.SourceName);
+            Assert.That(debugSnapshot.Sections[0].Body, Does.Contain("rigs: 2"));
+            Assert.That(debugSnapshot.Sections[0].Body, Does.Contain("targetTextures: 1"));
+            Assert.That(debugSnapshot.Sections[1].Body, Does.Contain("rig=ui.presentation"));
+            Assert.That(debugSnapshot.Sections[1].Body, Does.Contain("layerPolicy=invalid"));
+            Assert.That(debugSnapshot.Sections[1].Body, Does.Contain("textureSize=256x128"));
+            Assert.That(debugSnapshot.Sections[2].Body, Does.Contain("CAM_UI_LAYER_MASK_INVALID"));
+            Assert.That(debugSnapshot.Sections[2].Body, Does.Contain("CAM_UI_PREVIEW_TEXTURE_MISSING"));
+        }
+
         private static DebugUiSourceViewModel FindSource(DebugUiDashboardViewModel model, string name)
         {
             for (int i = 0; i < model.Sources.Count; i++)
