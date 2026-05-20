@@ -130,12 +130,14 @@
     <footer class="action-bar" aria-label="资源管理操作">
       <div class="disabled-actions" aria-label="写操作入口">
         <span class="action-label">写操作入口</span>
-        <button type="button" disabled title="等待 import API gate">导入资源</button>
-        <button type="button" disabled title="等待 reimport API gate">重导</button>
-        <button type="button" disabled title="等待 replace-source API gate">替换源</button>
-        <button type="button" disabled title="等待 reference graph delete guard">删除资源</button>
-        <button type="button" disabled title="等待 tag update API gate">编辑标签</button>
-        <span class="disabled-reason">MVP 只读：等待 import / reimport / replace-source / delete guard / tag update API gate。</span>
+        <input id="resourceImportFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+        <input id="resourceReplaceFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+        <button id="importResourceButton" type="button" title="通过 Authoring API 导入外部资源">导入资源</button>
+        <button id="reimportResourceButton" type="button" title="重新计算当前资源的导入状态">重导</button>
+        <button id="replaceSourceButton" type="button" title="替换当前资源的源文件并保留资源身份">替换源</button>
+        <button id="deleteResourceButton" type="button" disabled title="等待 reference graph delete guard">删除资源</button>
+        <button id="editTagsButton" type="button" disabled title="等待 tag update API gate">编辑标签</button>
+        <span id="writeActionStatus" class="disabled-reason">已启用 import / reimport / replace-source；delete guard / tag update 仍锁定。</span>
       </div>
       <div class="copy-actions" aria-label="复制操作">
         <button id="copyDetailJsonButton" type="button">复制详情 JSON</button>
