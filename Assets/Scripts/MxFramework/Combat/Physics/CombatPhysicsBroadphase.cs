@@ -245,7 +245,15 @@ namespace MxFramework.Combat.Physics
                     max = shape.Origin + sectorExtent;
                     return;
                 case CombatPhysicsShapeKind.Obb:
-                    throw new NotSupportedException("OBB broadphase query AABB is not supported.");
+                    CombatPhysicsObbMath.GetAabb(
+                        shape.Center,
+                        shape.HalfExtents,
+                        shape.AxisX,
+                        shape.AxisY,
+                        shape.AxisZ,
+                        out min,
+                        out max);
+                    return;
                 default:
                     throw new NotSupportedException("Combat physics query shape kind is not supported.");
             }

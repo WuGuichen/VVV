@@ -164,4 +164,49 @@ namespace MxFramework.Combat.Physics
 
         public Fix64 MinDot { get; }
     }
+
+    public readonly struct CombatObbQuery
+    {
+        public CombatObbQuery(
+            CombatQueryHeader header,
+            FixVector3 center,
+            FixVector3 halfExtents,
+            FixVector3 axisX,
+            FixVector3 axisY,
+            FixVector3 axisZ)
+        {
+            if (header.Kind != CombatQueryKind.Obb)
+            {
+                throw new ArgumentException("Query header kind must be Obb.", nameof(header));
+            }
+
+            CombatPhysicsObbMath.ValidateHalfExtents(halfExtents, nameof(halfExtents));
+            CombatPhysicsObbMath.NormalizeAxes(
+                axisX,
+                axisY,
+                axisZ,
+                out FixVector3 normalizedAxisX,
+                out FixVector3 normalizedAxisY,
+                out FixVector3 normalizedAxisZ);
+
+            Header = header;
+            Center = center;
+            HalfExtents = halfExtents;
+            AxisX = normalizedAxisX;
+            AxisY = normalizedAxisY;
+            AxisZ = normalizedAxisZ;
+        }
+
+        public CombatQueryHeader Header { get; }
+
+        public FixVector3 Center { get; }
+
+        public FixVector3 HalfExtents { get; }
+
+        public FixVector3 AxisX { get; }
+
+        public FixVector3 AxisY { get; }
+
+        public FixVector3 AxisZ { get; }
+    }
 }

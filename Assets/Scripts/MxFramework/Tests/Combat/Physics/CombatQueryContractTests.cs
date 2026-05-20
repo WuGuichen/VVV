@@ -82,6 +82,19 @@ namespace MxFramework.Tests.Combat.Physics
                 UnitX,
                 UnitY,
                 UnitZ));
+            Assert.Throws<ArgumentException>(() => CombatPhysicsShape.Obb(
+                FixVector3.Zero,
+                new FixVector3(Fix64.One, Fix64.One, Fix64.One),
+                FixVector3.Zero,
+                UnitY,
+                UnitZ));
+            Assert.Throws<ArgumentException>(() => new CombatObbQuery(
+                Header(CombatQueryKind.Aabb),
+                FixVector3.Zero,
+                new FixVector3(Fix64.One, Fix64.One, Fix64.One),
+                UnitX,
+                UnitY,
+                UnitZ));
         }
 
         [Test]
@@ -102,6 +115,32 @@ namespace MxFramework.Tests.Combat.Physics
             Assert.AreEqual(sphere.Header, unified.Header);
             Assert.AreEqual(sphere.Center, unified.ToSphereQuery().Center);
             Assert.AreEqual(sphere.Radius, unified.ToSphereQuery().Radius);
+        }
+
+        [Test]
+        public void ObbQuery_NormalizesAxesAndRoundtripsThroughUnifiedQuery()
+        {
+            var query = new CombatObbQuery(
+                Header(CombatQueryKind.Obb),
+                new FixVector3(Fix64.FromInt(2), Fix64.FromInt(3), Fix64.FromInt(4)),
+                new FixVector3(Fix64.FromInt(3), Fix64.FromInt(2), Fix64.One),
+                new FixVector3(Fix64.FromInt(2), Fix64.Zero, Fix64.Zero),
+                new FixVector3(Fix64.Zero, Fix64.FromInt(3), Fix64.Zero),
+                new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.FromInt(4)));
+
+            CombatPhysicsQuery unified = CombatPhysicsQuery.From(query);
+            CombatObbQuery roundtrip = unified.ToObbQuery();
+
+            Assert.AreEqual(CombatPhysicsShapeKind.Obb, unified.Shape.Kind);
+            Assert.AreEqual(query.Header, unified.Header);
+            Assert.AreEqual(UnitX, query.AxisX);
+            Assert.AreEqual(UnitY, query.AxisY);
+            Assert.AreEqual(UnitZ, query.AxisZ);
+            Assert.AreEqual(query.Center, roundtrip.Center);
+            Assert.AreEqual(query.HalfExtents, roundtrip.HalfExtents);
+            Assert.AreEqual(UnitX, roundtrip.AxisX);
+            Assert.AreEqual(UnitY, roundtrip.AxisY);
+            Assert.AreEqual(UnitZ, roundtrip.AxisZ);
         }
 
         [Test]

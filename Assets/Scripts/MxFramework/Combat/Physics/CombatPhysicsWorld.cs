@@ -7,8 +7,6 @@ namespace MxFramework.Combat.Physics
 {
     public sealed class CombatPhysicsWorld
     {
-        private const string UnsupportedObbReason = "OBB queries are not supported by CombatPhysicsWorld contract v0.";
-
         private static readonly FixVector3 AxisX = new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero);
         private static readonly FixVector3 AxisY = new FixVector3(Fix64.Zero, Fix64.One, Fix64.Zero);
         private static readonly FixVector3 AxisZ = new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One);
@@ -221,9 +219,8 @@ namespace MxFramework.Combat.Physics
                 case CombatPhysicsShapeKind.Capsule:
                 case CombatPhysicsShapeKind.Aabb:
                 case CombatPhysicsShapeKind.Sector:
-                    return QueryBroadphase(query, results);
                 case CombatPhysicsShapeKind.Obb:
-                    throw new NotSupportedException(UnsupportedObbReason);
+                    return QueryBroadphase(query, results);
                 default:
                     throw new NotSupportedException("Combat physics query shape kind is not supported.");
             }
@@ -241,16 +238,8 @@ namespace MxFramework.Combat.Physics
             {
                 CombatPhysicsQuery query = batch[i];
                 var hits = new List<CombatQueryResult>();
-                CombatPhysicsQueryDebugReport report;
-                if (query.Shape.Kind == CombatPhysicsShapeKind.Obb)
-                {
-                    report = ExplainQuery(query);
-                }
-                else
-                {
-                    Query(query, hits);
-                    report = ExplainQuery(query);
-                }
+                Query(query, hits);
+                CombatPhysicsQueryDebugReport report = ExplainQuery(query);
 
                 results.Add(new CombatPhysicsQueryBatchResult(query, i, hits, report));
             }
@@ -262,18 +251,6 @@ namespace MxFramework.Combat.Physics
         public CombatPhysicsQueryDebugReport ExplainQuery(in CombatPhysicsQuery query)
         {
             var rows = new List<CombatPhysicsQueryDebugRow>();
-            if (query.Shape.Kind == CombatPhysicsShapeKind.Obb)
-            {
-                return new CombatPhysicsQueryDebugReport(
-                    query,
-                    candidateCount: 0,
-                    filteredSourceCount: 0,
-                    filteredLayerCount: 0,
-                    hitCount: 0,
-                    UnsupportedObbReason,
-                    rows);
-            }
-
             int candidateCount = 0;
             int filteredSourceCount = 0;
             int filteredLayerCount = 0;
@@ -519,7 +496,30 @@ namespace MxFramework.Combat.Physics
 
                     break;
                 case CombatPhysicsShapeKind.Obb:
-                    throw new NotSupportedException(UnsupportedObbReason);
+                    if (CombatPhysicsObbMath.OverlapsAabb(
+                        query.Shape.Center,
+                        query.Shape.HalfExtents,
+                        query.Shape.AxisX,
+                        query.Shape.AxisY,
+                        query.Shape.AxisZ,
+                        candidate.Min,
+                        candidate.Max))
+                    {
+                        FixVector3 obbPoint = ClosestPointOnAabb(query.Shape.Center, candidate.Min, candidate.Max);
+                        FixVector3 obbDelta = obbPoint - query.Shape.Center;
+                        FixVector3 obbNormal = obbDelta.TryNormalize(out FixVector3 normalized) ? normalized : FixVector3.Zero;
+                        result = new CombatQueryResult(
+                            query.Header,
+                            candidate.Body.EntityId,
+                            candidate.Body.BodyId,
+                            candidate.Collider.ColliderId,
+                            Fix64.Zero,
+                            obbPoint,
+                            obbNormal);
+                        return true;
+                    }
+
+                    break;
                 default:
                     throw new NotSupportedException("Combat physics query shape kind is not supported.");
             }
@@ -824,7 +824,14 @@ namespace MxFramework.Combat.Physics
                     FixVector3 toPointDirection = toPoint / sectorDistanceSquared.Sqrt();
                     return sectorDirection.Dot(toPointDirection) >= shape.MinDot;
                 case CombatPhysicsShapeKind.Obb:
-                    return false;
+                    return CombatPhysicsObbMath.OverlapsAabb(
+                        shape.Center,
+                        shape.HalfExtents,
+                        shape.AxisX,
+                        shape.AxisY,
+                        shape.AxisZ,
+                        min,
+                        max);
                 default:
                     throw new NotSupportedException("Combat physics query shape kind is not supported.");
             }
