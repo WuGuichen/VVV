@@ -3,6 +3,7 @@ import path from "node:path";
 
 const repoRoot = path.resolve(new URL("../../../", import.meta.url).pathname);
 const sampleRoot = path.join(repoRoot, "Tools/MxFramework.Authoring/samples/character-iron-vanguard");
+const unityGeneratedRoot = path.join(repoRoot, "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard");
 const required = [
   "manifest.json",
   "resource_catalog.json",
@@ -15,11 +16,22 @@ const required = [
   "geometry/traces.json",
   "validation/last_report.json"
 ];
+const requiredGenerated = [
+  "config/unity_resource_catalog.json",
+  "package_cache/import_report.json"
+];
 
 for (const relative of required) {
   const full = path.join(sampleRoot, relative);
   if (!fs.existsSync(full)) {
     console.error(`missing ${relative}`);
+    process.exit(1);
+  }
+}
+for (const relative of requiredGenerated) {
+  const full = path.join(unityGeneratedRoot, relative);
+  if (!fs.existsSync(full)) {
+    console.error(`missing generated ${relative}`);
     process.exit(1);
   }
 }
@@ -30,6 +42,8 @@ const colliders = readJson("geometry/body_colliders.json");
 const sockets = readJson("geometry/sockets.json");
 const attachments = readJson("geometry/weapon_attachments.json");
 const traces = readJson("geometry/traces.json");
+const unityCatalog = readGeneratedJson("config/unity_resource_catalog.json");
+const importReport = readGeneratedJson("package_cache/import_report.json");
 
 assert(manifest.packageId === "iron_vanguard", "manifest packageId should be iron_vanguard");
 assert(Array.isArray(resources.entries) && resources.entries.length > 0, "resource catalog should have entries");
@@ -37,11 +51,31 @@ assert(Array.isArray(colliders.colliders) && colliders.colliders.length > 0, "co
 assert(Array.isArray(sockets.sockets) && sockets.sockets.some(s => s.socketId === "mainHand"), "mainHand socket should exist");
 assert(Array.isArray(attachments.attachments) && attachments.attachments.some(a => a.equipSlot === "mainHand"), "mainHand attachment should exist");
 assert(Array.isArray(traces.traces) && traces.traces.some(t => t.traceId === "trace.iron_sword.blade"), "sword trace should exist");
+assert(unityCatalog.packageId === manifest.packageId, "Unity resource catalog packageId should match manifest");
+assert(Array.isArray(unityCatalog.entries) && unityCatalog.entries.length > 0, "Unity resource catalog should have entries");
+assert(importReport.packageId === manifest.packageId, "Unity import report packageId should match manifest");
+assert(Array.isArray(importReport.operations) && importReport.operations.some(op => op.kind === "unityResourceCatalog"), "Unity import report should include unityResourceCatalog operation");
+
+const modelResources = resources.entries.filter(entry => entry.typeId === "model" && entry.resourceKey);
+for (const resource of modelResources) {
+  const unityEntry = unityCatalog.entries.find(entry =>
+    entry.id === resource.resourceKey
+    || entry.providerData?.packageResourceKey === resource.resourceKey
+    || entry.providerData?.stableId === resource.stableId);
+  assert(unityEntry, `Unity catalog should include ${resource.resourceKey}`);
+  assert(unityEntry.unityAssetPath || unityEntry.providerData?.unityAssetPath, `${resource.resourceKey} should expose Unity asset path`);
+  assert(unityEntry.importerKind || unityEntry.providerData?.importerKind, `${resource.resourceKey} should expose importer kind`);
+  assert(unityEntry.importStatus || unityEntry.providerData?.importStatus, `${resource.resourceKey} should expose import status`);
+}
 
 console.log("CharacterStudio smoke ok");
 
 function readJson(relative) {
   return JSON.parse(fs.readFileSync(path.join(sampleRoot, relative), "utf8"));
+}
+
+function readGeneratedJson(relative) {
+  return JSON.parse(fs.readFileSync(path.join(unityGeneratedRoot, relative), "utf8"));
 }
 
 function assert(condition, message) {

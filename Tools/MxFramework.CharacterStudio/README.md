@@ -37,6 +37,7 @@ The root `index.html` redirects to `web/` for static repo servers.
 - save through `/api/character/save`, which validates with the Authoring Core gate before writing package JSON;
 - compile diagnostics through `/api/character/compile`;
 - Unity import bridge through `/api/character/import-unity`.
+- C2-C minimum Unity sync visibility: the workstation reads the source package, the latest Unity import report, and `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/config/unity_resource_catalog.json` when present. Model resource cards and resource details show Unity sync status, Unity asset path, GUID, importer kind, main object type, latest import operation, and diagnostics without mutating Unity assets.
 
 Static file preview still opens the sample package, but save, compile, and import require `editor serve`.
 
@@ -47,6 +48,15 @@ CharacterStudio treats catalog resources, character references, and weapon refer
 Model scale and art-offset correction live on `resource_catalog.json` as `importHints.modelWrapperPose`. CharacterStudio applies that pose as a wrapper GameObject around the imported model in the 3D preview and emits it in the compiled resource mapping so the Unity importer can preserve the same wrapper transform. Select a model resource in `导入资源`, then edit the inspector section `模型尺寸 / 旋转 / 位置修正`; position fields are meters, rotation fields are degrees, and scale fields are clamped to positive values. Editing rotation also updates the stored quaternion used by downstream import.
 
 `.fbx` input is accepted as an import source only: the Authoring server converts it through the local `fbx2gltf` dependency, stores the generated `.glb`, and records `sourceFormat: "glb"` in the package catalog. `导入 Unity` is a separate step that writes the compiled package outputs into the Unity project.
+
+The toolbar intentionally separates actions by layer:
+
+- `导入源资源` writes or replaces files in the Character source package resource catalog.
+- `Prefab 重建预检` runs the Character compile gate and checks the generated inputs used by the Unity prefab path.
+- `Unity 导入` writes the compiled package outputs and Unity resource catalog under `Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/`.
+- `查看/复制报告` copies validation, compile, import, and Unity sync JSON for review.
+
+If the Unity catalog is missing, resource cards show `未读取Catalog` or `未入Catalog`; this means the source package can still be edited, but Unity import has not produced a usable sync ledger for that resource yet.
 
 FBX conversion requires the CharacterStudio npm dependencies:
 

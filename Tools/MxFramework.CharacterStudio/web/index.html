@@ -31,11 +31,11 @@
         </select>
         <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
         <input id="modelReplaceFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
-        <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入模型</button>
+        <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入源资源</button>
         <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
         <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
-        <button id="compileButton" type="button" title="运行 Character compile 预检">预检</button>
-        <button id="importButton" type="button" title="把当前资源包导入 Unity 工程">导入 Unity</button>
+        <button id="compileButton" type="button" title="运行 Character compile，预检 Prefab 重建输入">Prefab 重建预检</button>
+        <button id="importButton" type="button" title="把当前资源包资源导入 Unity 工程">Unity 导入</button>
       </div>
     </header>
 
@@ -82,8 +82,8 @@
           <div class="resource-library-head">
             <strong>导入资源</strong>
             <span id="resourceLibraryTarget">点击资源图选择替换目标</span>
-            <button id="downloadResourceButton" type="button" title="下载当前选中资源的包内源文件">下载源文件</button>
-            <button id="replaceResourceButton" type="button" title="用本地文件替换当前选中资源，保留 resourceKey/stableId">替换选中</button>
+            <button id="downloadResourceButton" type="button" title="下载当前选中资源的包内源文件">导出源资源</button>
+            <button id="replaceResourceButton" type="button" title="用本地文件替换当前选中资源，保留 resourceKey/stableId">替换源资源</button>
             <button id="clearModelBindingButton" type="button" title="清空当前目标的模型绑定">移除模型</button>
           </div>
           <div id="modelResourceList" class="model-resource-list" aria-label="Model resources"></div>
@@ -103,7 +103,7 @@
         <section>
           <div class="panel-heading">
             <h2>诊断</h2>
-            <button id="copyReportButton" type="button" title="复制诊断报告">复制</button>
+            <button id="copyReportButton" type="button" title="复制诊断、Unity 导入和同步报告">查看/复制报告</button>
           </div>
           <div id="diagnostics" class="diagnostics"></div>
         </section>

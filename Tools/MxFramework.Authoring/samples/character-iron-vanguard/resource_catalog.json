@@ -11,10 +11,10 @@
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
       "relativePath": "resources/models/skeleton.glb",
-      "hash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+      "hash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+        "contentHash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20",
         "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
@@ -85,15 +85,15 @@
         "isPlaceholder": true
       },
       "provenance": {
-        "sourceTool": "CharacterStudio/FBX2glTF",
-        "sourceFile": "Skeleton.fbx",
+        "sourceTool": "MxFrameworkSampleSkeletonGenerator",
+        "sourceFile": "generated-armature-marker.glb",
         "authoringSchemaVersion": "1.0",
         "license": "sample-placeholder",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T16:25:01.023Z"
+        "modifiedUtc": "2026-05-20T16:49:00.000Z"
       }
     },
     {
@@ -490,10 +490,10 @@
       "sourceFormat": "png",
       "packageId": "iron_vanguard",
       "relativePath": "previews/thumbnail.png",
-      "hash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+      "hash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+        "contentHash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
         "importHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },

@@ -120,6 +120,8 @@ const state = {
   validation: null,
   compileResult: null,
   importResult: null,
+  unityResourceCatalog: null,
+  unityResourceCatalogPath: "",
   selectedPath: "manifest",
   activeLoadout: "sword_shield",
   layers: { ...LAYERS },
@@ -268,6 +270,11 @@ async function loadPackageState() {
     state.package = clone(apiState.package);
     state.validation = apiState.validation || apiState.package.validationReport || { issues: [] };
     state.importResult = apiState.importReport || null;
+    state.unityResourceCatalog = apiState.unityResourceCatalog || null;
+    state.unityResourceCatalogPath = apiState.unityResourceCatalogPath || "";
+    if (!state.unityResourceCatalog) {
+      await loadUnityResourceCatalog();
+    }
     state.canWrite = Boolean(apiState.canWrite);
     state.apiAvailable = true;
     state.dirty = false;
@@ -278,10 +285,22 @@ async function loadPackageState() {
   state.package = await readStaticPackage(state.packageRelative);
   state.validation = state.package.validationReport || { issues: [] };
   state.importResult = null;
+  await loadUnityResourceCatalog();
   state.canWrite = false;
   state.apiAvailable = false;
   state.dirty = false;
   state.message = "静态预览：请启动 Authoring server 后再保存、预检、导入模型或导入 Unity。";
+}
+
+async function loadUnityResourceCatalog() {
+  const packageId = state.package?.manifest?.packageId || "";
+  state.unityResourceCatalog = null;
+  state.unityResourceCatalogPath = "";
+  if (!packageId) return;
+
+  const catalogPath = `/Assets/MxFrameworkGenerated/CharacterPackages/${encodeURIComponent(packageId)}/config/unity_resource_catalog.json`;
+  state.unityResourceCatalogPath = catalogPath.slice(1);
+  state.unityResourceCatalog = await readJson(catalogPath, null);
 }
 
 async function readStaticPackage(root) {
@@ -360,7 +379,7 @@ function getModelImportRole() {
 
 function updateModelImportTitle() {
   if (!el.modelImportButton || !el.modelImportRole) return;
-  el.modelImportButton.title = `${getModelImportRole().title}。支持 GLB/GLTF；FBX 会先转换为 GLB。`;
+  el.modelImportButton.title = `源资源导入：${getModelImportRole().title}。支持 GLB/GLTF；FBX 会先转换为 GLB。`;
 }
 
 function renderResourceLibrary() {
@@ -388,6 +407,7 @@ function renderResourceLibrary() {
     const thumbnailUrl = getResourceThumbnailUrl(resource, state.package);
     const sourceName = resource.provenance?.sourceFile || resource.relativePath || resource.localId || resource.resourceKey;
     const imported = (resource.tags || []).some(tag => tag === "characterstudio-import" || tag === "converted-from-fbx");
+    const sync = getResourceUnitySync(resource);
     const thumb = thumbnailUrl
       ? `<img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(getResourceDisplayName(resource))}">`
       : `<span>${escapeHtml(getResourceInitial(resource))}</span>`;
@@ -395,9 +415,11 @@ function renderResourceLibrary() {
       <button type="button" class="resource-card ${selected ? "active" : ""}" data-resource-key="${escapeHtml(resource.resourceKey || "")}" title="${escapeHtml(sourceName)}">
         <span class="resource-thumb">${thumb}</span>
         <span class="resource-info">
-          <strong>${escapeHtml(getResourceDisplayName(resource))}</strong>
+          <span class="resource-title"><strong>${escapeHtml(getResourceDisplayName(resource))}</strong>${renderSyncBadge(sync)}</span>
           <span>${escapeHtml(binding || "未绑定到角色或武器槽")}</span>
           <span>${escapeHtml(resource.usage || "usage?")} / ${escapeHtml(resource.sourceFormat || "format?")}${imported ? " / imported" : ""}</span>
+          <span>${escapeHtml(sync.importerKind || "importer?")} / ${escapeHtml(sync.guidShort || "guid?")}</span>
+          <span class="resource-unity-path">${escapeHtml(sync.unityAssetPath || "Unity asset 未生成")}</span>
         </span>
       </button>`;
   }).join("");
@@ -445,6 +467,133 @@ function getResourceThumbnailUrl(resource, pkg) {
   const preview = (pkg?.resourceCatalog?.entries || []).find(entry => entry.resourceKey === previewKey);
   if (!preview?.relativePath) return "";
   return encodeURI(`/${state.packageRelative}/${preview.relativePath}`);
+}
+
+function getUnityCatalogEntries() {
+  return Array.isArray(state.unityResourceCatalog?.entries) ? state.unityResourceCatalog.entries : [];
+}
+
+function getUnityImportReport() {
+  return state.importResult?.report || state.importResult || null;
+}
+
+function findUnityResourceEntry(resource) {
+  if (!resource) return null;
+  const entries = getUnityCatalogEntries();
+  const resourceKey = String(resource.resourceKey || "");
+  const stableId = String(resource.stableId || "");
+  const relativePath = String(resource.relativePath || "");
+  return entries.find(entry => {
+    const providerData = entry?.providerData || {};
+    return String(providerData.packageResourceKey || "") === resourceKey
+      || String(entry?.id || "") === resourceKey
+      || String(providerData.stableId || "") === stableId
+      || String(providerData.sourceRelativePath || "") === relativePath
+      || String(entry?.unityAssetPath || "").endsWith(relativePath);
+  }) || null;
+}
+
+function findImportOperationForResource(resource, unityEntry = null) {
+  const operations = getUnityImportReport()?.operations || [];
+  if (!resource || operations.length === 0) return null;
+  const sourcePath = String(resource.relativePath || "");
+  const unityPath = getUnityAssetPath(unityEntry);
+  return operations.find(operation => String(operation.sourcePath || "") === sourcePath)
+    || operations.find(operation => unityPath && String(operation.targetPath || "") === unityPath)
+    || operations.find(operation => sourcePath && String(operation.targetPath || "").endsWith(sourcePath));
+}
+
+function getUnityAssetPath(unityEntry) {
+  return unityEntry?.unityAssetPath
+    || unityEntry?.providerData?.unityAssetPath
+    || unityEntry?.providerData?.assetPath
+    || unityEntry?.address
+    || "";
+}
+
+function getResourceUnitySync(resource) {
+  const entry = findUnityResourceEntry(resource);
+  const operation = findImportOperationForResource(resource, entry);
+  const rawStatus = entry?.importStatus
+    || entry?.providerData?.importStatus
+    || operation?.action
+    || (state.unityResourceCatalog ? "MissingFromUnityCatalog" : "NoUnityCatalog");
+  const unityAssetGuid = entry?.unityAssetGuid || entry?.providerData?.unityAssetGuid || "";
+  const importerKind = entry?.importerKind || entry?.providerData?.importerKind || "";
+  const unityAssetPath = getUnityAssetPath(entry);
+  const diagnostics = getResourceUnityDiagnostics(resource, entry, operation);
+  const status = String(rawStatus || "Unknown");
+  return {
+    entry,
+    operation,
+    status,
+    label: getUnityStatusLabel(status),
+    tone: getUnityStatusTone(status, diagnostics),
+    unityAssetPath,
+    unityAssetGuid,
+    guidShort: unityAssetGuid ? unityAssetGuid.slice(0, 8) : "",
+    unityMainObjectType: entry?.unityMainObjectType || entry?.providerData?.unityMainObjectType || "",
+    importerKind,
+    diagnostics
+  };
+}
+
+function getResourceUnityDiagnostics(resource, entry, operation) {
+  const diagnostics = [];
+  const report = getUnityImportReport();
+  if (!state.unityResourceCatalog) {
+    diagnostics.push(`未读取到 Unity Resource Catalog：${state.unityResourceCatalogPath || "未知路径"}`);
+  }
+  if (state.unityResourceCatalog && !entry) {
+    diagnostics.push("该源资源尚未出现在 Unity Resource Catalog。");
+  }
+  if (entry && !getUnityAssetPath(entry)) {
+    diagnostics.push("Unity 资产路径为空。");
+  }
+  if (entry && !(entry.unityAssetGuid || entry.providerData?.unityAssetGuid)) {
+    diagnostics.push("Unity asset GUID 为空，可能尚未完成 Unity AssetDatabase 导入。");
+  }
+  if (operation?.message) {
+    diagnostics.push(`${operation.action || operation.kind || "Import"}: ${operation.message}`);
+  }
+  const resourceKey = String(resource?.resourceKey || "");
+  for (const issue of report?.issues || []) {
+    const source = String(issue.sourcePath || issue.sourceObjectPath || "");
+    const message = String(issue.message || "");
+    if (source === resource?.relativePath || source === resourceKey || (resourceKey && message.includes(resourceKey))) {
+      diagnostics.push(`${issue.code || issue.gate || "Issue"}: ${message}`);
+    }
+  }
+  return diagnostics;
+}
+
+function getUnityStatusLabel(status) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "imported") return "已导入";
+  if (normalized === "skipped") return "已跳过";
+  if (normalized === "updated") return "已更新";
+  if (normalized === "added" || normalized === "created") return "已新增";
+  if (normalized.includes("pending")) return "待导入";
+  if (normalized.includes("sourcechanged")) return "源已变";
+  if (normalized.includes("unitymissing")) return "Unity缺失";
+  if (normalized.includes("missingfromunitycatalog")) return "未入Catalog";
+  if (normalized.includes("nounitycatalog")) return "未读取Catalog";
+  if (normalized.includes("failed")) return "失败";
+  if (normalized.includes("conflict")) return "冲突";
+  return status || "Unknown";
+}
+
+function getUnityStatusTone(status, diagnostics = []) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized.includes("failed") || normalized.includes("conflict") || normalized.includes("blocked")) return "error";
+  if (normalized.includes("missing") || normalized.includes("pending") || normalized.includes("sourcechanged")) return "warn";
+  if (diagnostics.some(item => item.includes("为空") || item.includes("未读取") || item.includes("尚未"))) return "warn";
+  if (normalized === "imported" || normalized === "skipped" || normalized === "updated" || normalized === "added" || normalized === "created") return "ok";
+  return "";
+}
+
+function renderSyncBadge(sync) {
+  return `<span class="sync-badge ${escapeHtml(sync.tone)}">${escapeHtml(sync.label)}</span>`;
 }
 
 function bindModelResource(resourceKey) {
@@ -848,10 +997,12 @@ function renderSummary() {
     return;
   }
   const geometry = pkg.geometry || {};
+  const unityEntries = getUnityCatalogEntries();
   el.packageSummary.innerHTML = [
     summaryCell("资源包", pkg.manifest?.packageId || "-"),
     summaryCell("版本", pkg.manifest?.version || "-"),
     summaryCell("资源", (pkg.resourceCatalog?.entries || []).length),
+    summaryCell("Unity资源", unityEntries.length || "未读取"),
     summaryCell("碰撞体", (geometry.colliders || []).length),
     summaryCell("挂点", (geometry.sockets || []).length),
     summaryCell("轨迹", (geometry.traces || []).length)
@@ -2111,7 +2262,10 @@ function renderObjectTitle(target) {
 
 function renderInspectorContext(target) {
   if (target.kind === "weapon") return renderWeaponReferenceContext(target.value);
-  if (target.kind === "resource" && target.value?.typeId === "model") return renderModelResourceContext(target.value);
+  if (target.kind === "resource" && target.value) {
+    const modelContext = target.value?.typeId === "model" ? renderModelResourceContext(target.value) : "";
+    return `${modelContext}${renderResourceSyncContext(target.value)}`;
+  }
   return "";
 }
 
@@ -2134,13 +2288,31 @@ function renderModelResourceContext(resource) {
     ? owners.map(weapon => `${weapon.equipSlot || "slot"}:${weapon.weaponId}`).join(" / ")
     : (isBodyModelBinding(resource, state.package) ? "角色主体" : "未被角色或武器引用");
   const packagePath = `${state.packageRelative}/${resource.relativePath || ""}`;
-  const packageId = state.package?.manifest?.packageId || "package";
-  const unityPath = `Assets/MxFrameworkGenerated/CharacterPackages/${packageId}/resources/models/${String(resource.relativePath || "").split("/").pop() || ""}`;
   return `<section class="reference-card">
     <div class="reference-card-head"><strong>模型资源</strong><span>这里调整的是模型外层包裹节点的位置、旋转和缩放。</span></div>
     <div class="reference-row"><span>当前引用</span><strong>${escapeHtml(ownerText)}</strong></div>
     <div class="reference-row"><span>包内源文件</span><code>${escapeHtml(packagePath)}</code></div>
-    <div class="reference-row"><span>Unity 输出</span><code>${escapeHtml(unityPath)}</code></div>
+  </section>`;
+}
+
+function renderResourceSyncContext(resource) {
+  const sync = getResourceUnitySync(resource);
+  const report = getUnityImportReport();
+  const operation = sync.operation;
+  const diagnostics = sync.diagnostics;
+  const diagnosticsHtml = diagnostics.length
+    ? `<div class="sync-diagnostics">${diagnostics.map(item => `<div>${escapeHtml(item)}</div>`).join("")}</div>`
+    : `<div class="meta">暂无同步诊断。</div>`;
+  return `<section class="reference-card sync-card">
+    <div class="reference-card-head"><strong>Unity 同步状态</strong><span>来自导入报告和 unity_resource_catalog；这里只展示状态，不修改 Unity 资产。</span></div>
+    <div class="reference-row"><span>状态</span><strong>${renderSyncBadge(sync)} ${escapeHtml(sync.status)}</strong></div>
+    <div class="reference-row"><span>Unity 路径</span><code title="${escapeHtml(sync.unityAssetPath)}">${escapeHtml(sync.unityAssetPath || "未生成")}</code></div>
+    <div class="reference-row"><span>GUID</span><code>${escapeHtml(sync.unityAssetGuid || "未记录")}</code></div>
+    <div class="reference-row"><span>Importer</span><strong>${escapeHtml(sync.importerKind || "未记录")}</strong></div>
+    <div class="reference-row"><span>主对象</span><strong>${escapeHtml(sync.unityMainObjectType || "未记录")}</strong></div>
+    <div class="reference-row"><span>最近操作</span><strong>${escapeHtml(operation ? `${operation.action || operation.kind || "operation"} / ${operation.writePolicy || "-"}` : "无报告操作")}</strong></div>
+    <div class="reference-row"><span>报告</span><code title="${escapeHtml(report?.reportPath || state.importResult?.reportOut || "")}">${escapeHtml(report?.reportPath || state.importResult?.reportOut || "未生成")}</code></div>
+    ${diagnosticsHtml}
   </section>`;
 }
 
@@ -2873,16 +3045,23 @@ function renderDiagnostics() {
 }
 
 function renderImportStatus() {
-  const report = state.importResult?.report || state.importResult || null;
+  const report = getUnityImportReport();
+  const unityEntries = getUnityCatalogEntries();
+  const importedCount = unityEntries.filter(entry => String(entry.importStatus || entry.providerData?.importStatus || "").toLowerCase() === "imported").length;
+  const catalogSummary = state.unityResourceCatalog
+    ? `<div class="status-line"><strong>Unity Catalog</strong><span class="badge ok">${unityEntries.length} entries / imported ${importedCount}</span></div><div class="meta">${escapeHtml(state.unityResourceCatalogPath || "-")}</div>`
+    : `<div class="status-line"><strong>Unity Catalog</strong><span class="badge warn">未读取</span></div><div class="meta">${escapeHtml(state.unityResourceCatalogPath || "Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/config/unity_resource_catalog.json")}</div>`;
   if (!report) {
-    el.importStatus.innerHTML = `<div class="empty">暂无 Unity 导入报告。</div>`;
+    el.importStatus.innerHTML = `${catalogSummary}<div class="empty">暂无 Unity 导入报告。</div>`;
     return;
   }
   const operations = report.operations || [];
   el.importStatus.innerHTML = [
+    catalogSummary,
     `<div class="status-line"><strong>${escapeHtml(report.status || (state.importResult.success ? "Ready" : "Unknown"))}</strong><span class="badge">${escapeHtml(report.targetRootPath || state.importResult.reportOut || "-")}</span></div>`,
     `<div class="meta">added=${report.addedCount ?? "-"} updated=${report.updatedCount ?? "-"} skipped=${report.skippedCount ?? "-"} conflicts=${report.conflictCount ?? "-"}</div>`,
-    ...operations.slice(0, 8).map(op => `<div class="operation-item"><strong>${escapeHtml(op.action || op.kind || "operation")}</strong><div class="meta">${escapeHtml(op.targetPath || op.sourcePath || "")}</div></div>`)
+    `<div class="meta">report=${escapeHtml(report.reportPath || state.importResult.reportOut || "-")}</div>`,
+    ...operations.slice(0, 8).map(op => `<div class="operation-item"><strong>${escapeHtml(op.action || op.kind || "operation")}</strong><span class="sync-badge ${escapeHtml(getUnityStatusTone(op.action || op.kind || ""))}">${escapeHtml(op.kind || "operation")}</span><div class="meta">${escapeHtml(op.targetPath || op.sourcePath || "")}</div>${op.message ? `<div class="meta">${escapeHtml(op.message)}</div>` : ""}</div>`)
   ].join("");
 }
 
@@ -3055,7 +3234,7 @@ async function compilePackage() {
     return;
   }
   state.compileResult = data;
-  state.message = `预检状态：${data.status || "Unknown"}`;
+  state.message = `Prefab 重建预检状态：${data.status || "Unknown"}`;
   renderDiagnostics();
 }
 
@@ -3068,8 +3247,11 @@ async function importUnity() {
       body: JSON.stringify({ package: state.packageRelative, unityRoot: "Assets/MxFrameworkGenerated/CharacterPackages", checkHashes: false, dryRun: false })
     });
     state.importResult = await response.json();
-    state.message = response.ok && state.importResult.success ? "Unity 导入完成。" : "Unity 导入失败。";
+    await loadUnityResourceCatalog();
+    state.message = response.ok && state.importResult.success ? "Unity 导入完成，报告和同步状态已刷新。" : "Unity 导入失败。";
     renderShellStatus();
+    renderResourceLibrary();
+    renderInspector();
     renderImportStatus();
   } catch (error) {
     state.message = `Unity 导入请求失败：${error instanceof Error ? error.message : String(error)}`;
@@ -3081,10 +3263,12 @@ async function copyReport() {
   const text = JSON.stringify({
     validation: state.validation,
     compile: state.compileResult,
-    import: state.importResult
+    import: state.importResult,
+    unityResourceCatalogPath: state.unityResourceCatalogPath,
+    unityResourceCatalog: state.unityResourceCatalog
   }, null, 2);
   await navigator.clipboard?.writeText(text);
-  state.message = "报告已复制。";
+  state.message = "诊断、Unity 导入和同步报告已复制。";
   renderShellStatus();
 }
 

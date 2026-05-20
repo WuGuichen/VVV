@@ -447,6 +447,18 @@ h2 {
   gap: 2px;
 }
 
+.resource-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.resource-title strong {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .resource-info strong,
 .resource-info span {
   overflow: hidden;
@@ -461,6 +473,43 @@ h2 {
 .resource-info span {
   color: var(--muted);
   font-size: 11px;
+}
+
+.resource-info .resource-unity-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.sync-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 18px;
+  max-width: 88px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-badge.ok {
+  background: #e4f4eb;
+  color: var(--ok);
+}
+
+.sync-badge.warn {
+  background: #fff4d6;
+  color: var(--warning);
+}
+
+.sync-badge.error {
+  background: #ffe4e4;
+  color: var(--danger);
 }
 
 .viewport {
@@ -825,6 +874,29 @@ h2 {
   font-size: 12px;
 }
 
+.sync-card .reference-row strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sync-diagnostics {
+  margin-top: 8px;
+  display: grid;
+  gap: 5px;
+}
+
+.sync-diagnostics div {
+  padding: 6px 7px;
+  border: 1px solid rgba(154, 107, 18, 0.28);
+  border-radius: 6px;
+  background: #fffaf0;
+  color: var(--warning);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .diagnostic-item,
 .operation-item {
   padding: 8px;
@@ -832,6 +904,15 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
+}
+
+.operation-item {
+  position: relative;
+}
+
+.operation-item .sync-badge {
+  float: right;
+  max-width: 120px;
 }
 
 .diagnostic-item.error {

@@ -342,6 +342,7 @@ internal static class CharacterPackageCommands
         }
 
         var mappingByPackageKey = new Dictionary<string, CharacterPackageResourceMappingEntry>(StringComparer.Ordinal);
+        var hashByPackageKey = BuildHashEntryLookup(result != null ? result.ResourceHashReport : null);
         var entries = new List<UnityResourceCatalogEntryDto>();
         if (mapping != null)
         {
@@ -362,18 +363,38 @@ internal static class CharacterPackageCommands
 
                 CharacterPackageResourceEntry sourceEntry;
                 sourceByKey.TryGetValue(entry.PackageResourceKey, out sourceEntry);
-                entries.Add(CreateUnityResourceCatalogEntry(packagePath, result, sourceEntry, entry, mappingByPackageKey));
+                CharacterPackageResourceHashEntry hashEntry;
+                hashByPackageKey.TryGetValue(entry.PackageResourceKey, out hashEntry);
+                entries.Add(CreateUnityResourceCatalogEntry(packagePath, result, sourceEntry, entry, mappingByPackageKey, hashEntry));
             }
         }
 
         var dto = new UnityResourceCatalogDto
         {
+            format = "mx.characterUnityResourceCatalog.v1",
             schemaVersion = 1,
             catalogId = "character.package." + (result != null ? result.PackageId : string.Empty),
             packageId = result != null ? result.PackageId : string.Empty,
+            generatedAtUtc = string.Empty,
             entries = entries.ToArray()
         };
         return EnsureTrailingNewline(JsonSerializer.Serialize(dto, options));
+    }
+
+    private static Dictionary<string, CharacterPackageResourceHashEntry> BuildHashEntryLookup(CharacterPackageResourceHashReport report)
+    {
+        var lookup = new Dictionary<string, CharacterPackageResourceHashEntry>(StringComparer.Ordinal);
+        if (report == null || report.Entries == null)
+            return lookup;
+
+        for (int i = 0; i < report.Entries.Count; i++)
+        {
+            CharacterPackageResourceHashEntry entry = report.Entries[i];
+            if (entry != null && !string.IsNullOrWhiteSpace(entry.ResourceKey))
+                lookup[entry.ResourceKey] = entry;
+        }
+
+        return lookup;
     }
 
     private static UnityResourceCatalogEntryDto CreateUnityResourceCatalogEntry(
@@ -381,26 +402,38 @@ internal static class CharacterPackageCommands
         CharacterAuthoringCompileResult result,
         CharacterPackageResourceEntry sourceEntry,
         CharacterPackageResourceMappingEntry mapping,
-        Dictionary<string, CharacterPackageResourceMappingEntry> mappingByPackageKey)
+        Dictionary<string, CharacterPackageResourceMappingEntry> mappingByPackageKey,
+        CharacterPackageResourceHashEntry hashEntry)
     {
         string packageId = result != null ? result.PackageId : string.Empty;
         string typeId = MapUnityResourceTypeId(mapping.TypeId);
+        string importerKind = GuessUnityImporterKind(mapping.SourceFormat, mapping.ImportTargetPath);
+        string declaredContentHash = !string.IsNullOrWhiteSpace(mapping.DeclaredContentHash)
+            ? mapping.DeclaredContentHash
+            : hashEntry != null ? hashEntry.DeclaredContentHash : string.Empty;
+        string contentHash = hashEntry != null && !string.IsNullOrWhiteSpace(hashEntry.ComputedContentHash)
+            ? hashEntry.ComputedContentHash
+            : declaredContentHash;
+        var diagnostics = BuildUnityResourceDiagnostics(mapping, hashEntry);
         var providerData = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["assetPath"] = mapping.ImportTargetPath,
             ["unityAssetPath"] = mapping.ImportTargetPath,
             ["unityAssetGuid"] = string.Empty,
             ["unityMainObjectType"] = string.Empty,
-            ["importerKind"] = GuessUnityImporterKind(mapping.SourceFormat, mapping.ImportTargetPath),
+            ["importerKind"] = importerKind,
             ["importStatus"] = "PendingUnityImport",
             ["packageResourceKey"] = mapping.PackageResourceKey,
             ["stableId"] = mapping.StableId,
             ["sourceRelativePath"] = mapping.SourceRelativePath,
             ["sourceFormat"] = mapping.SourceFormat,
             ["usage"] = mapping.Usage,
+            ["declaredContentHash"] = declaredContentHash,
+            ["contentHash"] = contentHash,
             ["requestedProviderId"] = mapping.ProviderId,
             ["importHash"] = mapping.ImportHash,
             ["dependencyHash"] = mapping.DependencyHash,
+            ["diagnosticCount"] = diagnostics.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["generatedBy"] = "CharacterUnityImportBridge",
             ["sourcePackageHash"] = result != null && result.Hashes != null ? result.Hashes.SourcePackageHash : string.Empty
         };
@@ -413,18 +446,63 @@ internal static class CharacterPackageCommands
             packageId = packageId,
             provider = "memory",
             address = mapping.ImportTargetPath,
+            packageResourceKey = mapping.PackageResourceKey,
+            stableId = mapping.StableId,
+            usage = mapping.Usage,
+            sourceRelativePath = mapping.SourceRelativePath,
+            sourceFormat = mapping.SourceFormat,
+            declaredContentHash = declaredContentHash,
+            contentHash = contentHash,
+            importHash = mapping.ImportHash,
+            dependencyHash = mapping.DependencyHash,
             unityAssetPath = mapping.ImportTargetPath,
             unityAssetGuid = string.Empty,
             unityMainObjectType = string.Empty,
-            importerKind = GuessUnityImporterKind(mapping.SourceFormat, mapping.ImportTargetPath),
+            importerKind = importerKind,
             importStatus = "PendingUnityImport",
+            diagnostics = diagnostics,
             labels = BuildUnityResourceLabels(packageId, sourceEntry, mapping),
             dependencies = BuildUnityResourceDependencies(packageId, sourceEntry, mappingByPackageKey),
-            hash = mapping.DeclaredContentHash,
+            hash = declaredContentHash,
             size = GetPackageResourceSize(packagePath, mapping.SourceRelativePath),
             allowOverride = false,
             providerData = providerData
         };
+    }
+
+    private static UnityResourceCatalogDiagnosticDto[] BuildUnityResourceDiagnostics(
+        CharacterPackageResourceMappingEntry mapping,
+        CharacterPackageResourceHashEntry hashEntry)
+    {
+        var diagnostics = new List<UnityResourceCatalogDiagnosticDto>();
+        if (mapping == null)
+            return diagnostics.ToArray();
+
+        if (hashEntry == null)
+        {
+            diagnostics.Add(new UnityResourceCatalogDiagnosticDto
+            {
+                severity = "Warning",
+                code = "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+                message = "Resource hash entry was not available when generating Unity resource catalog.",
+                sourcePath = mapping.SourceRelativePath,
+                field = "contentHash"
+            });
+        }
+        else if (!hashEntry.Exists)
+        {
+            diagnostics.Add(new UnityResourceCatalogDiagnosticDto
+            {
+                severity = "Error",
+                code = "CHARPKG_UNITY_SOURCE_MISSING",
+                message = "Source resource file was missing when generating Unity resource catalog.",
+                sourcePath = mapping.SourceRelativePath,
+                field = "sourceRelativePath"
+            });
+        }
+
+        diagnostics.Sort((a, b) => string.CompareOrdinal(a.code, b.code));
+        return diagnostics.ToArray();
     }
 
     private static string[] BuildUnityResourceLabels(
@@ -750,9 +828,12 @@ internal static class CharacterPackageCommands
 
     private sealed class UnityResourceCatalogDto
     {
+        public string format { get; set; } = "mx.characterUnityResourceCatalog.v1";
         public int schemaVersion { get; set; } = 1;
         public string catalogId { get; set; } = string.Empty;
         public string packageId { get; set; } = string.Empty;
+        public string generatedAtUtc { get; set; } = string.Empty;
+        public UnityResourceCatalogOrphanDto[] orphanedUnityAssets { get; set; } = Array.Empty<UnityResourceCatalogOrphanDto>();
         public UnityResourceCatalogEntryDto[] entries { get; set; } = Array.Empty<UnityResourceCatalogEntryDto>();
     }
 
@@ -764,17 +845,43 @@ internal static class CharacterPackageCommands
         public string packageId { get; set; } = string.Empty;
         public string provider { get; set; } = string.Empty;
         public string address { get; set; } = string.Empty;
+        public string packageResourceKey { get; set; } = string.Empty;
+        public string stableId { get; set; } = string.Empty;
+        public string usage { get; set; } = string.Empty;
+        public string sourceRelativePath { get; set; } = string.Empty;
+        public string sourceFormat { get; set; } = string.Empty;
+        public string declaredContentHash { get; set; } = string.Empty;
+        public string contentHash { get; set; } = string.Empty;
+        public string importHash { get; set; } = string.Empty;
+        public string dependencyHash { get; set; } = string.Empty;
         public string unityAssetPath { get; set; } = string.Empty;
         public string unityAssetGuid { get; set; } = string.Empty;
         public string unityMainObjectType { get; set; } = string.Empty;
         public string importerKind { get; set; } = string.Empty;
         public string importStatus { get; set; } = string.Empty;
+        public UnityResourceCatalogDiagnosticDto[] diagnostics { get; set; } = Array.Empty<UnityResourceCatalogDiagnosticDto>();
         public string[] labels { get; set; } = Array.Empty<string>();
         public UnityResourceKeyDto[] dependencies { get; set; } = Array.Empty<UnityResourceKeyDto>();
         public string hash { get; set; } = string.Empty;
         public long size { get; set; }
         public bool allowOverride { get; set; }
         public Dictionary<string, string> providerData { get; set; } = new();
+    }
+
+    private sealed class UnityResourceCatalogDiagnosticDto
+    {
+        public string severity { get; set; } = string.Empty;
+        public string code { get; set; } = string.Empty;
+        public string message { get; set; } = string.Empty;
+        public string sourcePath { get; set; } = string.Empty;
+        public string field { get; set; } = string.Empty;
+    }
+
+    private sealed class UnityResourceCatalogOrphanDto
+    {
+        public string unityAssetPath { get; set; } = string.Empty;
+        public string importStatus { get; set; } = "OrphanedUnityAsset";
+        public string message { get; set; } = string.Empty;
     }
 
     private sealed class UnityResourceKeyDto
