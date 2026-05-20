@@ -18,6 +18,8 @@ internal static class CharacterPackageTests
         AuthoringResourceItem_JsonRoundTrip_PreservesProviderBindings();
         CharacterPackageProvider_ProjectsPackageResourceWithoutRuntimeKey();
         CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
+        UnityAssetDatabaseProvider_ProjectsSnapshotAndUnavailableState();
+        RuntimeCatalogProvider_ProjectsRuntimeReadyEntries();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
@@ -506,6 +508,130 @@ internal static class CharacterPackageTests
         Require(collection.Diagnostics.Exists(d => d.Code == AuthoringResourceDiagnosticCodes.StableIdDuplicate), "duplicate stable id diagnostic should be emitted.");
         Require(collection.Diagnostics.Exists(d => d.Code == AuthoringResourceDiagnosticCodes.ResourceKeyDuplicate), "duplicate package key diagnostic should be emitted.");
         Require(collection.Diagnostics.TrueForAll(d => !string.IsNullOrWhiteSpace(d.ResourceId)), "duplicate diagnostics should include resource id.");
+    }
+
+    private static void UnityAssetDatabaseProvider_ProjectsSnapshotAndUnavailableState()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "mx-authoring-unity-provider-" + Guid.NewGuid().ToString("N"));
+        string assetPath = Path.Combine(tempRoot, "Assets", "Characters", "body.prefab");
+        Directory.CreateDirectory(Path.GetDirectoryName(assetPath)!);
+        File.WriteAllText(assetPath, "prefab");
+
+        var snapshot = new AuthoringUnityResourceCatalogDocument
+        {
+            CatalogId = "unity.test",
+            PackageId = "test"
+        };
+        snapshot.Entries.Add(new AuthoringUnityResourceCatalogEntry
+        {
+            Id = "char.test.model.body",
+            Type = "GameObject",
+            PackageId = "test",
+            PackageResourceKey = "char.test.model.body",
+            StableId = "charpkg.test.resource.model.body",
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            UnityAssetGuid = "guid-body",
+            UnityAssetPath = "Assets/Characters/body.prefab",
+            UnityMainObjectType = "GameObject",
+            ImporterKind = "PrefabImporter",
+            ImportStatus = "Imported",
+            Labels = new List<string> { "character.model" },
+            ProviderData = new Dictionary<string, string> { { "sourceFormat", "prefab" } }
+        });
+        snapshot.Entries.Add(new AuthoringUnityResourceCatalogEntry
+        {
+            Id = "char.test.texture.icon",
+            Type = "Texture2D",
+            PackageResourceKey = "char.test.texture.icon",
+            StableId = "charpkg.test.resource.texture.icon",
+            Usage = CharacterPackageResourceUsageIds.PreviewThumbnail,
+            UnityAssetPath = "Assets/Characters/missing.png",
+            ImportStatus = "Imported"
+        });
+
+        try
+        {
+            AuthoringResourceCollection collection = UnityAssetDatabaseAuthoringResourceProvider.FromUnityResourceCatalog(
+                snapshot,
+                new AuthoringResourceProviderContext
+                {
+                    ScopeId = "test",
+                    PackageId = "test",
+                    ProjectRootPath = tempRoot,
+                    UnityResourceCatalogPath = "Assets/MxFrameworkGenerated/test/config/unity_resource_catalog.json"
+                });
+
+            Require(collection.Providers.Count == 1 && collection.Providers[0].Available, "Unity provider should be available with a snapshot.");
+            AuthoringResourceItem body = collection.Items.Find(item => item.Metadata.ContainsKey("packageResourceKey") && item.Metadata["packageResourceKey"] == "char.test.model.body");
+            Require(body != null, "Unity body item should be projected.");
+            Require(body.SourceProviderId == AuthoringResourceProviderIds.UnityAssetDatabase, "Unity item should use Unity provider.");
+            Require(body.BindingKind == AuthoringResourceBindingKind.UnityAsset, "Unity item should use Unity asset binding.");
+            Require(body.RuntimeAvailability == AuthoringResourceRuntimeAvailability.EditorOnly, "Unity snapshot item should remain editor-only by default.");
+            Require(body.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnityGuid && binding.UnityGuid == "guid-body"), "Unity GUID should be a provider binding.");
+            Require(body.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.PackageResourceKey && binding.PackageResourceKey == "char.test.model.body"), "Unity item should preserve package resource key mapping.");
+
+            AuthoringResourceItem missing = collection.Items.Find(item => item.Metadata.ContainsKey("packageResourceKey") && item.Metadata["packageResourceKey"] == "char.test.texture.icon");
+            Require(missing != null && missing.ImportStatus == AuthoringResourceImportStatus.UnityMissing, "missing Unity asset should be marked UnityMissing.");
+            Require(missing.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.UnityAssetMissing), "missing Unity asset should emit a diagnostic.");
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+
+        AuthoringResourceCollection unavailable = new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
+        Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "Unity provider should expose unavailable state without a snapshot.");
+        Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable Unity provider should emit a diagnostic.");
+    }
+
+    private static void RuntimeCatalogProvider_ProjectsRuntimeReadyEntries()
+    {
+        var catalog = new RuntimeResourceCatalogDocument
+        {
+            CatalogId = "runtime.test",
+            PackageId = "test"
+        };
+        catalog.Entries.Add(new RuntimeResourceCatalogEntryDocument
+        {
+            Id = "char.test.model.body",
+            Type = "GameObject",
+            PackageId = "test",
+            Provider = "assetBundle",
+            Address = "bundles/test/body.prefab",
+            Labels = new List<string> { "spawnCritical" },
+            Hash = "sha256:body",
+            Size = 42,
+            ProviderData = new Dictionary<string, string>
+            {
+                { "stableId", "charpkg.test.resource.model.body" },
+                { "packageResourceKey", "char.test.model.body" },
+                { "usage", CharacterPackageResourceUsageIds.CharacterModel },
+                { "retainPolicy", "KeepAlive" }
+            }
+        });
+
+        AuthoringResourceCollection collection = RuntimeCatalogAuthoringResourceProvider.FromRuntimeResourceCatalog(
+            catalog,
+            new AuthoringResourceProviderContext
+            {
+                ScopeId = "test",
+                PackageId = "test",
+                RuntimeResourceCatalogPath = "Assets/MxFrameworkGenerated/test/config/runtime_resource_catalog.json"
+            });
+
+        Require(collection.Providers.Count == 1 && collection.Providers[0].Available, "runtime provider should be available with a catalog.");
+        Require(collection.Items.Count == 1, "runtime catalog provider should project entries.");
+        AuthoringResourceItem item = collection.Items[0];
+        Require(item.SourceProviderId == AuthoringResourceProviderIds.RuntimeCatalog, "runtime item should use runtime catalog provider.");
+        Require(item.BindingKind == AuthoringResourceBindingKind.ResourceManagerAsset, "runtime item should use ResourceManager binding.");
+        Require(item.RuntimeAvailability == AuthoringResourceRuntimeAvailability.RuntimeReady, "runtime catalog item should be runtime-ready.");
+        Require(item.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.RuntimeResourceKey && binding.RuntimeResourceKey == "char.test.model.body"), "runtime resource key binding should be explicit.");
+        Require(item.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.PackageResourceKey && binding.PackageResourceKey == "char.test.model.body"), "runtime item should preserve package key mapping.");
+        Require(item.Metadata["retainPolicy"] == "KeepAlive", "runtime provider should preserve retain policy metadata.");
+
+        AuthoringResourceCollection unavailable = new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
+        Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "runtime provider should expose unavailable state without a catalog.");
+        Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable runtime provider should emit a diagnostic.");
     }
 
     private static void AuthoringResourceSelectionContracts_JsonRoundTrip()

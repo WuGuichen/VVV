@@ -84,6 +84,7 @@ namespace MxFramework.Authoring
         public const string SourceFileMissing = "AUTH_RES_SOURCE_FILE_MISSING";
         public const string HashMismatch = "AUTH_RES_HASH_MISMATCH";
         public const string UnityAssetMissing = "AUTH_RES_UNITY_ASSET_MISSING";
+        public const string ProviderUnavailable = "AUTH_RES_PROVIDER_UNAVAILABLE";
         public const string NotRuntimeLoadable = "AUTH_RES_NOT_RUNTIME_LOADABLE";
         public const string EditorOnlySelectedForRuntime = "AUTH_RES_EDITOR_ONLY_SELECTED_FOR_RUNTIME";
         public const string FmodEventMissing = "AUTH_RES_FMOD_EVENT_MISSING";
@@ -115,6 +116,10 @@ namespace MxFramework.Authoring
         public string PackagePath { get; set; } = string.Empty;
         public string ProjectRootPath { get; set; } = string.Empty;
         public CharacterPackageResourceCatalog PackageResourceCatalog { get; set; }
+        public AuthoringUnityResourceCatalogDocument UnityResourceCatalog { get; set; }
+        public RuntimeResourceCatalogDocument RuntimeResourceCatalog { get; set; }
+        public string UnityResourceCatalogPath { get; set; } = string.Empty;
+        public string RuntimeResourceCatalogPath { get; set; } = string.Empty;
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
     }
 
