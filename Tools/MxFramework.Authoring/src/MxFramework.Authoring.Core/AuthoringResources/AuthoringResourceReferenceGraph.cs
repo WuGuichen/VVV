@@ -360,7 +360,8 @@ namespace MxFramework.Authoring
 
                 bool referenced =
                     (!string.IsNullOrWhiteSpace(item.ResourceId) && referencedResourceIds.Contains(item.ResourceId)) ||
-                    (!string.IsNullOrWhiteSpace(item.StableId) && referencedStableIds.Contains(item.StableId));
+                    (!string.IsNullOrWhiteSpace(item.StableId) && referencedStableIds.Contains(item.StableId)) ||
+                    IsTargetedByAnyEdge(graph, item);
                 if (referenced)
                     continue;
 
@@ -372,6 +373,20 @@ namespace MxFramework.Authoring
                     "resource item has no incoming references.",
                     "Keep it as reusable library content or mark it for cleanup after confirming no editor uses it."));
             }
+        }
+
+        private static bool IsTargetedByAnyEdge(AuthoringResourceReferenceGraph graph, AuthoringResourceItem item)
+        {
+            if (graph == null || graph.Edges == null || item == null)
+                return false;
+
+            for (int i = 0; i < graph.Edges.Count; i++)
+            {
+                if (EdgeTargetsItem(graph.Edges[i], item))
+                    return true;
+            }
+
+            return false;
         }
 
         private static AuthoringResourceDiagnostic CreateDiagnostic(

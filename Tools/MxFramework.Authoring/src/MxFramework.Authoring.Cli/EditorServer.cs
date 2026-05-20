@@ -742,14 +742,29 @@ internal static class EditorServer
     {
         string packagePath = ResolveSafePath(rootPath, packageRelative);
         CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
-        AuthoringResourceCollection collection = new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext
+        string packageId = package.Manifest != null ? package.Manifest.PackageId : string.Empty;
+        string scopeId = "characterPackage:" + packageId;
+        string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", packageId);
+        string unityResourceCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
+        string runtimeResourceCatalogPath = Path.Combine(generatedRoot, "config", "runtime_resource_catalog.json");
+        CharacterResourcePlanCompileResult plan = ReadCharacterResourcePlan(rootPath, packageRelative, checkFiles: false, checkHashes: false, jsonOptions);
+        var context = new AuthoringResourceProviderContext
         {
-            ScopeId = "characterPackage:" + (package.Manifest != null ? package.Manifest.PackageId : string.Empty),
-            PackageId = package.Manifest != null ? package.Manifest.PackageId : string.Empty,
+            ScopeId = scopeId,
+            PackageId = packageId,
             PackagePath = packageRelative,
             ProjectRootPath = rootPath,
-            PackageResourceCatalog = package.ResourceCatalog
-        });
+            PackageResourceCatalog = package.ResourceCatalog,
+            UnityResourceCatalog = ReadOptionalJsonFile<AuthoringUnityResourceCatalogDocument>(rootPath, unityResourceCatalogPath, jsonOptions),
+            RuntimeResourceCatalog = plan != null ? plan.RuntimeResourceCatalog : null,
+            UnityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
+            RuntimeResourceCatalogPath = ToProjectRelativePath(rootPath, runtimeResourceCatalogPath)
+        };
+        AuthoringResourceCollection collection = AuthoringResourceCollectionMerger.Merge(
+            new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(context),
+            new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(context),
+            new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(context));
+        collection.ScopeId = scopeId;
         collection.ReferenceGraph = AuthoringResourceReferenceGraphBuilder.FromCharacterPackage(package, collection);
         collection.Diagnostics.AddRange(collection.ReferenceGraph.Diagnostics);
         return collection;
@@ -3104,6 +3119,16 @@ internal static class EditorServer
             return null;
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(fullPath));
         return doc.RootElement.Clone();
+    }
+
+    private static T ReadOptionalJsonFile<T>(string rootPath, string path, JsonSerializerOptions jsonOptions)
+        where T : class
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (!fullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+            return null;
+
+        return JsonSerializer.Deserialize<T>(File.ReadAllText(fullPath), jsonOptions);
     }
 
     private static string ToProjectRelativePath(string rootPath, string path)
