@@ -32,6 +32,7 @@
 | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 的运行时底座规划。 |
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、模块边界、加载契约和阶段切片。 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、命名、Catalog、临时资产归档和 FMOD 边界规范。 |
+| `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置、材质/场景创作和验证规则。 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画/物理协作方案和落地阶段。 |
 | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包、外部 3D 装配编辑器、Unity 导入和 Runtime Spawn 总方案。 |
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程实现方案：模块拆分、目录、CLI、Tauri 编辑器、Unity Importer 和测试矩阵。 |
@@ -166,6 +167,7 @@
 | `Tasks/COMBAT_MOTION_V1_CAPSULE_CHARACTER_PROXY.md` | Combat Motion v1 capsule proxy / narrow phase 已验收；角色移动碰撞使用 deterministic capsule proxy，并保持攻击 query 语义不变。 |
 | `Tasks/COMBAT_PHYSICS_HIT_QUERY_DEBUG_VISUALIZATION.md` | 命中查询 explain / debug 数据链路、Play Mode hit / miss 摘要和可视化节点已验收。 |
 | `Tasks/COMBAT_PHYSICS_RUNTIME_WORLD_LIFECYCLE.md` | `CombatPhysicsWorld` lifecycle API、revision / stats、mutation、copy 和 query regression 已验收。 |
+| `Tasks/COMBAT_PHYSICS_M11D_3_OBB_QUERY_V0.md` | Combat Physics 下一阶段：补齐 OBB query v0，用于矩形攻击盒 / 武器盒；本阶段只做 OBB query vs AABB collider，不扩展 OBB collider 或角色运动。 |
 | `Tasks/RESOURCE_MANAGEMENT_M1_CONTRACT_MEMORY_PROVIDER.md` | Resource Management M1 已实现 noEngine 契约、Memory Provider、Handle、Catalog 合并和基础测试。 |
 | `Tasks/RESOURCE_MANAGEMENT_M2_UNITY_DEMO_PROVIDER.md` | Resource Management M2 已实现 Unity Resources Provider、TextAsset Demo 和 Resources 测试分组。 |
 | `Tasks/RESOURCE_MANAGEMENT_M3_ASSETBUNDLE_PROVIDER_CATALOG_FILE.md` | Resource Management M3 已实现 StreamingAssets Catalog loader、本地 AssetBundle Provider、依赖 bundle ref-count 和安全卸载测试。 |
@@ -192,6 +194,7 @@
 | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 如何协作 | 开发运行时底座、回放、存档前 |
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源引用、加载、释放、Catalog、Provider 和 Mod 资源包如何协作 | 开发资源管理模块前 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 框架样例资源正式目录、ResourceKey 命名、Catalog 归档和 FMOD bank 边界 | 迁移或新增正式样例资源前 |
+| `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置和场景/材质验证规则 | 渲染管线、材质、Shader、Volume、相机或 Demo 表现基线变化 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 确定性战斗动画、物理查询、命中结算和工具链如何协作 | 开发 Combat/动作/物理/联网战斗前 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 制作小游戏 / Demo 时如何优先复用框架模块 | 开发小游戏、Playable Demo、Runtime Showcase 或场景验证前 |
 | `USAGE.md` | 如何直接接入和组合模块 | 新增基础功能或改变推荐用法 |

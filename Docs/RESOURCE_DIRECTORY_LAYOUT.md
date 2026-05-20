@@ -49,6 +49,7 @@ Assets/
     StartScreen/
   VFX/MxFramework/Samples/
     StatusAuras/
+  Config/MxFramework/Rendering/
   Audio/MxFramework/Samples/
     MagicEffects/
   Config/MxFramework/ResourceCatalogs/
@@ -69,6 +70,7 @@ Directory roles:
 | `Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/` | Formal skeleton sample `AnimationClip` assets extracted from temporary FBX source clips. | Direct `AnimationClip` entries after Catalog ownership issue; source FBX files stay dependency/input-only. |
 | `Assets/UI/MxFramework/Samples/` | Formal UI Toolkit textures, UXML, USS, themes, and UI sample support assets. | UI textures may be direct `Texture2D` entries when config/runtime UI references them. |
 | `Assets/VFX/MxFramework/Samples/` | Formal authored VFX prefabs and support materials/textures. | VFX prefabs are direct `GameObject` entries; support assets dependency-only. |
+| `Assets/Config/MxFramework/Rendering/` | Project-level URP pipeline and renderer assets for framework scenes and demos. Current baseline is documented in `Docs/RENDERING_PIPELINE.md`. | Rendering configuration assets, not gameplay resources. Do not catalog as ordinary runtime sample content unless a dedicated view/quality profile feature owns that contract. |
 | `Assets/Audio/MxFramework/Samples/` | Formal Unity `AudioClip` samples. | Direct `AudioClip` entries for generic resource samples. |
 | `Assets/Config/MxFramework/ResourceCatalogs/` | Catalog JSON source/generated output reviewed by Editor validation. | Catalog files, not resources loaded as ordinary assets. |
 | `Assets/Config/MxFramework/ResourceProfiles/` | Variant fallback, preload group, retain policy, and provider profile config. These files reference Catalog entries by `ResourceKey`, labels, variants, and package IDs instead of duplicating Catalog address data. | Config references `ResourceKey`, labels, and variants. |
