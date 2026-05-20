@@ -359,27 +359,24 @@ h2 {
   font-size: 12px;
 }
 
-.resource-library {
-  border-bottom: 1px solid var(--line);
-  background: #fbfcfd;
-}
-
-.resource-library-head {
+.resource-binding-bar {
   min-height: 34px;
-  padding: 7px 10px 0;
+  padding: 7px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
   flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
 }
 
-.resource-library-head strong {
+.resource-binding-bar strong {
   flex: 0 0 auto;
 }
 
-.resource-library-head span {
+.resource-binding-bar span {
   min-width: 0;
   flex: 1 1 auto;
   color: var(--muted);
@@ -388,19 +385,67 @@ h2 {
   white-space: nowrap;
 }
 
-.resource-library-head button {
+.resource-binding-bar button {
   flex: 0 0 auto;
   min-height: 26px;
   padding: 0 8px;
   font-size: 12px;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 32, 0.34);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.resource-picker {
+  width: min(980px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(17, 24, 32, 0.24);
+  overflow: hidden;
+}
+
+.resource-picker-head {
+  min-width: 0;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
+}
+
+.resource-picker-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.resource-picker-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .model-resource-list {
-  padding: 7px 10px 9px;
+  padding: 10px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 7px;
-  max-height: 190px;
+  max-height: min(640px, calc(100vh - 150px));
   overflow: auto;
 }
 
@@ -562,6 +607,12 @@ h2 {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.resource-plan-head::-webkit-details-marker {
+  display: none;
 }
 
 .resource-plan-head strong {
@@ -640,7 +691,7 @@ h2 {
 }
 
 .viewport {
-  height: calc(100vh - 490px);
+  height: calc(100vh - 325px);
   min-height: 420px;
   padding: 10px;
   background: #f8fafb;

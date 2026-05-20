@@ -215,7 +215,8 @@ const state = {
   previewMotion: "none",
   viewportCameraState: null,
   skipNextCameraRemember: false,
-  treeCollapsed: false
+  treeCollapsed: false,
+  resourcePickerOpen: false
 };
 
 const el = {};
@@ -226,11 +227,12 @@ let viewportCleanup = null;
 document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
     "packageSelect", "reloadButton", "saveButton", "compileButton", "importButton",
-    "modelImportRole", "modelImportButton", "modelFileInput", "modelReplaceFileInput",
+    "modelImportRole", "modelImportButton", "modelFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
     "workspace", "treeCollapseButton", "previewPoseSelect", "previewMotionSelect", "resetCameraButton",
     "configCreateSelect", "configCreateButton",
-    "resourceLibraryTarget", "modelResourceList", "downloadResourceButton", "replaceResourceButton", "clearModelBindingButton",
+    "resourceBindingTarget", "openResourcePickerButton", "clearModelBindingButton",
+    "resourcePickerOverlay", "resourcePickerTitle", "resourcePickerSummary", "resourcePickerList", "closeResourcePickerButton",
     "resourcePlanPreview",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
@@ -253,14 +255,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const file = el.modelFileInput.files?.[0];
     if (file) importModel(file);
   });
-  el.modelReplaceFileInput.addEventListener("change", () => {
-    const file = el.modelReplaceFileInput.files?.[0];
-    const resource = getSelectedModelResource();
-    if (file && resource?.resourceKey) importModel(file, { resourceKey: resource.resourceKey });
-  });
   el.modelImportRole.addEventListener("change", () => {
     updateModelImportTitle();
-    renderResourceLibrary();
+    renderResourceBindingBar();
+    renderResourcePicker();
   });
   el.treeCollapseButton.addEventListener("click", () => {
     state.treeCollapsed = !state.treeCollapsed;
@@ -280,14 +278,17 @@ document.addEventListener("DOMContentLoaded", () => {
     state.skipNextCameraRemember = true;
     renderViewport();
   });
-  el.modelResourceList.addEventListener("click", event => {
+  el.openResourcePickerButton.addEventListener("click", openResourcePicker);
+  el.closeResourcePickerButton.addEventListener("click", closeResourcePicker);
+  el.resourcePickerOverlay.addEventListener("click", event => {
+    if (event.target === el.resourcePickerOverlay) closeResourcePicker();
+  });
+  el.resourcePickerList.addEventListener("click", event => {
     const button = event.target.closest("button[data-library-id]");
     if (!button) return;
     selectLibraryItem(button.dataset.libraryId);
   });
   el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
-  el.downloadResourceButton.addEventListener("click", downloadSelectedResource);
-  el.replaceResourceButton.addEventListener("click", replaceSelectedResource);
   el.copyReportButton.addEventListener("click", () => copyReport());
   el.packageSelect.addEventListener("change", event => {
     state.packageRelative = event.target.value;
@@ -431,7 +432,8 @@ function render() {
   renderTree();
   renderLoadouts();
   renderPreviewControls();
-  renderResourceLibrary();
+  renderResourceBindingBar();
+  renderResourcePicker();
   renderResourcePlanPreview();
   renderViewport();
   renderInspector();
@@ -456,9 +458,7 @@ function renderShellStatus() {
   el.modelImportRole.disabled = !state.canWrite || !state.package;
   el.configCreateSelect.disabled = !state.canWrite || !state.package;
   el.configCreateButton.disabled = !state.canWrite || !state.package;
-  const selectedModelResource = getSelectedModelResource();
-  el.downloadResourceButton.disabled = !selectedModelResource?.relativePath;
-  el.replaceResourceButton.disabled = !state.canWrite || !selectedModelResource?.resourceKey;
+  el.openResourcePickerButton.disabled = !state.package;
   el.clearModelBindingButton.disabled = !state.canWrite || !state.package || el.modelImportRole.value === "preview";
   el.compileButton.disabled = !state.apiAvailable || !state.package;
   el.importButton.disabled = !state.apiAvailable || !state.package || state.dirty || isImportBlocked();
@@ -488,26 +488,50 @@ function normalizeResourcePlanPayload(payload) {
   return null;
 }
 
-function renderResourceLibrary() {
-  if (!el.modelResourceList || !el.resourceLibraryTarget) return;
+function renderResourceBindingBar() {
+  if (!el.resourceBindingTarget) return;
   const targetRole = el.modelImportRole?.value || "preview";
   const roleInfo = getModelImportRole();
   const fieldSpec = getActiveResourceFieldSpec();
   const selectedResource = getSelectedModelResource();
   const selectedText = selectedResource
-    ? `；选中：${getResourceDisplayName(selectedResource)} -> ${selectedResource.relativePath || "未设置路径"}`
-    : "";
-  el.resourceLibraryTarget.textContent = (targetRole === "preview"
-    ? `当前字段：${fieldSpec.fieldKey}`
-    : `当前字段：${fieldSpec.fieldKey} / ${roleInfo.label}`) + selectedText;
+    ? `当前选中：${getResourceDisplayName(selectedResource)}`
+    : "当前未选中资源";
+  el.resourceBindingTarget.textContent = targetRole === "preview"
+    ? `${fieldSpec.fieldKey}；${selectedText}`
+    : `${fieldSpec.fieldKey} / ${roleInfo.label}；${selectedText}`;
+}
 
-  const items = getResourceLibraryItems();
-  if (!items.length) {
-    el.modelResourceList.innerHTML = `<div class="empty">暂无资源库项。</div>`;
+function openResourcePicker() {
+  if (!state.package) return;
+  state.resourcePickerOpen = true;
+  renderResourcePicker();
+}
+
+function closeResourcePicker() {
+  state.resourcePickerOpen = false;
+  renderResourcePicker();
+}
+
+function renderResourcePicker() {
+  if (!el.resourcePickerOverlay || !el.resourcePickerList) return;
+  el.resourcePickerOverlay.hidden = !state.resourcePickerOpen;
+  if (!state.resourcePickerOpen) {
+    el.resourcePickerList.innerHTML = "";
     return;
   }
 
-  el.modelResourceList.innerHTML = items.map(item => {
+  const roleInfo = getModelImportRole();
+  const fieldSpec = getActiveResourceFieldSpec();
+  el.resourcePickerTitle.textContent = `选择${roleInfo.label}`;
+  el.resourcePickerSummary.textContent = `${fieldSpec.fieldKey} / ${fieldSpec.outputKind} / ${fieldSpec.preloadPolicy}；完整资源新增、替换、删除由独立 Resource Library Editor 负责。`;
+  const items = getResourceLibraryItems();
+  if (!items.length) {
+    el.resourcePickerList.innerHTML = `<div class="empty">暂无可选资源。</div>`;
+    return;
+  }
+
+  el.resourcePickerList.innerHTML = items.map(item => {
     const selection = evaluateResourceFieldSelection(item, fieldSpec);
     const selected = item.path === state.selectedPath;
     const thumb = item.thumbnailUrl
@@ -683,7 +707,8 @@ function selectLibraryItem(libraryItemId) {
     state.selectedPath = item.path || state.selectedPath;
     state.message = `${item.displayName} 不符合 ${spec.fieldKey}：${selection.reason}`;
     renderTree();
-    renderResourceLibrary();
+    renderResourceBindingBar();
+    renderResourcePicker();
     renderInspector();
     renderShellStatus();
     return;
@@ -694,8 +719,10 @@ function selectLibraryItem(libraryItemId) {
   }
   state.selectedPath = item.path || state.selectedPath;
   state.message = `${spec.fieldKey} 已选中 ${item.displayName}；SelectionRef=${item.stableId}`;
+  closeResourcePicker();
   renderTree();
-  renderResourceLibrary();
+  renderResourceBindingBar();
+  renderResourcePicker();
   renderInspector();
   renderShellStatus();
 }
@@ -983,11 +1010,13 @@ function bindModelResource(resourceKey) {
   const path = `resources/${resource.resourceKey}`;
   if (!state.canWrite || role === "preview") {
     state.selectedPath = path;
+    state.resourcePickerOpen = false;
     state.message = role === "preview"
       ? `已选中资源：${getResourceDisplayName(resource)}`
       : "静态预览只能选中资源，不能替换绑定。";
     renderTree();
-    renderResourceLibrary();
+    renderResourceBindingBar();
+    renderResourcePicker();
     renderViewport();
     renderInspector();
     renderShellStatus();
@@ -1010,6 +1039,7 @@ function bindModelResource(resourceKey) {
   touchModelResource(resource, role);
   state.selectedPath = path;
   state.dirty = true;
+  state.resourcePickerOpen = false;
   state.message = `${getResourceDisplayName(resource)} 已设为${getModelImportRole().label}。保存后写入资源包。`;
   render();
 }
@@ -3288,7 +3318,10 @@ function commitInspectorField(target, input) {
   renderShellStatus();
   renderViewport();
   if (shouldRefreshInspectorForField(input.dataset.field)) renderInspector();
-  if (input.dataset.field === "usage") renderResourceLibrary();
+  if (input.dataset.field === "usage") {
+    renderResourceBindingBar();
+    renderResourcePicker();
+  }
   return value;
 }
 
@@ -3565,47 +3598,6 @@ function getSelectedModelResource() {
   return getModelResources(state.package).find(resource => resource.resourceKey === selectedKey) || null;
 }
 
-function getPackageResourceUrl(resource) {
-  if (!resource?.relativePath) return "";
-  return encodeURI(`/${state.packageRelative}/${resource.relativePath}`);
-}
-
-function downloadSelectedResource() {
-  const resource = getSelectedModelResource();
-  const url = getPackageResourceUrl(resource);
-  if (!url) {
-    state.message = "当前没有可下载的选中资源。";
-    renderShellStatus();
-    return;
-  }
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = String(resource.relativePath).split("/").pop() || getResourceDisplayName(resource);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  state.message = `已导出源文件副本：${getResourceDisplayName(resource)}。编辑后可用“替换选中”回收更新。`;
-  renderShellStatus();
-}
-
-function replaceSelectedResource() {
-  const resource = getSelectedModelResource();
-  if (!resource?.resourceKey) {
-    state.message = "请先在导入资源列表中选中一个模型资源。";
-    renderShellStatus();
-    return;
-  }
-  if (!state.canWrite) {
-    state.message = "静态预览不能替换资源。请启动 Authoring server。";
-    renderShellStatus();
-    return;
-  }
-
-  el.modelReplaceFileInput.value = "";
-  el.modelReplaceFileInput.click();
-}
-
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -3665,7 +3657,8 @@ async function importUnity() {
     await loadResourceLibraryAndPlan();
     state.message = response.ok && state.importResult.success ? "Unity 导入完成，报告和同步状态已刷新。" : "Unity 导入失败。";
     renderShellStatus();
-    renderResourceLibrary();
+    renderResourceBindingBar();
+    renderResourcePicker();
     renderResourcePlanPreview();
     renderInspector();
     renderImportStatus();
@@ -3698,7 +3691,8 @@ function selectPath(path) {
   state.bonePickerOpen = false;
   state.highlightedBoneValue = state.activeBoneFieldPath ? (getNested(target.value, state.activeBoneFieldPath) || "") : "";
   renderTree();
-  renderResourceLibrary();
+  renderResourceBindingBar();
+  renderResourcePicker();
   renderViewport();
   renderInspector();
 }

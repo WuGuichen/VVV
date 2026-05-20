@@ -1,7 +1,7 @@
 # Character Resource Library 00：资源库、编译计划与运行时编排设计
 
 > 状态：草案
-> 范围：CharacterStudio 资源库、资源选择契约、Authoring Compiler 资源计划、Unity / FMOD 同步、运行时资源编排
+> 范围：独立 Resource Library Editor、CharacterStudio 字段资源选择器、Authoring Compiler 资源计划、Unity / FMOD 同步、运行时资源编排
 > 交付等级：下一阶段设计契约
 > 前置：#221 Character Resource Package C0、#223 package-local resource catalog、#224 Authoring Compiler、#240-#246 CharacterStudio C1 MVP、`CHARACTER_RESOURCE_PACKAGE_C2_UNITY_ASSET_SYNC.md`
 
@@ -412,9 +412,16 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/config/fmod_audio_libr
 - `isRequiredAtRuntime=true`：清理需要二次确认。
 - generated asset：可清理，但必须有可重建来源。
 
-## CharacterStudio UI
+## Editor UI Surfaces
 
-新增或调整四个区域：
+资源库和角色编辑器是两个不同的编辑面：
+
+- Resource Library Editor 是独立资源编辑器，负责全量资源发现、导入、替换、删除、标签、兼容性、引用图、Unity/FMOD 同步状态和资源级 diagnostics。
+- CharacterStudio 是角色装配编辑器，只在编辑某个资源字段时消费资源库列表；它不应常驻展示“资源库里有多少资源”。
+- CharacterStudio 中的资源选择入口必须由 `ResourceFieldSpec` 驱动，按字段展开可选资源列表，选择后写回 `ResourceSelectionRef` 或当前兼容字段。
+- 运行时资源计划预览属于编译结果诊断，默认可以折叠；它不替代独立 Resource Library Editor。
+
+独立 Resource Library Editor 至少包含：
 
 1. 资源库页
    - 卡片列表、缩略图、kind / usage、source、import status、runtime availability、引用计数和 diagnostics。
@@ -423,10 +430,13 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/config/fmod_audio_libr
 2. 资源详情页
    - Authoring 信息、Unity 导入信息、Runtime 绑定信息、引用关系图、参与的 `CharacterResourcePlan`、最近编译结果。
 
+CharacterStudio 至少包含：
+
 3. 字段资源选择器
    - 输入 `ResourceFieldSpec`、`CharacterEditorContext`、当前 `ResourceSelectionRef`。
    - 输出新的 `ResourceSelectionRef` 和 warnings。
    - 不允许页面手写资源过滤逻辑。
+   - 只在用户编辑资源字段时弹出，不作为常驻资源库浏览区域。
 
 4. 角色资源计划页
    - 展示 `SpawnCritical`、`EquipmentInitial`、`AnimationWarmup`、`VfxWarmup`、`UiDeferred`、`Audio`。
@@ -486,7 +496,8 @@ character resources plan --package <path>
 
 ## 验收标准
 
-- CharacterStudio 资源库显示模型、武器、动画、贴图、材质、VFX、Unity AudioClip 和 FMOD event。
+- 独立 Resource Library Editor 显示模型、武器、动画、贴图、材质、VFX、Unity AudioClip 和 FMOD event。
+- CharacterStudio 不常驻显示完整资源库，只在字段选择时弹出符合 `ResourceFieldSpec` 的资源列表。
 - 资源库项以 `libraryItemId` / `stableId` 为统一身份；FMOD event 不拥有普通 runtime `resourceKey`。
 - 字段选择器由 `ResourceFieldSpec` 驱动，选择结果保存为 `ResourceSelectionRef`。
 - Authoring Compiler 能输出 runtime resource catalog、character resource plan、audio cue manifest 和 validation report。
@@ -539,10 +550,11 @@ character resources plan --package <path>
 - 运行时按 CharacterResourcePlan preload、acquire、装备切换 diff、release。
 - 验收：Spawn 前加载必需资源，装备切换复用 shared resources，dispose 释放 handles。
 
-### Resource Library 08：CharacterStudio Resource Browser and Plan Preview
+### Resource Library 08：Resource Picker and Plan Preview
 
-- 实现资源库 UI、资源选择器、资源详情、角色资源计划预览。
-- 验收：不手填 resource key，能看到引用图、runtime availability 和 plan diagnostics。
+- 在 CharacterStudio 中实现字段级资源选择器和折叠式角色资源计划预览。
+- 不在角色编辑主界面常驻展示完整资源库；完整资源浏览、资源详情和资源管理进入独立 Resource Library Editor 后续任务。
+- 验收：不手填 resource key，选择器能显示 runtime availability、不可选原因和 plan diagnostics。
 
 ## 后续衔接
 

@@ -45,6 +45,7 @@ const traces = readJson("geometry/traces.json");
 const unityCatalog = readGeneratedJson("config/unity_resource_catalog.json");
 const importReport = readGeneratedJson("package_cache/import_report.json");
 const appSource = fs.readFileSync(path.join(repoRoot, "Tools/MxFramework.CharacterStudio/web/app.js"), "utf8");
+const indexSource = fs.readFileSync(path.join(repoRoot, "Tools/MxFramework.CharacterStudio/web/index.html"), "utf8");
 const stylesSource = fs.readFileSync(path.join(repoRoot, "Tools/MxFramework.CharacterStudio/web/styles.css"), "utf8");
 
 assert(manifest.packageId === "iron_vanguard", "manifest packageId should be iron_vanguard");
@@ -58,6 +59,9 @@ assert(Array.isArray(unityCatalog.entries) && unityCatalog.entries.length > 0, "
 assert(importReport.packageId === manifest.packageId, "Unity import report packageId should match manifest");
 assert(Array.isArray(importReport.operations) && importReport.operations.some(op => op.kind === "unityResourceCatalog"), "Unity import report should include unityResourceCatalog operation");
 assert(appSource.includes("RESOURCE_FIELD_SPECS"), "CharacterStudio should expose ResourceFieldSpec-driven selection");
+assert(appSource.includes("resourcePickerOpen") && appSource.includes("openResourcePicker"), "CharacterStudio should open resources through a field-scoped picker");
+assert(indexSource.includes("resourcePickerOverlay"), "CharacterStudio should render the resource picker as an on-demand dialog");
+assert(!indexSource.includes("modelResourceList"), "CharacterStudio should not keep a full resource library list in the main viewport");
 assert(appSource.includes("SpawnCritical") && appSource.includes("EquipmentInitial") && appSource.includes("AnimationWarmup"), "CharacterStudio should render resource plan groups");
 assert(stylesSource.includes("resource-plan-grid"), "CharacterStudio should style the resource plan preview");
 
