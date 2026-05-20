@@ -6,6 +6,20 @@ CharacterStudio is the external browser workstation for authoring Character Reso
 
 Authoring server is required for save, compile, source model import, and Unity import. The one-command launch scripts run the server, check the local environment, and open CharacterStudio in the browser.
 
+Recommended shared entry for all external editors:
+
+```bash
+Tools/MxFramework.EditorHub/start-editor-hub.sh
+```
+
+Windows:
+
+```bat
+Tools\MxFramework.EditorHub\start-editor-hub.bat
+```
+
+Open the Hub and click `打开角色编辑器`.
+
 macOS:
 
 ```bash

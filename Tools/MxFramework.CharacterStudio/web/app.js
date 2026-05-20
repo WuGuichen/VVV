@@ -189,7 +189,7 @@ const KIND_LABELS = {
 
 const state = {
   packages: [],
-  packageRelative: DEFAULT_PACKAGE,
+  packageRelative: new URLSearchParams(window.location.search).get("package") || DEFAULT_PACKAGE,
   package: null,
   validation: null,
   compileResult: null,
@@ -205,7 +205,7 @@ const state = {
   canWrite: false,
   apiAvailable: false,
   message: "",
-  userSelectedPackage: false,
+  userSelectedPackage: Boolean(new URLSearchParams(window.location.search).get("package")),
   previewBones: [],
   previewBoneKey: "",
   activeBoneFieldPath: "",

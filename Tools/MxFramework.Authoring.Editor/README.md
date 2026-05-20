@@ -6,6 +6,20 @@
 
 ## 启动
 
+推荐从统一外部编辑器中心启动：
+
+```bash
+Tools/MxFramework.EditorHub/start-editor-hub.sh
+```
+
+Windows：
+
+```bat
+Tools\MxFramework.EditorHub\start-editor-hub.bat
+```
+
+打开 Hub 后点击 `打开 Buff 编辑器`。
+
 在仓库根目录运行：
 
 Linux / macOS：

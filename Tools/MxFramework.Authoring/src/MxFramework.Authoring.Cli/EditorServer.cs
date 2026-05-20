@@ -25,7 +25,8 @@ internal static class EditorServer
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
         Console.WriteLine("MxFramework Authoring Editor");
-        Console.WriteLine($"URL: http://127.0.0.1:{port}/Tools/MxFramework.Authoring.Editor/web/");
+        Console.WriteLine($"Hub URL: http://127.0.0.1:{port}/Tools/MxFramework.EditorHub/web/");
+        Console.WriteLine($"Authoring Editor URL: http://127.0.0.1:{port}/Tools/MxFramework.Authoring.Editor/web/");
         Console.WriteLine($"CharacterStudio URL: http://127.0.0.1:{port}/Tools/MxFramework.CharacterStudio/web/");
         Console.WriteLine($"Default package: {defaultPackage}");
 
@@ -55,7 +56,7 @@ internal static class EditorServer
         string path = context.Request.Url?.AbsolutePath ?? "/";
         if (path == "/")
         {
-            context.Response.Redirect("/Tools/MxFramework.Authoring.Editor/web/");
+            context.Response.Redirect("/Tools/MxFramework.EditorHub/web/");
             context.Response.Close();
             return;
         }

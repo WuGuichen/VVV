@@ -55,6 +55,7 @@
 | 文档 | 回答的问题 |
 |------|------------|
 | `EDITORS.md` | Unity Editor 工具规范。 |
+| `../Tools/MxFramework.EditorHub/README.md` | 外部编辑器中心：一键启动 Authoring server，并集中打开 Buff Authoring Editor、CharacterStudio 和资源库/资源计划状态入口。 |
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部主创编辑器总规划。 |
 | `AUTHORING_EDITOR_USAGE.md` | Buff 外部编辑器怎么开、怎么用、限制在哪。 |
 | `AUTHORING_WORKFLOW.md` | 创作流程跨 Unity/Mod Editor/AI/CLI 协作。 |

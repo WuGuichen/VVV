@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework 外部编辑器中心</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>MxFramework 外部编辑器中心</h1>
+        <p id="serverStatus">正在检测 Authoring 服务...</p>
+      </div>
+      <div class="toolbar">
+        <label class="package-field">
+          <span>角色包</span>
+          <select id="packageSelect"></select>
+        </label>
+        <button id="refreshButton" type="button">刷新</button>
+      </div>
+    </header>
+
+    <section class="status-strip" id="statusStrip" aria-label="服务状态"></section>
+
+    <section class="tool-grid" id="toolGrid" aria-label="外部编辑器入口"></section>
+
+    <section class="resource-panels">
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>资源库状态</h2>
+            <p id="resourceSummary">未读取</p>
+          </div>
+          <button id="copyDiagnosticsButton" type="button">复制诊断</button>
+        </div>
+        <div class="resource-list" id="resourceList"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>资源计划预览</h2>
+            <p id="planSummary">未读取</p>
+          </div>
+        </div>
+        <div class="plan-grid" id="planGrid"></div>
+      </article>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>
