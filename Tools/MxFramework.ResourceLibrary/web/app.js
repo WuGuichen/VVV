@@ -23,6 +23,73 @@ const PLAN_GROUPS = [
   ["audio", "Audio"]
 ];
 
+const IMPORT_PRESETS = [
+  {
+    id: "modelPreview",
+    label: "模型预览/通用模型",
+    kind: "model",
+    usage: "previewMesh",
+    role: "preview",
+    extensions: ["glb", "gltf", "fbx"]
+  },
+  {
+    id: "characterModel",
+    label: "角色主体模型",
+    kind: "model",
+    usage: "characterModel",
+    role: "body",
+    extensions: ["glb", "gltf", "fbx"]
+  },
+  {
+    id: "weaponMainHand",
+    label: "主手武器模型",
+    kind: "model",
+    usage: "weaponModel",
+    role: "mainHand",
+    extensions: ["glb", "gltf", "fbx"]
+  },
+  {
+    id: "weaponOffHand",
+    label: "副手武器模型",
+    kind: "model",
+    usage: "weaponModel",
+    role: "offHand",
+    extensions: ["glb", "gltf", "fbx"]
+  },
+  {
+    id: "animationClipGroup",
+    label: "动画 Clip/Group",
+    kind: "animation",
+    usage: "animationClipGroup",
+    role: "",
+    extensions: ["glb", "gltf", "json"]
+  },
+  {
+    id: "audioCue",
+    label: "音频 Cue",
+    kind: "audio",
+    usage: "audioCue",
+    role: "",
+    extensions: ["wav", "ogg"]
+  },
+  {
+    id: "texture",
+    label: "贴图/图标",
+    kind: "texture",
+    usage: "texture",
+    role: "",
+    extensions: ["png", "jpg", "jpeg", "tga"]
+  },
+  {
+    id: "config",
+    label: "配置 JSON",
+    kind: "config",
+    usage: "characterConfig",
+    role: "",
+    extensions: ["json"]
+  }
+];
+
 const FILTER_DEFAULTS = {
   search: "",
   kind: "all",
@@ -48,6 +115,7 @@ const state = {
   inspectCache: new Map(),
   inspectState: { id: "", status: "idle", payload: null, error: "" },
   writeState: { status: "idle", action: "", error: "" },
+  selectedImportPreset: "modelPreview",
   errors: [],
   lastActionMessage: ""
 };
@@ -74,7 +142,8 @@ function cacheElements() {
     "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "resourceList",
     "previewTitle", "previewSubtitle", "previewBody", "resourcePlanPanel",
     "planSummary", "planGrid", "inspectorStatus", "inspectorContent",
-    "resourceImportFileInput", "resourceReplaceFileInput", "importResourceButton",
+    "resourceImportFileInput", "resourceImportFolderInput", "resourceReplaceFileInput",
+    "importPresetSelect", "importResourceButton", "importFolderButton",
     "reimportResourceButton", "replaceSourceButton", "deleteResourceButton",
     "editTagsButton", "writeActionStatus", "copyDetailJsonButton",
     "copyDiagnosticsJsonButton", "copyStatus"
@@ -148,9 +217,18 @@ function bindEvents() {
 
   el.copyDetailJsonButton.addEventListener("click", copyDetailJson);
   el.copyDiagnosticsJsonButton.addEventListener("click", copyDiagnosticsJson);
+  el.importPresetSelect.addEventListener("change", event => {
+    state.selectedImportPreset = event.target.value;
+    syncImportAccept();
+    renderActions();
+  });
   el.importResourceButton.addEventListener("click", () => {
     el.resourceImportFileInput.value = "";
     el.resourceImportFileInput.click();
+  });
+  el.importFolderButton.addEventListener("click", () => {
+    el.resourceImportFolderInput.value = "";
+    el.resourceImportFolderInput.click();
   });
   el.replaceSourceButton.addEventListener("click", () => {
     if (!getSelectedItem()) return;
@@ -159,7 +237,10 @@ function bindEvents() {
   });
   el.reimportResourceButton.addEventListener("click", reimportSelectedResource);
   el.resourceImportFileInput.addEventListener("change", event => importResourceFile(event.target.files?.[0]));
+  el.resourceImportFolderInput.addEventListener("change", event => importResourceFolder(Array.from(event.target.files || [])));
   el.resourceReplaceFileInput.addEventListener("change", event => replaceSelectedResourceFile(event.target.files?.[0]));
+  renderImportPresetOptions();
+  syncImportAccept();
 }
 
 async function loadAll(options = {}) {
@@ -243,16 +324,63 @@ async function runResourceValidation() {
 
 async function importResourceFile(file) {
   if (!file) return;
-  const kind = inferKindFromFileName(file.name);
-  const usage = inferUsageForKind(kind);
-  const bytesBase64 = await readFileAsBase64(file);
-  await executeResourceWrite("import", API.importResource, {
-    fileName: file.name,
-    kind,
-    usage,
-    role: kind === "model" ? "preview" : "",
-    bytesBase64
-  }, "导入资源");
+  const preset = getSelectedImportPreset();
+  if (!isFileSupportedByPreset(file, preset)) {
+    const formats = preset.extensions.map(extension => `.${extension}`).join(", ");
+    state.lastActionMessage = `${preset.label} 只支持 ${formats}。`;
+    render();
+    return;
+  }
+
+  await executeResourceWrite("import", API.importResource, await buildImportRequest(file, preset, false), "导入资源");
+}
+
+async function importResourceFolder(files) {
+  const preset = getSelectedImportPreset();
+  const candidates = Array.from(files || []);
+  const supported = candidates.filter(file => isFileSupportedByPreset(file, preset));
+  const skipped = candidates.length - supported.length;
+  if (supported.length === 0) {
+    state.lastActionMessage = `文件夹中没有匹配 ${preset.label} 的资源文件。`;
+    render();
+    return;
+  }
+
+  state.writeState = { status: "running", action: "folder-import", error: "" };
+  state.lastActionMessage = `导入文件夹：0 / ${supported.length}，跳过 ${skipped}`;
+  render();
+
+  const failures = [];
+  let selectedId = "";
+  for (let i = 0; i < supported.length; i++) {
+    const file = supported[i];
+    state.lastActionMessage = `导入文件夹：${i + 1} / ${supported.length}，跳过 ${skipped}`;
+    renderStatus();
+    try {
+      const payload = await postJson(API.importResource, {
+        package: state.packageRelative,
+        ...(await buildImportRequest(file, preset, true))
+      });
+      selectedId = stringValue(pick(payload, "selectedResourceKey", "selectedId")) || selectedId;
+    } catch (error) {
+      failures.push(`${getImportDisplayPath(file)}: ${error.message}`);
+    }
+  }
+
+  state.inspectCache.clear();
+  if (selectedId) {
+    state.selectedResourceKey = selectedId;
+  }
+  state.writeState = failures.length > 0
+    ? { status: "error", action: "folder-import", error: `${failures.length} 个文件导入失败` }
+    : { status: "idle", action: "", error: "" };
+  state.lastActionMessage = failures.length > 0
+    ? `文件夹导入完成：成功 ${supported.length - failures.length}，失败 ${failures.length}，跳过 ${skipped}`
+    : `文件夹导入完成：成功 ${supported.length}，跳过 ${skipped}`;
+  if (failures.length > 0) {
+    state.errors.push(apiError("文件夹导入", new Error(failures.slice(0, 3).join("; "))));
+  }
+  await loadPackageData();
 }
 
 async function reimportSelectedResource() {
@@ -283,6 +411,18 @@ async function replaceSelectedResourceFile(file) {
     allowFormatChange,
     bytesBase64
   }, "替换源文件");
+}
+
+async function buildImportRequest(file, preset, fromFolder) {
+  return {
+    fileName: file.name,
+    kind: preset.kind,
+    usage: preset.usage,
+    role: preset.role,
+    localId: fromFolder ? buildFolderLocalId(file, preset) : "",
+    tags: fromFolder ? ["resourcelibrary-folder-import", preset.id] : [preset.id],
+    bytesBase64: await readFileAsBase64(file)
+  };
 }
 
 async function executeResourceWrite(action, url, request, label) {
@@ -425,6 +565,7 @@ function renderLoading() {
 function render() {
   renderPackageSelect();
   renderStatus();
+  renderImportPresetOptions();
   renderFilters();
   renderBrowser();
   renderPreview();
@@ -775,14 +916,17 @@ function renderDiagnosticsTab(detail) {
 
 function renderActions() {
   const item = getSelectedItem();
+  const preset = getSelectedImportPreset();
   const connected = Boolean(state.resourcesPayload);
   const writeBusy = state.writeState.status === "running";
   el.importResourceButton.disabled = !connected || writeBusy;
+  el.importFolderButton.disabled = !connected || writeBusy;
   el.reimportResourceButton.disabled = !connected || !item || writeBusy;
   el.replaceSourceButton.disabled = !connected || !item || writeBusy;
   el.deleteResourceButton.disabled = true;
   el.editTagsButton.disabled = true;
-  el.importResourceButton.title = connected ? "通过 Authoring API 导入外部资源" : "Authoring 资源 API 未连接";
+  el.importResourceButton.title = connected ? `导入一个${preset.label}资源` : "Authoring 资源 API 未连接";
+  el.importFolderButton.title = connected ? `批量导入文件夹中的${preset.label}资源` : "Authoring 资源 API 未连接";
   el.reimportResourceButton.title = item ? "重新计算当前资源的导入状态和哈希" : "先选择一个资源项";
   el.replaceSourceButton.title = item ? "替换当前资源源文件，并保留 stableId/resourceKey" : "先选择一个资源项";
   if (state.writeState.status === "running") {
@@ -790,14 +934,32 @@ function renderActions() {
   } else if (state.writeState.status === "error") {
     el.writeActionStatus.textContent = `写入失败：${state.writeState.error}`;
   } else if (item) {
-    el.writeActionStatus.textContent = `当前目标：${item.displayName || getResourceWriteId(item)}；delete guard / tag update 仍锁定。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；当前目标：${item.displayName || getResourceWriteId(item)}；delete/tag 仍锁定。`;
   } else {
-    el.writeActionStatus.textContent = "已启用 import / reimport / replace-source；delete guard / tag update 仍锁定。";
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；支持单文件和文件夹导入；delete/tag 仍锁定。`;
   }
   el.copyDetailJsonButton.disabled = false;
   el.copyDiagnosticsJsonButton.disabled = false;
   el.copyDetailJsonButton.title = item ? "复制当前资源 inspect/fallback 详情" : "复制当前资源库摘要";
   el.copyDiagnosticsJsonButton.title = item ? "复制当前资源诊断" : "复制当前资源库全部诊断";
+}
+
+function renderImportPresetOptions() {
+  const selected = IMPORT_PRESETS.some(preset => preset.id === state.selectedImportPreset)
+    ? state.selectedImportPreset
+    : IMPORT_PRESETS[0].id;
+  state.selectedImportPreset = selected;
+  el.importPresetSelect.innerHTML = IMPORT_PRESETS
+    .map(preset => `<option value="${escapeHtml(preset.id)}"${preset.id === selected ? " selected" : ""}>${escapeHtml(preset.label)}</option>`)
+    .join("");
+  syncImportAccept();
+}
+
+function syncImportAccept() {
+  const preset = getSelectedImportPreset();
+  const accept = preset.extensions.map(extension => `.${extension}`).join(",");
+  el.resourceImportFileInput.accept = accept;
+  el.resourceImportFolderInput.accept = accept;
 }
 
 function getResourceWriteId(item) {
@@ -813,20 +975,13 @@ function selectionMatchesItem(item, selection) {
   );
 }
 
-function inferKindFromFileName(fileName) {
-  const format = inferFormatFromFileName(fileName);
-  if (["glb", "gltf", "fbx"].includes(format)) return "model";
-  if (["png", "jpg", "jpeg", "tga"].includes(format)) return "texture";
-  if (["wav", "ogg"].includes(format)) return "audio";
-  return "config";
+function getSelectedImportPreset() {
+  return IMPORT_PRESETS.find(preset => preset.id === state.selectedImportPreset) || IMPORT_PRESETS[0];
 }
 
-function inferUsageForKind(kind) {
-  if (kind === "model") return "previewMesh";
-  if (kind === "texture") return "texture";
-  if (kind === "audio") return "audioCue";
-  if (kind === "animation") return "animationClipGroup";
-  return "characterConfig";
+function isFileSupportedByPreset(file, preset) {
+  const format = inferFormatFromFileName(file.name);
+  return preset.extensions.includes(format);
 }
 
 function inferFormatFromFileName(fileName) {
@@ -841,6 +996,26 @@ function inferModelRole(item) {
   if (item.tags.includes("mainHand") || item.resourceKey.includes("mainhand")) return "mainHand";
   if (item.tags.includes("offHand") || item.resourceKey.includes("offhand")) return "offHand";
   return "preview";
+}
+
+function buildFolderLocalId(file, preset) {
+  const path = getImportDisplayPath(file).replace(/\.[^.]+$/, "");
+  const segments = path.split(/[\\/]+/).map(normalizeLocalIdSegment).filter(Boolean);
+  const suffix = segments.join(".");
+  return suffix || "";
+}
+
+function normalizeLocalIdSegment(value) {
+  return String(value || "")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function getImportDisplayPath(file) {
+  return file.webkitRelativePath || file.name || "";
 }
 
 function readFileAsBase64(file) {
