@@ -50,6 +50,8 @@ namespace MxFramework.Authoring
         public CharacterResourcePackage Package { get; set; }
         public string PackageRootPath { get; set; } = string.Empty;
         public CharacterAuthoringCompileResult AuthoringCompileResult { get; set; }
+        public AuthoringResourceCollection AuthoringResources { get; set; }
+        public AuthoringResourceSelectionManifestDocument ResourceSelectionManifest { get; set; }
         public bool ValidateResourceFiles { get; set; }
         public bool ValidateResourceHashes { get; set; }
     }
@@ -240,6 +242,10 @@ namespace MxFramework.Authoring
             RuntimeResourceCatalogDocument runtimeCatalog = BuildRuntimeCatalog(packageId, request.PackageRootPath, entriesByKey, mappingsByKey, referencedKeys, diagnostics);
             AudioCueManifestDocument audioManifest = BuildAudioCueManifest(packageId, characterStableId, entriesByKey, referencedKeys);
             CharacterResourcePlanDocument plan = BuildCharacterPlan(packageId, characterStableId, runtimeCatalog, audioManifest, entriesByKey, referencedKeys, diagnostics);
+            ApplyAuthoringResourceSelections(request, packageId, characterStableId, runtimeCatalog, audioManifest, plan, diagnostics);
+            plan.Diagnostics.Clear();
+            CopyDiagnostics(diagnostics, plan.Diagnostics);
+            plan.PlanHash = CharacterPackageHashUtility.ComputeTextSha256(BuildPlanCanonicalText(plan));
             ResourceValidationReportDocument validationReport = BuildValidationReport(packageId, characterStableId, plan, diagnostics);
 
             return new CharacterResourcePlanCompileResult
@@ -429,6 +435,487 @@ namespace MxFramework.Authoring
             manifest.Cues.Sort((a, b) => string.CompareOrdinal(a.CueId, b.CueId));
             manifest.Banks.AddRange(banks);
             return manifest;
+        }
+
+        private static void ApplyAuthoringResourceSelections(
+            CharacterResourcePlanCompileRequest request,
+            string packageId,
+            string characterStableId,
+            RuntimeResourceCatalogDocument runtimeCatalog,
+            AudioCueManifestDocument audioManifest,
+            CharacterResourcePlanDocument plan,
+            List<CharacterResourcePlanDiagnostic> diagnostics)
+        {
+            if (request == null ||
+                request.AuthoringResources == null ||
+                request.ResourceSelectionManifest == null ||
+                request.ResourceSelectionManifest.Selections == null ||
+                request.ResourceSelectionManifest.Selections.Count == 0)
+                return;
+
+            var selectionService = new AuthoringResourceSelectionService();
+            for (int i = 0; i < request.ResourceSelectionManifest.Selections.Count; i++)
+            {
+                AuthoringResourceSelectionCompileInput input = request.ResourceSelectionManifest.Selections[i];
+                if (input == null)
+                    continue;
+
+                AuthoringResourceSelectionResolutionResult resolution = selectionService.Resolve(
+                    request.AuthoringResources,
+                    input.FieldSpec,
+                    input.Context,
+                    input.Selection);
+
+                AddSelectionDiagnostics(diagnostics, input, resolution);
+                if (resolution == null || !resolution.Accepted || resolution.Item == null || resolution.Selection == null)
+                    continue;
+
+                if (resolution.Selection.BindingKind == AuthoringResourceBindingKind.AudioCue ||
+                    resolution.Selection.BindingKind == AuthoringResourceBindingKind.AudioEventDefinition)
+                {
+                    AddAudioSelection(packageId, characterStableId, audioManifest, plan, resolution.Item, resolution.Selection, input);
+                    continue;
+                }
+
+                if (resolution.Selection.BindingKind != AuthoringResourceBindingKind.ResourceManagerAsset)
+                    continue;
+
+                string runtimeResourceKey = resolution.Selection.RuntimeResourceKey;
+                if (string.IsNullOrWhiteSpace(runtimeResourceKey))
+                {
+                    AddDiagnostic(
+                        diagnostics,
+                        "Error",
+                        CharacterResourcePlanValidationCodes.LibraryNotRuntimeLoadable,
+                        resolution.Item.StableId,
+                        string.Empty,
+                        FirstNonEmpty(input.SourceConfigKind, input.Context != null ? input.Context.ConsumerKind : string.Empty, "resourceSelection"),
+                        FirstNonEmpty(input.SourceField, input.FieldSpec != null ? input.FieldSpec.FieldKey : string.Empty, "selection"),
+                        "Resolved ResourceSelectionRef does not contain a runtime resource key.",
+                        "Select a runtime-ready ResourceManager asset or re-run resource import and plan compilation.");
+                    continue;
+                }
+
+                RuntimeResourceCatalogEntryDocument runtimeEntry = EnsureRuntimeCatalogEntryFromSelection(runtimeCatalog, packageId, runtimeResourceKey, resolution.Item, resolution.Selection, input);
+                CharacterResourcePlanGroup group = SelectGroupByPreloadPolicy(plan, input.FieldSpec != null ? input.FieldSpec.PreloadPolicy : string.Empty, resolution.Item);
+                AddResourceToGroup(group, runtimeEntry, resolution.Item);
+            }
+
+            SortRuntimeCatalog(runtimeCatalog);
+            SortGroup(plan.SpawnCritical);
+            SortGroup(plan.PresentationCritical);
+            SortGroup(plan.EquipmentInitial);
+            SortGroup(plan.AnimationWarmup);
+            SortGroup(plan.VfxWarmup);
+            SortGroup(plan.UiDeferred);
+            SortAudioPlan(plan.Audio);
+            SortAudioManifest(audioManifest);
+        }
+
+        private static void AddSelectionDiagnostics(
+            List<CharacterResourcePlanDiagnostic> diagnostics,
+            AuthoringResourceSelectionCompileInput input,
+            AuthoringResourceSelectionResolutionResult resolution)
+        {
+            if (resolution == null || resolution.Reasons == null)
+                return;
+
+            for (int i = 0; i < resolution.Reasons.Count; i++)
+            {
+                AuthoringResourceSelectionReason reason = resolution.Reasons[i];
+                if (reason == null)
+                    continue;
+
+                AddDiagnostic(
+                    diagnostics,
+                    reason.Severity.ToString(),
+                    MapSelectionReasonCode(reason.Code),
+                    FirstNonEmpty(reason.ResourceStableId, resolution.Selection != null ? resolution.Selection.ResourceStableId : string.Empty),
+                    resolution.Selection != null ? FirstNonEmpty(resolution.Selection.RuntimeResourceKey, resolution.Selection.PackageResourceKey, resolution.Selection.ProviderResourceKey) : string.Empty,
+                    FirstNonEmpty(input.SourceConfigKind, input.Context != null ? input.Context.ConsumerKind : string.Empty, "resourceSelection"),
+                    FirstNonEmpty(input.SourceField, reason.FieldKey, input.FieldSpec != null ? input.FieldSpec.FieldKey : string.Empty),
+                    reason.Message,
+                    reason.SuggestedFix);
+            }
+        }
+
+        private static string MapSelectionReasonCode(string code)
+        {
+            if (string.Equals(code, AuthoringResourceSelectionReasonCodes.ItemMissing, StringComparison.Ordinal))
+                return CharacterResourcePlanValidationCodes.LibraryItemMissing;
+            if (string.Equals(code, AuthoringResourceSelectionReasonCodes.NotRuntimeLoadable, StringComparison.Ordinal))
+                return CharacterResourcePlanValidationCodes.LibraryNotRuntimeLoadable;
+            if (string.Equals(code, AuthoringResourceSelectionReasonCodes.EditorOnlySelectedForRuntime, StringComparison.Ordinal))
+                return AuthoringResourceDiagnosticCodes.EditorOnlySelectedForRuntime;
+            if (string.Equals(code, AuthoringResourceSelectionReasonCodes.BindingUnavailable, StringComparison.Ordinal))
+                return CharacterResourcePlanValidationCodes.LibraryNotRuntimeLoadable;
+
+            return string.IsNullOrWhiteSpace(code) ? CharacterResourcePlanValidationCodes.PlanRequiredResourceMissing : code;
+        }
+
+        private static RuntimeResourceCatalogEntryDocument EnsureRuntimeCatalogEntryFromSelection(
+            RuntimeResourceCatalogDocument runtimeCatalog,
+            string packageId,
+            string runtimeResourceKey,
+            AuthoringResourceItem item,
+            AuthoringResourceSelectionRef selection,
+            AuthoringResourceSelectionCompileInput input)
+        {
+            RuntimeResourceCatalogEntryDocument existing = FindRuntimeCatalogEntry(runtimeCatalog, runtimeResourceKey);
+            if (existing != null)
+                return existing;
+
+            AuthoringResourceProviderBinding binding = FindSelectionBinding(item, selection);
+            var providerData = binding != null && binding.ProviderData != null
+                ? new Dictionary<string, string>(binding.ProviderData, StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+            providerData["authoringResourceStableId"] = item.StableId ?? string.Empty;
+            providerData["authoringResourceId"] = item.ResourceId ?? string.Empty;
+            providerData["sourceProviderId"] = item.SourceProviderId ?? string.Empty;
+            providerData["selectionSourceConfigKind"] = input != null ? input.SourceConfigKind ?? string.Empty : string.Empty;
+            providerData["selectionSourceField"] = input != null ? input.SourceField ?? string.Empty : string.Empty;
+            providerData["usage"] = item.Usage ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(selection.PackageResourceKey))
+                providerData["packageResourceKey"] = selection.PackageResourceKey;
+
+            string providerId = FirstNonEmpty(GetMetadata(item, "providerId"), GetProviderData(binding, "providerId"), binding != null ? binding.ProviderId : string.Empty, "memory");
+            if (string.Equals(providerId, AuthoringResourceProviderIds.RuntimeCatalog, StringComparison.Ordinal))
+                providerId = "memory";
+
+            var entry = new RuntimeResourceCatalogEntryDocument
+            {
+                Id = runtimeResourceKey ?? string.Empty,
+                Type = MapAuthoringKindToRuntimeType(item != null ? item.Kind : string.Empty, binding != null ? binding.AssetType : string.Empty),
+                Variant = GetMetadata(item, "variant"),
+                PackageId = packageId ?? string.Empty,
+                Provider = providerId,
+                Address = FirstNonEmpty(binding != null ? binding.Address : string.Empty, GetMetadata(item, "address"), runtimeResourceKey),
+                Labels = BuildSelectionLabels(packageId, item, input),
+                Hash = FirstNonEmpty(binding != null ? binding.Hash : string.Empty, GetMetadata(item, "hash"), selection.ExpectedHash),
+                Size = ParseLong(GetMetadata(item, "size")),
+                AllowOverride = string.Equals(GetMetadata(item, "allowOverride"), "true", StringComparison.OrdinalIgnoreCase),
+                ProviderData = providerData
+            };
+            runtimeCatalog.Entries.Add(entry);
+            return entry;
+        }
+
+        private static void AddAudioSelection(
+            string packageId,
+            string characterStableId,
+            AudioCueManifestDocument audioManifest,
+            CharacterResourcePlanDocument plan,
+            AuthoringResourceItem item,
+            AuthoringResourceSelectionRef selection,
+            AuthoringResourceSelectionCompileInput input)
+        {
+            AuthoringResourceProviderBinding binding = FindSelectionBinding(item, selection);
+            string cueId = FirstNonEmpty(selection.AudioCueId, GetProviderData(binding, "audioCueId"), selection.AudioEventDefinitionId, GetProviderData(binding, "audioEventDefinitionId"), selection.ProviderResourceKey, item.StableId);
+            if (string.IsNullOrWhiteSpace(cueId))
+                return;
+
+            AudioCueManifestEntry cue = FindAudioCue(audioManifest, cueId);
+            if (cue == null)
+            {
+                var providerData = binding != null && binding.ProviderData != null
+                    ? new Dictionary<string, string>(binding.ProviderData, StringComparer.Ordinal)
+                    : new Dictionary<string, string>(StringComparer.Ordinal);
+                providerData["authoringResourceStableId"] = item.StableId ?? string.Empty;
+                providerData["authoringResourceId"] = item.ResourceId ?? string.Empty;
+                providerData["sourceProviderId"] = item.SourceProviderId ?? string.Empty;
+                providerData["selectionSourceConfigKind"] = input != null ? input.SourceConfigKind ?? string.Empty : string.Empty;
+                providerData["selectionSourceField"] = input != null ? input.SourceField ?? string.Empty : string.Empty;
+
+                cue = new AudioCueManifestEntry
+                {
+                    CueId = cueId,
+                    StableId = item.StableId ?? string.Empty,
+                    ResourceKey = selection.PackageResourceKey ?? string.Empty,
+                    EventPath = FirstNonEmpty(binding != null ? binding.FmodEventPath : string.Empty, GetProviderData(binding, "fmodEventPath"), GetMetadata(item, "fmodEventPath")),
+                    Bank = FirstBank(FirstNonEmpty(GetProviderData(binding, "bank"), GetProviderData(binding, "banks"), GetMetadata(item, "bank"), GetMetadata(item, "banks"))),
+                    ProviderData = providerData
+                };
+                audioManifest.Cues.Add(cue);
+            }
+
+            AddUnique(plan.Audio.RequiredCues, cueId);
+            AddUnique(audioManifest.Banks, cue.Bank);
+            AddCsvValuesToList(plan.Audio.RequiredBanks, FirstNonEmpty(cue.Bank, GetProviderData(binding, "banks"), GetMetadata(item, "banks")));
+        }
+
+        private static RuntimeResourceCatalogEntryDocument FindRuntimeCatalogEntry(RuntimeResourceCatalogDocument runtimeCatalog, string runtimeResourceKey)
+        {
+            if (runtimeCatalog == null || runtimeCatalog.Entries == null || string.IsNullOrWhiteSpace(runtimeResourceKey))
+                return null;
+
+            for (int i = 0; i < runtimeCatalog.Entries.Count; i++)
+            {
+                RuntimeResourceCatalogEntryDocument entry = runtimeCatalog.Entries[i];
+                if (entry != null && string.Equals(entry.Id, runtimeResourceKey, StringComparison.Ordinal))
+                    return entry;
+            }
+
+            return null;
+        }
+
+        private static AudioCueManifestEntry FindAudioCue(AudioCueManifestDocument manifest, string cueId)
+        {
+            if (manifest == null || manifest.Cues == null || string.IsNullOrWhiteSpace(cueId))
+                return null;
+
+            for (int i = 0; i < manifest.Cues.Count; i++)
+            {
+                AudioCueManifestEntry entry = manifest.Cues[i];
+                if (entry != null && string.Equals(entry.CueId, cueId, StringComparison.Ordinal))
+                    return entry;
+            }
+
+            return null;
+        }
+
+        private static CharacterResourcePlanGroup SelectGroupByPreloadPolicy(CharacterResourcePlanDocument plan, string preloadPolicy, AuthoringResourceItem item)
+        {
+            if (string.Equals(preloadPolicy, AuthoringResourcePreloadPolicies.SpawnCritical, StringComparison.Ordinal))
+                return plan.SpawnCritical;
+            if (string.Equals(preloadPolicy, AuthoringResourcePreloadPolicies.PresentationCritical, StringComparison.Ordinal))
+                return plan.PresentationCritical;
+            if (string.Equals(preloadPolicy, AuthoringResourcePreloadPolicies.EquipmentInitial, StringComparison.Ordinal))
+                return plan.EquipmentInitial;
+            if (string.Equals(preloadPolicy, AuthoringResourcePreloadPolicies.AnimationWarmup, StringComparison.Ordinal))
+                return plan.AnimationWarmup;
+            if (string.Equals(preloadPolicy, AuthoringResourcePreloadPolicies.VfxWarmup, StringComparison.Ordinal))
+                return plan.VfxWarmup;
+            if (string.Equals(preloadPolicy, AuthoringResourcePreloadPolicies.UiDeferred, StringComparison.Ordinal))
+                return plan.UiDeferred;
+
+            if (item != null)
+            {
+                if (string.Equals(item.Usage, CharacterPackageResourceUsageIds.CharacterModel, StringComparison.Ordinal))
+                    return plan.SpawnCritical;
+                if (string.Equals(item.Usage, CharacterPackageResourceUsageIds.WeaponModel, StringComparison.Ordinal))
+                    return plan.EquipmentInitial;
+                if (string.Equals(item.Usage, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal) ||
+                    string.Equals(item.Kind, CharacterPackageResourceTypeIds.Animation, StringComparison.Ordinal))
+                    return plan.AnimationWarmup;
+                if (string.Equals(item.Usage, CharacterPackageResourceUsageIds.VfxCue, StringComparison.Ordinal) ||
+                    string.Equals(item.Kind, CharacterPackageResourceTypeIds.Vfx, StringComparison.Ordinal))
+                    return plan.VfxWarmup;
+                if (string.Equals(item.Usage, CharacterPackageResourceUsageIds.PreviewThumbnail, StringComparison.Ordinal) ||
+                    string.Equals(item.Usage, CharacterPackageResourceUsageIds.PreviewMesh, StringComparison.Ordinal) ||
+                    string.Equals(item.Kind, CharacterPackageResourceTypeIds.Preview, StringComparison.Ordinal))
+                    return plan.UiDeferred;
+            }
+
+            return plan.PresentationCritical;
+        }
+
+        private static void AddResourceToGroup(CharacterResourcePlanGroup group, RuntimeResourceCatalogEntryDocument runtimeEntry, AuthoringResourceItem item)
+        {
+            if (group == null || runtimeEntry == null || string.IsNullOrWhiteSpace(runtimeEntry.Id))
+                return;
+
+            for (int i = 0; i < group.Resources.Count; i++)
+            {
+                CharacterResourcePlanResourceRef existing = group.Resources[i];
+                if (existing != null && string.Equals(existing.ResourceKey, runtimeEntry.Id, StringComparison.Ordinal))
+                    return;
+            }
+
+            group.Resources.Add(new CharacterResourcePlanResourceRef
+            {
+                ResourceKey = runtimeEntry.Id,
+                TypeId = runtimeEntry.Type,
+                Variant = runtimeEntry.Variant,
+                PackageId = runtimeEntry.PackageId,
+                Usage = item != null ? item.Usage ?? string.Empty : string.Empty,
+                StableId = item != null ? item.StableId ?? string.Empty : string.Empty
+            });
+        }
+
+        private static AuthoringResourceProviderBinding FindSelectionBinding(AuthoringResourceItem item, AuthoringResourceSelectionRef selection)
+        {
+            if (item == null || item.ProviderBindings == null || item.ProviderBindings.Count == 0)
+                return null;
+
+            for (int i = 0; i < item.ProviderBindings.Count; i++)
+            {
+                AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+                if (binding == null)
+                    continue;
+                if (selection != null && binding.BindingKind != selection.BindingKind)
+                    continue;
+                if (!string.IsNullOrWhiteSpace(selection != null ? selection.RuntimeResourceKey : string.Empty) && string.Equals(binding.RuntimeResourceKey, selection.RuntimeResourceKey, StringComparison.Ordinal))
+                    return binding;
+                if (!string.IsNullOrWhiteSpace(selection != null ? selection.ProviderResourceKey : string.Empty) && string.Equals(binding.ProviderResourceKey, selection.ProviderResourceKey, StringComparison.Ordinal))
+                    return binding;
+                if (!string.IsNullOrWhiteSpace(selection != null ? selection.PackageResourceKey : string.Empty) && string.Equals(binding.PackageResourceKey, selection.PackageResourceKey, StringComparison.Ordinal))
+                    return binding;
+                if (!string.IsNullOrWhiteSpace(selection != null ? selection.AudioCueId : string.Empty) && binding.ProviderData != null && string.Equals(GetProviderData(binding, "audioCueId"), selection.AudioCueId, StringComparison.Ordinal))
+                    return binding;
+                if (!string.IsNullOrWhiteSpace(selection != null ? selection.AudioEventDefinitionId : string.Empty) && binding.ProviderData != null && string.Equals(GetProviderData(binding, "audioEventDefinitionId"), selection.AudioEventDefinitionId, StringComparison.Ordinal))
+                    return binding;
+            }
+
+            for (int i = 0; i < item.ProviderBindings.Count; i++)
+            {
+                AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
+                if (binding != null && binding.IsPrimary)
+                    return binding;
+            }
+
+            return item.ProviderBindings[0];
+        }
+
+        private static string MapAuthoringKindToRuntimeType(string kind, string assetType)
+        {
+            if (!string.IsNullOrWhiteSpace(assetType))
+            {
+                if (assetType.EndsWith(".GameObject", StringComparison.Ordinal) || string.Equals(assetType, "GameObject", StringComparison.Ordinal))
+                    return "GameObject";
+                if (assetType.EndsWith(".Texture2D", StringComparison.Ordinal) || string.Equals(assetType, "Texture2D", StringComparison.Ordinal))
+                    return "Texture2D";
+                if (assetType.EndsWith(".Material", StringComparison.Ordinal) || string.Equals(assetType, "Material", StringComparison.Ordinal))
+                    return "Material";
+                if (assetType.EndsWith(".AnimationClip", StringComparison.Ordinal) || string.Equals(assetType, "AnimationClip", StringComparison.Ordinal))
+                    return "AnimationClip";
+                if (assetType.EndsWith(".AudioClip", StringComparison.Ordinal) || string.Equals(assetType, "AudioClip", StringComparison.Ordinal))
+                    return "AudioClip";
+                if (assetType.EndsWith(".TextAsset", StringComparison.Ordinal) || string.Equals(assetType, "TextAsset", StringComparison.Ordinal))
+                    return "TextAsset";
+            }
+
+            return MapRuntimeTypeId(kind);
+        }
+
+        private static List<string> BuildSelectionLabels(string packageId, AuthoringResourceItem item, AuthoringResourceSelectionCompileInput input)
+        {
+            var labels = new SortedSet<string>(StringComparer.Ordinal);
+            labels.Add("package." + (packageId ?? string.Empty));
+            labels.Add("authoring.resourceSelection");
+            if (item != null)
+            {
+                if (!string.IsNullOrWhiteSpace(item.Kind))
+                    labels.Add("character.type." + NormalizeLabelSegment(item.Kind));
+                if (!string.IsNullOrWhiteSpace(item.Usage))
+                    labels.Add("character.usage." + NormalizeLabelSegment(item.Usage));
+                if (item.Tags != null)
+                {
+                    for (int i = 0; i < item.Tags.Count; i++)
+                        labels.Add("tag." + NormalizeLabelSegment(item.Tags[i]));
+                }
+            }
+
+            if (input != null && input.FieldSpec != null && !string.IsNullOrWhiteSpace(input.FieldSpec.PreloadPolicy))
+                labels.Add("preload." + NormalizeLabelSegment(input.FieldSpec.PreloadPolicy));
+
+            return new List<string>(labels);
+        }
+
+        private static void SortRuntimeCatalog(RuntimeResourceCatalogDocument runtimeCatalog)
+        {
+            if (runtimeCatalog == null || runtimeCatalog.Entries == null)
+                return;
+
+            runtimeCatalog.Entries.Sort((a, b) => string.CompareOrdinal(a != null ? a.Id : string.Empty, b != null ? b.Id : string.Empty));
+        }
+
+        private static void SortAudioPlan(CharacterAudioResourcePlanGroup audio)
+        {
+            if (audio == null)
+                return;
+
+            SortUnique(audio.RequiredCues);
+            SortUnique(audio.RequiredBanks);
+        }
+
+        private static void SortAudioManifest(AudioCueManifestDocument manifest)
+        {
+            if (manifest == null)
+                return;
+
+            SortUnique(manifest.Banks);
+            if (manifest.Cues != null)
+                manifest.Cues.Sort((a, b) => string.CompareOrdinal(a != null ? a.CueId : string.Empty, b != null ? b.CueId : string.Empty));
+        }
+
+        private static void SortUnique(List<string> values)
+        {
+            if (values == null)
+                return;
+
+            var set = new SortedSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < values.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(values[i]))
+                    set.Add(values[i]);
+            }
+
+            values.Clear();
+            values.AddRange(set);
+        }
+
+        private static void AddUnique(List<string> values, string value)
+        {
+            if (values == null || string.IsNullOrWhiteSpace(value))
+                return;
+
+            for (int i = 0; i < values.Count; i++)
+            {
+                if (string.Equals(values[i], value, StringComparison.Ordinal))
+                    return;
+            }
+
+            values.Add(value);
+        }
+
+        private static void AddCsvValuesToList(List<string> target, string csv)
+        {
+            if (target == null || string.IsNullOrWhiteSpace(csv))
+                return;
+
+            string[] values = csv.Split(',');
+            for (int i = 0; i < values.Length; i++)
+                AddUnique(target, values[i].Trim());
+        }
+
+        private static string FirstBank(string csv)
+        {
+            if (string.IsNullOrWhiteSpace(csv))
+                return string.Empty;
+
+            string[] values = csv.Split(',');
+            for (int i = 0; i < values.Length; i++)
+            {
+                string value = values[i].Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+
+            return string.Empty;
+        }
+
+        private static long ParseLong(string value)
+        {
+            long parsed;
+            return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed) ? parsed : 0;
+        }
+
+        private static string GetProviderData(AuthoringResourceProviderBinding binding, string key)
+        {
+            if (binding == null || binding.ProviderData == null || string.IsNullOrWhiteSpace(key))
+                return string.Empty;
+
+            string value;
+            return binding.ProviderData.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
+        }
+
+        private static string GetMetadata(AuthoringResourceItem item, string key)
+        {
+            if (item == null || item.Metadata == null || string.IsNullOrWhiteSpace(key))
+                return string.Empty;
+
+            string value;
+            return item.Metadata.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
         }
 
         private static ResourceValidationReportDocument BuildValidationReport(
@@ -865,13 +1352,18 @@ namespace MxFramework.Authoring
             }
         }
 
-        private static string FirstNonEmpty(string a, string b, string c)
+        private static string FirstNonEmpty(params string[] values)
         {
-            if (!string.IsNullOrWhiteSpace(a))
-                return a;
-            if (!string.IsNullOrWhiteSpace(b))
-                return b;
-            return c ?? string.Empty;
+            if (values == null)
+                return string.Empty;
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(values[i]))
+                    return values[i];
+            }
+
+            return string.Empty;
         }
 
         private static string BuildPlanCanonicalText(CharacterResourcePlanDocument plan)
