@@ -14,6 +14,8 @@
 
 本 MVP 的设计目标已经从“角色包资源库”调整为“全局资源管理器”。角色包 `resource_catalog.json` 是一个 provider，Unity AssetDatabase、现有 `MxFramework.Resources.ResourceCatalog`、FMOD snapshot、external import staging、generated assets 也是 provider。
 
+本阶段不要求兼容旧角色包资源字段、旧 `/api/character/resources` API、旧 `ResourceLibrary` 工具命名或 Iron Vanguard 样例数据。实现可以破坏式重构并替换过时样例，只要新 Authoring Resource Manager 模型更清晰、可测试、可长期维护。
+
 第一版目标是 MVP，不一次性完成所有写操作：
 
 - 能独立打开资源管理器。
@@ -28,7 +30,7 @@
 ### Resource Manager Editor 负责
 
 - 资源发现：展示 Unity AssetDatabase、现有 runtime catalog、package-local resource catalog、FMOD snapshot、external import staging、generated assets 中汇总出的全局资源视图。
-- 资源检查：显示 `resourceId` / 兼容 `libraryItemId`、`stableId`、kind、usage、provider、source、import status、runtime availability、binding kind。
+- 资源检查：显示 `resourceId`、`stableId`、kind、usage、provider、source、import status、runtime availability、binding kind。
 - Provider 检查：显示每个 provider 是否可用、最后同步时间、导入/扫描 diagnostics 和 source count。
 - 引用检查：显示资源被哪些角色配置、武器配置、动画配置、geometry、presentation、VFX、UI/config 或 runtime/domain plan group 引用。
 - 诊断检查：显示资源级 diagnostics 和 suggested fix。
@@ -54,18 +56,18 @@
 新增工具目录：
 
 ```text
-Tools/MxFramework.ResourceLibrary/
+Tools/MxFramework.ResourceManager/
   README.md
-  start-resource-library.sh      # current compatibility launcher name
-  start-resource-library.bat
-  start-resource-library.command
+  start-resource-manager.sh
+  start-resource-manager.bat
+  start-resource-manager.command
   scripts/smoke.mjs
   web/index.html
   web/app.js
   web/styles.css
 ```
 
-目录名和启动脚本当前仍保留 `ResourceLibrary` / `start-resource-library` 兼容命名；产品目标和 UI 文案应逐步迁移到 Authoring Resource Manager。
+现有 `Tools/MxFramework.ResourceLibrary` 可以在执行任务中直接重命名、替换或删除，不需要为了历史脚本名保留兼容入口。
 
 Editor Hub 更新：
 
@@ -73,14 +75,14 @@ Editor Hub 更新：
 - 打开 URL：
 
 ```text
-/Tools/MxFramework.ResourceLibrary/web/?package=<packageRelative>&domain=<optional>
+/Tools/MxFramework.ResourceManager/web/?scope=<scopeId>&provider=<optional>&domain=<optional>
 ```
 
 启动脚本默认：
 
 - port：`4873`
-- package：`Tools/MxFramework.Authoring/samples/character-iron-vanguard`
-- URL：`http://127.0.0.1:4873/Tools/MxFramework.ResourceLibrary/web/`
+- scope：默认全局资源 scope；可以用任意当前测试资源 scope，不强制 Iron Vanguard。
+- URL：`http://127.0.0.1:4873/Tools/MxFramework.ResourceManager/web/`
 
 ## MVP UI Layout
 
@@ -207,16 +209,16 @@ MVP 状态：
 
 | API | 用途 |
 | --- | --- |
-| `GET /api/character/packages` | 包列表 |
-| `GET /api/character/resources?package=...` | 兼容 API：当前角色包资源列表、状态、diagnostics |
-| `GET /api/character/resource-plan?package=...` | 当前角色 runtime resource plan |
+| `GET /api/authoring/resource-scopes` | 资源 scope 列表 |
+| `GET /api/authoring/resources?scope=...` | 全局资源列表、provider、状态、diagnostics |
+| `GET /api/authoring/resource-plans?scope=...&consumerKind=...` | 指定 consumer 的 runtime/domain resource plan |
 
 ### Required MVP API
 
-第一版需要补齐全局 query / inspect。`/api/character/resources/inspect` 可以保留为兼容入口，但 Resource Manager Editor 应优先使用全局 Authoring API：
+第一版需要补齐全局 query / inspect。Resource Manager Editor 只应使用全局 Authoring API：
 
 ```text
-GET /api/authoring/resources?provider=<optional>&package=<optional>&domain=<optional>&kind=<optional>&q=<optional>
+GET /api/authoring/resources?scope=<optional>&provider=<optional>&domain=<optional>&kind=<optional>&q=<optional>
 GET /api/authoring/resources/inspect?id=<resourceId-or-stableId-or-resourceKey-or-unityGuid>
 GET /api/authoring/resources/providers
 ```
@@ -243,7 +245,6 @@ GET /api/authoring/resources/providers
 inspect 必须接受三种查找键：
 
 - `resourceId`
-- `libraryItemId`（兼容）
 - `stableId`
 - Unity GUID
 - provider-local key（例如 package-local `resourceKey`）
@@ -333,7 +334,7 @@ Work:
 
 - Add global resource manager query / inspect service over current character package implementation.
 - Add `GET /api/authoring/resources`, `GET /api/authoring/resources/inspect`, `GET /api/authoring/resources/providers`.
-- Keep `/api/character/resources/inspect` only as a compatibility alias.
+- Delete or replace `/api/character/resources/inspect`; do not build new UI on the character-prefixed endpoint.
 - Reuse existing reference graph / diagnostics builders.
 - Return stable not-found errors.
 
@@ -344,18 +345,18 @@ dotnet run --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/M
   editor serve --root . --port 4883 \
   --package Tools/MxFramework.Authoring/samples/character-iron-vanguard
 
-curl -fsS 'http://127.0.0.1:4883/api/authoring/resources/inspect?package=Tools%2FMxFramework.Authoring%2Fsamples%2Fcharacter-iron-vanguard&id=model.body'
+curl -fsS 'http://127.0.0.1:4883/api/authoring/resources/inspect?scope=default&id=model.body'
 ```
 
 ### Step 2：Resource Manager Web App
 
 Owner files:
 
-- `Tools/MxFramework.ResourceLibrary/web/index.html`
-- `Tools/MxFramework.ResourceLibrary/web/app.js`
-- `Tools/MxFramework.ResourceLibrary/web/styles.css`
-- `Tools/MxFramework.ResourceLibrary/scripts/smoke.mjs`
-- `Tools/MxFramework.ResourceLibrary/README.md`
+- `Tools/MxFramework.ResourceManager/web/index.html`
+- `Tools/MxFramework.ResourceManager/web/app.js`
+- `Tools/MxFramework.ResourceManager/web/styles.css`
+- `Tools/MxFramework.ResourceManager/scripts/smoke.mjs`
+- `Tools/MxFramework.ResourceManager/README.md`
 
 Work:
 
@@ -370,17 +371,17 @@ Work:
 Validation:
 
 ```bash
-node --check Tools/MxFramework.ResourceLibrary/web/app.js
-node Tools/MxFramework.ResourceLibrary/scripts/smoke.mjs
+node --check Tools/MxFramework.ResourceManager/web/app.js
+node Tools/MxFramework.ResourceManager/scripts/smoke.mjs
 ```
 
 ### Step 3：Launchers and Hub Integration
 
 Owner files:
 
-- `Tools/MxFramework.ResourceLibrary/start-resource-library.sh`
-- `Tools/MxFramework.ResourceLibrary/start-resource-library.bat`
-- `Tools/MxFramework.ResourceLibrary/start-resource-library.command`
+- `Tools/MxFramework.ResourceManager/start-resource-manager.sh`
+- `Tools/MxFramework.ResourceManager/start-resource-manager.bat`
+- `Tools/MxFramework.ResourceManager/start-resource-manager.command`
 - `Tools/MxFramework.EditorHub/web/app.js`
 - `Tools/MxFramework.EditorHub/scripts/smoke.mjs`
 - README files.
@@ -398,7 +399,7 @@ Work:
 Validation:
 
 ```bash
-Tools/MxFramework.ResourceLibrary/start-resource-library.sh 4884 Tools/MxFramework.Authoring/samples/character-iron-vanguard
+Tools/MxFramework.ResourceManager/start-resource-manager.sh 4884
 ```
 
 ### Step 4：End-to-End Smoke
@@ -408,8 +409,8 @@ Required commands:
 ```bash
 git diff --check
 
-node --check Tools/MxFramework.ResourceLibrary/web/app.js
-node Tools/MxFramework.ResourceLibrary/scripts/smoke.mjs
+node --check Tools/MxFramework.ResourceManager/web/app.js
+node Tools/MxFramework.ResourceManager/scripts/smoke.mjs
 node Tools/MxFramework.EditorHub/scripts/smoke.mjs
 npm --prefix Tools/MxFramework.CharacterStudio run smoke
 
@@ -423,7 +424,7 @@ Manual smoke:
 
 1. Start Resource Manager Editor.
 2. Confirm provider status is visible.
-3. Confirm Iron Vanguard resources are visible under `characterPackage`.
+3. Confirm resources are visible under provider filters; use current sample data or a replacement sample set.
 4. Confirm Unity/runtime/FMOD providers are either populated or clearly marked unavailable/stale.
 5. Search `sword`, `shield`, `anim`.
 6. Filter `RuntimeReady`.
@@ -434,9 +435,9 @@ Manual smoke:
 
 ## Acceptance Checklist
 
-- [ ] `Tools/MxFramework.ResourceLibrary` exists with README, launchers, smoke script and web app.
+- [ ] `Tools/MxFramework.ResourceManager` exists with README, launchers, smoke script and web app.
 - [ ] Editor Hub opens Resource Manager Editor with optional package/domain query.
-- [ ] Resource list shows provider status and all Iron Vanguard package resources.
+- [ ] Resource list shows provider status and current sample resources.
 - [ ] Resource list can also represent Unity/runtime/FMOD/external/generated providers when available.
 - [ ] Filters work without server-side mutation.
 - [ ] Inspect API returns item details, references and diagnostics.
