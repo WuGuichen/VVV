@@ -44,6 +44,8 @@ const attachments = readJson("geometry/weapon_attachments.json");
 const traces = readJson("geometry/traces.json");
 const unityCatalog = readGeneratedJson("config/unity_resource_catalog.json");
 const importReport = readGeneratedJson("package_cache/import_report.json");
+const appSource = fs.readFileSync(path.join(repoRoot, "Tools/MxFramework.CharacterStudio/web/app.js"), "utf8");
+const stylesSource = fs.readFileSync(path.join(repoRoot, "Tools/MxFramework.CharacterStudio/web/styles.css"), "utf8");
 
 assert(manifest.packageId === "iron_vanguard", "manifest packageId should be iron_vanguard");
 assert(Array.isArray(resources.entries) && resources.entries.length > 0, "resource catalog should have entries");
@@ -55,6 +57,9 @@ assert(unityCatalog.packageId === manifest.packageId, "Unity resource catalog pa
 assert(Array.isArray(unityCatalog.entries) && unityCatalog.entries.length > 0, "Unity resource catalog should have entries");
 assert(importReport.packageId === manifest.packageId, "Unity import report packageId should match manifest");
 assert(Array.isArray(importReport.operations) && importReport.operations.some(op => op.kind === "unityResourceCatalog"), "Unity import report should include unityResourceCatalog operation");
+assert(appSource.includes("RESOURCE_FIELD_SPECS"), "CharacterStudio should expose ResourceFieldSpec-driven selection");
+assert(appSource.includes("SpawnCritical") && appSource.includes("EquipmentInitial") && appSource.includes("AnimationWarmup"), "CharacterStudio should render resource plan groups");
+assert(stylesSource.includes("resource-plan-grid"), "CharacterStudio should style the resource plan preview");
 
 const modelResources = resources.entries.filter(entry => entry.typeId === "model" && entry.resourceKey);
 for (const resource of modelResources) {
@@ -67,6 +72,17 @@ for (const resource of modelResources) {
   assert(unityEntry.importerKind || unityEntry.providerData?.importerKind, `${resource.resourceKey} should expose importer kind`);
   assert(unityEntry.importStatus || unityEntry.providerData?.importStatus, `${resource.resourceKey} should expose import status`);
 }
+
+const fallbackPlan = {
+  spawnCritical: resources.entries.filter(entry => entry.usage === "characterModel").map(entry => entry.resourceKey),
+  equipmentInitial: attachments.attachments.map(attachment => attachment.previewResourceKey).filter(Boolean),
+  animationWarmup: resources.entries.filter(entry => entry.typeId === "animation").map(entry => entry.resourceKey),
+  uiDeferred: resources.entries.filter(entry => entry.usage === "previewThumbnail").map(entry => entry.resourceKey)
+};
+assert(fallbackPlan.spawnCritical.length > 0, "fallback resource plan should include SpawnCritical resources");
+assert(fallbackPlan.equipmentInitial.length > 0, "fallback resource plan should include EquipmentInitial resources");
+assert(fallbackPlan.animationWarmup.length > 0, "fallback resource plan should include AnimationWarmup resources");
+assert(fallbackPlan.uiDeferred.length > 0, "fallback resource plan should include UiDeferred resources");
 
 console.log("CharacterStudio smoke ok");
 

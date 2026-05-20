@@ -80,13 +80,20 @@
         </div>
         <div class="resource-library">
           <div class="resource-library-head">
-            <strong>导入资源</strong>
+            <strong>资源库</strong>
             <span id="resourceLibraryTarget">点击资源图选择替换目标</span>
             <button id="downloadResourceButton" type="button" title="下载当前选中资源的包内源文件">导出源资源</button>
             <button id="replaceResourceButton" type="button" title="用本地文件替换当前选中资源，保留 resourceKey/stableId">替换源资源</button>
             <button id="clearModelBindingButton" type="button" title="清空当前目标的模型绑定">移除模型</button>
           </div>
           <div id="modelResourceList" class="model-resource-list" aria-label="Model resources"></div>
+        </div>
+        <div class="resource-plan-preview">
+          <div class="resource-plan-head">
+            <strong>角色资源计划</strong>
+            <span>预览 Spawn / Equipment / Warmup / UI / Audio 编排</span>
+          </div>
+          <div id="resourcePlanPreview" class="resource-plan-grid" aria-label="Character resource plan preview"></div>
         </div>
         <div id="viewport" class="viewport" aria-label="Character viewport"></div>
       </section>

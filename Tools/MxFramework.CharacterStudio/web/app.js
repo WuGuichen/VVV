@@ -39,6 +39,80 @@ const MODEL_USAGE_OPTIONS = [
   { value: "previewMesh", label: "仅预览模型" }
 ];
 
+const RESOURCE_KIND_LABELS = {
+  Model: "模型",
+  Animation: "动画",
+  Texture: "贴图",
+  Material: "材质",
+  AvatarMask: "AvatarMask",
+  Vfx: "VFX",
+  Audio: "音频",
+  Config: "配置",
+  Generated: "生成资源"
+};
+
+const PLAN_GROUPS = [
+  { key: "spawnCritical", label: "SpawnCritical", failurePolicy: "FailSpawn" },
+  { key: "equipmentInitial", label: "EquipmentInitial", failurePolicy: "UseFallbackEquipment" },
+  { key: "animationWarmup", label: "AnimationWarmup", failurePolicy: "UseFallbackPose" },
+  { key: "vfxWarmup", label: "VfxWarmup", failurePolicy: "SkipEffect" },
+  { key: "uiDeferred", label: "UiDeferred", failurePolicy: "ShowPlaceholder" },
+  { key: "audio", label: "Audio", failurePolicy: "MuteMissingCue" }
+];
+
+const RESOURCE_FIELD_SPECS = {
+  body: {
+    fieldKey: "Character.Model",
+    displayName: "角色主体模型",
+    acceptedKinds: ["Model"],
+    acceptedUsages: ["characterModel"],
+    acceptedBindingKinds: ["ResourceManagerAsset"],
+    requireRuntimeLoadable: true,
+    requireUnityImported: true,
+    allowIncompatibleWithWarning: false,
+    preloadPolicy: "SpawnCritical",
+    outputKind: "ResourceKey"
+  },
+  mainHand: {
+    fieldKey: "Equipment.MainHand.Model",
+    displayName: "主手武器模型",
+    acceptedKinds: ["Model"],
+    acceptedUsages: ["weaponModel"],
+    acceptedBindingKinds: ["ResourceManagerAsset"],
+    requireRuntimeLoadable: true,
+    requireUnityImported: true,
+    allowIncompatibleWithWarning: true,
+    compatibilityFilter: { equipSlot: "mainHand" },
+    preloadPolicy: "EquipmentInitial",
+    outputKind: "ResourceKey"
+  },
+  offHand: {
+    fieldKey: "Equipment.OffHand.Model",
+    displayName: "副手武器模型",
+    acceptedKinds: ["Model"],
+    acceptedUsages: ["weaponModel"],
+    acceptedBindingKinds: ["ResourceManagerAsset"],
+    requireRuntimeLoadable: true,
+    requireUnityImported: true,
+    allowIncompatibleWithWarning: true,
+    compatibilityFilter: { equipSlot: "offHand" },
+    preloadPolicy: "EquipmentInitial",
+    outputKind: "ResourceKey"
+  },
+  preview: {
+    fieldKey: "CharacterStudio.Selection",
+    displayName: "资源库浏览",
+    acceptedKinds: ["Model", "Animation", "Texture", "Material", "Vfx", "Audio", "Config", "Generated"],
+    acceptedUsages: [],
+    acceptedBindingKinds: ["ResourceManagerAsset", "UnityEditorOnlyAsset", "AudioEventDefinition", "AudioCue", "GeneratedPreviewOnly"],
+    requireRuntimeLoadable: false,
+    requireUnityImported: false,
+    allowIncompatibleWithWarning: true,
+    preloadPolicy: "None",
+    outputKind: "ResourceSelectionRef"
+  }
+};
+
 const FIELD_GROUP_LABELS = {
   resource: "资源身份",
   modelTransform: "模型尺寸 / 旋转 / 位置修正",
@@ -122,6 +196,8 @@ const state = {
   importResult: null,
   unityResourceCatalog: null,
   unityResourceCatalogPath: "",
+  resourceLibrary: null,
+  resourcePlan: null,
   selectedPath: "manifest",
   activeLoadout: "sword_shield",
   layers: { ...LAYERS },
@@ -155,6 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "workspace", "treeCollapseButton", "previewPoseSelect", "previewMotionSelect", "resetCameraButton",
     "configCreateSelect", "configCreateButton",
     "resourceLibraryTarget", "modelResourceList", "downloadResourceButton", "replaceResourceButton", "clearModelBindingButton",
+    "resourcePlanPreview",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
   ]) el[id] = document.getElementById(id);
@@ -204,9 +281,9 @@ document.addEventListener("DOMContentLoaded", () => {
     renderViewport();
   });
   el.modelResourceList.addEventListener("click", event => {
-    const button = event.target.closest("button[data-resource-key]");
+    const button = event.target.closest("button[data-library-id]");
     if (!button) return;
-    bindModelResource(button.dataset.resourceKey);
+    selectLibraryItem(button.dataset.libraryId);
   });
   el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
   el.downloadResourceButton.addEventListener("click", downloadSelectedResource);
@@ -275,6 +352,7 @@ async function loadPackageState() {
     if (!state.unityResourceCatalog) {
       await loadUnityResourceCatalog();
     }
+    await loadResourceLibraryAndPlan();
     state.canWrite = Boolean(apiState.canWrite);
     state.apiAvailable = true;
     state.dirty = false;
@@ -286,6 +364,7 @@ async function loadPackageState() {
   state.validation = state.package.validationReport || { issues: [] };
   state.importResult = null;
   await loadUnityResourceCatalog();
+  await loadResourceLibraryAndPlan();
   state.canWrite = false;
   state.apiAvailable = false;
   state.dirty = false;
@@ -301,6 +380,18 @@ async function loadUnityResourceCatalog() {
   const catalogPath = `/Assets/MxFrameworkGenerated/CharacterPackages/${encodeURIComponent(packageId)}/config/unity_resource_catalog.json`;
   state.unityResourceCatalogPath = catalogPath.slice(1);
   state.unityResourceCatalog = await readJson(catalogPath, null);
+}
+
+async function loadResourceLibraryAndPlan() {
+  const apiLibrary = await readJson(`/api/character/resources?package=${encodeURIComponent(state.packageRelative)}`, null);
+  state.resourceLibrary = normalizeResourceLibraryPayload(apiLibrary);
+
+  const apiPlan = await readJson(`/api/character/resource-plan?package=${encodeURIComponent(state.packageRelative)}`, null);
+  const packageId = state.package?.manifest?.packageId || "";
+  const staticPlan = packageId
+    ? await readJson(`/Assets/MxFrameworkGenerated/CharacterPackages/${encodeURIComponent(packageId)}/config/character_resource_plan.json`, null)
+    : null;
+  state.resourcePlan = normalizeResourcePlanPayload(apiPlan || staticPlan);
 }
 
 async function readStaticPackage(root) {
@@ -341,6 +432,7 @@ function render() {
   renderLoadouts();
   renderPreviewControls();
   renderResourceLibrary();
+  renderResourcePlanPreview();
   renderViewport();
   renderInspector();
   renderDiagnostics();
@@ -382,47 +474,332 @@ function updateModelImportTitle() {
   el.modelImportButton.title = `源资源导入：${getModelImportRole().title}。支持 GLB/GLTF；FBX 会先转换为 GLB。`;
 }
 
+function normalizeResourceLibraryPayload(payload) {
+  if (!payload) return null;
+  if (Array.isArray(payload)) return { items: payload };
+  if (Array.isArray(payload.items)) return payload;
+  if (Array.isArray(payload.entries)) return { items: payload.entries };
+  return null;
+}
+
+function normalizeResourcePlanPayload(payload) {
+  if (!payload) return null;
+  if (payload.characterStableId || payload.spawnCritical || payload.groups) return payload;
+  return null;
+}
+
 function renderResourceLibrary() {
   if (!el.modelResourceList || !el.resourceLibraryTarget) return;
   const targetRole = el.modelImportRole?.value || "preview";
   const roleInfo = getModelImportRole();
+  const fieldSpec = getActiveResourceFieldSpec();
   const selectedResource = getSelectedModelResource();
   const selectedText = selectedResource
     ? `；选中：${getResourceDisplayName(selectedResource)} -> ${selectedResource.relativePath || "未设置路径"}`
     : "";
   el.resourceLibraryTarget.textContent = (targetRole === "preview"
-    ? "当前目标：仅选中资源"
-    : `当前替换目标：${roleInfo.label}`) + selectedText;
+    ? `当前字段：${fieldSpec.fieldKey}`
+    : `当前字段：${fieldSpec.fieldKey} / ${roleInfo.label}`) + selectedText;
 
-  const resources = getModelResources(state.package);
-  if (!resources.length) {
-    el.modelResourceList.innerHTML = `<div class="empty">暂无模型资源。</div>`;
+  const items = getResourceLibraryItems();
+  if (!items.length) {
+    el.modelResourceList.innerHTML = `<div class="empty">暂无资源库项。</div>`;
     return;
   }
 
-  el.modelResourceList.innerHTML = resources.map(resource => {
-    const path = `resources/${resource.resourceKey}`;
-    const selected = path === state.selectedPath;
-    const binding = describeResourceBinding(resource, state.package);
-    const thumbnailUrl = getResourceThumbnailUrl(resource, state.package);
-    const sourceName = resource.provenance?.sourceFile || resource.relativePath || resource.localId || resource.resourceKey;
-    const imported = (resource.tags || []).some(tag => tag === "characterstudio-import" || tag === "converted-from-fbx");
-    const sync = getResourceUnitySync(resource);
-    const thumb = thumbnailUrl
-      ? `<img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(getResourceDisplayName(resource))}">`
-      : `<span>${escapeHtml(getResourceInitial(resource))}</span>`;
+  el.modelResourceList.innerHTML = items.map(item => {
+    const selection = evaluateResourceFieldSelection(item, fieldSpec);
+    const selected = item.path === state.selectedPath;
+    const thumb = item.thumbnailUrl
+      ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.displayName)}">`
+      : `<span>${escapeHtml(getResourceInitial(item))}</span>`;
+    const diagnostics = item.diagnostics?.length
+      ? `${item.diagnostics.length} diagnostics`
+      : "无 diagnostics";
     return `
-      <button type="button" class="resource-card ${selected ? "active" : ""}" data-resource-key="${escapeHtml(resource.resourceKey || "")}" title="${escapeHtml(sourceName)}">
+      <button type="button" class="resource-card ${selected ? "active" : ""} ${escapeHtml(selection.tone)}" data-library-id="${escapeHtml(item.libraryItemId || "")}" title="${escapeHtml(item.sourceName || item.stableId || item.displayName)}">
         <span class="resource-thumb">${thumb}</span>
         <span class="resource-info">
-          <span class="resource-title"><strong>${escapeHtml(getResourceDisplayName(resource))}</strong>${renderSyncBadge(sync)}</span>
-          <span>${escapeHtml(binding || "未绑定到角色或武器槽")}</span>
-          <span>${escapeHtml(resource.usage || "usage?")} / ${escapeHtml(resource.sourceFormat || "format?")}${imported ? " / imported" : ""}</span>
-          <span>${escapeHtml(sync.importerKind || "importer?")} / ${escapeHtml(sync.guidShort || "guid?")}</span>
-          <span class="resource-unity-path">${escapeHtml(sync.unityAssetPath || "Unity asset 未生成")}</span>
+          <span class="resource-title"><strong>${escapeHtml(item.displayName)}</strong>${renderSyncBadge({ label: item.importStatusLabel, tone: item.importTone })}</span>
+          <span>${escapeHtml(item.kindLabel)} / ${escapeHtml(item.usage || "usage?")} / ${escapeHtml(item.runtimeAvailability)}</span>
+          <span>${escapeHtml(item.runtimeBindingKind)} / refs ${escapeHtml(String(item.referenceCount || 0))} / ${escapeHtml(diagnostics)}</span>
+          <span>${renderSelectionBadge(selection)} ${escapeHtml(selection.reason)}</span>
+          <span class="resource-unity-path">${escapeHtml(item.unityAssetPath || item.sourceName || item.stableId || "未记录路径")}</span>
         </span>
       </button>`;
   }).join("");
+}
+
+function getActiveResourceFieldSpec() {
+  const role = el.modelImportRole?.value || "preview";
+  return RESOURCE_FIELD_SPECS[role] || RESOURCE_FIELD_SPECS.preview;
+}
+
+function getResourceLibraryItems() {
+  const apiItems = state.resourceLibrary?.items;
+  const rawItems = Array.isArray(apiItems) && apiItems.length > 0
+    ? apiItems
+    : (state.package?.resourceCatalog?.entries || []);
+  return rawItems
+    .map(item => normalizeResourceLibraryItem(item))
+    .filter(Boolean)
+    .sort((a, b) => getResourceLibrarySortKey(a).localeCompare(getResourceLibrarySortKey(b)));
+}
+
+function normalizeResourceLibraryItem(item) {
+  if (!item) return null;
+  const resource = item.resource || item;
+  const sync = getResourceUnitySync(resource);
+  const kind = item.kind || mapResourceKind(resource.typeId);
+  const diagnostics = [
+    ...(Array.isArray(item.diagnostics) ? item.diagnostics.map(formatDiagnosticText) : []),
+    ...sync.diagnostics
+  ].filter(Boolean);
+  const referenceCount = item.referenceCount ?? collectResourceReferences(resource).length;
+  const runtimeBindingKind = item.runtimeBindingKind || inferRuntimeBindingKind(resource, kind);
+  const runtimeAvailability = item.runtimeAvailability || inferRuntimeAvailability(resource, runtimeBindingKind, sync);
+  const libraryItemId = item.libraryItemId || resource.libraryItemId || resource.stableId || resource.resourceKey || resource.localId || resource.relativePath;
+  return {
+    raw: item,
+    resource,
+    libraryItemId,
+    stableId: item.stableId || resource.stableId || libraryItemId,
+    path: resource.resourceKey ? `resources/${resource.resourceKey}` : "",
+    resourceKey: resource.resourceKey || item.resourceKey || "",
+    displayName: item.displayName || getResourceDisplayName(resource),
+    kind,
+    kindLabel: RESOURCE_KIND_LABELS[kind] || kind,
+    usage: item.usage || resource.usage || "",
+    sourceKind: item.sourceKind || inferSourceKind(resource),
+    runtimeBindingKind,
+    runtimeAvailability,
+    importStatus: item.importStatus || sync.status,
+    importStatusLabel: item.importStatusLabel || sync.label,
+    importTone: sync.tone,
+    referenceCount,
+    diagnostics,
+    thumbnailUrl: item.thumbnailUrl || getResourceThumbnailUrl(resource, state.package),
+    sourceName: resource.provenance?.sourceFile || resource.relativePath || resource.localId || resource.resourceKey || "",
+    unityAssetPath: item.unityAssetPath || sync.unityAssetPath
+  };
+}
+
+function getResourceLibrarySortKey(item) {
+  const binding = describeResourceBinding(item.resource, state.package);
+  const rank = binding.includes("角色主体") ? "0" : binding.includes("mainHand") ? "1" : binding.includes("offHand") ? "2" : item.kind === "Model" ? "3" : "4";
+  return `${rank}:${item.kind}:${item.displayName}`;
+}
+
+function mapResourceKind(typeId) {
+  const normalized = String(typeId || "").toLowerCase();
+  if (normalized === "model" || normalized === "mesh" || normalized === "prefab") return "Model";
+  if (normalized === "animation" || normalized === "anim" || normalized === "clip") return "Animation";
+  if (normalized === "texture" || normalized === "preview" || normalized === "sprite" || normalized === "image") return "Texture";
+  if (normalized === "material") return "Material";
+  if (normalized === "vfx" || normalized === "effect") return "Vfx";
+  if (normalized === "audio" || normalized === "audioclip" || normalized === "fmod") return "Audio";
+  if (normalized === "config" || normalized.endsWith("config")) return "Config";
+  return "Generated";
+}
+
+function inferSourceKind(resource) {
+  const sourceTool = String(resource?.provenance?.sourceTool || "").toLowerCase();
+  if (sourceTool.includes("fmod")) return "FmodLibrary";
+  if (resource?.importHints?.providerId === "unityAsset") return "UnityAsset";
+  if (resource?.relativePath) return "ExternalFile";
+  return "GeneratedAsset";
+}
+
+function inferRuntimeBindingKind(resource, kind) {
+  const metadata = resource?.importHints?.metadata || {};
+  if (kind === "Audio" && (metadata.audioCueId || metadata.fmodEventPath)) return "AudioCue";
+  if (kind === "Audio") return "AudioEventDefinition";
+  if (kind === "Texture" && resource?.usage === "previewThumbnail") return "GeneratedPreviewOnly";
+  if (resource?.resourceKey && resource?.importHints?.providerId !== "editorOnly") return "ResourceManagerAsset";
+  if (resource?.relativePath) return "UnityEditorOnlyAsset";
+  return "None";
+}
+
+function inferRuntimeAvailability(resource, bindingKind, sync) {
+  if (bindingKind === "AudioCue" || bindingKind === "AudioEventDefinition") return "AudioCueOnly";
+  if (bindingKind === "GeneratedPreviewOnly") return "PreviewOnly";
+  if (bindingKind === "UnityEditorOnlyAsset") return "EditorOnly";
+  if (bindingKind !== "ResourceManagerAsset") return "Unknown";
+  if (!resource?.resourceKey) return "NotRuntimeLoadable";
+  const tone = sync?.tone || "";
+  if (tone === "error") return "RuntimeMissing";
+  if (tone === "warn") return "RuntimeMissing";
+  return "RuntimeReady";
+}
+
+function evaluateResourceFieldSelection(item, spec) {
+  const reasons = [];
+  let selectable = true;
+  let warn = false;
+  if (spec.acceptedKinds?.length && !spec.acceptedKinds.includes(item.kind)) {
+    selectable = false;
+    reasons.push(`kind 不匹配：${item.kind}`);
+  }
+  if (spec.acceptedUsages?.length && !spec.acceptedUsages.includes(item.usage)) {
+    const compatibleWeaponSlot = spec.compatibilityFilter?.equipSlot && item.usage === "weaponModel";
+    if (!compatibleWeaponSlot) {
+      selectable = false;
+      reasons.push(`usage 不匹配：${item.usage || "空"}`);
+    }
+  }
+  if (spec.acceptedBindingKinds?.length && !spec.acceptedBindingKinds.includes(item.runtimeBindingKind)) {
+    selectable = false;
+    reasons.push(`binding 不匹配：${item.runtimeBindingKind}`);
+  }
+  if (spec.requireRuntimeLoadable && item.runtimeAvailability !== "RuntimeReady") {
+    warn = spec.allowIncompatibleWithWarning;
+    selectable = selectable && warn;
+    reasons.push(`runtime=${item.runtimeAvailability}`);
+  }
+  if (spec.requireUnityImported && item.importTone !== "ok") {
+    warn = spec.allowIncompatibleWithWarning;
+    selectable = selectable && warn;
+    reasons.push(`import=${item.importStatusLabel}`);
+  }
+  if (item.diagnostics.some(text => /failed|失败|conflict|冲突|missing|缺失/i.test(text))) {
+    warn = true;
+  }
+  if (selectable && !warn) return { tone: "match", label: "匹配", reason: `${spec.outputKind} / ${spec.preloadPolicy}` };
+  if (selectable && warn) return { tone: "warn", label: "警告", reason: reasons.join("；") || "可选但需复核" };
+  return { tone: "blocked", label: "不可选", reason: reasons.join("；") || "不符合字段规格" };
+}
+
+function renderSelectionBadge(selection) {
+  const tone = selection.tone === "match" ? "ok" : selection.tone === "warn" ? "warn" : "error";
+  return `<span class="selection-badge ${tone}">${escapeHtml(selection.label)}</span>`;
+}
+
+function selectLibraryItem(libraryItemId) {
+  const item = getResourceLibraryItems().find(candidate => candidate.libraryItemId === libraryItemId);
+  if (!item) return;
+  const spec = getActiveResourceFieldSpec();
+  const selection = evaluateResourceFieldSelection(item, spec);
+  if (selection.tone === "blocked") {
+    state.selectedPath = item.path || state.selectedPath;
+    state.message = `${item.displayName} 不符合 ${spec.fieldKey}：${selection.reason}`;
+    renderTree();
+    renderResourceLibrary();
+    renderInspector();
+    renderShellStatus();
+    return;
+  }
+  if (item.resource?.typeId === "model" && item.resource?.resourceKey) {
+    bindModelResource(item.resource.resourceKey);
+    return;
+  }
+  state.selectedPath = item.path || state.selectedPath;
+  state.message = `${spec.fieldKey} 已选中 ${item.displayName}；SelectionRef=${item.stableId}`;
+  renderTree();
+  renderResourceLibrary();
+  renderInspector();
+  renderShellStatus();
+}
+
+function renderResourcePlanPreview() {
+  if (!el.resourcePlanPreview) return;
+  const plan = getCharacterResourcePlan();
+  if (!plan) {
+    el.resourcePlanPreview.innerHTML = `<div class="empty">暂无资源计划。运行 Prefab 重建预检后可读取编译结果；当前使用资源库 fallback。</div>`;
+    return;
+  }
+  el.resourcePlanPreview.innerHTML = PLAN_GROUPS.map(group => {
+    const groupPlan = getPlanGroup(plan, group.key);
+    const entries = normalizePlanEntries(groupPlan);
+    const policy = groupPlan?.failurePolicy || group.failurePolicy;
+    const required = groupPlan?.required === true ? "required" : "optional";
+    const rows = entries.length
+      ? entries.slice(0, 5).map(entry => renderPlanEntry(entry)).join("")
+      : `<div class="plan-entry empty">无资源</div>`;
+    const more = entries.length > 5 ? `<div class="plan-entry meta">+${entries.length - 5} more</div>` : "";
+    return `<section class="plan-group">
+      <div class="plan-group-head"><strong>${escapeHtml(group.label)}</strong><span>${escapeHtml(required)} / ${escapeHtml(policy)}</span></div>
+      ${rows}${more}
+    </section>`;
+  }).join("");
+}
+
+function getCharacterResourcePlan() {
+  return state.resourcePlan || buildFallbackResourcePlan();
+}
+
+function getPlanGroup(plan, key) {
+  if (!plan) return null;
+  if (plan[key]) return plan[key];
+  const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+  if (plan[pascal]) return plan[pascal];
+  if (Array.isArray(plan.groups)) {
+    return plan.groups.find(group => String(group.key || group.name || "").toLowerCase() === key.toLowerCase()) || null;
+  }
+  return null;
+}
+
+function normalizePlanEntries(groupPlan) {
+  if (!groupPlan) return [];
+  const entries = [];
+  for (const key of ["resources", "resourceKeys", "requiredResources"]) {
+    for (const value of groupPlan[key] || []) {
+      entries.push(normalizePlanEntry(value, "resource"));
+    }
+  }
+  for (const value of groupPlan.requiredCues || groupPlan.audioCues || []) {
+    entries.push(normalizePlanEntry(value, "audioCue"));
+  }
+  for (const value of groupPlan.requiredBanks || groupPlan.banks || []) {
+    entries.push(normalizePlanEntry(value, "bank"));
+  }
+  for (const value of groupPlan.entries || []) {
+    entries.push(normalizePlanEntry(value, value.kind || "resource"));
+  }
+  return entries.filter(entry => entry.id);
+}
+
+function normalizePlanEntry(value, kind) {
+  if (typeof value === "object" && value !== null) {
+    return {
+      id: String(value.resourceKey || value.audioCueId || value.bank || value.id || ""),
+      kind: value.kind || kind,
+      status: value.status || value.runtimeAvailability || "",
+      sizeBytes: value.sizeBytes ?? value.size ?? null,
+      policy: value.failurePolicy || value.loadPolicy || ""
+    };
+  }
+  return { id: String(value || ""), kind, status: "", sizeBytes: null, policy: "" };
+}
+
+function renderPlanEntry(entry) {
+  const resource = findResourceByKey(entry.id);
+  const item = resource ? normalizeResourceLibraryItem(resource) : null;
+  const status = entry.status || item?.runtimeAvailability || (entry.kind === "resource" ? "PendingCompile" : "External");
+  return `<div class="plan-entry">
+    <span>${escapeHtml(entry.kind)}</span>
+    <code title="${escapeHtml(entry.id)}">${escapeHtml(entry.id)}</code>
+    <strong>${escapeHtml(status)}</strong>
+  </div>`;
+}
+
+function buildFallbackResourcePlan() {
+  const pkg = state.package;
+  if (!pkg) return null;
+  const bodyKeys = getModelResources(pkg).filter(resource => isBodyModelBinding(resource, pkg)).map(resource => resource.resourceKey);
+  const equipmentKeys = (pkg.geometry?.weaponAttachments || []).map(attachment => attachment?.previewResourceKey).filter(Boolean);
+  const animationKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Animation").map(resource => resource.resourceKey).filter(Boolean);
+  const uiKeys = (pkg.resourceCatalog?.entries || []).filter(resource => resource.usage === "previewThumbnail" || mapResourceKind(resource.typeId) === "Texture").map(resource => resource.resourceKey).filter(Boolean);
+  const vfxKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Vfx").map(resource => resource.resourceKey).filter(Boolean);
+  const audioKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Audio").map(resource => resource.resourceKey || resource.stableId).filter(Boolean);
+  return {
+    characterStableId: pkg.applicationConfig?.characterStableId || pkg.manifest?.packageId || "",
+    spawnCritical: { required: true, resources: bodyKeys, failurePolicy: "FailSpawn" },
+    equipmentInitial: { required: true, resources: equipmentKeys, failurePolicy: "UseFallbackEquipment" },
+    animationWarmup: { required: false, resources: animationKeys, failurePolicy: "UseFallbackPose" },
+    vfxWarmup: { required: false, resources: vfxKeys, failurePolicy: "SkipEffect" },
+    uiDeferred: { required: false, resources: uiKeys, failurePolicy: "ShowPlaceholder" },
+    audio: { required: false, requiredCues: audioKeys, failurePolicy: "MuteMissingCue" }
+  };
 }
 
 function getModelResources(pkg) {
@@ -444,7 +821,7 @@ function getResourceDisplayName(resource) {
 }
 
 function getResourceInitial(resource) {
-  const name = getResourceDisplayName(resource);
+  const name = resource?.displayName || getResourceDisplayName(resource);
   return name.slice(0, 2).toUpperCase();
 }
 
@@ -2325,6 +2702,40 @@ function findResourceByKey(resourceKey) {
   return (state.package?.resourceCatalog?.entries || []).find(resource => resource?.resourceKey === resourceKey) || null;
 }
 
+function collectResourceReferences(resource) {
+  const references = [];
+  const key = resource?.resourceKey || "";
+  const stableId = resource?.stableId || "";
+  if (!key && !stableId) return references;
+  if (isApplicationResourceReference(key, state.package)) {
+    references.push({ sourceConfigKind: "character", sourceField: "resourceKeys", preloadPolicy: "SpawnCritical" });
+  }
+  for (const attachment of state.package?.geometry?.weaponAttachments || []) {
+    if (attachment?.previewResourceKey === key) {
+      references.push({ sourceConfigKind: "weapon", sourceStableId: attachment.weaponId, sourceField: "previewResourceKey", preloadPolicy: "EquipmentInitial" });
+    }
+  }
+  for (const entry of state.package?.resourceCatalog?.entries || []) {
+    if (entry === resource) continue;
+    for (const dependency of entry.dependencies || []) {
+      if (dependency?.resourceKey === key || dependency?.stableId === stableId) {
+        references.push({ sourceConfigKind: "resource", sourceStableId: entry.stableId || entry.resourceKey, sourceField: "dependencies", preloadPolicy: "AnimationWarmup" });
+      }
+    }
+    const preview = entry.preview || {};
+    if ([preview.thumbnailResourceKey, preview.previewMeshResourceKey, preview.placeholderResourceKey].includes(key)) {
+      references.push({ sourceConfigKind: "resource", sourceStableId: entry.stableId || entry.resourceKey, sourceField: "preview", preloadPolicy: "UiDeferred" });
+    }
+  }
+  return references;
+}
+
+function formatDiagnosticText(issue) {
+  if (!issue) return "";
+  if (typeof issue === "string") return issue;
+  return [issue.severity, issue.code || issue.gate, issue.message].filter(Boolean).join(": ");
+}
+
 function findSocketById(socketId) {
   if (!socketId) return null;
   return (state.package?.geometry?.sockets || []).find(socket => socket?.socketId === socketId) || null;
@@ -3084,6 +3495,7 @@ async function savePackage() {
   const data = await response.json();
   state.package = data.package;
   state.validation = data.validation;
+  await loadResourceLibraryAndPlan();
   state.dirty = false;
   state.message = "资源包已保存并完成校验。";
   render();
@@ -3234,7 +3646,9 @@ async function compilePackage() {
     return;
   }
   state.compileResult = data;
+  state.resourcePlan = normalizeResourcePlanPayload(data.resourcePlan || data.characterResourcePlan || data.plan) || state.resourcePlan;
   state.message = `Prefab 重建预检状态：${data.status || "Unknown"}`;
+  renderResourcePlanPreview();
   renderDiagnostics();
 }
 
@@ -3248,9 +3662,11 @@ async function importUnity() {
     });
     state.importResult = await response.json();
     await loadUnityResourceCatalog();
+    await loadResourceLibraryAndPlan();
     state.message = response.ok && state.importResult.success ? "Unity 导入完成，报告和同步状态已刷新。" : "Unity 导入失败。";
     renderShellStatus();
     renderResourceLibrary();
+    renderResourcePlanPreview();
     renderInspector();
     renderImportStatus();
   } catch (error) {
@@ -3264,6 +3680,8 @@ async function copyReport() {
     validation: state.validation,
     compile: state.compileResult,
     import: state.importResult,
+    resourceLibrary: state.resourceLibrary || { items: getResourceLibraryItems().map(item => ({ libraryItemId: item.libraryItemId, stableId: item.stableId, kind: item.kind, usage: item.usage, runtimeAvailability: item.runtimeAvailability, referenceCount: item.referenceCount })) },
+    resourcePlan: getCharacterResourcePlan(),
     unityResourceCatalogPath: state.unityResourceCatalogPath,
     unityResourceCatalog: state.unityResourceCatalog
   }, null, 2);
@@ -3375,4 +3793,13 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-window.CharacterStudioTest = { buildTree, normalizeIssuePath, editableFields, quaternionFromEulerDegrees };
+window.CharacterStudioTest = {
+  buildTree,
+  normalizeIssuePath,
+  editableFields,
+  quaternionFromEulerDegrees,
+  mapResourceKind,
+  inferRuntimeBindingKind,
+  evaluateResourceFieldSelection,
+  buildFallbackResourcePlan
+};

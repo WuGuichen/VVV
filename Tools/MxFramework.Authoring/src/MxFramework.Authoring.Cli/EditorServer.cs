@@ -81,6 +81,21 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/character/resources" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            WriteJson(context.Response, ReadCharacterResources(rootPath, characterPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/resource-plan" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            bool checkHashes = string.Equals(context.Request.QueryString["checkHashes"], "true", StringComparison.OrdinalIgnoreCase);
+            WriteJson(context.Response, ReadCharacterResourcePlan(rootPath, characterPackage, checkFiles: true, checkHashes: checkHashes, jsonOptions), jsonOptions);
+            return;
+        }
+
         if (path == "/api/character/save" && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -572,6 +587,37 @@ internal static class EditorServer
         };
     }
 
+    private static CharacterResourceLibrary ReadCharacterResources(string rootPath, string packageRelative, JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        CharacterResourceLibrary library = CharacterResourceLibraryBuilder.FromPackageResourceCatalog(package.ResourceCatalog);
+        library.PackageId = package.Manifest != null ? package.Manifest.PackageId : library.PackageId;
+        library.ReferenceGraph = BuildCharacterResourceReferenceGraph(package);
+        ApplyCharacterResourceRuntimeState(rootPath, packagePath, package, library, jsonOptions);
+        library.Diagnostics.Clear();
+        library.Diagnostics.AddRange(CharacterResourceLibraryBuilder.ValidateLibrary(library));
+        return library;
+    }
+
+    private static CharacterResourcePlanCompileResult ReadCharacterResourcePlan(
+        string rootPath,
+        string packageRelative,
+        bool checkFiles,
+        bool checkHashes,
+        JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        return CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = packagePath,
+            ValidateResourceFiles = checkFiles || checkHashes,
+            ValidateResourceHashes = checkHashes
+        });
+    }
+
     private static CharacterAuthoringCompileResult CompileCharacterPackage(
         string rootPath,
         string packageRelative,
@@ -591,6 +637,206 @@ internal static class EditorServer
                 ValidateResourceHashes = checkHashes
             }
         });
+    }
+
+    private static ResourceReferenceGraph BuildCharacterResourceReferenceGraph(CharacterResourcePackage package)
+    {
+        var graph = new ResourceReferenceGraph();
+        if (package == null || package.ResourceCatalog == null)
+            return graph;
+
+        Dictionary<string, CharacterPackageResourceEntry> byKey = BuildPackageResourceEntryLookup(package.ResourceCatalog);
+        CharacterApplicationAuthoringSummary application = package.ApplicationConfig;
+        if (application != null && application.ResourceKeys != null)
+        {
+            string sourceStableId = !string.IsNullOrWhiteSpace(application.CharacterStableId)
+                ? application.CharacterStableId
+                : package.Manifest != null ? package.Manifest.StableId : string.Empty;
+            for (int i = 0; i < application.ResourceKeys.Count; i++)
+            {
+                string resourceKey = application.ResourceKeys[i];
+                AddResourceReferenceEdge(
+                    graph,
+                    byKey,
+                    "character",
+                    sourceStableId,
+                    "resourceKeys/" + i.ToString(CultureInfo.InvariantCulture),
+                    resourceKey,
+                    ResourceLibraryPreloadPolicies.SpawnCritical,
+                    isRequiredAtRuntime: true);
+            }
+        }
+
+        CharacterAuthoringGeometry geometry = package.Geometry;
+        if (geometry != null && geometry.WeaponAttachments != null)
+        {
+            for (int i = 0; i < geometry.WeaponAttachments.Count; i++)
+            {
+                WeaponAttachmentProfile attachment = geometry.WeaponAttachments[i];
+                if (attachment == null)
+                    continue;
+
+                AddResourceReferenceEdge(
+                    graph,
+                    byKey,
+                    "weapon",
+                    attachment.WeaponId,
+                    "weaponAttachments/" + i.ToString(CultureInfo.InvariantCulture) + "/previewResourceKey",
+                    attachment.PreviewResourceKey,
+                    ResourceLibraryPreloadPolicies.EquipmentInitial,
+                    isRequiredAtRuntime: true);
+            }
+        }
+
+        return graph;
+    }
+
+    private static Dictionary<string, CharacterPackageResourceEntry> BuildPackageResourceEntryLookup(CharacterPackageResourceCatalog catalog)
+    {
+        var lookup = new Dictionary<string, CharacterPackageResourceEntry>(StringComparer.Ordinal);
+        if (catalog == null || catalog.Entries == null)
+            return lookup;
+
+        for (int i = 0; i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry != null && !string.IsNullOrWhiteSpace(entry.ResourceKey))
+                lookup[entry.ResourceKey] = entry;
+        }
+
+        return lookup;
+    }
+
+    private static void AddResourceReferenceEdge(
+        ResourceReferenceGraph graph,
+        Dictionary<string, CharacterPackageResourceEntry> byKey,
+        string sourceConfigKind,
+        string sourceStableId,
+        string sourceField,
+        string resourceKey,
+        string preloadPolicy,
+        bool isRequiredAtRuntime)
+    {
+        if (graph == null || string.IsNullOrWhiteSpace(resourceKey))
+            return;
+
+        CharacterPackageResourceEntry target;
+        byKey.TryGetValue(resourceKey, out target);
+        graph.Edges.Add(new ResourceReferenceEdge
+        {
+            SourceConfigKind = sourceConfigKind ?? string.Empty,
+            SourceStableId = sourceStableId ?? string.Empty,
+            SourceField = sourceField ?? string.Empty,
+            TargetLibraryItemStableId = target != null ? target.StableId : string.Empty,
+            TargetResourceKey = resourceKey,
+            BindingKind = RuntimeBindingKind.ResourceManagerAsset,
+            IsRequiredAtRuntime = isRequiredAtRuntime,
+            PreloadPolicy = preloadPolicy ?? ResourceLibraryPreloadPolicies.None
+        });
+    }
+
+    private static void ApplyCharacterResourceRuntimeState(
+        string rootPath,
+        string packagePath,
+        CharacterResourcePackage package,
+        CharacterResourceLibrary library,
+        JsonSerializerOptions jsonOptions)
+    {
+        if (package == null || package.Manifest == null || library == null)
+            return;
+
+        string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", package.Manifest.PackageId);
+        string unityCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
+        string runtimeCatalogPath = Path.Combine(generatedRoot, "config", "runtime_resource_catalog.json");
+        HashSet<string> unityResourceKeys = ReadResourceKeySetFromCatalog(unityCatalogPath, jsonOptions);
+        HashSet<string> runtimeResourceKeys = ReadResourceKeySetFromCatalog(runtimeCatalogPath, jsonOptions);
+        AddCompiledRuntimeResourceKeys(packagePath, package, runtimeResourceKeys);
+
+        for (int i = 0; i < library.Items.Count; i++)
+        {
+            ResourceLibraryItem item = library.Items[i];
+            if (item == null)
+                continue;
+
+            if (item.RuntimeBindingKind == RuntimeBindingKind.ResourceManagerAsset)
+            {
+                item.ImportStatus = unityResourceKeys.Contains(item.ResourceKey)
+                    ? ResourceImportStatus.Clean
+                    : ResourceImportStatus.UnityMissing;
+                item.RuntimeAvailability = runtimeResourceKeys.Contains(item.ResourceKey)
+                    ? ResourceRuntimeAvailability.RuntimeReady
+                    : ResourceRuntimeAvailability.RuntimeMissing;
+            }
+            else if (item.RuntimeBindingKind == RuntimeBindingKind.GeneratedPreviewOnly)
+            {
+                item.ImportStatus = ResourceImportStatus.Clean;
+                item.RuntimeAvailability = ResourceRuntimeAvailability.PreviewOnly;
+            }
+        }
+    }
+
+    private static void AddCompiledRuntimeResourceKeys(
+        string packagePath,
+        CharacterResourcePackage package,
+        HashSet<string> runtimeResourceKeys)
+    {
+        if (package == null || runtimeResourceKeys == null)
+            return;
+
+        CharacterResourcePlanCompileResult result = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = packagePath,
+            ValidateResourceFiles = false,
+            ValidateResourceHashes = false
+        });
+        if (result == null || result.RuntimeResourceCatalog == null || result.RuntimeResourceCatalog.Entries == null)
+            return;
+
+        for (int i = 0; i < result.RuntimeResourceCatalog.Entries.Count; i++)
+        {
+            RuntimeResourceCatalogEntryDocument entry = result.RuntimeResourceCatalog.Entries[i];
+            if (entry != null && !string.IsNullOrWhiteSpace(entry.Id))
+                runtimeResourceKeys.Add(entry.Id);
+        }
+    }
+
+    private static HashSet<string> ReadResourceKeySetFromCatalog(string path, JsonSerializerOptions jsonOptions)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return keys;
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+            if (!document.RootElement.TryGetProperty("entries", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
+                return keys;
+
+            foreach (JsonElement entry in entries.EnumerateArray())
+            {
+                string id = TryGetString(entry, "id");
+                if (!string.IsNullOrWhiteSpace(id))
+                    keys.Add(id);
+                string packageResourceKey = TryGetString(entry, "packageResourceKey");
+                if (!string.IsNullOrWhiteSpace(packageResourceKey))
+                    keys.Add(packageResourceKey);
+            }
+        }
+        catch
+        {
+        }
+
+        return keys;
+    }
+
+    private static string TryGetString(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || string.IsNullOrWhiteSpace(propertyName))
+            return string.Empty;
+        if (!element.TryGetProperty(propertyName, out JsonElement property) || property.ValueKind != JsonValueKind.String)
+            return string.Empty;
+        return property.GetString() ?? string.Empty;
     }
 
     private static void SaveCharacterPackage(
