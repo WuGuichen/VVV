@@ -63,47 +63,55 @@ const PLAN_GROUPS = [
 const RESOURCE_FIELD_SPECS = {
   body: {
     fieldKey: "Character.Model",
+    editorKind: "CharacterStudio",
     displayName: "角色主体模型",
     acceptedKinds: ["Model"],
     acceptedUsages: ["characterModel"],
+    acceptedProviderIds: ["runtimeCatalog", "characterPackage"],
     acceptedBindingKinds: ["ResourceManagerAsset"],
     requireRuntimeLoadable: true,
     requireUnityImported: true,
     allowIncompatibleWithWarning: false,
     preloadPolicy: "SpawnCritical",
-    outputKind: "ResourceKey"
+    outputKind: "RuntimeResourceKey"
   },
   mainHand: {
     fieldKey: "Equipment.MainHand.Model",
+    editorKind: "CharacterStudio",
     displayName: "主手武器模型",
     acceptedKinds: ["Model"],
     acceptedUsages: ["weaponModel"],
+    acceptedProviderIds: ["runtimeCatalog", "characterPackage"],
     acceptedBindingKinds: ["ResourceManagerAsset"],
     requireRuntimeLoadable: true,
     requireUnityImported: true,
     allowIncompatibleWithWarning: true,
     compatibilityFilter: { equipSlot: "mainHand" },
     preloadPolicy: "EquipmentInitial",
-    outputKind: "ResourceKey"
+    outputKind: "RuntimeResourceKey"
   },
   offHand: {
     fieldKey: "Equipment.OffHand.Model",
+    editorKind: "CharacterStudio",
     displayName: "副手武器模型",
     acceptedKinds: ["Model"],
     acceptedUsages: ["weaponModel"],
+    acceptedProviderIds: ["runtimeCatalog", "characterPackage"],
     acceptedBindingKinds: ["ResourceManagerAsset"],
     requireRuntimeLoadable: true,
     requireUnityImported: true,
     allowIncompatibleWithWarning: true,
     compatibilityFilter: { equipSlot: "offHand" },
     preloadPolicy: "EquipmentInitial",
-    outputKind: "ResourceKey"
+    outputKind: "RuntimeResourceKey"
   },
   preview: {
     fieldKey: "CharacterStudio.Selection",
+    editorKind: "CharacterStudio",
     displayName: "资源库浏览",
     acceptedKinds: ["Model", "Animation", "Texture", "Material", "Vfx", "Audio", "Config", "Generated"],
     acceptedUsages: [],
+    acceptedProviderIds: [],
     acceptedBindingKinds: ["ResourceManagerAsset", "UnityEditorOnlyAsset", "AudioEventDefinition", "AudioCue", "GeneratedPreviewOnly"],
     requireRuntimeLoadable: false,
     requireUnityImported: false,
@@ -541,12 +549,12 @@ function renderResourcePicker() {
       ? `${item.diagnostics.length} diagnostics`
       : "无 diagnostics";
     return `
-      <button type="button" class="resource-card ${selected ? "active" : ""} ${escapeHtml(selection.tone)}" data-library-id="${escapeHtml(item.libraryItemId || "")}" title="${escapeHtml(item.sourceName || item.stableId || item.displayName)}">
+      <button type="button" class="resource-card ${selected ? "active" : ""} ${escapeHtml(selection.tone)}" data-library-id="${escapeHtml(item.resourceId || item.libraryItemId || "")}" title="${escapeHtml(item.sourceName || item.stableId || item.displayName)}">
         <span class="resource-thumb">${thumb}</span>
         <span class="resource-info">
           <span class="resource-title"><strong>${escapeHtml(item.displayName)}</strong>${renderSyncBadge({ label: item.importStatusLabel, tone: item.importTone })}</span>
           <span>${escapeHtml(item.kindLabel)} / ${escapeHtml(item.usage || "usage?")} / ${escapeHtml(item.runtimeAvailability)}</span>
-          <span>${escapeHtml(item.runtimeBindingKind)} / refs ${escapeHtml(String(item.referenceCount || 0))} / ${escapeHtml(diagnostics)}</span>
+          <span>${escapeHtml(item.bindingKind)} / ${escapeHtml(item.sourceProviderId)} / refs ${escapeHtml(String(item.referenceCount || 0))} / ${escapeHtml(diagnostics)}</span>
           <span>${renderSelectionBadge(selection)} ${escapeHtml(selection.reason)}</span>
           <span class="resource-unity-path">${escapeHtml(item.unityAssetPath || item.sourceName || item.stableId || "未记录路径")}</span>
         </span>
@@ -573,6 +581,8 @@ function getResourceLibraryItems() {
 function normalizeResourceLibraryItem(item) {
   if (!item) return null;
   const resource = item.resource || item;
+  const providerBindings = Array.isArray(item.providerBindings) ? item.providerBindings : [];
+  const primaryBinding = providerBindings.find(binding => binding?.isPrimary) || providerBindings[0] || {};
   const sync = getResourceUnitySync(resource);
   const kind = item.kind || mapResourceKind(resource.typeId);
   const diagnostics = [
@@ -580,21 +590,36 @@ function normalizeResourceLibraryItem(item) {
     ...sync.diagnostics
   ].filter(Boolean);
   const referenceCount = item.referenceCount ?? collectResourceReferences(resource).length;
-  const runtimeBindingKind = item.runtimeBindingKind || inferRuntimeBindingKind(resource, kind);
+  const bindingKind = item.bindingKind || item.runtimeBindingKind || primaryBinding.bindingKind || inferRuntimeBindingKind(resource, kind);
+  const runtimeBindingKind = bindingKind;
   const runtimeAvailability = item.runtimeAvailability || inferRuntimeAvailability(resource, runtimeBindingKind, sync);
-  const libraryItemId = item.libraryItemId || resource.libraryItemId || resource.stableId || resource.resourceKey || resource.localId || resource.relativePath;
+  const resourceId = item.resourceId || item.libraryItemId || resource.libraryItemId || resource.stableId || resource.resourceKey || resource.localId || resource.relativePath;
+  const sourceProviderId = item.sourceProviderId || inferSourceProviderId(item, resource);
+  const runtimeResourceKey = item.runtimeResourceKey || primaryBinding.runtimeResourceKey || (runtimeBindingKind === "ResourceManagerAsset" ? resource.resourceKey || "" : "");
+  const providerResourceKey = item.providerResourceKey || primaryBinding.providerResourceKey || primaryBinding.packageResourceKey || resource.resourceKey || "";
+  const packageResourceKey = item.packageResourceKey || primaryBinding.packageResourceKey || (sourceProviderId === "characterPackage" ? resource.resourceKey || "" : "");
+  const unityGuid = item.unityGuid || primaryBinding.unityGuid || sync.unityGuid || "";
+  const unityAssetPath = item.unityAssetPath || primaryBinding.unityAssetPath || sync.unityAssetPath || "";
   return {
     raw: item,
     resource,
-    libraryItemId,
-    stableId: item.stableId || resource.stableId || libraryItemId,
+    resourceId,
+    libraryItemId: item.libraryItemId || resourceId,
+    stableId: item.stableId || resource.stableId || resourceId,
+    sourceProviderId,
+    providerBindings,
     path: resource.resourceKey ? `resources/${resource.resourceKey}` : "",
     resourceKey: resource.resourceKey || item.resourceKey || "",
+    runtimeResourceKey,
+    providerResourceKey,
+    packageResourceKey,
+    unityGuid,
     displayName: item.displayName || getResourceDisplayName(resource),
     kind,
     kindLabel: RESOURCE_KIND_LABELS[kind] || kind,
     usage: item.usage || resource.usage || "",
     sourceKind: item.sourceKind || inferSourceKind(resource),
+    bindingKind,
     runtimeBindingKind,
     runtimeAvailability,
     importStatus: item.importStatus || sync.status,
@@ -604,8 +629,18 @@ function normalizeResourceLibraryItem(item) {
     diagnostics,
     thumbnailUrl: item.thumbnailUrl || getResourceThumbnailUrl(resource, state.package),
     sourceName: resource.provenance?.sourceFile || resource.relativePath || resource.localId || resource.resourceKey || "",
-    unityAssetPath: item.unityAssetPath || sync.unityAssetPath
+    unityAssetPath
   };
+}
+
+function inferSourceProviderId(item, resource) {
+  if (item?.sourceProviderId) return item.sourceProviderId;
+  const sourceKind = item?.sourceKind || inferSourceKind(resource);
+  if (sourceKind === "RuntimeCatalogAsset") return "runtimeCatalog";
+  if (sourceKind === "UnityAsset") return "unityAssetDatabase";
+  if (sourceKind === "FmodLibrary") return "fmod";
+  if (sourceKind === "ExternalFile") return "characterPackage";
+  return "generatedAssets";
 }
 
 function getResourceLibrarySortKey(item) {
@@ -671,9 +706,13 @@ function evaluateResourceFieldSelection(item, spec) {
       reasons.push(`usage 不匹配：${item.usage || "空"}`);
     }
   }
-  if (spec.acceptedBindingKinds?.length && !spec.acceptedBindingKinds.includes(item.runtimeBindingKind)) {
+  if (spec.acceptedProviderIds?.length && !spec.acceptedProviderIds.includes(item.sourceProviderId)) {
     selectable = false;
-    reasons.push(`binding 不匹配：${item.runtimeBindingKind}`);
+    reasons.push(`provider 不匹配：${item.sourceProviderId || "空"}`);
+  }
+  if (spec.acceptedBindingKinds?.length && !spec.acceptedBindingKinds.includes(item.bindingKind)) {
+    selectable = false;
+    reasons.push(`binding 不匹配：${item.bindingKind}`);
   }
   if (spec.requireRuntimeLoadable && item.runtimeAvailability !== "RuntimeReady") {
     warn = spec.allowIncompatibleWithWarning;
@@ -699,10 +738,11 @@ function renderSelectionBadge(selection) {
 }
 
 function selectLibraryItem(libraryItemId) {
-  const item = getResourceLibraryItems().find(candidate => candidate.libraryItemId === libraryItemId);
+  const item = getResourceLibraryItems().find(candidate => candidate.resourceId === libraryItemId || candidate.libraryItemId === libraryItemId);
   if (!item) return;
   const spec = getActiveResourceFieldSpec();
   const selection = evaluateResourceFieldSelection(item, spec);
+  const selectionRef = createResourceSelectionRef(item, spec);
   if (selection.tone === "blocked") {
     state.selectedPath = item.path || state.selectedPath;
     state.message = `${item.displayName} 不符合 ${spec.fieldKey}：${selection.reason}`;
@@ -713,18 +753,37 @@ function selectLibraryItem(libraryItemId) {
     renderShellStatus();
     return;
   }
-  if (item.resource?.typeId === "model" && item.resource?.resourceKey) {
-    bindModelResource(item.resource.resourceKey);
+  const resolvedModelKey = selectionRef.runtimeResourceKey || item.resource?.resourceKey || "";
+  if (item.resource?.typeId === "model" && resolvedModelKey) {
+    bindModelResource(resolvedModelKey);
     return;
   }
   state.selectedPath = item.path || state.selectedPath;
-  state.message = `${spec.fieldKey} 已选中 ${item.displayName}；SelectionRef=${item.stableId}`;
+  state.message = `${spec.fieldKey} 已选中 ${item.displayName}；ResourceSelectionRef=${selectionRef.resourceStableId}`;
   closeResourcePicker();
   renderTree();
   renderResourceBindingBar();
   renderResourcePicker();
   renderInspector();
   renderShellStatus();
+}
+
+function createResourceSelectionRef(item, spec) {
+  return {
+    resourceStableId: item.stableId || "",
+    sourceProviderId: item.sourceProviderId || "",
+    bindingKind: item.bindingKind || "None",
+    expectedKind: item.kind || "",
+    expectedUsage: item.usage || "",
+    expectedHash: item.raw?.hash || item.providerBindings?.find(binding => binding?.isPrimary)?.hash || "",
+    runtimeResourceKey: spec.outputKind === "RuntimeResourceKey" ? item.runtimeResourceKey || item.resourceKey || "" : item.runtimeResourceKey || "",
+    providerResourceKey: item.providerResourceKey || "",
+    packageResourceKey: item.packageResourceKey || "",
+    unityGuid: item.unityGuid || "",
+    unityAssetPath: item.unityAssetPath || "",
+    audioCueId: item.raw?.audioCueId || item.providerBindings?.find(binding => binding?.providerData?.audioCueId)?.providerData?.audioCueId || "",
+    audioEventDefinitionId: item.raw?.audioEventDefinitionId || item.providerBindings?.find(binding => binding?.providerData?.audioEventDefinitionId)?.providerData?.audioEventDefinitionId || ""
+  };
 }
 
 function renderResourcePlanPreview() {

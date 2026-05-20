@@ -18,6 +18,8 @@ internal static class CharacterPackageTests
         AuthoringResourceItem_JsonRoundTrip_PreservesProviderBindings();
         CharacterPackageProvider_ProjectsPackageResourceWithoutRuntimeKey();
         CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
+        AuthoringResourceSelectionContracts_JsonRoundTrip();
+        AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
         ResourceReferenceGraph_ValidatesBrokenReferencesAndOrphans();
         ResourceKeyGenerator_GeneratesStablePackageLocalKey();
@@ -503,6 +505,416 @@ internal static class CharacterPackageTests
         Require(collection.Diagnostics.Exists(d => d.Code == AuthoringResourceDiagnosticCodes.StableIdDuplicate), "duplicate stable id diagnostic should be emitted.");
         Require(collection.Diagnostics.Exists(d => d.Code == AuthoringResourceDiagnosticCodes.ResourceKeyDuplicate), "duplicate package key diagnostic should be emitted.");
         Require(collection.Diagnostics.TrueForAll(d => !string.IsNullOrWhiteSpace(d.ResourceId)), "duplicate diagnostics should include resource id.");
+    }
+
+    private static void AuthoringResourceSelectionContracts_JsonRoundTrip()
+    {
+        var spec = new AuthoringResourceFieldSpec
+        {
+            FieldKey = "CombatAction.HitSfx",
+            EditorKind = "CombatEditor",
+            DisplayName = "Hit Sfx",
+            AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Audio },
+            AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.AudioCue },
+            AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.Fmod },
+            AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.AudioCue },
+            PreloadPolicy = AuthoringResourcePreloadPolicies.AudioBank,
+            OutputKind = AuthoringResourceSelectionOutputKind.AudioCueId
+        };
+        var context = new AuthoringResourceConsumerContext
+        {
+            ConsumerKind = "combatAction",
+            ConsumerStableId = "combat.iron_vanguard.light_attack",
+            ScopeId = "character.iron_vanguard",
+            PackageId = "iron_vanguard",
+            PackagePath = "Tools/MxFramework.Authoring/samples/character-iron-vanguard",
+            WeaponClass = "sword"
+        };
+        var selection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "audio.iron_vanguard.hit",
+            SourceProviderId = AuthoringResourceProviderIds.Fmod,
+            BindingKind = AuthoringResourceBindingKind.AudioCue,
+            AudioCueId = "cue.iron_vanguard.hit"
+        };
+        var reason = new AuthoringResourceSelectionReason
+        {
+            Code = AuthoringResourceSelectionReasonCodes.NotRuntimeLoadable,
+            Category = "runtime",
+            Severity = CharacterAuthoringValidationSeverity.Error,
+            BlocksSelection = true,
+            FieldKey = spec.FieldKey,
+            ResourceStableId = selection.ResourceStableId,
+            ProviderId = selection.SourceProviderId,
+            ExpectedValue = "RuntimeReady",
+            ActualValue = "NotRuntimeLoadable",
+            BindingKind = AuthoringResourceBindingKind.ExternalSource,
+            BindingKeyKind = AuthoringResourceBindingKeyKinds.ExternalSourcePath,
+            Message = "not runtime loadable"
+        };
+
+        string json = JsonSerializer.Serialize(new AuthoringResourceSelectionResolutionResult
+        {
+            Accepted = false,
+            Selection = selection,
+            Reasons = new List<AuthoringResourceSelectionReason> { reason }
+        }, JsonOptions);
+        AuthoringResourceSelectionResolutionResult roundTrip = JsonSerializer.Deserialize<AuthoringResourceSelectionResolutionResult>(json, JsonOptions);
+        string specJson = JsonSerializer.Serialize(spec, JsonOptions);
+        AuthoringResourceFieldSpec specRoundTrip = JsonSerializer.Deserialize<AuthoringResourceFieldSpec>(specJson, JsonOptions);
+        string contextJson = JsonSerializer.Serialize(context, JsonOptions);
+        AuthoringResourceConsumerContext contextRoundTrip = JsonSerializer.Deserialize<AuthoringResourceConsumerContext>(contextJson, JsonOptions);
+
+        Require(roundTrip != null && roundTrip.Selection.AudioCueId == "cue.iron_vanguard.hit", "authoring selection ref should roundtrip audio cue id.");
+        Require(roundTrip.Reasons.Count == 1 && roundTrip.Reasons[0].BlocksSelection, "selection reason should roundtrip blocksSelection.");
+        Require(specRoundTrip != null && specRoundTrip.AcceptedProviderIds[0] == AuthoringResourceProviderIds.Fmod, "field spec should roundtrip accepted provider ids.");
+        Require(specRoundTrip.OutputKind == AuthoringResourceSelectionOutputKind.AudioCueId, "field spec should roundtrip output kind.");
+        Require(contextRoundTrip != null && contextRoundTrip.ConsumerKind == "combatAction", "consumer context should roundtrip.");
+    }
+
+    private static void AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs()
+    {
+        AuthoringResourceCollection collection = BuildAuthoringSelectionCollection();
+        var service = new AuthoringResourceSelectionService();
+        var context = new AuthoringResourceConsumerContext
+        {
+            ConsumerKind = "CharacterStudio",
+            ConsumerStableId = "character.iron_vanguard",
+            ScopeId = "character.iron_vanguard",
+            SkeletonStableId = "skeleton.humanoid"
+        };
+
+        var characterModelSpec = new AuthoringResourceFieldSpec
+        {
+            FieldKey = "Character.Model",
+            EditorKind = "CharacterStudio",
+            AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Model },
+            AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.CharacterModel },
+            AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.RuntimeCatalog },
+            AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.ResourceManagerAsset },
+            RequireRuntimeLoadable = true,
+            RequireUnityImported = true,
+            PreloadPolicy = AuthoringResourcePreloadPolicies.SpawnCritical,
+            OutputKind = AuthoringResourceSelectionOutputKind.RuntimeResourceKey
+        };
+
+        AuthoringResourcePickerQueryResult query = service.Query(collection, characterModelSpec, context);
+        Require(query.Items.Count == collection.Items.Count, "query should return one picker item per resource.");
+        AuthoringResourcePickerItem modelCandidate = query.Items.Find(item => item.Item.StableId == "runtime.character.body");
+        Require(modelCandidate != null && modelCandidate.Selectable, "runtime character model should be selectable.");
+        AuthoringResourcePickerItem audioCandidate = query.Items.Find(item => item.Item.StableId == "audio.hit");
+        Require(audioCandidate != null && !audioCandidate.Selectable, "audio item should not be selectable for character model field.");
+        Require(audioCandidate.Reasons.Exists(reason => reason.Code == AuthoringResourceSelectionReasonCodes.KindMismatch), "blocked candidate should include structured kind mismatch reason.");
+
+        AuthoringResourceSelectionResolutionResult modelResult = service.Resolve(
+            collection,
+            characterModelSpec,
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.character.body",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
+            });
+        Require(modelResult.Accepted, "runtime character model selection should resolve.");
+        Require(modelResult.Selection.RuntimeResourceKey == "char.iron_vanguard.model.body.prefab", "runtime selection should fill runtime resource key.");
+        Require(string.IsNullOrEmpty(modelResult.Selection.PackageResourceKey), "runtime selection should not gain package-local key.");
+
+        AuthoringResourceSelectionResolutionResult packageResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "ResourceLibrary.PackageResource",
+                AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.CharacterPackage },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.PackageResource },
+                OutputKind = AuthoringResourceSelectionOutputKind.PackageResourceKey
+            },
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "charpkg.iron_vanguard.resource.model.body",
+                SourceProviderId = AuthoringResourceProviderIds.CharacterPackage,
+                BindingKind = AuthoringResourceBindingKind.PackageResource
+            });
+        Require(packageResult.Accepted, "package resource selection should resolve.");
+        Require(packageResult.Selection.PackageResourceKey == "char.iron_vanguard.model.body", "package resource should fill package key.");
+        Require(string.IsNullOrEmpty(packageResult.Selection.RuntimeResourceKey), "package resource must not be copied into runtime key.");
+
+        AuthoringResourceSelectionResolutionResult iconResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "Ui.Icon",
+                EditorKind = "UiEditor",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Texture },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.PreviewThumbnail },
+                AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.UnityAssetDatabase },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.UnityAsset },
+                RequireUnityImported = true,
+                OutputKind = AuthoringResourceSelectionOutputKind.UnityGuid
+            },
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "unity.icon.portrait",
+                SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                BindingKind = AuthoringResourceBindingKind.UnityAsset
+            });
+        Require(iconResult.Accepted, "UI icon Unity asset should resolve.");
+        Require(iconResult.Selection.UnityGuid == "guid-portrait", "Unity icon selection should fill Unity GUID.");
+        Require(string.IsNullOrEmpty(iconResult.Selection.RuntimeResourceKey), "Unity-only selection must not fill runtime key.");
+
+        AuthoringResourceSelectionResolutionResult audioResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "CombatAction.HitSfx",
+                EditorKind = "CombatEditor",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Audio },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.AudioCue },
+                AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.Fmod },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.AudioCue },
+                PreloadPolicy = AuthoringResourcePreloadPolicies.AudioBank,
+                OutputKind = AuthoringResourceSelectionOutputKind.AudioCueId
+            },
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "audio.hit",
+                SourceProviderId = AuthoringResourceProviderIds.Fmod,
+                BindingKind = AuthoringResourceBindingKind.AudioCue
+            });
+        Require(audioResult.Accepted, "FMOD audio cue should resolve.");
+        Require(audioResult.Selection.AudioCueId == "cue.hit", "audio selection should fill audio cue id.");
+        Require(string.IsNullOrEmpty(audioResult.Selection.RuntimeResourceKey), "audio cue must not gain runtime key.");
+
+        AuthoringResourceSelectionResolutionResult externalResult = service.Resolve(
+            collection,
+            characterModelSpec,
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "external.body.fbx",
+                SourceProviderId = AuthoringResourceProviderIds.ExternalImportStaging,
+                BindingKind = AuthoringResourceBindingKind.ExternalSource
+            });
+        Require(!externalResult.Accepted, "external source should be blocked when runtime loadable model is required.");
+        Require(externalResult.Reasons.Exists(reason => reason.Code == AuthoringResourceSelectionReasonCodes.ProviderMismatch), "external source should report provider mismatch.");
+        Require(externalResult.Reasons.Exists(reason => reason.Code == AuthoringResourceSelectionReasonCodes.NotRuntimeLoadable), "external source should report runtime availability mismatch.");
+
+        AuthoringResourceSelectionResolutionResult warnResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "Equipment.MainHand.Model",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Model },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.WeaponModel },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.ResourceManagerAsset },
+                AllowIncompatibleWithWarning = true,
+                CompatibilityFilter = new AuthoringResourceCompatibility { SlotId = "mainHand" },
+                OutputKind = AuthoringResourceSelectionOutputKind.RuntimeResourceKey
+            },
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.weapon.offhand",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
+            });
+        Require(warnResult.Accepted, "incompatible weapon slot should be selectable when warnings are allowed.");
+        Require(warnResult.Reasons.Exists(reason => reason.Code == AuthoringResourceSelectionReasonCodes.SlotMismatch && !reason.BlocksSelection), "slot mismatch should be a non-blocking structured warning.");
+
+        AuthoringResourceSelectionResolutionResult animationResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "Animation.ClipGroup",
+                EditorKind = "AnimationEditor",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Animation },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.AnimationClipGroup },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.ResourceManagerAsset },
+                RequireRuntimeLoadable = true,
+                OutputKind = AuthoringResourceSelectionOutputKind.RuntimeResourceKey
+            },
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.anim.locomotion",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
+            });
+        Require(animationResult.Accepted && animationResult.Selection.RuntimeResourceKey == "char.iron_vanguard.anim.locomotion", "animation clip group field should resolve through same contract.");
+
+        AuthoringResourceSelectionResolutionResult vfxResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "Vfx.Prefab",
+                EditorKind = "VfxEditor",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Vfx },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.VfxCue },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.ResourceManagerAsset },
+                RequireRuntimeLoadable = true,
+                OutputKind = AuthoringResourceSelectionOutputKind.RuntimeResourceKey
+            },
+            context,
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.vfx.slash",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
+            });
+        Require(vfxResult.Accepted && vfxResult.Selection.RuntimeResourceKey == "char.iron_vanguard.vfx.slash", "VFX prefab field should resolve through same contract.");
+    }
+
+    private static AuthoringResourceCollection BuildAuthoringSelectionCollection()
+    {
+        var collection = new AuthoringResourceCollection { ScopeId = "test" };
+        collection.Items.Add(CreateRuntimeResource("runtime.character.body", CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.CharacterModel, "char.iron_vanguard.model.body.prefab", "body", "skeleton.humanoid"));
+        collection.Items.Add(CreateRuntimeResource("runtime.anim.locomotion", CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "char.iron_vanguard.anim.locomotion", "", "skeleton.humanoid"));
+        collection.Items.Add(CreateRuntimeResource("runtime.vfx.slash", CharacterPackageResourceTypeIds.Vfx, CharacterPackageResourceUsageIds.VfxCue, "char.iron_vanguard.vfx.slash", "", ""));
+        collection.Items.Add(CreateRuntimeResource("runtime.weapon.offhand", CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.WeaponModel, "char.iron_vanguard.weapon.shield.prefab", "offHand", "skeleton.humanoid"));
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "characterPackage:charpkg.iron_vanguard.resource.model.body",
+            StableId = "charpkg.iron_vanguard.resource.model.body",
+            DisplayName = "Body Package Resource",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceProviderId = AuthoringResourceProviderIds.CharacterPackage,
+            SourceKind = AuthoringResourceSourceKind.PackageResource,
+            BindingKind = AuthoringResourceBindingKind.PackageResource,
+            ImportStatus = AuthoringResourceImportStatus.New,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.Unknown,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.CharacterPackage,
+                    BindingKind = AuthoringResourceBindingKind.PackageResource,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.PackageResourceKey,
+                    IsPrimary = true,
+                    ProviderResourceKey = "char.iron_vanguard.model.body",
+                    PackageResourceKey = "char.iron_vanguard.model.body"
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "unity:portrait",
+            StableId = "unity.icon.portrait",
+            DisplayName = "Portrait",
+            Kind = CharacterPackageResourceTypeIds.Texture,
+            Usage = CharacterPackageResourceUsageIds.PreviewThumbnail,
+            SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+            SourceKind = AuthoringResourceSourceKind.UnityAsset,
+            BindingKind = AuthoringResourceBindingKind.UnityAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.EditorOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityGuid,
+                    IsPrimary = true,
+                    UnityGuid = "guid-portrait",
+                    UnityAssetPath = "Assets/UI/portrait.png"
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "fmod:hit",
+            StableId = "audio.hit",
+            DisplayName = "Hit",
+            Kind = CharacterPackageResourceTypeIds.Audio,
+            Usage = CharacterPackageResourceUsageIds.AudioCue,
+            SourceProviderId = AuthoringResourceProviderIds.Fmod,
+            SourceKind = AuthoringResourceSourceKind.FmodLibrary,
+            BindingKind = AuthoringResourceBindingKind.AudioCue,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.AudioCueOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.AudioCue,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.FmodEventGuid,
+                    IsPrimary = true,
+                    FmodEventPath = "event:/Character/IronVanguard/Hit",
+                    FmodEventGuid = "{hit}",
+                    ProviderData = new Dictionary<string, string>
+                    {
+                        { "audioCueId", "cue.hit" },
+                        { "audioEventDefinitionId", "event.hit" }
+                    }
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "external:body.fbx",
+            StableId = "external.body.fbx",
+            DisplayName = "body.fbx",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceProviderId = AuthoringResourceProviderIds.ExternalImportStaging,
+            SourceKind = AuthoringResourceSourceKind.ExternalFile,
+            BindingKind = AuthoringResourceBindingKind.ExternalSource,
+            ImportStatus = AuthoringResourceImportStatus.New,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.NotRuntimeLoadable,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.ExternalImportStaging,
+                    BindingKind = AuthoringResourceBindingKind.ExternalSource,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.ExternalSourcePath,
+                    IsPrimary = true,
+                    ExternalSourcePath = "/imports/body.fbx"
+                }
+            }
+        });
+        return collection;
+    }
+
+    private static AuthoringResourceItem CreateRuntimeResource(string stableId, string kind, string usage, string runtimeKey, string slotId, string skeletonStableId)
+    {
+        return new AuthoringResourceItem
+        {
+            ResourceId = "runtime:" + runtimeKey,
+            StableId = stableId,
+            DisplayName = stableId,
+            Kind = kind,
+            Usage = usage,
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.RuntimeReady,
+            Compatibility = new AuthoringResourceCompatibility
+            {
+                SlotId = slotId,
+                SkeletonStableId = skeletonStableId
+            },
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                    BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.RuntimeResourceKey,
+                    IsPrimary = true,
+                    RuntimeResourceKey = runtimeKey,
+                    ProviderResourceKey = runtimeKey,
+                    AssetType = "UnityEngine.GameObject",
+                    Hash = "sha256:" + stableId
+                }
+            }
+        };
     }
 
     private static void ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference()
