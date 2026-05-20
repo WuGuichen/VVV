@@ -106,6 +106,13 @@ namespace MxFramework.Tests.Combat.Physics
                     Header(CombatQueryKind.Sphere, queryId: 10, sourceOrder: 10),
                     new FixVector3(Fix64.FromInt(16), Fix64.Zero, Fix64.Zero),
                     Fix64.FromInt(6))),
+                CombatPhysicsQuery.From(new CombatObbQuery(
+                    Header(CombatQueryKind.Obb, queryId: 30, sourceOrder: 30),
+                    new FixVector3(Fix64.FromInt(16), Fix64.Zero, Fix64.Zero),
+                    new FixVector3(Fix64.FromInt(6), Fix64.One, Fix64.One),
+                    UnitX,
+                    new FixVector3(Fix64.Zero, Fix64.FromInt(2), Fix64.Zero),
+                    new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.FromInt(3)))),
             };
             var forwardResults = new List<CombatPhysicsQueryBatchResult>();
             var reverseResults = new List<CombatPhysicsQueryBatchResult>();
@@ -113,11 +120,40 @@ namespace MxFramework.Tests.Combat.Physics
             forward.QueryBatch(new CombatPhysicsQueryBatch(queries), forwardResults);
             reverse.QueryBatch(new CombatPhysicsQueryBatch(queries), reverseResults);
 
-            Assert.AreEqual(2, forwardResults.Count);
+            Assert.AreEqual(3, forwardResults.Count);
             Assert.AreEqual(10, forwardResults[0].Query.Header.SourceOrder);
+            Assert.AreEqual(30, forwardResults[2].Query.Header.SourceOrder);
             AssertBatchResultsEqual(forwardResults, reverseResults);
             Assert.Less(forwardResults[0].DebugReport.CandidateCount, forward.ColliderCount);
             Assert.Less(forwardResults[1].DebugReport.CandidateCount, forward.ColliderCount);
+            Assert.Less(forwardResults[2].DebugReport.CandidateCount, forward.ColliderCount);
+            Assert.IsFalse(forwardResults[2].IsUnsupported);
+        }
+
+        [Test]
+        public void Broadphase_ObbUsesConservativeAabbWithoutDroppingRotatedHit()
+        {
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabbAt(world, entity: 2, body: 2, collider: 1, layer: 1, x: Fix64.One, y: Fix64.One, z: Fix64.Zero, halfSize: Fix64.Half);
+            RegisterBodyWithAabbAt(world, entity: 3, body: 3, collider: 1, layer: 1, x: Fix64.FromInt(6), y: Fix64.FromInt(6), z: Fix64.Zero, halfSize: Fix64.Half);
+            var query = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb),
+                FixVector3.Zero,
+                new FixVector3(Fix64.FromInt(2), Fix64.Half, Fix64.One),
+                new FixVector3(Fix64.One, Fix64.One, Fix64.Zero),
+                new FixVector3(-Fix64.One, Fix64.One, Fix64.Zero),
+                new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.FromInt(2))));
+            var hits = new List<CombatQueryResult>();
+
+            world.Query(query, hits);
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(query);
+
+            Assert.AreEqual(1, hits.Count);
+            Assert.AreEqual(2, hits[0].TargetEntityId.Value);
+            Assert.IsFalse(report.IsUnsupported);
+            Assert.AreEqual(1, report.HitCount);
+            Assert.GreaterOrEqual(report.BroadphaseCandidateCount, report.HitCount);
+            Assert.Greater(report.BroadphaseCellCount, 1);
         }
 
         [Test]
@@ -299,6 +335,29 @@ namespace MxFramework.Tests.Combat.Physics
                 layer,
                 new FixVector3(-Fix64.FromInt(halfSize), -Fix64.Half, -Fix64.Half),
                 new FixVector3(Fix64.FromInt(halfSize), Fix64.Half, Fix64.Half)));
+        }
+
+        private static void RegisterBodyWithAabbAt(
+            CombatPhysicsWorld world,
+            int entity,
+            int body,
+            int collider,
+            int layer,
+            Fix64 x,
+            Fix64 y,
+            Fix64 z,
+            Fix64 halfSize)
+        {
+            world.UpsertBody(new CombatPhysicsBody(
+                new CombatEntityId(entity),
+                new CombatBodyId(body),
+                new FixVector3(x, y, z)));
+            world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+                new CombatBodyId(body),
+                new CombatColliderId(collider),
+                layer,
+                new FixVector3(-halfSize, -halfSize, -halfSize),
+                new FixVector3(halfSize, halfSize, halfSize)));
         }
 
         private static void AssertBatchResultsEqual(

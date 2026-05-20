@@ -159,6 +159,19 @@ namespace MxFramework.Combat.Physics
                 filter);
         }
 
+        public static CombatPhysicsQuery From(CombatObbQuery query)
+        {
+            return From(query, default(CombatPhysicsQueryFilter));
+        }
+
+        public static CombatPhysicsQuery From(CombatObbQuery query, CombatPhysicsQueryFilter filter)
+        {
+            return new CombatPhysicsQuery(
+                query.Header,
+                CombatPhysicsShape.Obb(query.Center, query.HalfExtents, query.AxisX, query.AxisY, query.AxisZ),
+                filter);
+        }
+
         public CombatRayQuery ToRayQuery()
         {
             EnsureShape(CombatPhysicsShapeKind.Ray);
@@ -187,6 +200,12 @@ namespace MxFramework.Combat.Physics
         {
             EnsureShape(CombatPhysicsShapeKind.Sector);
             return new CombatSectorQuery(Header, Shape.Origin, Shape.Direction, Shape.Radius, Shape.MinDot);
+        }
+
+        public CombatObbQuery ToObbQuery()
+        {
+            EnsureShape(CombatPhysicsShapeKind.Obb);
+            return new CombatObbQuery(Header, Shape.Center, Shape.HalfExtents, Shape.AxisX, Shape.AxisY, Shape.AxisZ);
         }
 
         public bool Equals(CombatPhysicsQuery other)
