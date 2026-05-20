@@ -109,6 +109,33 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/authoring/resources" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            WriteJson(context.Response, ReadAuthoringResources(rootPath, characterPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/resources/providers" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            WriteJson(context.Response, ReadAuthoringResources(rootPath, characterPackage, jsonOptions).Providers, jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/resources/resolve-selection" && context.Request.HttpMethod == "POST")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            AuthoringResourceSelectionRequest request = JsonSerializer.Deserialize<AuthoringResourceSelectionRequest>(body, jsonOptions) ?? new AuthoringResourceSelectionRequest();
+            if (!string.IsNullOrWhiteSpace(request.package))
+                characterPackage = request.package;
+            AuthoringResourceCollection resources = ReadAuthoringResources(rootPath, characterPackage, jsonOptions);
+            var service = new AuthoringResourceSelectionService();
+            WriteJson(context.Response, service.Resolve(resources, request.fieldSpec, request.context, request.selection), jsonOptions);
+            return;
+        }
+
         if (path == "/api/character/resources/import" && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -682,6 +709,20 @@ internal static class EditorServer
         library.Diagnostics.Clear();
         library.Diagnostics.AddRange(CharacterResourceLibraryBuilder.ValidateLibrary(library));
         return library;
+    }
+
+    private static AuthoringResourceCollection ReadAuthoringResources(string rootPath, string packageRelative, JsonSerializerOptions jsonOptions)
+    {
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        return new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext
+        {
+            ScopeId = "characterPackage:" + (package.Manifest != null ? package.Manifest.PackageId : string.Empty),
+            PackageId = package.Manifest != null ? package.Manifest.PackageId : string.Empty,
+            PackagePath = packageRelative,
+            ProjectRootPath = rootPath,
+            PackageResourceCatalog = package.ResourceCatalog
+        });
     }
 
     private static CharacterResourcePlanCompileResult ReadCharacterResourcePlan(
@@ -2742,6 +2783,14 @@ internal static class EditorServer
         public bool dryRun { get; set; }
         public bool importUnity { get; set; }
         public bool checkHashes { get; set; }
+    }
+
+    private sealed class AuthoringResourceSelectionRequest
+    {
+        public string package { get; set; } = string.Empty;
+        public AuthoringResourceFieldSpec fieldSpec { get; set; } = new AuthoringResourceFieldSpec();
+        public AuthoringResourceConsumerContext context { get; set; } = new AuthoringResourceConsumerContext();
+        public AuthoringResourceSelectionRef selection { get; set; } = new AuthoringResourceSelectionRef();
     }
 
     private sealed class ResourceLibraryWriteException : Exception
