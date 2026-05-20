@@ -1,6 +1,10 @@
-# MxFramework Resource Library Editor
+# MxFramework Authoring Resource Manager
 
-独立资源库编辑器用于查看角色资源包中的资源库、运行时资源计划、引用关系和诊断信息。写入型资源管理入口在 MVP 阶段保持禁用，并通过 Authoring API gate 补齐后再开放。
+独立资源管理器用于查看 Authoring 阶段的全局资源视图、provider 状态、运行时资源计划、引用关系和诊断信息。它的目标是服务 CharacterStudio、Animation Editor、Combat/VFX Editor、UI/Config Editor 等所有外部编辑器。
+
+当前 MVP 仍默认打开 Iron Vanguard 角色包 scope，并使用 `Tools/MxFramework.ResourceLibrary` 目录和 `start-resource-library.*` 兼容启动脚本；设计目标已经调整为全局 Authoring Resource Manager。角色包资源只是 `characterPackage` provider，Unity AssetDatabase、现有 `MxFramework.Resources.ResourceCatalog`、FMOD snapshot、external import staging 和 generated assets 也应进入统一资源视图。
+
+写入型资源管理入口在 MVP 阶段保持禁用，并通过 Authoring API gate 补齐后再开放。
 
 ## 启动
 
@@ -25,7 +29,7 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.command
 默认：
 
 - port: `4873`
-- character package: `Tools/MxFramework.Authoring/samples/character-iron-vanguard`
+- default package scope: `Tools/MxFramework.Authoring/samples/character-iron-vanguard`
 - URL: `http://127.0.0.1:4873/Tools/MxFramework.ResourceLibrary/web/?package=Tools/MxFramework.Authoring/samples/character-iron-vanguard`
 
 可指定端口和角色包：
@@ -37,7 +41,7 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh 4884 Tools/MxFramewo
 ## 环境变量
 
 - `MXFRAMEWORK_RESOURCE_LIBRARY_PORT`: 默认端口。
-- `MXFRAMEWORK_RESOURCE_LIBRARY_PACKAGE`: 默认角色资源包路径。
+- `MXFRAMEWORK_RESOURCE_LIBRARY_PACKAGE`: 默认角色资源包 scope 路径。
 - `MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER`: 设为 `0` 时不自动打开浏览器。
 
 ## Authoring Server
@@ -51,7 +55,7 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh 4884 Tools/MxFramewo
 - 端口占用。
 - 已运行的兼容 Authoring server。
 
-如果指定端口上已有 Authoring server 且资源库列表 API 和 inspect API 都可访问，脚本会直接打开 Resource Library Editor。
+如果指定端口上已有 Authoring server 且资源列表 API 和 inspect API 都可访问，脚本会直接打开 Resource Manager Editor。
 
 如果页面显示“服务未就绪”，优先重新运行启动脚本。浏览器页面不能直接执行本地 shell/bat 脚本；需要从终端运行 `.sh` / `.bat`，或在 macOS Finder 双击 `.command`。
 

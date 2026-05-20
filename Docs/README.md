@@ -55,14 +55,14 @@
 | 文档 | 回答的问题 |
 |------|------------|
 | `EDITORS.md` | Unity Editor 工具规范。 |
-| `../Tools/MxFramework.EditorHub/README.md` | 外部编辑器中心：一键启动 Authoring server，并集中打开 Buff Authoring Editor、CharacterStudio 和资源库/资源计划状态入口。 |
+| `../Tools/MxFramework.EditorHub/README.md` | 外部编辑器中心：一键启动 Authoring server，并集中打开 Buff Authoring Editor、CharacterStudio 和全局资源管理器入口。 |
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部主创编辑器总规划。 |
 | `AUTHORING_EDITOR_USAGE.md` | Buff 外部编辑器怎么开、怎么用、限制在哪。 |
 | `AUTHORING_WORKFLOW.md` | 创作流程跨 Unity/Mod Editor/AI/CLI 协作。 |
 | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包创作管线：包格式、3D 装配、Compiler、Unity Importer、Runtime Spawn。 |
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包创作管线的工程落地方案。 |
-| `Tasks/CHARACTER_RESOURCE_LIBRARY_00_DESIGN.md` | CharacterStudio 资源库设计：编辑期资源库、字段选择、Authoring Compiler 资源计划和运行时资源编排。 |
-| `Tasks/CHARACTER_RESOURCE_LIBRARY_EDITOR_01_MVP.md` | 独立 Resource Library Editor MVP：工具入口、资源列表、inspect API、详情页、引用/诊断只读和 Hub 集成验收。 |
+| `Tasks/CHARACTER_RESOURCE_LIBRARY_00_DESIGN.md` | 全局 Authoring Resource Manager 设计：跨编辑器资源发现/选择、provider catalog、Authoring Compiler 资源计划和运行时资源编排。 |
+| `Tasks/CHARACTER_RESOURCE_LIBRARY_EDITOR_01_MVP.md` | 全局 Resource Manager Editor MVP：工具入口、provider 资源列表、inspect API、详情页、引用/诊断只读和 Hub 集成验收。 |
 | `WGAME_BUFF_AUTHORING_WORKFLOW.md` | 结合 WGame 类型的 Buff 创作流水线。 |
 
 ---
