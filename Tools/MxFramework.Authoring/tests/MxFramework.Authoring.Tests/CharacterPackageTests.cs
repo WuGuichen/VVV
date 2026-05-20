@@ -44,6 +44,7 @@ internal static class CharacterPackageTests
         IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan();
         IronVanguardSample_CompilesResourcePlanArtifacts();
         CharacterResourcePlanCompiler_FmodAudioCueDoesNotEnterRuntimeCatalog();
+        CharacterResourcePlanCompiler_ResolvesAuthoringSelectionManifest();
         CharacterResourcesPlanCommand_WritesRuntimePlanArtifacts();
         Compiler_ApplicationResourceKeysAreCharacterReferences();
         Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash();
@@ -1810,6 +1811,131 @@ internal static class CharacterPackageTests
         Require(result.AudioCueManifest.Banks.Contains("Character"), "FMOD audio cue should contribute required banks.");
         Require(result.CharacterResourcePlan.Audio.RequiredCues.Contains("audio.cue.iron_vanguard.sword_slash"), "FMOD audio cue should be required through Audio plan group.");
         Require(result.CharacterResourcePlan.Audio.RequiredBanks.Contains("Character"), "FMOD bank should be required through Audio plan group.");
+    }
+
+    private static void CharacterResourcePlanCompiler_ResolvesAuthoringSelectionManifest()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        AuthoringResourceCollection collection = BuildAuthoringSelectionCollection();
+        var manifest = new AuthoringResourceSelectionManifestDocument
+        {
+            PackageId = "iron_vanguard",
+            ConsumerKind = "character",
+            ConsumerStableId = "character.iron_vanguard"
+        };
+        manifest.Selections.Add(new AuthoringResourceSelectionCompileInput
+        {
+            SourceConfigKind = "vfx",
+            SourceStableId = "vfx.iron_vanguard.slash",
+            SourceField = "prefab",
+            FieldSpec = new AuthoringResourceFieldSpec
+            {
+                FieldKey = "Vfx.Prefab",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Vfx },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.VfxCue },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.ResourceManagerAsset },
+                RequireRuntimeLoadable = true,
+                PreloadPolicy = AuthoringResourcePreloadPolicies.VfxWarmup,
+                OutputKind = AuthoringResourceSelectionOutputKind.RuntimeResourceKey
+            },
+            Context = new AuthoringResourceConsumerContext
+            {
+                ConsumerKind = "vfx",
+                ConsumerStableId = "vfx.iron_vanguard.slash",
+                PackageId = "iron_vanguard"
+            },
+            Selection = new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.vfx.slash",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
+            }
+        });
+        manifest.Selections.Add(new AuthoringResourceSelectionCompileInput
+        {
+            SourceConfigKind = "combatAction",
+            SourceStableId = "combat.iron_vanguard.hit",
+            SourceField = "hitSfx",
+            FieldSpec = new AuthoringResourceFieldSpec
+            {
+                FieldKey = "CombatAction.HitSfx",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Audio },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.AudioCue },
+                AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.Fmod },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.AudioCue },
+                PreloadPolicy = AuthoringResourcePreloadPolicies.AudioBank,
+                OutputKind = AuthoringResourceSelectionOutputKind.AudioCueId
+            },
+            Context = new AuthoringResourceConsumerContext
+            {
+                ConsumerKind = "combatAction",
+                ConsumerStableId = "combat.iron_vanguard.hit",
+                PackageId = "iron_vanguard"
+            },
+            Selection = new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "audio.hit",
+                SourceProviderId = AuthoringResourceProviderIds.Fmod,
+                BindingKind = AuthoringResourceBindingKind.AudioCue
+            }
+        });
+
+        CharacterResourcePlanCompileResult result = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            AuthoringResources = collection,
+            ResourceSelectionManifest = manifest
+        });
+
+        Require(result.RuntimeResourceCatalog.Entries.Exists(entry => entry.Id == "char.iron_vanguard.vfx.slash"), "selection manifest should add runtime catalog entries from ResourceSelectionRef.");
+        Require(result.CharacterResourcePlan.VfxWarmup.Resources.Exists(resource => resource.ResourceKey == "char.iron_vanguard.vfx.slash"), "selection preload policy should place runtime resource into VfxWarmup.");
+        Require(result.AudioCueManifest.Cues.Exists(cue => cue.CueId == "cue.hit"), "audio ResourceSelectionRef should compile into audio cue manifest.");
+        Require(result.CharacterResourcePlan.Audio.RequiredCues.Contains("cue.hit"), "audio ResourceSelectionRef should compile into Audio plan group.");
+        Require(!result.RuntimeResourceCatalog.Entries.Exists(entry => entry.Id == "cue.hit"), "audio ResourceSelectionRef must not enter ordinary runtime catalog.");
+        Require(!result.ResourceValidationReport.HasErrors, "valid ResourceSelectionRef manifest should not block resource plan.");
+
+        var invalidManifest = new AuthoringResourceSelectionManifestDocument
+        {
+            PackageId = "iron_vanguard",
+            ConsumerKind = "ui",
+            ConsumerStableId = "ui.iron_vanguard"
+        };
+        invalidManifest.Selections.Add(new AuthoringResourceSelectionCompileInput
+        {
+            SourceConfigKind = "ui",
+            SourceStableId = "ui.iron_vanguard.icon",
+            SourceField = "icon",
+            FieldSpec = new AuthoringResourceFieldSpec
+            {
+                FieldKey = "Ui.Icon",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Texture },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.PreviewThumbnail },
+                AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.UnityAssetDatabase },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.UnityAsset },
+                RequireRuntimeLoadable = true,
+                PreloadPolicy = AuthoringResourcePreloadPolicies.UiDeferred,
+                OutputKind = AuthoringResourceSelectionOutputKind.UnityGuid
+            },
+            Context = new AuthoringResourceConsumerContext { ConsumerKind = "ui", PackageId = "iron_vanguard" },
+            Selection = new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "unity.icon.portrait",
+                SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                BindingKind = AuthoringResourceBindingKind.UnityAsset
+            }
+        });
+
+        CharacterResourcePlanCompileResult invalid = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = FindSamplePath("character-iron-vanguard"),
+            AuthoringResources = collection,
+            ResourceSelectionManifest = invalidManifest
+        });
+
+        Require(invalid.ResourceValidationReport.HasErrors, "runtime-required editor-only selection should block resource plan.");
+        Require(invalid.ResourceValidationReport.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.EditorOnlySelectedForRuntime), "editor-only runtime field should produce structured diagnostic.");
     }
 
     private static void CharacterResourcesPlanCommand_WritesRuntimePlanArtifacts()
