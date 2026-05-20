@@ -86,7 +86,7 @@ const RESOURCE_FIELD_SPECS = {
     requireRuntimeLoadable: true,
     requireUnityImported: true,
     allowIncompatibleWithWarning: true,
-    compatibilityFilter: { equipSlot: "mainHand" },
+    compatibilityFilter: { slotId: "mainHand" },
     preloadPolicy: "EquipmentInitial",
     outputKind: "RuntimeResourceKey"
   },
@@ -101,7 +101,7 @@ const RESOURCE_FIELD_SPECS = {
     requireRuntimeLoadable: true,
     requireUnityImported: true,
     allowIncompatibleWithWarning: true,
-    compatibilityFilter: { equipSlot: "offHand" },
+    compatibilityFilter: { slotId: "offHand" },
     preloadPolicy: "EquipmentInitial",
     outputKind: "RuntimeResourceKey"
   },
@@ -224,7 +224,10 @@ const state = {
   viewportCameraState: null,
   skipNextCameraRemember: false,
   treeCollapsed: false,
-  resourcePickerOpen: false
+  resourcePickerOpen: false,
+  resourcePickerField: null,
+  resourcePickerQuery: null,
+  resourcePickerLoading: false
 };
 
 const el = {};
@@ -392,10 +395,10 @@ async function loadUnityResourceCatalog() {
 }
 
 async function loadResourceLibraryAndPlan() {
-  const apiLibrary = await readJson(`/api/character/resources?package=${encodeURIComponent(state.packageRelative)}`, null);
+  const apiLibrary = await readJson(`/api/authoring/resources?package=${encodeURIComponent(state.packageRelative)}`, null);
   state.resourceLibrary = normalizeResourceLibraryPayload(apiLibrary);
 
-  const apiPlan = await readJson(`/api/character/resource-plan?package=${encodeURIComponent(state.packageRelative)}`, null);
+  const apiPlan = await readJson(`/api/authoring/resources/resource-plan?package=${encodeURIComponent(state.packageRelative)}`, null);
   const packageId = state.package?.manifest?.packageId || "";
   const staticPlan = packageId
     ? await readJson(`/Assets/MxFrameworkGenerated/CharacterPackages/${encodeURIComponent(packageId)}/config/character_resource_plan.json`, null)
@@ -466,7 +469,7 @@ function renderShellStatus() {
   el.modelImportRole.disabled = !state.canWrite || !state.package;
   el.configCreateSelect.disabled = !state.canWrite || !state.package;
   el.configCreateButton.disabled = !state.canWrite || !state.package;
-  el.openResourcePickerButton.disabled = !state.package;
+  el.openResourcePickerButton.disabled = !state.package || (el.modelImportRole?.value || "preview") === "preview";
   el.clearModelBindingButton.disabled = !state.canWrite || !state.package || el.modelImportRole.value === "preview";
   el.compileButton.disabled = !state.apiAvailable || !state.package;
   el.importButton.disabled = !state.apiAvailable || !state.package || state.dirty || isImportBlocked();
@@ -492,6 +495,8 @@ function normalizeResourceLibraryPayload(payload) {
 
 function normalizeResourcePlanPayload(payload) {
   if (!payload) return null;
+  if (payload.characterResourcePlan) return payload.characterResourcePlan;
+  if (payload.CharacterResourcePlan) return payload.CharacterResourcePlan;
   if (payload.characterStableId || payload.spawnCritical || payload.groups) return payload;
   return null;
 }
@@ -503,21 +508,63 @@ function renderResourceBindingBar() {
   const fieldSpec = getActiveResourceFieldSpec();
   const selectedResource = getSelectedModelResource();
   const selectedText = selectedResource
-    ? `当前选中：${getResourceDisplayName(selectedResource)}`
-    : "当前未选中资源";
+    ? `当前选择：${getResourceDisplayName(selectedResource)}`
+    : "未选择模型资源";
   el.resourceBindingTarget.textContent = targetRole === "preview"
-    ? `${fieldSpec.fieldKey}；${selectedText}`
-    : `${fieldSpec.fieldKey} / ${roleInfo.label}；${selectedText}`;
+    ? "选择角色主体或武器字段后再打开资源选择器"
+    : `${fieldSpec.fieldKey} / ${roleInfo.label}：${selectedText}`;
 }
 
-function openResourcePicker() {
+async function openResourcePicker() {
   if (!state.package) return;
+  const role = el.modelImportRole?.value || "preview";
+  if (role === "preview") {
+    state.message = "请先选择角色主体模型、主手武器或副手武器字段。";
+    renderShellStatus();
+    return;
+  }
+  state.resourcePickerField = null;
   state.resourcePickerOpen = true;
-  renderResourcePicker();
+  state.resourcePickerQuery = null;
+  await loadResourcePickerQuery(getActiveResourceFieldSpec());
+}
+
+async function openResourcePickerForField(fieldPath) {
+  if (!state.package || !fieldPath) return;
+  const target = findTarget(state.selectedPath);
+  if (!target?.value) return;
+  const fieldSpec = getResourceFieldSpecForInspectorField(target, fieldPath);
+  if (!fieldSpec) return;
+  state.resourcePickerField = {
+    targetPath: state.selectedPath,
+    fieldPath,
+    fieldSpec,
+    title: `${target.label || target.kind}.${fieldPath}`
+  };
+  state.resourcePickerOpen = true;
+  state.resourcePickerQuery = null;
+  await loadResourcePickerQuery(fieldSpec);
 }
 
 function closeResourcePicker() {
   state.resourcePickerOpen = false;
+  state.resourcePickerField = null;
+  state.resourcePickerQuery = null;
+  state.resourcePickerLoading = false;
+  renderResourcePicker();
+}
+
+async function loadResourcePickerQuery(fieldSpec) {
+  state.resourcePickerLoading = true;
+  renderResourcePicker();
+  const result = await postJson("/api/authoring/resources/pick", {
+    package: state.packageRelative,
+    fieldSpec: toAuthoringResourceFieldSpec(fieldSpec),
+    context: buildResourceConsumerContext(fieldSpec),
+    selection: {}
+  }, null);
+  state.resourcePickerQuery = result;
+  state.resourcePickerLoading = false;
   renderResourcePicker();
 }
 
@@ -529,25 +576,31 @@ function renderResourcePicker() {
     return;
   }
 
-  const roleInfo = getModelImportRole();
-  const fieldSpec = getActiveResourceFieldSpec();
-  el.resourcePickerTitle.textContent = `选择${roleInfo.label}`;
-  el.resourcePickerSummary.textContent = `${fieldSpec.fieldKey} / ${fieldSpec.outputKind} / ${fieldSpec.preloadPolicy}；完整资源新增、替换、删除由独立 Resource Library Editor 负责。`;
-  const items = getResourceLibraryItems();
-  if (!items.length) {
-    el.resourcePickerList.innerHTML = `<div class="empty">暂无可选资源。</div>`;
+  const request = getActiveResourcePickerRequest();
+  const fieldSpec = request.fieldSpec;
+  el.resourcePickerTitle.textContent = `选择${request.title}`;
+  el.resourcePickerSummary.textContent = `${fieldSpec.fieldKey} / ${fieldSpec.outputKind} / ${fieldSpec.preloadPolicy}。资源来自 Authoring Resource Manager，当前角色只保存引用。`;
+  if (state.resourcePickerLoading) {
+    el.resourcePickerList.innerHTML = `<div class="empty">正在读取资源管理器候选项...</div>`;
     return;
   }
 
-  el.resourcePickerList.innerHTML = items.map(item => {
-    const selection = evaluateResourceFieldSelection(item, fieldSpec);
-    const selected = item.path === state.selectedPath;
+  const rows = getResourcePickerRows(fieldSpec);
+  if (!rows.length) {
+    el.resourcePickerList.innerHTML = `<div class="empty">没有符合当前字段契约的资源；请先在资源管理器导入或同步资源。</div>`;
+    return;
+  }
+
+  el.resourcePickerList.innerHTML = rows.map(row => {
+    const item = row.item;
+    const selection = row.selection;
+    const selected = item.path === state.selectedPath || getResourceIdentityValues(item).includes(getCurrentResourceFieldValue());
     const thumb = item.thumbnailUrl
       ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.displayName)}">`
       : `<span>${escapeHtml(getResourceInitial(item))}</span>`;
     const diagnostics = item.diagnostics?.length
       ? `${item.diagnostics.length} diagnostics`
-      : "无 diagnostics";
+      : "0 diagnostics";
     return `
       <button type="button" class="resource-card ${selected ? "active" : ""} ${escapeHtml(selection.tone)}" data-library-id="${escapeHtml(item.resourceId || item.libraryItemId || "")}" title="${escapeHtml(item.sourceName || item.stableId || item.displayName)}">
         <span class="resource-thumb">${thumb}</span>
@@ -556,15 +609,65 @@ function renderResourcePicker() {
           <span>${escapeHtml(item.kindLabel)} / ${escapeHtml(item.usage || "usage?")} / ${escapeHtml(item.runtimeAvailability)}</span>
           <span>${escapeHtml(item.bindingKind)} / ${escapeHtml(item.sourceProviderId)} / refs ${escapeHtml(String(item.referenceCount || 0))} / ${escapeHtml(diagnostics)}</span>
           <span>${renderSelectionBadge(selection)} ${escapeHtml(selection.reason)}</span>
-          <span class="resource-unity-path">${escapeHtml(item.unityAssetPath || item.sourceName || item.stableId || "未记录路径")}</span>
+          <span class="resource-unity-path">${escapeHtml(item.unityAssetPath || item.sourceName || item.stableId || "未绑定 Unity 资产")}</span>
         </span>
       </button>`;
   }).join("");
 }
 
+function getActiveResourcePickerRequest() {
+  if (state.resourcePickerField?.fieldSpec) {
+    return {
+      fieldSpec: state.resourcePickerField.fieldSpec,
+      title: state.resourcePickerField.title || state.resourcePickerField.fieldSpec.displayName || "资源"
+    };
+  }
+  const roleInfo = getModelImportRole();
+  return { fieldSpec: getActiveResourceFieldSpec(), title: roleInfo.label };
+}
+
 function getActiveResourceFieldSpec() {
   const role = el.modelImportRole?.value || "preview";
   return RESOURCE_FIELD_SPECS[role] || RESOURCE_FIELD_SPECS.preview;
+}
+
+function getResourceFieldSpecForInspectorField(target, fieldPath) {
+  if (target.kind === "weapon" && fieldPath === "previewResourceKey") {
+    const slot = target.value?.equipSlot || "mainHand";
+    const base = RESOURCE_FIELD_SPECS[slot] || RESOURCE_FIELD_SPECS.mainHand;
+    return {
+      ...base,
+      fieldKey: `WeaponAttachment.${slot}.previewResourceKey`,
+      displayName: "武器模型引用",
+      compatibilityFilter: { ...(base.compatibilityFilter || {}), slotId: slot }
+    };
+  }
+  return null;
+}
+
+function getResourcePickerRows(fieldSpec) {
+  const queryItems = Array.isArray(state.resourcePickerQuery?.items) ? state.resourcePickerQuery.items : [];
+  if (queryItems.length) {
+    return queryItems
+      .map(row => ({ item: normalizeResourceLibraryItem(row.item), selection: evaluateServerPickerItem(row, fieldSpec) }))
+      .filter(row => row.item)
+      .sort((a, b) => getResourceLibrarySortKey(a.item).localeCompare(getResourceLibrarySortKey(b.item)));
+  }
+  return getResourceLibraryItems().map(item => ({ item, selection: evaluateResourceFieldSelection(item, fieldSpec) }));
+}
+
+function evaluateServerPickerItem(row, spec) {
+  const reasons = Array.isArray(row.reasons) ? row.reasons : [];
+  const reason = reasons.map(item => item.code || item.message).filter(Boolean).join(" / ");
+  if (row.selectable && row.hasWarnings) return { tone: "warn", label: "可选", reason: reason || `${spec.outputKind} / ${spec.preloadPolicy}` };
+  if (row.selectable) return { tone: "match", label: "可选", reason: reason || `${spec.outputKind} / ${spec.preloadPolicy}` };
+  return { tone: "blocked", label: "不可选", reason: reason || "不符合字段契约" };
+}
+
+function getCurrentResourceFieldValue() {
+  if (!state.resourcePickerField) return "";
+  const target = findTarget(state.resourcePickerField.targetPath);
+  return getNested(target.value, state.resourcePickerField.fieldPath) || "";
 }
 
 function getResourceLibraryItems() {
@@ -582,24 +685,26 @@ function normalizeResourceLibraryItem(item) {
   if (!item) return null;
   const resource = item.resource || item;
   const providerBindings = Array.isArray(item.providerBindings) ? item.providerBindings : [];
-  const primaryBinding = providerBindings.find(binding => binding?.isPrimary) || providerBindings[0] || {};
+  const primaryBinding = getPrimaryResourceBinding(providerBindings);
   const sync = getResourceUnitySync(resource);
-  const kind = item.kind || mapResourceKind(resource.typeId);
+  const kind = normalizeResourceKind(item.kind || resource.kind || mapResourceKind(resource.typeId));
   const diagnostics = [
     ...(Array.isArray(item.diagnostics) ? item.diagnostics.map(formatDiagnosticText) : []),
     ...sync.diagnostics
   ].filter(Boolean);
   const referenceCount = item.referenceCount ?? collectResourceReferences(resource).length;
-  const bindingKind = item.bindingKind || item.runtimeBindingKind || primaryBinding.bindingKind || inferRuntimeBindingKind(resource, kind);
+  const bindingKind = normalizeResourceBindingKind(item.bindingKind || item.runtimeBindingKind || primaryBinding?.bindingKind || inferRuntimeBindingKind(resource, kind));
   const runtimeBindingKind = bindingKind;
   const runtimeAvailability = item.runtimeAvailability || inferRuntimeAvailability(resource, runtimeBindingKind, sync);
   const resourceId = item.resourceId || item.libraryItemId || resource.libraryItemId || resource.stableId || resource.resourceKey || resource.localId || resource.relativePath;
   const sourceProviderId = item.sourceProviderId || inferSourceProviderId(item, resource);
-  const runtimeResourceKey = item.runtimeResourceKey || primaryBinding.runtimeResourceKey || (runtimeBindingKind === "ResourceManagerAsset" ? resource.resourceKey || "" : "");
-  const providerResourceKey = item.providerResourceKey || primaryBinding.providerResourceKey || primaryBinding.packageResourceKey || resource.resourceKey || "";
-  const packageResourceKey = item.packageResourceKey || primaryBinding.packageResourceKey || (sourceProviderId === "characterPackage" ? resource.resourceKey || "" : "");
-  const unityGuid = item.unityGuid || primaryBinding.unityGuid || sync.unityGuid || "";
-  const unityAssetPath = item.unityAssetPath || primaryBinding.unityAssetPath || sync.unityAssetPath || "";
+  const runtimeResourceKey = item.runtimeResourceKey || firstBindingValue(providerBindings, "runtimeResourceKey") || (runtimeBindingKind === "ResourceManagerAsset" ? resource.resourceKey || "" : "");
+  const providerResourceKey = item.providerResourceKey || firstBindingValue(providerBindings, "providerResourceKey") || firstBindingValue(providerBindings, "packageResourceKey") || resource.resourceKey || "";
+  const packageResourceKey = item.packageResourceKey || firstBindingValue(providerBindings, "packageResourceKey") || (sourceProviderId === "characterPackage" ? resource.resourceKey || "" : "");
+  const unityGuid = item.unityGuid || firstBindingValue(providerBindings, "unityGuid") || sync.unityGuid || "";
+  const unityAssetPath = item.unityAssetPath || firstBindingValue(providerBindings, "unityAssetPath") || sync.unityAssetPath || "";
+  const importStatus = item.importStatus || sync.status;
+  const importTone = getResourceImportTone(importStatus, sync.tone);
   return {
     raw: item,
     resource,
@@ -622,9 +727,9 @@ function normalizeResourceLibraryItem(item) {
     bindingKind,
     runtimeBindingKind,
     runtimeAvailability,
-    importStatus: item.importStatus || sync.status,
-    importStatusLabel: item.importStatusLabel || sync.label,
-    importTone: sync.tone,
+    importStatus,
+    importStatusLabel: item.importStatusLabel || importStatus || sync.label,
+    importTone,
     referenceCount,
     diagnostics,
     thumbnailUrl: item.thumbnailUrl || getResourceThumbnailUrl(resource, state.package),
@@ -633,13 +738,47 @@ function normalizeResourceLibraryItem(item) {
   };
 }
 
+function getPrimaryResourceBinding(bindings) {
+  return bindings.find(binding => binding?.isPrimary) || bindings[0] || null;
+}
+
+function firstBindingValue(bindings, key) {
+  const found = bindings.find(binding => binding && binding[key]);
+  return found ? found[key] || "" : "";
+}
+
+function normalizeResourceKind(kind) {
+  const normalized = String(kind || "").toLowerCase();
+  if (normalized === "model") return "Model";
+  if (normalized === "animation" || normalized === "animationclipgroup") return "Animation";
+  if (normalized === "texture" || normalized === "preview") return "Texture";
+  if (normalized === "material") return "Material";
+  if (normalized === "avatarmask") return "AvatarMask";
+  if (normalized === "vfx") return "Vfx";
+  if (normalized === "audio") return "Audio";
+  if (normalized === "config") return "Config";
+  if (normalized === "generated") return "Generated";
+  return kind || "Generated";
+}
+
+function normalizeResourceBindingKind(kind) {
+  const value = String(kind || "");
+  return value || "None";
+}
+
+function getResourceImportTone(status, fallbackTone = "") {
+  const normalized = String(status || "").toLowerCase();
+  if (["clean", "ready", "imported", "runtimeReady".toLowerCase()].includes(normalized)) return "ok";
+  return fallbackTone || getUnityStatusTone(status);
+}
+
 function inferSourceProviderId(item, resource) {
   if (item?.sourceProviderId) return item.sourceProviderId;
   const sourceKind = item?.sourceKind || inferSourceKind(resource);
   if (sourceKind === "RuntimeCatalogAsset") return "runtimeCatalog";
   if (sourceKind === "UnityAsset") return "unityAssetDatabase";
   if (sourceKind === "FmodLibrary") return "fmod";
-  if (sourceKind === "ExternalFile") return "characterPackage";
+  if (sourceKind === "ExternalFile" || sourceKind === "PackageResource") return "characterPackage";
   return "generatedAssets";
 }
 
@@ -684,7 +823,7 @@ function inferRuntimeAvailability(resource, bindingKind, sync) {
   if (bindingKind === "GeneratedPreviewOnly") return "PreviewOnly";
   if (bindingKind === "UnityEditorOnlyAsset") return "EditorOnly";
   if (bindingKind !== "ResourceManagerAsset") return "Unknown";
-  if (!resource?.resourceKey) return "NotRuntimeLoadable";
+  if (!resource?.resourceKey && !resource?.runtimeResourceKey) return "NotRuntimeLoadable";
   const tone = sync?.tone || "";
   if (tone === "error") return "RuntimeMissing";
   if (tone === "warn") return "RuntimeMissing";
@@ -695,22 +834,19 @@ function evaluateResourceFieldSelection(item, spec) {
   const reasons = [];
   let selectable = true;
   let warn = false;
-  if (spec.acceptedKinds?.length && !spec.acceptedKinds.includes(item.kind)) {
+  if (spec.acceptedKinds?.length && !containsIgnoreCase(spec.acceptedKinds, item.kind)) {
     selectable = false;
     reasons.push(`kind 不匹配：${item.kind}`);
   }
-  if (spec.acceptedUsages?.length && !spec.acceptedUsages.includes(item.usage)) {
-    const compatibleWeaponSlot = spec.compatibilityFilter?.equipSlot && item.usage === "weaponModel";
-    if (!compatibleWeaponSlot) {
-      selectable = false;
-      reasons.push(`usage 不匹配：${item.usage || "空"}`);
-    }
+  if (spec.acceptedUsages?.length && !containsIgnoreCase(spec.acceptedUsages, item.usage)) {
+    selectable = false;
+    reasons.push(`usage 不匹配：${item.usage || "空"}`);
   }
   if (spec.acceptedProviderIds?.length && !spec.acceptedProviderIds.includes(item.sourceProviderId)) {
     selectable = false;
     reasons.push(`provider 不匹配：${item.sourceProviderId || "空"}`);
   }
-  if (spec.acceptedBindingKinds?.length && !spec.acceptedBindingKinds.includes(item.bindingKind)) {
+  if (spec.acceptedBindingKinds?.length && !hasAcceptedBinding(item, spec.acceptedBindingKinds)) {
     selectable = false;
     reasons.push(`binding 不匹配：${item.bindingKind}`);
   }
@@ -727,9 +863,18 @@ function evaluateResourceFieldSelection(item, spec) {
   if (item.diagnostics.some(text => /failed|失败|conflict|冲突|missing|缺失/i.test(text))) {
     warn = true;
   }
-  if (selectable && !warn) return { tone: "match", label: "匹配", reason: `${spec.outputKind} / ${spec.preloadPolicy}` };
-  if (selectable && warn) return { tone: "warn", label: "警告", reason: reasons.join("；") || "可选但需复核" };
-  return { tone: "blocked", label: "不可选", reason: reasons.join("；") || "不符合字段规格" };
+  if (selectable && !warn) return { tone: "match", label: "可选", reason: `${spec.outputKind} / ${spec.preloadPolicy}` };
+  if (selectable && warn) return { tone: "warn", label: "可选", reason: reasons.join("；") || "有兼容性警告" };
+  return { tone: "blocked", label: "不可选", reason: reasons.join("；") || "不符合字段契约" };
+}
+
+function containsIgnoreCase(values, value) {
+  return values.some(item => String(item).toLowerCase() === String(value || "").toLowerCase());
+}
+
+function hasAcceptedBinding(item, acceptedKinds) {
+  if (containsIgnoreCase(acceptedKinds, item.bindingKind)) return true;
+  return (item.providerBindings || []).some(binding => containsIgnoreCase(acceptedKinds, binding?.bindingKind));
 }
 
 function renderSelectionBadge(selection) {
@@ -737,53 +882,163 @@ function renderSelectionBadge(selection) {
   return `<span class="selection-badge ${tone}">${escapeHtml(selection.label)}</span>`;
 }
 
-function selectLibraryItem(libraryItemId) {
+async function selectLibraryItem(libraryItemId) {
   const item = getResourceLibraryItems().find(candidate => candidate.resourceId === libraryItemId || candidate.libraryItemId === libraryItemId);
   if (!item) return;
-  const spec = getActiveResourceFieldSpec();
-  const selection = evaluateResourceFieldSelection(item, spec);
-  const selectionRef = createResourceSelectionRef(item, spec);
-  if (selection.tone === "blocked") {
-    state.selectedPath = item.path || state.selectedPath;
-    state.message = `${item.displayName} 不符合 ${spec.fieldKey}：${selection.reason}`;
-    renderTree();
-    renderResourceBindingBar();
+  const request = getActiveResourcePickerRequest();
+  const spec = request.fieldSpec;
+  const localSelection = evaluateResourceFieldSelection(item, spec);
+  let selectionRef = createResourceSelectionRef(item, spec);
+  const resolved = await resolveResourceSelection(selectionRef, spec);
+  if (resolved?.selection) selectionRef = normalizeResolvedSelectionRef(resolved.selection, selectionRef);
+  const blocked = resolved ? resolved.accepted === false : localSelection.tone === "blocked";
+  const reason = resolved ? formatSelectionReasons(resolved.reasons) : localSelection.reason;
+  if (blocked) {
+    state.message = `${item.displayName} 不能用于 ${spec.fieldKey}：${reason}`;
     renderResourcePicker();
-    renderInspector();
     renderShellStatus();
     return;
   }
-  const resolvedModelKey = selectionRef.runtimeResourceKey || item.resource?.resourceKey || "";
-  if (item.resource?.typeId === "model" && resolvedModelKey) {
+  if (state.resourcePickerField) {
+    applyResourceSelectionToField(item, selectionRef);
+    return;
+  }
+  const resolvedModelKey = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
+  if (item.kind === "Model" && resolvedModelKey) {
     bindModelResource(resolvedModelKey);
     return;
   }
   state.selectedPath = item.path || state.selectedPath;
-  state.message = `${spec.fieldKey} 已选中 ${item.displayName}；ResourceSelectionRef=${selectionRef.resourceStableId}`;
+  state.message = `${spec.fieldKey} 已选择 ${item.displayName}；ResourceSelectionRef=${selectionRef.resourceStableId}`;
   closeResourcePicker();
   renderTree();
   renderResourceBindingBar();
-  renderResourcePicker();
   renderInspector();
   renderShellStatus();
 }
 
+function applyResourceSelectionToField(item, selectionRef) {
+  const picker = state.resourcePickerField;
+  const target = picker ? findTarget(picker.targetPath) : null;
+  if (!target?.value) return;
+  const value = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
+  setNested(target.value, picker.fieldPath, value);
+  if (picker.fieldPath === "previewResourceKey") {
+    setNested(target.value, "previewResourceSelection", selectionRef);
+  }
+  state.selectedPath = picker.targetPath;
+  state.dirty = true;
+  state.message = `${picker.title} 已引用 ${item.displayName}；资源本体仍归资源管理器。`;
+  closeResourcePicker();
+  render();
+}
+
 function createResourceSelectionRef(item, spec) {
+  const binding = getBindingForFieldSpec(item, spec);
   return {
     resourceStableId: item.stableId || "",
     sourceProviderId: item.sourceProviderId || "",
-    bindingKind: item.bindingKind || "None",
+    bindingKind: binding?.bindingKind || item.bindingKind || "None",
     expectedKind: item.kind || "",
     expectedUsage: item.usage || "",
-    expectedHash: item.raw?.hash || item.providerBindings?.find(binding => binding?.isPrimary)?.hash || "",
-    runtimeResourceKey: spec.outputKind === "RuntimeResourceKey" ? item.runtimeResourceKey || item.resourceKey || "" : item.runtimeResourceKey || "",
-    providerResourceKey: item.providerResourceKey || "",
-    packageResourceKey: item.packageResourceKey || "",
-    unityGuid: item.unityGuid || "",
-    unityAssetPath: item.unityAssetPath || "",
-    audioCueId: item.raw?.audioCueId || item.providerBindings?.find(binding => binding?.providerData?.audioCueId)?.providerData?.audioCueId || "",
-    audioEventDefinitionId: item.raw?.audioEventDefinitionId || item.providerBindings?.find(binding => binding?.providerData?.audioEventDefinitionId)?.providerData?.audioEventDefinitionId || ""
+    expectedHash: binding?.hash || item.raw?.hash || "",
+    runtimeResourceKey: binding?.runtimeResourceKey || item.runtimeResourceKey || "",
+    providerResourceKey: binding?.providerResourceKey || item.providerResourceKey || "",
+    packageResourceKey: binding?.packageResourceKey || item.packageResourceKey || "",
+    unityGuid: binding?.unityGuid || item.unityGuid || "",
+    unityAssetPath: binding?.unityAssetPath || item.unityAssetPath || "",
+    audioCueId: item.raw?.audioCueId || binding?.providerData?.audioCueId || "",
+    audioEventDefinitionId: item.raw?.audioEventDefinitionId || binding?.providerData?.audioEventDefinitionId || ""
   };
+}
+
+function getBindingForFieldSpec(item, spec) {
+  const bindings = item.providerBindings || [];
+  const accepted = spec.acceptedBindingKinds || [];
+  const outputKind = spec.outputKind || "ResourceSelectionRef";
+  const candidates = bindings.filter(binding => !accepted.length || containsIgnoreCase(accepted, binding?.bindingKind));
+  const outputMatch = candidates.find(binding => bindingMatchesOutputKind(binding, outputKind));
+  return outputMatch || candidates.find(binding => binding?.isPrimary) || candidates[0] || getPrimaryResourceBinding(bindings);
+}
+
+function bindingMatchesOutputKind(binding, outputKind) {
+  if (!binding) return false;
+  if (outputKind === "RuntimeResourceKey") return Boolean(binding.runtimeResourceKey);
+  if (outputKind === "ProviderResourceKey") return Boolean(binding.providerResourceKey);
+  if (outputKind === "PackageResourceKey") return Boolean(binding.packageResourceKey);
+  if (outputKind === "UnityGuid") return Boolean(binding.unityGuid);
+  if (outputKind === "UnityAssetPath") return Boolean(binding.unityAssetPath);
+  if (outputKind === "AudioCueId") return Boolean(binding.providerData?.audioCueId);
+  if (outputKind === "AudioEventDefinitionId") return Boolean(binding.providerData?.audioEventDefinitionId);
+  return true;
+}
+
+async function resolveResourceSelection(selection, spec) {
+  return await postJson("/api/authoring/resources/resolve-selection", {
+    package: state.packageRelative,
+    fieldSpec: toAuthoringResourceFieldSpec(spec),
+    context: buildResourceConsumerContext(spec),
+    selection
+  }, null);
+}
+
+function normalizeResolvedSelectionRef(selection, fallback) {
+  return { ...fallback, ...selection };
+}
+
+function formatSelectionReasons(reasons) {
+  return (reasons || []).map(item => item.code || item.message).filter(Boolean).join(" / ");
+}
+
+function toAuthoringResourceFieldSpec(spec) {
+  return {
+    fieldKey: spec.fieldKey || "",
+    editorKind: spec.editorKind || "CharacterStudio",
+    displayName: spec.displayName || "",
+    acceptedKinds: spec.acceptedKinds || [],
+    acceptedUsages: spec.acceptedUsages || [],
+    acceptedProviderIds: spec.acceptedProviderIds || [],
+    acceptedSourceKinds: spec.acceptedSourceKinds || [],
+    acceptedBindingKinds: spec.acceptedBindingKinds || [],
+    requireRuntimeLoadable: Boolean(spec.requireRuntimeLoadable),
+    requireUnityImported: Boolean(spec.requireUnityImported),
+    allowIncompatibleWithWarning: Boolean(spec.allowIncompatibleWithWarning),
+    compatibilityFilter: spec.compatibilityFilter || {},
+    preloadPolicy: spec.preloadPolicy || "None",
+    outputKind: spec.outputKind || "ResourceSelectionRef"
+  };
+}
+
+function buildResourceConsumerContext(spec) {
+  return {
+    consumerKind: "CharacterStudio",
+    consumerStableId: state.package?.manifest?.stableId || state.package?.manifest?.packageId || "",
+    scopeId: state.resourceLibrary?.scopeId || "",
+    packageId: state.package?.manifest?.packageId || "",
+    packagePath: state.packageRelative,
+    slotId: spec.compatibilityFilter?.slotId || "",
+    providerFilterIds: spec.acceptedProviderIds || [],
+    metadata: { selectedPath: state.selectedPath || "" }
+  };
+}
+
+function getResourceIdentityValues(item) {
+  return [
+    item.resourceId,
+    item.libraryItemId,
+    item.stableId,
+    item.resourceKey,
+    item.runtimeResourceKey,
+    item.providerResourceKey,
+    item.packageResourceKey,
+    item.unityGuid,
+    item.unityAssetPath
+  ].filter(Boolean).map(String);
+}
+
+function findResourceLibraryItemByKey(key) {
+  if (!key) return null;
+  return getResourceLibraryItems().find(item => getResourceIdentityValues(item).includes(String(key))) || null;
 }
 
 function renderResourcePlanPreview() {
@@ -858,8 +1113,7 @@ function normalizePlanEntry(value, kind) {
 }
 
 function renderPlanEntry(entry) {
-  const resource = findResourceByKey(entry.id);
-  const item = resource ? normalizeResourceLibraryItem(resource) : null;
+  const item = findResourceLibraryItemByKey(entry.id);
   const status = entry.status || item?.runtimeAvailability || (entry.kind === "resource" ? "PendingCompile" : "External");
   return `<div class="plan-entry">
     <span>${escapeHtml(entry.kind)}</span>
@@ -1051,7 +1305,7 @@ function getUnityStatusTone(status, diagnostics = []) {
   if (normalized.includes("failed") || normalized.includes("conflict") || normalized.includes("blocked")) return "error";
   if (normalized.includes("missing") || normalized.includes("pending") || normalized.includes("sourcechanged")) return "warn";
   if (diagnostics.some(item => item.includes("为空") || item.includes("未读取") || item.includes("尚未"))) return "warn";
-  if (normalized === "imported" || normalized === "skipped" || normalized === "updated" || normalized === "added" || normalized === "created") return "ok";
+  if (["clean", "ready", "runtimeready", "imported", "skipped", "updated", "added", "created"].includes(normalized)) return "ok";
   return "";
 }
 
@@ -1495,8 +1749,6 @@ function buildTree(pkg) {
   const g = pkg.geometry || {};
   const nodes = [
     node("manifest", "manifest", "manifest", 0),
-    node("resources", "resources", "资源目录", 0),
-    ...grouped((pkg.resourceCatalog?.entries || []), "resource", entry => `resources/${entry.resourceKey || entry.localId}`, entry => entry.resourceKey || entry.relativePath || "resource", 1),
     node("config", "config", "角色配置", 0),
     node("geometry/body", "body", g.bodyProfile?.profileId || "body geometry", 0),
     ...grouped((g.bodyParts || []), "part", part => `geometry/body_parts/${part.partId}`, part => part.partId || "part", 1),
@@ -2706,6 +2958,12 @@ function renderInspector() {
       activateBoneField(button.dataset.pickerField);
     });
   });
+  el.inspector.querySelectorAll('[data-picker-action="openResourcePicker"]').forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      openResourcePickerForField(button.dataset.pickerField);
+    });
+  });
   wireBonePicker(el.inspector);
   el.inspector.querySelectorAll("[data-inspector-action]").forEach(button => {
     button.addEventListener("click", () => {
@@ -2788,7 +3046,10 @@ function renderReferenceRow(label, value, jumpPath, actionLabel) {
 
 function findResourceByKey(resourceKey) {
   if (!resourceKey) return null;
-  return (state.package?.resourceCatalog?.entries || []).find(resource => resource?.resourceKey === resourceKey) || null;
+  const packageResource = (state.package?.resourceCatalog?.entries || []).find(resource => resource?.resourceKey === resourceKey);
+  if (packageResource) return packageResource;
+  const libraryItem = findResourceLibraryItemByKey(resourceKey);
+  return libraryItem?.resource || null;
 }
 
 function collectResourceReferences(resource) {
@@ -2999,8 +3260,13 @@ function traceOptions(emptyLabel = "") {
 }
 
 function modelResourceOptions(emptyLabel = "") {
-  const options = getModelResources(state.package)
-    .map(resource => ({ value: resource.resourceKey, label: getResourceDisplayName(resource) }));
+  const options = getResourceLibraryItems()
+    .filter(item => item.kind === "Model")
+    .map(item => ({
+      value: item.runtimeResourceKey || item.packageResourceKey || item.providerResourceKey || item.resourceKey,
+      label: `${item.displayName} (${item.sourceProviderId})`
+    }))
+    .filter(option => option.value);
   return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
 }
 
@@ -3140,6 +3406,7 @@ function field(path, options = {}) {
     path,
     type: options.type || "text",
     dataType: options.dataType || options.type || "text",
+    resourceFieldRole: options.resourceFieldRole || "",
     label: options.label || path,
     options: options.options || null,
     suggestions: options.suggestions || null,
@@ -3272,7 +3539,12 @@ function renderField(target, fieldSpec) {
   if (spec.type === "select") {
     const normalized = typeof value === "boolean" ? String(value) : (value || "");
     const options = spec.options || [];
-    return `<div class="field"><label>${escapeHtml(label)}</label><select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderPickerAttribute(spec)}${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>${renderFieldHint(spec)}</div>`;
+    const select = `<select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderPickerAttribute(spec)}${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>`;
+    if (spec.picker === "resource") {
+      const picker = `<button type="button" class="picker-button" data-picker-action="openResourcePicker" data-picker-field="${escapeHtml(spec.path)}">????????????</button>`;
+      return `<div class="field field-wide"><label>${escapeHtml(label)}</label><div class="field-control">${select}${picker}</div>${renderFieldHint(spec)}</div>`;
+    }
+    return `<div class="field"><label>${escapeHtml(label)}</label>${select}${renderFieldHint(spec)}</div>`;
   }
   if (spec.type === "multiSelect") {
     const selected = new Set(Array.isArray(value) ? value.map(item => String(item)) : String(value || "").split(",").map(item => item.trim()).filter(Boolean));
@@ -3748,6 +4020,8 @@ function selectPath(path) {
   const target = findTarget(path);
   state.activeBoneFieldPath = getDefaultBoneFieldPath(target);
   state.bonePickerOpen = false;
+  state.resourcePickerField = null;
+  state.resourcePickerQuery = null;
   state.highlightedBoneValue = state.activeBoneFieldPath ? (getNested(target.value, state.activeBoneFieldPath) || "") : "";
   renderTree();
   renderResourceBindingBar();
@@ -3825,6 +4099,20 @@ function isImportBlocked() {
 async function readJson(path, fallback = null) {
   try {
     const response = await fetch(path, { cache: "no-store" });
+    if (!response.ok) return fallback;
+    return await response.json();
+  } catch {
+    return fallback;
+  }
+}
+
+async function postJson(path, body, fallback = null) {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
     if (!response.ok) return fallback;
     return await response.json();
   } catch {

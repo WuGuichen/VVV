@@ -160,7 +160,7 @@ internal static class EditorServer
             return;
         }
 
-        if (path == "/api/authoring/resources/resolve-selection" && context.Request.HttpMethod == "POST")
+        if ((path == "/api/authoring/resources/pick" || path == "/api/authoring/resources/resolve-selection") && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
@@ -169,7 +169,10 @@ internal static class EditorServer
                 characterPackage = request.package;
             AuthoringResourceCollection resources = ReadAuthoringResources(rootPath, characterPackage, jsonOptions);
             var service = new AuthoringResourceSelectionService();
-            WriteJson(context.Response, service.Resolve(resources, request.fieldSpec, request.context, request.selection), jsonOptions);
+            object result = path == "/api/authoring/resources/pick"
+                ? service.Query(resources, request.fieldSpec, request.context)
+                : service.Resolve(resources, request.fieldSpec, request.context, request.selection);
+            WriteJson(context.Response, result, jsonOptions);
             return;
         }
 
