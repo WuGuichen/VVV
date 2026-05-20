@@ -8,6 +8,8 @@ const state = {
   resources: null,
   resourcePlan: null,
   diagnostics: [],
+  diagnosticsSearch: "",
+  diagnosticsFilter: "all",
   errors: []
 };
 
@@ -16,7 +18,8 @@ const el = {};
 document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
     "serverStatus", "packageSelect", "refreshButton", "statusStrip", "toolGrid",
-    "resourceSummary", "copyDiagnosticsButton", "resourceList", "planSummary", "planGrid"
+    "resourceSummary", "copyDiagnosticsButton", "resourceList", "planSummary", "planGrid",
+    "diagnosticsSummary", "diagnosticsSearch", "diagnosticsFilter", "diagnosticsConsole"
   ]) {
     el[id] = document.getElementById(id);
   }
@@ -30,6 +33,14 @@ document.addEventListener("DOMContentLoaded", () => {
     refresh({ keepPackages: true });
   });
   el.copyDiagnosticsButton.addEventListener("click", copyDiagnostics);
+  el.diagnosticsSearch.addEventListener("input", event => {
+    state.diagnosticsSearch = event.target.value;
+    renderDiagnostics();
+  });
+  el.diagnosticsFilter.addEventListener("change", event => {
+    state.diagnosticsFilter = event.target.value;
+    renderDiagnostics();
+  });
 
   refresh();
 });
@@ -100,6 +111,8 @@ function renderLoading() {
   el.resourceList.innerHTML = "";
   el.planSummary.textContent = "正在读取...";
   el.planGrid.innerHTML = "";
+  el.diagnosticsSummary.textContent = "正在扫描诊断信息...";
+  el.diagnosticsConsole.innerHTML = "";
 }
 
 function render() {
@@ -108,6 +121,7 @@ function render() {
   renderTools();
   renderResources();
   renderPlan();
+  renderDiagnostics();
 }
 
 function renderPackageSelect() {
@@ -292,6 +306,54 @@ function collectDiagnostics() {
   return all;
 }
 
+function renderDiagnostics() {
+  const diagnostics = getFilteredDiagnostics();
+  const total = state.diagnostics.length;
+  const errorCount = state.diagnostics.filter(item => getDiagnosticSeverity(item) === "Error").length;
+  const warningCount = state.diagnostics.filter(item => getDiagnosticSeverity(item) === "Warning").length;
+
+  el.diagnosticsSummary.textContent = total === 0
+    ? "当前没有诊断信息。"
+    : `${total} 条诊断，${errorCount} 个错误，${warningCount} 个警告`;
+
+  if (diagnostics.length === 0) {
+    const message = total === 0 ? "没有诊断信息" : "没有符合过滤条件的诊断";
+    el.diagnosticsConsole.innerHTML = emptyBlock(message);
+    return;
+  }
+
+  el.diagnosticsConsole.innerHTML = diagnostics.map(diagnostic => {
+    const severity = getDiagnosticSeverity(diagnostic);
+    const tone = severity.toLowerCase();
+    const code = diagnostic.code || diagnostic.id || diagnostic.ruleId || "-";
+    const message = diagnostic.message || diagnostic.description || diagnostic.detail || JSON.stringify(diagnostic);
+    return `
+      <div class="diag-row">
+        <div class="col-type"><span class="diag-level-badge ${tone}">${escapeHtml(severity)}</span></div>
+        <div class="col-code" title="${escapeHtml(code)}">${escapeHtml(code)}</div>
+        <div class="col-msg">${escapeHtml(message)}</div>
+      </div>`;
+  }).join("");
+}
+
+function getFilteredDiagnostics() {
+  const filter = state.diagnosticsFilter;
+  const search = state.diagnosticsSearch.trim().toLowerCase();
+  return state.diagnostics.filter(diagnostic => {
+    const severity = getDiagnosticSeverity(diagnostic);
+    if (filter !== "all" && severity !== filter) return false;
+    if (!search) return true;
+    return JSON.stringify(diagnostic).toLowerCase().includes(search);
+  });
+}
+
+function getDiagnosticSeverity(diagnostic) {
+  const raw = String(diagnostic?.severity || diagnostic?.level || diagnostic?.type || "Info").toLowerCase();
+  if (raw.includes("error")) return "Error";
+  if (raw.includes("warn")) return "Warning";
+  return "Info";
+}
+
 function getCharacterResourcePlan() {
   return state.resourcePlan?.plan
     || state.resourcePlan?.characterResourcePlan
@@ -311,11 +373,20 @@ async function copyDiagnostics() {
   }, null, 2);
   try {
     await navigator.clipboard.writeText(text);
-    el.copyDiagnosticsButton.textContent = "已复制";
-    setTimeout(() => { el.copyDiagnosticsButton.textContent = "复制诊断"; }, 1200);
+    setCopyDiagnosticsLabel("已复制");
+    setTimeout(() => { setCopyDiagnosticsLabel("复制 JSON 诊断"); }, 1200);
   } catch {
     window.prompt("复制诊断", text);
   }
+}
+
+function setCopyDiagnosticsLabel(text) {
+  const label = el.copyDiagnosticsButton.querySelector("span");
+  if (label) {
+    label.textContent = text;
+    return;
+  }
+  el.copyDiagnosticsButton.textContent = text;
 }
 
 function statusChip(label, value, tone) {
