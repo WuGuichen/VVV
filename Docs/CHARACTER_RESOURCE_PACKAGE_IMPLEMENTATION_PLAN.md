@@ -450,6 +450,8 @@ Assets/MxFrameworkGenerated/CharacterPackages/<packageId>/
 
 当前 C2 第一版实现采用“文件导入 + ResourceCatalog 映射”策略：资源文件按 C0.6 `CharacterUnityImportWritePlan` 复制到 Unity 项目 `Assets/` 下，`config/unity_resource_catalog.json` 使用 `memory` provider + `providerData.assetPath` 指向导入后的项目资源路径，保留 package-local ResourceKey、stable id、source path、content/import/dependency hash 和 source package hash。实际 glTF / GLB 是否能被 Unity 解析为 `GameObject` / `AnimationClip` 由项目安装的 importer package 决定；该桥接不私自实现模型格式转换，也不把 `UnityEngine.Object` 写入 noEngine config。
 
+C2 后续必须升级为“源资源包 -> Unity 导入资产 -> Runtime Preview Prefab”的三层同步系统，任务拆分见 `Docs/Tasks/CHARACTER_RESOURCE_PACKAGE_C2_UNITY_ASSET_SYNC.md`。该阶段需要补齐 Unity imported asset catalog、GLB/FBX importer 策略、幂等导入、冲突状态机、Unity authoring override 回写和 CharacterStudio 同步状态 UI。
+
 ### 资源导入策略
 
 - 模型、贴图、动画按 import/write plan 的 target path 导入。
