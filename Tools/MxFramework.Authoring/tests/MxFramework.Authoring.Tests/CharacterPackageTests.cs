@@ -690,6 +690,14 @@ internal static class CharacterPackageTests
         Require(firstReport != null && firstReport.Status == CharacterAuthoringCompilerStatus.Ready.ToString(), "first import report should be Ready.");
         Require(firstReport.AddedCount > 0, "first import should add files.");
         string catalogJson = File.ReadAllText(catalogPath);
+        Require(catalogJson.Contains("\"format\": \"mx.characterUnityResourceCatalog.v1\""), "generated Unity ResourceCatalog should declare C2 catalog format.");
+        Require(catalogJson.Contains("\"packageResourceKey\": \"char.iron_vanguard.model.body\""), "generated Unity ResourceCatalog should expose package resource key as a top-level ledger field.");
+        Require(catalogJson.Contains("\"stableId\": \"charpkg.iron_vanguard.resource.model.body\""), "generated Unity ResourceCatalog should expose stable id as a top-level ledger field.");
+        Require(catalogJson.Contains("\"sourceRelativePath\": \"resources/models/skeleton.glb\""), "generated Unity ResourceCatalog should expose source relative path.");
+        Require(catalogJson.Contains("\"contentHash\": \"sha256:"), "generated Unity ResourceCatalog should expose resolved source content hash.");
+        Require(catalogJson.Contains("\"importHash\": \"sha256:"), "generated Unity ResourceCatalog should expose import hash.");
+        Require(catalogJson.Contains("\"diagnostics\": []"), "clean import-ready resources should have empty structured diagnostics.");
+        Require(catalogJson.Contains("\"orphanedUnityAssets\": []"), "generated Unity ResourceCatalog should expose deterministic orphan list.");
         Require(catalogJson.Contains("\"provider\": \"memory\""), "generated Unity ResourceCatalog should use v1 memory provider bridge.");
         Require(catalogJson.Contains("\"assetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb\""), "generated ResourceCatalog should preserve Unity assetPath mapping.");
         Require(catalogJson.Contains("\"unityAssetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb\""), "generated ResourceCatalog should expose Unity asset path for editor resolution.");

@@ -206,6 +206,23 @@ namespace MxFramework.CharacterRuntimeSpawn
                     if (entry == null)
                         continue;
 
+                    Dictionary<string, string> providerData = ReadStringDictionary(entry["providerData"] as JObject);
+                    MirrorUnityCatalogField(providerData, entry, "packageResourceKey");
+                    MirrorUnityCatalogField(providerData, entry, "stableId");
+                    MirrorUnityCatalogField(providerData, entry, "usage");
+                    MirrorUnityCatalogField(providerData, entry, "sourceRelativePath");
+                    MirrorUnityCatalogField(providerData, entry, "sourceFormat");
+                    MirrorUnityCatalogField(providerData, entry, "declaredContentHash");
+                    MirrorUnityCatalogField(providerData, entry, "contentHash");
+                    MirrorUnityCatalogField(providerData, entry, "importHash");
+                    MirrorUnityCatalogField(providerData, entry, "dependencyHash");
+                    MirrorUnityCatalogField(providerData, entry, "unityAssetPath");
+                    MirrorUnityCatalogField(providerData, entry, "unityAssetGuid");
+                    MirrorUnityCatalogField(providerData, entry, "unityMainObjectType");
+                    MirrorUnityCatalogField(providerData, entry, "importerKind");
+                    MirrorUnityCatalogField(providerData, entry, "importStatus");
+                    MirrorUnityCatalogDiagnostics(providerData, entry["diagnostics"] as JArray);
+
                     entries.Add(new ResourceCatalogEntry(
                         ReadString(entry, "id"),
                         ReadString(entry, "type"),
@@ -218,11 +235,40 @@ namespace MxFramework.CharacterRuntimeSpawn
                         ReadString(entry, "hash"),
                         ReadLong(entry, "size"),
                         ReadBool(entry, "allowOverride"),
-                        ReadStringDictionary(entry["providerData"] as JObject)));
+                        providerData));
                 }
             }
 
             return new ResourceCatalog(catalogId, packageId, entries);
+        }
+
+        private static void MirrorUnityCatalogField(Dictionary<string, string> providerData, JObject entry, string name)
+        {
+            if (providerData == null || entry == null || string.IsNullOrWhiteSpace(name) || providerData.ContainsKey(name))
+                return;
+
+            string value = ReadString(entry, name);
+            if (!string.IsNullOrWhiteSpace(value))
+                providerData[name] = value;
+        }
+
+        private static void MirrorUnityCatalogDiagnostics(Dictionary<string, string> providerData, JArray diagnostics)
+        {
+            if (providerData == null || diagnostics == null || diagnostics.Count == 0)
+                return;
+
+            providerData["diagnosticCount"] = diagnostics.Count.ToString(CultureInfo.InvariantCulture);
+            var codes = new List<string>();
+            for (int i = 0; i < diagnostics.Count; i++)
+            {
+                JObject item = diagnostics[i] as JObject;
+                string code = ReadString(item, "code");
+                if (!string.IsNullOrWhiteSpace(code))
+                    codes.Add(code);
+            }
+
+            codes.Sort(StringComparer.Ordinal);
+            providerData["diagnosticCodes"] = string.Join(",", codes);
         }
 
         public static CharacterUnityImportRuntimeReport LoadImportReport(string json)

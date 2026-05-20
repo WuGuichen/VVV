@@ -556,7 +556,9 @@ internal static class EditorServer
             ValidateResourceHashes = false
         });
 
-        string importReportPath = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", package.Manifest.PackageId, "package_cache", "import_report.json");
+        string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", package.Manifest.PackageId);
+        string importReportPath = Path.Combine(generatedRoot, "package_cache", "import_report.json");
+        string unityResourceCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
 
         return new
         {
@@ -564,7 +566,9 @@ internal static class EditorServer
             canWrite = true,
             package,
             validation,
-            importReport = File.Exists(importReportPath) ? ReadOptionalJson(rootPath, importReportPath) : null
+            importReport = File.Exists(importReportPath) ? ReadOptionalJson(rootPath, importReportPath) : null,
+            unityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
+            unityResourceCatalog = File.Exists(unityResourceCatalogPath) ? ReadOptionalJson(rootPath, unityResourceCatalogPath) : null
         };
     }
 
@@ -1364,6 +1368,15 @@ internal static class EditorServer
             return null;
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(fullPath));
         return doc.RootElement.Clone();
+    }
+
+    private static string ToProjectRelativePath(string rootPath, string path)
+    {
+        string fullRoot = Path.GetFullPath(rootPath);
+        string fullPath = Path.GetFullPath(path);
+        if (!fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+            return fullPath.Replace('\\', '/');
+        return Path.GetRelativePath(fullRoot, fullPath).Replace('\\', '/');
     }
 
     private static void ServeStatic(HttpListenerResponse response, string rootPath, string requestPath)

@@ -10,11 +10,11 @@
   "canSpawnAfterImport": true,
   "targetRootPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard",
   "reportPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/package_cache/import_report.json",
-  "sourcePackageHash": "sha256:219331b6e775e2296dc35847b9d32f5b17e3721453518495f65fec742e7a07a6",
+  "sourcePackageHash": "sha256:888fa63384a6c7c7b1feba9e288c3e6ed286de642f1592cd000b21a9bed71f88",
   "generatedConfigHash": "sha256:0225540c5f42d3667c64c10b14214e6eb7e2dcb160ec75fbf0931f561854dc1f",
   "geometryBindingHash": "sha256:8a62027b82bd29b20b4d53d9f2b61a8c0437b1071fc995aaeff4e6edc3fbc802",
-  "resourceMappingHash": "sha256:56e9929c601a544041bb3025a78ad2bab1fbed24824df615a0e9428e18db12e4",
-  "writePlanHash": "sha256:2c31d1e294993c05ef2c6fcf696d6ebdc097b2d6a302fa0bf23b37e7df7508e8",
+  "resourceMappingHash": "sha256:db49f8abb5715258ed51572a9914b082ac03bb3025b3db7eaee5362574d4e2a4",
+  "writePlanHash": "sha256:79b605e11a685e53b6abca07238a3a4294acddc0aec57d007ce36c28b637ef03",
   "addedCount": 0,
   "updatedCount": 0,
   "skippedCount": 21,
@@ -50,8 +50,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:869e850fc0e0715cba2519eba01b098e650cec15a0766f2138f71cce5bbe51bd",
-      "existingHash": "sha256:869e850fc0e0715cba2519eba01b098e650cec15a0766f2138f71cce5bbe51bd",
+      "contentHash": "sha256:270497c8ca5524fb1638ba593bcbc6f016d0a40c7aeb0f97ec7ce214bf58844e",
+      "existingHash": "sha256:270497c8ca5524fb1638ba593bcbc6f016d0a40c7aeb0f97ec7ce214bf58844e",
       "message": "hash unchanged."
     },
     {
@@ -61,8 +61,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
       "writePolicy": "CopyIfHashChanged",
       "action": "Skipped",
-      "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
-      "existingHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+      "contentHash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20",
+      "existingHash": "sha256:5ba7e29846cf85a8450cd5d261804558522bf585823b5e2af8146ec18bf8ac20",
       "message": "hash unchanged."
     },
     {
@@ -116,8 +116,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
       "writePolicy": "CopyIfHashChanged",
       "action": "Skipped",
-      "contentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
-      "existingHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
+      "contentHash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
+      "existingHash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
       "message": "hash unchanged."
     },
     {
@@ -138,8 +138,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/package_cache/resource_catalog.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:285206b11922107f7574e4333182cb2b409affbf2c64b0c0d05ee4cf9fb733ee",
-      "existingHash": "sha256:285206b11922107f7574e4333182cb2b409affbf2c64b0c0d05ee4cf9fb733ee",
+      "contentHash": "sha256:66906aacfb00fd22c2a41bc7e47cbce995f2eadefceed7c04b4ba869b6ccd87f",
+      "existingHash": "sha256:66906aacfb00fd22c2a41bc7e47cbce995f2eadefceed7c04b4ba869b6ccd87f",
       "message": "hash unchanged."
     },
     {
@@ -149,8 +149,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/package_cache/compile_result.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:ae4e392721fb15a6666a0ca77de8207c8c809b402b362796018abcb43f2d2348",
-      "existingHash": "sha256:ae4e392721fb15a6666a0ca77de8207c8c809b402b362796018abcb43f2d2348",
+      "contentHash": "sha256:a73ff37023bceeb24c10e4f966b14b84bb47ce088f72fd8f7825638f4e7a4453",
+      "existingHash": "sha256:a73ff37023bceeb24c10e4f966b14b84bb47ce088f72fd8f7825638f4e7a4453",
       "message": "hash unchanged."
     },
     {
@@ -160,8 +160,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/package_cache/unity_import_write_plan.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:c658df3ff5c88f1408d014701f8007b61316fce2d86c73f6430b2f5c2dff9d4a",
-      "existingHash": "sha256:c658df3ff5c88f1408d014701f8007b61316fce2d86c73f6430b2f5c2dff9d4a",
+      "contentHash": "sha256:48e58be573b64ddd0eaa94d32c63f697c042982c4ab404e5a8c6d3157a608f25",
+      "existingHash": "sha256:48e58be573b64ddd0eaa94d32c63f697c042982c4ab404e5a8c6d3157a608f25",
       "message": "hash unchanged."
     },
     {
@@ -171,8 +171,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/package_cache/resource_hash_report.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:1e151878d31498be2e3509d25a25df16b505553340f8cb78d343bd8496c31428",
-      "existingHash": "sha256:1e151878d31498be2e3509d25a25df16b505553340f8cb78d343bd8496c31428",
+      "contentHash": "sha256:ec810682c663f00bab2ae8e1c61370c7f779a511e1bf403fffc981fb43d6a3a2",
+      "existingHash": "sha256:ec810682c663f00bab2ae8e1c61370c7f779a511e1bf403fffc981fb43d6a3a2",
       "message": "hash unchanged."
     },
     {
@@ -226,8 +226,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/config/resource_catalog_mapping.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:feea3ea00bcc489a54af6bdb44fc9ef561cb46690d89946f76b178601bd57889",
-      "existingHash": "sha256:feea3ea00bcc489a54af6bdb44fc9ef561cb46690d89946f76b178601bd57889",
+      "contentHash": "sha256:60b5876ec1e2cb8d177f30fad2d08d79e523e1187b79e13529b1dd6cd408bc2d",
+      "existingHash": "sha256:60b5876ec1e2cb8d177f30fad2d08d79e523e1187b79e13529b1dd6cd408bc2d",
       "message": "hash unchanged."
     },
     {
@@ -248,8 +248,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/config/unity_resource_catalog.json",
       "writePolicy": "Recreate",
       "action": "Skipped",
-      "contentHash": "sha256:3eb96a0f3e83afe21a92b5181b492ff3051208070a051b6e332af53733b23979",
-      "existingHash": "sha256:3eb96a0f3e83afe21a92b5181b492ff3051208070a051b6e332af53733b23979",
+      "contentHash": "sha256:7ddea3f37bc3cc2905caf2aa3352b1848a08afcb6e992076399a84fe5eb6aa91",
+      "existingHash": "sha256:7ddea3f37bc3cc2905caf2aa3352b1848a08afcb6e992076399a84fe5eb6aa91",
       "message": "hash unchanged."
     }
   ],
