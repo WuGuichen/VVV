@@ -20,6 +20,7 @@ internal static class CharacterPackageTests
         CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
+        AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
         ResourceReferenceGraph_ValidatesBrokenReferencesAndOrphans();
         ResourceKeyGenerator_GeneratesStablePackageLocalKey();
@@ -915,6 +916,96 @@ internal static class CharacterPackageTests
                 }
             }
         };
+    }
+
+    private static void AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics()
+    {
+        var package = new CharacterResourcePackage();
+        package.Manifest.PackageId = "test";
+        package.Manifest.StableId = "charpkg.test";
+        package.ApplicationConfig.CharacterStableId = "character.test";
+        package.ApplicationConfig.ResourceKeys.Add("char.test.model.body");
+        package.ApplicationConfig.ResourceKeys.Add("char.test.resource.missing");
+        package.Geometry.WeaponAttachments.Add(new WeaponAttachmentProfile
+        {
+            WeaponId = "weapon.test.sword",
+            PreviewResourceKey = "char.test.weapon.sword"
+        });
+
+        package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.model.body",
+            LocalId = "model.body",
+            StableId = "charpkg.test.resource.model.body",
+            TypeId = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            PackageId = "test",
+            RelativePath = "resources/models/body.glb",
+            Preview = new CharacterPackagePreviewMetadata
+            {
+                ThumbnailResourceKey = "char.test.preview.thumbnail"
+            },
+            Dependencies = new List<CharacterPackageResourceDependency>
+            {
+                new CharacterPackageResourceDependency
+                {
+                    ResourceKey = "char.test.material.body",
+                    Required = true,
+                    Relation = "material"
+                }
+            }
+        });
+        package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.weapon.sword",
+            StableId = "charpkg.test.resource.weapon.sword",
+            TypeId = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.WeaponModel,
+            PackageId = "test"
+        });
+        package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.material.body",
+            StableId = "charpkg.test.resource.material.body",
+            TypeId = CharacterPackageResourceTypeIds.Material,
+            Usage = CharacterPackageResourceUsageIds.Material,
+            PackageId = "test"
+        });
+        package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.preview.thumbnail",
+            StableId = "charpkg.test.resource.preview.thumbnail",
+            TypeId = CharacterPackageResourceTypeIds.Preview,
+            Usage = CharacterPackageResourceUsageIds.PreviewThumbnail,
+            PackageId = "test"
+        });
+        package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.unused",
+            StableId = "charpkg.test.resource.unused",
+            TypeId = CharacterPackageResourceTypeIds.Texture,
+            Usage = CharacterPackageResourceUsageIds.Texture,
+            PackageId = "test"
+        });
+
+        AuthoringResourceCollection collection = CharacterPackageAuthoringResourceProvider.FromPackageResourceCatalog(
+            package.ResourceCatalog,
+            new AuthoringResourceProviderContext { PackageId = "test" });
+        AuthoringResourceItem body = collection.Items.Find(item => item.StableId == "charpkg.test.resource.model.body");
+        body.RuntimeAvailability = AuthoringResourceRuntimeAvailability.NotRuntimeLoadable;
+
+        AuthoringResourceReferenceGraph graph = AuthoringResourceReferenceGraphBuilder.FromCharacterPackage(package, collection);
+
+        Require(graph.Edges.Exists(edge => edge.SourceConfigKind == "character" && edge.TargetProviderResourceKey == "char.test.model.body" && edge.PreloadPolicy == AuthoringResourcePreloadPolicies.SpawnCritical), "character resource key should become a graph edge.");
+        Require(graph.Edges.Exists(edge => edge.SourceConfigKind == "weapon" && edge.SourceStableId == "weapon.test.sword" && edge.TargetProviderResourceKey == "char.test.weapon.sword"), "weapon preview resource should become a graph edge.");
+        Require(graph.Edges.Exists(edge => edge.SourceConfigKind == "resource" && edge.SourceField == "dependencies/0/resourceKey" && edge.TargetProviderResourceKey == "char.test.material.body"), "resource dependencies should become graph edges.");
+        Require(graph.Edges.Exists(edge => edge.SourceConfigKind == "resource" && edge.SourceField == "preview.thumbnailResourceKey" && edge.TargetProviderResourceKey == "char.test.preview.thumbnail"), "preview metadata should become graph edges.");
+        Require(graph.CountReferencesToStableId("charpkg.test.resource.model.body") == 1, "graph should count incoming references by stable id.");
+        Require(graph.FindReferencesToResource(body).Count == 1, "graph should find incoming references for an item.");
+        Require(graph.HasIncomingReferences(body), "referenceCount > 0 should block destructive delete.");
+        Require(graph.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ReferenceBroken && diagnostic.SourceField == "resourceKeys/1"), "missing target should produce a broken reference diagnostic.");
+        Require(graph.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.NotRuntimeLoadable && diagnostic.ResourceStableId == "charpkg.test.resource.model.body"), "runtime-required non-loadable target should produce runtime availability diagnostic.");
+        Require(graph.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.OrphanCandidate && diagnostic.ResourceStableId == "charpkg.test.resource.unused"), "unreferenced resources should be orphan warnings.");
     }
 
     private static void ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference()

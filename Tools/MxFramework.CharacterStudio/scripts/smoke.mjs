@@ -62,6 +62,7 @@ assert(appSource.includes("RESOURCE_FIELD_SPECS"), "CharacterStudio should expos
 assert(appSource.includes("resourcePickerOpen") && appSource.includes("openResourcePicker"), "CharacterStudio should open resources through a field-scoped picker");
 assert(appSource.includes("createResourceSelectionRef") && appSource.includes("resourceStableId") && appSource.includes("runtimeResourceKey"), "CharacterStudio should create the new ResourceSelectionRef shape");
 assert(appSource.includes("sourceProviderId") && appSource.includes("providerResourceKey") && appSource.includes("packageResourceKey"), "CharacterStudio selection should keep provider-local identity separate from runtime keys");
+assert(appSource.includes("collectResourceReferences") && appSource.includes("previewResourceKey") && appSource.includes("dependencies") && appSource.includes("preview.thumbnailResourceKey"), "CharacterStudio reference collection should cover character, weapon, dependency, and preview references");
 assert(indexSource.includes("resourcePickerOverlay"), "CharacterStudio should render the resource picker as an on-demand dialog");
 assert(!indexSource.includes("modelResourceList"), "CharacterStudio should not keep a full resource library list in the main viewport");
 assert(appSource.includes("SpawnCritical") && appSource.includes("EquipmentInitial") && appSource.includes("AnimationWarmup"), "CharacterStudio should render resource plan groups");

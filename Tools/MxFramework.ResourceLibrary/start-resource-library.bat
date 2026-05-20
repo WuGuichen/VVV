@@ -20,8 +20,8 @@ if "%PACKAGE_RELATIVE%"=="" set "PACKAGE_RELATIVE=%DEFAULT_PACKAGE%"
 if "%MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER%"=="" set "MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER=1"
 set "URL_PACKAGE=%PACKAGE_RELATIVE:\=/%"
 set "URL=http://127.0.0.1:%PORT%/Tools/MxFramework.ResourceLibrary/web/?package=%URL_PACKAGE%"
-set "HEALTH_LIST_URL=http://127.0.0.1:%PORT%/api/character/resources?package=%URL_PACKAGE%"
-set "HEALTH_INSPECT_URL=http://127.0.0.1:%PORT%/api/character/resources/inspect?package=%URL_PACKAGE%&id=model.body"
+set "HEALTH_LIST_URL=http://127.0.0.1:%PORT%/api/authoring/resources?package=%URL_PACKAGE%"
+set "HEALTH_INSPECT_URL=http://127.0.0.1:%PORT%/api/authoring/resources/inspect?package=%URL_PACKAGE%&id=char.iron_vanguard.model.body"
 
 echo %PORT%| findstr /r "^[0-9][0-9]*$" >nul
 if errorlevel 1 (
