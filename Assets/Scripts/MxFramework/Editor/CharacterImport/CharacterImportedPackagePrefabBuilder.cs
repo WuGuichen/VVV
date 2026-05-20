@@ -124,6 +124,7 @@ namespace MxFramework.Editor.CharacterImport
                 AddBoneRuntimeSync(rootObject, boneBindings);
                 AddRuntimeControllerBinding(rootObject, package, spawnResult);
                 AddRuntimeInputMotionController(rootObject);
+                AddRuntimeLocomotionBlendController(rootObject, modelRoot, bodyModel, animationClips);
                 AddDefaultEquipmentRuntimeBinder(rootObject, package, spawnResult, socketsRoot, weaponsRoot, sockets, weaponPrefabs, animationClips);
 
                 string prefabFolder = root + "/prefabs";
@@ -265,6 +266,18 @@ namespace MxFramework.Editor.CharacterImport
             EditorUtility.SetDirty(controller);
         }
 
+        private static void AddRuntimeLocomotionBlendController(
+            GameObject rootObject,
+            Transform modelRoot,
+            Transform bodyModel,
+            AnimationClip[] animationClips)
+        {
+            CharacterRuntimeLocomotionBlendController controller = rootObject.AddComponent<CharacterRuntimeLocomotionBlendController>();
+            Animator animator = bodyModel == null ? null : bodyModel.GetComponentInChildren<Animator>(includeInactive: true);
+            controller.Configure(modelRoot, animator, animationClips);
+            EditorUtility.SetDirty(controller);
+        }
+
         private static AnimationClip[] LoadAnimationClips(CharacterImportedPackage package)
         {
             var clips = new List<AnimationClip>();
@@ -274,7 +287,7 @@ namespace MxFramework.Editor.CharacterImport
             for (int i = 0; i < package.ResourceMapping.Entries.Length; i++)
             {
                 CharacterImportedResourceMappingEntry entry = package.ResourceMapping.Entries[i];
-                if (!string.Equals(entry.TypeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal))
+                if (!IsAnimationResource(entry))
                     continue;
                 if (string.IsNullOrWhiteSpace(entry.ImportTargetPath))
                     continue;
@@ -283,6 +296,17 @@ namespace MxFramework.Editor.CharacterImport
             }
 
             return clips.ToArray();
+        }
+
+        private static bool IsAnimationResource(CharacterImportedResourceMappingEntry entry)
+        {
+            if (entry == null)
+                return false;
+
+            return string.Equals(entry.TypeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal)
+                || string.Equals(entry.TypeId, "AnimationClipGroup", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.TypeId, "animation", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Usage, "animationClipGroup", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void AddAnimationClipsAtPath(string assetPath, List<AnimationClip> clips)
