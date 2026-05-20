@@ -122,6 +122,7 @@ namespace MxFramework.Editor.CharacterImport
                 CreateWeapons(package, resources, weaponsRoot, sockets);
                 CreateColliders(package, collidersRoot, bodyModel, boneBindings);
                 AddBoneRuntimeSync(rootObject, boneBindings);
+                AddRuntimeControllerBinding(rootObject, package, spawnResult);
                 AddDefaultEquipmentRuntimeBinder(rootObject, package, spawnResult, socketsRoot, weaponsRoot, sockets, weaponPrefabs, animationClips);
 
                 string prefabFolder = root + "/prefabs";
@@ -242,6 +243,19 @@ namespace MxFramework.Editor.CharacterImport
                 clips.GetArrayElementAtIndex(i).objectReferenceValue = animationClips[i];
 
             serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void AddRuntimeControllerBinding(
+            GameObject rootObject,
+            CharacterImportedPackage package,
+            CharacterRuntimeSpawnResult spawnResult)
+        {
+            if (spawnResult == null || !spawnResult.IsSuccess)
+                return;
+
+            CharacterRuntimeControllerBinding binding = rootObject.AddComponent<CharacterRuntimeControllerBinding>();
+            binding.ConfigureFromRuntimeBinding(package.PackageId, spawnResult.Binding);
+            EditorUtility.SetDirty(binding);
         }
 
         private static AnimationClip[] LoadAnimationClips(CharacterImportedPackage package)

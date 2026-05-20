@@ -3,6 +3,10 @@
     "rootNamespace": "MxFramework.CharacterRuntimeSpawn.Unity",
     "references": [
         "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Character.Application",
+        "MxFramework.CharacterControl",
+        "MxFramework.Combat",
+        "MxFramework.Gameplay",
         "MxFramework.Resources"
     ],
     "includePlatforms": [],

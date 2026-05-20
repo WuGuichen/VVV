@@ -1,3 +1,4 @@
+using MxFramework.CharacterControl;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
 using NUnit.Framework;
@@ -20,6 +21,8 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             {
                 sockets.SetParent(characterTemplate.transform, false);
                 socket.SetParent(sockets, false);
+                CharacterRuntimeControllerBinding controllerBinding = characterTemplate.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureControllerBinding(controllerBinding);
                 CharacterDefaultEquipmentRuntimeBinder binder = characterTemplate.AddComponent<CharacterDefaultEquipmentRuntimeBinder>();
                 ConfigureBinder(binder, sockets, socket);
 
@@ -34,6 +37,13 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
                 Assert.AreEqual(1, runtimeBinder.SpawnedWeapons.Count);
                 Assert.AreEqual("DefaultWeapon_mainHand_weapon.iron_sword", runtimeBinder.SpawnedWeapons[0].name);
                 Assert.AreSame(runtimeBinder.SpawnedWeapons[0].transform.parent, runtimeBinder.DefaultWeapons[0].SocketTransform);
+
+                CharacterRuntimeControllerBinding runtimeController =
+                    bootstrap.CharacterInstance.GetComponent<CharacterRuntimeControllerBinding>();
+                Assert.NotNull(runtimeController);
+                Assert.IsTrue(runtimeController.IsInitialized);
+                Assert.AreEqual(CharacterControlState.Locomotion, runtimeController.StateMachine.CurrentState);
+                Assert.AreEqual(1001, runtimeController.StateMachine.Entity.StableId);
             }
             finally
             {
@@ -63,6 +73,17 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             item.FindPropertyRelative("_localPosition").vector3Value = Vector3.zero;
             item.FindPropertyRelative("_localRotation").quaternionValue = Quaternion.identity;
             item.FindPropertyRelative("_localScale").vector3Value = Vector3.one;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void ConfigureControllerBinding(CharacterRuntimeControllerBinding binding)
+        {
+            var serialized = new SerializedObject(binding);
+            serialized.FindProperty("_stableCharacterId").intValue = 1001;
+            serialized.FindProperty("_gameplayEntityIndex").intValue = 1001;
+            serialized.FindProperty("_gameplayEntityGeneration").intValue = 1;
+            serialized.FindProperty("_combatEntityId").intValue = 1001;
+            serialized.FindProperty("_combatBodyId").intValue = 1001;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

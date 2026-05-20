@@ -67,6 +67,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (binder != null)
                 binder.ConfigureResourceManager(_resourceManager, instantiateDefaultWeapons: true);
 
+            CharacterRuntimeControllerBinding controllerBinding = _characterInstance.GetComponent<CharacterRuntimeControllerBinding>();
+            if (controllerBinding != null)
+                controllerBinding.Initialize();
+
             return true;
         }
 
