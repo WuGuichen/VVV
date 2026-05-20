@@ -4,13 +4,57 @@ CharacterStudio is the external browser workstation for authoring Character Reso
 
 ## Run
 
-Install the browser 3D dependency once:
+Authoring server is required for save, compile, source model import, and Unity import. The one-command launch scripts run the server, check the local environment, and open CharacterStudio in the browser.
+
+macOS:
+
+```bash
+Tools/MxFramework.CharacterStudio/start-character-studio.sh
+```
+
+Windows:
+
+```bat
+Tools\MxFramework.CharacterStudio\start-character-studio.bat
+```
+
+macOS Finder can also double-click:
+
+```text
+Tools/MxFramework.CharacterStudio/start-character-studio.command
+```
+
+Defaults:
+
+- port: `4873`
+- package: `Tools/MxFramework.Authoring/samples/character-iron-vanguard`
+- URL: `http://127.0.0.1:4873/Tools/MxFramework.CharacterStudio/web/`
+
+Optional port and package override:
+
+```bash
+Tools/MxFramework.CharacterStudio/start-character-studio.sh 4874 Tools/MxFramework.Authoring/samples/character-slime
+```
+
+```bat
+Tools\MxFramework.CharacterStudio\start-character-studio.bat 4874 Tools\MxFramework.Authoring\samples\character-slime
+```
+
+The launch scripts check:
+
+- repository root and Authoring CLI project;
+- .NET 9+ SDK in `PATH`;
+- selected character package and `manifest.json`;
+- port availability, with a friendly message if the server is already running;
+- optional CharacterStudio npm dependencies for Three.js GLB preview and FBX conversion.
+
+Install the browser 3D / FBX dependency once when model preview or FBX conversion is needed:
 
 ```bash
 npm --prefix Tools/MxFramework.CharacterStudio install
 ```
 
-From the repository root:
+Manual fallback from the repository root:
 
 ```bash
 dotnet run --project Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- \
