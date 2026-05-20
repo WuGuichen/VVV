@@ -14,7 +14,8 @@
         "MxFramework.Input",
         "MxFramework.Preview.Runtime",
         "MxFramework.Resources",
-        "MxFramework.Editor"
+        "MxFramework.Editor",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [
         "Editor"

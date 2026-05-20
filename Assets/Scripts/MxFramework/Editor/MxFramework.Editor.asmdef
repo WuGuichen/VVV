@@ -14,7 +14,10 @@
         "MxFramework.Diagnostics",
         "MxFramework.Resources",
         "MxFramework.Resources.Unity",
-        "MxFramework.Animation"
+        "MxFramework.Animation",
+        "MxFramework.Character.Application",
+        "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Character.RuntimeSpawn.Unity"
     ],
     "includePlatforms": [
         "Editor"

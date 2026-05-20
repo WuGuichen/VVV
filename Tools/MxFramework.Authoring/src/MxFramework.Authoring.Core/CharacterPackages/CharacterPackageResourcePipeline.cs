@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -306,7 +307,8 @@ namespace MxFramework.Authoring
             {
                 builder.Append(hint.TargetPathPolicy).Append('\n');
                 builder.Append(hint.TargetRelativePath).Append('\n');
-                builder.Append(hint.Scale.ToString("R")).Append('\n');
+                builder.Append(hint.Scale.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+                AppendPose(builder, hint.ModelWrapperPose);
                 builder.Append(hint.MaterialPolicy).Append('\n');
                 builder.Append(hint.AnimationPolicy).Append('\n');
                 builder.Append(hint.ProviderId).Append('\n');
@@ -319,6 +321,51 @@ namespace MxFramework.Authoring
             }
 
             return CharacterPackageHashUtility.ComputeTextSha256(builder.ToString());
+        }
+
+        private static void AppendPose(StringBuilder builder, CharacterAuthoringLocalPose pose)
+        {
+            if (pose == null)
+            {
+                builder.Append("pose|null\n");
+                return;
+            }
+
+            builder.Append("pose|")
+                .Append(pose.ParentKind).Append('|')
+                .Append(pose.ParentPath).Append('|');
+            AppendVector(builder, pose.Position);
+            AppendQuaternion(builder, pose.Rotation);
+            AppendVector(builder, pose.Scale);
+            AppendVector(builder, pose.EulerHint);
+            builder.Append('\n');
+        }
+
+        private static void AppendVector(StringBuilder builder, CharacterAuthoringVector3 value)
+        {
+            if (value == null)
+            {
+                builder.Append("null|null|null|");
+                return;
+            }
+
+            builder.Append(value.X.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Z.ToString("R", CultureInfo.InvariantCulture)).Append('|');
+        }
+
+        private static void AppendQuaternion(StringBuilder builder, CharacterAuthoringQuaternion value)
+        {
+            if (value == null)
+            {
+                builder.Append("null|null|null|null|");
+                return;
+            }
+
+            builder.Append(value.X.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Z.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.W.ToString("R", CultureInfo.InvariantCulture)).Append('|');
         }
 
         public static string ComputeDependencyHash(CharacterPackageResourceEntry entry, CharacterPackageResourceCatalog catalog)

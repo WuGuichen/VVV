@@ -6,14 +6,14 @@
       "stableId": "charpkg.iron_vanguard.resource.model.body",
       "typeId": "model",
       "usage": "characterModel",
-      "relativePath": "resources/models/iron_vanguard.glb"
+      "relativePath": "resources/models/skeleton.glb"
     },
     {
       "resourceKey": "char.iron_vanguard.weapon.sword.model",
       "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
       "typeId": "model",
       "usage": "weaponModel",
-      "relativePath": "resources/models/iron_sword.glb"
+      "relativePath": "resources/models/katana.glb"
     },
     {
       "resourceKey": "char.iron_vanguard.weapon.shield.model",

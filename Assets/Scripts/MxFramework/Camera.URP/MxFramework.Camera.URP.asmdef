@@ -1,0 +1,18 @@
+{
+    "name": "MxFramework.Camera.URP",
+    "rootNamespace": "MxFramework.Camera.URP",
+    "references": [
+        "MxFramework.Camera",
+        "MxFramework.Camera.Unity",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

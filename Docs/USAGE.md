@@ -11,7 +11,9 @@
 - Runtime 不依赖 UnityEditor，不依赖 WGame、Entitas、Luban 或 AI 插件。
 - 配置表先通过 `ConfigSchema` 描述，再由项目自己的 Excel/CSV/Json/Luban/ScriptableObject 适配器转成 `ConfigTable<T>`。
 
-角色资源包 Runtime Spawn 第一切片当前是 `Runtime Slice`：使用 `CharacterImportedPackageJson.LoadFromDirectory("Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard")` 读取 #222 导入产物，再通过 `CharacterRuntimeSpawnResolver.Resolve(...)` 或 `CharacterRuntimeSpawnModule` 得到 `CharacterRuntimeBinding`。该切片用于验证 resolver、gate、resource mapping、geometry binding 和 runtime id plan，不承诺完整 Unity 可玩角色或场景入口。
+角色资源包 Runtime Spawn 第一切片当前是 `Runtime Slice`：使用 `CharacterImportedPackageJson.LoadFromDirectory("Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard")` 读取 #222 导入产物，再通过 `CharacterRuntimeSpawnResolver.Resolve(...)` 或 `CharacterRuntimeSpawnModule` 得到 `CharacterRuntimeBinding`。该切片用于验证 resolver、gate、resource mapping、geometry binding 和 runtime id plan。
+
+导入完成后可以在 Unity 中生成可摆放到实际场景的预览 Prefab：执行菜单 `MxFramework/Character/Create Preview Prefab For Iron Vanguard`，产物写入 `Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/prefabs/iron_vanguard_character_preview.prefab`。也可以执行 `MxFramework/Character/Create Preview Scene For Iron Vanguard` 生成 `Assets/Scenes/MxFramework/CharacterImportedPreview.unity`。该 Prefab 会读取导入后的 `config/*.json`，复用 `CharacterRuntimeSpawnResolver` 做 gate / binding 校验，然后把角色主体模型、武器模型、挂点和 authoring 碰撞体装配成 Unity GameObject 层级；如果项目缺少 GLB importer，会使用占位体并在 Console 输出提示。
 
 ## 2. Events 事件总线
 
@@ -627,6 +629,34 @@ Runtime Showcase 通用约定：
 - Preview Target 使用 `MxPreviewSceneTargetProfile` 资产配置，运行前场景中不常驻 `SceneTargetConfig` 或 `MxPreviewSceneTarget`。
 - 默认 HUD 是单一紧凑面板；Preview Target legacy overlay 默认关闭，避免多个 HUD 在 Game 视图中堆叠。
 - Snapshot v0 不包含 JSON 序列化、编辑器 UI、Runtime Preview 协议或 WGame 业务类型。
+
+### 6.10 UI Camera 3D Validation
+
+UI Camera 3D Validation 用于验证 UI 3D Overlay Camera 路径：主相机作为 URP Base Camera，UI 3D 相机作为 Overlay Camera 加入 camera stack；普通 UI 仍由 UI Toolkit HUD 显示。该入口只验证表现层 camera / layer / HUD 绑定，不承诺玩法闭环，因此交付等级是 `Runtime Slice`。
+
+代码入口：
+- Runtime / Composition Root：`Assets/Scripts/MxFramework/Demo/CameraUi/UiCamera3DValidationDemo.cs`
+- 场景生成：`Assets/Scripts/MxFramework/Demo/Editor/CreateUiCamera3DValidationScene.cs`
+- UI Toolkit：`Assets/UI/MxFramework/CameraUi3DValidation/UiCamera3DValidation.uxml` / `.uss`
+- 场景：`Assets/Scenes/UiCamera3DValidation.unity`
+- 测试：`Assets/Scripts/MxFramework/Tests/Demo/CameraUi/UiCamera3DValidationDemoTests.cs`
+
+生成或重建场景：
+```text
+MxFramework/Camera UI/Create 3D Validation Scene
+```
+
+手动验证：
+1. 打开 `Assets/Scenes/UiCamera3DValidation.unity` 并进入 Play Mode。
+2. Game 视图应同时显示世界参考 cube、右侧 UI-layer 3D 物体和左上角 UI Toolkit HUD。
+3. HUD 的 `URP Overlay Stack Bound`、`Base excludes UI layer`、`Overlay only UI layer`、`3D UI object on UI layer` 均应显示成功状态。
+4. 点击 `Rebind` 应保持 stack 绑定成功；点击 `Pause Spin` / `Resume Spin` 应切换 UI 3D 物体旋转状态。
+5. Console 不应出现新增 error。
+
+约束：
+- 该 Demo 依赖 `MxFramework.Camera.URP`，URP 依赖保持在 Unity-facing Demo / adapter 层，不进入 noEngine camera core。
+- UI 3D 物体使用项目已有 `UI` layer 作为最小验证层；主相机排除该 layer，Overlay Camera 只渲染该 layer。
+- 不手写 `.unity`、Material 或 PanelSettings YAML；这些序列化资产由 Unity 菜单创建并保存。
 
 ## 7. Config 表和校验
 

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework CharacterStudio</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../node_modules/three/build/three.module.js",
+        "three/addons/": "../node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>CharacterStudio</h1>
+        <p id="subtitle">角色资源包外部装配工作台</p>
+      </div>
+      <div class="toolbar">
+        <select id="packageSelect" title="角色资源包"></select>
+        <select id="modelImportRole" title="模型用途">
+          <option value="body">角色主体模型</option>
+          <option value="mainHand">主手槽武器模型</option>
+          <option value="offHand">副手槽武器模型</option>
+          <option value="preview">仅导入资源</option>
+        </select>
+        <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
+        <input id="modelReplaceFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
+        <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入模型</button>
+        <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
+        <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
+        <button id="compileButton" type="button" title="运行 Character compile 预检">预检</button>
+        <button id="importButton" type="button" title="把当前资源包导入 Unity 工程">导入 Unity</button>
+      </div>
+    </header>
+
+    <main id="workspace" class="workspace">
+      <aside class="tree-panel">
+        <div class="panel-heading">
+          <h2>资源包</h2>
+          <div class="panel-actions">
+            <span id="dirtyBadge" class="badge">clean</span>
+            <button id="treeCollapseButton" class="icon-button" type="button" title="折叠资源包栏" aria-label="折叠资源包栏">‹</button>
+          </div>
+        </div>
+        <div id="packageSummary" class="summary"></div>
+        <div class="create-config">
+          <select id="configCreateSelect" title="选择要新增的配置类型">
+            <option value="weapon">武器配置</option>
+            <option value="socket">挂点</option>
+            <option value="trace">攻击轨迹</option>
+            <option value="collider">碰撞体</option>
+            <option value="part">身体部位</option>
+          </select>
+          <button id="configCreateButton" type="button" title="新增配置项">新增</button>
+        </div>
+        <nav id="packageTree" class="tree" aria-label="Package resource tree"></nav>
+      </aside>
+
+      <section class="viewport-panel">
+        <div class="panel-heading">
+          <h2>3D 预览</h2>
+          <div class="segmented" id="layerToggles">
+            <button data-layer="colliders" class="active" type="button">碰撞体</button>
+            <button data-layer="sockets" class="active" type="button">挂点</button>
+            <button data-layer="traces" class="active" type="button">轨迹</button>
+            <button data-layer="weapons" class="active" type="button">武器</button>
+          </div>
+        </div>
+        <div id="loadoutTabs" class="tabs"></div>
+        <div class="preview-controls" aria-label="Preview controls">
+          <label>姿势<select id="previewPoseSelect"></select></label>
+          <label>骨骼运动<select id="previewMotionSelect"></select></label>
+          <button id="resetCameraButton" type="button" title="重置 3D 预览镜头">重置镜头</button>
+        </div>
+        <div class="resource-library">
+          <div class="resource-library-head">
+            <strong>导入资源</strong>
+            <span id="resourceLibraryTarget">点击资源图选择替换目标</span>
+            <button id="downloadResourceButton" type="button" title="下载当前选中资源的包内源文件">下载源文件</button>
+            <button id="replaceResourceButton" type="button" title="用本地文件替换当前选中资源，保留 resourceKey/stableId">替换选中</button>
+            <button id="clearModelBindingButton" type="button" title="清空当前目标的模型绑定">移除模型</button>
+          </div>
+          <div id="modelResourceList" class="model-resource-list" aria-label="Model resources"></div>
+        </div>
+        <div id="viewport" class="viewport" aria-label="Character viewport"></div>
+      </section>
+
+      <aside class="inspector-panel">
+        <section>
+          <div class="panel-heading">
+            <h2>属性</h2>
+            <span id="selectionBadge" class="badge">none</span>
+          </div>
+          <div id="inspector" class="inspector"></div>
+        </section>
+
+        <section>
+          <div class="panel-heading">
+            <h2>诊断</h2>
+            <button id="copyReportButton" type="button" title="复制诊断报告">复制</button>
+          </div>
+          <div id="diagnostics" class="diagnostics"></div>
+        </section>
+
+        <section>
+          <div class="panel-heading">
+            <h2>Unity 导入</h2>
+          </div>
+          <div id="importStatus" class="diagnostics"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
