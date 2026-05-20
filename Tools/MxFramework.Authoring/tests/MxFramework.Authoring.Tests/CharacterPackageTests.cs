@@ -15,6 +15,9 @@ internal static class CharacterPackageTests
         ValidationIssue_JsonRoundTrip_PreservesGateAndSourceFields();
         ResourceCatalogEntry_JsonRoundTrip_PreservesResourceFields();
         ResourceLibraryItem_JsonRoundTrip_PreservesRuntimeContract();
+        AuthoringResourceItem_JsonRoundTrip_PreservesProviderBindings();
+        CharacterPackageProvider_ProjectsPackageResourceWithoutRuntimeKey();
+        CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
         ResourceReferenceGraph_ValidatesBrokenReferencesAndOrphans();
         ResourceKeyGenerator_GeneratesStablePackageLocalKey();
@@ -210,6 +213,296 @@ internal static class CharacterPackageTests
         Require(item.ImportStatus == ResourceImportStatus.Clean, "import status should roundtrip.");
         Require(item.AudioCueId == "cue.character.test.hit", "audio cue id should roundtrip.");
         Require(item.Diagnostics.Count == 1 && item.Diagnostics[0].Code == ResourceLibraryDiagnosticCodes.FmodBankMissing, "resource diagnostics should roundtrip.");
+    }
+
+    private static void AuthoringResourceItem_JsonRoundTrip_PreservesProviderBindings()
+    {
+        var collection = new AuthoringResourceCollection
+        {
+            ScopeId = "global"
+        };
+        collection.Providers.Add(new AuthoringResourceProviderDescriptor
+        {
+            ProviderId = AuthoringResourceProviderIds.Fmod,
+            DisplayName = "FMOD",
+            SourceKind = AuthoringResourceSourceKind.FmodLibrary,
+            Available = true,
+            Status = "Ready"
+        });
+        collection.Providers.Add(new AuthoringResourceProviderDescriptor
+        {
+            ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+            DisplayName = "Unity AssetDatabase",
+            SourceKind = AuthoringResourceSourceKind.UnityAsset,
+            Available = true,
+            Status = "Ready"
+        });
+        collection.Providers.Add(new AuthoringResourceProviderDescriptor
+        {
+            ProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            DisplayName = "Runtime Catalog",
+            SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            Available = true,
+            Status = "Ready"
+        });
+        collection.Providers.Add(new AuthoringResourceProviderDescriptor
+        {
+            ProviderId = AuthoringResourceProviderIds.ExternalImportStaging,
+            DisplayName = "External Import Staging",
+            SourceKind = AuthoringResourceSourceKind.ExternalFile,
+            Available = true,
+            Status = "Ready"
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "fmod:event.character.test.hit",
+            StableId = "audio.event.character.test.hit",
+            DisplayName = "Hit Sfx",
+            Kind = CharacterPackageResourceTypeIds.Audio,
+            Usage = CharacterPackageResourceUsageIds.AudioCue,
+            SourceProviderId = AuthoringResourceProviderIds.Fmod,
+            SourceKind = AuthoringResourceSourceKind.FmodLibrary,
+            BindingKind = AuthoringResourceBindingKind.AudioEventDefinition,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.AudioCueOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.AudioEventDefinition,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.FmodEventGuid,
+                    DisplayValue = "{00000000-0000-0000-0000-000000000001}",
+                    IsPrimary = true,
+                    ProviderResourceKey = "event:/Character/Test/Hit",
+                    FmodEventPath = "event:/Character/Test/Hit",
+                    FmodEventGuid = "{00000000-0000-0000-0000-000000000001}",
+                    Hash = "sha256:fmod"
+                }
+            },
+            Diagnostics = new List<AuthoringResourceDiagnostic>
+            {
+                new AuthoringResourceDiagnostic
+                {
+                    Severity = CharacterAuthoringValidationSeverity.Warning,
+                    Code = AuthoringResourceDiagnosticCodes.FmodBankMissing,
+                    ResourceId = "fmod:event.character.test.hit",
+                    ResourceStableId = "audio.event.character.test.hit",
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    Message = "bank missing"
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "unity:asset.guid.body",
+            StableId = "unity.asset.body.prefab",
+            DisplayName = "Body Prefab",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+            SourceKind = AuthoringResourceSourceKind.UnityAsset,
+            BindingKind = AuthoringResourceBindingKind.UnityAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.EditorOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityGuid,
+                    DisplayValue = "guid-body",
+                    IsPrimary = true,
+                    UnityGuid = "guid-body"
+                },
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityAssetPath,
+                    DisplayValue = "Assets/Characters/body.prefab",
+                    UnityAssetPath = "Assets/Characters/body.prefab"
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "runtime:char.test.model.body.prefab",
+            StableId = "runtime.char.test.model.body.prefab",
+            DisplayName = "Body Runtime Prefab",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.RuntimeReady,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                    BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.RuntimeResourceKey,
+                    DisplayValue = "char.test.model.body.prefab",
+                    IsPrimary = true,
+                    RuntimeResourceKey = "char.test.model.body.prefab",
+                    Address = "bundles/characters/body.prefab",
+                    AssetType = "UnityEngine.GameObject",
+                    Hash = "sha256:runtime"
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "external:/imports/body.fbx",
+            StableId = "external.body.fbx",
+            DisplayName = "body.fbx",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceProviderId = AuthoringResourceProviderIds.ExternalImportStaging,
+            SourceKind = AuthoringResourceSourceKind.ExternalFile,
+            BindingKind = AuthoringResourceBindingKind.ExternalSource,
+            ImportStatus = AuthoringResourceImportStatus.New,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.NotRuntimeLoadable,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.ExternalImportStaging,
+                    BindingKind = AuthoringResourceBindingKind.ExternalSource,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.ExternalSourcePath,
+                    DisplayValue = "/imports/body.fbx",
+                    IsPrimary = true,
+                    ExternalSourcePath = "/imports/body.fbx"
+                }
+            }
+        });
+
+        string json = JsonSerializer.Serialize(collection, JsonOptions);
+        AuthoringResourceCollection roundTrip = JsonSerializer.Deserialize<AuthoringResourceCollection>(json, JsonOptions);
+
+        Require(roundTrip != null && roundTrip.Items.Count == 4, "authoring resource collection should roundtrip.");
+        AuthoringResourceItem item = roundTrip.Items.Find(i => i.ResourceId == "fmod:event.character.test.hit");
+        Require(item != null, "FMOD item should roundtrip.");
+        Require(item.ResourceId == "fmod:event.character.test.hit", "resourceId should roundtrip.");
+        Require(item.SourceProviderId == AuthoringResourceProviderIds.Fmod, "source provider should roundtrip.");
+        Require(item.BindingKind == AuthoringResourceBindingKind.AudioEventDefinition, "binding kind should roundtrip.");
+        Require(item.ProviderBindings.Count == 1, "provider binding should roundtrip.");
+        Require(item.ProviderBindings[0].BindingKeyKind == AuthoringResourceBindingKeyKinds.FmodEventGuid, "provider binding key kind should roundtrip.");
+        Require(item.ProviderBindings[0].FmodEventGuid == "{00000000-0000-0000-0000-000000000001}", "FMOD guid should roundtrip.");
+        Require(string.IsNullOrEmpty(item.ProviderBindings[0].RuntimeResourceKey), "FMOD event must not gain a runtime resource key.");
+        Require(item.Diagnostics.Count == 1 && item.Diagnostics[0].ResourceId == "fmod:event.character.test.hit", "authoring resource diagnostic should retain resource id.");
+        Require(item.Diagnostics[0].Code == AuthoringResourceDiagnosticCodes.FmodBankMissing, "authoring resource diagnostics should roundtrip.");
+
+        AuthoringResourceItem unityItem = roundTrip.Items.Find(i => i.ResourceId == "unity:asset.guid.body");
+        Require(unityItem != null, "Unity item should roundtrip.");
+        Require(unityItem.ProviderBindings.Exists(b => b.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnityGuid && b.UnityGuid == "guid-body"), "Unity GUID binding should not be represented as a runtime key.");
+        Require(unityItem.ProviderBindings.Exists(b => b.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnityAssetPath && b.UnityAssetPath == "Assets/Characters/body.prefab"), "Unity path binding should roundtrip.");
+        Require(unityItem.ProviderBindings.TrueForAll(b => string.IsNullOrEmpty(b.RuntimeResourceKey)), "Unity editor bindings should not gain runtime keys.");
+
+        AuthoringResourceItem runtimeItem = roundTrip.Items.Find(i => i.ResourceId == "runtime:char.test.model.body.prefab");
+        Require(runtimeItem != null, "runtime item should roundtrip.");
+        Require(runtimeItem.RuntimeAvailability == AuthoringResourceRuntimeAvailability.RuntimeReady, "runtime catalog item should preserve runtime availability.");
+        Require(runtimeItem.ProviderBindings[0].RuntimeResourceKey == "char.test.model.body.prefab", "runtime resource key should be explicit.");
+        Require(string.IsNullOrEmpty(runtimeItem.ProviderBindings[0].PackageResourceKey), "runtime resource key must not be copied into package-local key.");
+
+        AuthoringResourceItem externalItem = roundTrip.Items.Find(i => i.ResourceId == "external:/imports/body.fbx");
+        Require(externalItem != null, "external source item should roundtrip.");
+        Require(externalItem.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "external source should remain not runtime-loadable before import.");
+        Require(externalItem.ProviderBindings[0].ExternalSourcePath == "/imports/body.fbx", "external source path should roundtrip.");
+        Require(string.IsNullOrEmpty(externalItem.ProviderBindings[0].RuntimeResourceKey), "external source must not gain a runtime resource key.");
+    }
+
+    private static void CharacterPackageProvider_ProjectsPackageResourceWithoutRuntimeKey()
+    {
+        var catalog = new CharacterPackageResourceCatalog();
+        catalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "char.test.model.body",
+            LocalId = "model.body",
+            StableId = "charpkg.test.resource.model.body",
+            TypeId = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.CharacterModel,
+            SourceFormat = CharacterPackageResourceFormatIds.Glb,
+            PackageId = "test",
+            RelativePath = "resources/models/body.glb",
+            Hashes = new CharacterPackageResourceHashes
+            {
+                ContentHash = "sha256:body"
+            },
+            Tags = new List<string> { "body", "main" },
+            Preview = new CharacterPackagePreviewMetadata
+            {
+                ThumbnailResourceKey = "char.test.preview.body",
+                PreviewMeshResourceKey = "char.test.model.body"
+            }
+        });
+
+        AuthoringResourceCollection collection = CharacterPackageAuthoringResourceProvider.FromPackageResourceCatalog(
+            catalog,
+            new AuthoringResourceProviderContext
+            {
+                ScopeId = "sample.character.test",
+                PackageId = "test",
+                PackagePath = "samples/test"
+            });
+
+        Require(collection.ScopeId == "sample.character.test", "scope id should be preserved.");
+        Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.CharacterPackage, "character package provider should be declared.");
+        Require(collection.Items.Count == 1, "package catalog should project one resource item.");
+
+        AuthoringResourceItem item = collection.Items[0];
+        Require(item.ResourceId == "characterPackage:charpkg.test.resource.model.body", "resourceId should be provider-qualified stable id.");
+        Require(item.StableId == "charpkg.test.resource.model.body", "stable id should be preserved.");
+        Require(item.SourceProviderId == AuthoringResourceProviderIds.CharacterPackage, "source provider should be characterPackage.");
+        Require(item.BindingKind == AuthoringResourceBindingKind.PackageResource, "package resources should use provider-local binding.");
+        Require(item.RuntimeAvailability == AuthoringResourceRuntimeAvailability.Unknown, "package resources should not be marked runtime-ready before compiler/runtime catalog mapping.");
+        Require(item.ProviderBindings.Count == 2, "provider-local key and package path bindings should be present.");
+        Require(item.ProviderBindings[0].BindingKeyKind == AuthoringResourceBindingKeyKinds.PackageResourceKey, "primary binding should identify package-local key.");
+        Require(item.ProviderBindings[0].IsPrimary, "package-local key binding should be primary.");
+        Require(item.ProviderBindings[0].ProviderResourceKey == "char.test.model.body", "provider-local resource key should be preserved.");
+        Require(item.ProviderBindings[0].PackageResourceKey == "char.test.model.body", "package resource key should be provider-local.");
+        Require(string.IsNullOrEmpty(item.ProviderBindings[0].RuntimeResourceKey), "package-local key must not be copied into runtime resource key.");
+        Require(item.ProviderBindings[1].BindingKeyKind == AuthoringResourceBindingKeyKinds.PackageRelativePath, "source path should use its own binding key kind.");
+        Require(item.ProviderBindings[1].ExternalSourcePath == "resources/models/body.glb", "source path should be retained as provider data.");
+        Require(item.Preview.ThumbnailProviderResourceKey == "char.test.preview.body", "preview provider key should be retained.");
+
+        AuthoringResourceCollection fromInterface = new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(
+            new AuthoringResourceProviderContext
+            {
+                ScopeId = "sample.character.test",
+                PackageId = "test",
+                PackageResourceCatalog = catalog
+            });
+        Require(fromInterface.Items.Count == 1, "provider interface should build from injected package catalog.");
+    }
+
+    private static void CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys()
+    {
+        var catalog = new CharacterPackageResourceCatalog();
+        for (int i = 0; i < 2; i++)
+        {
+            catalog.Entries.Add(new CharacterPackageResourceEntry
+            {
+                ResourceKey = "char.test.model.body",
+                LocalId = "model.body." + i,
+                StableId = "charpkg.test.resource.model.body",
+                TypeId = CharacterPackageResourceTypeIds.Model,
+                Usage = CharacterPackageResourceUsageIds.CharacterModel,
+                PackageId = "test"
+            });
+        }
+
+        AuthoringResourceCollection collection = CharacterPackageAuthoringResourceProvider.FromPackageResourceCatalog(
+            catalog,
+            new AuthoringResourceProviderContext { PackageId = "test" });
+
+        Require(collection.Diagnostics.Count == 2, "duplicate stable id and package-local key should both be diagnosed.");
+        Require(collection.Diagnostics.Exists(d => d.Code == AuthoringResourceDiagnosticCodes.StableIdDuplicate), "duplicate stable id diagnostic should be emitted.");
+        Require(collection.Diagnostics.Exists(d => d.Code == AuthoringResourceDiagnosticCodes.ResourceKeyDuplicate), "duplicate package key diagnostic should be emitted.");
+        Require(collection.Diagnostics.TrueForAll(d => !string.IsNullOrWhiteSpace(d.ResourceId)), "duplicate diagnostics should include resource id.");
     }
 
     private static void ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference()
