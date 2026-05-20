@@ -21,6 +21,8 @@
         "MxFramework.Combat.Animation.Unity",
         "MxFramework.Camera",
         "MxFramework.Camera.Unity",
+        "MxFramework.Camera.URP",
+        "Unity.RenderPipelines.Universal.Runtime",
         "MxFramework.Camera.Animation",
         "MxFramework.Camera.Editor",
         "MxFramework.Resources",
