@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>MxFramework.Authoring.Cli</RootNamespace>
+    <AssemblyName>authoring</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MxFramework.Authoring.Core\MxFramework.Authoring.Core.csproj" />
+    <ProjectReference Include="..\MxFramework.Authoring.Preview\MxFramework.Authoring.Preview.csproj" />
+    <ProjectReference Include="..\MxFramework.Authoring.Preview.NetClient\MxFramework.Authoring.Preview.NetClient.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MxFramework.Authoring.Tests" />
+  </ItemGroup>
+</Project>

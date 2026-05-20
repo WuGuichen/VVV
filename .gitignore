@@ -12,6 +12,9 @@
 # Unity generated project files
 *.csproj
 *.sln
+# External tooling projects under Tools are source, not Unity-generated IDE files.
+!Tools/**/*.csproj
+!Tools/**/*.sln
 *.suo
 *.tmp
 *.user
