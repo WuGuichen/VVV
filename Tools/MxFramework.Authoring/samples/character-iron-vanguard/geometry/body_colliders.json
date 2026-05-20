@@ -8,10 +8,10 @@
       "shape": "Capsule",
       "localPose": {
         "parentKind": "Bone",
-        "parentPath": "bone.Spine",
+        "parentPath": "bone.spine002",
         "position": {
           "x": 0,
-          "y": 0.95,
+          "y": 0,
           "z": 0
         },
         "rotation": {

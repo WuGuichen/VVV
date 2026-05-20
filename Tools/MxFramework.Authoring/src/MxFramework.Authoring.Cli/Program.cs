@@ -505,6 +505,8 @@ internal static class Program
         Console.WriteLine("  editor serve [--root <repoRoot>] [--port <port>] [--package <relative>]");
         Console.WriteLine("  character inspect --package <path>");
         Console.WriteLine("  character validate --package <path>");
+        Console.WriteLine("  character resources --package <path>");
+        Console.WriteLine("  character resources plan --package <path> [--out <dir>] [--check-files] [--check-hashes]");
         Console.WriteLine("  character compile --package <path> [--out <dir>] [--check-files] [--check-hashes] [--strict]");
         Console.WriteLine("  character import-unity --package <path> --project-root <repoRoot> [--unity-root <Assets/...>] [--check-files] [--check-hashes]");
         Console.WriteLine("  character schema");

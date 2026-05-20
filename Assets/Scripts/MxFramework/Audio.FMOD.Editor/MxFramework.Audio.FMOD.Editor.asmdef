@@ -4,7 +4,8 @@
     "references": [
         "MxFramework.Audio",
         "MxFramework.Audio.FMOD",
-        "FMODUnity"
+        "FMODUnity",
+        "FMODUnityEditor"
     ],
     "includePlatforms": [
         "Editor"

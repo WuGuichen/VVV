@@ -30,7 +30,6 @@
           <option value="preview">仅导入资源</option>
         </select>
         <input id="modelFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
-        <input id="modelReplaceFileInput" type="file" accept=".glb,.gltf,.fbx,model/gltf-binary,model/gltf+json" hidden>
         <button id="modelImportButton" type="button" title="导入 GLB/GLTF，或将 FBX 转换为 GLB 后写入当前角色资源包">导入源资源</button>
         <button id="reloadButton" type="button" title="重新加载资源包">刷新</button>
         <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
@@ -78,16 +77,19 @@
           <label>骨骼运动<select id="previewMotionSelect"></select></label>
           <button id="resetCameraButton" type="button" title="重置 3D 预览镜头">重置镜头</button>
         </div>
-        <div class="resource-library">
-          <div class="resource-library-head">
-            <strong>导入资源</strong>
-            <span id="resourceLibraryTarget">点击资源图选择替换目标</span>
-            <button id="downloadResourceButton" type="button" title="下载当前选中资源的包内源文件">导出源资源</button>
-            <button id="replaceResourceButton" type="button" title="用本地文件替换当前选中资源，保留 resourceKey/stableId">替换源资源</button>
-            <button id="clearModelBindingButton" type="button" title="清空当前目标的模型绑定">移除模型</button>
-          </div>
-          <div id="modelResourceList" class="model-resource-list" aria-label="Model resources"></div>
+        <div class="resource-binding-bar">
+          <strong>模型引用</strong>
+          <span id="resourceBindingTarget">选择当前字段后再绑定资源</span>
+          <button id="openResourcePickerButton" type="button" title="为当前字段选择已有资源">选择已有资源</button>
+          <button id="clearModelBindingButton" type="button" title="只清空当前字段的模型引用，不删除资源库资源">清空引用</button>
         </div>
+        <details id="resourcePlanPanel" class="resource-plan-preview">
+          <summary class="resource-plan-head">
+            <strong>运行时资源计划</strong>
+            <span>展开查看 Spawn / Equipment / Warmup / UI / Audio 编排</span>
+          </summary>
+          <div id="resourcePlanPreview" class="resource-plan-grid" aria-label="Character resource plan preview"></div>
+        </details>
         <div id="viewport" class="viewport" aria-label="Character viewport"></div>
       </section>
 
@@ -116,6 +118,19 @@
         </section>
       </aside>
     </main>
+  </div>
+
+  <div id="resourcePickerOverlay" class="modal-overlay" hidden>
+    <section class="resource-picker" role="dialog" aria-modal="true" aria-labelledby="resourcePickerTitle">
+      <div class="resource-picker-head">
+        <div>
+          <h2 id="resourcePickerTitle">选择资源</h2>
+          <p id="resourcePickerSummary">资源库由独立 Resource Library Editor 管理，这里只选择当前字段引用。</p>
+        </div>
+        <button id="closeResourcePickerButton" class="icon-button" type="button" title="关闭资源选择器" aria-label="关闭资源选择器">×</button>
+      </div>
+      <div id="resourcePickerList" class="model-resource-list" aria-label="Field resource picker"></div>
+    </section>
   </div>
 
   <script type="module" src="./app.js"></script>

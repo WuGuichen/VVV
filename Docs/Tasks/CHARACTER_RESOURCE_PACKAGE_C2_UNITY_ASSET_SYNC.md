@@ -4,6 +4,8 @@
 > 范围：CharacterStudio 源资源包、Unity 导入资产、运行时预览 Prefab、双端同步状态和冲突处理
 > 交付等级：下一阶段任务
 > 前置：#221 Character Resource Package C0、#222 Unity import bridge、#223 package-local resource catalog、#224 Authoring Compiler、#240-#246 CharacterStudio C1 MVP
+> 资源库上游设计：`Docs/Tasks/CHARACTER_RESOURCE_LIBRARY_00_DESIGN.md`
+> 边界：本任务只负责 Unity 导入状态和 Unity 可实例化资产映射；运行时预加载、AudioCue 和角色资源生命周期由资源库设计中的 Runtime Resource Catalog / Character Resource Plan / Runtime Resource Orchestrator 负责。
 
 ## 背景
 

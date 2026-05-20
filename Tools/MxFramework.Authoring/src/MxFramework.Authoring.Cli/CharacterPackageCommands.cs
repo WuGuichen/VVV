@@ -49,6 +49,9 @@ internal static class CharacterPackageCommands
 
         if (args.Length >= 2 && args[1] == "resources")
         {
+            if (args.Length >= 3 && args[2] == "plan")
+                return ResourcesPlan(args, options);
+
             string packagePath = Program.RequireOption(args, "--package");
             CharacterResourcePackage package = ReadPackage(packagePath, options);
             CharacterPackageDependencyGraph graph = CharacterPackageResourcePipeline.BuildDependencyGraph(package.ResourceCatalog);
@@ -143,6 +146,40 @@ internal static class CharacterPackageCommands
         return Program.ExitToolError;
     }
 
+    private static int ResourcesPlan(string[] args, JsonSerializerOptions options)
+    {
+        string packagePath = Program.RequireOption(args, "--package");
+        string outDir = Program.GetOption(args, "--out", string.Empty);
+        bool checkHashes = Program.HasFlag(args, "--check-hashes");
+        CharacterResourcePackage package = ReadPackage(packagePath, options);
+        CharacterResourcePlanCompileResult result = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = packagePath,
+            ValidateResourceFiles = Program.HasFlag(args, "--check-files") || checkHashes,
+            ValidateResourceHashes = checkHashes
+        });
+
+        if (!string.IsNullOrWhiteSpace(outDir))
+        {
+            WriteResourcePlanOutputs(outDir, result, options);
+            Console.WriteLine("runtimeResourceCatalog=" + Path.Combine(outDir, "runtime_resource_catalog.json"));
+            Console.WriteLine("characterResourcePlan=" + Path.Combine(outDir, "character_resource_plan.json"));
+            Console.WriteLine("audioCueManifest=" + Path.Combine(outDir, "audio_cue_manifest.json"));
+            Console.WriteLine("resourceValidationReport=" + Path.Combine(outDir, "resource_validation_report.json"));
+            Console.WriteLine("status=" + result.ResourceValidationReport.Status);
+            Console.WriteLine("planHash=" + result.CharacterResourcePlan.PlanHash);
+        }
+        else
+        {
+            Console.WriteLine(JsonSerializer.Serialize(result, options));
+        }
+
+        return result.ResourceValidationReport.HasErrors
+            ? Program.ExitValidationBlocked
+            : Program.ExitReady;
+    }
+
     private static int ImportUnity(string[] args, JsonSerializerOptions options)
     {
         string packagePath = Program.RequireOption(args, "--package");
@@ -232,6 +269,15 @@ internal static class CharacterPackageCommands
         File.WriteAllText(Path.Combine(outDir, "gate_report.txt"), GateReportToText(result.GateReport));
     }
 
+    private static void WriteResourcePlanOutputs(string outDir, CharacterResourcePlanCompileResult result, JsonSerializerOptions options)
+    {
+        Directory.CreateDirectory(outDir);
+        File.WriteAllText(Path.Combine(outDir, "runtime_resource_catalog.json"), EnsureTrailingNewline(JsonSerializer.Serialize(result.RuntimeResourceCatalog, options)));
+        File.WriteAllText(Path.Combine(outDir, "character_resource_plan.json"), EnsureTrailingNewline(JsonSerializer.Serialize(result.CharacterResourcePlan, options)));
+        File.WriteAllText(Path.Combine(outDir, "audio_cue_manifest.json"), EnsureTrailingNewline(JsonSerializer.Serialize(result.AudioCueManifest, options)));
+        File.WriteAllText(Path.Combine(outDir, "resource_validation_report.json"), EnsureTrailingNewline(JsonSerializer.Serialize(result.ResourceValidationReport, options)));
+    }
+
     private static List<CharacterUnityImportGeneratedArtifact> CreateGeneratedArtifacts(
         CharacterAuthoringCompileResult result,
         JsonSerializerOptions options)
@@ -279,6 +325,16 @@ internal static class CharacterPackageCommands
         string resourceMapping = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResourceMapping, options));
         string resolverPlan = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResolverVerificationPlan, options));
         string unityCatalog = CreateUnityResourceCatalogJson(packagePath, package, result, options);
+        CharacterResourcePlanCompileResult resourcePlanArtifacts = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = packagePath,
+            AuthoringCompileResult = result
+        });
+        string runtimeResourceCatalog = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.RuntimeResourceCatalog, options));
+        string characterResourcePlan = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.CharacterResourcePlan, options));
+        string audioCueManifest = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.AudioCueManifest, options));
+        string resourceValidationReport = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.ResourceValidationReport, options));
         string compileResult = EnsureTrailingNewline(JsonSerializer.Serialize(result, options));
         string writePlan = EnsureTrailingNewline(JsonSerializer.Serialize(result.UnityImportWritePlan, options));
         string resourceHashReport = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResourceHashReport, options));
@@ -298,6 +354,10 @@ internal static class CharacterPackageCommands
         AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.ResourceMapping, "compiler/resource_mapping.json", CombineProjectPath(targetRoot, "config/resource_catalog_mapping.json"), resourceMapping, "Recreate");
         AddContentWrite(writes, "resolverVerificationPlan", "compiler/resolver_verification_plan.json", CombineProjectPath(targetRoot, "config/resolver_verification_plan.json"), resolverPlan, "Recreate");
         AddContentWrite(writes, "unityResourceCatalog", "compiler/unity_resource_catalog.json", CombineProjectPath(targetRoot, "config/unity_resource_catalog.json"), unityCatalog, "Recreate");
+        AddContentWrite(writes, "runtimeResourceCatalog", "compiler/runtime_resource_catalog.json", CombineProjectPath(targetRoot, "config/runtime_resource_catalog.json"), runtimeResourceCatalog, "Recreate");
+        AddContentWrite(writes, "characterResourcePlan", "compiler/character_resource_plan.json", CombineProjectPath(targetRoot, "config/character_resource_plan.json"), characterResourcePlan, "Recreate");
+        AddContentWrite(writes, "audioCueManifest", "compiler/audio_cue_manifest.json", CombineProjectPath(targetRoot, "config/audio_cue_manifest.json"), audioCueManifest, "Recreate");
+        AddContentWrite(writes, "resourceValidationReport", "compiler/resource_validation_report.json", CombineProjectPath(targetRoot, "config/resource_validation_report.json"), resourceValidationReport, "Recreate");
         return writes;
     }
 
