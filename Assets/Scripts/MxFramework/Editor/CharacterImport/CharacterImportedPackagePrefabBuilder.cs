@@ -119,9 +119,11 @@ namespace MxFramework.Editor.CharacterImport
                 weaponsRoot.SetParent(rootObject.transform, false);
 
                 Transform bodyModel = CreateBodyModel(package, resources, modelRoot);
-                Dictionary<string, Transform> sockets = CreateSockets(package, socketsRoot, bodyModel);
+                var boneBindings = new List<TransformBoneBindingInfo>();
+                Dictionary<string, Transform> sockets = CreateSockets(package, socketsRoot, bodyModel, boneBindings);
                 CreateWeapons(package, resources, weaponsRoot, sockets);
-                CreateColliders(package, collidersRoot, bodyModel);
+                CreateColliders(package, collidersRoot, bodyModel, boneBindings);
+                AddBoneRuntimeSync(rootObject, boneBindings);
                 AddDefaultEquipmentRuntimeBinder(rootObject, package, spawnResult, socketsRoot, weaponsRoot, sockets, weaponPrefabs, animationClips);
 
                 string prefabFolder = root + "/prefabs";
@@ -297,37 +299,99 @@ namespace MxFramework.Editor.CharacterImport
             return (attachment?.EquipSlot ?? string.Empty) + "::" + (attachment?.WeaponId ?? string.Empty);
         }
 
-        private static Dictionary<string, Transform> CreateSockets(CharacterImportedPackage package, Transform socketsRoot, Transform bodyModel)
+        private static Dictionary<string, Transform> CreateSockets(
+            CharacterImportedPackage package,
+            Transform socketsRoot,
+            Transform bodyModel,
+            List<TransformBoneBindingInfo> boneBindings)
         {
             var sockets = new Dictionary<string, Transform>(StringComparer.Ordinal);
             for (int i = 0; i < package.Geometry.Sockets.Length; i++)
             {
                 CharacterSocketRuntimeBinding socket = package.Geometry.Sockets[i];
-                Transform parent = FindBodyChild(bodyModel, socket.BonePath);
-                if (parent == null)
-                    parent = socketsRoot;
-
                 var marker = new GameObject("Socket_" + socket.SocketId).transform;
-                marker.SetParent(parent, false);
+                marker.SetParent(socketsRoot, false);
                 ApplyPose(marker, socket.LocalPose);
                 AddMarker(marker.gameObject, new Color(0.08f, 0.55f, 0.55f, 0.55f), 0.05f);
+
+                Transform bone = FindBodyChild(bodyModel, socket.BonePath, socket.LocalPose.ParentPath);
+                if (bone != null)
+                {
+                    ApplyBoneRelativePose(marker, bone, socket.LocalPose);
+                    boneBindings.Add(TransformBoneBindingInfo.FromPose(
+                        "socket:" + socket.SocketId,
+                        socket.BonePath,
+                        marker,
+                        bone,
+                        socket.LocalPose));
+                }
+                else
+                {
+                    Debug.LogWarning("MxFramework Character Preview: socket bone was not found; socket will not follow animation. socket="
+                        + socket.SocketId + " bonePath=" + socket.BonePath);
+                }
+
                 sockets[socket.SocketId] = marker;
             }
 
             return sockets;
         }
 
-        private static void CreateColliders(CharacterImportedPackage package, Transform collidersRoot, Transform bodyModel)
+        private static void CreateColliders(
+            CharacterImportedPackage package,
+            Transform collidersRoot,
+            Transform bodyModel,
+            List<TransformBoneBindingInfo> boneBindings)
         {
             for (int i = 0; i < package.Geometry.BodyColliders.Length; i++)
             {
                 CharacterBodyColliderRuntimeBinding binding = package.Geometry.BodyColliders[i];
                 var node = new GameObject("Collider_" + binding.ColliderId);
-                Transform parent = FindBodyChild(bodyModel, binding.LocalPose.ParentPath);
-                node.transform.SetParent(parent != null ? parent : collidersRoot, false);
+                node.transform.SetParent(collidersRoot, false);
                 ApplyPose(node.transform, binding.LocalPose);
                 AddCollider(node, binding);
+
+                Transform bone = FindBodyChild(bodyModel, binding.LocalPose.ParentPath, binding.PartId);
+                if (bone != null)
+                {
+                    boneBindings.Add(TransformBoneBindingInfo.FromWorld(
+                        "collider:" + binding.ColliderId,
+                        binding.LocalPose.ParentPath,
+                        node.transform,
+                        bone));
+                }
+                else
+                {
+                    Debug.LogWarning("MxFramework Character Preview: collider bone was not found; collider will not follow animation. collider="
+                        + binding.ColliderId + " parentPath=" + binding.LocalPose.ParentPath + " part=" + binding.PartId);
+                }
             }
+        }
+
+        private static void AddBoneRuntimeSync(GameObject rootObject, List<TransformBoneBindingInfo> boneBindings)
+        {
+            if (boneBindings == null || boneBindings.Count == 0)
+                return;
+
+            var sync = rootObject.AddComponent<CharacterBoneRuntimeSync>();
+            var serialized = new SerializedObject(sync);
+            SerializedProperty bindings = serialized.FindProperty("_bindings");
+            bindings.arraySize = boneBindings.Count;
+            for (int i = 0; i < boneBindings.Count; i++)
+            {
+                TransformBoneBindingInfo binding = boneBindings[i];
+                SerializedProperty item = bindings.GetArrayElementAtIndex(i);
+                item.FindPropertyRelative("_bindingId").stringValue = binding.BindingId;
+                item.FindPropertyRelative("_bonePath").stringValue = binding.BonePath;
+                item.FindPropertyRelative("_target").objectReferenceValue = binding.Target;
+                item.FindPropertyRelative("_bone").objectReferenceValue = binding.Bone;
+                item.FindPropertyRelative("_localPosition").vector3Value = binding.LocalPosition;
+                item.FindPropertyRelative("_localRotation").quaternionValue = binding.LocalRotation;
+                item.FindPropertyRelative("_localScale").vector3Value = binding.LocalScale;
+            }
+
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            sync.ApplyBindings();
         }
 
         private static Transform CreateModelWrapper(string name, ResourcePreviewInfo resource, Transform parent)
@@ -401,20 +465,30 @@ namespace MxFramework.Editor.CharacterImport
             }
         }
 
-        private static Transform FindBodyChild(Transform root, string path)
+        private static Transform FindBodyChild(Transform root, string path, string fallbackKey = "")
         {
-            if (root == null || string.IsNullOrWhiteSpace(path))
+            if (root == null)
                 return null;
 
-            string normalized = path.StartsWith("bone.", StringComparison.Ordinal)
+            string normalized = (path ?? string.Empty).StartsWith("bone.", StringComparison.Ordinal)
                 ? path.Substring("bone.".Length)
-                : path;
-            Transform direct = root.Find(normalized);
-            if (direct != null)
-                return direct;
+                : path ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                Transform direct = root.Find(normalized);
+                if (direct != null)
+                    return direct;
+            }
 
             string last = normalized.Contains("/") ? normalized.Substring(normalized.LastIndexOf("/", StringComparison.Ordinal) + 1) : normalized;
-            return FindChildByName(root, last);
+            foreach (string candidate in GetBoneNameCandidates(last, fallbackKey))
+            {
+                Transform match = FindChildByName(root, candidate);
+                if (match != null)
+                    return match;
+            }
+
+            return null;
         }
 
         private static Transform FindChildByName(Transform root, string name)
@@ -432,6 +506,51 @@ namespace MxFramework.Editor.CharacterImport
             }
 
             return null;
+        }
+
+        private static IEnumerable<string> GetBoneNameCandidates(string name, string fallbackKey)
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+                yield return name;
+
+            string key = (name + " " + fallbackKey).ToLowerInvariant();
+            if (key.Contains("righthand") || key.Contains("right_hand"))
+            {
+                yield return "hand.R";
+                yield return "RightHand";
+                yield return "right_hand";
+            }
+            if (key.Contains("lefthand") || key.Contains("left_hand"))
+            {
+                yield return "hand.L";
+                yield return "LeftHand";
+                yield return "left_hand";
+            }
+            if (key.Contains("head"))
+            {
+                yield return "spine.006_end";
+                yield return "spine.006";
+                yield return "Head";
+            }
+            if (key.Contains("chest"))
+            {
+                yield return "spine.004";
+                yield return "spine.003";
+                yield return "spine.002";
+            }
+            if (key.Contains("spine") || key.Contains("torso"))
+            {
+                yield return "spine.003";
+                yield return "spine.002";
+                yield return "spine";
+            }
+        }
+
+        private static void ApplyBoneRelativePose(Transform target, Transform bone, CharacterRuntimePose pose)
+        {
+            target.position = bone.TransformPoint(ToVector3(pose.Position, Vector3.zero));
+            target.rotation = bone.rotation * ToQuaternion(pose.Rotation);
+            target.localScale = ToVector3(pose.Scale, Vector3.one);
         }
 
         private static Dictionary<string, ResourcePreviewInfo> ReadResourcePreviewInfos(CharacterImportedPackage package, string importedPackageRoot)
@@ -800,6 +919,64 @@ namespace MxFramework.Editor.CharacterImport
             foreach (char c in Path.GetInvalidFileNameChars())
                 value = value.Replace(c, '_');
             return value.Replace('.', '_').Replace('/', '_');
+        }
+
+        private readonly struct TransformBoneBindingInfo
+        {
+            private TransformBoneBindingInfo(
+                string bindingId,
+                string bonePath,
+                Transform target,
+                Transform bone,
+                Vector3 localPosition,
+                Quaternion localRotation,
+                Vector3 localScale)
+            {
+                BindingId = bindingId ?? string.Empty;
+                BonePath = bonePath ?? string.Empty;
+                Target = target;
+                Bone = bone;
+                LocalPosition = localPosition;
+                LocalRotation = localRotation;
+                LocalScale = localScale == Vector3.zero ? Vector3.one : localScale;
+            }
+
+            public string BindingId { get; }
+            public string BonePath { get; }
+            public Transform Target { get; }
+            public Transform Bone { get; }
+            public Vector3 LocalPosition { get; }
+            public Quaternion LocalRotation { get; }
+            public Vector3 LocalScale { get; }
+
+            public static TransformBoneBindingInfo FromPose(
+                string bindingId,
+                string bonePath,
+                Transform target,
+                Transform bone,
+                CharacterRuntimePose pose)
+            {
+                return new TransformBoneBindingInfo(
+                    bindingId,
+                    bonePath,
+                    target,
+                    bone,
+                    ToVector3(pose.Position, Vector3.zero),
+                    ToQuaternion(pose.Rotation),
+                    ToVector3(pose.Scale, Vector3.one));
+            }
+
+            public static TransformBoneBindingInfo FromWorld(string bindingId, string bonePath, Transform target, Transform bone)
+            {
+                return new TransformBoneBindingInfo(
+                    bindingId,
+                    bonePath,
+                    target,
+                    bone,
+                    bone.InverseTransformPoint(target.position),
+                    Quaternion.Inverse(bone.rotation) * target.rotation,
+                    target.localScale);
+            }
         }
 
         private sealed class ResourcePreviewInfo
