@@ -25,13 +25,16 @@ namespace MxFramework.CharacterRuntimeSpawn
             CharacterImportedGeometryBinding geometry = LoadGeometryBindingFromFile(Path.Combine(configRoot, "geometry_binding.json"));
             CharacterImportedResourceMapping mapping = LoadResourceMappingFromFile(Path.Combine(configRoot, "resource_catalog_mapping.json"));
             ResourceCatalog catalog = LoadResourceCatalogFromFile(Path.Combine(configRoot, "unity_resource_catalog.json"));
+            ResourceCatalog runtimeCatalog = LoadOptionalResourceCatalogFromFile(Path.Combine(configRoot, "runtime_resource_catalog.json"));
+            CharacterResourcePlan runtimePlan = LoadOptionalCharacterResourcePlanFromFile(Path.Combine(configRoot, "character_resource_plan.json"));
+            CharacterAudioCueManifest audioCueManifest = LoadOptionalAudioCueManifestFromFile(Path.Combine(configRoot, "audio_cue_manifest.json"));
             CharacterUnityImportRuntimeReport report = LoadImportReportFromFile(Path.Combine(cacheRoot, "import_report.json"));
 
             string packageId = !string.IsNullOrEmpty(report.PackageId)
                 ? report.PackageId
                 : !string.IsNullOrEmpty(geometry.PackageId) ? geometry.PackageId : mapping.PackageId;
 
-            return new CharacterImportedPackage(importedPackageRoot, packageId, configs, geometry, mapping, catalog, report);
+            return new CharacterImportedPackage(importedPackageRoot, packageId, configs, geometry, mapping, catalog, report, runtimeCatalog, runtimePlan, audioCueManifest);
         }
 
         public static CharacterImportedConfigSet LoadConfigSetFromFile(string path)
@@ -52,6 +55,16 @@ namespace MxFramework.CharacterRuntimeSpawn
         public static ResourceCatalog LoadResourceCatalogFromFile(string path)
         {
             return LoadResourceCatalog(ReadRequiredFile(path, "Unity resource catalog"));
+        }
+
+        public static CharacterResourcePlan LoadCharacterResourcePlanFromFile(string path)
+        {
+            return LoadCharacterResourcePlan(ReadRequiredFile(path, "character resource plan"));
+        }
+
+        public static CharacterAudioCueManifest LoadAudioCueManifestFromFile(string path)
+        {
+            return LoadAudioCueManifest(ReadRequiredFile(path, "audio cue manifest"));
         }
 
         public static CharacterUnityImportRuntimeReport LoadImportReportFromFile(string path)
@@ -240,6 +253,117 @@ namespace MxFramework.CharacterRuntimeSpawn
             }
 
             return new ResourceCatalog(catalogId, packageId, entries);
+        }
+
+        public static CharacterResourcePlan LoadCharacterResourcePlan(string json)
+        {
+            JObject root = ParseRoot(json, "character resource plan");
+            if (!string.Equals(ReadString(root, "format"), "mx.characterResourcePlan.v1", StringComparison.Ordinal))
+                throw new CharacterImportedPackageJsonException("Unsupported character resource plan format.");
+
+            var groups = new List<CharacterResourcePlanGroup>
+            {
+                ParseResourcePlanGroup(root, "spawnCritical", CharacterResourcePlanGroupKind.SpawnCritical, CharacterResourceFailurePolicy.FailSpawn),
+                ParseResourcePlanGroup(root, "presentationCritical", CharacterResourcePlanGroupKind.PresentationCritical, CharacterResourceFailurePolicy.UseFallbackVisual),
+                ParseResourcePlanGroup(root, "equipmentInitial", CharacterResourcePlanGroupKind.EquipmentInitial, CharacterResourceFailurePolicy.UseFallbackEquipment),
+                ParseResourcePlanGroup(root, "animationWarmup", CharacterResourcePlanGroupKind.AnimationWarmup, CharacterResourceFailurePolicy.UseFallbackPose),
+                ParseResourcePlanGroup(root, "vfxWarmup", CharacterResourcePlanGroupKind.VfxWarmup, CharacterResourceFailurePolicy.SkipEffect),
+                ParseResourcePlanGroup(root, "uiDeferred", CharacterResourcePlanGroupKind.UiDeferred, CharacterResourceFailurePolicy.ShowPlaceholder)
+            };
+
+            return new CharacterResourcePlan(
+                ReadString(root, "characterStableId"),
+                ReadString(root, "planHash"),
+                groups,
+                ParseAudioResourcePlan(root["audio"] as JObject));
+        }
+
+        public static CharacterAudioCueManifest LoadAudioCueManifest(string json)
+        {
+            JObject root = ParseRoot(json, "audio cue manifest");
+            if (!string.Equals(ReadString(root, "format"), "mx.characterAudioCueManifest.v1", StringComparison.Ordinal))
+                throw new CharacterImportedPackageJsonException("Unsupported audio cue manifest format.");
+
+            return new CharacterAudioCueManifest(
+                ReadString(root, "packageId"),
+                ReadString(root, "characterStableId"),
+                ReadStringArray(root["banks"] as JArray),
+                ParseArray(root["cues"] as JArray, ParseAudioCueManifestEntry));
+        }
+
+        private static ResourceCatalog LoadOptionalResourceCatalogFromFile(string path)
+        {
+            return File.Exists(path) ? LoadResourceCatalog(File.ReadAllText(path)) : null;
+        }
+
+        private static CharacterResourcePlan LoadOptionalCharacterResourcePlanFromFile(string path)
+        {
+            return File.Exists(path) ? LoadCharacterResourcePlan(File.ReadAllText(path)) : null;
+        }
+
+        private static CharacterAudioCueManifest LoadOptionalAudioCueManifestFromFile(string path)
+        {
+            return File.Exists(path) ? LoadAudioCueManifest(File.ReadAllText(path)) : CharacterAudioCueManifest.Empty;
+        }
+
+        private static CharacterResourcePlanGroup ParseResourcePlanGroup(
+            JObject root,
+            string propertyName,
+            CharacterResourcePlanGroupKind kind,
+            CharacterResourceFailurePolicy fallbackFailurePolicy)
+        {
+            JObject group = root[propertyName] as JObject;
+            if (group == null)
+                return CharacterResourcePlanGroup.Empty(kind);
+
+            return new CharacterResourcePlanGroup(
+                kind,
+                kind.ToString(),
+                ParseArray(group["resources"] as JArray, ParseResourcePlanResourceKey),
+                ReadBool(group, "required"),
+                ReadEnum(group, "failurePolicy", fallbackFailurePolicy));
+        }
+
+        private static ResourceKey ParseResourcePlanResourceKey(JObject fields)
+        {
+            return new ResourceKey(
+                FirstNonEmpty(ReadString(fields, "resourceKey"), ReadString(fields, "id")),
+                FirstNonEmpty(ReadString(fields, "typeId"), ReadString(fields, "type")),
+                ReadString(fields, "variant"),
+                ReadString(fields, "packageId"));
+        }
+
+        private static CharacterAudioResourcePlan ParseAudioResourcePlan(JObject fields)
+        {
+            if (fields == null)
+                return CharacterAudioResourcePlan.Empty;
+
+            string[] cueKeys = ReadStringArray(fields["requiredCues"] as JArray);
+            var cueIds = new List<int>();
+            for (int i = 0; i < cueKeys.Length; i++)
+            {
+                if (int.TryParse(cueKeys[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int cueId))
+                    cueIds.Add(cueId);
+            }
+
+            return new CharacterAudioResourcePlan(
+                ReadStringArray(fields["requiredBanks"] as JArray),
+                cueIds,
+                ReadStringArray(fields["requiredEventDefinitionIds"] as JArray),
+                ReadEnum(fields, "failurePolicy", CharacterResourceFailurePolicy.MuteMissingCue),
+                cueKeys);
+        }
+
+        private static CharacterAudioCueManifestEntry ParseAudioCueManifestEntry(JObject fields)
+        {
+            return new CharacterAudioCueManifestEntry(
+                ReadString(fields, "cueId"),
+                ReadString(fields, "stableId"),
+                ReadString(fields, "resourceKey"),
+                ReadString(fields, "eventPath"),
+                ReadString(fields, "bank"),
+                ReadEnum(fields, "fallbackPolicy", CharacterResourceFailurePolicy.MuteMissingCue),
+                ReadStringDictionary(fields["providerData"] as JObject));
         }
 
         private static void MirrorUnityCatalogField(Dictionary<string, string> providerData, JObject entry, string name)
@@ -788,6 +912,20 @@ namespace MxFramework.CharacterRuntimeSpawn
                 return token.Value<bool>();
 
             return bool.TryParse(token.ToString(), out bool value) ? value : fallback;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            if (values == null)
+                return string.Empty;
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(values[i]))
+                    return values[i];
+            }
+
+            return string.Empty;
         }
     }
 

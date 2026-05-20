@@ -6,6 +6,7 @@ using MxFramework.Resources;
 namespace MxFramework.CharacterRuntimeSpawn
 {
     public interface ICharacterResourceOrchestrator
+        : IResourcePlanOrchestrator
     {
         IResourceOperation<ResourcePreloadResult> PreloadForSpawn(
             CharacterResourcePlan plan,
@@ -27,6 +28,7 @@ namespace MxFramework.CharacterRuntimeSpawn
     {
         private readonly IResourcePreloadService _preloadService;
         private readonly IResourceManager _resourceManager;
+        private readonly ResourcePlanOrchestrator _resourcePlanOrchestrator;
         private readonly int _maxConcurrentLoads;
 
         public CharacterResourceOrchestrator(
@@ -37,6 +39,37 @@ namespace MxFramework.CharacterRuntimeSpawn
             _preloadService = preloadService ?? throw new ArgumentNullException(nameof(preloadService));
             _resourceManager = resourceManager ?? throw new ArgumentNullException(nameof(resourceManager));
             _maxConcurrentLoads = maxConcurrentLoads < 1 ? 1 : maxConcurrentLoads;
+            _resourcePlanOrchestrator = new ResourcePlanOrchestrator(_preloadService, _resourceManager, _maxConcurrentLoads);
+        }
+
+        public IResourceOperation<ResourcePreloadResult> Preload(
+            ResourcePlan plan,
+            CancellationToken cancellationToken = default)
+        {
+            return _resourcePlanOrchestrator.Preload(plan, cancellationToken);
+        }
+
+        public ResourcePlanSession Acquire(ResourcePlan plan, ResourcePreloadResult preloadResult)
+        {
+            return _resourcePlanOrchestrator.Acquire(plan, preloadResult);
+        }
+
+        public ResourcePlanDiff PrepareChange(
+            ResourcePlanSession session,
+            ResourcePlan nextPlan,
+            CancellationToken cancellationToken = default)
+        {
+            return _resourcePlanOrchestrator.PrepareChange(session, nextPlan, cancellationToken);
+        }
+
+        public void CommitChange(ResourcePlanSession session, ResourcePlanDiff diff)
+        {
+            _resourcePlanOrchestrator.CommitChange(session, diff);
+        }
+
+        public void Release(ResourcePlanSession session)
+        {
+            _resourcePlanOrchestrator.Release(session);
         }
 
         public IResourceOperation<ResourcePreloadResult> PreloadForSpawn(
@@ -340,6 +373,7 @@ namespace MxFramework.CharacterRuntimeSpawn
         public bool IsReleased { get; private set; }
         public IReadOnlyList<string> AudioBanks => Plan != null ? Plan.Audio.RequiredBanks : Array.Empty<string>();
         public IReadOnlyList<int> AudioCueIds => Plan != null ? Plan.Audio.RequiredCueIds : Array.Empty<int>();
+        public IReadOnlyList<string> AudioCueKeys => Plan != null ? Plan.Audio.RequiredCueKeys : Array.Empty<string>();
         public IReadOnlyList<string> AudioEventDefinitionIds => Plan != null ? Plan.Audio.RequiredEventDefinitionIds : Array.Empty<string>();
 
         internal void AddLoadedHandles(IReadOnlyList<ResourceHandle<object>> handles)
@@ -447,6 +481,9 @@ namespace MxFramework.CharacterRuntimeSpawn
         private readonly List<int> _keepCueIds;
         private readonly List<int> _preloadCueIds;
         private readonly List<int> _releaseCueIds;
+        private readonly List<string> _keepCueKeys;
+        private readonly List<string> _preloadCueKeys;
+        private readonly List<string> _releaseCueKeys;
 
         private CharacterAudioResourceDiff(
             IEnumerable<string> keepBanks,
@@ -454,7 +491,10 @@ namespace MxFramework.CharacterRuntimeSpawn
             IEnumerable<string> releaseBanks,
             IEnumerable<int> keepCueIds,
             IEnumerable<int> preloadCueIds,
-            IEnumerable<int> releaseCueIds)
+            IEnumerable<int> releaseCueIds,
+            IEnumerable<string> keepCueKeys,
+            IEnumerable<string> preloadCueKeys,
+            IEnumerable<string> releaseCueKeys)
         {
             _keepBanks = keepBanks != null ? new List<string>(keepBanks) : new List<string>();
             _preloadBanks = preloadBanks != null ? new List<string>(preloadBanks) : new List<string>();
@@ -462,6 +502,9 @@ namespace MxFramework.CharacterRuntimeSpawn
             _keepCueIds = keepCueIds != null ? new List<int>(keepCueIds) : new List<int>();
             _preloadCueIds = preloadCueIds != null ? new List<int>(preloadCueIds) : new List<int>();
             _releaseCueIds = releaseCueIds != null ? new List<int>(releaseCueIds) : new List<int>();
+            _keepCueKeys = keepCueKeys != null ? new List<string>(keepCueKeys) : new List<string>();
+            _preloadCueKeys = preloadCueKeys != null ? new List<string>(preloadCueKeys) : new List<string>();
+            _releaseCueKeys = releaseCueKeys != null ? new List<string>(releaseCueKeys) : new List<string>();
         }
 
         public static CharacterAudioResourceDiff Empty { get; } = new CharacterAudioResourceDiff(
@@ -470,7 +513,10 @@ namespace MxFramework.CharacterRuntimeSpawn
             Array.Empty<string>(),
             Array.Empty<int>(),
             Array.Empty<int>(),
-            Array.Empty<int>());
+            Array.Empty<int>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>());
 
         public IReadOnlyList<string> KeepBanks => _keepBanks;
         public IReadOnlyList<string> PreloadBanks => _preloadBanks;
@@ -478,7 +524,10 @@ namespace MxFramework.CharacterRuntimeSpawn
         public IReadOnlyList<int> KeepCueIds => _keepCueIds;
         public IReadOnlyList<int> PreloadCueIds => _preloadCueIds;
         public IReadOnlyList<int> ReleaseCueIds => _releaseCueIds;
-        public bool HasChanges => _preloadBanks.Count > 0 || _releaseBanks.Count > 0 || _preloadCueIds.Count > 0 || _releaseCueIds.Count > 0;
+        public IReadOnlyList<string> KeepCueKeys => _keepCueKeys;
+        public IReadOnlyList<string> PreloadCueKeys => _preloadCueKeys;
+        public IReadOnlyList<string> ReleaseCueKeys => _releaseCueKeys;
+        public bool HasChanges => _preloadBanks.Count > 0 || _releaseBanks.Count > 0 || _preloadCueIds.Count > 0 || _releaseCueIds.Count > 0 || _preloadCueKeys.Count > 0 || _releaseCueKeys.Count > 0;
 
         public static CharacterAudioResourceDiff Create(CharacterAudioResourcePlan current, CharacterAudioResourcePlan next)
         {
@@ -490,7 +539,10 @@ namespace MxFramework.CharacterRuntimeSpawn
                 Except(current.RequiredBanks, next.RequiredBanks),
                 Intersect(current.RequiredCueIds, next.RequiredCueIds),
                 Except(next.RequiredCueIds, current.RequiredCueIds),
-                Except(current.RequiredCueIds, next.RequiredCueIds));
+                Except(current.RequiredCueIds, next.RequiredCueIds),
+                Intersect(current.RequiredCueKeys, next.RequiredCueKeys),
+                Except(next.RequiredCueKeys, current.RequiredCueKeys),
+                Except(current.RequiredCueKeys, next.RequiredCueKeys));
         }
 
         private static string[] Intersect(IReadOnlyList<string> left, IReadOnlyList<string> right)

@@ -118,7 +118,10 @@ namespace MxFramework.CharacterRuntimeSpawn
             CharacterImportedGeometryBinding geometry,
             CharacterImportedResourceMapping resourceMapping,
             ResourceCatalog unityResourceCatalog,
-            CharacterUnityImportRuntimeReport importReport)
+            CharacterUnityImportRuntimeReport importReport,
+            ResourceCatalog runtimeResourceCatalog = null,
+            CharacterResourcePlan runtimeResourcePlan = null,
+            CharacterAudioCueManifest audioCueManifest = null)
         {
             RootPath = rootPath ?? string.Empty;
             PackageId = packageId ?? string.Empty;
@@ -127,6 +130,9 @@ namespace MxFramework.CharacterRuntimeSpawn
             ResourceMapping = resourceMapping ?? CharacterImportedResourceMapping.Empty;
             UnityResourceCatalog = unityResourceCatalog;
             ImportReport = importReport;
+            RuntimeResourceCatalog = runtimeResourceCatalog;
+            RuntimeResourcePlan = runtimeResourcePlan;
+            AudioCueManifest = audioCueManifest ?? CharacterAudioCueManifest.Empty;
         }
 
         public string RootPath { get; }
@@ -135,6 +141,9 @@ namespace MxFramework.CharacterRuntimeSpawn
         public CharacterImportedGeometryBinding Geometry { get; }
         public CharacterImportedResourceMapping ResourceMapping { get; }
         public ResourceCatalog UnityResourceCatalog { get; }
+        public ResourceCatalog RuntimeResourceCatalog { get; }
+        public CharacterResourcePlan RuntimeResourcePlan { get; }
+        public CharacterAudioCueManifest AudioCueManifest { get; }
         public CharacterUnityImportRuntimeReport ImportReport { get; }
     }
 

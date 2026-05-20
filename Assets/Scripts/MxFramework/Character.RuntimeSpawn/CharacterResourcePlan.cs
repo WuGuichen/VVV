@@ -144,13 +144,15 @@ namespace MxFramework.CharacterRuntimeSpawn
     {
         private readonly List<string> _requiredBanks;
         private readonly List<int> _requiredCueIds;
+        private readonly List<string> _requiredCueKeys;
         private readonly List<string> _requiredEventDefinitionIds;
 
         public CharacterAudioResourcePlan(
             IEnumerable<string> requiredBanks,
             IEnumerable<int> requiredCueIds,
             IEnumerable<string> requiredEventDefinitionIds,
-            CharacterResourceFailurePolicy failurePolicy = CharacterResourceFailurePolicy.MuteMissingCue)
+            CharacterResourceFailurePolicy failurePolicy = CharacterResourceFailurePolicy.MuteMissingCue,
+            IEnumerable<string> requiredCueKeys = null)
         {
             _requiredBanks = requiredBanks != null
                 ? new List<string>(requiredBanks)
@@ -158,6 +160,9 @@ namespace MxFramework.CharacterRuntimeSpawn
             _requiredCueIds = requiredCueIds != null
                 ? new List<int>(requiredCueIds)
                 : new List<int>();
+            _requiredCueKeys = requiredCueKeys != null
+                ? new List<string>(requiredCueKeys)
+                : new List<string>();
             _requiredEventDefinitionIds = requiredEventDefinitionIds != null
                 ? new List<string>(requiredEventDefinitionIds)
                 : new List<string>();
@@ -171,8 +176,69 @@ namespace MxFramework.CharacterRuntimeSpawn
 
         public IReadOnlyList<string> RequiredBanks => _requiredBanks;
         public IReadOnlyList<int> RequiredCueIds => _requiredCueIds;
+        public IReadOnlyList<string> RequiredCueKeys => _requiredCueKeys;
         public IReadOnlyList<string> RequiredEventDefinitionIds => _requiredEventDefinitionIds;
         public CharacterResourceFailurePolicy FailurePolicy { get; }
-        public bool HasAudioRequirements => _requiredBanks.Count > 0 || _requiredCueIds.Count > 0 || _requiredEventDefinitionIds.Count > 0;
+        public bool HasAudioRequirements => _requiredBanks.Count > 0 || _requiredCueIds.Count > 0 || _requiredCueKeys.Count > 0 || _requiredEventDefinitionIds.Count > 0;
+    }
+
+    public sealed class CharacterAudioCueManifest
+    {
+        private readonly List<string> _banks;
+        private readonly List<CharacterAudioCueManifestEntry> _cues;
+
+        public CharacterAudioCueManifest(
+            string packageId,
+            string characterStableId,
+            IEnumerable<string> banks,
+            IEnumerable<CharacterAudioCueManifestEntry> cues)
+        {
+            PackageId = packageId ?? string.Empty;
+            CharacterStableId = characterStableId ?? string.Empty;
+            _banks = banks != null ? new List<string>(banks) : new List<string>();
+            _cues = cues != null ? new List<CharacterAudioCueManifestEntry>(cues) : new List<CharacterAudioCueManifestEntry>();
+        }
+
+        public static CharacterAudioCueManifest Empty { get; } = new CharacterAudioCueManifest(
+            string.Empty,
+            string.Empty,
+            Array.Empty<string>(),
+            Array.Empty<CharacterAudioCueManifestEntry>());
+
+        public string PackageId { get; }
+        public string CharacterStableId { get; }
+        public IReadOnlyList<string> Banks => _banks;
+        public IReadOnlyList<CharacterAudioCueManifestEntry> Cues => _cues;
+    }
+
+    public sealed class CharacterAudioCueManifestEntry
+    {
+        public CharacterAudioCueManifestEntry(
+            string cueId,
+            string stableId,
+            string resourceKey,
+            string eventPath,
+            string bank,
+            CharacterResourceFailurePolicy fallbackPolicy,
+            IReadOnlyDictionary<string, string> providerData)
+        {
+            CueId = cueId ?? string.Empty;
+            StableId = stableId ?? string.Empty;
+            ResourceKey = resourceKey ?? string.Empty;
+            EventPath = eventPath ?? string.Empty;
+            Bank = bank ?? string.Empty;
+            FallbackPolicy = fallbackPolicy;
+            ProviderData = providerData != null
+                ? new Dictionary<string, string>(providerData, StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        public string CueId { get; }
+        public string StableId { get; }
+        public string ResourceKey { get; }
+        public string EventPath { get; }
+        public string Bank { get; }
+        public CharacterResourceFailurePolicy FallbackPolicy { get; }
+        public IReadOnlyDictionary<string, string> ProviderData { get; }
     }
 }
