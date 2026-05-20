@@ -151,6 +151,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "modelImportRole", "modelImportButton", "modelFileInput", "modelReplaceFileInput",
     "packageSummary", "packageTree", "dirtyBadge", "loadoutTabs", "viewport",
     "workspace", "treeCollapseButton", "previewPoseSelect", "previewMotionSelect", "resetCameraButton",
+    "configCreateSelect", "configCreateButton",
     "resourceLibraryTarget", "modelResourceList", "downloadResourceButton", "replaceResourceButton", "clearModelBindingButton",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
@@ -186,6 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.treeCollapsed = !state.treeCollapsed;
     renderLayoutState();
   });
+  el.configCreateButton.addEventListener("click", () => createConfiguration(el.configCreateSelect.value));
   el.previewPoseSelect.addEventListener("change", event => {
     state.previewPose = event.target.value;
     renderViewport();
@@ -341,6 +343,8 @@ function renderShellStatus() {
   el.saveButton.disabled = !state.canWrite || !state.package;
   el.modelImportButton.disabled = !state.canWrite || !state.package;
   el.modelImportRole.disabled = !state.canWrite || !state.package;
+  el.configCreateSelect.disabled = !state.canWrite || !state.package;
+  el.configCreateButton.disabled = !state.canWrite || !state.package;
   const selectedModelResource = getSelectedModelResource();
   el.downloadResourceButton.disabled = !selectedModelResource?.relativePath;
   el.replaceResourceButton.disabled = !state.canWrite || !selectedModelResource?.resourceKey;
@@ -520,6 +524,182 @@ function clearCurrentModelBinding() {
   state.dirty = true;
   state.message = `${getModelImportRole().label} 已移除。保存后写入资源包。`;
   render();
+}
+
+function createConfiguration(kind) {
+  if (!state.canWrite || !state.package) {
+    state.message = "静态预览不能新增配置。请启动 Authoring server。";
+    renderShellStatus();
+    return;
+  }
+
+  ensureGeometryCollections();
+  let path = "";
+  let label = "";
+  if (kind === "part") {
+    const item = createBodyPartConfig();
+    state.package.geometry.bodyParts.push(item);
+    path = `geometry/body_parts/${item.partId}`;
+    label = "身体部位";
+  } else if (kind === "collider") {
+    const item = createColliderConfig();
+    state.package.geometry.colliders.push(item);
+    path = `geometry/colliders/${item.colliderId}`;
+    label = "碰撞体";
+  } else if (kind === "socket") {
+    const item = createSocketConfig();
+    state.package.geometry.sockets.push(item);
+    path = `geometry/sockets/${item.socketId}`;
+    label = "挂点";
+  } else if (kind === "weapon") {
+    const item = createWeaponConfig();
+    state.package.geometry.weaponAttachments.push(item);
+    path = `geometry/weapon_attachments/${item.weaponId}`;
+    label = "武器配置";
+  } else if (kind === "trace") {
+    const item = createTraceConfig();
+    state.package.geometry.traces.push(item);
+    path = `geometry/traces/${item.traceId}`;
+    label = "攻击轨迹";
+  } else {
+    return;
+  }
+
+  state.selectedPath = path;
+  state.dirty = true;
+  state.message = `已新增${label}。请在右侧属性栏补齐引用关系并保存。`;
+  render();
+}
+
+function ensureGeometryCollections() {
+  state.package.geometry = state.package.geometry || {};
+  const geometry = state.package.geometry;
+  geometry.schemaVersion = geometry.schemaVersion || "1.0";
+  geometry.bodyParts = Array.isArray(geometry.bodyParts) ? geometry.bodyParts : [];
+  geometry.colliders = Array.isArray(geometry.colliders) ? geometry.colliders : [];
+  geometry.sockets = Array.isArray(geometry.sockets) ? geometry.sockets : [];
+  geometry.weaponAttachments = Array.isArray(geometry.weaponAttachments) ? geometry.weaponAttachments : [];
+  geometry.traces = Array.isArray(geometry.traces) ? geometry.traces : [];
+}
+
+function createBodyPartConfig() {
+  const partId = uniqueConfigId("part_new", (state.package.geometry.bodyParts || []).map(part => part?.partId));
+  return {
+    partId,
+    displayName: "新部位",
+    partKind: "Bone",
+    parentPartId: firstValue(bodyPartOptions()),
+    bonePath: "",
+    locatorId: "",
+    defaultHitZoneId: `hit.${partId}`,
+    reactionGroupId: "reaction.humanoid.limb",
+    tags: []
+  };
+}
+
+function createColliderConfig() {
+  const partId = firstValue(bodyPartOptions()) || "";
+  const part = (state.package.geometry.bodyParts || []).find(item => item?.partId === partId);
+  const colliderId = uniqueConfigId(`${partId || "body"}_sphere`, (state.package.geometry.colliders || []).map(collider => collider?.colliderId));
+  return {
+    colliderId,
+    partId,
+    hitZoneId: part?.defaultHitZoneId || "",
+    shape: "Sphere",
+    localPose: defaultLocalPose(part?.locatorId ? "Locator" : "BodyPart", part?.locatorId || partId),
+    size: { x: 0.25, y: 0.25, z: 0.25 },
+    radius: 0.15,
+    height: 0,
+    priority: 10,
+    isWeakPoint: false,
+    damageMultiplierOverride: 1,
+    postureDamageScaleOverride: 1
+  };
+}
+
+function createSocketConfig() {
+  const partId = firstValue(bodyPartOptions()) || "";
+  const socketId = uniqueConfigId("socket_new", (state.package.geometry.sockets || []).map(socket => socket?.socketId));
+  return {
+    socketId,
+    parentPartId: partId,
+    bonePath: "",
+    locatorPath: "",
+    localPose: defaultLocalPose(partId ? "BodyPart" : "ModelRoot", partId),
+    usage: "Weapon",
+    mirrorPairSocketId: "",
+    handedness: "None",
+    sideTag: "Center",
+    tags: ["weapon"]
+  };
+}
+
+function createWeaponConfig() {
+  const socketId = firstValue(socketOptions()) || "";
+  const slot = nextEquipSlot();
+  const weaponId = uniqueConfigId(`weapon.${slot || "new"}`, (state.package.geometry.weaponAttachments || []).map(weapon => weapon?.weaponId));
+  const resourceKey = firstValue(modelResourceOptions()) || "";
+  return {
+    weaponId,
+    equipSlot: slot || "mainHand",
+    attachSocketId: socketId,
+    localGripPose: defaultLocalPose(socketId ? "Socket" : "ModelRoot", socketId),
+    previewResourceKey: resourceKey,
+    traceId: "",
+    traceStartSocketId: socketId,
+    traceEndSocketId: "",
+    traceRadius: 0.05,
+    traceSampleRule: "CapsuleSweep"
+  };
+}
+
+function createTraceConfig() {
+  const weapon = (state.package.geometry.weaponAttachments || [])[0] || null;
+  const socketId = weapon?.attachSocketId || firstValue(socketOptions()) || "";
+  const traceId = uniqueConfigId("trace.new.blade", (state.package.geometry.traces || []).map(trace => trace?.traceId));
+  return {
+    traceId,
+    weaponId: weapon?.weaponId || "",
+    equipSlot: weapon?.equipSlot || "mainHand",
+    startLocatorPath: "",
+    endLocatorPath: "",
+    startPose: defaultLocalPose(socketId ? "Socket" : "ModelRoot", socketId),
+    endPose: {
+      ...defaultLocalPose(socketId ? "Socket" : "ModelRoot", socketId),
+      position: { x: 0, y: 0.8, z: 0 }
+    },
+    radius: 0.05,
+    sampleRule: "CapsuleSweep",
+    fixedSampleCount: 6,
+    actionKeys: ["primary"]
+  };
+}
+
+function defaultLocalPose(parentKind = "ModelRoot", parentPath = "") {
+  return {
+    parentKind,
+    parentPath: parentPath || "",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+    scale: { x: 1, y: 1, z: 1 },
+    eulerHint: { x: 0, y: 0, z: 0 }
+  };
+}
+
+function nextEquipSlot() {
+  const used = new Set((state.package?.geometry?.weaponAttachments || []).map(item => item?.equipSlot).filter(Boolean));
+  return ["mainHand", "offHand", "twoHand", "naturalWeapon"].find(slot => !used.has(slot)) || "mainHand";
+}
+
+function uniqueConfigId(base, existingValues) {
+  const normalizedBase = String(base || "new").replace(/\s+/g, "_");
+  const existing = new Set((existingValues || []).filter(Boolean).map(String));
+  if (!existing.has(normalizedBase)) return normalizedBase;
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${normalizedBase}_${i}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+  return `${normalizedBase}_${Date.now()}`;
 }
 
 function ensureModelWrapperPose(resource) {
@@ -1878,10 +2058,10 @@ function renderInspector() {
   normalizeInspectorTarget(target);
   const fields = editableFields(target.kind, target.value);
   if (fields.length === 0) {
-    el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div><pre>${escapeHtml(JSON.stringify(target.value, null, 2))}</pre>`;
+    el.inspector.innerHTML = `${renderObjectTitle(target)}<pre>${escapeHtml(JSON.stringify(target.value, null, 2))}</pre>`;
     return;
   }
-  el.inspector.innerHTML = `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div>${renderFieldSections(target, fields)}`;
+  el.inspector.innerHTML = `${renderObjectTitle(target)}${renderFieldSections(target, fields)}`;
   const boneInputs = [];
   el.inspector.querySelectorAll("[data-field]").forEach(input => {
     if (input.dataset.picker === "bone") {
@@ -1920,6 +2100,67 @@ function renderInspector() {
       render();
     });
   });
+  el.inspector.querySelectorAll("button[data-jump]").forEach(button => {
+    button.addEventListener("click", () => selectPath(button.dataset.jump));
+  });
+}
+
+function renderObjectTitle(target) {
+  return `<div class="object-title"><strong>${escapeHtml(target.label)}</strong><span>${escapeHtml(state.selectedPath)}</span></div>${renderInspectorContext(target)}`;
+}
+
+function renderInspectorContext(target) {
+  if (target.kind === "weapon") return renderWeaponReferenceContext(target.value);
+  if (target.kind === "resource" && target.value?.typeId === "model") return renderModelResourceContext(target.value);
+  return "";
+}
+
+function renderWeaponReferenceContext(weapon) {
+  const resource = findResourceByKey(weapon.previewResourceKey);
+  const socket = findSocketById(weapon.attachSocketId);
+  const trace = findTraceById(weapon.traceId);
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>武器引用关系</strong><span>武器配置只保存引用；模型、挂点、轨迹仍是独立配置。</span></div>
+    ${renderReferenceRow("模型资源", resource ? getResourceDisplayName(resource) : weapon.previewResourceKey || "未绑定", resource ? `resources/${resource.resourceKey}` : "", "编辑模型尺寸/旋转")}
+    ${renderReferenceRow("绑定挂点", socket ? socket.socketId : weapon.attachSocketId || "未绑定", socket ? `geometry/sockets/${socket.socketId}` : "", "编辑挂点")}
+    ${renderReferenceRow("攻击轨迹", trace ? trace.traceId : weapon.traceId || "未绑定", trace ? `geometry/traces/${trace.traceId}` : "", "编辑轨迹")}
+  </section>`;
+}
+
+function renderModelResourceContext(resource) {
+  const owners = (state.package?.geometry?.weaponAttachments || [])
+    .filter(weapon => weapon?.previewResourceKey === resource.resourceKey);
+  const ownerText = owners.length
+    ? owners.map(weapon => `${weapon.equipSlot || "slot"}:${weapon.weaponId}`).join(" / ")
+    : (isBodyModelBinding(resource, state.package) ? "角色主体" : "未被角色或武器引用");
+  const packagePath = `${state.packageRelative}/${resource.relativePath || ""}`;
+  const packageId = state.package?.manifest?.packageId || "package";
+  const unityPath = `Assets/MxFrameworkGenerated/CharacterPackages/${packageId}/resources/models/${String(resource.relativePath || "").split("/").pop() || ""}`;
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>模型资源</strong><span>这里调整的是模型外层包裹节点的位置、旋转和缩放。</span></div>
+    <div class="reference-row"><span>当前引用</span><strong>${escapeHtml(ownerText)}</strong></div>
+    <div class="reference-row"><span>包内源文件</span><code>${escapeHtml(packagePath)}</code></div>
+    <div class="reference-row"><span>Unity 输出</span><code>${escapeHtml(unityPath)}</code></div>
+  </section>`;
+}
+
+function renderReferenceRow(label, value, jumpPath, actionLabel) {
+  return `<div class="reference-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>${jumpPath ? `<button type="button" data-jump="${escapeHtml(jumpPath)}">${escapeHtml(actionLabel || "打开")}</button>` : ""}</div>`;
+}
+
+function findResourceByKey(resourceKey) {
+  if (!resourceKey) return null;
+  return (state.package?.resourceCatalog?.entries || []).find(resource => resource?.resourceKey === resourceKey) || null;
+}
+
+function findSocketById(socketId) {
+  if (!socketId) return null;
+  return (state.package?.geometry?.sockets || []).find(socket => socket?.socketId === socketId) || null;
+}
+
+function findTraceById(traceId) {
+  if (!traceId) return null;
+  return (state.package?.geometry?.traces || []).find(trace => trace?.traceId === traceId) || null;
 }
 
 function normalizeInspectorTarget(target) {

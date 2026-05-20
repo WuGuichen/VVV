@@ -49,6 +49,16 @@
           </div>
         </div>
         <div id="packageSummary" class="summary"></div>
+        <div class="create-config">
+          <select id="configCreateSelect" title="选择要新增的配置类型">
+            <option value="weapon">武器配置</option>
+            <option value="socket">挂点</option>
+            <option value="trace">攻击轨迹</option>
+            <option value="collider">碰撞体</option>
+            <option value="part">身体部位</option>
+          </select>
+          <button id="configCreateButton" type="button" title="新增配置项">新增</button>
+        </div>
         <nav id="packageTree" class="tree" aria-label="Package resource tree"></nav>
       </aside>
 
