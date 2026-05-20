@@ -919,6 +919,38 @@ code {
   font-family: var(--mono);
 }
 
+.compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.compact-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+}
+
+.compact-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.compact-list span {
+  color: var(--muted);
+}
+
+.compact-list strong {
+  color: var(--accent);
+  font-family: var(--mono);
+  text-align: right;
+}
+
 /* Plan Section */
 .plan-grid {
   display: grid;

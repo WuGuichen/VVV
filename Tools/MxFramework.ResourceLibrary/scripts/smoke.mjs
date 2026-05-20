@@ -21,7 +21,7 @@ const launcher = fs.readFileSync(path.join(toolRoot, "start-resource-library.sh"
 const windowsLauncher = fs.readFileSync(path.join(toolRoot, "start-resource-library.bat"), "utf8");
 const readme = fs.readFileSync(path.join(toolRoot, "README.md"), "utf8");
 
-assert(index.includes("MxFramework 资源库编辑器"), "index should expose Chinese title");
+assert(index.includes("MxFramework 资源管理器"), "index should expose Chinese title");
 assert(index.includes("resourceList") && index.includes("inspectorContent"), "index should render browser and inspector anchors");
 assert(index.includes("Overview") && index.includes("Unity") && index.includes("Runtime") && index.includes("References") && index.includes("Diagnostics"), "index should expose required inspector tabs");
 assert(index.includes("resourceImportFileInput") && index.includes("resourceImportFolderInput") && index.includes("resourceReplaceFileInput"), "write actions should provide hidden file inputs");
@@ -32,11 +32,13 @@ assert(index.includes("复制详情 JSON") && index.includes("复制诊断 JSON"
 
 assert(app.includes("/api/character/packages"), "app should call character packages API");
 assert(app.includes("/api/authoring/resources?package="), "app should call authoring resource list API");
-assert(app.includes("/api/character/resource-plan?package="), "app should call resource plan API");
+assert(app.includes("/api/authoring/resources/resource-plan?package="), "app should call authoring resource plan API");
 assert(app.includes("/api/authoring/resources/inspect?package="), "app should call authoring inspect API defensively");
 assert(app.includes("/api/authoring/resources/stage-import"), "app should call external import staging API before folder promotion");
-assert(app.includes("/api/character/resources/import") && app.includes("/api/character/resources/reimport") && app.includes("/api/character/resources/replace-source"), "app should call resource write API gates");
+assert(app.includes("/api/authoring/resources/import") && app.includes("/api/authoring/resources/reimport") && app.includes("/api/authoring/resources/replace-source"), "app should call authoring resource write API gates");
+assert(!app.includes("/api/character/resources/import") && !app.includes("/api/character/resources/reimport") && !app.includes("/api/character/resources/replace-source"), "new Resource Manager writes should not use character-prefixed write APIs");
 assert(app.includes("resourceId") && app.includes("sourceProviderId") && app.includes("providerBindings"), "app should understand authoring resource identity and provider bindings");
+assert(app.includes("providerFilter") && app.includes("getProviders") && app.includes("provider 状态"), "app should expose provider filter and provider status");
 assert(app.includes("fmodEventPath") && app.includes("audioCueId") && app.includes("audioEventDefinitionId"), "app should preserve FMOD audio provider metadata");
 assert(app.includes("targetResourceId") && app.includes("targetProviderResourceKey") && app.includes("targetRuntimeResourceKey"), "app should match cross-consumer reference graph targets");
 assert(app.includes("postJson") && app.includes("readFileAsBase64"), "app should post write requests with uploaded file bytes");

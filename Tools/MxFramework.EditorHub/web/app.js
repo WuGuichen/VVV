@@ -86,11 +86,11 @@ async function loadCharacterState() {
 }
 
 async function loadResources() {
-  state.resources = await readJson(`/api/character/resources?package=${encodeURIComponent(state.packageRelative)}`, null, "资源库状态");
+  state.resources = await readJson(`/api/authoring/resources?package=${encodeURIComponent(state.packageRelative)}`, null, "资源管理器状态");
 }
 
 async function loadResourcePlan() {
-  state.resourcePlan = await readJson(`/api/character/resource-plan?package=${encodeURIComponent(state.packageRelative)}`, null, "资源计划");
+  state.resourcePlan = await readJson(`/api/authoring/resources/resource-plan?package=${encodeURIComponent(state.packageRelative)}`, null, "资源计划");
 }
 
 async function readJson(url, fallback, label) {
@@ -135,16 +135,18 @@ function renderStatus() {
   const connected = state.errors.length === 0 || state.characterState || state.authoringState;
   const characterPackage = state.characterState?.package?.manifest?.packageId || selectedPackageLabel();
   const resourceCount = Array.isArray(state.resources?.items) ? state.resources.items.length : 0;
+  const providerCount = Array.isArray(state.resources?.providers) ? state.resources.providers.length : 0;
   const planStatus = getResourcePlanStatus();
 
   el.serverStatus.textContent = connected
-    ? `已连接本机 Authoring 服务，当前角色包：${characterPackage}`
+    ? `已连接本机 Authoring 服务；默认包上下文：${characterPackage}`
     : "未连接 Authoring 服务。请通过启动脚本打开。";
 
   el.statusStrip.innerHTML = [
     statusChip("Authoring", connected ? "已连接" : "未连接", connected ? "ok" : "error"),
     statusChip("Buff Editor", state.authoringState ? "可用" : "不可用", state.authoringState ? "ok" : "warn"),
     statusChip("CharacterStudio", state.characterState?.package ? "可用" : "不可用", state.characterState?.package ? "ok" : "warn"),
+    statusChip("资源 providers", String(providerCount), providerCount > 0 ? "ok" : "warn"),
     statusChip("资源项", String(resourceCount), resourceCount > 0 ? "ok" : "warn"),
     statusChip("资源计划", planStatus, planStatus === "Ready" ? "ok" : "warn")
   ].join("");
@@ -175,19 +177,19 @@ function renderTools() {
       action: "打开角色编辑器",
       details: [
         `Package: ${state.characterState?.package?.manifest?.packageId || selectedPackageLabel()}`,
-        "用途: 角色配置、挂点、碰撞体、字段级资源选择"
+        "用途: 角色配置、挂点、碰撞体、字段级资源选择；资源来自资源管理器"
       ]
     },
     {
-      title: "资源库编辑器",
-      subtitle: "独立资源库编辑器",
+      title: "资源管理器",
+      subtitle: "全局 Authoring Resource Manager",
       status: state.resources ? "可打开" : "服务未就绪",
       tone: state.resources ? "ok" : "warn",
       href: resourceLibraryUrl,
-      action: "打开资源库",
+      action: "打开资源管理器",
       details: [
-        `Package: ${state.characterState?.package?.manifest?.packageId || selectedPackageLabel()}`,
-        "用途: 资源浏览、inspect 详情、引用关系、运行时计划诊断"
+        `包筛选: ${state.characterState?.package?.manifest?.packageId || selectedPackageLabel()}`,
+        "用途: provider 状态、资源浏览、inspect 详情、引用关系、运行时计划诊断"
       ]
     }
   ];
@@ -216,7 +218,7 @@ function renderResources() {
   const diagnostics = Array.isArray(state.resources?.diagnostics) ? state.resources.diagnostics : [];
   el.resourceSummary.textContent = items.length > 0
     ? `${items.length} 个资源项，${diagnostics.length} 条诊断`
-    : "没有读取到资源库 API 数据。";
+    : "没有读取到资源管理器 API 数据。";
 
   if (items.length === 0) {
     el.resourceList.innerHTML = emptyBlock("未读取到资源项");

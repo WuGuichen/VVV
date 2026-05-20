@@ -38,7 +38,7 @@ Tools/MxFramework.EditorHub/start-editor-hub.sh 4883 Tools/MxFramework.Authoring
 
 - Buff Authoring Editor：Buff / ModPackage 示例编辑器。
 - CharacterStudio：角色资源包编辑器。
-- 资源库编辑器：打开独立 Resource Library Editor，并携带当前角色包 query。
-- 资源库 / 资源计划状态：读取当前 Authoring API，展示资源库、运行时计划和诊断概要。
+- 资源管理器：打开独立 Authoring Resource Manager，并携带默认包上下文作为筛选条件。
+- 资源管理器 / 资源计划状态：读取当前 Authoring API，展示 provider、资源项、运行时计划和诊断概要。
 
-完整资源库浏览和管理入口进入独立 Resource Library Editor；CharacterStudio 保持角色字段级资源选择和装配职责。
+完整资源浏览和管理入口进入独立资源管理器；CharacterStudio 保持角色字段级资源选择和装配职责。
