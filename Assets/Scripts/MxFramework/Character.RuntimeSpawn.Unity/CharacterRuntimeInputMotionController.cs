@@ -38,6 +38,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private CharacterRuntimeControllerBinding _binding;
         private IInputProvider _inputProvider;
+        private FakeInputProvider _motionInputProvider;
         private InputCharacterCommandSource _commandSource;
         private CharacterMotionResolver _motionResolver;
         private CombatPhysicsWorld _physicsWorld;
@@ -48,6 +49,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private CharacterMotionResult _lastMotionResult;
         private Vector2 _lastLocalMove;
         private float _lastSpeed01;
+        private bool _lastSourceJumpPressed;
 
         public bool IsInitialized => _initialized;
         public bool EnableInputMotion
@@ -80,6 +82,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             EnsureInitialized();
             if (!_initialized)
                 return;
+
+            SyncBufferedInput();
 
             float stepRate = Mathf.Max(1f, _stepRate);
             float fixedDelta = 1f / stepRate;
@@ -119,10 +123,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (_inputProvider == null)
                 return false;
 
+            _motionInputProvider = new FakeInputProvider();
             CombatMotionConfig motionConfig = CreateMotionConfig();
             _motionResolver = new CharacterMotionResolver(new CombatKinematicMotor(motionConfig));
             _physicsWorld = _enableGravity || _enablePreviewGround ? new CombatPhysicsWorld() : null;
-            _commandSource = new InputCharacterCommandSource(_inputProvider, new InputCharacterCommandSourceOptions
+            _commandSource = new InputCharacterCommandSource(_motionInputProvider, new InputCharacterCommandSourceOptions
             {
                 SourceId = 1,
                 MoveSpeedScale = Fix64.One,
@@ -141,6 +146,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _accumulator = 0f;
             _lastLocalMove = Vector2.zero;
             _lastSpeed01 = 0f;
+            _lastSourceJumpPressed = false;
+            SyncBufferedInput();
             _initialized = true;
             return true;
         }
@@ -150,9 +157,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (!EnsureInitialized())
                 return false;
 
-            long frameValue = _inputProvider == null
+            SyncBufferedInput();
+
+            long frameValue = _motionInputProvider == null
                 ? _frame
-                : System.Math.Max(_frame, _inputProvider.Commands.CurrentFrame);
+                : System.Math.Max(_frame, _motionInputProvider.Commands.CurrentFrame);
             var runtimeFrame = new RuntimeFrame(frameValue);
             if (!_commandSource.TryGetCommand(runtimeFrame, _binding.EntityRef, out CharacterCommand command))
             {
@@ -167,6 +176,68 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             ApplyMotion(command);
             _frame = frameValue + 1L;
             return true;
+        }
+
+        private void SyncBufferedInput()
+        {
+            if (_inputProvider == null || _motionInputProvider == null)
+                return;
+
+            InputSnapshot source = _inputProvider.Snapshot;
+            _motionInputProvider.SetContext(_inputProvider.CurrentContext);
+            _motionInputProvider.SetSnapshot(CreateContinuousMotionSnapshot(source));
+
+            if (source.JumpPressed && !_lastSourceJumpPressed && _inputProvider.IsContextEnabled(InputContext.Gameplay))
+            {
+                long commandFrame = System.Math.Max(_frame, _motionInputProvider.Commands.CurrentFrame);
+                _motionInputProvider.Commands.TryEnqueue(new InputCommand(
+                    commandFrame,
+                    sourceId: 1,
+                    InputIntent.Jump,
+                    InputCommandPhase.Pressed,
+                    traceId: "characterstudio-runtime-input:Jump"),
+                    out _);
+            }
+
+            _lastSourceJumpPressed = source.JumpPressed;
+        }
+
+        private static InputSnapshot CreateContinuousMotionSnapshot(InputSnapshot source)
+        {
+            return new InputSnapshot(
+                source.Move,
+                source.Look,
+                source.Navigate,
+                source.Point,
+                source.Scroll,
+                source.Throttle,
+                jumpPressed: false,
+                jumpHeld: source.JumpHeld,
+                jumpReleased: false,
+                attackPrimaryPressed: false,
+                attackPrimaryHeld: source.AttackPrimaryHeld,
+                attackSecondaryPressed: false,
+                interactPressed: false,
+                dodgePressed: false,
+                sprintHeld: source.SprintHeld,
+                submitPressed: false,
+                cancelPressed: false,
+                pausePressed: false,
+                debugTogglePressed: false,
+                clickPressed: false,
+                clickHeld: source.ClickHeld,
+                clickReleased: false,
+                rightClickPressed: false,
+                rightClickHeld: source.RightClickHeld,
+                rightClickReleased: false,
+                restartPressed: false,
+                debugPrimaryPressed: false,
+                debugSecondaryPressed: false,
+                debugCyclePressed: false,
+                debugStepPressed: false,
+                toggleHudPressed: false,
+                audioPrimaryPressed: false,
+                audioSecondaryPressed: false);
         }
 
         private void ApplyMotion(CharacterCommand command)
