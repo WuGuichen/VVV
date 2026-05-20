@@ -403,9 +403,33 @@ namespace MxFramework.Editor.CharacterImport
             if (renderer == null)
                 return;
 
-            var material = new Material(Shader.Find("Standard"));
-            material.color = color;
+            var material = new Material(FindPreviewShader());
+            material.name = "CharacterPreviewMaterial";
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color"))
+                material.SetColor("_Color", color);
             renderer.sharedMaterial = material;
+        }
+
+        private static Shader FindPreviewShader()
+        {
+            string[] names =
+            {
+                "Universal Render Pipeline/Lit",
+                "Universal Render Pipeline/Unlit",
+                "Unlit/Color",
+                "Standard"
+            };
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                Shader shader = Shader.Find(names[i]);
+                if (shader != null)
+                    return shader;
+            }
+
+            return Shader.Find("Standard");
         }
 
         private static void CreatePreviewCamera()
