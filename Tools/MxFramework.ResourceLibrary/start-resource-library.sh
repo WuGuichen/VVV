@@ -9,7 +9,8 @@ PORT="${1:-${MXFRAMEWORK_RESOURCE_LIBRARY_PORT:-4873}}"
 PACKAGE_RELATIVE="${2:-${MXFRAMEWORK_RESOURCE_LIBRARY_PACKAGE:-$DEFAULT_PACKAGE}}"
 OPEN_BROWSER="${MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER:-1}"
 URL="http://127.0.0.1:${PORT}/Tools/MxFramework.ResourceLibrary/web/?package=${PACKAGE_RELATIVE}"
-HEALTH_URL="http://127.0.0.1:${PORT}/api/character/resources?package=${PACKAGE_RELATIVE}"
+HEALTH_LIST_URL="http://127.0.0.1:${PORT}/api/character/resources?package=${PACKAGE_RELATIVE}"
+HEALTH_INSPECT_URL="http://127.0.0.1:${PORT}/api/character/resources/inspect?package=${PACKAGE_RELATIVE}&id=model.body"
 
 die() {
   printf '[ERROR] %s\n' "$*" >&2
@@ -43,7 +44,7 @@ wait_and_open_url() {
   fi
 
   for _ in $(seq 1 30); do
-    if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+    if is_resource_library_server_ready; then
       open_url
       return
     fi
@@ -67,6 +68,12 @@ is_port_in_use() {
   return 1
 }
 
+is_resource_library_server_ready() {
+  command -v curl >/dev/null 2>&1 &&
+    curl -fsS "$HEALTH_LIST_URL" >/dev/null 2>&1 &&
+    curl -fsS "$HEALTH_INSPECT_URL" >/dev/null 2>&1
+}
+
 cd "$ROOT_DIR"
 
 [[ "$PORT" =~ ^[0-9]+$ ]] || die "Port must be numeric. Example: $0 4874"
@@ -83,7 +90,7 @@ if ! dotnet --list-sdks | grep -Eq '^[[:space:]]*(9|[1-9][0-9])\.'; then
 fi
 
 if is_port_in_use; then
-  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+  if is_resource_library_server_ready; then
     printf 'Resource Library-compatible Authoring server is already running on port %s.\n' "$PORT"
     printf 'URL: %s\n' "$URL"
     [[ "$OPEN_BROWSER" == "0" ]] || open_url
@@ -93,7 +100,7 @@ if is_port_in_use; then
   if command -v lsof >/dev/null 2>&1; then
     lsof -iTCP:"$PORT" -sTCP:LISTEN -n -P >&2 || true
   fi
-  die "Port $PORT is already in use. Retry with another port: $0 4874"
+  die "Port $PORT is already in use, but it is not a Resource Library-compatible Authoring server. Stop the old process or retry with another port: $0 4874"
 fi
 
 printf 'MxFramework Resource Library Editor\n'

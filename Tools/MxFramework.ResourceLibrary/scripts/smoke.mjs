@@ -17,6 +17,9 @@ for (const relative of required) {
 const index = fs.readFileSync(path.join(toolRoot, "web/index.html"), "utf8");
 const app = fs.readFileSync(path.join(toolRoot, "web/app.js"), "utf8");
 const styles = fs.readFileSync(path.join(toolRoot, "web/styles.css"), "utf8");
+const launcher = fs.readFileSync(path.join(toolRoot, "start-resource-library.sh"), "utf8");
+const windowsLauncher = fs.readFileSync(path.join(toolRoot, "start-resource-library.bat"), "utf8");
+const readme = fs.readFileSync(path.join(toolRoot, "README.md"), "utf8");
 
 assert(index.includes("MxFramework 资源库编辑器"), "index should expose Chinese title");
 assert(index.includes("resourceList") && index.includes("inspectorContent"), "index should render browser and inspector anchors");
@@ -35,6 +38,9 @@ assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("v
 
 assert(styles.includes(".resource-browser") && styles.includes(".inspector-tabs") && styles.includes(".action-bar"), "styles should cover browser, inspector tabs, and action bar");
 assert(styles.includes("@media"), "styles should include responsive rules");
+assert(launcher.includes("HEALTH_INSPECT_URL") && launcher.includes("is_resource_library_server_ready"), "launcher should require inspect API readiness");
+assert(windowsLauncher.includes("HEALTH_INSPECT_URL"), "Windows launcher should require inspect API readiness");
+assert(readme.includes("服务未就绪") && readme.includes("inspect API"), "README should explain service-not-ready and inspect compatibility");
 
 console.log("ResourceLibrary smoke ok");
 

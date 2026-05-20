@@ -51,7 +51,15 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh 4884 Tools/MxFramewo
 - 端口占用。
 - 已运行的兼容 Authoring server。
 
-如果指定端口上已有 Authoring server 且资源库 API 可访问，脚本会直接打开 Resource Library Editor。
+如果指定端口上已有 Authoring server 且资源库列表 API 和 inspect API 都可访问，脚本会直接打开 Resource Library Editor。
+
+如果页面显示“服务未就绪”，优先重新运行启动脚本。浏览器页面不能直接执行本地 shell/bat 脚本；需要从终端运行 `.sh` / `.bat`，或在 macOS Finder 双击 `.command`。
+
+如果端口已被旧 Authoring server 占用，脚本会提示该进程不兼容。此时可以停止旧进程，或换端口启动：
+
+```bash
+Tools/MxFramework.ResourceLibrary/start-resource-library.sh 4884 Tools/MxFramework.Authoring/samples/character-iron-vanguard
+```
 
 ## 验证
 

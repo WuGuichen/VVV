@@ -20,7 +20,8 @@ if "%PACKAGE_RELATIVE%"=="" set "PACKAGE_RELATIVE=%DEFAULT_PACKAGE%"
 if "%MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER%"=="" set "MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER=1"
 set "URL_PACKAGE=%PACKAGE_RELATIVE:\=/%"
 set "URL=http://127.0.0.1:%PORT%/Tools/MxFramework.ResourceLibrary/web/?package=%URL_PACKAGE%"
-set "HEALTH_URL=http://127.0.0.1:%PORT%/api/character/resources?package=%URL_PACKAGE%"
+set "HEALTH_LIST_URL=http://127.0.0.1:%PORT%/api/character/resources?package=%URL_PACKAGE%"
+set "HEALTH_INSPECT_URL=http://127.0.0.1:%PORT%/api/character/resources/inspect?package=%URL_PACKAGE%&id=model.body"
 
 echo %PORT%| findstr /r "^[0-9][0-9]*$" >nul
 if errorlevel 1 (
@@ -67,7 +68,7 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%PORT% .*LISTENING"')
 )
 
 if not "%PORT_PID%"=="" (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%HEALTH_URL%' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%HEALTH_LIST_URL%' -TimeoutSec 1 | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri '%HEALTH_INSPECT_URL%' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
     if not errorlevel 1 (
         echo Resource Library-compatible Authoring server is already running on port %PORT%.
         echo URL: %URL%
@@ -76,7 +77,8 @@ if not "%PORT_PID%"=="" (
     )
 
     echo [ERROR] Port %PORT% is already in use by process %PORT_PID%.
-    echo Retry with another port: Tools\MxFramework.ResourceLibrary\start-resource-library.bat 4874
+    echo [ERROR] The existing process is not a Resource Library-compatible Authoring server.
+    echo Stop the old process or retry with another port: Tools\MxFramework.ResourceLibrary\start-resource-library.bat 4874
     exit /b 1
 )
 
@@ -89,7 +91,7 @@ echo Stop   : Ctrl+C
 echo.
 
 if not "%MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER%"=="0" (
-    start "Resource Library opener" powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='%URL%'; $h='%HEALTH_URL%'; for($i=0;$i -lt 30;$i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $h -TimeoutSec 1 | Out-Null; Start-Process $u; exit 0 } catch { Start-Sleep -Seconds 1 } }; Write-Host 'Resource Library server did not become ready in 30 seconds. Open manually:' $u"
+    start "Resource Library opener" powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='%URL%'; $list='%HEALTH_LIST_URL%'; $inspect='%HEALTH_INSPECT_URL%'; for($i=0;$i -lt 30;$i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $list -TimeoutSec 1 | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri $inspect -TimeoutSec 1 | Out-Null; Start-Process $u; exit 0 } catch { Start-Sleep -Seconds 1 } }; Write-Host 'Resource Library server did not become ready in 30 seconds. Open manually:' $u"
 )
 
 pushd "%ROOT_DIR%"
