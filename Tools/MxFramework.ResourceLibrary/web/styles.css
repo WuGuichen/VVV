@@ -756,6 +756,18 @@ tr:last-child td {
   flex-wrap: wrap;
 }
 
+.import-preset-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.import-preset-label select {
+  min-width: 170px;
+}
+
 .action-label,
 .disabled-reason,
 .copy-status {

@@ -131,8 +131,14 @@
       <div class="disabled-actions" aria-label="写操作入口">
         <span class="action-label">写操作入口</span>
         <input id="resourceImportFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+        <input id="resourceImportFolderInput" type="file" hidden multiple webkitdirectory directory accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
         <input id="resourceReplaceFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+        <label class="import-preset-label" for="importPresetSelect">
+          <span>导入类型</span>
+          <select id="importPresetSelect" aria-label="导入类型"></select>
+        </label>
         <button id="importResourceButton" type="button" title="通过 Authoring API 导入外部资源">导入资源</button>
+        <button id="importFolderButton" type="button" title="导入一个文件夹内的匹配资源">导入文件夹</button>
         <button id="reimportResourceButton" type="button" title="重新计算当前资源的导入状态">重导</button>
         <button id="replaceSourceButton" type="button" title="替换当前资源的源文件并保留资源身份">替换源</button>
         <button id="deleteResourceButton" type="button" disabled title="等待 reference graph delete guard">删除资源</button>
