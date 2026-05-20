@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MxFramework.Resources;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Playables;
@@ -22,9 +23,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private AnimationClip[] _animationClips = Array.Empty<AnimationClip>();
 
         private readonly List<GameObject> _spawnedWeapons = new List<GameObject>();
+        private readonly List<ResourceHandle<GameObject>> _weaponHandles = new List<ResourceHandle<GameObject>>();
         private PlayableGraph _animationGraph;
         private AnimationClipPlayable _activeClipPlayable;
         private bool _loopAnimation;
+        private IResourceManager _resourceManager;
 
         public string PackageId => _packageId;
         public string CharacterId => _characterId;
@@ -65,13 +68,25 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             StopAnimation();
         }
 
+        public void ConfigureResourceManager(IResourceManager resourceManager, bool instantiateDefaultWeapons)
+        {
+            _resourceManager = resourceManager;
+            if (instantiateDefaultWeapons)
+                InstantiateDefaultWeapons(resourceManager);
+        }
+
         public void InstantiateDefaultWeapons()
+        {
+            InstantiateDefaultWeapons(_resourceManager);
+        }
+
+        public void InstantiateDefaultWeapons(IResourceManager resourceManager)
         {
             ClearSpawnedWeapons();
             for (int i = 0; i < _defaultWeapons.Length; i++)
             {
                 CharacterDefaultWeaponPrefabBinding binding = _defaultWeapons[i];
-                if (binding == null || binding.Prefab == null)
+                if (binding == null)
                     continue;
 
                 Transform socket = binding.SocketTransform != null
@@ -84,7 +99,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     continue;
                 }
 
-                GameObject instance = Instantiate(binding.Prefab, socket);
+                GameObject prefab = LoadWeaponPrefab(resourceManager, binding, out ResourceHandle<GameObject> handle);
+                if (prefab == null)
+                {
+                    Debug.LogWarning("MxFramework Character: default weapon prefab could not be loaded. weapon="
+                        + binding.WeaponId + " resource=" + binding.ResourceId, this);
+                    continue;
+                }
+
+                if (handle != null)
+                    _weaponHandles.Add(handle);
+
+                GameObject instance = Instantiate(prefab, socket);
                 instance.name = "DefaultWeapon_" + SafeName(binding.EquipSlot) + "_" + SafeName(binding.WeaponId);
                 instance.transform.localPosition = binding.LocalPosition;
                 instance.transform.localRotation = binding.LocalRotation;
@@ -107,6 +133,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             _spawnedWeapons.Clear();
+            ReleaseWeaponHandles();
         }
 
         public void DestroyAuthoringPreviewWeapons()
@@ -181,6 +208,38 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return FindChild(root, "Socket_" + socketId) ?? FindChild(root, socketId);
         }
 
+        private GameObject LoadWeaponPrefab(IResourceManager resourceManager, CharacterDefaultWeaponPrefabBinding binding, out ResourceHandle<GameObject> handle)
+        {
+            handle = null;
+            if (resourceManager != null && binding.HasResourceKey)
+            {
+                ResourceLoadResult<ResourceHandle<GameObject>> result = resourceManager.Load<GameObject>(binding.CreateResourceKey());
+                if (result.Success)
+                {
+                    handle = result.Value;
+                    return result.Value.Value;
+                }
+
+                Debug.LogWarning("MxFramework Character: resource load failed for default weapon. key="
+                    + binding.CreateResourceKey() + " error=" + result.Error.Message, this);
+            }
+
+            return binding.Prefab;
+        }
+
+        private void ReleaseWeaponHandles()
+        {
+            if (_resourceManager == null)
+            {
+                _weaponHandles.Clear();
+                return;
+            }
+
+            for (int i = 0; i < _weaponHandles.Count; i++)
+                _resourceManager.Release(_weaponHandles[i]);
+            _weaponHandles.Clear();
+        }
+
         private static Transform FindChild(Transform root, string name)
         {
             if (root == null || string.IsNullOrWhiteSpace(name))
@@ -211,6 +270,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private string _equipSlot = string.Empty;
         [SerializeField] private string _socketId = string.Empty;
         [SerializeField] private string _traceId = string.Empty;
+        [SerializeField] private string _resourceId = string.Empty;
+        [SerializeField] private string _resourceTypeId = ResourceTypeIds.GameObject;
+        [SerializeField] private string _resourceVariant = "default";
+        [SerializeField] private string _resourcePackageId = string.Empty;
         [SerializeField] private Transform _socketTransform;
         [SerializeField] private GameObject _prefab;
         [SerializeField] private Vector3 _localPosition;
@@ -221,10 +284,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public string EquipSlot => _equipSlot;
         public string SocketId => _socketId;
         public string TraceId => _traceId;
+        public string ResourceId => _resourceId;
+        public bool HasResourceKey => !string.IsNullOrWhiteSpace(_resourceId);
         public Transform SocketTransform => _socketTransform;
         public GameObject Prefab => _prefab;
         public Vector3 LocalPosition => _localPosition;
         public Quaternion LocalRotation => _localRotation;
         public Vector3 LocalScale => _localScale;
+
+        public ResourceKey CreateResourceKey()
+        {
+            return new ResourceKey(_resourceId, _resourceTypeId, _resourceVariant, _resourcePackageId);
+        }
     }
 }

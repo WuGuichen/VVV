@@ -2,7 +2,8 @@
     "name": "MxFramework.Character.RuntimeSpawn.Unity",
     "rootNamespace": "MxFramework.CharacterRuntimeSpawn.Unity",
     "references": [
-        "MxFramework.Character.RuntimeSpawn"
+        "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Resources"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

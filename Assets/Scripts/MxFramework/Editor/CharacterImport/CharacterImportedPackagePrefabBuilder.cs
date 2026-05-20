@@ -53,10 +53,8 @@ namespace MxFramework.Editor.CharacterImport
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (prefab != null)
             {
-                GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-                instance.transform.position = Vector3.zero;
-                instance.transform.rotation = Quaternion.identity;
-                Selection.activeGameObject = instance;
+                GameObject loader = CreateRuntimeResourceBootstrap(prefab, prefabPath);
+                Selection.activeGameObject = loader;
             }
 
             EditorSceneManager.SaveScene(scene, PreviewScenePath);
@@ -214,7 +212,7 @@ namespace MxFramework.Editor.CharacterImport
             serialized.FindProperty("_loadoutId").stringValue = spawnResult.Binding.SpawnPlan.LoadoutId.Value.ToString();
             serialized.FindProperty("_socketsRoot").objectReferenceValue = socketsRoot;
             serialized.FindProperty("_authoringPreviewWeaponsRoot").objectReferenceValue = authoringPreviewWeaponsRoot;
-            serialized.FindProperty("_instantiateDefaultWeaponsOnAwake").boolValue = true;
+            serialized.FindProperty("_instantiateDefaultWeaponsOnAwake").boolValue = false;
             serialized.FindProperty("_playFirstAnimationOnStart").boolValue = false;
 
             SerializedProperty weapons = serialized.FindProperty("_defaultWeapons");
@@ -228,7 +226,11 @@ namespace MxFramework.Editor.CharacterImport
                 item.FindPropertyRelative("_socketId").stringValue = attachment.AttachSocketId;
                 item.FindPropertyRelative("_traceId").stringValue = attachment.TraceId;
                 item.FindPropertyRelative("_socketTransform").objectReferenceValue = sockets.TryGetValue(attachment.AttachSocketId, out Transform socket) ? socket : null;
-                item.FindPropertyRelative("_prefab").objectReferenceValue = weaponPrefabs.TryGetValue(GetAttachmentKey(attachment), out GameObject prefab) ? prefab : null;
+                item.FindPropertyRelative("_resourceId").stringValue = GetWeaponPrefabResourceId(package, attachment);
+                item.FindPropertyRelative("_resourceTypeId").stringValue = ResourceTypeIds.GameObject;
+                item.FindPropertyRelative("_resourceVariant").stringValue = "default";
+                item.FindPropertyRelative("_resourcePackageId").stringValue = package.PackageId;
+                item.FindPropertyRelative("_prefab").objectReferenceValue = null;
                 item.FindPropertyRelative("_localPosition").vector3Value = ToVector3(attachment.LocalGripPose.Position, Vector3.zero);
                 item.FindPropertyRelative("_localRotation").quaternionValue = ToQuaternion(attachment.LocalGripPose.Rotation);
                 item.FindPropertyRelative("_localScale").vector3Value = ToVector3(attachment.LocalGripPose.Scale, Vector3.one);
@@ -297,6 +299,77 @@ namespace MxFramework.Editor.CharacterImport
         private static string GetAttachmentKey(CharacterWeaponAttachmentRuntimeBinding attachment)
         {
             return (attachment?.EquipSlot ?? string.Empty) + "::" + (attachment?.WeaponId ?? string.Empty);
+        }
+
+        private static string GetCharacterPrefabResourceId(CharacterImportedPackage package)
+        {
+            return "char." + package.PackageId + ".prefab.character_preview";
+        }
+
+        private static string GetWeaponPrefabResourceId(CharacterImportedPackage package, CharacterWeaponAttachmentRuntimeBinding attachment)
+        {
+            return "char." + package.PackageId + ".prefab.weapon."
+                + SanitizeResourceIdSegment(attachment.EquipSlot) + "." + SanitizeResourceIdSegment(attachment.WeaponId);
+        }
+
+        private static GameObject CreateRuntimeResourceBootstrap(GameObject characterPrefab, string characterPrefabPath)
+        {
+            var loader = new GameObject("CharacterRuntimeResourceBootstrap");
+            var bootstrap = loader.AddComponent<CharacterRuntimeResourceBootstrap>();
+            CharacterImportedPackage package = CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(DefaultImportedPackageRoot));
+            var serialized = new SerializedObject(bootstrap);
+            serialized.FindProperty("_catalogId").stringValue = "character.runtime." + package.PackageId;
+            serialized.FindProperty("_packageId").stringValue = package.PackageId;
+            serialized.FindProperty("_characterResourceId").stringValue = GetCharacterPrefabResourceId(package);
+            serialized.FindProperty("_characterResourceVariant").stringValue = "default";
+            serialized.FindProperty("_loadOnStart").boolValue = true;
+
+            SerializedProperty resources = serialized.FindProperty("_resources");
+            resources.arraySize = 1 + package.Geometry.WeaponAttachments.Length;
+            SetSerializedResource(
+                resources.GetArrayElementAtIndex(0),
+                GetCharacterPrefabResourceId(package),
+                ResourceTypeIds.GameObject,
+                "default",
+                package.PackageId,
+                characterPrefabPath,
+                characterPrefab);
+
+            for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
+            {
+                CharacterWeaponAttachmentRuntimeBinding attachment = package.Geometry.WeaponAttachments[i];
+                string weaponPrefabPath = DefaultImportedPackageRoot + "/prefabs/weapons/"
+                    + package.PackageId + "_" + SanitizeName(attachment.EquipSlot) + "_" + SanitizeName(attachment.WeaponId) + ".prefab";
+                GameObject weaponPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(weaponPrefabPath);
+                SetSerializedResource(
+                    resources.GetArrayElementAtIndex(i + 1),
+                    GetWeaponPrefabResourceId(package, attachment),
+                    ResourceTypeIds.GameObject,
+                    "default",
+                    package.PackageId,
+                    weaponPrefabPath,
+                    weaponPrefab);
+            }
+
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            return loader;
+        }
+
+        private static void SetSerializedResource(
+            SerializedProperty property,
+            string id,
+            string typeId,
+            string variant,
+            string packageId,
+            string address,
+            UnityEngine.Object asset)
+        {
+            property.FindPropertyRelative("_id").stringValue = id;
+            property.FindPropertyRelative("_typeId").stringValue = typeId;
+            property.FindPropertyRelative("_variant").stringValue = variant;
+            property.FindPropertyRelative("_packageId").stringValue = packageId;
+            property.FindPropertyRelative("_address").stringValue = address;
+            property.FindPropertyRelative("_asset").objectReferenceValue = asset;
         }
 
         private static Dictionary<string, Transform> CreateSockets(
@@ -919,6 +992,11 @@ namespace MxFramework.Editor.CharacterImport
             foreach (char c in Path.GetInvalidFileNameChars())
                 value = value.Replace(c, '_');
             return value.Replace('.', '_').Replace('/', '_');
+        }
+
+        private static string SanitizeResourceIdSegment(string value)
+        {
+            return SanitizeName(value).ToLowerInvariant();
         }
 
         private readonly struct TransformBoneBindingInfo
