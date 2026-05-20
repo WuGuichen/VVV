@@ -20,6 +20,7 @@ internal static class CharacterPackageTests
         CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
         UnityAssetDatabaseProvider_ProjectsSnapshotAndUnavailableState();
         RuntimeCatalogProvider_ProjectsRuntimeReadyEntries();
+        FmodAudioLibraryProvider_ProjectsEventsAndUnavailableState();
         ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
@@ -42,6 +43,7 @@ internal static class CharacterPackageTests
         SlimeSample_UsesSameDtoForPrimitiveBody();
         IronVanguardSample_CompilesToConfigPatchGeometryMappingAndWritePlan();
         IronVanguardSample_CompilesResourcePlanArtifacts();
+        CharacterResourcePlanCompiler_FmodAudioCueDoesNotEnterRuntimeCatalog();
         CharacterResourcesPlanCommand_WritesRuntimePlanArtifacts();
         Compiler_ApplicationResourceKeysAreCharacterReferences();
         Compiler_ModelWrapperPoseChangesImportAndResourceMappingHash();
@@ -633,6 +635,103 @@ internal static class CharacterPackageTests
         AuthoringResourceCollection unavailable = new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
         Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "runtime provider should expose unavailable state without a catalog.");
         Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable runtime provider should emit a diagnostic.");
+    }
+
+    private static void FmodAudioLibraryProvider_ProjectsEventsAndUnavailableState()
+    {
+        var snapshot = new AuthoringFmodAudioLibrarySnapshotDocument
+        {
+            Source = "unit-test",
+            GeneratedAtUtc = "2026-05-20T08:00:00Z",
+            CacheTimeUtc = "2026-05-20T07:59:00Z",
+            CacheValid = true
+        };
+        snapshot.Banks.Add(new AuthoringFmodAudioLibraryBank
+        {
+            Name = "Character",
+            Path = "/Banks/Character.bank",
+            StudioPath = "bank:/Character"
+        });
+        var audioEvent = new AuthoringFmodAudioLibraryEvent
+        {
+            Path = "event:/Character/IronVanguard/SwordSlash",
+            Guid = "{11111111-2222-3333-4444-555555555555}",
+            Kind = "Event",
+            Is3D = true,
+            IsLoop = false,
+            LengthMs = 850,
+            MaxDistance = 25f
+        };
+        audioEvent.Banks.Add("Character");
+        audioEvent.Parameters.Add(new AuthoringFmodAudioLibraryParameter
+        {
+            Name = "Impact",
+            Kind = "Labeled",
+            IdData1 = 17,
+            IdData2 = 23
+        });
+        snapshot.Events.Add(audioEvent);
+        snapshot.Diagnostics.Add(new AuthoringFmodAudioLibraryDiagnostic
+        {
+            Severity = "Warning",
+            Code = "FMOD_CACHE_STALE",
+            Message = "cache stale",
+            SuggestedFix = "refresh banks"
+        });
+
+        AuthoringResourceCollection collection = FmodAudioLibraryAuthoringResourceProvider.FromSnapshot(
+            snapshot,
+            new AuthoringResourceProviderContext
+            {
+                ScopeId = "test",
+                PackageId = "test",
+                FmodAudioLibrarySnapshotPath = "Assets/MxFrameworkGenerated/Audio/fmod_audio_library.json"
+            });
+
+        Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.Fmod, "FMOD provider should be declared.");
+        Require(collection.Providers[0].Available, "stale FMOD provider should remain available.");
+        Require(collection.Providers[0].Status == "Stale", "stale FMOD snapshot should be visible as provider status.");
+        Require(collection.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.FmodSnapshotStale), "stale FMOD snapshot should emit a diagnostic.");
+        Require(collection.Items.Count == 1, "FMOD provider should project one audio event item.");
+
+        AuthoringResourceItem item = collection.Items[0];
+        Require(item.SourceProviderId == AuthoringResourceProviderIds.Fmod, "FMOD item should use FMOD provider.");
+        Require(item.SourceKind == AuthoringResourceSourceKind.FmodLibrary, "FMOD item should use FmodLibrary source kind.");
+        Require(item.BindingKind == AuthoringResourceBindingKind.AudioEventDefinition, "FMOD event primary binding should be AudioEventDefinition.");
+        Require(item.RuntimeAvailability == AuthoringResourceRuntimeAvailability.AudioCueOnly, "FMOD event should be audio-cue-only.");
+        Require(item.ProviderBindings.Exists(binding => binding.BindingKind == AuthoringResourceBindingKind.AudioEventDefinition && binding.FmodEventGuid == "{11111111-2222-3333-4444-555555555555}"), "FMOD event definition binding should carry event guid.");
+        Require(item.ProviderBindings.Exists(binding => binding.BindingKind == AuthoringResourceBindingKind.AudioCue && binding.ProviderData["audioCueId"].StartsWith("audio.cue.", StringComparison.Ordinal)), "FMOD event should expose an AudioCue bridge binding.");
+        Require(item.ProviderBindings.TrueForAll(binding => string.IsNullOrEmpty(binding.RuntimeResourceKey)), "FMOD event must not gain a runtime resource key.");
+        Require(item.Metadata["banks"] == "Character", "FMOD banks should be projected as metadata.");
+        Require(item.Metadata["parameters"] == "Impact", "FMOD parameters should be projected as metadata.");
+
+        var service = new AuthoringResourceSelectionService();
+        AuthoringResourceSelectionResolutionResult cueResult = service.Resolve(
+            collection,
+            new AuthoringResourceFieldSpec
+            {
+                FieldKey = "CombatAction.HitSfx",
+                AcceptedKinds = new List<string> { CharacterPackageResourceTypeIds.Audio },
+                AcceptedUsages = new List<string> { CharacterPackageResourceUsageIds.AudioCue },
+                AcceptedProviderIds = new List<string> { AuthoringResourceProviderIds.Fmod },
+                AcceptedBindingKinds = new List<AuthoringResourceBindingKind> { AuthoringResourceBindingKind.AudioCue },
+                PreloadPolicy = AuthoringResourcePreloadPolicies.AudioBank,
+                OutputKind = AuthoringResourceSelectionOutputKind.AudioCueId
+            },
+            new AuthoringResourceConsumerContext { ConsumerKind = "combatAction" },
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = item.StableId,
+                SourceProviderId = AuthoringResourceProviderIds.Fmod,
+                BindingKind = AuthoringResourceBindingKind.AudioCue
+            });
+        Require(cueResult.Accepted, "FMOD audio cue selection should resolve.");
+        Require(cueResult.Selection.AudioCueId.StartsWith("audio.cue.", StringComparison.Ordinal), "FMOD audio cue selection should output AudioCueId.");
+        Require(string.IsNullOrEmpty(cueResult.Selection.RuntimeResourceKey), "FMOD audio cue selection must not output runtime resource key.");
+
+        AuthoringResourceCollection unavailable = FmodAudioLibraryAuthoringResourceProvider.FromSnapshot(null, new AuthoringResourceProviderContext());
+        Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "FMOD provider should expose unavailable state without a snapshot.");
+        Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable FMOD provider should emit a provider diagnostic.");
     }
 
     private static void ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates()
@@ -1669,6 +1768,48 @@ internal static class CharacterPackageTests
         Require(!result.ResourceValidationReport.HasErrors, "clean Iron Vanguard resource plan should not have errors.");
         Require(result.ResourceValidationReport.GroupCounts.SpawnCritical == 1, "validation report should summarize SpawnCritical count.");
         Require(result.CharacterResourcePlan.PlanHash == second.CharacterResourcePlan.PlanHash, "resource plan hash should be deterministic.");
+    }
+
+    private static void CharacterResourcePlanCompiler_FmodAudioCueDoesNotEnterRuntimeCatalog()
+    {
+        CharacterResourcePackage package = LoadSample("character-iron-vanguard");
+        package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+        {
+            ResourceKey = "audio.cue.iron_vanguard.sword_slash",
+            LocalId = "audio.sword_slash",
+            StableId = "charpkg.iron_vanguard.resource.audio.sword_slash",
+            TypeId = CharacterPackageResourceTypeIds.Audio,
+            Usage = CharacterPackageResourceUsageIds.AudioCue,
+            PackageId = "iron_vanguard",
+            ImportHints = new CharacterPackageImportHint
+            {
+                ProviderId = AuthoringResourceProviderIds.Fmod,
+                Metadata = new Dictionary<string, string>
+                {
+                    { "runtimeBindingKind", AuthoringResourceBindingKind.AudioCue.ToString() },
+                    { "audioCueId", "audio.cue.iron_vanguard.sword_slash" },
+                    { "audioEventDefinitionId", "audio.event.iron_vanguard.sword_slash" },
+                    { "fmodEventPath", "event:/Character/IronVanguard/SwordSlash" },
+                    { "fmodGuid", "{11111111-2222-3333-4444-555555555555}" },
+                    { "bank", "Character" }
+                }
+            }
+        });
+        package.ApplicationConfig.ResourceKeys.Add("audio.cue.iron_vanguard.sword_slash");
+
+        CharacterResourcePlanCompileResult result = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
+        {
+            Package = package,
+            PackageRootPath = FindSamplePath("character-iron-vanguard")
+        });
+
+        Require(!result.RuntimeResourceCatalog.Entries.Exists(entry => entry.Id == "audio.cue.iron_vanguard.sword_slash"), "FMOD audio cue must not enter ordinary runtime resource catalog.");
+        Require(result.AudioCueManifest.Cues.Exists(cue =>
+            cue.CueId == "audio.cue.iron_vanguard.sword_slash" &&
+            cue.EventPath == "event:/Character/IronVanguard/SwordSlash"), "FMOD audio cue should enter audio cue manifest.");
+        Require(result.AudioCueManifest.Banks.Contains("Character"), "FMOD audio cue should contribute required banks.");
+        Require(result.CharacterResourcePlan.Audio.RequiredCues.Contains("audio.cue.iron_vanguard.sword_slash"), "FMOD audio cue should be required through Audio plan group.");
+        Require(result.CharacterResourcePlan.Audio.RequiredBanks.Contains("Character"), "FMOD bank should be required through Audio plan group.");
     }
 
     private static void CharacterResourcesPlanCommand_WritesRuntimePlanArtifacts()
