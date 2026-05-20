@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MxFramework 资源库编辑器</title>
+  <title>MxFramework 资源管理器</title>
   <link rel="stylesheet" href="./styles.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect y=%2210%22 width=%22100%22 height=%2280%22 rx=%2215%22 fill=%22%231f7a7a%22/><path d=%22M24 58h52M24 42h52M34 26h32M34 74h32%22 stroke=%22white%22 stroke-width=%229%22 stroke-linecap=%22round%22/></svg>">
 </head>
@@ -14,20 +14,20 @@
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">RL</div>
           <div>
-            <h1>MxFramework 资源库编辑器</h1>
+            <h1>MxFramework 资源管理器</h1>
             <p id="serverStatus">正在连接 Authoring 服务...</p>
           </div>
         </div>
 
-        <div class="toolbar" aria-label="资源库编辑器工具栏">
+        <div class="toolbar" aria-label="资源管理器工具栏">
           <label class="package-field" for="packageSelect">
-            <span>当前角色包</span>
+            <span>包筛选 / 消费者上下文</span>
             <select id="packageSelect"></select>
           </label>
           <button id="refreshButton" type="button">刷新</button>
           <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">打开 CharacterStudio</a>
           <button id="validateButton" type="button">运行资源验证</button>
-          <button id="viewPlanButton" type="button">查看当前 resource plan</button>
+          <button id="viewPlanButton" type="button">查看当前资源计划</button>
         </div>
       </header>
 
@@ -62,6 +62,10 @@
                 <label class="filter-field" for="usageFilter">
                   <span>usage</span>
                   <select id="usageFilter"></select>
+                </label>
+                <label class="filter-field" for="providerFilter">
+                  <span>provider</span>
+                  <select id="providerFilter"></select>
                 </label>
                 <label class="filter-field" for="sourceFilter">
                   <span>source kind</span>
@@ -110,7 +114,7 @@
         <section id="resourcePlanPanel" class="resource-plan-panel">
           <div class="panel-heading">
             <div>
-              <h2>当前 resource plan</h2>
+              <h2>当前资源计划</h2>
               <p id="planSummary">尚未读取运行时资源计划</p>
             </div>
           </div>

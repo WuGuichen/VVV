@@ -5,13 +5,13 @@ const API = {
   resources: packageRelative => `/api/authoring/resources?package=${encodeURIComponent(packageRelative)}`,
   resourcePlan: (packageRelative, checkHashes = false) => {
     const suffix = checkHashes ? "&checkHashes=true" : "";
-    return `/api/character/resource-plan?package=${encodeURIComponent(packageRelative)}${suffix}`;
+    return `/api/authoring/resources/resource-plan?package=${encodeURIComponent(packageRelative)}${suffix}`;
   },
   inspect: (packageRelative, id) => `/api/authoring/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`,
   stageImport: "/api/authoring/resources/stage-import",
-  importResource: "/api/character/resources/import",
-  reimportResource: "/api/character/resources/reimport",
-  replaceSource: "/api/character/resources/replace-source"
+  importResource: "/api/authoring/resources/import",
+  reimportResource: "/api/authoring/resources/reimport",
+  replaceSource: "/api/authoring/resources/replace-source"
 };
 
 const PLAN_GROUPS = [
@@ -95,6 +95,7 @@ const FILTER_DEFAULTS = {
   search: "",
   kind: "all",
   usage: "all",
+  providerId: "all",
   sourceKind: "all",
   importStatus: "all",
   runtimeAvailability: "all",
@@ -138,7 +139,7 @@ function cacheElements() {
   for (const id of [
     "serverStatus", "packageSelect", "refreshButton", "openCharacterStudioButton",
     "validateButton", "viewPlanButton", "statusStrip", "resourceSummary",
-    "searchInput", "kindFilter", "usageFilter", "sourceFilter", "importFilter",
+    "searchInput", "kindFilter", "usageFilter", "providerFilter", "sourceFilter", "importFilter",
     "runtimeFilter", "tagFilter", "onlyReferenced", "onlyOrphan",
     "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "resourceList",
     "previewTitle", "previewSubtitle", "previewBody", "resourcePlanPanel",
@@ -175,6 +176,7 @@ function bindEvents() {
     ["searchInput", "search", "input"],
     ["kindFilter", "kind", "change"],
     ["usageFilter", "usage", "change"],
+    ["providerFilter", "providerId", "change"],
     ["sourceFilter", "sourceKind", "change"],
     ["importFilter", "importStatus", "change"],
     ["runtimeFilter", "runtimeAvailability", "change"],
@@ -626,7 +628,7 @@ async function postJson(url, body) {
 function renderLoading() {
   el.serverStatus.textContent = "正在连接 Authoring 服务...";
   el.statusStrip.innerHTML = statusChip("服务", "读取中", "pending");
-  el.resourceSummary.textContent = "正在读取资源库...";
+  el.resourceSummary.textContent = "正在读取资源管理器...";
   el.resourceList.innerHTML = emptyBlock("正在读取资源项");
   el.previewTitle.textContent = "资源摘要";
   el.previewSubtitle.textContent = "等待资源库数据";
@@ -663,9 +665,11 @@ function renderStatus() {
   const connected = state.errors.length === 0 || Boolean(state.resourcesPayload || state.resourcePlanPayload);
   const planStatus = getPlanStatus();
   const packageLabel = getSelectedPackageLabel();
+  const providers = getProviders();
+  const unavailableProviders = providers.filter(provider => !provider.available);
 
   el.serverStatus.textContent = connected
-    ? `已连接 Authoring 服务，当前角色包：${packageLabel}`
+    ? `已连接 Authoring 服务，全局资源视图；包筛选：${packageLabel}`
     : "未连接 Authoring 服务。请通过 Editor Hub 或启动脚本打开本工具。";
 
   const validationMessage = state.lastActionMessage
@@ -673,6 +677,7 @@ function renderStatus() {
     : "";
   el.statusStrip.innerHTML = [
     statusChip("Authoring", connected ? "已连接" : "未连接", connected ? "ok" : "error"),
+    statusChip("providers", providers.length > 0 ? `${providers.length}` : "0", unavailableProviders.length > 0 ? "warn" : providers.length > 0 ? "ok" : "warn"),
     statusChip("资源项", String(items.length), items.length > 0 ? "ok" : "warn"),
     statusChip("诊断", String(diagnostics.length), diagnostics.some(d => getSeverity(d) === "Error") ? "error" : diagnostics.length > 0 ? "warn" : "ok"),
     statusChip("resource plan", planStatus, planStatus === "Ready" ? "ok" : state.resourcePlanPayload ? "warn" : "error"),
@@ -684,6 +689,7 @@ function renderFilters() {
   const items = getNormalizedItems();
   setSelectOptions(el.kindFilter, buildOptions(items, "kind"), state.filters.kind);
   setSelectOptions(el.usageFilter, buildOptions(items, "usage"), state.filters.usage);
+  setSelectOptions(el.providerFilter, buildOptions(items, "providerId"), state.filters.providerId);
   setSelectOptions(el.sourceFilter, buildOptions(items, "sourceKind"), state.filters.sourceKind);
   setSelectOptions(el.importFilter, buildOptions(items, "importStatus"), state.filters.importStatus);
   setSelectOptions(el.runtimeFilter, buildOptions(items, "runtimeAvailability"), state.filters.runtimeAvailability);
@@ -698,11 +704,11 @@ function renderBrowser() {
   const diagnosticsCount = getAllDiagnostics().length;
 
   el.resourceSummary.textContent = allItems.length === 0
-    ? "没有读取到资源库 API 数据。"
+    ? "没有读取到 Authoring Resource Manager API 数据。"
     : `显示 ${filtered.length} / ${allItems.length} 个资源项，${diagnosticsCount} 条诊断`;
 
   if (allItems.length === 0) {
-    el.resourceList.innerHTML = emptyBlock("未读取到资源项。请确认 Authoring 服务已启动，并且当前包包含 resource_catalog.json。");
+    el.resourceList.innerHTML = emptyBlock("未读取到资源项。请确认 Authoring 服务已启动，并且至少一个 provider 可用。");
     return;
   }
   if (filtered.length === 0) {
@@ -721,6 +727,7 @@ function renderBrowser() {
         <span class="resource-row-meta">
           ${smallBadge(item.kind || "unknown", "neutral")}
           ${smallBadge(item.usage || "-", "neutral")}
+          ${smallBadge(item.providerId || "provider", "info")}
           ${smallBadge(item.sourceKind || "Unknown", "info")}
         </span>
         <span class="resource-row-meta">
@@ -793,10 +800,12 @@ function renderPreview() {
 function renderLibraryOverview() {
   const items = getNormalizedItems();
   const byKind = countBy(items, "kind");
+  const byProvider = countBy(items, "providerId");
   const byRuntime = countBy(items, "runtimeAvailability");
+  const providers = getProviders();
 
-  el.previewTitle.textContent = "资源摘要";
-  el.previewSubtitle.textContent = "选择左侧资源查看预览和关键状态";
+  el.previewTitle.textContent = "全局资源摘要";
+  el.previewSubtitle.textContent = "资源管理器提供统一资源视图；角色包、动画、音频和其他编辑器只引用这里的资源项";
   el.previewBody.innerHTML = `
     <div class="summary-grid">
       ${metric("资源项", items.length)}
@@ -805,6 +814,14 @@ function renderLibraryOverview() {
       ${metric("有诊断", items.filter(item => item.diagnosticCount > 0).length)}
     </div>
     <div class="split-lists">
+      <div class="detail-card">
+        <h3>provider 状态</h3>
+        ${providers.length > 0 ? renderProviderList(providers) : emptyBlock("暂无 provider 数据")}
+      </div>
+      <div class="detail-card">
+        <h3>provider 分布</h3>
+        ${renderCountList(byProvider, "暂无 provider 数据")}
+      </div>
       <div class="detail-card">
         <h3>kind 分布</h3>
         ${renderCountList(byKind, "暂无 kind 数据")}
@@ -1185,6 +1202,7 @@ function getFilteredItems(items) {
   return items.filter(item => {
     if (state.filters.kind !== "all" && item.kind !== state.filters.kind) return false;
     if (state.filters.usage !== "all" && item.usage !== state.filters.usage) return false;
+    if (state.filters.providerId !== "all" && item.providerId !== state.filters.providerId) return false;
     if (state.filters.sourceKind !== "all" && item.sourceKind !== state.filters.sourceKind) return false;
     if (state.filters.importStatus !== "all" && item.importStatus !== state.filters.importStatus) return false;
     if (state.filters.runtimeAvailability !== "all" && item.runtimeAvailability !== state.filters.runtimeAvailability) return false;
@@ -1200,6 +1218,7 @@ function getFilteredItems(items) {
       item.displayName,
       item.kind,
       item.usage,
+      item.providerId,
       item.sourceKind,
       item.importStatus,
       item.runtimeAvailability,
@@ -1430,6 +1449,26 @@ function buildOptions(items, key) {
   return [["all", "全部"], ...values.map(value => [value, value])];
 }
 
+function getProviders() {
+  return asArray(pick(state.resourcesPayload, "providers", "Providers")).map(raw => ({
+    providerId: stringValue(pick(raw, "providerId", "ProviderId", "id")) || "unknown",
+    displayName: stringValue(pick(raw, "displayName", "DisplayName", "name")) || stringValue(pick(raw, "providerId", "ProviderId", "id")) || "unknown",
+    sourceKind: stringValue(pick(raw, "sourceKind", "SourceKind")),
+    available: pick(raw, "available", "Available") !== false,
+    status: stringValue(pick(raw, "status", "Status")) || "Unknown",
+    diagnosticCode: stringValue(pick(raw, "diagnosticCode", "DiagnosticCode")),
+    message: stringValue(pick(raw, "message", "Message"))
+  }));
+}
+
+function renderProviderList(providers) {
+  return `<ul class="compact-list">${providers.map(provider => `
+    <li>
+      <span>${escapeHtml(provider.displayName)}</span>
+      <strong>${escapeHtml(provider.available ? provider.status : provider.diagnosticCode || provider.status)}</strong>
+    </li>`).join("")}</ul>`;
+}
+
 function buildTagOptions(items) {
   const tags = Array.from(new Set(items.flatMap(item => item.tags))).sort(compareText);
   return [["all", "全部"], ...tags.map(tag => [tag, tag])];
@@ -1449,6 +1488,7 @@ function selectToFilterKey(id) {
   return {
     kindFilter: "kind",
     usageFilter: "usage",
+    providerFilter: "providerId",
     sourceFilter: "sourceKind",
     importFilter: "importStatus",
     runtimeFilter: "runtimeAvailability",

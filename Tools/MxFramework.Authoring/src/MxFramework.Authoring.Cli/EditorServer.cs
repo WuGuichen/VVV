@@ -173,7 +173,7 @@ internal static class EditorServer
             return;
         }
 
-        if (path == "/api/character/resources/import" && context.Request.HttpMethod == "POST")
+        if ((path == "/api/authoring/resources/import" || path == "/api/character/resources/import") && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             ResourceLibraryWriteRequest request = ReadResourceLibraryWriteRequest(context, jsonOptions);
@@ -194,7 +194,7 @@ internal static class EditorServer
             return;
         }
 
-        if (path == "/api/character/resources/reimport" && context.Request.HttpMethod == "POST")
+        if ((path == "/api/authoring/resources/reimport" || path == "/api/character/resources/reimport") && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             ResourceLibraryWriteRequest request = ReadResourceLibraryWriteRequest(context, jsonOptions);
@@ -215,7 +215,7 @@ internal static class EditorServer
             return;
         }
 
-        if (path == "/api/character/resources/replace-source" && context.Request.HttpMethod == "POST")
+        if ((path == "/api/authoring/resources/replace-source" || path == "/api/character/resources/replace-source") && context.Request.HttpMethod == "POST")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             ResourceLibraryWriteRequest request = ReadResourceLibraryWriteRequest(context, jsonOptions);
@@ -236,7 +236,7 @@ internal static class EditorServer
             return;
         }
 
-        if (path == "/api/character/resource-plan" && context.Request.HttpMethod == "GET")
+        if ((path == "/api/authoring/resources/resource-plan" || path == "/api/character/resource-plan") && context.Request.HttpMethod == "GET")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             bool checkHashes = string.Equals(context.Request.QueryString["checkHashes"], "true", StringComparison.OrdinalIgnoreCase);

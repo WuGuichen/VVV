@@ -39,9 +39,10 @@ const server = fs.readFileSync(path.join(repoRoot, "Tools/MxFramework.Authoring/
 assert(index.includes("MxFramework 外部编辑器中心"), "hub title should be Chinese-first");
 assert(index.includes("toolGrid") && index.includes("resourceSummary"), "hub should expose tool and resource sections");
 assert(index.includes("diagnosticsConsole") && index.includes("diagnosticsFilter"), "hub should expose the diagnostics console");
-assert(app.includes("/api/character/resources") && app.includes("/api/character/resource-plan"), "hub should read resource APIs");
+assert(app.includes("/api/authoring/resources?package=") && app.includes("/api/authoring/resources/resource-plan?package="), "hub should read Authoring Resource Manager APIs");
 assert(app.includes("Tools/MxFramework.CharacterStudio/web/") && app.includes("Tools/MxFramework.Authoring.Editor/web/"), "hub should link existing editors");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/"), "hub should link Resource Library editor");
+assert(app.includes("资源管理器") && app.includes("默认包上下文") && app.includes("资源 providers"), "hub should present Resource Manager as global resource center with package context");
 assert(!app.includes('action: "待实现"') && !app.includes("disabled: true"), "Resource Library card should be enabled");
 assert(app.includes("renderDiagnostics") && app.includes("getFilteredDiagnostics"), "hub should render and filter diagnostics");
 assert(styles.includes(".tool-grid") && styles.includes(".resource-panels"), "hub should style the main tool and resource layouts");

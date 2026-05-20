@@ -70,28 +70,28 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%PORT% .*LISTENING"')
 if not "%PORT_PID%"=="" (
     powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%HEALTH_LIST_URL%' -TimeoutSec 1 | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri '%HEALTH_INSPECT_URL%' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
     if not errorlevel 1 (
-        echo Resource Library-compatible Authoring server is already running on port %PORT%.
+        echo Resource Manager-compatible Authoring server is already running on port %PORT%.
         echo URL: %URL%
         if not "%MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER%"=="0" start "" "%URL%"
         exit /b 0
     )
 
     echo [ERROR] Port %PORT% is already in use by process %PORT_PID%.
-    echo [ERROR] The existing process is not a Resource Library-compatible Authoring server.
+    echo [ERROR] The existing process is not a Resource Manager-compatible Authoring server.
     echo Stop the old process or retry with another port: Tools\MxFramework.ResourceLibrary\start-resource-library.bat 4874
     exit /b 1
 )
 
-echo MxFramework Resource Library Editor
+echo MxFramework Resource Manager
 echo Root   : %ROOT_DIR%
-echo Package: %PACKAGE_RELATIVE%
+echo Context: %PACKAGE_RELATIVE%
 echo Port   : %PORT%
 echo URL    : %URL%
 echo Stop   : Ctrl+C
 echo.
 
 if not "%MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER%"=="0" (
-    start "Resource Library opener" powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='%URL%'; $list='%HEALTH_LIST_URL%'; $inspect='%HEALTH_INSPECT_URL%'; for($i=0;$i -lt 30;$i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $list -TimeoutSec 1 | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri $inspect -TimeoutSec 1 | Out-Null; Start-Process $u; exit 0 } catch { Start-Sleep -Seconds 1 } }; Write-Host 'Resource Library server did not become ready in 30 seconds. Open manually:' $u"
+    start "Resource Manager opener" powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='%URL%'; $list='%HEALTH_LIST_URL%'; $inspect='%HEALTH_INSPECT_URL%'; for($i=0;$i -lt 30;$i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $list -TimeoutSec 1 | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri $inspect -TimeoutSec 1 | Out-Null; Start-Process $u; exit 0 } catch { Start-Sleep -Seconds 1 } }; Write-Host 'Resource Manager server did not become ready in 30 seconds. Open manually:' $u"
 )
 
 pushd "%ROOT_DIR%"

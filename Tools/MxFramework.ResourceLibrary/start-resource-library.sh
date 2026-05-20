@@ -91,7 +91,7 @@ fi
 
 if is_port_in_use; then
   if is_resource_library_server_ready; then
-    printf 'Resource Library-compatible Authoring server is already running on port %s.\n' "$PORT"
+    printf 'Resource Manager-compatible Authoring server is already running on port %s.\n' "$PORT"
     printf 'URL: %s\n' "$URL"
     [[ "$OPEN_BROWSER" == "0" ]] || open_url
     exit 0
@@ -100,12 +100,12 @@ if is_port_in_use; then
   if command -v lsof >/dev/null 2>&1; then
     lsof -iTCP:"$PORT" -sTCP:LISTEN -n -P >&2 || true
   fi
-  die "Port $PORT is already in use, but it is not a Resource Library-compatible Authoring server. Stop the old process or retry with another port: $0 4874"
+  die "Port $PORT is already in use, but it is not a Resource Manager-compatible Authoring server. Stop the old process or retry with another port: $0 4874"
 fi
 
-printf 'MxFramework Resource Library Editor\n'
+printf 'MxFramework Resource Manager\n'
 printf 'Root   : %s\n' "$ROOT_DIR"
-printf 'Package: %s\n' "$PACKAGE_RELATIVE"
+printf 'Context: %s\n' "$PACKAGE_RELATIVE"
 printf 'Port   : %s\n' "$PORT"
 printf 'URL    : %s\n' "$URL"
 printf 'Stop   : Ctrl+C\n\n'
