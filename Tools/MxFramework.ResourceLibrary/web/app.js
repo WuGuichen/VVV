@@ -338,23 +338,25 @@ async function importResourceFile(file) {
 async function importResourceFolder(files) {
   const preset = getSelectedImportPreset();
   const candidates = Array.from(files || []);
-  const supported = candidates.filter(file => isFileSupportedByPreset(file, preset));
-  const skipped = candidates.length - supported.length;
+  const ignored = candidates.filter(isIgnoredImportFile).length;
+  const importCandidates = candidates.filter(file => !isIgnoredImportFile(file));
+  const supported = importCandidates.filter(file => isFileSupportedByPreset(file, preset));
+  const skipped = importCandidates.length - supported.length;
   if (supported.length === 0) {
-    state.lastActionMessage = `文件夹中没有匹配 ${preset.label} 的资源文件。`;
+    state.lastActionMessage = `文件夹中没有匹配 ${preset.label} 的资源文件${formatFolderImportCountSuffix(skipped, ignored)}。`;
     render();
     return;
   }
 
   state.writeState = { status: "running", action: "folder-import", error: "" };
-  state.lastActionMessage = `导入文件夹：0 / ${supported.length}，跳过 ${skipped}`;
+  state.lastActionMessage = `导入文件夹：0 / ${supported.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
   render();
 
   const failures = [];
   let selectedId = "";
   for (let i = 0; i < supported.length; i++) {
     const file = supported[i];
-    state.lastActionMessage = `导入文件夹：${i + 1} / ${supported.length}，跳过 ${skipped}`;
+    state.lastActionMessage = `导入文件夹：${i + 1} / ${supported.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
     renderStatus();
     try {
       const payload = await postJson(API.importResource, {
@@ -375,8 +377,8 @@ async function importResourceFolder(files) {
     ? { status: "error", action: "folder-import", error: `${failures.length} 个文件导入失败` }
     : { status: "idle", action: "", error: "" };
   state.lastActionMessage = failures.length > 0
-    ? `文件夹导入完成：成功 ${supported.length - failures.length}，失败 ${failures.length}，跳过 ${skipped}`
-    : `文件夹导入完成：成功 ${supported.length}，跳过 ${skipped}`;
+    ? `文件夹导入完成：成功 ${supported.length - failures.length}，失败 ${failures.length}${formatFolderImportCountSuffix(skipped, ignored)}`
+    : `文件夹导入完成：成功 ${supported.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
   if (failures.length > 0) {
     state.errors.push(apiError("文件夹导入", new Error(failures.slice(0, 3).join("; "))));
   }
@@ -982,6 +984,21 @@ function getSelectedImportPreset() {
 function isFileSupportedByPreset(file, preset) {
   const format = inferFormatFromFileName(file.name);
   return preset.extensions.includes(format);
+}
+
+function isIgnoredImportFile(file) {
+  const filePath = getImportDisplayPath(file);
+  const name = String(file?.name || filePath).toLowerCase();
+  if (!name) return true;
+  if (name.endsWith(".meta") || name === ".ds_store" || name === "thumbs.db") return true;
+  return filePath.split(/[\\/]+/).some(segment => segment.startsWith(".") && segment !== ".");
+}
+
+function formatFolderImportCountSuffix(skipped, ignored) {
+  const parts = [];
+  if (skipped > 0) parts.push(`跳过 ${skipped}`);
+  if (ignored > 0) parts.push(`忽略元数据 ${ignored}`);
+  return parts.length > 0 ? `，${parts.join("，")}` : "";
 }
 
 function inferFormatFromFileName(fileName) {
