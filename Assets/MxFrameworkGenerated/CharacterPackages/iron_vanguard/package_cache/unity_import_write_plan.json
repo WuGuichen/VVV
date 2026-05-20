@@ -13,7 +13,7 @@
       "sourcePath": "compiler/generated_config_patch.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_application_config_patch.json",
       "writePolicy": "Recreate",
-      "contentHash": "sha256:9c2ac42323bd2c7f10f81cba7bca7fb7c3408efd26a3d3bf0cba913d583e4710"
+      "contentHash": "sha256:0225540c5f42d3667c64c10b14214e6eb7e2dcb160ec75fbf0931f561854dc1f"
     },
     {
       "kind": "geometryBinding",
@@ -21,7 +21,7 @@
       "sourcePath": "compiler/geometry_binding.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_geometry_binding.json",
       "writePolicy": "Recreate",
-      "contentHash": "sha256:ffc7175e57cd5a035110d63c9182b4a655767366138f9f86159f585d514ce8ae"
+      "contentHash": "sha256:8a62027b82bd29b20b4d53d9f2b61a8c0437b1071fc995aaeff4e6edc3fbc802"
     },
     {
       "kind": "resourceMapping",
@@ -29,23 +29,23 @@
       "sourcePath": "compiler/resource_mapping.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
       "writePolicy": "Recreate",
-      "contentHash": "sha256:22ce7bb03da3d4b27a2c502d9b4e2de7493f73d94df87a35aa2eb6dc94ae3800"
+      "contentHash": "sha256:56e9929c601a544041bb3025a78ad2bab1fbed24824df615a0e9428e18db12e4"
     },
     {
       "kind": "resourceFile",
       "owner": "UnityImporter",
-      "sourcePath": "resources/models/iron_vanguard.glb",
-      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+      "sourcePath": "resources/models/skeleton.glb",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164"
+      "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815"
     },
     {
       "kind": "resourceFile",
       "owner": "UnityImporter",
-      "sourcePath": "resources/models/iron_sword.glb",
-      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+      "sourcePath": "resources/models/katana.glb",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96"
+      "contentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8"
     },
     {
       "kind": "resourceFile",
@@ -53,7 +53,7 @@
       "sourcePath": "resources/models/kite_shield.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4"
+      "contentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476"
     },
     {
       "kind": "resourceFile",
@@ -61,7 +61,7 @@
       "sourcePath": "resources/animations/locomotion.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b"
+      "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b"
     },
     {
       "kind": "resourceFile",
@@ -69,7 +69,7 @@
       "sourcePath": "resources/animations/combat.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d"
+      "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865"
     },
     {
       "kind": "resourceFile",

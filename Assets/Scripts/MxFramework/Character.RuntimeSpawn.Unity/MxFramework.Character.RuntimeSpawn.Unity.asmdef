@@ -1,0 +1,26 @@
+{
+    "name": "MxFramework.Character.RuntimeSpawn.Unity",
+    "rootNamespace": "MxFramework.CharacterRuntimeSpawn.Unity",
+    "references": [
+        "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Character.Application",
+        "MxFramework.CharacterControl",
+        "MxFramework.CharacterControl.Input",
+        "MxFramework.Combat",
+        "MxFramework.Core",
+        "MxFramework.Gameplay",
+        "MxFramework.Input",
+        "MxFramework.Runtime",
+        "MxFramework.Resources",
+        "MxFramework.Resources.Unity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

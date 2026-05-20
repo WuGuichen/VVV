@@ -162,6 +162,7 @@ namespace MxFramework.Authoring
         public string BodyProfileStableId { get; set; } = string.Empty;
         public CharacterCoordinateConversionPlan CoordinateConversion { get; set; } = new CharacterCoordinateConversionPlan();
         public CharacterBodyGeometryProfile BodyProfile { get; set; } = new CharacterBodyGeometryProfile();
+        public List<CharacterBodyPartBinding> BodyParts { get; set; } = new List<CharacterBodyPartBinding>();
         public List<CharacterBodyColliderBinding> BodyColliders { get; set; } = new List<CharacterBodyColliderBinding>();
         public List<CharacterHitZoneBinding> HitZoneBindings { get; set; } = new List<CharacterHitZoneBinding>();
         public List<CharacterSocketBinding> Sockets { get; set; } = new List<CharacterSocketBinding>();
@@ -177,6 +178,21 @@ namespace MxFramework.Authoring
         public float PositionScale { get; set; } = 1f;
         public string AxisConversion { get; set; } = "identity";
         public string RotationConversion { get; set; } = "identity";
+    }
+
+    public sealed class CharacterBodyPartBinding
+    {
+        public string PartId { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public CharacterAuthoringBodyPartKind PartKind { get; set; }
+        public string ParentPartId { get; set; } = string.Empty;
+        public string BonePath { get; set; } = string.Empty;
+        public string LocatorId { get; set; } = string.Empty;
+        public string DefaultHitZoneId { get; set; } = string.Empty;
+        public string ReactionGroupId { get; set; } = string.Empty;
+        public List<string> Tags { get; set; } = new List<string>();
+        public string SourcePath { get; set; } = "geometry/body_parts.json";
+        public string SourceObjectPath { get; set; } = string.Empty;
     }
 
     public sealed class CharacterBodyColliderBinding
@@ -219,6 +235,10 @@ namespace MxFramework.Authoring
         public string LocatorPath { get; set; } = string.Empty;
         public CharacterAuthoringLocalPose LocalPose { get; set; } = new CharacterAuthoringLocalPose();
         public CharacterSocketUsage Usage { get; set; }
+        public string MirrorPairSocketId { get; set; } = string.Empty;
+        public CharacterSocketHandedness Handedness { get; set; } = CharacterSocketHandedness.None;
+        public CharacterSocketSideTag SideTag { get; set; } = CharacterSocketSideTag.Center;
+        public List<string> Tags { get; set; } = new List<string>();
         public string SourcePath { get; set; } = "geometry/sockets.json";
         public string SourceObjectPath { get; set; } = string.Empty;
     }
@@ -231,6 +251,10 @@ namespace MxFramework.Authoring
         public CharacterAuthoringLocalPose LocalGripPose { get; set; } = new CharacterAuthoringLocalPose();
         public string PreviewResourceKey { get; set; } = string.Empty;
         public string TraceId { get; set; } = string.Empty;
+        public string TraceStartSocketId { get; set; } = string.Empty;
+        public string TraceEndSocketId { get; set; } = string.Empty;
+        public float TraceRadius { get; set; }
+        public WeaponTraceSampleRule TraceSampleRule { get; set; }
         public string SourcePath { get; set; } = "geometry/weapon_attachments.json";
         public string SourceObjectPath { get; set; } = string.Empty;
     }
@@ -275,6 +299,7 @@ namespace MxFramework.Authoring
         public string ProviderId { get; set; } = string.Empty;
         public string TargetPathPolicy { get; set; } = string.Empty;
         public string ImportTargetPath { get; set; } = string.Empty;
+        public CharacterAuthoringLocalPose ModelWrapperPose { get; set; } = new CharacterAuthoringLocalPose();
         public string ConflictAction { get; set; } = string.Empty;
     }
 
@@ -371,7 +396,7 @@ namespace MxFramework.Authoring
             result.ResourceMapping = BuildResourceMapping(package, options);
             result.GeneratedConfigPatch = BuildConfigPatch(package, result.GeometryBinding, result.ResourceMapping);
             result.UnityImportWritePlan = BuildWritePlan(package, options, result.GateReport, result.ResourceMapping, result.GeneratedConfigPatch);
-            result.ResolverVerificationPlan = BuildResolverVerificationPlan(result.GeneratedConfigPatch, result.GateReport, result.ResourceMapping);
+            result.ResolverVerificationPlan = BuildResolverVerificationPlan(package.ApplicationConfig, result.GeneratedConfigPatch, result.GateReport, result.ResourceMapping);
             result.SourceMappings = BuildSourceMappings(result.GeneratedConfigPatch, result.GeometryBinding, result.ResourceMapping);
             result.Hashes = BuildHashes(package, result.GeneratedConfigPatch, result.GeometryBinding, result.ResourceMapping, result.UnityImportWritePlan);
             result.UnityImportWritePlan.Writes.Insert(0, new CharacterUnityImportWriteEntry
@@ -452,6 +477,30 @@ namespace MxFramework.Authoring
             binding.CoordinateConversion = BuildCoordinatePlan(package.Manifest != null ? package.Manifest.CoordinateConvention : null, options.TargetCoordinateConvention);
             CharacterAuthoringGeometry geometry = package.Geometry ?? new CharacterAuthoringGeometry();
             binding.BodyProfile = geometry.BodyProfile ?? new CharacterBodyGeometryProfile();
+            var bodyPartsById = new Dictionary<string, CharacterBodyPartAuthoring>(StringComparer.Ordinal);
+            for (int i = 0; i < geometry.BodyParts.Count; i++)
+            {
+                CharacterBodyPartAuthoring part = geometry.BodyParts[i];
+                if (part == null)
+                    continue;
+
+                if (!string.IsNullOrWhiteSpace(part.PartId) && !bodyPartsById.ContainsKey(part.PartId))
+                    bodyPartsById.Add(part.PartId, part);
+
+                binding.BodyParts.Add(new CharacterBodyPartBinding
+                {
+                    PartId = part.PartId,
+                    DisplayName = part.DisplayName,
+                    PartKind = part.PartKind,
+                    ParentPartId = part.ParentPartId,
+                    BonePath = part.BonePath,
+                    LocatorId = part.LocatorId,
+                    DefaultHitZoneId = part.DefaultHitZoneId,
+                    ReactionGroupId = part.ReactionGroupId,
+                    Tags = part.Tags != null ? new List<string>(part.Tags) : new List<string>(),
+                    SourceObjectPath = "geometry/bodyParts/" + (!string.IsNullOrWhiteSpace(part.PartId) ? part.PartId : i.ToString(CultureInfo.InvariantCulture))
+                });
+            }
 
             for (int i = 0; i < geometry.Colliders.Count; i++)
             {
@@ -466,7 +515,7 @@ namespace MxFramework.Authoring
                     PartId = collider.PartId,
                     HitZoneId = collider.HitZoneId,
                     Shape = collider.Shape,
-                    LocalPose = collider.LocalPose ?? new CharacterAuthoringLocalPose(),
+                    LocalPose = NormalizeColliderPose(collider, bodyPartsById),
                     Size = collider.Size ?? new CharacterAuthoringVector3(),
                     Radius = collider.Radius,
                     Height = collider.Height,
@@ -502,8 +551,12 @@ namespace MxFramework.Authoring
                     ParentPartId = socket.ParentPartId,
                     BonePath = socket.BonePath,
                     LocatorPath = socket.LocatorPath,
-                    LocalPose = socket.LocalPose ?? new CharacterAuthoringLocalPose(),
+                    LocalPose = NormalizeSocketPose(socket),
                     Usage = socket.Usage,
+                    MirrorPairSocketId = socket.MirrorPairSocketId,
+                    Handedness = socket.Handedness,
+                    SideTag = socket.SideTag,
+                    Tags = socket.Tags != null ? new List<string>(socket.Tags) : new List<string>(),
                     SourceObjectPath = "geometry/sockets/" + (!string.IsNullOrWhiteSpace(socket.SocketId) ? socket.SocketId : i.ToString(CultureInfo.InvariantCulture))
                 });
             }
@@ -519,9 +572,13 @@ namespace MxFramework.Authoring
                     WeaponId = attachment.WeaponId,
                     EquipSlot = attachment.EquipSlot,
                     AttachSocketId = attachment.AttachSocketId,
-                    LocalGripPose = attachment.LocalGripPose ?? new CharacterAuthoringLocalPose(),
+                    LocalGripPose = NormalizeWeaponGripPose(attachment),
                     PreviewResourceKey = attachment.PreviewResourceKey,
                     TraceId = attachment.TraceId,
+                    TraceStartSocketId = attachment.TraceStartSocketId,
+                    TraceEndSocketId = attachment.TraceEndSocketId,
+                    TraceRadius = attachment.TraceRadius,
+                    TraceSampleRule = attachment.TraceSampleRule,
                     SourceObjectPath = "geometry/weaponAttachments/" + (!string.IsNullOrWhiteSpace(attachment.WeaponId) ? attachment.WeaponId : i.ToString(CultureInfo.InvariantCulture))
                 });
             }
@@ -550,6 +607,98 @@ namespace MxFramework.Authoring
             }
 
             return binding;
+        }
+
+        private static CharacterAuthoringLocalPose NormalizeColliderPose(CharacterBodyColliderProfile collider, Dictionary<string, CharacterBodyPartAuthoring> bodyPartsById)
+        {
+            CharacterAuthoringLocalPose pose = ClonePose(collider != null ? collider.LocalPose : null);
+            if (collider == null || HasExplicitPoseParent(pose))
+                return pose;
+
+            string parentPath = collider.PartId ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(parentPath) && bodyPartsById != null && bodyPartsById.TryGetValue(parentPath, out CharacterBodyPartAuthoring part))
+            {
+                pose.ParentKind = CharacterPoseParentKind.BodyPart;
+                pose.ParentPath = part.PartId;
+            }
+
+            return pose;
+        }
+
+        private static CharacterAuthoringLocalPose NormalizeSocketPose(CharacterSocketProfile socket)
+        {
+            CharacterAuthoringLocalPose pose = ClonePose(socket != null ? socket.LocalPose : null);
+            if (socket == null || HasExplicitPoseParent(pose))
+                return pose;
+
+            if (!string.IsNullOrWhiteSpace(socket.BonePath))
+            {
+                pose.ParentKind = CharacterPoseParentKind.Bone;
+                pose.ParentPath = socket.BonePath;
+            }
+            else if (!string.IsNullOrWhiteSpace(socket.LocatorPath))
+            {
+                pose.ParentKind = CharacterPoseParentKind.Locator;
+                pose.ParentPath = socket.LocatorPath;
+            }
+            else if (!string.IsNullOrWhiteSpace(socket.ParentPartId))
+            {
+                pose.ParentKind = CharacterPoseParentKind.BodyPart;
+                pose.ParentPath = socket.ParentPartId;
+            }
+
+            return pose;
+        }
+
+        private static CharacterAuthoringLocalPose NormalizeWeaponGripPose(WeaponAttachmentProfile attachment)
+        {
+            CharacterAuthoringLocalPose pose = ClonePose(attachment != null ? attachment.LocalGripPose : null);
+            if (attachment == null || HasExplicitPoseParent(pose))
+                return pose;
+
+            if (!string.IsNullOrWhiteSpace(attachment.AttachSocketId))
+            {
+                pose.ParentKind = CharacterPoseParentKind.Socket;
+                pose.ParentPath = attachment.AttachSocketId;
+            }
+
+            return pose;
+        }
+
+        private static bool HasExplicitPoseParent(CharacterAuthoringLocalPose pose)
+        {
+            return pose != null && pose.ParentKind != CharacterPoseParentKind.Unknown && !string.IsNullOrWhiteSpace(pose.ParentPath);
+        }
+
+        private static CharacterAuthoringLocalPose ClonePose(CharacterAuthoringLocalPose pose)
+        {
+            if (pose == null)
+                return new CharacterAuthoringLocalPose();
+
+            return new CharacterAuthoringLocalPose
+            {
+                ParentKind = pose.ParentKind,
+                ParentPath = pose.ParentPath ?? string.Empty,
+                Position = CloneVector(pose.Position),
+                Rotation = CloneQuaternion(pose.Rotation),
+                Scale = CloneScale(pose.Scale),
+                EulerHint = CloneVector(pose.EulerHint)
+            };
+        }
+
+        private static CharacterAuthoringVector3 CloneVector(CharacterAuthoringVector3 value)
+        {
+            return value == null ? new CharacterAuthoringVector3() : new CharacterAuthoringVector3(value.X, value.Y, value.Z);
+        }
+
+        private static CharacterAuthoringVector3 CloneScale(CharacterAuthoringVector3 value)
+        {
+            return value == null ? new CharacterAuthoringVector3(1f, 1f, 1f) : new CharacterAuthoringVector3(value.X, value.Y, value.Z);
+        }
+
+        private static CharacterAuthoringQuaternion CloneQuaternion(CharacterAuthoringQuaternion value)
+        {
+            return value == null ? new CharacterAuthoringQuaternion() : new CharacterAuthoringQuaternion(value.X, value.Y, value.Z, value.W);
         }
 
         private static CharacterPackageResourceMapping BuildResourceMapping(CharacterResourcePackage package, CharacterAuthoringCompileOptions options)
@@ -582,6 +731,7 @@ namespace MxFramework.Authoring
                     ProviderId = entry.ImportHints != null ? entry.ImportHints.ProviderId : string.Empty,
                     TargetPathPolicy = GetTargetPathPolicy(entry, options),
                     ImportTargetPath = CombineProjectPath(GetTargetRootPath(package, options), targetRelativePath),
+                    ModelWrapperPose = entry.ImportHints != null ? entry.ImportHints.ModelWrapperPose ?? new CharacterAuthoringLocalPose() : new CharacterAuthoringLocalPose(),
                     ConflictAction = entry.ConflictPolicy != null ? entry.ConflictPolicy.HashChangedAction : string.Empty
                 });
             }
@@ -708,7 +858,7 @@ namespace MxFramework.Authoring
                 ["PresentationProfileId"] = Int(ids.PresentationProfileId),
                 ["StableId"] = Str(presentationStableId),
                 ["DefaultAnimationProfileId"] = Str("anim." + packageSegment + ".default"),
-                ["ResourceKeys"] = BuildPresentationResourceKeys(resourceMapping),
+                ["ResourceKeys"] = BuildPresentationResourceKeys(package.ApplicationConfig, resourceMapping),
                 ["PresentationTags"] = List(MapBodyKind(body.BodyKind).ToLowerInvariant(), "package:" + packageSegment)
             });
 
@@ -748,6 +898,7 @@ namespace MxFramework.Authoring
                     ["PartId"] = Str(part.PartId),
                     ["ParentPartId"] = Str(part.ParentPartId),
                     ["PartKind"] = Str(MapBodyPartKind(part)),
+                    ["BonePath"] = Str(part.BonePath),
                     ["LocatorId"] = Str(!string.IsNullOrWhiteSpace(part.LocatorId) ? part.LocatorId : "loc." + NormalizeSegment(part.PartId)),
                     ["HitZoneId"] = Str(part.DefaultHitZoneId),
                     ["ReactionGroupId"] = Str(string.IsNullOrWhiteSpace(part.ReactionGroupId) ? "react.body" : part.ReactionGroupId),
@@ -755,7 +906,8 @@ namespace MxFramework.Authoring
                     ["ImpulseScale"] = Float(1f),
                     ["StaggerScale"] = Float(1f),
                     ["PostureDamageScale"] = Float(IsHead(part.PartId) ? 1.4f : 1f),
-                    ["IsCritical"] = Bool(IsHead(part.PartId) || ContainsTag(part.Tags, "critical"))
+                    ["IsCritical"] = Bool(IsHead(part.PartId) || ContainsTag(part.Tags, "critical")),
+                    ["Tags"] = List(part.Tags != null ? part.Tags.ToArray() : Array.Empty<string>())
                 });
             }
         }
@@ -979,6 +1131,7 @@ namespace MxFramework.Authoring
         }
 
         private static CharacterResolverVerificationPlan BuildResolverVerificationPlan(
+            CharacterApplicationAuthoringSummary applicationConfig,
             CharacterAuthoringCompiledConfigPatch configPatch,
             CharacterCompilerGateReport gate,
             CharacterPackageResourceMapping resourceMapping)
@@ -1058,9 +1211,10 @@ namespace MxFramework.Authoring
 
             if (resourceMapping != null)
             {
-                for (int i = 0; i < resourceMapping.Entries.Count; i++)
+                List<CharacterPackageResourceMappingEntry> referencedEntries = GetReferencedResourceMappingEntries(applicationConfig, resourceMapping);
+                for (int i = 0; i < referencedEntries.Count; i++)
                 {
-                    string key = resourceMapping.Entries[i].ProjectResourceKey;
+                    string key = referencedEntries[i].ProjectResourceKey;
                     if (!string.IsNullOrWhiteSpace(key))
                         plan.RequiredResourceKeys.Add(key);
                 }
@@ -1095,6 +1249,19 @@ namespace MxFramework.Authoring
 
             if (geometryBinding != null)
             {
+                for (int i = 0; i < geometryBinding.BodyParts.Count; i++)
+                {
+                    CharacterBodyPartBinding part = geometryBinding.BodyParts[i];
+                    mappings.Add(new CharacterPackageSourceMapping
+                    {
+                        SourcePath = part.SourcePath,
+                        SourceObjectPath = part.SourceObjectPath,
+                        TargetKind = "GeometryBinding",
+                        TargetPath = "bodyParts/" + part.PartId,
+                        TargetField = "part"
+                    });
+                }
+
                 for (int i = 0; i < geometryBinding.BodyColliders.Count; i++)
                 {
                     CharacterBodyColliderBinding collider = geometryBinding.BodyColliders[i];
@@ -1105,6 +1272,45 @@ namespace MxFramework.Authoring
                         TargetKind = "GeometryBinding",
                         TargetPath = "bodyColliders/" + collider.ColliderId,
                         TargetField = "collider"
+                    });
+                }
+
+                for (int i = 0; i < geometryBinding.Sockets.Count; i++)
+                {
+                    CharacterSocketBinding socket = geometryBinding.Sockets[i];
+                    mappings.Add(new CharacterPackageSourceMapping
+                    {
+                        SourcePath = socket.SourcePath,
+                        SourceObjectPath = socket.SourceObjectPath,
+                        TargetKind = "GeometryBinding",
+                        TargetPath = "sockets/" + socket.SocketId,
+                        TargetField = "socket"
+                    });
+                }
+
+                for (int i = 0; i < geometryBinding.WeaponAttachments.Count; i++)
+                {
+                    CharacterWeaponAttachmentBinding attachment = geometryBinding.WeaponAttachments[i];
+                    mappings.Add(new CharacterPackageSourceMapping
+                    {
+                        SourcePath = attachment.SourcePath,
+                        SourceObjectPath = attachment.SourceObjectPath,
+                        TargetKind = "GeometryBinding",
+                        TargetPath = "weaponAttachments/" + attachment.WeaponId,
+                        TargetField = "attachment"
+                    });
+                }
+
+                for (int i = 0; i < geometryBinding.WeaponTraces.Count; i++)
+                {
+                    CharacterWeaponTraceBinding trace = geometryBinding.WeaponTraces[i];
+                    mappings.Add(new CharacterPackageSourceMapping
+                    {
+                        SourcePath = trace.SourcePath,
+                        SourceObjectPath = trace.SourceObjectPath,
+                        TargetKind = "GeometryBinding",
+                        TargetPath = "weaponTraces/" + trace.TraceId,
+                        TargetField = "trace"
                     });
                 }
             }
@@ -1295,7 +1501,13 @@ namespace MxFramework.Authoring
                     values.Add(Map(
                         ("SocketId", Str(socket.SocketId)),
                         ("ParentPartId", Str(socket.ParentPartId)),
-                        ("LocatorId", Str(!string.IsNullOrWhiteSpace(socket.LocatorPath) ? socket.LocatorPath : socket.SocketId))));
+                        ("BonePath", Str(socket.BonePath)),
+                        ("LocatorId", Str(!string.IsNullOrWhiteSpace(socket.LocatorPath) ? socket.LocatorPath : socket.SocketId)),
+                        ("Usage", Str(socket.Usage.ToString())),
+                        ("MirrorPairSocketId", Str(socket.MirrorPairSocketId)),
+                        ("Handedness", Str(socket.Handedness.ToString())),
+                        ("SideTag", Str(socket.SideTag.ToString())),
+                        ("Tags", List(socket.Tags != null ? socket.Tags.ToArray() : Array.Empty<string>()))));
                 }
             }
 
@@ -1353,14 +1565,15 @@ namespace MxFramework.Authoring
             return FieldValue.FromList(values);
         }
 
-        private static FieldValue BuildPresentationResourceKeys(CharacterPackageResourceMapping mapping)
+        private static FieldValue BuildPresentationResourceKeys(CharacterApplicationAuthoringSummary applicationConfig, CharacterPackageResourceMapping mapping)
         {
             var values = new List<FieldValue>();
             if (mapping != null)
             {
-                for (int i = 0; i < mapping.Entries.Count; i++)
+                List<CharacterPackageResourceMappingEntry> referencedEntries = GetReferencedResourceMappingEntries(applicationConfig, mapping);
+                for (int i = 0; i < referencedEntries.Count; i++)
                 {
-                    CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
+                    CharacterPackageResourceMappingEntry entry = referencedEntries[i];
                     values.Add(Map(
                         ("Id", Str(entry.ProjectResourceKey)),
                         ("TypeId", Str(MapResourceType(entry))),
@@ -1372,6 +1585,52 @@ namespace MxFramework.Authoring
             }
 
             return FieldValue.FromList(values);
+        }
+
+        private static List<CharacterPackageResourceMappingEntry> GetReferencedResourceMappingEntries(
+            CharacterApplicationAuthoringSummary applicationConfig,
+            CharacterPackageResourceMapping mapping)
+        {
+            var result = new List<CharacterPackageResourceMappingEntry>();
+            if (mapping == null || mapping.Entries == null)
+                return result;
+
+            List<string> resourceKeys = applicationConfig != null ? applicationConfig.ResourceKeys : null;
+            if (resourceKeys == null || resourceKeys.Count == 0)
+            {
+                for (int i = 0; i < mapping.Entries.Count; i++)
+                {
+                    if (mapping.Entries[i] != null)
+                        result.Add(mapping.Entries[i]);
+                }
+                return result;
+            }
+
+            var byPackageKey = new Dictionary<string, CharacterPackageResourceMappingEntry>(StringComparer.Ordinal);
+            for (int i = 0; i < mapping.Entries.Count; i++)
+            {
+                CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
+                if (entry == null || string.IsNullOrWhiteSpace(entry.PackageResourceKey))
+                    continue;
+                if (!byPackageKey.ContainsKey(entry.PackageResourceKey))
+                    byPackageKey.Add(entry.PackageResourceKey, entry);
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < resourceKeys.Count; i++)
+            {
+                string key = resourceKeys[i];
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+                if (!byPackageKey.TryGetValue(key, out CharacterPackageResourceMappingEntry entry))
+                    continue;
+
+                string identity = string.IsNullOrWhiteSpace(entry.ProjectResourceKey) ? entry.PackageResourceKey : entry.ProjectResourceKey;
+                if (seen.Add(identity))
+                    result.Add(entry);
+            }
+
+            return result;
         }
 
         private static FieldValue BuildWeaponResourceKeys(WeaponAttachmentProfile attachment, CharacterPackageResourceMapping resourceMapping)
@@ -1401,15 +1660,25 @@ namespace MxFramework.Authoring
             for (int i = 0; i < geometry.Traces.Count; i++)
             {
                 WeaponTraceProfile trace = geometry.Traces[i];
-                if (trace == null || !string.Equals(trace.WeaponId, attachment.WeaponId, StringComparison.Ordinal))
+                if (trace == null)
+                    continue;
+                if (!string.IsNullOrWhiteSpace(attachment.TraceId) && !string.Equals(trace.TraceId, attachment.TraceId, StringComparison.Ordinal))
+                    continue;
+                if (string.IsNullOrWhiteSpace(attachment.TraceId) && !string.Equals(trace.WeaponId, attachment.WeaponId, StringComparison.Ordinal))
                     continue;
 
+                string startSocketId = !string.IsNullOrWhiteSpace(attachment.TraceStartSocketId) ? attachment.TraceStartSocketId : attachment.AttachSocketId;
+                string endSocketId = !string.IsNullOrWhiteSpace(attachment.TraceEndSocketId) ? attachment.TraceEndSocketId : string.Empty;
+                float radius = attachment.TraceRadius > 0f ? attachment.TraceRadius : trace.Radius;
+                WeaponTraceSampleRule sampleRule = attachment.TraceSampleRule != WeaponTraceSampleRule.Unknown ? attachment.TraceSampleRule : trace.SampleRule;
                 values.Add(Map(
                     ("TraceProfileId", Str(trace.TraceId)),
                     ("SlotId", Str(trace.EquipSlot)),
-                    ("SocketId", Str(!string.IsNullOrWhiteSpace(attachment.TraceStartSocketId) ? attachment.TraceStartSocketId : attachment.AttachSocketId)),
+                    ("SocketId", Str(startSocketId)),
+                    ("EndSocketId", Str(endSocketId)),
                     ("Length", Float(ComputeTraceLength(trace))),
-                    ("Radius", Float(trace.Radius))));
+                    ("Radius", Float(radius)),
+                    ("SampleRule", Str(sampleRule.ToString()))));
             }
 
             return FieldValue.FromList(values);
@@ -1952,13 +2221,49 @@ namespace MxFramework.Authoring
 
             CharacterAuthoringGeometry geometry = package.Geometry ?? new CharacterAuthoringGeometry();
             for (int i = 0; i < geometry.BodyParts.Count; i++)
-                builder.Append("part|").Append(geometry.BodyParts[i].PartId).Append('|').Append(geometry.BodyParts[i].ParentPartId).Append('|').Append(geometry.BodyParts[i].DefaultHitZoneId).Append('\n');
+            {
+                CharacterBodyPartAuthoring part = geometry.BodyParts[i];
+                if (part == null)
+                    continue;
+                builder.Append("part|").Append(part.PartId).Append('|').Append(part.DisplayName).Append('|').Append(part.PartKind).Append('|').Append(part.ParentPartId).Append('|').Append(part.BonePath).Append('|').Append(part.LocatorId).Append('|').Append(part.DefaultHitZoneId).Append('|').Append(part.ReactionGroupId).Append('|');
+                AppendStringList(builder, part.Tags);
+            }
             for (int i = 0; i < geometry.Colliders.Count; i++)
-                builder.Append("collider|").Append(geometry.Colliders[i].ColliderId).Append('|').Append(geometry.Colliders[i].PartId).Append('|').Append(geometry.Colliders[i].HitZoneId).Append('|').Append(geometry.Colliders[i].Shape).Append('\n');
+            {
+                CharacterBodyColliderProfile collider = geometry.Colliders[i];
+                if (collider == null)
+                    continue;
+                builder.Append("collider|").Append(collider.ColliderId).Append('|').Append(collider.PartId).Append('|').Append(collider.HitZoneId).Append('|').Append(collider.Shape).Append('|').Append(collider.Radius.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.Height.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.Priority).Append('|').Append(collider.IsWeakPoint).Append('|').Append(collider.DamageMultiplierOverride.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.PostureDamageScaleOverride.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.PhysicsLayer).Append('|').Append(collider.MaterialStableId).Append('|');
+                AppendVector(builder, collider.Size);
+                AppendPose(builder, collider.LocalPose);
+            }
             for (int i = 0; i < geometry.Sockets.Count; i++)
-                builder.Append("socket|").Append(geometry.Sockets[i].SocketId).Append('|').Append(geometry.Sockets[i].ParentPartId).Append('|').Append(geometry.Sockets[i].LocatorPath).Append('\n');
+            {
+                CharacterSocketProfile socket = geometry.Sockets[i];
+                if (socket == null)
+                    continue;
+                builder.Append("socket|").Append(socket.SocketId).Append('|').Append(socket.ParentPartId).Append('|').Append(socket.BonePath).Append('|').Append(socket.LocatorPath).Append('|').Append(socket.Usage).Append('|').Append(socket.MirrorPairSocketId).Append('|').Append(socket.Handedness).Append('|').Append(socket.SideTag).Append('|');
+                AppendStringList(builder, socket.Tags);
+                AppendPose(builder, socket.LocalPose);
+            }
             for (int i = 0; i < geometry.WeaponAttachments.Count; i++)
-                builder.Append("attachment|").Append(geometry.WeaponAttachments[i].WeaponId).Append('|').Append(geometry.WeaponAttachments[i].EquipSlot).Append('|').Append(geometry.WeaponAttachments[i].AttachSocketId).Append('|').Append(geometry.WeaponAttachments[i].TraceId).Append('\n');
+            {
+                WeaponAttachmentProfile attachment = geometry.WeaponAttachments[i];
+                if (attachment == null)
+                    continue;
+                builder.Append("attachment|").Append(attachment.WeaponId).Append('|').Append(attachment.EquipSlot).Append('|').Append(attachment.AttachSocketId).Append('|').Append(attachment.PreviewResourceKey).Append('|').Append(attachment.TraceId).Append('|').Append(attachment.TraceStartSocketId).Append('|').Append(attachment.TraceEndSocketId).Append('|').Append(attachment.TraceRadius.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(attachment.TraceSampleRule).Append('|');
+                AppendPose(builder, attachment.LocalGripPose);
+            }
+            for (int i = 0; i < geometry.Traces.Count; i++)
+            {
+                WeaponTraceProfile trace = geometry.Traces[i];
+                if (trace == null)
+                    continue;
+                builder.Append("trace|").Append(trace.TraceId).Append('|').Append(trace.WeaponId).Append('|').Append(trace.EquipSlot).Append('|').Append(trace.StartLocatorPath).Append('|').Append(trace.EndLocatorPath).Append('|').Append(trace.Radius.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(trace.SampleRule).Append('|').Append(trace.FixedSampleCount).Append('|');
+                AppendStringList(builder, trace.ActionKeys);
+                AppendPose(builder, trace.StartPose);
+                AppendPose(builder, trace.EndPose);
+            }
             return builder.ToString();
         }
 
@@ -1988,12 +2293,50 @@ namespace MxFramework.Authoring
                 return builder.ToString();
 
             builder.Append(binding.PackageId).Append('|').Append(binding.BodyProfileStableId).Append('|').Append(binding.CoordinateConversion.RequiresConversion).Append('\n');
+            for (int i = 0; i < binding.BodyParts.Count; i++)
+            {
+                CharacterBodyPartBinding part = binding.BodyParts[i];
+                if (part == null)
+                    continue;
+                builder.Append("part|").Append(part.PartId).Append('|').Append(part.DisplayName).Append('|').Append(part.PartKind).Append('|').Append(part.ParentPartId).Append('|').Append(part.BonePath).Append('|').Append(part.LocatorId).Append('|').Append(part.DefaultHitZoneId).Append('|').Append(part.ReactionGroupId).Append('|');
+                AppendStringList(builder, part.Tags);
+            }
             for (int i = 0; i < binding.BodyColliders.Count; i++)
-                builder.Append("collider|").Append(binding.BodyColliders[i].ColliderId).Append('|').Append(binding.BodyColliders[i].PartId).Append('|').Append(binding.BodyColliders[i].HitZoneId).Append('|').Append(binding.BodyColliders[i].Shape).Append('\n');
+            {
+                CharacterBodyColliderBinding collider = binding.BodyColliders[i];
+                if (collider == null)
+                    continue;
+                builder.Append("collider|").Append(collider.ColliderId).Append('|').Append(collider.PartId).Append('|').Append(collider.HitZoneId).Append('|').Append(collider.Shape).Append('|').Append(collider.Radius.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.Height.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.Priority).Append('|').Append(collider.IsWeakPoint).Append('|').Append(collider.DamageMultiplierOverride.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.PostureDamageScaleOverride.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(collider.PhysicsLayer).Append('|').Append(collider.MaterialStableId).Append('|');
+                AppendVector(builder, collider.Size);
+                AppendPose(builder, collider.LocalPose);
+            }
             for (int i = 0; i < binding.Sockets.Count; i++)
-                builder.Append("socket|").Append(binding.Sockets[i].SocketId).Append('|').Append(binding.Sockets[i].ParentPartId).Append('|').Append(binding.Sockets[i].LocatorPath).Append('\n');
+            {
+                CharacterSocketBinding socket = binding.Sockets[i];
+                if (socket == null)
+                    continue;
+                builder.Append("socket|").Append(socket.SocketId).Append('|').Append(socket.ParentPartId).Append('|').Append(socket.BonePath).Append('|').Append(socket.LocatorPath).Append('|').Append(socket.Usage).Append('|').Append(socket.MirrorPairSocketId).Append('|').Append(socket.Handedness).Append('|').Append(socket.SideTag).Append('|');
+                AppendStringList(builder, socket.Tags);
+                AppendPose(builder, socket.LocalPose);
+            }
             for (int i = 0; i < binding.WeaponAttachments.Count; i++)
-                builder.Append("attachment|").Append(binding.WeaponAttachments[i].WeaponId).Append('|').Append(binding.WeaponAttachments[i].EquipSlot).Append('|').Append(binding.WeaponAttachments[i].AttachSocketId).Append('|').Append(binding.WeaponAttachments[i].TraceId).Append('\n');
+            {
+                CharacterWeaponAttachmentBinding attachment = binding.WeaponAttachments[i];
+                if (attachment == null)
+                    continue;
+                builder.Append("attachment|").Append(attachment.WeaponId).Append('|').Append(attachment.EquipSlot).Append('|').Append(attachment.AttachSocketId).Append('|').Append(attachment.PreviewResourceKey).Append('|').Append(attachment.TraceId).Append('|').Append(attachment.TraceStartSocketId).Append('|').Append(attachment.TraceEndSocketId).Append('|').Append(attachment.TraceRadius.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(attachment.TraceSampleRule).Append('|');
+                AppendPose(builder, attachment.LocalGripPose);
+            }
+            for (int i = 0; i < binding.WeaponTraces.Count; i++)
+            {
+                CharacterWeaponTraceBinding trace = binding.WeaponTraces[i];
+                if (trace == null)
+                    continue;
+                builder.Append("trace|").Append(trace.TraceId).Append('|').Append(trace.WeaponId).Append('|').Append(trace.EquipSlot).Append('|').Append(trace.StartLocatorPath).Append('|').Append(trace.EndLocatorPath).Append('|').Append(trace.Radius.ToString("R", CultureInfo.InvariantCulture)).Append('|').Append(trace.SampleRule).Append('|').Append(trace.FixedSampleCount).Append('|');
+                AppendStringList(builder, trace.ActionKeys);
+                AppendPose(builder, trace.StartPose);
+                AppendPose(builder, trace.EndPose);
+            }
             return builder.ToString();
         }
 
@@ -2006,7 +2349,8 @@ namespace MxFramework.Authoring
             for (int i = 0; i < mapping.Entries.Count; i++)
             {
                 CharacterPackageResourceMappingEntry entry = mapping.Entries[i];
-                builder.Append(entry.PackageResourceKey).Append('|').Append(entry.ProjectResourceKey).Append('|').Append(entry.ImportTargetPath).Append('|').Append(entry.DeclaredContentHash).Append('|').Append(entry.ImportHash).Append('|').Append(entry.DependencyHash).Append('\n');
+                builder.Append(entry.PackageResourceKey).Append('|').Append(entry.ProjectResourceKey).Append('|').Append(entry.ImportTargetPath).Append('|').Append(entry.DeclaredContentHash).Append('|').Append(entry.ImportHash).Append('|').Append(entry.DependencyHash).Append('|');
+                AppendPose(builder, entry.ModelWrapperPose);
             }
 
             return builder.ToString();
@@ -2022,6 +2366,71 @@ namespace MxFramework.Authoring
             for (int i = 0; i < plan.Writes.Count; i++)
                 builder.Append(plan.Writes[i].Kind).Append('|').Append(plan.Writes[i].SourcePath).Append('|').Append(plan.Writes[i].TargetPath).Append('|').Append(plan.Writes[i].ContentHash).Append('\n');
             return builder.ToString();
+        }
+
+        private static void AppendPose(StringBuilder builder, CharacterAuthoringLocalPose pose)
+        {
+            if (pose == null)
+            {
+                builder.Append("pose|null\n");
+                return;
+            }
+
+            builder.Append("pose|")
+                .Append(pose.ParentKind).Append('|')
+                .Append(pose.ParentPath).Append('|');
+            AppendVector(builder, pose.Position);
+            AppendQuaternion(builder, pose.Rotation);
+            AppendVector(builder, pose.Scale);
+            AppendVector(builder, pose.EulerHint);
+            builder.Append('\n');
+        }
+
+        private static void AppendStringList(StringBuilder builder, List<string> values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                builder.Append("[]\n");
+                return;
+            }
+
+            var copy = new List<string>(values);
+            copy.Sort(StringComparer.Ordinal);
+            builder.Append('[');
+            for (int i = 0; i < copy.Count; i++)
+            {
+                if (i > 0)
+                    builder.Append(',');
+                builder.Append(copy[i]);
+            }
+            builder.Append("]\n");
+        }
+
+        private static void AppendVector(StringBuilder builder, CharacterAuthoringVector3 value)
+        {
+            if (value == null)
+            {
+                builder.Append("null|null|null|");
+                return;
+            }
+
+            builder.Append(value.X.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Z.ToString("R", CultureInfo.InvariantCulture)).Append('|');
+        }
+
+        private static void AppendQuaternion(StringBuilder builder, CharacterAuthoringQuaternion value)
+        {
+            if (value == null)
+            {
+                builder.Append("null|null|null|null|");
+                return;
+            }
+
+            builder.Append(value.X.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.Z.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                .Append(value.W.ToString("R", CultureInfo.InvariantCulture)).Append('|');
         }
 
         private static string CanonicalFieldValue(FieldValue value)

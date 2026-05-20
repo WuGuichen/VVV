@@ -11,7 +11,9 @@
 - Runtime 不依赖 UnityEditor，不依赖 WGame、Entitas、Luban 或 AI 插件。
 - 配置表先通过 `ConfigSchema` 描述，再由项目自己的 Excel/CSV/Json/Luban/ScriptableObject 适配器转成 `ConfigTable<T>`。
 
-角色资源包 Runtime Spawn 第一切片当前是 `Runtime Slice`：使用 `CharacterImportedPackageJson.LoadFromDirectory("Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard")` 读取 #222 导入产物，再通过 `CharacterRuntimeSpawnResolver.Resolve(...)` 或 `CharacterRuntimeSpawnModule` 得到 `CharacterRuntimeBinding`。该切片用于验证 resolver、gate、resource mapping、geometry binding 和 runtime id plan，不承诺完整 Unity 可玩角色或场景入口。
+角色资源包 Runtime Spawn 第一切片当前是 `Runtime Slice`：使用 `CharacterImportedPackageJson.LoadFromDirectory("Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard")` 读取 #222 导入产物，再通过 `CharacterRuntimeSpawnResolver.Resolve(...)` 或 `CharacterRuntimeSpawnModule` 得到 `CharacterRuntimeBinding`。该切片用于验证 resolver、gate、resource mapping、geometry binding 和 runtime id plan。
+
+导入完成后可以在 Unity 中生成可摆放到实际场景的预览 Prefab：执行菜单 `MxFramework/Character/Create Preview Prefab For Iron Vanguard`，产物写入 `Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/prefabs/iron_vanguard_character_preview.prefab`。也可以执行 `MxFramework/Character/Create Preview Scene For Iron Vanguard` 生成 `Assets/Scenes/MxFramework/CharacterImportedPreview.unity`。该 Prefab 会读取导入后的 `config/*.json`，复用 `CharacterRuntimeSpawnResolver` 做 gate / binding 校验，然后把角色主体模型、武器模型、挂点和 authoring 碰撞体装配成 Unity GameObject 层级；如果项目缺少 GLB importer，会使用占位体并在 Console 输出提示。
 
 ## 2. Events 事件总线
 

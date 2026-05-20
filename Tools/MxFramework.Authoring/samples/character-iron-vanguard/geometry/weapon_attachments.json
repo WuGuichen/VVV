@@ -9,25 +9,25 @@
         "parentKind": "Socket",
         "parentPath": "mainHand",
         "position": {
-          "x": 0.0,
-          "y": -0.02,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         },
         "rotation": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0,
-          "w": 1.0
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
         },
         "scale": {
-          "x": 1.0,
-          "y": 1.0,
-          "z": 1.0
+          "x": 1,
+          "y": 1,
+          "z": 1
         },
         "eulerHint": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         }
       },
       "previewResourceKey": "char.iron_vanguard.weapon.sword.model",
@@ -45,32 +45,32 @@
         "parentKind": "Socket",
         "parentPath": "offHand",
         "position": {
-          "x": 0.0,
+          "x": 0,
           "y": -0.01,
           "z": 0.05
         },
         "rotation": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0,
-          "w": 1.0
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
         },
         "scale": {
-          "x": 1.0,
-          "y": 1.0,
-          "z": 1.0
+          "x": 1,
+          "y": 1,
+          "z": 1
         },
         "eulerHint": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         }
       },
       "previewResourceKey": "char.iron_vanguard.weapon.shield.model",
       "traceId": "",
       "traceStartSocketId": "",
       "traceEndSocketId": "",
-      "traceRadius": 0.0,
+      "traceRadius": 0,
       "traceSampleRule": "LineSegment"
     }
   ]

@@ -46,6 +46,7 @@
         "MxFramework.Combat",
         "MxFramework.Character.Application",
         "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Character.RuntimeSpawn.Unity",
         "MxFramework.CharacterControl",
         "MxFramework.CharacterControl.Animation",
         "MxFramework.CharacterControl.Input",

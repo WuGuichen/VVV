@@ -7,6 +7,7 @@ namespace MxFramework.Authoring
         public const string ManifestSchemaId = "CharacterPackageManifest";
         public const string ResourceCatalogSchemaId = "CharacterPackageResourceCatalog";
         public const string BodyGeometrySchemaId = "CharacterBodyGeometryProfile";
+        public const string BodyPartSchemaId = "CharacterBodyPartAuthoring";
         public const string BodyColliderSchemaId = "CharacterBodyColliderProfile";
         public const string SocketSchemaId = "CharacterSocketProfile";
         public const string WeaponAttachmentSchemaId = "WeaponAttachmentProfile";
@@ -21,6 +22,7 @@ namespace MxFramework.Authoring
                 CreateManifestSchema(),
                 CreateResourceCatalogSchema(),
                 CreateBodyGeometrySchema(),
+                CreateBodyPartSchema(),
                 CreateBodyColliderSchema(),
                 CreateSocketSchema(),
                 CreateWeaponAttachmentSchema(),
@@ -44,6 +46,7 @@ namespace MxFramework.Authoring
                 CreateImportTargetPathPolicyEnum(),
                 CreateConflictActionEnum(),
                 CreateBodyKindEnum(),
+                CreateBodyPartKindEnum(),
                 CreatePoseParentKindEnum(),
                 CreateColliderShapeEnum(),
                 CreateSocketUsageEnum(),
@@ -90,6 +93,10 @@ namespace MxFramework.Authoring
             Add(schema, "hashes.dependencyHash", "依赖 Hash", FieldType.String, false, "hash", "Hash");
             Add(schema, "importHints", "导入提示", FieldType.String, false, "import", "导入");
             Add(schema, "importHints.targetPathPolicy", "Unity 目标路径策略", FieldType.Enum, false, "import", "导入", enumId: "character.importTargetPathPolicy");
+            Add(schema, "importHints.modelWrapperPose", "模型包裹节点 Pose", FieldType.String, false, "import", "导入", description: "导入模型实例外层 GameObject 的局部位移、旋转和缩放，用于把美术模型对齐到角色或武器槽。");
+            Add(schema, "importHints.modelWrapperPose.position", "模型包裹节点位移", FieldType.String, false, "import", "导入");
+            Add(schema, "importHints.modelWrapperPose.eulerHint", "模型包裹节点旋转", FieldType.String, false, "import", "导入", description: "Authoring UI 使用角度制编辑；Quaternion 仍是权威旋转存储。");
+            Add(schema, "importHints.modelWrapperPose.scale", "模型包裹节点缩放", FieldType.String, false, "import", "导入");
             Add(schema, "dependencies", "资源依赖", FieldType.Reference, false, "dependency", "依赖", referenceSource: ResourceCatalogSchemaId, isList: true);
             Add(schema, "conflictPolicy", "冲突策略", FieldType.String, false, "conflict", "冲突");
             Add(schema, "preview", "预览元数据", FieldType.String, false, "preview", "预览");
@@ -114,14 +121,29 @@ namespace MxFramework.Authoring
             return schema;
         }
 
+        public static ConfigSchema CreateBodyPartSchema()
+        {
+            var schema = CreateSchema(BodyPartSchemaId, "角色身体部位");
+            Add(schema, "partId", "部位 ID", FieldType.String, true, "identity", "身份");
+            Add(schema, "displayName", "显示名", FieldType.String, false, "identity", "身份");
+            Add(schema, "partKind", "部位类型", FieldType.Enum, true, "binding", "绑定", enumId: "character.bodyPartKind");
+            Add(schema, "parentPartId", "父部位", FieldType.Reference, false, "binding", "绑定", referenceSource: BodyPartSchemaId);
+            Add(schema, "bonePath", "代表骨骼路径", FieldType.String, false, "binding", "绑定", description: "骨骼角色中代表该 body part 的骨骼路径；collider/socket 可以以此作为局部父空间。");
+            Add(schema, "locatorId", "代表 Locator", FieldType.String, false, "binding", "绑定", description: "骨骼 locator、primitive anchor 或 virtual locator。");
+            Add(schema, "defaultHitZoneId", "默认 HitZone", FieldType.String, false, "combat", "战斗");
+            Add(schema, "reactionGroupId", "受击反应组", FieldType.String, false, "combat", "战斗");
+            Add(schema, "tags", "标签", FieldType.String, false, "identity", "身份", isList: true);
+            return schema;
+        }
+
         public static ConfigSchema CreateBodyColliderSchema()
         {
             var schema = CreateSchema(BodyColliderSchemaId, "身体碰撞体");
             Add(schema, "colliderId", "Collider ID", FieldType.String, true, "identity", "身份");
-            Add(schema, "partId", "身体部位 ID", FieldType.Reference, true, "binding", "绑定", referenceSource: "CharacterBodyPartAuthoring");
+            Add(schema, "partId", "身体部位 ID", FieldType.Reference, true, "binding", "绑定", referenceSource: BodyPartSchemaId);
             Add(schema, "hitZoneId", "HitZone ID", FieldType.String, true, "binding", "绑定");
             Add(schema, "shape", "形状", FieldType.Enum, true, "shape", "形状", enumId: "character.colliderShape");
-            Add(schema, "localPose", "局部姿态", FieldType.String, true, "transform", "Transform");
+            Add(schema, "localPose", "局部姿态", FieldType.String, true, "transform", "Transform", description: "相对 partId 代表骨骼 / locator 的局部姿态；未显式声明父空间时 Compiler 继承 body part。");
             Add(schema, "size", "尺寸", FieldType.String, false, "shape", "形状");
             Add(schema, "radius", "半径", FieldType.Float, false, "shape", "形状", unit: "m");
             Add(schema, "height", "高度", FieldType.Float, false, "shape", "形状", unit: "m");
@@ -138,14 +160,15 @@ namespace MxFramework.Authoring
         {
             var schema = CreateSchema(SocketSchemaId, "角色 Socket");
             Add(schema, "socketId", "Socket ID", FieldType.String, true, "identity", "身份");
-            Add(schema, "parentPartId", "父部位", FieldType.Reference, false, "binding", "绑定", referenceSource: "CharacterBodyPartAuthoring");
+            Add(schema, "parentPartId", "父部位", FieldType.Reference, false, "binding", "绑定", referenceSource: BodyPartSchemaId);
             Add(schema, "bonePath", "骨骼路径", FieldType.String, false, "binding", "绑定");
             Add(schema, "locatorPath", "Locator 路径", FieldType.String, false, "binding", "绑定");
-            Add(schema, "localPose", "局部姿态", FieldType.String, true, "transform", "Transform");
+            Add(schema, "localPose", "局部姿态", FieldType.String, true, "transform", "Transform", description: "相对 bonePath、locatorPath 或 parentPartId 的局部姿态；武器 socket 的 identity pose 应是默认握持姿态。");
             Add(schema, "usage", "用途", FieldType.Enum, true, "usage", "用途", enumId: "character.socketUsage");
             Add(schema, "mirrorPairSocketId", "镜像 Socket", FieldType.Reference, false, "usage", "用途", referenceSource: SocketSchemaId);
             Add(schema, "handedness", "手性", FieldType.Enum, false, "usage", "用途", enumId: "character.socketHandedness");
             Add(schema, "sideTag", "侧向标签", FieldType.Enum, false, "usage", "用途", enumId: "character.socketSideTag");
+            Add(schema, "tags", "标签", FieldType.String, false, "identity", "身份", isList: true);
             return schema;
         }
 
@@ -292,6 +315,11 @@ namespace MxFramework.Authoring
         private static EnumDomain CreateBodyKindEnum()
         {
             return Enum("character.bodyKind", ("Unknown", 0), ("Skeletal", 1), ("Primitive", 2), ("Compound", 3));
+        }
+
+        private static EnumDomain CreateBodyPartKindEnum()
+        {
+            return Enum("character.bodyPartKind", ("Unknown", 0), ("Bone", 1), ("Primitive", 2), ("Virtual", 3));
         }
 
         private static EnumDomain CreatePoseParentKindEnum()

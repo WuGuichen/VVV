@@ -24,8 +24,8 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             Assert.AreEqual(new CharacterConfigId(710001), result.Binding.ResolvedProfile.CharacterId);
             Assert.AreEqual(new EquipmentStateId(770003), result.Binding.ResolvedProfile.ActiveEquipmentStateId);
             Assert.AreEqual("anim.iron_vanguard.sword_shield", result.Binding.ResolvedProfile.AnimationProfileId);
-            Assert.AreEqual("sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f", result.Binding.SourcePackageHash);
-            Assert.AreEqual("sha256:22ce7bb03da3d4b27a2c502d9b4e2de7493f73d94df87a35aa2eb6dc94ae3800", result.Binding.ResourceMappingHash);
+            Assert.AreEqual("sha256:219331b6e775e2296dc35847b9d32f5b17e3721453518495f65fec742e7a07a6", result.Binding.SourcePackageHash);
+            Assert.AreEqual("sha256:56e9929c601a544041bb3025a78ad2bab1fbed24824df615a0e9428e18db12e4", result.Binding.ResourceMappingHash);
             Assert.AreEqual(4, result.Binding.CombatBodyBindingPlan.Colliders.Length);
             Assert.AreEqual(2, result.Binding.WeaponAttachmentBindingPlan.Attachments.Length);
             Assert.AreEqual(1, result.Binding.WeaponAttachmentBindingPlan.Traces.Length);

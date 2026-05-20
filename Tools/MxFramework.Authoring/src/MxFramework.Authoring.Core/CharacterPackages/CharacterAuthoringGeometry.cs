@@ -156,6 +156,7 @@ namespace MxFramework.Authoring
         public string DisplayName { get; set; } = string.Empty;
         public CharacterAuthoringBodyPartKind PartKind { get; set; } = CharacterAuthoringBodyPartKind.Unknown;
         public string ParentPartId { get; set; } = string.Empty;
+        public string BonePath { get; set; } = string.Empty;
         public string LocatorId { get; set; } = string.Empty;
         public string DefaultHitZoneId { get; set; } = string.Empty;
         public string ReactionGroupId { get; set; } = string.Empty;
