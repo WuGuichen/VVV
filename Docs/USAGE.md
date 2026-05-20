@@ -628,6 +628,34 @@ Runtime Showcase 通用约定：
 - 默认 HUD 是单一紧凑面板；Preview Target legacy overlay 默认关闭，避免多个 HUD 在 Game 视图中堆叠。
 - Snapshot v0 不包含 JSON 序列化、编辑器 UI、Runtime Preview 协议或 WGame 业务类型。
 
+### 6.10 UI Camera 3D Validation
+
+UI Camera 3D Validation 用于验证 UI 3D Overlay Camera 路径：主相机作为 URP Base Camera，UI 3D 相机作为 Overlay Camera 加入 camera stack；普通 UI 仍由 UI Toolkit HUD 显示。该入口只验证表现层 camera / layer / HUD 绑定，不承诺玩法闭环，因此交付等级是 `Runtime Slice`。
+
+代码入口：
+- Runtime / Composition Root：`Assets/Scripts/MxFramework/Demo/CameraUi/UiCamera3DValidationDemo.cs`
+- 场景生成：`Assets/Scripts/MxFramework/Demo/Editor/CreateUiCamera3DValidationScene.cs`
+- UI Toolkit：`Assets/UI/MxFramework/CameraUi3DValidation/UiCamera3DValidation.uxml` / `.uss`
+- 场景：`Assets/Scenes/UiCamera3DValidation.unity`
+- 测试：`Assets/Scripts/MxFramework/Tests/Demo/CameraUi/UiCamera3DValidationDemoTests.cs`
+
+生成或重建场景：
+```text
+MxFramework/Camera UI/Create 3D Validation Scene
+```
+
+手动验证：
+1. 打开 `Assets/Scenes/UiCamera3DValidation.unity` 并进入 Play Mode。
+2. Game 视图应同时显示世界参考 cube、右侧 UI-layer 3D 物体和左上角 UI Toolkit HUD。
+3. HUD 的 `URP Overlay Stack Bound`、`Base excludes UI layer`、`Overlay only UI layer`、`3D UI object on UI layer` 均应显示成功状态。
+4. 点击 `Rebind` 应保持 stack 绑定成功；点击 `Pause Spin` / `Resume Spin` 应切换 UI 3D 物体旋转状态。
+5. Console 不应出现新增 error。
+
+约束：
+- 该 Demo 依赖 `MxFramework.Camera.URP`，URP 依赖保持在 Unity-facing Demo / adapter 层，不进入 noEngine camera core。
+- UI 3D 物体使用项目已有 `UI` layer 作为最小验证层；主相机排除该 layer，Overlay Camera 只渲染该 layer。
+- 不手写 `.unity`、Material 或 PanelSettings YAML；这些序列化资产由 Unity 菜单创建并保存。
+
 ## 7. Config 表和校验
 
 基础流程：

@@ -24,6 +24,8 @@
         "MxFramework.Combat.GameplayBridge",
         "MxFramework.Camera",
         "MxFramework.Camera.Unity",
+        "MxFramework.Camera.URP",
+        "Unity.RenderPipelines.Universal.Runtime",
         "MxFramework.Resources",
         "MxFramework.Resources.Unity",
         "MxFramework.Diagnostics",
