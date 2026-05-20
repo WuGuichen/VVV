@@ -962,7 +962,8 @@ code {
   gap: 6px;
 }
 
-.field-control input {
+.field-control input,
+.field-control select {
   min-width: 0;
   flex: 1;
 }

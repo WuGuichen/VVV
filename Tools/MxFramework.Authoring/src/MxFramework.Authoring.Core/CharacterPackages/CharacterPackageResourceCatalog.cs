@@ -143,6 +143,7 @@ namespace MxFramework.Authoring
         public List<string> Tags { get; set; } = new List<string>();
         public CharacterPackageConflictPolicy ConflictPolicy { get; set; } = new CharacterPackageConflictPolicy();
         public CharacterPackagePreviewMetadata Preview { get; set; } = new CharacterPackagePreviewMetadata();
+        public AuthoringResourceSelectionRef ResourceSelection { get; set; } = new AuthoringResourceSelectionRef();
         public CharacterPackageResourceProvenance Provenance { get; set; } = new CharacterPackageResourceProvenance();
     }
 

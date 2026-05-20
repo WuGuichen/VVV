@@ -202,6 +202,7 @@ namespace MxFramework.Authoring
         public string AttachSocketId { get; set; } = string.Empty;
         public CharacterAuthoringLocalPose LocalGripPose { get; set; } = new CharacterAuthoringLocalPose();
         public string PreviewResourceKey { get; set; } = string.Empty;
+        public AuthoringResourceSelectionRef PreviewResourceSelection { get; set; } = new AuthoringResourceSelectionRef();
         public string TraceId { get; set; } = string.Empty;
         public string TraceStartSocketId { get; set; } = string.Empty;
         public string TraceEndSocketId { get; set; } = string.Empty;
