@@ -167,6 +167,9 @@ namespace MxFramework.Camera.Unity
             if (_camera == null)
                 return MxUiPreviewCameraSlotResult.Failed(MissingCameraCode, "Preview camera is missing.");
 
+            if (_camera.targetTexture == _textureHandle.Texture)
+                _camera.targetTexture = null;
+
             MxUiPreviewCameraSlotResult result = _textureHandle.EnsureTexture(width, height, depthBits, format);
             if (!result.Success || _textureHandle.Texture == null)
                 return MxUiPreviewCameraSlotResult.Failed(TextureMissingCode, "Preview RenderTexture is missing.");
