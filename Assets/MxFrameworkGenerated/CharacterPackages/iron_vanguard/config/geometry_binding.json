@@ -48,6 +48,98 @@
     "skeletonRootStableId": "armature.humanoid",
     "locatorRootStableId": "locators.root"
   },
+  "bodyParts": [
+    {
+      "partId": "torso",
+      "displayName": "躯干",
+      "partKind": "Bone",
+      "parentPartId": "",
+      "bonePath": "",
+      "locatorId": "bone.Spine",
+      "defaultHitZoneId": "hit.torso",
+      "reactionGroupId": "reaction.humanoid.body",
+      "tags": [
+        "core"
+      ],
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/torso"
+    },
+    {
+      "partId": "head",
+      "displayName": "头部",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "bonePath": "",
+      "locatorId": "bone.Head",
+      "defaultHitZoneId": "hit.head",
+      "reactionGroupId": "reaction.humanoid.head",
+      "tags": [
+        "weakPoint"
+      ],
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/head"
+    },
+    {
+      "partId": "right_hand",
+      "displayName": "右手",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "bonePath": "",
+      "locatorId": "bone.RightHand",
+      "defaultHitZoneId": "hit.right_hand",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "hand"
+      ],
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/right_hand"
+    },
+    {
+      "partId": "left_hand",
+      "displayName": "左手",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "bonePath": "",
+      "locatorId": "bone.LeftHand",
+      "defaultHitZoneId": "hit.left_hand",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "hand"
+      ],
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/left_hand"
+    },
+    {
+      "partId": "right_leg",
+      "displayName": "右腿",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "bonePath": "",
+      "locatorId": "bone.RightLeg",
+      "defaultHitZoneId": "hit.right_leg",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "leg"
+      ],
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/right_leg"
+    },
+    {
+      "partId": "left_leg",
+      "displayName": "左腿",
+      "partKind": "Bone",
+      "parentPartId": "torso",
+      "bonePath": "",
+      "locatorId": "bone.LeftLeg",
+      "defaultHitZoneId": "hit.left_leg",
+      "reactionGroupId": "reaction.humanoid.limb",
+      "tags": [
+        "leg"
+      ],
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/left_leg"
+    }
+  ],
   "bodyColliders": [
     {
       "colliderId": "torso_capsule",
@@ -286,9 +378,9 @@
         "parentKind": "Bone",
         "parentPath": "bone.RightHand",
         "position": {
-          "x": 0.03,
-          "y": 0,
-          "z": 0.02
+          "x": -0.01,
+          "y": 0.08,
+          "z": 0.05
         },
         "rotation": {
           "x": 0,
@@ -308,6 +400,13 @@
         }
       },
       "usage": "Weapon",
+      "mirrorPairSocketId": "offHand",
+      "handedness": "Right",
+      "sideTag": "Right",
+      "tags": [
+        "weapon",
+        "main"
+      ],
       "sourcePath": "geometry/sockets.json",
       "sourceObjectPath": "geometry/sockets/mainHand"
     },
@@ -342,6 +441,13 @@
         }
       },
       "usage": "Weapon",
+      "mirrorPairSocketId": "mainHand",
+      "handedness": "Left",
+      "sideTag": "Left",
+      "tags": [
+        "weapon",
+        "offhand"
+      ],
       "sourcePath": "geometry/sockets.json",
       "sourceObjectPath": "geometry/sockets/offHand"
     },
@@ -376,6 +482,12 @@
         }
       },
       "usage": "Weapon",
+      "mirrorPairSocketId": "",
+      "handedness": "Both",
+      "sideTag": "Back",
+      "tags": [
+        "stow"
+      ],
       "sourcePath": "geometry/sockets.json",
       "sourceObjectPath": "geometry/sockets/back"
     },
@@ -410,6 +522,12 @@
         }
       },
       "usage": "Vfx",
+      "mirrorPairSocketId": "",
+      "handedness": "None",
+      "sideTag": "Center",
+      "tags": [
+        "vfx"
+      ],
       "sourcePath": "geometry/sockets.json",
       "sourceObjectPath": "geometry/sockets/headVfx"
     }
@@ -424,7 +542,7 @@
         "parentPath": "mainHand",
         "position": {
           "x": 0,
-          "y": -0.02,
+          "y": 0,
           "z": 0
         },
         "rotation": {
@@ -446,6 +564,10 @@
       },
       "previewResourceKey": "char.iron_vanguard.weapon.sword.model",
       "traceId": "trace.iron_sword.blade",
+      "traceStartSocketId": "mainHand",
+      "traceEndSocketId": "",
+      "traceRadius": 0.055,
+      "traceSampleRule": "CapsuleSweep",
       "sourcePath": "geometry/weapon_attachments.json",
       "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword"
     },
@@ -480,6 +602,10 @@
       },
       "previewResourceKey": "char.iron_vanguard.weapon.shield.model",
       "traceId": "",
+      "traceStartSocketId": "",
+      "traceEndSocketId": "",
+      "traceRadius": 0,
+      "traceSampleRule": "LineSegment",
       "sourcePath": "geometry/weapon_attachments.json",
       "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield"
     }

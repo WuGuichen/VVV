@@ -1,17 +1,17 @@
 {
   "profileId": "geometry.iron_vanguard.body",
   "bodyKind": "Skeletal",
-  "bodyScale": 1.0,
+  "bodyScale": 1,
   "heightMeters": 1.86,
   "radiusMeters": 0.34,
-  "massKg": 86.0,
+  "massKg": 86,
   "defaultCapsule": {
     "height": 1.86,
     "radius": 0.34,
     "center": {
-      "x": 0.0,
+      "x": 0,
       "y": 0.93,
-      "z": 0.0
+      "z": 0
     }
   },
   "defaultPhysicsProfileId": "physics.humanoid.medium",

@@ -446,7 +446,7 @@ internal static class CharacterPackageTests
         Require(result.UnityImportWritePlan.CanWriteToUnityProject, "Ready compiler result should be importable.");
         Require(result.UnityImportWritePlan.CanSpawnAfterImport, "Ready compiler result should be spawnable after import.");
         Require(result.UnityImportWritePlan.Writes.Exists(write => write.Kind == CharacterAuthoringCompilerWriteKinds.GeneratedConfigPatch), "write plan should include generated config patch target.");
-        Require(result.UnityImportWritePlan.Writes.Exists(write => write.Kind == CharacterAuthoringCompilerWriteKinds.ResourceFile && write.SourcePath == "resources/models/iron_vanguard.glb"), "write plan should include resource file copy target.");
+        Require(result.UnityImportWritePlan.Writes.Exists(write => write.Kind == CharacterAuthoringCompilerWriteKinds.ResourceFile && write.SourcePath == "resources/models/skeleton.glb"), "write plan should include resource file copy target.");
         Require(result.ResolverVerificationPlan.Status == "Ready", "resolver verification plan should be ready.");
         Require(result.ResolverVerificationPlan.ExpectedResolverEntrypoint == "CharacterPackageResolver.Resolve", "resolver verification plan should name the runtime resolver.");
         Require(result.ResolverVerificationPlan.DefaultLoadoutStableId == "equip_loadout.iron_vanguard.sword_shield", "default loadout should be sword shield.");
@@ -681,7 +681,7 @@ internal static class CharacterPackageTests
         string reportPath = Path.Combine(targetRoot, "package_cache", "import_report.json");
         string catalogPath = Path.Combine(targetRoot, "config", "unity_resource_catalog.json");
         Require(firstExit == MxFramework.Authoring.Cli.Program.ExitReady, "first Unity import should be ready.");
-        Require(File.Exists(Path.Combine(targetRoot, "resources", "models", "iron_vanguard.glb")), "Unity import should copy model resource.");
+        Require(File.Exists(Path.Combine(targetRoot, "resources", "models", "skeleton.glb")), "Unity import should copy model resource.");
         Require(File.Exists(Path.Combine(targetRoot, "generated", "character_application_config_patch.json")), "Unity import should write compiler config patch target.");
         Require(File.Exists(Path.Combine(targetRoot, "config", "geometry_binding.json")), "Unity import should write readable config geometry binding alias.");
         Require(File.Exists(catalogPath), "Unity import should write project ResourceCatalog JSON.");
@@ -691,8 +691,8 @@ internal static class CharacterPackageTests
         Require(firstReport.AddedCount > 0, "first import should add files.");
         string catalogJson = File.ReadAllText(catalogPath);
         Require(catalogJson.Contains("\"provider\": \"memory\""), "generated Unity ResourceCatalog should use v1 memory provider bridge.");
-        Require(catalogJson.Contains("\"assetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb\""), "generated ResourceCatalog should preserve Unity assetPath mapping.");
-        Require(catalogJson.Contains("\"unityAssetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb\""), "generated ResourceCatalog should expose Unity asset path for editor resolution.");
+        Require(catalogJson.Contains("\"assetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb\""), "generated ResourceCatalog should preserve Unity assetPath mapping.");
+        Require(catalogJson.Contains("\"unityAssetPath\": \"Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb\""), "generated ResourceCatalog should expose Unity asset path for editor resolution.");
         Require(catalogJson.Contains("\"unityAssetGuid\": \"\""), "CLI-generated ResourceCatalog should leave Unity GUID empty until AssetDatabase enrichment.");
         Require(catalogJson.Contains("\"unityMainObjectType\": \"\""), "CLI-generated ResourceCatalog should leave Unity main object type empty until AssetDatabase enrichment.");
         Require(catalogJson.Contains("\"importerKind\": \"unity-gltf\""), "generated ResourceCatalog should record expected Unity importer kind.");
@@ -722,7 +722,7 @@ internal static class CharacterPackageTests
         ResetDirectory(root);
         string packageCopy = Path.Combine(root, "package-copy");
         CopyDirectory(FindSamplePath("character-iron-vanguard"), packageCopy);
-        File.Delete(Path.Combine(packageCopy, "resources", "models", "iron_vanguard.glb"));
+        File.Delete(Path.Combine(packageCopy, "resources", "models", "skeleton.glb"));
 
         string reportOut = Path.Combine(root, "report-out");
         int exit = CharacterPackageCommands.Dispatch(new[]

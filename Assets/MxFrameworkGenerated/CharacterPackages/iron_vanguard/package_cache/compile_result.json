@@ -7,11 +7,11 @@
   "status": "Ready",
   "hashes": {
     "algorithm": "sha256",
-    "sourcePackageHash": "sha256:6887b1c5437e5ec8f788796af2e44010f9804285d5d497c660020d3c0f8e835f",
-    "generatedConfigHash": "sha256:9c2ac42323bd2c7f10f81cba7bca7fb7c3408efd26a3d3bf0cba913d583e4710",
-    "geometryBindingHash": "sha256:ffc7175e57cd5a035110d63c9182b4a655767366138f9f86159f585d514ce8ae",
-    "resourceMappingHash": "sha256:22ce7bb03da3d4b27a2c502d9b4e2de7493f73d94df87a35aa2eb6dc94ae3800",
-    "writePlanHash": "sha256:d316f660073612b632e550e8ebddcde59b0c33f3b33d20c5e6e7e5bb5a27ccc6"
+    "sourcePackageHash": "sha256:219331b6e775e2296dc35847b9d32f5b17e3721453518495f65fec742e7a07a6",
+    "generatedConfigHash": "sha256:0225540c5f42d3667c64c10b14214e6eb7e2dcb160ec75fbf0931f561854dc1f",
+    "geometryBindingHash": "sha256:8a62027b82bd29b20b4d53d9f2b61a8c0437b1071fc995aaeff4e6edc3fbc802",
+    "resourceMappingHash": "sha256:56e9929c601a544041bb3025a78ad2bab1fbed24824df615a0e9428e18db12e4",
+    "writePlanHash": "sha256:2c31d1e294993c05ef2c6fcf696d6ebdc097b2d6a302fa0bf23b37e7df7508e8"
   },
   "gateReport": {
     "schemaVersion": "1.0",
@@ -111,22 +111,56 @@
               {
                 "SocketId": "mainHand",
                 "ParentPartId": "right_hand",
-                "LocatorId": "locators/right_hand_weapon"
+                "BonePath": "Armature/Hips/Spine/RightShoulder/RightArm/RightForeArm/RightHand",
+                "LocatorId": "locators/right_hand_weapon",
+                "Usage": "Weapon",
+                "MirrorPairSocketId": "offHand",
+                "Handedness": "Right",
+                "SideTag": "Right",
+                "Tags": [
+                  "weapon",
+                  "main"
+                ]
               },
               {
                 "SocketId": "offHand",
                 "ParentPartId": "left_hand",
-                "LocatorId": "locators/left_hand_weapon"
+                "BonePath": "Armature/Hips/Spine/LeftShoulder/LeftArm/LeftForeArm/LeftHand",
+                "LocatorId": "locators/left_hand_weapon",
+                "Usage": "Weapon",
+                "MirrorPairSocketId": "mainHand",
+                "Handedness": "Left",
+                "SideTag": "Left",
+                "Tags": [
+                  "weapon",
+                  "offhand"
+                ]
               },
               {
                 "SocketId": "back",
                 "ParentPartId": "torso",
-                "LocatorId": "locators/back_mount"
+                "BonePath": "Armature/Hips/Spine/Chest",
+                "LocatorId": "locators/back_mount",
+                "Usage": "Weapon",
+                "MirrorPairSocketId": "",
+                "Handedness": "Both",
+                "SideTag": "Back",
+                "Tags": [
+                  "stow"
+                ]
               },
               {
                 "SocketId": "headVfx",
                 "ParentPartId": "head",
-                "LocatorId": "locators/head_vfx"
+                "BonePath": "Armature/Hips/Spine/Neck/Head",
+                "LocatorId": "locators/head_vfx",
+                "Usage": "Vfx",
+                "MirrorPairSocketId": "",
+                "Handedness": "None",
+                "SideTag": "Center",
+                "Tags": [
+                  "vfx"
+                ]
               }
             ],
             "HitZoneBindings": [
@@ -312,6 +346,7 @@
             "PartId": "torso",
             "ParentPartId": "",
             "PartKind": "Torso",
+            "BonePath": "",
             "LocatorId": "bone.Spine",
             "HitZoneId": "hit.torso",
             "ReactionGroupId": "reaction.humanoid.body",
@@ -319,7 +354,10 @@
             "ImpulseScale": "1",
             "StaggerScale": "1",
             "PostureDamageScale": "1",
-            "IsCritical": "false"
+            "IsCritical": "false",
+            "Tags": [
+              "core"
+            ]
           }
         },
         {
@@ -334,6 +372,7 @@
             "PartId": "head",
             "ParentPartId": "torso",
             "PartKind": "Head",
+            "BonePath": "",
             "LocatorId": "bone.Head",
             "HitZoneId": "hit.head",
             "ReactionGroupId": "reaction.humanoid.head",
@@ -341,7 +380,10 @@
             "ImpulseScale": "1",
             "StaggerScale": "1",
             "PostureDamageScale": "1.4",
-            "IsCritical": "true"
+            "IsCritical": "true",
+            "Tags": [
+              "weakPoint"
+            ]
           }
         },
         {
@@ -356,6 +398,7 @@
             "PartId": "right_hand",
             "ParentPartId": "torso",
             "PartKind": "Hand",
+            "BonePath": "",
             "LocatorId": "bone.RightHand",
             "HitZoneId": "hit.right_hand",
             "ReactionGroupId": "reaction.humanoid.limb",
@@ -363,7 +406,10 @@
             "ImpulseScale": "1",
             "StaggerScale": "1",
             "PostureDamageScale": "1",
-            "IsCritical": "false"
+            "IsCritical": "false",
+            "Tags": [
+              "hand"
+            ]
           }
         },
         {
@@ -378,6 +424,7 @@
             "PartId": "left_hand",
             "ParentPartId": "torso",
             "PartKind": "Hand",
+            "BonePath": "",
             "LocatorId": "bone.LeftHand",
             "HitZoneId": "hit.left_hand",
             "ReactionGroupId": "reaction.humanoid.limb",
@@ -385,7 +432,10 @@
             "ImpulseScale": "1",
             "StaggerScale": "1",
             "PostureDamageScale": "1",
-            "IsCritical": "false"
+            "IsCritical": "false",
+            "Tags": [
+              "hand"
+            ]
           }
         },
         {
@@ -400,6 +450,7 @@
             "PartId": "right_leg",
             "ParentPartId": "torso",
             "PartKind": "Leg",
+            "BonePath": "",
             "LocatorId": "bone.RightLeg",
             "HitZoneId": "hit.right_leg",
             "ReactionGroupId": "reaction.humanoid.limb",
@@ -407,7 +458,10 @@
             "ImpulseScale": "1",
             "StaggerScale": "1",
             "PostureDamageScale": "1",
-            "IsCritical": "false"
+            "IsCritical": "false",
+            "Tags": [
+              "leg"
+            ]
           }
         },
         {
@@ -422,6 +476,7 @@
             "PartId": "left_leg",
             "ParentPartId": "torso",
             "PartKind": "Leg",
+            "BonePath": "",
             "LocatorId": "bone.LeftLeg",
             "HitZoneId": "hit.left_leg",
             "ReactionGroupId": "reaction.humanoid.limb",
@@ -429,7 +484,10 @@
             "ImpulseScale": "1",
             "StaggerScale": "1",
             "PostureDamageScale": "1",
-            "IsCritical": "false"
+            "IsCritical": "false",
+            "Tags": [
+              "leg"
+            ]
           }
         },
         {
@@ -467,8 +525,10 @@
                 "TraceProfileId": "trace.iron_sword.blade",
                 "SlotId": "mainHand",
                 "SocketId": "mainHand",
+                "EndSocketId": "",
                 "Length": "0.82",
-                "Radius": "0.055"
+                "Radius": "0.055",
+                "SampleRule": "CapsuleSweep"
               }
             ],
             "BaseModifiers": []
@@ -1053,6 +1113,98 @@
       "skeletonRootStableId": "armature.humanoid",
       "locatorRootStableId": "locators.root"
     },
+    "bodyParts": [
+      {
+        "partId": "torso",
+        "displayName": "躯干",
+        "partKind": "Bone",
+        "parentPartId": "",
+        "bonePath": "",
+        "locatorId": "bone.Spine",
+        "defaultHitZoneId": "hit.torso",
+        "reactionGroupId": "reaction.humanoid.body",
+        "tags": [
+          "core"
+        ],
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/torso"
+      },
+      {
+        "partId": "head",
+        "displayName": "头部",
+        "partKind": "Bone",
+        "parentPartId": "torso",
+        "bonePath": "",
+        "locatorId": "bone.Head",
+        "defaultHitZoneId": "hit.head",
+        "reactionGroupId": "reaction.humanoid.head",
+        "tags": [
+          "weakPoint"
+        ],
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/head"
+      },
+      {
+        "partId": "right_hand",
+        "displayName": "右手",
+        "partKind": "Bone",
+        "parentPartId": "torso",
+        "bonePath": "",
+        "locatorId": "bone.RightHand",
+        "defaultHitZoneId": "hit.right_hand",
+        "reactionGroupId": "reaction.humanoid.limb",
+        "tags": [
+          "hand"
+        ],
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/right_hand"
+      },
+      {
+        "partId": "left_hand",
+        "displayName": "左手",
+        "partKind": "Bone",
+        "parentPartId": "torso",
+        "bonePath": "",
+        "locatorId": "bone.LeftHand",
+        "defaultHitZoneId": "hit.left_hand",
+        "reactionGroupId": "reaction.humanoid.limb",
+        "tags": [
+          "hand"
+        ],
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/left_hand"
+      },
+      {
+        "partId": "right_leg",
+        "displayName": "右腿",
+        "partKind": "Bone",
+        "parentPartId": "torso",
+        "bonePath": "",
+        "locatorId": "bone.RightLeg",
+        "defaultHitZoneId": "hit.right_leg",
+        "reactionGroupId": "reaction.humanoid.limb",
+        "tags": [
+          "leg"
+        ],
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/right_leg"
+      },
+      {
+        "partId": "left_leg",
+        "displayName": "左腿",
+        "partKind": "Bone",
+        "parentPartId": "torso",
+        "bonePath": "",
+        "locatorId": "bone.LeftLeg",
+        "defaultHitZoneId": "hit.left_leg",
+        "reactionGroupId": "reaction.humanoid.limb",
+        "tags": [
+          "leg"
+        ],
+        "sourcePath": "geometry/body_parts.json",
+        "sourceObjectPath": "geometry/bodyParts/left_leg"
+      }
+    ],
     "bodyColliders": [
       {
         "colliderId": "torso_capsule",
@@ -1291,9 +1443,9 @@
           "parentKind": "Bone",
           "parentPath": "bone.RightHand",
           "position": {
-            "x": 0.03,
-            "y": 0,
-            "z": 0.02
+            "x": -0.01,
+            "y": 0.08,
+            "z": 0.05
           },
           "rotation": {
             "x": 0,
@@ -1313,6 +1465,13 @@
           }
         },
         "usage": "Weapon",
+        "mirrorPairSocketId": "offHand",
+        "handedness": "Right",
+        "sideTag": "Right",
+        "tags": [
+          "weapon",
+          "main"
+        ],
         "sourcePath": "geometry/sockets.json",
         "sourceObjectPath": "geometry/sockets/mainHand"
       },
@@ -1347,6 +1506,13 @@
           }
         },
         "usage": "Weapon",
+        "mirrorPairSocketId": "mainHand",
+        "handedness": "Left",
+        "sideTag": "Left",
+        "tags": [
+          "weapon",
+          "offhand"
+        ],
         "sourcePath": "geometry/sockets.json",
         "sourceObjectPath": "geometry/sockets/offHand"
       },
@@ -1381,6 +1547,12 @@
           }
         },
         "usage": "Weapon",
+        "mirrorPairSocketId": "",
+        "handedness": "Both",
+        "sideTag": "Back",
+        "tags": [
+          "stow"
+        ],
         "sourcePath": "geometry/sockets.json",
         "sourceObjectPath": "geometry/sockets/back"
       },
@@ -1415,6 +1587,12 @@
           }
         },
         "usage": "Vfx",
+        "mirrorPairSocketId": "",
+        "handedness": "None",
+        "sideTag": "Center",
+        "tags": [
+          "vfx"
+        ],
         "sourcePath": "geometry/sockets.json",
         "sourceObjectPath": "geometry/sockets/headVfx"
       }
@@ -1429,7 +1607,7 @@
           "parentPath": "mainHand",
           "position": {
             "x": 0,
-            "y": -0.02,
+            "y": 0,
             "z": 0
           },
           "rotation": {
@@ -1451,6 +1629,10 @@
         },
         "previewResourceKey": "char.iron_vanguard.weapon.sword.model",
         "traceId": "trace.iron_sword.blade",
+        "traceStartSocketId": "mainHand",
+        "traceEndSocketId": "",
+        "traceRadius": 0.055,
+        "traceSampleRule": "CapsuleSweep",
         "sourcePath": "geometry/weapon_attachments.json",
         "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword"
       },
@@ -1485,6 +1667,10 @@
         },
         "previewResourceKey": "char.iron_vanguard.weapon.shield.model",
         "traceId": "",
+        "traceStartSocketId": "",
+        "traceEndSocketId": "",
+        "traceRadius": 0,
+        "traceSampleRule": "LineSegment",
         "sourcePath": "geometry/weapon_attachments.json",
         "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield"
       }
@@ -1570,13 +1756,38 @@
         "typeId": "model",
         "usage": "characterModel",
         "sourceFormat": "glb",
-        "sourceRelativePath": "resources/models/iron_vanguard.glb",
-        "declaredContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
-        "importHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "sourceRelativePath": "resources/models/skeleton.glb",
+        "declaredContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+        "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
-        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "conflictAction": "reportWhenHashChanged"
       },
       {
@@ -1586,13 +1797,38 @@
         "typeId": "model",
         "usage": "weaponModel",
         "sourceFormat": "glb",
-        "sourceRelativePath": "resources/models/iron_sword.glb",
-        "declaredContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
-        "importHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "sourceRelativePath": "resources/models/katana.glb",
+        "declaredContentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+        "importHash": "sha256:15eb3f7d25f9e92ab57c9c50da25ece992f7f46311845ead6988e89786df48d5",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
-        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+        "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": -0.08,
+            "y": 0.02,
+            "z": 0
+          },
+          "rotation": {
+            "x": -0.6099583,
+            "y": 0.71865475,
+            "z": 0.24847671,
+            "w": 0.22303705
+          },
+          "scale": {
+            "x": 0.01,
+            "y": 0.01,
+            "z": 0.01
+          },
+          "eulerHint": {
+            "x": 39,
+            "y": 179,
+            "z": -81
+          }
+        },
         "conflictAction": "reportWhenHashChanged"
       },
       {
@@ -1603,12 +1839,37 @@
         "usage": "weaponModel",
         "sourceFormat": "glb",
         "sourceRelativePath": "resources/models/kite_shield.glb",
-        "declaredContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
-        "importHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "declaredContentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
+        "importHash": "sha256:9a9aaa9bfd63607296789ef5e339802c8846fd85e11ffe0515ae5a56c66e5f10",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
         "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "conflictAction": "reportWhenHashChanged"
       },
       {
@@ -1619,12 +1880,37 @@
         "usage": "animationClipGroup",
         "sourceFormat": "glb",
         "sourceRelativePath": "resources/animations/locomotion.glb",
-        "declaredContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
-        "importHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
-        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c",
+        "declaredContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
+        "importHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
+        "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
         "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "conflictAction": "reportWhenHashChanged"
       },
       {
@@ -1635,12 +1921,37 @@
         "usage": "animationClipGroup",
         "sourceFormat": "glb",
         "sourceRelativePath": "resources/animations/combat.glb",
-        "declaredContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
-        "importHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
-        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c",
+        "declaredContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
+        "importHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
+        "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
         "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "conflictAction": "reportWhenHashChanged"
       },
       {
@@ -1652,11 +1963,36 @@
         "sourceFormat": "png",
         "sourceRelativePath": "previews/thumbnail.png",
         "declaredContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
-        "importHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "importHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
         "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "conflictAction": "reportWhenHashChanged"
       }
     ]
@@ -1676,7 +2012,7 @@
         "sourcePath": "compiler/generated_config_patch.json",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_application_config_patch.json",
         "writePolicy": "Recreate",
-        "contentHash": "sha256:9c2ac42323bd2c7f10f81cba7bca7fb7c3408efd26a3d3bf0cba913d583e4710"
+        "contentHash": "sha256:0225540c5f42d3667c64c10b14214e6eb7e2dcb160ec75fbf0931f561854dc1f"
       },
       {
         "kind": "geometryBinding",
@@ -1684,7 +2020,7 @@
         "sourcePath": "compiler/geometry_binding.json",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_geometry_binding.json",
         "writePolicy": "Recreate",
-        "contentHash": "sha256:ffc7175e57cd5a035110d63c9182b4a655767366138f9f86159f585d514ce8ae"
+        "contentHash": "sha256:8a62027b82bd29b20b4d53d9f2b61a8c0437b1071fc995aaeff4e6edc3fbc802"
       },
       {
         "kind": "resourceMapping",
@@ -1692,23 +2028,23 @@
         "sourcePath": "compiler/resource_mapping.json",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
         "writePolicy": "Recreate",
-        "contentHash": "sha256:22ce7bb03da3d4b27a2c502d9b4e2de7493f73d94df87a35aa2eb6dc94ae3800"
+        "contentHash": "sha256:56e9929c601a544041bb3025a78ad2bab1fbed24824df615a0e9428e18db12e4"
       },
       {
         "kind": "resourceFile",
         "owner": "UnityImporter",
-        "sourcePath": "resources/models/iron_vanguard.glb",
-        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+        "sourcePath": "resources/models/skeleton.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164"
+        "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815"
       },
       {
         "kind": "resourceFile",
         "owner": "UnityImporter",
-        "sourcePath": "resources/models/iron_sword.glb",
-        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+        "sourcePath": "resources/models/katana.glb",
+        "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96"
+        "contentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8"
       },
       {
         "kind": "resourceFile",
@@ -1716,7 +2052,7 @@
         "sourcePath": "resources/models/kite_shield.glb",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4"
+        "contentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476"
       },
       {
         "kind": "resourceFile",
@@ -1724,7 +2060,7 @@
         "sourcePath": "resources/animations/locomotion.glb",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b"
+        "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b"
       },
       {
         "kind": "resourceFile",
@@ -1732,7 +2068,7 @@
         "sourcePath": "resources/animations/combat.glb",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d"
+        "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865"
       },
       {
         "kind": "resourceFile",
@@ -1929,14 +2265,14 @@
         "stableId": "charpkg.iron_vanguard.resource.model.body",
         "typeId": "model",
         "usage": "characterModel",
-        "relativePath": "resources/models/iron_vanguard.glb"
+        "relativePath": "resources/models/skeleton.glb"
       },
       {
         "resourceKey": "char.iron_vanguard.weapon.sword.model",
         "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
         "typeId": "model",
         "usage": "weaponModel",
-        "relativePath": "resources/models/iron_sword.glb"
+        "relativePath": "resources/models/katana.glb"
       },
       {
         "resourceKey": "char.iron_vanguard.weapon.shield.model",
@@ -1990,48 +2326,48 @@
     "entries": [
       {
         "resourceKey": "char.iron_vanguard.model.body",
-        "relativePath": "resources/models/iron_vanguard.glb",
+        "relativePath": "resources/models/skeleton.glb",
         "exists": true,
-        "declaredContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
-        "computedContentHash": "sha256:72b387700773d959dbd175bfe3c49ed6b5cd214a875dae3caaef01e6053cf164",
-        "computedImportHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "declaredContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+        "computedContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+        "computedImportHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       {
         "resourceKey": "char.iron_vanguard.weapon.sword.model",
-        "relativePath": "resources/models/iron_sword.glb",
+        "relativePath": "resources/models/katana.glb",
         "exists": true,
-        "declaredContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
-        "computedContentHash": "sha256:f924100b9923623555576f21056adb91817d3f8b21cb8c0fd28458c12ed06a96",
-        "computedImportHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "declaredContentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+        "computedContentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+        "computedImportHash": "sha256:15eb3f7d25f9e92ab57c9c50da25ece992f7f46311845ead6988e89786df48d5",
         "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       {
         "resourceKey": "char.iron_vanguard.weapon.shield.model",
         "relativePath": "resources/models/kite_shield.glb",
         "exists": true,
-        "declaredContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
-        "computedContentHash": "sha256:2718985c109cad07d1b3824ffe9263a6f45fd2d57981f056ea80da43ee9076a4",
-        "computedImportHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "declaredContentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
+        "computedContentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
+        "computedImportHash": "sha256:9a9aaa9bfd63607296789ef5e339802c8846fd85e11ffe0515ae5a56c66e5f10",
         "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       {
         "resourceKey": "char.iron_vanguard.anim.locomotion",
         "relativePath": "resources/animations/locomotion.glb",
         "exists": true,
-        "declaredContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
-        "computedContentHash": "sha256:86f24a561bea20ddf4bacef850d7cdd7a6a0f1517737a4b2e92ceba62fd37b4b",
-        "computedImportHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
-        "computedDependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+        "declaredContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
+        "computedContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
+        "computedImportHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
+        "computedDependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       {
         "resourceKey": "char.iron_vanguard.anim.combat",
         "relativePath": "resources/animations/combat.glb",
         "exists": true,
-        "declaredContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
-        "computedContentHash": "sha256:d20f65664993f9fd97db47590ff3435a09c670334b2ffe4c5960195eced3582d",
-        "computedImportHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
-        "computedDependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+        "declaredContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
+        "computedContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
+        "computedImportHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
+        "computedDependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       {
         "resourceKey": "char.iron_vanguard.preview.thumbnail",
@@ -2039,7 +2375,7 @@
         "exists": true,
         "declaredContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
         "computedContentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
-        "computedImportHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "computedImportHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
         "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     ],
@@ -2242,6 +2578,48 @@
       "targetField": "StableId"
     },
     {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/torso",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyParts/torso",
+      "targetField": "part"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/head",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyParts/head",
+      "targetField": "part"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/right_hand",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyParts/right_hand",
+      "targetField": "part"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/left_hand",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyParts/left_hand",
+      "targetField": "part"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/right_leg",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyParts/right_leg",
+      "targetField": "part"
+    },
+    {
+      "sourcePath": "geometry/body_parts.json",
+      "sourceObjectPath": "geometry/bodyParts/left_leg",
+      "targetKind": "GeometryBinding",
+      "targetPath": "bodyParts/left_leg",
+      "targetField": "part"
+    },
+    {
       "sourcePath": "geometry/body_colliders.json",
       "sourceObjectPath": "geometry/colliders/torso_capsule",
       "targetKind": "GeometryBinding",
@@ -2270,17 +2648,66 @@
       "targetField": "collider"
     },
     {
-      "sourcePath": "resources/models/iron_vanguard.glb",
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/mainHand",
+      "targetKind": "GeometryBinding",
+      "targetPath": "sockets/mainHand",
+      "targetField": "socket"
+    },
+    {
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/offHand",
+      "targetKind": "GeometryBinding",
+      "targetPath": "sockets/offHand",
+      "targetField": "socket"
+    },
+    {
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/back",
+      "targetKind": "GeometryBinding",
+      "targetPath": "sockets/back",
+      "targetField": "socket"
+    },
+    {
+      "sourcePath": "geometry/sockets.json",
+      "sourceObjectPath": "geometry/sockets/headVfx",
+      "targetKind": "GeometryBinding",
+      "targetPath": "sockets/headVfx",
+      "targetField": "socket"
+    },
+    {
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.iron_sword",
+      "targetKind": "GeometryBinding",
+      "targetPath": "weaponAttachments/weapon.iron_sword",
+      "targetField": "attachment"
+    },
+    {
+      "sourcePath": "geometry/weapon_attachments.json",
+      "sourceObjectPath": "geometry/weaponAttachments/weapon.kite_shield",
+      "targetKind": "GeometryBinding",
+      "targetPath": "weaponAttachments/weapon.kite_shield",
+      "targetField": "attachment"
+    },
+    {
+      "sourcePath": "geometry/traces.json",
+      "sourceObjectPath": "geometry/traces/trace.iron_sword.blade",
+      "targetKind": "GeometryBinding",
+      "targetPath": "weaponTraces/trace.iron_sword.blade",
+      "targetField": "trace"
+    },
+    {
+      "sourcePath": "resources/models/skeleton.glb",
       "sourceObjectPath": "char.iron_vanguard.model.body",
       "targetKind": "UnityImportTarget",
-      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
       "targetField": "ResourceKey"
     },
     {
-      "sourcePath": "resources/models/iron_sword.glb",
+      "sourcePath": "resources/models/katana.glb",
       "sourceObjectPath": "char.iron_vanguard.weapon.sword.model",
       "targetKind": "UnityImportTarget",
-      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
+      "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
       "targetField": "ResourceKey"
     },
     {

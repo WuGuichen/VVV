@@ -10,25 +10,25 @@
         "parentKind": "Bone",
         "parentPath": "bone.Spine",
         "position": {
-          "x": 0.0,
+          "x": 0,
           "y": 0.95,
-          "z": 0.0
+          "z": 0
         },
         "rotation": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0,
-          "w": 1.0
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
         },
         "scale": {
-          "x": 1.0,
-          "y": 1.0,
-          "z": 1.0
+          "x": 1,
+          "y": 1,
+          "z": 1
         },
         "eulerHint": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         }
       },
       "size": {
@@ -40,8 +40,8 @@
       "height": 1.14,
       "priority": 10,
       "isWeakPoint": false,
-      "damageMultiplierOverride": 1.0,
-      "postureDamageScaleOverride": 1.0,
+      "damageMultiplierOverride": 1,
+      "postureDamageScaleOverride": 1,
       "physicsLayer": "character.body",
       "materialStableId": "physics.material.flesh_armor"
     },
@@ -54,25 +54,25 @@
         "parentKind": "Bone",
         "parentPath": "bone.Head",
         "position": {
-          "x": 0.0,
+          "x": 0,
           "y": 1.68,
           "z": 0.02
         },
         "rotation": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0,
-          "w": 1.0
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
         },
         "scale": {
-          "x": 1.0,
-          "y": 1.0,
-          "z": 1.0
+          "x": 1,
+          "y": 1,
+          "z": 1
         },
         "eulerHint": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         }
       },
       "size": {
@@ -81,7 +81,7 @@
         "z": 0.28
       },
       "radius": 0.18,
-      "height": 0.0,
+      "height": 0,
       "priority": 30,
       "isWeakPoint": true,
       "damageMultiplierOverride": 1.35,
@@ -103,20 +103,20 @@
           "z": 0.06
         },
         "rotation": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0,
-          "w": 1.0
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
         },
         "scale": {
-          "x": 1.0,
-          "y": 1.0,
-          "z": 1.0
+          "x": 1,
+          "y": 1,
+          "z": 1
         },
         "eulerHint": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         }
       },
       "size": {
@@ -125,7 +125,7 @@
         "z": 0.18
       },
       "radius": 0.11,
-      "height": 0.0,
+      "height": 0,
       "priority": 20,
       "isWeakPoint": false,
       "damageMultiplierOverride": 0.85,
@@ -147,20 +147,20 @@
           "z": 0.06
         },
         "rotation": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0,
-          "w": 1.0
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
         },
         "scale": {
-          "x": 1.0,
-          "y": 1.0,
-          "z": 1.0
+          "x": 1,
+          "y": 1,
+          "z": 1
         },
         "eulerHint": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
+          "x": 0,
+          "y": 0,
+          "z": 0
         }
       },
       "size": {
@@ -169,7 +169,7 @@
         "z": 0.18
       },
       "radius": 0.11,
-      "height": 0.0,
+      "height": 0,
       "priority": 20,
       "isWeakPoint": false,
       "damageMultiplierOverride": 0.85,

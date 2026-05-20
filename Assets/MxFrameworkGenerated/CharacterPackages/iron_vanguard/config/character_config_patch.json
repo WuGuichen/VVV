@@ -86,22 +86,56 @@
             {
               "SocketId": "mainHand",
               "ParentPartId": "right_hand",
-              "LocatorId": "locators/right_hand_weapon"
+              "BonePath": "Armature/Hips/Spine/RightShoulder/RightArm/RightForeArm/RightHand",
+              "LocatorId": "locators/right_hand_weapon",
+              "Usage": "Weapon",
+              "MirrorPairSocketId": "offHand",
+              "Handedness": "Right",
+              "SideTag": "Right",
+              "Tags": [
+                "weapon",
+                "main"
+              ]
             },
             {
               "SocketId": "offHand",
               "ParentPartId": "left_hand",
-              "LocatorId": "locators/left_hand_weapon"
+              "BonePath": "Armature/Hips/Spine/LeftShoulder/LeftArm/LeftForeArm/LeftHand",
+              "LocatorId": "locators/left_hand_weapon",
+              "Usage": "Weapon",
+              "MirrorPairSocketId": "mainHand",
+              "Handedness": "Left",
+              "SideTag": "Left",
+              "Tags": [
+                "weapon",
+                "offhand"
+              ]
             },
             {
               "SocketId": "back",
               "ParentPartId": "torso",
-              "LocatorId": "locators/back_mount"
+              "BonePath": "Armature/Hips/Spine/Chest",
+              "LocatorId": "locators/back_mount",
+              "Usage": "Weapon",
+              "MirrorPairSocketId": "",
+              "Handedness": "Both",
+              "SideTag": "Back",
+              "Tags": [
+                "stow"
+              ]
             },
             {
               "SocketId": "headVfx",
               "ParentPartId": "head",
-              "LocatorId": "locators/head_vfx"
+              "BonePath": "Armature/Hips/Spine/Neck/Head",
+              "LocatorId": "locators/head_vfx",
+              "Usage": "Vfx",
+              "MirrorPairSocketId": "",
+              "Handedness": "None",
+              "SideTag": "Center",
+              "Tags": [
+                "vfx"
+              ]
             }
           ],
           "HitZoneBindings": [
@@ -287,6 +321,7 @@
           "PartId": "torso",
           "ParentPartId": "",
           "PartKind": "Torso",
+          "BonePath": "",
           "LocatorId": "bone.Spine",
           "HitZoneId": "hit.torso",
           "ReactionGroupId": "reaction.humanoid.body",
@@ -294,7 +329,10 @@
           "ImpulseScale": "1",
           "StaggerScale": "1",
           "PostureDamageScale": "1",
-          "IsCritical": "false"
+          "IsCritical": "false",
+          "Tags": [
+            "core"
+          ]
         }
       },
       {
@@ -309,6 +347,7 @@
           "PartId": "head",
           "ParentPartId": "torso",
           "PartKind": "Head",
+          "BonePath": "",
           "LocatorId": "bone.Head",
           "HitZoneId": "hit.head",
           "ReactionGroupId": "reaction.humanoid.head",
@@ -316,7 +355,10 @@
           "ImpulseScale": "1",
           "StaggerScale": "1",
           "PostureDamageScale": "1.4",
-          "IsCritical": "true"
+          "IsCritical": "true",
+          "Tags": [
+            "weakPoint"
+          ]
         }
       },
       {
@@ -331,6 +373,7 @@
           "PartId": "right_hand",
           "ParentPartId": "torso",
           "PartKind": "Hand",
+          "BonePath": "",
           "LocatorId": "bone.RightHand",
           "HitZoneId": "hit.right_hand",
           "ReactionGroupId": "reaction.humanoid.limb",
@@ -338,7 +381,10 @@
           "ImpulseScale": "1",
           "StaggerScale": "1",
           "PostureDamageScale": "1",
-          "IsCritical": "false"
+          "IsCritical": "false",
+          "Tags": [
+            "hand"
+          ]
         }
       },
       {
@@ -353,6 +399,7 @@
           "PartId": "left_hand",
           "ParentPartId": "torso",
           "PartKind": "Hand",
+          "BonePath": "",
           "LocatorId": "bone.LeftHand",
           "HitZoneId": "hit.left_hand",
           "ReactionGroupId": "reaction.humanoid.limb",
@@ -360,7 +407,10 @@
           "ImpulseScale": "1",
           "StaggerScale": "1",
           "PostureDamageScale": "1",
-          "IsCritical": "false"
+          "IsCritical": "false",
+          "Tags": [
+            "hand"
+          ]
         }
       },
       {
@@ -375,6 +425,7 @@
           "PartId": "right_leg",
           "ParentPartId": "torso",
           "PartKind": "Leg",
+          "BonePath": "",
           "LocatorId": "bone.RightLeg",
           "HitZoneId": "hit.right_leg",
           "ReactionGroupId": "reaction.humanoid.limb",
@@ -382,7 +433,10 @@
           "ImpulseScale": "1",
           "StaggerScale": "1",
           "PostureDamageScale": "1",
-          "IsCritical": "false"
+          "IsCritical": "false",
+          "Tags": [
+            "leg"
+          ]
         }
       },
       {
@@ -397,6 +451,7 @@
           "PartId": "left_leg",
           "ParentPartId": "torso",
           "PartKind": "Leg",
+          "BonePath": "",
           "LocatorId": "bone.LeftLeg",
           "HitZoneId": "hit.left_leg",
           "ReactionGroupId": "reaction.humanoid.limb",
@@ -404,7 +459,10 @@
           "ImpulseScale": "1",
           "StaggerScale": "1",
           "PostureDamageScale": "1",
-          "IsCritical": "false"
+          "IsCritical": "false",
+          "Tags": [
+            "leg"
+          ]
         }
       },
       {
@@ -442,8 +500,10 @@
               "TraceProfileId": "trace.iron_sword.blade",
               "SlotId": "mainHand",
               "SocketId": "mainHand",
+              "EndSocketId": "",
               "Length": "0.82",
-              "Radius": "0.055"
+              "Radius": "0.055",
+              "SampleRule": "CapsuleSweep"
             }
           ],
           "BaseModifiers": []

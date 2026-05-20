@@ -10,18 +10,43 @@
       "usage": "characterModel",
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
-      "relativePath": "resources/models/iron_vanguard.glb",
-      "hash": "sha256:a7b9b7d38ed2d53697e3e3d2a3db4b44f48de5fd3a04f40e085375f3e7748568",
+      "relativePath": "resources/models/skeleton.glb",
+      "hash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:a7b9b7d38ed2d53697e3e3d2a3db4b44f48de5fd3a04f40e085375f3e7748568",
-        "importHash": "sha256:645fe7aa3cd00fd5346866db5882fa4fc1f4e1b6d217ddb71c301b7a16e93e34",
+        "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+        "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
-        "targetRelativePath": "resources/models/iron_vanguard.glb",
-        "scale": 1.0,
+        "targetRelativePath": "resources/models/skeleton.glb",
+        "scale": 1,
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "materialPolicy": "importEmbeddedOrPackageMaterials",
         "animationPolicy": "",
         "providerId": "unityAsset",
@@ -40,7 +65,11 @@
       },
       "dependencies": [],
       "tags": [
-        "body"
+        "body",
+        "characterstudio-import",
+        "converted-from-fbx",
+        "weapon",
+        "characterstudio-bind"
       ],
       "conflictPolicy": {
         "sameStableIdAction": "reportWhenHashChanged",
@@ -56,15 +85,15 @@
         "isPlaceholder": true
       },
       "provenance": {
-        "sourceTool": "MxFramework.Authoring.Sample",
-        "sourceFile": "resources/models/iron_vanguard.glb",
+        "sourceTool": "CharacterStudio/FBX2glTF",
+        "sourceFile": "Skeleton.fbx",
         "authoringSchemaVersion": "1.0",
         "license": "sample-placeholder",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-19T16:25:01.023Z"
       }
     },
     {
@@ -76,18 +105,43 @@
       "usage": "weaponModel",
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
-      "relativePath": "resources/models/iron_sword.glb",
-      "hash": "sha256:ca46254fb97a79babfb857feb70f95e2bcafef09fc63f0d4b8405a36eb7e2eda",
+      "relativePath": "resources/models/katana.glb",
+      "hash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:ca46254fb97a79babfb857feb70f95e2bcafef09fc63f0d4b8405a36eb7e2eda",
-        "importHash": "sha256:342de5bef6836c759c6d39b204c4568a1a7309f34b078e0365b39a34bcbfae6f",
+        "contentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+        "importHash": "sha256:15eb3f7d25f9e92ab57c9c50da25ece992f7f46311845ead6988e89786df48d5",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
-        "targetRelativePath": "resources/models/iron_sword.glb",
-        "scale": 1.0,
+        "targetRelativePath": "resources/models/katana.glb",
+        "scale": 1,
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": -0.08,
+            "y": 0.02,
+            "z": 0
+          },
+          "rotation": {
+            "x": -0.6099583,
+            "y": 0.71865475,
+            "z": 0.24847671,
+            "w": 0.22303705
+          },
+          "scale": {
+            "x": 0.01,
+            "y": 0.01,
+            "z": 0.01
+          },
+          "eulerHint": {
+            "x": 39,
+            "y": 179,
+            "z": -81
+          }
+        },
         "materialPolicy": "importEmbeddedOrPackageMaterials",
         "animationPolicy": "",
         "providerId": "unityAsset",
@@ -106,7 +160,11 @@
       "dependencies": [],
       "tags": [
         "weapon",
-        "sword"
+        "sword",
+        "characterstudio-import",
+        "converted-from-fbx",
+        "characterstudio-bind",
+        "mainHand"
       ],
       "conflictPolicy": {
         "sameStableIdAction": "reportWhenHashChanged",
@@ -122,15 +180,15 @@
         "isPlaceholder": true
       },
       "provenance": {
-        "sourceTool": "MxFramework.Authoring.Sample",
-        "sourceFile": "resources/models/iron_sword.glb",
+        "sourceTool": "CharacterStudio/FBX2glTF",
+        "sourceFile": "katana.fbx",
         "authoringSchemaVersion": "1.0",
         "license": "sample-placeholder",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-19T16:25:01.688Z"
       }
     },
     {
@@ -147,13 +205,38 @@
       "hashes": {
         "algorithm": "sha256",
         "contentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
-        "importHash": "sha256:e663833392c97c14081ac553420251e7dd716e738267f8eef16683d50f912d5c",
+        "importHash": "sha256:9a9aaa9bfd63607296789ef5e339802c8846fd85e11ffe0515ae5a56c66e5f10",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
         "targetRelativePath": "resources/models/kite_shield.glb",
-        "scale": 1.0,
+        "scale": 1,
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "materialPolicy": "importEmbeddedOrPackageMaterials",
         "animationPolicy": "",
         "providerId": "unityAsset",
@@ -172,7 +255,8 @@
       "dependencies": [],
       "tags": [
         "weapon",
-        "shield"
+        "shield",
+        "characterstudio-bind"
       ],
       "conflictPolicy": {
         "sameStableIdAction": "reportWhenHashChanged",
@@ -196,7 +280,7 @@
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-19T16:25:00.355Z"
       }
     },
     {
@@ -213,13 +297,38 @@
       "hashes": {
         "algorithm": "sha256",
         "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
-        "importHash": "sha256:d378be82a1fd6f518580f56c91496c9190e16e2bf0eb9def1922b232528d2cdd",
-        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+        "importHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
+        "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
         "targetRelativePath": "resources/animations/locomotion.glb",
-        "scale": 1.0,
+        "scale": 1,
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "materialPolicy": "",
         "animationPolicy": "splitByClipNames",
         "providerId": "unityAsset",
@@ -286,13 +395,38 @@
       "hashes": {
         "algorithm": "sha256",
         "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
-        "importHash": "sha256:980401fe09904e67aad7da3f85a95c40061be9a1656819edf7198034535b4558",
-        "dependencyHash": "sha256:117ee78be00da7ef80f7c40731c731285a9c38060c4f121e4ea599349f4db61c"
+        "importHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
+        "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
         "targetRelativePath": "resources/animations/combat.glb",
-        "scale": 1.0,
+        "scale": 1,
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "materialPolicy": "",
         "animationPolicy": "splitByClipNames",
         "providerId": "unityAsset",
@@ -360,13 +494,38 @@
       "hashes": {
         "algorithm": "sha256",
         "contentHash": "sha256:55ee33ca563f6ff3cd48f0b4ad402b02a761243cb6f3312e768dfbecbaae0775",
-        "importHash": "sha256:7972f039e78a7764766056e0367a91c9209a859b072f4e7529725ec09f48ad11",
+        "importHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "importHints": {
         "targetPathPolicy": "generatedCharacterPackage",
         "targetRelativePath": "previews/thumbnail.png",
-        "scale": 1.0,
+        "scale": 1,
+        "modelWrapperPose": {
+          "parentKind": "ModelRoot",
+          "parentPath": "",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "eulerHint": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
         "materialPolicy": "",
         "animationPolicy": "",
         "providerId": "unityAsset",
