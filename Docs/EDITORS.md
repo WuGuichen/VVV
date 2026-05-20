@@ -49,6 +49,7 @@ MxFramework.Editor (asmdef)
 - 运行模式通过 `IFrameworkDebugSource` 接入运行时快照，当前阶段为只读提示。
 - 已提供 Config Workbench v0：配置源选择、Schema 查看、字段结构、引用规则、行数、源预览、自动健康检测、问题明细、当前源校验和 AI 上下文导出。
 - Buff 创作流程不再放在 Unity Editor 内部维护；当前统一转向外部 Authoring Editor。
+- Framework Manager 已拆分为窗口壳、模块/验证、配置工作台、运行模式、工具入口和 UI helper 文件；新增入口默认通过 `FrameworkManagerToolRegistry` 注册，避免继续扩大单个窗口文件。
 - 暂不包含 GraphView、模块 sandbox、GitNexus Health Check、完整配置资产编辑器或真实 Mod 包导出；GitNexus 工作流规则见 `GITNEXUS.md`。
 
 ### Config Workbench Layout
@@ -128,6 +129,7 @@ MxFramework.Editor (asmdef)
 
 - Unity Editor 不承担外部主创编辑器职责；完整 Buff 创作、Mod 打包和实时预览入口应在外部桌面编辑器中实现。
 - Unity Editor Bridge 负责导出 Schema、Enum、资源索引、多语言索引、引用索引和提交前报告。
+- Unity Editor Bridge 的新增工具入口应优先注册到 `FrameworkManagerToolRegistry`，而不是直接修改 Framework Manager 主窗口文件。
 - Character Resource Package 由 `MxFramework > Character > Import Character Package...` 导入；该入口只调用 Authoring CLI / Importer Bridge、刷新 AssetDatabase、输出报告，不承担 3D 装配主创 UI。
 - Unity Editor 可以提供运行时连接状态和开发者诊断，但不再提供内置创作流程页。
 - 所有正式面板使用 UI Toolkit，IMGUI 只用于临时调试工具。
