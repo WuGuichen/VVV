@@ -91,6 +91,8 @@ namespace MxFramework.Authoring
         public const string ProviderUnavailable = "AUTH_RES_PROVIDER_UNAVAILABLE";
         public const string NotRuntimeLoadable = "AUTH_RES_NOT_RUNTIME_LOADABLE";
         public const string EditorOnlySelectedForRuntime = "AUTH_RES_EDITOR_ONLY_SELECTED_FOR_RUNTIME";
+        public const string FmodUnavailable = "AUTH_RES_FMOD_UNAVAILABLE";
+        public const string FmodSnapshotStale = "AUTH_RES_FMOD_SNAPSHOT_STALE";
         public const string FmodEventMissing = "AUTH_RES_FMOD_EVENT_MISSING";
         public const string FmodGuidPathMismatch = "AUTH_RES_FMOD_GUID_PATH_MISMATCH";
         public const string FmodBankMissing = "AUTH_RES_FMOD_BANK_MISSING";
@@ -122,8 +124,10 @@ namespace MxFramework.Authoring
         public CharacterPackageResourceCatalog PackageResourceCatalog { get; set; }
         public AuthoringUnityResourceCatalogDocument UnityResourceCatalog { get; set; }
         public RuntimeResourceCatalogDocument RuntimeResourceCatalog { get; set; }
+        public AuthoringFmodAudioLibrarySnapshotDocument FmodAudioLibrarySnapshot { get; set; }
         public string UnityResourceCatalogPath { get; set; } = string.Empty;
         public string RuntimeResourceCatalogPath { get; set; } = string.Empty;
+        public string FmodAudioLibrarySnapshotPath { get; set; } = string.Empty;
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
     }
 

@@ -37,6 +37,7 @@ assert(app.includes("/api/authoring/resources/inspect?package="), "app should ca
 assert(app.includes("/api/authoring/resources/stage-import"), "app should call external import staging API before folder promotion");
 assert(app.includes("/api/character/resources/import") && app.includes("/api/character/resources/reimport") && app.includes("/api/character/resources/replace-source"), "app should call resource write API gates");
 assert(app.includes("resourceId") && app.includes("sourceProviderId") && app.includes("providerBindings"), "app should understand authoring resource identity and provider bindings");
+assert(app.includes("fmodEventPath") && app.includes("audioCueId") && app.includes("audioEventDefinitionId"), "app should preserve FMOD audio provider metadata");
 assert(app.includes("targetResourceId") && app.includes("targetProviderResourceKey") && app.includes("targetRuntimeResourceKey"), "app should match cross-consumer reference graph targets");
 assert(app.includes("postJson") && app.includes("readFileAsBase64"), "app should post write requests with uploaded file bytes");
 assert(app.includes("IMPORT_PRESETS") && app.includes("animationClipGroup") && app.includes("audioCue"), "app should define typed animation and audio import presets");

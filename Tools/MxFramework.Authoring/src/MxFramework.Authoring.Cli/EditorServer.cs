@@ -757,6 +757,7 @@ internal static class EditorServer
         string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", packageId);
         string unityResourceCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
         string runtimeResourceCatalogPath = Path.Combine(generatedRoot, "config", "runtime_resource_catalog.json");
+        string fmodAudioLibrarySnapshotPath = ResolveFmodAudioLibrarySnapshotPath(rootPath, packageId);
         CharacterResourcePlanCompileResult plan = ReadCharacterResourcePlan(rootPath, packageRelative, checkFiles: false, checkHashes: false, jsonOptions);
         var context = new AuthoringResourceProviderContext
         {
@@ -767,19 +768,39 @@ internal static class EditorServer
             PackageResourceCatalog = package.ResourceCatalog,
             UnityResourceCatalog = ReadOptionalJsonFile<AuthoringUnityResourceCatalogDocument>(rootPath, unityResourceCatalogPath, jsonOptions),
             RuntimeResourceCatalog = plan != null ? plan.RuntimeResourceCatalog : null,
+            FmodAudioLibrarySnapshot = ReadOptionalJsonFile<AuthoringFmodAudioLibrarySnapshotDocument>(rootPath, fmodAudioLibrarySnapshotPath, jsonOptions),
             UnityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
-            RuntimeResourceCatalogPath = ToProjectRelativePath(rootPath, runtimeResourceCatalogPath)
+            RuntimeResourceCatalogPath = ToProjectRelativePath(rootPath, runtimeResourceCatalogPath),
+            FmodAudioLibrarySnapshotPath = ToProjectRelativePath(rootPath, fmodAudioLibrarySnapshotPath)
         };
         context.Metadata["externalImportStaging"] = "empty";
         AuthoringResourceCollection collection = AuthoringResourceCollectionMerger.Merge(
             new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(context),
             new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(context),
             new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(context),
+            new FmodAudioLibraryAuthoringResourceProvider().BuildResourceCollection(context),
             new ExternalImportStagingAuthoringResourceProvider().BuildResourceCollection(context));
         collection.ScopeId = scopeId;
         collection.ReferenceGraph = AuthoringResourceReferenceGraphBuilder.FromCharacterPackage(package, collection);
         collection.Diagnostics.AddRange(collection.ReferenceGraph.Diagnostics);
         return collection;
+    }
+
+    private static string ResolveFmodAudioLibrarySnapshotPath(string rootPath, string packageId)
+    {
+        string packageSnapshot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", packageId ?? string.Empty, "config", "fmod_audio_library_snapshot.json");
+        if (File.Exists(packageSnapshot))
+            return packageSnapshot;
+
+        string globalSnapshot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "Audio", "fmod_audio_library_snapshot.json");
+        if (File.Exists(globalSnapshot))
+            return globalSnapshot;
+
+        string legacyGlobalSnapshot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "Audio", "fmod_audio_library.json");
+        if (File.Exists(legacyGlobalSnapshot))
+            return legacyGlobalSnapshot;
+
+        return packageSnapshot;
     }
 
     private static object ReadAuthoringResourceInspect(string rootPath, string packageRelative, string id, JsonSerializerOptions jsonOptions)
@@ -1083,6 +1104,8 @@ internal static class EditorServer
                 string.Equals(candidate, binding.RuntimeResourceKey, StringComparison.Ordinal) ||
                 string.Equals(candidate, binding.UnityGuid, StringComparison.Ordinal) ||
                 string.Equals(candidate, binding.UnityAssetPath, StringComparison.Ordinal) ||
+                string.Equals(candidate, binding.FmodEventGuid, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(candidate, binding.FmodEventPath, StringComparison.Ordinal) ||
                 string.Equals(candidate, binding.ExternalSourcePath, StringComparison.Ordinal) ||
                 string.Equals(candidate, binding.DisplayValue, StringComparison.Ordinal))
                 return true;
