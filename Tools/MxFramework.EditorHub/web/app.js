@@ -152,6 +152,7 @@ function renderStatus() {
 
 function renderTools() {
   const characterUrl = `/Tools/MxFramework.CharacterStudio/web/?package=${encodeURIComponent(state.packageRelative)}`;
+  const resourceLibraryUrl = `/Tools/MxFramework.ResourceLibrary/web/?package=${encodeURIComponent(state.packageRelative)}`;
   const tools = [
     {
       title: "Buff Authoring Editor",
@@ -180,15 +181,14 @@ function renderTools() {
     {
       title: "资源库编辑器",
       subtitle: "独立资源库编辑器",
-      status: "待实现",
-      tone: "neutral",
-      href: "",
-      action: "待实现",
+      status: state.resources ? "可打开" : "服务未就绪",
+      tone: state.resources ? "ok" : "warn",
+      href: resourceLibraryUrl,
+      action: "打开资源库",
       details: [
-        "当前可在下方查看资源库状态和运行时资源计划",
-        "完整的导入、替换、删除、标签和引用图编辑应进入独立工具"
-      ],
-      disabled: true
+        `Package: ${state.characterState?.package?.manifest?.packageId || selectedPackageLabel()}`,
+        "用途: 资源浏览、inspect 详情、引用关系、运行时计划诊断"
+      ]
     }
   ];
 

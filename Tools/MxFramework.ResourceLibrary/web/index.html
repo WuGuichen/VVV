@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework 资源库编辑器</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect y=%2210%22 width=%22100%22 height=%2280%22 rx=%2215%22 fill=%22%231f7a7a%22/><path d=%22M24 58h52M24 42h52M34 26h32M34 74h32%22 stroke=%22white%22 stroke-width=%229%22 stroke-linecap=%22round%22/></svg>">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">RL</div>
+        <div>
+          <h1>MxFramework 资源库编辑器</h1>
+          <p id="serverStatus">正在连接 Authoring 服务...</p>
+        </div>
+      </div>
+
+      <div class="toolbar" aria-label="资源库编辑器工具栏">
+        <label class="package-field" for="packageSelect">
+          <span>当前角色包</span>
+          <select id="packageSelect"></select>
+        </label>
+        <button id="refreshButton" type="button">刷新</button>
+        <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">打开 CharacterStudio</a>
+        <button id="validateButton" type="button">运行资源验证</button>
+        <button id="viewPlanButton" type="button">查看当前 resource plan</button>
+      </div>
+    </header>
+
+    <section id="statusStrip" class="status-strip" aria-label="资源库状态"></section>
+
+    <main class="workspace">
+      <aside class="resource-browser" aria-label="资源浏览器">
+        <div class="panel-heading">
+          <div>
+            <h2>资源浏览器</h2>
+            <p id="resourceSummary">尚未读取资源库</p>
+          </div>
+        </div>
+
+        <div class="filters" aria-label="资源筛选器">
+          <label class="filter-field wide" for="searchInput">
+            <span>搜索</span>
+            <input id="searchInput" type="search" placeholder="搜索名称、ID、路径或标签">
+          </label>
+
+          <label class="filter-field" for="kindFilter">
+            <span>kind</span>
+            <select id="kindFilter"></select>
+          </label>
+          <label class="filter-field" for="usageFilter">
+            <span>usage</span>
+            <select id="usageFilter"></select>
+          </label>
+          <label class="filter-field" for="sourceFilter">
+            <span>source kind</span>
+            <select id="sourceFilter"></select>
+          </label>
+          <label class="filter-field" for="importFilter">
+            <span>import status</span>
+            <select id="importFilter"></select>
+          </label>
+          <label class="filter-field" for="runtimeFilter">
+            <span>runtime availability</span>
+            <select id="runtimeFilter"></select>
+          </label>
+          <label class="filter-field" for="tagFilter">
+            <span>tag</span>
+            <select id="tagFilter"></select>
+          </label>
+
+          <div class="checkbox-grid">
+            <label><input id="onlyReferenced" type="checkbox"> 只看已引用</label>
+            <label><input id="onlyOrphan" type="checkbox"> 只看 orphan</label>
+            <label><input id="onlyRuntimeLoadable" type="checkbox"> 只看运行时可加载</label>
+            <label><input id="onlyDiagnostics" type="checkbox"> 只看有诊断</label>
+          </div>
+
+          <button id="clearFiltersButton" class="secondary" type="button">清除筛选</button>
+        </div>
+
+        <div id="resourceList" class="resource-list" role="listbox" aria-label="资源列表"></div>
+      </aside>
+
+      <section class="summary-panel" aria-label="资源摘要与预览">
+        <section class="preview-panel">
+          <div class="panel-heading">
+            <div>
+              <h2 id="previewTitle">资源摘要</h2>
+              <p id="previewSubtitle">选择左侧资源查看预览和关键状态</p>
+            </div>
+          </div>
+          <div id="previewBody" class="preview-body"></div>
+        </section>
+
+        <section id="resourcePlanPanel" class="resource-plan-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>当前 resource plan</h2>
+              <p id="planSummary">尚未读取运行时资源计划</p>
+            </div>
+          </div>
+          <div id="planGrid" class="plan-grid"></div>
+        </section>
+      </section>
+
+      <aside class="inspector-panel" aria-label="资源检查器">
+        <div class="panel-heading">
+          <div>
+            <h2>Resource Inspector</h2>
+            <p id="inspectorStatus">选择一个资源项</p>
+          </div>
+        </div>
+
+        <nav class="inspector-tabs" aria-label="Inspector tabs">
+          <button type="button" data-tab="overview" class="active">Overview</button>
+          <button type="button" data-tab="unity">Unity</button>
+          <button type="button" data-tab="runtime">Runtime</button>
+          <button type="button" data-tab="references">References</button>
+          <button type="button" data-tab="diagnostics">Diagnostics</button>
+        </nav>
+
+        <div id="inspectorContent" class="inspector-content"></div>
+      </aside>
+    </main>
+
+    <footer class="action-bar" aria-label="资源管理操作">
+      <div class="disabled-actions" aria-label="写操作入口">
+        <span class="action-label">写操作入口</span>
+        <button type="button" disabled title="等待 import API gate">导入资源</button>
+        <button type="button" disabled title="等待 reimport API gate">重导</button>
+        <button type="button" disabled title="等待 replace-source API gate">替换源</button>
+        <button type="button" disabled title="等待 reference graph delete guard">删除资源</button>
+        <button type="button" disabled title="等待 tag update API gate">编辑标签</button>
+        <span class="disabled-reason">MVP 只读：等待 import / reimport / replace-source / delete guard / tag update API gate。</span>
+      </div>
+      <div class="copy-actions" aria-label="复制操作">
+        <button id="copyDetailJsonButton" type="button">复制详情 JSON</button>
+        <button id="copyDiagnosticsJsonButton" type="button">复制诊断 JSON</button>
+        <span id="copyStatus" class="copy-status" aria-live="polite"></span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
