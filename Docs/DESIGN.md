@@ -39,14 +39,18 @@
 - ❌ 不引入 WGame 游戏特化数据（元素系统、具体 Buff 实例、关卡逻辑）
 - ❌ 模块间不直接引用实现类，只通过接口通信
 
-### 2.3 插件最小化原则
-框架只依赖 Unity 内置包：
-```
+### 2.3 包依赖和渲染管线原则
+框架保持依赖最小化，但 Unity 项目基线已经包含少量稳定 UPM 包：
+
+```text
 必需品: UnityEditor (编辑器工具), UnityEngine (运行时)
+项目级: Unity Input System, Universal Render Pipeline, Unity Test Framework
 可选:   Unity.Mathematics (高性能数学)
 ```
 
-不使用 UPM 外部包。GitNexus 作为外部辅助工具，不嵌入框架运行时代码；接入和工作流规则统一见 `GITNEXUS.md`。
+当前 Unity 项目使用 Universal Render Pipeline (URP)，不是 Built-in Render Pipeline。URP 包和项目渲染资产是 Unity-facing 场景、Prefab、材质、UI/Demo 表现层的基线；纯 C# Core/Runtime/Gameplay/Combat/Config/Resources 等 noEngine 模块不得引用 URP。渲染管线资产、目录和验证规则见 `Docs/RENDERING_PIPELINE.md`。
+
+不再新增未评审的 UPM 外部包。GitNexus 作为外部辅助工具，不嵌入框架运行时代码；接入和工作流规则统一见 `GITNEXUS.md`。
 
 ---
 

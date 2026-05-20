@@ -112,6 +112,7 @@ check-source-comment-for-migrated-files
 4. 运行 EditMode tests。
 5. 如涉及 Runtime Tick，运行 PlayMode smoke test。
 6. 打开 `MxFramework > Framework Manager`，验证依赖图和模块状态。
+7. 如涉及场景、材质、Shader、Volume、相机或可玩 Demo，按 `Docs/RENDERING_PIPELINE.md` 确认 URP 资产仍为项目基线，且无粉色材质或渲染管线错误。
 
 ### 4.1 UI Toolkit Runtime Demo 验收
 

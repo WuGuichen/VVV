@@ -38,4 +38,5 @@ This file is the token-budget entrypoint for agents. It points to the smallest s
 - `Docs/GITNEXUS.md`: code intelligence, impact analysis, index maintenance.
 - `Docs/AGENT_GAME_CREATION_GUIDE.md`: game feature, playable demo, runtime showcase rules.
 - `Docs/QUALITY_GATE.md`: validation and acceptance expectations.
+- `Docs/RENDERING_PIPELINE.md`: current URP project baseline and rendering validation rules.
 - `Tools/GiteaGithubSync/README.md`: manual Gitea Issue / PR metadata mirror to GitHub.
