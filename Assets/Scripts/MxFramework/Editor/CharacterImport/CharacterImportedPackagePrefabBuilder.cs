@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MxFramework.CharacterRuntimeSpawn;
+using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -99,6 +100,8 @@ namespace MxFramework.Editor.CharacterImport
 
             EnsureFolder(root, "preview_materials");
             _previewMaterialFolder = root + "/preview_materials";
+            Dictionary<string, GameObject> weaponPrefabs = BuildWeaponPrefabs(package, resources, root);
+            AnimationClip[] animationClips = LoadAnimationClips(package);
             GameObject rootObject = new GameObject(package.PackageId + "_CharacterPreview");
             try
             {
@@ -112,13 +115,14 @@ namespace MxFramework.Editor.CharacterImport
                 var collidersRoot = new GameObject("AuthoringColliders").transform;
                 collidersRoot.SetParent(rootObject.transform, false);
 
-                var weaponsRoot = new GameObject("Weapons").transform;
+                var weaponsRoot = new GameObject("PreviewWeapons").transform;
                 weaponsRoot.SetParent(rootObject.transform, false);
 
                 Transform bodyModel = CreateBodyModel(package, resources, modelRoot);
                 Dictionary<string, Transform> sockets = CreateSockets(package, socketsRoot, bodyModel);
                 CreateWeapons(package, resources, weaponsRoot, sockets);
                 CreateColliders(package, collidersRoot, bodyModel);
+                AddDefaultEquipmentRuntimeBinder(rootObject, package, spawnResult, socketsRoot, weaponsRoot, sockets, weaponPrefabs, animationClips);
 
                 string prefabFolder = root + "/prefabs";
                 EnsureFolder(root, "prefabs");
@@ -149,6 +153,123 @@ namespace MxFramework.Editor.CharacterImport
             return wrapper;
         }
 
+        private static Dictionary<string, GameObject> BuildWeaponPrefabs(
+            CharacterImportedPackage package,
+            Dictionary<string, ResourcePreviewInfo> resources,
+            string importedPackageRoot)
+        {
+            var result = new Dictionary<string, GameObject>(StringComparer.Ordinal);
+            if (package == null || package.Geometry == null || package.Geometry.WeaponAttachments.Length == 0)
+                return result;
+
+            string prefabFolder = importedPackageRoot + "/prefabs";
+            EnsureFolder(importedPackageRoot, "prefabs");
+            EnsureFolder(prefabFolder, "weapons");
+            string weaponFolder = prefabFolder + "/weapons";
+
+            for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
+            {
+                CharacterWeaponAttachmentRuntimeBinding attachment = package.Geometry.WeaponAttachments[i];
+                ResourcePreviewInfo resource = FindResource(resources, usage: "weaponModel", resourceKey: attachment.PreviewResourceKey);
+                if (resource == null || !resource.IsImportReady)
+                    continue;
+
+                string prefabName = package.PackageId + "_" + SanitizeName(attachment.EquipSlot) + "_" + SanitizeName(attachment.WeaponId);
+                string prefabPath = weaponFolder + "/" + prefabName + ".prefab";
+                var root = new GameObject(prefabName);
+                try
+                {
+                    root.SetActive(false);
+                    CreateModelWrapper("Model", resource, root.transform);
+                    root.SetActive(true);
+                    GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                    if (prefab != null)
+                        result[GetAttachmentKey(attachment)] = prefab;
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(root);
+                }
+            }
+
+            return result;
+        }
+
+        private static void AddDefaultEquipmentRuntimeBinder(
+            GameObject rootObject,
+            CharacterImportedPackage package,
+            CharacterRuntimeSpawnResult spawnResult,
+            Transform socketsRoot,
+            Transform authoringPreviewWeaponsRoot,
+            Dictionary<string, Transform> sockets,
+            Dictionary<string, GameObject> weaponPrefabs,
+            AnimationClip[] animationClips)
+        {
+            var binder = rootObject.AddComponent<CharacterDefaultEquipmentRuntimeBinder>();
+            var serialized = new SerializedObject(binder);
+            serialized.FindProperty("_packageId").stringValue = package.PackageId;
+            serialized.FindProperty("_characterId").stringValue = spawnResult.Binding.ResolvedProfile.CharacterId.Value.ToString();
+            serialized.FindProperty("_loadoutId").stringValue = spawnResult.Binding.SpawnPlan.LoadoutId.Value.ToString();
+            serialized.FindProperty("_socketsRoot").objectReferenceValue = socketsRoot;
+            serialized.FindProperty("_authoringPreviewWeaponsRoot").objectReferenceValue = authoringPreviewWeaponsRoot;
+            serialized.FindProperty("_instantiateDefaultWeaponsOnAwake").boolValue = true;
+            serialized.FindProperty("_playFirstAnimationOnStart").boolValue = false;
+
+            SerializedProperty weapons = serialized.FindProperty("_defaultWeapons");
+            weapons.arraySize = package.Geometry.WeaponAttachments.Length;
+            for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
+            {
+                CharacterWeaponAttachmentRuntimeBinding attachment = package.Geometry.WeaponAttachments[i];
+                SerializedProperty item = weapons.GetArrayElementAtIndex(i);
+                item.FindPropertyRelative("_weaponId").stringValue = attachment.WeaponId;
+                item.FindPropertyRelative("_equipSlot").stringValue = attachment.EquipSlot;
+                item.FindPropertyRelative("_socketId").stringValue = attachment.AttachSocketId;
+                item.FindPropertyRelative("_traceId").stringValue = attachment.TraceId;
+                item.FindPropertyRelative("_socketTransform").objectReferenceValue = sockets.TryGetValue(attachment.AttachSocketId, out Transform socket) ? socket : null;
+                item.FindPropertyRelative("_prefab").objectReferenceValue = weaponPrefabs.TryGetValue(GetAttachmentKey(attachment), out GameObject prefab) ? prefab : null;
+                item.FindPropertyRelative("_localPosition").vector3Value = ToVector3(attachment.LocalGripPose.Position, Vector3.zero);
+                item.FindPropertyRelative("_localRotation").quaternionValue = ToQuaternion(attachment.LocalGripPose.Rotation);
+                item.FindPropertyRelative("_localScale").vector3Value = ToVector3(attachment.LocalGripPose.Scale, Vector3.one);
+            }
+
+            SerializedProperty clips = serialized.FindProperty("_animationClips");
+            clips.arraySize = animationClips.Length;
+            for (int i = 0; i < animationClips.Length; i++)
+                clips.GetArrayElementAtIndex(i).objectReferenceValue = animationClips[i];
+
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static AnimationClip[] LoadAnimationClips(CharacterImportedPackage package)
+        {
+            var clips = new List<AnimationClip>();
+            if (package == null || package.ResourceMapping == null)
+                return clips.ToArray();
+
+            for (int i = 0; i < package.ResourceMapping.Entries.Length; i++)
+            {
+                CharacterImportedResourceMappingEntry entry = package.ResourceMapping.Entries[i];
+                if (!string.Equals(entry.TypeId, ResourceTypeIds.AnimationClip, StringComparison.Ordinal))
+                    continue;
+                if (string.IsNullOrWhiteSpace(entry.ImportTargetPath))
+                    continue;
+
+                AddAnimationClipsAtPath(entry.ImportTargetPath, clips);
+            }
+
+            return clips.ToArray();
+        }
+
+        private static void AddAnimationClipsAtPath(string assetPath, List<AnimationClip> clips)
+        {
+            UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            for (int i = 0; i < assets.Length; i++)
+            {
+                if (assets[i] is AnimationClip clip && !clips.Contains(clip))
+                    clips.Add(clip);
+            }
+        }
+
         private static void CreateWeapons(
             CharacterImportedPackage package,
             Dictionary<string, ResourcePreviewInfo> resources,
@@ -169,6 +290,11 @@ namespace MxFramework.Editor.CharacterImport
                 ResourcePreviewInfo resource = FindResource(resources, usage: "weaponModel", resourceKey: attachment.PreviewResourceKey);
                 CreateModelWrapper("Model_" + SanitizeName(attachment.WeaponId), resource, grip);
             }
+        }
+
+        private static string GetAttachmentKey(CharacterWeaponAttachmentRuntimeBinding attachment)
+        {
+            return (attachment?.EquipSlot ?? string.Empty) + "::" + (attachment?.WeaponId ?? string.Empty);
         }
 
         private static Dictionary<string, Transform> CreateSockets(CharacterImportedPackage package, Transform socketsRoot, Transform bodyModel)

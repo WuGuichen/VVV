@@ -1,0 +1,16 @@
+{
+    "name": "MxFramework.Character.RuntimeSpawn.Unity",
+    "rootNamespace": "MxFramework.CharacterRuntimeSpawn.Unity",
+    "references": [
+        "MxFramework.Character.RuntimeSpawn"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
