@@ -89,6 +89,26 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/character/resources/inspect" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            string id = context.Request.QueryString["id"] ?? string.Empty;
+            object result = ReadCharacterResourceInspect(rootPath, characterPackage, id, jsonOptions);
+            if (result == null)
+            {
+                WriteJson(context.Response, new
+                {
+                    error = "RESOURCE_LIBRARY_ITEM_NOT_FOUND",
+                    message = "Resource library item was not found.",
+                    id
+                }, jsonOptions, 404);
+                return;
+            }
+
+            WriteJson(context.Response, result, jsonOptions);
+            return;
+        }
+
         if (path == "/api/character/resource-plan" && context.Request.HttpMethod == "GET")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -619,6 +639,40 @@ internal static class EditorServer
         });
     }
 
+    private static object ReadCharacterResourceInspect(string rootPath, string packageRelative, string id, JsonSerializerOptions jsonOptions)
+    {
+        CharacterResourceLibrary library = ReadCharacterResources(rootPath, packageRelative, jsonOptions);
+        ResourceLibraryItem item = FindCharacterResourceLibraryItem(library, id);
+        if (item == null)
+            return null;
+
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+        CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+        CharacterPackageResourceEntry authoringEntry = FindCharacterPackageResourceEntry(package.ResourceCatalog, item, id);
+        CharacterResourcePlanCompileResult plan = ReadCharacterResourcePlan(rootPath, packageRelative, checkFiles: true, checkHashes: false, jsonOptions);
+        string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", library.PackageId);
+        string unityCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
+        string importReportPath = Path.Combine(generatedRoot, "package_cache", "import_report.json");
+        JsonElement? unityEntry = FindResourceJsonEntry(rootPath, unityCatalogPath, item);
+        JsonElement? importOperation = FindImportReportOperation(rootPath, importReportPath, item, authoringEntry, unityEntry);
+        RuntimeResourceCatalogEntryDocument runtimeEntry = FindRuntimeCatalogEntry(plan.RuntimeResourceCatalog, item);
+        AudioCueManifestEntry audioCue = FindAudioCue(plan.AudioCueManifest, item);
+        List<object> plans = BuildCharacterResourceInspectPlans(item, plan);
+        List<ResourceReferenceEdge> references = FindCharacterResourceReferences(library.ReferenceGraph, item);
+
+        return new
+        {
+            packageId = library.PackageId,
+            item,
+            authoring = BuildCharacterResourceInspectAuthoring(packagePath, packageRelative, authoringEntry, item),
+            unity = BuildCharacterResourceInspectUnity(rootPath, unityCatalogPath, importReportPath, unityEntry, importOperation, item),
+            runtime = BuildCharacterResourceInspectRuntime(item, runtimeEntry, audioCue, plans),
+            references,
+            plans,
+            diagnostics = BuildCharacterResourceInspectDiagnostics(item, library, plan, unityEntry)
+        };
+    }
+
     private static CharacterAuthoringCompileResult CompileCharacterPackage(
         string rootPath,
         string packageRelative,
@@ -638,6 +692,499 @@ internal static class EditorServer
                 ValidateResourceHashes = checkHashes
             }
         });
+    }
+
+    private static ResourceLibraryItem FindCharacterResourceLibraryItem(CharacterResourceLibrary library, string id)
+    {
+        if (library == null || library.Items == null || string.IsNullOrWhiteSpace(id))
+            return null;
+
+        ResourceLibraryItem fallback = null;
+        for (int i = 0; i < library.Items.Count; i++)
+        {
+            ResourceLibraryItem item = library.Items[i];
+            if (item == null)
+                continue;
+
+            if (string.Equals(item.LibraryItemId, id, StringComparison.Ordinal) ||
+                string.Equals(item.StableId, id, StringComparison.Ordinal) ||
+                string.Equals(item.ResourceKey, id, StringComparison.Ordinal))
+                return item;
+
+            if (fallback == null && string.Equals(item.DisplayName, id, StringComparison.Ordinal))
+                fallback = item;
+        }
+
+        if (fallback != null)
+            return fallback;
+
+        for (int i = 0; i < library.Items.Count; i++)
+        {
+            ResourceLibraryItem item = library.Items[i];
+            if (item != null && string.Equals(item.DisplayName, id, StringComparison.OrdinalIgnoreCase))
+                return item;
+        }
+
+        return null;
+    }
+
+    private static CharacterPackageResourceEntry FindCharacterPackageResourceEntry(CharacterPackageResourceCatalog catalog, ResourceLibraryItem item, string id)
+    {
+        if (catalog == null || catalog.Entries == null || item == null)
+            return null;
+
+        for (int i = 0; i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry == null)
+                continue;
+
+            if (ResourceMatches(entry.ResourceKey, item, id) ||
+                ResourceMatches(entry.StableId, item, id) ||
+                ResourceMatches(entry.LocalId, item, id))
+                return entry;
+        }
+
+        return null;
+    }
+
+    private static bool ResourceMatches(string value, ResourceLibraryItem item, string id)
+    {
+        if (string.IsNullOrWhiteSpace(value) || item == null)
+            return false;
+
+        return string.Equals(value, item.ResourceKey, StringComparison.Ordinal) ||
+            string.Equals(value, item.StableId, StringComparison.Ordinal) ||
+            string.Equals(value, item.LibraryItemId, StringComparison.Ordinal) ||
+            string.Equals(value, item.DisplayName, StringComparison.Ordinal) ||
+            string.Equals(value, id, StringComparison.Ordinal);
+    }
+
+    private static object BuildCharacterResourceInspectAuthoring(
+        string packagePath,
+        string packageRelative,
+        CharacterPackageResourceEntry entry,
+        ResourceLibraryItem item)
+    {
+        string sourcePath = entry != null ? entry.RelativePath : item.SourcePath;
+        string sourceFullPath = CharacterPackageResourcePipeline.ResolvePackagePath(packagePath, sourcePath);
+        bool sourceExists = !string.IsNullOrWhiteSpace(sourceFullPath) && File.Exists(sourceFullPath);
+        long sourceSize = sourceExists ? new FileInfo(sourceFullPath).Length : 0;
+
+        return new
+        {
+            packageRelative,
+            resourceKey = entry != null ? entry.ResourceKey : item.ResourceKey,
+            localId = entry != null ? entry.LocalId : item.DisplayName,
+            stableId = entry != null ? entry.StableId : item.StableId,
+            typeId = entry != null ? entry.TypeId : item.Kind,
+            variant = entry != null ? entry.Variant : string.Empty,
+            usage = entry != null ? entry.Usage : item.Usage,
+            sourceFormat = entry != null ? entry.SourceFormat : string.Empty,
+            sourcePath,
+            sourceExists,
+            sourceSize,
+            hash = entry != null ? CharacterPackageResourcePipeline.GetDeclaredContentHash(entry) : item.Hash,
+            hashes = entry != null ? entry.Hashes : null,
+            importHints = entry != null ? entry.ImportHints : null,
+            dependencies = entry != null && entry.Dependencies != null ? entry.Dependencies : new List<CharacterPackageResourceDependency>(),
+            tags = entry != null ? entry.Tags : item.Tags,
+            conflictPolicy = entry != null ? entry.ConflictPolicy : null,
+            preview = entry != null ? entry.Preview : null,
+            provenance = entry != null ? entry.Provenance : null,
+            entry
+        };
+    }
+
+    private static object BuildCharacterResourceInspectUnity(
+        string rootPath,
+        string unityCatalogPath,
+        string importReportPath,
+        JsonElement? unityEntry,
+        JsonElement? importOperation,
+        ResourceLibraryItem item)
+    {
+        return new
+        {
+            unityResourceCatalogPath = ToProjectRelativePath(rootPath, unityCatalogPath),
+            importReportPath = ToProjectRelativePath(rootPath, importReportPath),
+            unityAssetGuid = GetJsonString(unityEntry, "unityAssetGuid"),
+            unityAssetPath = FirstNonEmpty(GetJsonString(unityEntry, "unityAssetPath"), item.UnityAssetPath),
+            importerKind = GetJsonString(unityEntry, "importerKind"),
+            mainObjectType = GetJsonString(unityEntry, "unityMainObjectType"),
+            subAssets = Array.Empty<object>(),
+            importStatus = FirstNonEmpty(GetJsonString(unityEntry, "importStatus"), item.ImportStatus.ToString()),
+            lastImportOperation = importOperation,
+            diagnostics = GetJsonArray(unityEntry, "diagnostics"),
+            catalogEntry = unityEntry
+        };
+    }
+
+    private static object BuildCharacterResourceInspectRuntime(
+        ResourceLibraryItem item,
+        RuntimeResourceCatalogEntryDocument runtimeEntry,
+        AudioCueManifestEntry audioCue,
+        List<object> plans)
+    {
+        List<string> groupNames = GetPlanGroupNames(plans);
+        return new
+        {
+            runtimeBindingKind = item.RuntimeBindingKind,
+            runtimeAvailability = item.RuntimeAvailability,
+            resourceKey = item.ResourceKey,
+            providerId = FirstNonEmpty(runtimeEntry != null ? runtimeEntry.Provider : string.Empty, item.ProviderId),
+            address = FirstNonEmpty(runtimeEntry != null ? runtimeEntry.Address : string.Empty, item.UnityAssetPath, item.SourcePath),
+            assetType = FirstNonEmpty(runtimeEntry != null ? runtimeEntry.Type : string.Empty, item.Kind),
+            hash = FirstNonEmpty(runtimeEntry != null ? runtimeEntry.Hash : string.Empty, item.Hash),
+            preloadPolicy = groupNames.Count > 0 ? groupNames[0] : ResourceLibraryPreloadPolicies.None,
+            includedRuntimePlanGroups = groupNames,
+            runtimeCatalogEntry = runtimeEntry,
+            audioCue
+        };
+    }
+
+    private static List<object> BuildCharacterResourceInspectPlans(ResourceLibraryItem item, CharacterResourcePlanCompileResult result)
+    {
+        var plans = new List<object>();
+        if (item == null || result == null || result.CharacterResourcePlan == null)
+            return plans;
+
+        AddPlanGroupIfContains(plans, CharacterResourcePlanGroups.SpawnCritical, result.CharacterResourcePlan.SpawnCritical, item);
+        AddPlanGroupIfContains(plans, CharacterResourcePlanGroups.PresentationCritical, result.CharacterResourcePlan.PresentationCritical, item);
+        AddPlanGroupIfContains(plans, CharacterResourcePlanGroups.EquipmentInitial, result.CharacterResourcePlan.EquipmentInitial, item);
+        AddPlanGroupIfContains(plans, CharacterResourcePlanGroups.AnimationWarmup, result.CharacterResourcePlan.AnimationWarmup, item);
+        AddPlanGroupIfContains(plans, CharacterResourcePlanGroups.VfxWarmup, result.CharacterResourcePlan.VfxWarmup, item);
+        AddPlanGroupIfContains(plans, CharacterResourcePlanGroups.UiDeferred, result.CharacterResourcePlan.UiDeferred, item);
+
+        AudioCueManifestEntry cue = FindAudioCue(result.AudioCueManifest, item);
+        if (cue != null)
+        {
+            plans.Add(new
+            {
+                groupName = CharacterResourcePlanGroups.Audio,
+                required = result.CharacterResourcePlan.Audio != null && result.CharacterResourcePlan.Audio.Required,
+                failurePolicy = result.CharacterResourcePlan.Audio != null ? result.CharacterResourcePlan.Audio.FailurePolicy : string.Empty,
+                resource = cue
+            });
+        }
+
+        return plans;
+    }
+
+    private static void AddPlanGroupIfContains(List<object> plans, string groupName, CharacterResourcePlanGroup group, ResourceLibraryItem item)
+    {
+        if (plans == null || group == null || group.Resources == null || item == null)
+            return;
+
+        for (int i = 0; i < group.Resources.Count; i++)
+        {
+            CharacterResourcePlanResourceRef resource = group.Resources[i];
+            if (resource == null)
+                continue;
+
+            if (!ResourceMatches(resource.ResourceKey, item, string.Empty) &&
+                !ResourceMatches(resource.StableId, item, string.Empty))
+                continue;
+
+            plans.Add(new
+            {
+                groupName,
+                required = group.Required,
+                failurePolicy = group.FailurePolicy,
+                resource
+            });
+        }
+    }
+
+    private static List<string> GetPlanGroupNames(List<object> plans)
+    {
+        var result = new List<string>();
+        if (plans == null)
+            return result;
+
+        for (int i = 0; i < plans.Count; i++)
+        {
+            string groupName = GetAnonymousProperty(plans[i], "groupName");
+            if (!string.IsNullOrWhiteSpace(groupName) && !result.Contains(groupName))
+                result.Add(groupName);
+        }
+
+        return result;
+    }
+
+    private static List<ResourceReferenceEdge> FindCharacterResourceReferences(ResourceReferenceGraph graph, ResourceLibraryItem item)
+    {
+        var references = new List<ResourceReferenceEdge>();
+        if (graph == null || graph.Edges == null || item == null)
+            return references;
+
+        for (int i = 0; i < graph.Edges.Count; i++)
+        {
+            ResourceReferenceEdge edge = graph.Edges[i];
+            if (edge == null)
+                continue;
+
+            if (ResourceMatches(edge.TargetLibraryItemStableId, item, string.Empty) ||
+                ResourceMatches(edge.TargetResourceKey, item, string.Empty))
+                references.Add(edge);
+        }
+
+        return references;
+    }
+
+    private static RuntimeResourceCatalogEntryDocument FindRuntimeCatalogEntry(RuntimeResourceCatalogDocument catalog, ResourceLibraryItem item)
+    {
+        if (catalog == null || catalog.Entries == null || item == null)
+            return null;
+
+        for (int i = 0; i < catalog.Entries.Count; i++)
+        {
+            RuntimeResourceCatalogEntryDocument entry = catalog.Entries[i];
+            if (entry == null)
+                continue;
+
+            if (ResourceMatches(entry.Id, item, string.Empty) ||
+                (entry.ProviderData != null && ResourceMatches(GetProviderData(entry.ProviderData, "stableId"), item, string.Empty)) ||
+                (entry.ProviderData != null && ResourceMatches(GetProviderData(entry.ProviderData, "packageResourceKey"), item, string.Empty)))
+                return entry;
+        }
+
+        return null;
+    }
+
+    private static AudioCueManifestEntry FindAudioCue(AudioCueManifestDocument manifest, ResourceLibraryItem item)
+    {
+        if (manifest == null || manifest.Cues == null || item == null)
+            return null;
+
+        for (int i = 0; i < manifest.Cues.Count; i++)
+        {
+            AudioCueManifestEntry cue = manifest.Cues[i];
+            if (cue == null)
+                continue;
+
+            if (ResourceMatches(cue.CueId, item, string.Empty) ||
+                ResourceMatches(cue.StableId, item, string.Empty) ||
+                ResourceMatches(cue.ResourceKey, item, string.Empty))
+                return cue;
+        }
+
+        return null;
+    }
+
+    private static string GetProviderData(Dictionary<string, string> providerData, string key)
+    {
+        if (providerData == null || string.IsNullOrWhiteSpace(key))
+            return string.Empty;
+        string value;
+        return providerData.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
+    }
+
+    private static List<object> BuildCharacterResourceInspectDiagnostics(
+        ResourceLibraryItem item,
+        CharacterResourceLibrary library,
+        CharacterResourcePlanCompileResult plan,
+        JsonElement? unityEntry)
+    {
+        var diagnostics = new List<object>();
+        if (item == null)
+            return diagnostics;
+
+        if (item.Diagnostics != null)
+        {
+            for (int i = 0; i < item.Diagnostics.Count; i++)
+                AddResourceLibraryDiagnostic(diagnostics, "item", item.Diagnostics[i], item);
+        }
+
+        if (library != null && library.Diagnostics != null)
+        {
+            for (int i = 0; i < library.Diagnostics.Count; i++)
+                AddResourceLibraryDiagnostic(diagnostics, "library", library.Diagnostics[i], item);
+        }
+
+        if (plan != null && plan.CharacterResourcePlan != null && plan.CharacterResourcePlan.Diagnostics != null)
+        {
+            for (int i = 0; i < plan.CharacterResourcePlan.Diagnostics.Count; i++)
+                AddResourcePlanDiagnostic(diagnostics, "resourcePlan", plan.CharacterResourcePlan.Diagnostics[i], item);
+        }
+
+        if (plan != null && plan.ResourceValidationReport != null && plan.ResourceValidationReport.Diagnostics != null)
+        {
+            for (int i = 0; i < plan.ResourceValidationReport.Diagnostics.Count; i++)
+                AddResourcePlanDiagnostic(diagnostics, "validationReport", plan.ResourceValidationReport.Diagnostics[i], item);
+        }
+
+        if (unityEntry.HasValue)
+        {
+            JsonElement[] unityDiagnostics = GetJsonArray(unityEntry, "diagnostics");
+            for (int i = 0; i < unityDiagnostics.Length; i++)
+                AddUnityDiagnostic(diagnostics, unityDiagnostics[i], item);
+        }
+
+        return diagnostics;
+    }
+
+    private static void AddResourceLibraryDiagnostic(List<object> diagnostics, string source, ResourceLibraryDiagnostic diagnostic, ResourceLibraryItem item)
+    {
+        if (diagnostics == null || diagnostic == null || item == null)
+            return;
+
+        if (!ResourceMatches(diagnostic.LibraryItemStableId, item, string.Empty) &&
+            !ResourceMatches(diagnostic.ResourceKey, item, string.Empty))
+            return;
+
+        diagnostics.Add(new
+        {
+            source,
+            severity = diagnostic.Severity.ToString(),
+            code = diagnostic.Code,
+            message = diagnostic.Message,
+            suggestedFix = diagnostic.SuggestedFix,
+            libraryItemStableId = diagnostic.LibraryItemStableId,
+            resourceKey = diagnostic.ResourceKey,
+            sourceConfigKind = diagnostic.SourceConfigKind,
+            sourceStableId = diagnostic.SourceStableId,
+            sourceField = diagnostic.SourceField
+        });
+    }
+
+    private static void AddResourcePlanDiagnostic(List<object> diagnostics, string source, CharacterResourcePlanDiagnostic diagnostic, ResourceLibraryItem item)
+    {
+        if (diagnostics == null || diagnostic == null || item == null)
+            return;
+
+        if (!ResourceMatches(diagnostic.LibraryItemStableId, item, string.Empty) &&
+            !ResourceMatches(diagnostic.ResourceKey, item, string.Empty))
+            return;
+
+        diagnostics.Add(new
+        {
+            source,
+            severity = diagnostic.Severity,
+            code = diagnostic.Code,
+            message = diagnostic.Message,
+            suggestedFix = diagnostic.SuggestedFix,
+            libraryItemStableId = diagnostic.LibraryItemStableId,
+            resourceKey = diagnostic.ResourceKey,
+            sourceConfigKind = diagnostic.SourceConfigKind,
+            sourceField = diagnostic.SourceField
+        });
+    }
+
+    private static void AddUnityDiagnostic(List<object> diagnostics, JsonElement diagnostic, ResourceLibraryItem item)
+    {
+        if (diagnostics == null || item == null || diagnostic.ValueKind != JsonValueKind.Object)
+            return;
+
+        diagnostics.Add(new
+        {
+            source = "unity",
+            severity = TryGetString(diagnostic, "severity"),
+            code = TryGetString(diagnostic, "code"),
+            message = TryGetString(diagnostic, "message"),
+            suggestedFix = string.Empty,
+            libraryItemStableId = item.StableId,
+            resourceKey = item.ResourceKey,
+            sourcePath = TryGetString(diagnostic, "sourcePath"),
+            sourceField = TryGetString(diagnostic, "field")
+        });
+    }
+
+    private static JsonElement? FindResourceJsonEntry(string rootPath, string path, ResourceLibraryItem item)
+    {
+        if (item == null)
+            return null;
+
+        string fullPath = Path.GetFullPath(path);
+        if (!fullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+            return null;
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(fullPath));
+        if (!document.RootElement.TryGetProperty("entries", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
+            return null;
+
+        foreach (JsonElement entry in entries.EnumerateArray())
+        {
+            if (JsonResourceMatches(entry, item))
+                return entry.Clone();
+        }
+
+        return null;
+    }
+
+    private static JsonElement? FindImportReportOperation(
+        string rootPath,
+        string path,
+        ResourceLibraryItem item,
+        CharacterPackageResourceEntry authoringEntry,
+        JsonElement? unityEntry)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (item == null || !fullPath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+            return null;
+
+        string sourcePath = authoringEntry != null ? authoringEntry.RelativePath : item.SourcePath;
+        string unityAssetPath = GetJsonString(unityEntry, "unityAssetPath");
+        string address = GetJsonString(unityEntry, "address");
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(fullPath));
+        if (!document.RootElement.TryGetProperty("operations", out JsonElement operations) || operations.ValueKind != JsonValueKind.Array)
+            return null;
+
+        foreach (JsonElement operation in operations.EnumerateArray())
+        {
+            if (string.Equals(TryGetString(operation, "sourcePath"), sourcePath, StringComparison.Ordinal) ||
+                string.Equals(TryGetString(operation, "targetPath"), unityAssetPath, StringComparison.Ordinal) ||
+                string.Equals(TryGetString(operation, "targetPath"), address, StringComparison.Ordinal) ||
+                string.Equals(TryGetString(operation, "contentHash"), item.Hash, StringComparison.Ordinal))
+                return operation.Clone();
+        }
+
+        return null;
+    }
+
+    private static bool JsonResourceMatches(JsonElement entry, ResourceLibraryItem item)
+    {
+        if (entry.ValueKind != JsonValueKind.Object || item == null)
+            return false;
+
+        return ResourceMatches(TryGetString(entry, "id"), item, string.Empty) ||
+            ResourceMatches(TryGetString(entry, "packageResourceKey"), item, string.Empty) ||
+            ResourceMatches(TryGetString(entry, "stableId"), item, string.Empty);
+    }
+
+    private static string GetJsonString(JsonElement? element, string propertyName)
+    {
+        if (!element.HasValue)
+            return string.Empty;
+        return TryGetString(element.Value, propertyName);
+    }
+
+    private static JsonElement[] GetJsonArray(JsonElement? element, string propertyName)
+    {
+        if (!element.HasValue || element.Value.ValueKind != JsonValueKind.Object)
+            return Array.Empty<JsonElement>();
+        if (!element.Value.TryGetProperty(propertyName, out JsonElement property) || property.ValueKind != JsonValueKind.Array)
+            return Array.Empty<JsonElement>();
+
+        var result = new List<JsonElement>();
+        foreach (JsonElement item in property.EnumerateArray())
+            result.Add(item.Clone());
+        return result.ToArray();
+    }
+
+    private static string FirstNonEmpty(params string[] values)
+    {
+        if (values == null)
+            return string.Empty;
+
+        for (int i = 0; i < values.Length; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(values[i]))
+                return values[i];
+        }
+
+        return string.Empty;
     }
 
     private static ResourceReferenceGraph BuildCharacterResourceReferenceGraph(CharacterResourcePackage package)

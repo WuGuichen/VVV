@@ -3,6 +3,7 @@ import path from "node:path";
 
 const repoRoot = path.resolve(new URL("../../../", import.meta.url).pathname);
 const hubRoot = path.join(repoRoot, "Tools/MxFramework.EditorHub");
+const resourceLibraryRoot = path.join(repoRoot, "Tools/MxFramework.ResourceLibrary");
 const required = [
   "web/index.html",
   "web/app.js",
@@ -12,10 +13,21 @@ const required = [
   "start-editor-hub.command",
   "README.md"
 ];
+const requiredResourceLibrary = [
+  "README.md",
+  "start-resource-library.sh",
+  "start-resource-library.bat",
+  "start-resource-library.command"
+];
 
 for (const relative of required) {
   const full = path.join(hubRoot, relative);
   assert(fs.existsSync(full), `missing ${relative}`);
+}
+
+for (const relative of requiredResourceLibrary) {
+  const full = path.join(resourceLibraryRoot, relative);
+  assert(fs.existsSync(full), `missing ResourceLibrary ${relative}`);
 }
 
 const index = fs.readFileSync(path.join(hubRoot, "web/index.html"), "utf8");
@@ -29,6 +41,8 @@ assert(index.includes("toolGrid") && index.includes("resourceSummary"), "hub sho
 assert(index.includes("diagnosticsConsole") && index.includes("diagnosticsFilter"), "hub should expose the diagnostics console");
 assert(app.includes("/api/character/resources") && app.includes("/api/character/resource-plan"), "hub should read resource APIs");
 assert(app.includes("Tools/MxFramework.CharacterStudio/web/") && app.includes("Tools/MxFramework.Authoring.Editor/web/"), "hub should link existing editors");
+assert(app.includes("Tools/MxFramework.ResourceLibrary/web/"), "hub should link Resource Library editor");
+assert(!app.includes('action: "待实现"') && !app.includes("disabled: true"), "Resource Library card should be enabled");
 assert(app.includes("renderDiagnostics") && app.includes("getFilteredDiagnostics"), "hub should render and filter diagnostics");
 assert(styles.includes(".tool-grid") && styles.includes(".resource-panels"), "hub should style the main tool and resource layouts");
 assert(launcher.includes("dotnet --list-sdks") && launcher.includes("is_port_in_use"), "launcher should perform environment and port checks");
