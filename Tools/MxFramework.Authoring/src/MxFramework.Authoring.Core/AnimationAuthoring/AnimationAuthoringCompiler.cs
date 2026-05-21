@@ -17,6 +17,7 @@ namespace MxFramework.Authoring
         public AnimationAuthoringPackage Package { get; set; }
         public string PackageRootPath { get; set; } = string.Empty;
         public CharacterPackageResourceCatalog ResourceCatalog { get; set; }
+        public RuntimeResourceCatalogDocument RuntimeResourceCatalog { get; set; }
     }
 
     public sealed class AnimationAuthoringCompileResult
@@ -205,6 +206,7 @@ namespace MxFramework.Authoring
         public string SourceClipName { get; set; } = string.Empty;
         public string SourceSubClipId { get; set; } = string.Empty;
         public string RuntimeResourceKey { get; set; } = string.Empty;
+        public string Hash { get; set; } = string.Empty;
         public AuthoringResourceSelectionRef SourceSelection { get; set; } = new AuthoringResourceSelectionRef();
         public List<AuthoringResourceSelectionRef> GeneratedArtifactSelections { get; set; } = new List<AuthoringResourceSelectionRef>();
     }
@@ -212,6 +214,13 @@ namespace MxFramework.Authoring
     public static class AnimationAuthoringCompiler
     {
         private const string SourcePath = "config/animation_authoring.json";
+        private const string RuntimeAnimationClipTypeId = "AnimationClip";
+        private const string DiagnosticSourceKind = "AnimationAuthoring";
+        private const string RuntimeKeyMissingCode = "ANIM_RUNTIME_KEY_MISSING";
+        private const string SourceNotRuntimeReadyCode = "ANIM_SOURCE_NOT_RUNTIME_READY";
+        private const string RuntimeTypeMismatchCode = "ANIM_RUNTIME_TYPE_MISMATCH";
+        private const string SourceSubClipMissingCode = "ANIM_SOURCE_SUBCLIP_MISSING";
+        private const string WarmupRequiredClipMissingCode = "ANIM_WARMUP_REQUIRED_CLIP_MISSING";
 
         public static AnimationAuthoringCompileResult Compile(AnimationAuthoringCompileRequest request)
         {
@@ -221,7 +230,7 @@ namespace MxFramework.Authoring
             AnimationAuthoringPackage package = request.Package ?? new AnimationAuthoringPackage();
             string packageId = package.PackageId ?? string.Empty;
             string stableId = package.StableId ?? string.Empty;
-            var resourceLookup = BuildResourceLookup(request.ResourceCatalog);
+            var resourceLookup = BuildResourceLookup(request.ResourceCatalog, request.RuntimeResourceCatalog);
             var validation = new CharacterAuthoringValidationReport { PackageId = packageId };
             var runtimeCatalog = new RuntimeResourceCatalogDocument
             {
@@ -240,7 +249,7 @@ namespace MxFramework.Authoring
             };
             var diagnostics = new List<CharacterResourcePlanDiagnostic>();
 
-            AnimationSetDefinitionDocument setDefinition = BuildSetDefinition(package);
+            AnimationSetDefinitionDocument setDefinition = BuildSetDefinition(package, resourceLookup);
             AnimationPackageExpectationDocument expectation = BuildExpectation(package, validation);
             AnimationClipRegistryDocument clipRegistry = new AnimationClipRegistryDocument { PackageId = packageId };
 
@@ -274,6 +283,7 @@ namespace MxFramework.Authoring
                             continue;
 
                         string clipPath = groupPath + "/clips/" + clipIndex;
+                        AnimationRuntimeResourceBinding clipBinding = ResolveAnimationClipBinding(clip, resourceLookup, clipPath, "sourceSelection", validation, diagnostics, true);
                         clipRegistry.Clips.Add(new AnimationClipRegistryEntry
                         {
                             SetId = set.SetId ?? string.Empty,
@@ -282,7 +292,8 @@ namespace MxFramework.Authoring
                             DisplayName = clip.DisplayName ?? string.Empty,
                             SourceClipName = clip.SourceClipName ?? string.Empty,
                             SourceSubClipId = clip.SourceSubClipId ?? string.Empty,
-                            RuntimeResourceKey = clip.RuntimeResourceKey ?? string.Empty,
+                            RuntimeResourceKey = clipBinding.RuntimeResourceKey,
+                            Hash = clipBinding.Hash,
                             SourceSelection = clip.SourceSelection ?? new AuthoringResourceSelectionRef(),
                             GeneratedArtifactSelections = clip.GeneratedArtifactSelections ?? new List<AuthoringResourceSelectionRef>()
                         });
@@ -290,8 +301,7 @@ namespace MxFramework.Authoring
                         if (IsSelectionEmpty(clip.SourceSelection) && string.IsNullOrWhiteSpace(clip.RuntimeResourceKey))
                             AddValidation(validation, "ANIM_MISSING_SOURCE_SELECTION", clipPath, "sourceSelection", "Animation clip mapping has no source selection or runtime resource key.", CharacterAuthoringValidationSeverity.Error);
 
-                        AddRuntimeKey(clip.RuntimeResourceKey, clip.SourceSelection, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, diagnostics, resourceLookup, clipPath, "runtimeResourceKey");
-                        AddSelection(clip.SourceSelection, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, audioManifest, diagnostics, resourceLookup, clipPath, "sourceSelection");
+                        AddAnimationClipBinding(clipBinding, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, diagnostics, resourceLookup, clipPath, "runtimeResourceKey");
                         for (int artifactIndex = 0; clip.GeneratedArtifactSelections != null && artifactIndex < clip.GeneratedArtifactSelections.Count; artifactIndex++)
                             AddSelection(clip.GeneratedArtifactSelections[artifactIndex], AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, audioManifest, diagnostics, resourceLookup, clipPath + "/generatedArtifactSelections/" + artifactIndex, "generatedArtifactSelections");
                     }
@@ -348,6 +358,8 @@ namespace MxFramework.Authoring
                 AudioCueManifest = audioManifest,
                 Diagnostics = diagnostics
             };
+            characterPlan.Diagnostics.Clear();
+            characterPlan.Diagnostics.AddRange(diagnostics);
 
             return new AnimationAuthoringCompileResult
             {
@@ -361,7 +373,7 @@ namespace MxFramework.Authoring
             };
         }
 
-        private static AnimationSetDefinitionDocument BuildSetDefinition(AnimationAuthoringPackage package)
+        private static AnimationSetDefinitionDocument BuildSetDefinition(AnimationAuthoringPackage package, Dictionary<string, CharacterPackageResourceEntry> resourceLookup)
         {
             var document = new AnimationSetDefinitionDocument
             {
@@ -422,11 +434,12 @@ namespace MxFramework.Authoring
                         AnimationClipMappingAuthoring clip = group.Clips[clipIndex];
                         if (clip == null)
                             continue;
+                        AnimationRuntimeResourceBinding clipBinding = ResolveAnimationClipBinding(clip, resourceLookup, string.Empty, string.Empty, null, null, false);
                         groupDoc.Clips.Add(new AnimationSetDefinitionClipRef
                         {
                             ClipId = clip.ClipId ?? string.Empty,
                             DisplayName = clip.DisplayName ?? string.Empty,
-                            RuntimeResourceKey = clip.RuntimeResourceKey ?? string.Empty,
+                            RuntimeResourceKey = clipBinding.IsRuntimeConsumable ? clipBinding.RuntimeResourceKey : string.Empty,
                             SourceClipName = clip.SourceClipName ?? string.Empty,
                             SourceSubClipId = clip.SourceSubClipId ?? string.Empty,
                             Loop = clip.Loop,
@@ -546,12 +559,10 @@ namespace MxFramework.Authoring
             });
         }
 
-        private static Dictionary<string, CharacterPackageResourceEntry> BuildResourceLookup(CharacterPackageResourceCatalog catalog)
+        private static Dictionary<string, CharacterPackageResourceEntry> BuildResourceLookup(CharacterPackageResourceCatalog catalog, RuntimeResourceCatalogDocument runtimeCatalog)
         {
             var result = new Dictionary<string, CharacterPackageResourceEntry>(StringComparer.Ordinal);
-            if (catalog == null || catalog.Entries == null)
-                return result;
-            for (int i = 0; i < catalog.Entries.Count; i++)
+            for (int i = 0; catalog != null && catalog.Entries != null && i < catalog.Entries.Count; i++)
             {
                 CharacterPackageResourceEntry entry = catalog.Entries[i];
                 if (entry == null)
@@ -560,13 +571,88 @@ namespace MxFramework.Authoring
                 AddResourceLookup(result, entry.StableId, entry);
                 AddResourceLookup(result, entry.LocalId, entry);
             }
+
+            for (int i = 0; runtimeCatalog != null && runtimeCatalog.Entries != null && i < runtimeCatalog.Entries.Count; i++)
+            {
+                RuntimeResourceCatalogEntryDocument runtimeEntry = runtimeCatalog.Entries[i];
+                CharacterPackageResourceEntry entry = CreateResourceLookupEntry(runtimeEntry);
+                if (entry == null)
+                    continue;
+
+                AddResourceLookup(result, entry.ResourceKey, entry);
+                AddResourceLookup(result, entry.StableId, entry);
+                AddResourceLookup(result, entry.LocalId, entry);
+            }
+
             return result;
+        }
+
+        private static CharacterPackageResourceEntry CreateResourceLookupEntry(RuntimeResourceCatalogEntryDocument runtimeEntry)
+        {
+            if (runtimeEntry == null || string.IsNullOrWhiteSpace(runtimeEntry.Id))
+                return null;
+
+            string stableId = FirstNonEmpty(GetProviderData(runtimeEntry.ProviderData, "stableId"), "runtime." + runtimeEntry.Id);
+            string usage = NormalizeRuntimeUsage(runtimeEntry.Type, GetProviderData(runtimeEntry.ProviderData, "usage"));
+            var entry = new CharacterPackageResourceEntry
+            {
+                ResourceKey = runtimeEntry.Id ?? string.Empty,
+                LocalId = runtimeEntry.Id ?? string.Empty,
+                StableId = stableId,
+                TypeId = FirstNonEmpty(runtimeEntry.Type, CharacterPackageResourceTypeIds.Animation),
+                Variant = runtimeEntry.Variant ?? string.Empty,
+                Usage = usage,
+                SourceFormat = GetProviderData(runtimeEntry.ProviderData, "sourceFormat"),
+                PackageId = runtimeEntry.PackageId ?? string.Empty,
+                RelativePath = runtimeEntry.Address ?? string.Empty,
+                Hash = runtimeEntry.Hash ?? string.Empty,
+                ImportHints = new CharacterPackageImportHint
+                {
+                    ProviderId = runtimeEntry.Provider ?? string.Empty,
+                    TargetRelativePath = runtimeEntry.Address ?? string.Empty,
+                    Metadata = runtimeEntry.ProviderData != null
+                        ? new Dictionary<string, string>(runtimeEntry.ProviderData, StringComparer.Ordinal)
+                        : new Dictionary<string, string>(StringComparer.Ordinal)
+                },
+                Tags = runtimeEntry.Labels != null ? new List<string>(runtimeEntry.Labels) : new List<string>()
+            };
+            return entry;
+        }
+
+        private static string NormalizeRuntimeUsage(string runtimeType, string usage)
+        {
+            if (string.Equals(runtimeType, RuntimeAnimationClipTypeId, StringComparison.OrdinalIgnoreCase))
+                return AnimationAuthoringResourceUsages.AnimationClip;
+
+            return usage ?? string.Empty;
+        }
+
+        private static string GetProviderData(Dictionary<string, string> providerData, string key)
+        {
+            if (providerData == null || string.IsNullOrWhiteSpace(key))
+                return string.Empty;
+
+            string value;
+            return providerData.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
         }
 
         private static void AddResourceLookup(Dictionary<string, CharacterPackageResourceEntry> lookup, string key, CharacterPackageResourceEntry entry)
         {
             if (!string.IsNullOrWhiteSpace(key) && !lookup.ContainsKey(key))
                 lookup.Add(key, entry);
+        }
+
+        private sealed class AnimationRuntimeResourceBinding
+        {
+            public string RuntimeResourceKey { get; set; } = string.Empty;
+            public string RuntimeTypeId { get; set; } = string.Empty;
+            public string Usage { get; set; } = string.Empty;
+            public string StableId { get; set; } = string.Empty;
+            public string Hash { get; set; } = string.Empty;
+            public AuthoringResourceSelectionRef SourceSelection { get; set; }
+            public CharacterPackageResourceEntry CatalogEntry { get; set; }
+            public bool IsRuntimeReady { get; set; }
+            public bool IsRuntimeConsumable { get; set; }
         }
 
         private static Dictionary<string, AnimationClipMappingAuthoring> BuildClipLookup(AnimationAuthoringSet set, int setIndex, CharacterAuthoringValidationReport validation)
@@ -679,7 +765,15 @@ namespace MxFramework.Authoring
             if (clipsById != null)
             {
                 for (int i = 0; warmup.RequiredClipIds != null && i < warmup.RequiredClipIds.Count; i++)
+                {
+                    if (!clipsById.ContainsKey(warmup.RequiredClipIds[i]))
+                    {
+                        AddValidation(validation, WarmupRequiredClipMissingCode, path + "/requiredClipIds/" + i, "requiredClipIds", "Animation warmup references a missing required clip id: " + warmup.RequiredClipIds[i], CharacterAuthoringValidationSeverity.Error);
+                        AddResourceDiagnostic(diagnostics, validation, WarmupRequiredClipMissingCode, string.Empty, string.Empty, path + "/requiredClipIds/" + i, "requiredClipIds", "Animation warmup references a missing required clip id: " + warmup.RequiredClipIds[i], "Add the clip mapping or remove the required warmup reference.", CharacterAuthoringValidationSeverity.Error, false);
+                        continue;
+                    }
                     AddClipFromRef(warmup.RequiredClipIds[i], clipsById, packageId, runtimeCatalog, characterPlan, audioManifest, diagnostics, resourceLookup, path + "/requiredClipIds/" + i, "requiredClipIds");
+                }
             }
             for (int i = 0; warmup.AvatarMaskSelections != null && i < warmup.AvatarMaskSelections.Count; i++)
                 AddSelection(warmup.AvatarMaskSelections[i], AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, audioManifest, diagnostics, resourceLookup, path + "/avatarMaskSelections/" + i, "avatarMaskSelections");
@@ -708,8 +802,8 @@ namespace MxFramework.Authoring
             AnimationClipMappingAuthoring clip;
             if (!clipsById.TryGetValue(clipId, out clip) || clip == null)
                 return;
-            AddRuntimeKey(clip.RuntimeResourceKey, clip.SourceSelection, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, diagnostics, resourceLookup, path, field);
-            AddSelection(clip.SourceSelection, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, audioManifest, diagnostics, resourceLookup, path, field + ".sourceSelection");
+            AnimationRuntimeResourceBinding binding = ResolveAnimationClipBinding(clip, resourceLookup, path, field, null, diagnostics, true);
+            AddAnimationClipBinding(binding, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, diagnostics, resourceLookup, path, field);
         }
 
         private static void AddBlendFromRef(string blendId, AnimationGroupAuthoring group, Dictionary<string, AnimationClipMappingAuthoring> clipsById, string packageId, RuntimeResourceCatalogDocument runtimeCatalog, CharacterResourcePlanDocument characterPlan, AudioCueManifestDocument audioManifest, List<CharacterResourcePlanDiagnostic> diagnostics, CharacterAuthoringValidationReport validation, Dictionary<string, CharacterPackageResourceEntry> resourceLookup, string path, string field)
@@ -747,6 +841,144 @@ namespace MxFramework.Authoring
             return null;
         }
 
+        private static AnimationRuntimeResourceBinding ResolveAnimationClipBinding(AnimationClipMappingAuthoring clip, Dictionary<string, CharacterPackageResourceEntry> resourceLookup, string path, string field, CharacterAuthoringValidationReport validation, List<CharacterResourcePlanDiagnostic> diagnostics, bool emitDiagnostics)
+        {
+            AuthoringResourceSelectionRef selection = clip != null ? clip.SourceSelection : null;
+            CharacterPackageResourceEntry entry = ResolveCatalogEntry(resourceLookup, clip != null ? clip.RuntimeResourceKey : string.Empty, selection);
+            string runtimeKey = FirstNonEmpty(
+                clip != null ? clip.RuntimeResourceKey : string.Empty,
+                selection != null ? selection.RuntimeResourceKey : string.Empty,
+                entry != null ? entry.ResourceKey : string.Empty);
+            string kind = FirstNonEmpty(entry != null ? entry.TypeId : string.Empty, selection != null ? selection.ExpectedKind : string.Empty);
+            string usage = FirstNonEmpty(entry != null ? entry.Usage : string.Empty, selection != null ? selection.ExpectedUsage : string.Empty);
+            string runtimeType = string.Equals(kind, RuntimeAnimationClipTypeId, StringComparison.Ordinal)
+                ? RuntimeAnimationClipTypeId
+                : MapRuntimeType(kind);
+            string stableId = FirstNonEmpty(selection != null ? selection.ResourceStableId : string.Empty, entry != null ? entry.StableId : string.Empty);
+            string hash = FirstNonEmpty(entry != null ? CharacterPackageResourcePipeline.GetDeclaredContentHash(entry) : string.Empty, selection != null ? selection.ExpectedHash : string.Empty);
+            bool hasRuntimeKey = !string.IsNullOrWhiteSpace(runtimeKey);
+            bool runtimeReady = hasRuntimeKey && (entry != null ||
+                (selection != null &&
+                 (selection.BindingKind == AuthoringResourceBindingKind.ResourceManagerAsset ||
+                  string.Equals(selection.SourceProviderId, AuthoringResourceProviderIds.RuntimeCatalog, StringComparison.Ordinal))));
+            bool validKind = string.Equals(kind, CharacterPackageResourceTypeIds.Animation, StringComparison.Ordinal) ||
+                string.Equals(kind, RuntimeAnimationClipTypeId, StringComparison.Ordinal);
+            bool validUsage = string.Equals(usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal);
+            bool validRuntimeType = string.Equals(runtimeType, RuntimeAnimationClipTypeId, StringComparison.Ordinal);
+            bool runtimeConsumable = hasRuntimeKey && runtimeReady && validKind && validUsage && validRuntimeType;
+
+            if (emitDiagnostics)
+            {
+                if (!hasRuntimeKey)
+                {
+                    AddResourceDiagnostic(
+                        diagnostics,
+                        validation,
+                        RuntimeKeyMissingCode,
+                        stableId,
+                        runtimeKey,
+                        path,
+                        field,
+                        "Animation clip mapping cannot resolve a runtime AnimationClip ResourceKey.",
+                        "Choose a runtime-ready AnimationClip resource or refresh the runtime catalog binding.",
+                        CharacterAuthoringValidationSeverity.Error,
+                        true);
+                }
+                else if (!runtimeReady)
+                {
+                    AddResourceDiagnostic(
+                        diagnostics,
+                        validation,
+                        SourceNotRuntimeReadyCode,
+                        stableId,
+                        runtimeKey,
+                        path,
+                        field,
+                        "Animation clip source is not runtime-ready.",
+                        "Select a RuntimeReady AnimationClip or compile/import the selected source into the runtime catalog.",
+                        CharacterAuthoringValidationSeverity.Error,
+                        true);
+                }
+
+                if (string.Equals(usage, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal) &&
+                    string.IsNullOrWhiteSpace(clip != null ? clip.SourceSubClipId : string.Empty))
+                {
+                    AddResourceDiagnostic(
+                        diagnostics,
+                        validation,
+                        SourceSubClipMissingCode,
+                        stableId,
+                        runtimeKey,
+                        path,
+                        "sourceSubClipId",
+                        "Animation clip group selection is missing a source sub-clip id.",
+                        "Choose a concrete AnimationClip sub-asset before compiling runtime animation resources.",
+                        CharacterAuthoringValidationSeverity.Error,
+                        true);
+                }
+
+                if (!validKind || !validUsage || !validRuntimeType)
+                {
+                    AddResourceDiagnostic(
+                        diagnostics,
+                        validation,
+                        RuntimeTypeMismatchCode,
+                        stableId,
+                        runtimeKey,
+                        path,
+                        field,
+                        "Resolved animation runtime resource must be kind=animation, usage=animationClip, type=AnimationClip. Actual kind=" + kind + ", usage=" + usage + ", type=" + runtimeType + ".",
+                        "Bind the clip to a runtime AnimationClip catalog entry instead of an animationClipGroup or editor-only source.",
+                        CharacterAuthoringValidationSeverity.Error,
+                        true);
+                }
+            }
+
+            return new AnimationRuntimeResourceBinding
+            {
+                RuntimeResourceKey = runtimeKey ?? string.Empty,
+                RuntimeTypeId = runtimeType ?? string.Empty,
+                Usage = usage ?? string.Empty,
+                StableId = stableId ?? string.Empty,
+                Hash = hash ?? string.Empty,
+                SourceSelection = selection,
+                CatalogEntry = entry,
+                IsRuntimeReady = runtimeReady,
+                IsRuntimeConsumable = runtimeConsumable
+            };
+        }
+
+        private static CharacterPackageResourceEntry ResolveCatalogEntry(Dictionary<string, CharacterPackageResourceEntry> resourceLookup, string runtimeKey, AuthoringResourceSelectionRef selection)
+        {
+            if (resourceLookup == null)
+                return null;
+
+            CharacterPackageResourceEntry entry;
+            if (!string.IsNullOrWhiteSpace(runtimeKey) && resourceLookup.TryGetValue(runtimeKey, out entry))
+                return entry;
+            if (selection != null)
+            {
+                if (!string.IsNullOrWhiteSpace(selection.RuntimeResourceKey) && resourceLookup.TryGetValue(selection.RuntimeResourceKey, out entry))
+                    return entry;
+                if (!string.IsNullOrWhiteSpace(selection.PackageResourceKey) && resourceLookup.TryGetValue(selection.PackageResourceKey, out entry))
+                    return entry;
+                if (!string.IsNullOrWhiteSpace(selection.ProviderResourceKey) && resourceLookup.TryGetValue(selection.ProviderResourceKey, out entry))
+                    return entry;
+                if (!string.IsNullOrWhiteSpace(selection.ResourceStableId) && resourceLookup.TryGetValue(selection.ResourceStableId, out entry))
+                    return entry;
+            }
+
+            return null;
+        }
+
+        private static void AddAnimationClipBinding(AnimationRuntimeResourceBinding binding, string preloadPolicy, string packageId, RuntimeResourceCatalogDocument runtimeCatalog, CharacterResourcePlanDocument characterPlan, List<CharacterResourcePlanDiagnostic> diagnostics, Dictionary<string, CharacterPackageResourceEntry> resourceLookup, string path, string field)
+        {
+            if (binding == null || !binding.IsRuntimeConsumable)
+                return;
+
+            AddRuntimeKey(binding.RuntimeResourceKey, binding.SourceSelection, CharacterPackageResourceTypeIds.Animation, AnimationAuthoringResourceUsages.AnimationClip, preloadPolicy, packageId, runtimeCatalog, characterPlan, diagnostics, resourceLookup, path, field);
+        }
+
         private static void AddSelection(AuthoringResourceSelectionRef selection, string preloadPolicy, string packageId, RuntimeResourceCatalogDocument runtimeCatalog, CharacterResourcePlanDocument characterPlan, AudioCueManifestDocument audioManifest, List<CharacterResourcePlanDiagnostic> diagnostics, Dictionary<string, CharacterPackageResourceEntry> resourceLookup, string path, string field)
         {
             if (IsSelectionEmpty(selection))
@@ -773,7 +1005,8 @@ namespace MxFramework.Authoring
                 return;
             }
 
-            string runtimeKey = selection.RuntimeResourceKey ?? string.Empty;
+            CharacterPackageResourceEntry resolvedEntry = ResolveCatalogEntry(resourceLookup, selection.RuntimeResourceKey, selection);
+            string runtimeKey = FirstNonEmpty(selection.RuntimeResourceKey, resolvedEntry != null ? resolvedEntry.ResourceKey : string.Empty);
             if (string.IsNullOrWhiteSpace(runtimeKey))
                 return;
 
@@ -787,8 +1020,8 @@ namespace MxFramework.Authoring
 
             CharacterPackageResourceEntry entry = null;
             resourceLookup.TryGetValue(runtimeKey, out entry);
-            string typeId = FirstNonEmpty(kind, entry != null ? entry.TypeId : string.Empty);
-            string usageId = FirstNonEmpty(usage, entry != null ? entry.Usage : string.Empty);
+            string typeId = FirstNonEmpty(entry != null ? entry.TypeId : string.Empty, kind);
+            string usageId = FirstNonEmpty(entry != null ? entry.Usage : string.Empty, usage);
             RuntimeResourceCatalogEntryDocument runtimeEntry = FindRuntimeEntry(runtimeCatalog, runtimeKey);
             if (runtimeEntry == null)
             {
@@ -797,9 +1030,9 @@ namespace MxFramework.Authoring
                     Id = runtimeKey,
                     Type = MapRuntimeType(typeId),
                     PackageId = packageId ?? string.Empty,
-                    Provider = FirstNonEmpty(selection != null ? selection.SourceProviderId : string.Empty, entry != null && entry.ImportHints != null ? entry.ImportHints.ProviderId : string.Empty, "memory"),
-                    Address = FirstNonEmpty(selection != null ? selection.UnityAssetPath : string.Empty, entry != null ? entry.RelativePath : string.Empty, runtimeKey),
-                    Hash = FirstNonEmpty(selection != null ? selection.ExpectedHash : string.Empty, entry != null ? CharacterPackageResourcePipeline.GetDeclaredContentHash(entry) : string.Empty),
+                    Provider = NormalizeRuntimeProvider(FirstNonEmpty(entry != null && entry.ImportHints != null ? entry.ImportHints.ProviderId : string.Empty, selection != null ? selection.SourceProviderId : string.Empty, "memory")),
+                    Address = FirstNonEmpty(entry != null ? entry.RelativePath : string.Empty, runtimeKey),
+                    Hash = FirstNonEmpty(entry != null ? CharacterPackageResourcePipeline.GetDeclaredContentHash(entry) : string.Empty, selection != null ? selection.ExpectedHash : string.Empty),
                     ProviderData = new Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["sourcePath"] = path ?? string.Empty,
@@ -837,7 +1070,9 @@ namespace MxFramework.Authoring
 
             if (string.Equals(typeId, CharacterPackageResourceTypeIds.Vfx, StringComparison.Ordinal) || string.Equals(usage, CharacterPackageResourceUsageIds.VfxCue, StringComparison.Ordinal))
                 return plan.VfxWarmup;
-            if (string.Equals(typeId, CharacterPackageResourceTypeIds.Animation, StringComparison.Ordinal) || string.Equals(usage, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal))
+            if (string.Equals(typeId, CharacterPackageResourceTypeIds.Animation, StringComparison.Ordinal) ||
+                string.Equals(usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal) ||
+                string.Equals(usage, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal))
                 return plan.AnimationWarmup;
             return plan.PresentationCritical;
         }
@@ -890,6 +1125,38 @@ namespace MxFramework.Authoring
                 Message = message ?? string.Empty,
                 SuggestedFix = "Open AnimationEditor, fix the animation authoring data, then compile again."
             });
+        }
+
+        private static void AddResourceDiagnostic(List<CharacterResourcePlanDiagnostic> diagnostics, CharacterAuthoringValidationReport validation, string code, string stableId, string resourceKey, string path, string field, string message, string suggestedFix, CharacterAuthoringValidationSeverity severity, bool addValidationIssue)
+        {
+            if (addValidationIssue && validation != null)
+                AddValidation(validation, code, path, field, message, severity);
+
+            if (diagnostics == null)
+                return;
+
+            diagnostics.Add(new CharacterResourcePlanDiagnostic
+            {
+                Severity = severity.ToString(),
+                Code = code ?? string.Empty,
+                LibraryItemStableId = stableId ?? string.Empty,
+                ResourceKey = resourceKey ?? string.Empty,
+                SourceConfigKind = DiagnosticSourceKind,
+                SourceField = string.IsNullOrWhiteSpace(path) ? field ?? string.Empty : string.IsNullOrWhiteSpace(field) ? path : path + "/" + field,
+                Message = message ?? string.Empty,
+                SuggestedFix = suggestedFix ?? string.Empty
+            });
+        }
+
+        private static string NormalizeRuntimeProvider(string providerId)
+        {
+            if (string.Equals(providerId, "memory", StringComparison.Ordinal) ||
+                string.Equals(providerId, "resources", StringComparison.Ordinal) ||
+                string.Equals(providerId, "assetBundle", StringComparison.Ordinal) ||
+                string.Equals(providerId, "remoteBundle", StringComparison.Ordinal))
+                return providerId;
+
+            return "memory";
         }
 
         private static string MapRuntimeType(string typeId)

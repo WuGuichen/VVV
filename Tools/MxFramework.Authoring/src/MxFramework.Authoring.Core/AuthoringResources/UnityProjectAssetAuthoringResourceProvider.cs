@@ -156,8 +156,13 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceFormat", extension);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "assetType", assetType);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "clipName", displayName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipName", directClip ? displayName : string.Empty);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipId", directClip ? displayName : string.Empty);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "hash", hash);
+            item.Metadata["bindingKind"] = item.BindingKind.ToString();
+            item.Metadata["runtimeAvailability"] = item.RuntimeAvailability.ToString();
+            item.Metadata["sourceLoadability"] = item.RuntimeAvailability.ToString();
             if (context != null)
                 AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "projectRootPath", context.ProjectRootPath);
 
@@ -177,6 +182,11 @@ namespace MxFramework.Authoring
                     { "sourceFormat", extension },
                     { "usage", usage },
                     { "clipName", displayName },
+                    { "subClipName", directClip ? displayName : string.Empty },
+                    { "subClipId", directClip ? displayName : string.Empty },
+                    { "bindingKind", AuthoringResourceBindingKind.UnityEditorOnlyAsset.ToString() },
+                    { "runtimeAvailability", AuthoringResourceRuntimeAvailability.EditorOnly.ToString() },
+                    { "sourceLoadability", AuthoringResourceRuntimeAvailability.EditorOnly.ToString() },
                     { "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup }
                 }
             });

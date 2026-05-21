@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace MxFramework.Authoring
 {
@@ -84,7 +85,10 @@ namespace MxFramework.Authoring
                 {
                     AuthoringUnityResourceCatalogEntry entry = catalog.Entries[i];
                     if (entry != null)
+                    {
                         collection.Items.Add(FromUnityEntry(entry, context));
+                        AddSubAssetItems(collection, entry, context);
+                    }
                 }
             }
 
@@ -130,6 +134,8 @@ namespace MxFramework.Authoring
             string assetPath = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.UnityAssetPath, entry.Address);
             string subAssetKey = GetProviderData(entry, "unitySubAssetKey");
             string unityObjectName = GetProviderData(entry, "unityObjectName");
+            string assetType = ResolveUnityAssetType(entry);
+            string usage = NormalizeUnityUsage(entry.Usage, entry.Type, assetType);
             string stableId = "unity." + AuthoringResourceProviderUtilities.SanitizeStableSegment(
                 AuthoringResourceProviderUtilities.FirstNonEmpty(entry.StableId, subAssetKey, entry.UnityAssetGuid, assetPath, entry.Id));
             string providerKey = AuthoringResourceProviderUtilities.FirstNonEmpty(subAssetKey, entry.UnityAssetGuid, assetPath, entry.Id);
@@ -145,19 +151,78 @@ namespace MxFramework.Authoring
                 ResourceId = AuthoringResourceProviderUtilities.BuildResourceId(AuthoringResourceProviderIds.UnityAssetDatabase, stableId, providerKey),
                 StableId = stableId,
                 DisplayName = AuthoringResourceProviderUtilities.FirstNonEmpty(unityObjectName, AuthoringResourceProviderUtilities.GetFileDisplayName(assetPath, AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Id, entry.PackageResourceKey, stableId))),
-                Kind = AuthoringResourceProviderUtilities.MapRuntimeTypeToLibraryKind(entry.Type, entry.Usage),
-                Usage = entry.Usage ?? string.Empty,
+                Kind = AuthoringResourceProviderUtilities.MapRuntimeTypeToLibraryKind(entry.Type, usage),
+                Usage = usage,
                 SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
                 SourceKind = AuthoringResourceSourceKind.UnityAsset,
                 BindingKind = AuthoringResourceBindingKind.UnityAsset,
                 ImportStatus = importStatus,
                 RuntimeAvailability = AuthoringResourceRuntimeAvailability.EditorOnly,
-                Tags = entry.Labels != null ? new List<string>(entry.Labels) : new List<string>()
+                Tags = BuildTags(entry.Labels, usage, IsAnimationClip(assetType) ? "unity-animation-clip" : string.Empty)
             };
 
             AddMetadata(item, entry, context, assetExists);
             AddUnityBindings(item, entry, assetPath, providerKey);
             AddDependencyBindings(item, entry);
+            AddEntryDiagnostics(item, entry);
+            if (missing)
+                AddMissingDiagnostic(item, assetPath);
+            return item;
+        }
+
+        private static void AddSubAssetItems(
+            AuthoringResourceCollection collection,
+            AuthoringUnityResourceCatalogEntry entry,
+            AuthoringResourceProviderContext context)
+        {
+            if (collection == null || entry == null || entry.SubAssets == null)
+                return;
+
+            for (int i = 0; i < entry.SubAssets.Count; i++)
+            {
+                AuthoringUnityResourceCatalogSubAsset subAsset = entry.SubAssets[i];
+                if (subAsset == null || !IsAnimationClip(ResolveSubAssetType(subAsset)))
+                    continue;
+
+                collection.Items.Add(FromUnitySubAsset(entry, subAsset, context));
+            }
+        }
+
+        private static AuthoringResourceItem FromUnitySubAsset(
+            AuthoringUnityResourceCatalogEntry entry,
+            AuthoringUnityResourceCatalogSubAsset subAsset,
+            AuthoringResourceProviderContext context)
+        {
+            string assetPath = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.UnityAssetPath, entry.Address);
+            string sourceFormat = ResolveSourceFormat(entry, assetPath);
+            string subAssetName = ResolveSubAssetName(subAsset);
+            string subAssetId = ResolveSubAssetId(subAsset, subAssetName);
+            string providerKey = ResolveSubAssetProviderKey(entry, subAsset, assetPath, subAssetId, subAssetName);
+            string stableIdSeed = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.StableId, entry.UnityAssetGuid, assetPath, entry.Id);
+            string stableId = "unity." + AuthoringResourceProviderUtilities.SanitizeStableSegment(stableIdSeed + "." + AuthoringResourceProviderUtilities.FirstNonEmpty(subAssetId, subAssetName, providerKey));
+            bool assetExists = AuthoringResourceProviderUtilities.ProjectFileExists(context != null ? context.ProjectRootPath : string.Empty, assetPath);
+            bool missing = !string.IsNullOrWhiteSpace(assetPath) && !assetExists;
+            AuthoringResourceImportStatus importStatus = missing
+                ? AuthoringResourceImportStatus.UnityMissing
+                : MapImportStatus(entry.ImportStatus ?? string.Empty);
+
+            var item = new AuthoringResourceItem
+            {
+                ResourceId = AuthoringResourceProviderUtilities.BuildResourceId(AuthoringResourceProviderIds.UnityAssetDatabase, stableId, providerKey),
+                StableId = stableId,
+                DisplayName = AuthoringResourceProviderUtilities.FirstNonEmpty(subAssetName, subAssetId, providerKey),
+                Kind = CharacterPackageResourceTypeIds.Animation,
+                Usage = AnimationAuthoringResourceUsages.AnimationClip,
+                SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                SourceKind = AuthoringResourceSourceKind.UnityAsset,
+                BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                ImportStatus = importStatus,
+                RuntimeAvailability = AuthoringResourceRuntimeAvailability.EditorOnly,
+                Tags = BuildTags(entry.Labels, AnimationAuthoringResourceUsages.AnimationClip, "unity-model-sub-clip")
+            };
+
+            AddSubAssetMetadata(item, entry, subAsset, context, assetPath, providerKey, sourceFormat, assetExists);
+            AddSubAssetBindings(item, entry, subAsset, assetPath, providerKey, sourceFormat);
             AddEntryDiagnostics(item, entry);
             if (missing)
                 AddMissingDiagnostic(item, assetPath);
@@ -237,7 +302,7 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "runtimeResourceKey", entry.Id);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "variant", entry.Variant);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceRelativePath", entry.SourceRelativePath);
-            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceFormat", entry.SourceFormat);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceFormat", ResolveSourceFormat(entry, entry.UnityAssetPath));
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityAssetPath", entry.UnityAssetPath);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityAssetGuid", entry.UnityAssetGuid);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityMainObjectType", entry.UnityMainObjectType);
@@ -249,6 +314,7 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "importerKind", entry.ImporterKind);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityImportStatus", entry.ImportStatus);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "hash", AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Hash, entry.ContentHash, entry.DeclaredContentHash));
+            AddClipMetadata(item.Metadata, entry, item.Usage, item.BindingKind, item.RuntimeAvailability);
             if (context != null)
                 AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityResourceCatalogPath", context.UnityResourceCatalogPath);
             item.Metadata["assetExists"] = assetExists ? "true" : "false";
@@ -263,7 +329,7 @@ namespace MxFramework.Authoring
             bool hasGuid = !string.IsNullOrWhiteSpace(entry.UnityAssetGuid);
             string subAssetKey = GetProviderData(entry, "unitySubAssetKey");
             bool hasSubAssetKey = !string.IsNullOrWhiteSpace(subAssetKey);
-            string assetType = AuthoringResourceProviderUtilities.FirstNonEmpty(GetProviderData(entry, "unityObjectType"), entry.UnityMainObjectType, entry.Type);
+            string assetType = ResolveUnityAssetType(entry);
             item.ProviderBindings.Add(new AuthoringResourceProviderBinding
             {
                 ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
@@ -276,9 +342,7 @@ namespace MxFramework.Authoring
                 UnityAssetPath = assetPath ?? string.Empty,
                 AssetType = assetType,
                 Hash = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Hash, entry.ContentHash, entry.DeclaredContentHash),
-                ProviderData = entry.ProviderData != null
-                    ? new Dictionary<string, string>(entry.ProviderData, StringComparer.Ordinal)
-                    : new Dictionary<string, string>(StringComparer.Ordinal)
+                ProviderData = BuildEntryProviderData(entry, assetPath, item.Usage, item.BindingKind, item.RuntimeAvailability)
             });
 
             if (hasGuid && !string.IsNullOrWhiteSpace(assetPath))
@@ -309,6 +373,158 @@ namespace MxFramework.Authoring
             }
         }
 
+        private static void AddSubAssetMetadata(
+            AuthoringResourceItem item,
+            AuthoringUnityResourceCatalogEntry entry,
+            AuthoringUnityResourceCatalogSubAsset subAsset,
+            AuthoringResourceProviderContext context,
+            string assetPath,
+            string providerKey,
+            string sourceFormat,
+            bool assetExists)
+        {
+            string subClipName = ResolveSubAssetName(subAsset);
+            string subClipId = ResolveSubAssetId(subAsset, subClipName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "packageId", entry.PackageId);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "packageStableId", entry.StableId);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceRelativePath", entry.SourceRelativePath);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceFormat", sourceFormat);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityAssetPath", assetPath);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityAssetGuid", entry.UnityAssetGuid);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityMainObjectType", entry.UnityMainObjectType);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "mainObjectType", entry.UnityMainObjectType);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "importerKind", entry.ImporterKind);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "parentUnityAssetPath", assetPath);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unitySubAssetKey", providerKey);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subAssetId", subClipId);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subAssetName", subClipName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subAssetType", ResolveSubAssetType(subAsset));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityLocalFileId", AuthoringResourceProviderUtilities.FirstNonEmpty(subAsset.UnityLocalFileId, GetSubAssetData(subAsset, "unityLocalFileId")));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "clipName", subClipName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipName", subClipName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipId", subClipId);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
+            if (subAsset.DurationSeconds > 0f)
+                item.Metadata["durationSeconds"] = subAsset.DurationSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            item.Metadata["loopTime"] = subAsset.LoopTime ? "true" : "false";
+            item.Metadata["humanMotion"] = subAsset.HumanMotion ? "true" : "false";
+            item.Metadata["bindingKind"] = item.BindingKind.ToString();
+            item.Metadata["runtimeAvailability"] = item.RuntimeAvailability.ToString();
+            item.Metadata["sourceLoadability"] = item.RuntimeAvailability.ToString();
+            item.Metadata["assetExists"] = assetExists ? "true" : "false";
+            if (context != null)
+                AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityResourceCatalogPath", context.UnityResourceCatalogPath);
+        }
+
+        private static void AddSubAssetBindings(
+            AuthoringResourceItem item,
+            AuthoringUnityResourceCatalogEntry entry,
+            AuthoringUnityResourceCatalogSubAsset subAsset,
+            string assetPath,
+            string providerKey,
+            string sourceFormat)
+        {
+            string assetType = ResolveSubAssetType(subAsset);
+            item.ProviderBindings.Add(new AuthoringResourceProviderBinding
+            {
+                ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                BindingKeyKind = AuthoringResourceBindingKeyKinds.UnitySubAssetKey,
+                DisplayValue = providerKey,
+                IsPrimary = true,
+                ProviderResourceKey = providerKey,
+                UnityGuid = entry.UnityAssetGuid ?? string.Empty,
+                UnityAssetPath = assetPath ?? string.Empty,
+                AssetType = assetType,
+                Hash = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Hash, entry.ContentHash, entry.DeclaredContentHash),
+                ProviderData = BuildSubAssetProviderData(entry, subAsset, assetPath, providerKey, sourceFormat)
+            });
+
+            if (!string.IsNullOrWhiteSpace(entry.UnityAssetGuid))
+            {
+                item.ProviderBindings.Add(new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityGuid,
+                    DisplayValue = entry.UnityAssetGuid,
+                    ProviderResourceKey = entry.UnityAssetGuid,
+                    UnityGuid = entry.UnityAssetGuid,
+                    UnityAssetPath = assetPath,
+                    AssetType = assetType
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(assetPath))
+            {
+                item.ProviderBindings.Add(new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityAssetPath,
+                    DisplayValue = assetPath,
+                    ProviderResourceKey = assetPath,
+                    UnityAssetPath = assetPath,
+                    AssetType = assetType
+                });
+            }
+        }
+
+        private static Dictionary<string, string> BuildEntryProviderData(
+            AuthoringUnityResourceCatalogEntry entry,
+            string assetPath,
+            string usage,
+            AuthoringResourceBindingKind bindingKind,
+            AuthoringResourceRuntimeAvailability runtimeAvailability)
+        {
+            var data = entry.ProviderData != null
+                ? new Dictionary<string, string>(entry.ProviderData, StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+            AddProviderDataIfMissing(data, "sourceFormat", ResolveSourceFormat(entry, assetPath));
+            AddProviderDataIfMissing(data, "usage", usage);
+            if (string.Equals(usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal))
+            {
+                AddProviderDataIfMissing(data, "clipName", ResolveClipName(entry));
+                AddProviderDataIfMissing(data, "subClipName", ResolveSubClipName(entry));
+                AddProviderDataIfMissing(data, "subClipId", ResolveSubClipId(entry));
+                AddProviderDataIfMissing(data, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
+            }
+            AddProviderDataIfMissing(data, "bindingKind", bindingKind.ToString());
+            AddProviderDataIfMissing(data, "runtimeAvailability", runtimeAvailability.ToString());
+            AddProviderDataIfMissing(data, "sourceLoadability", runtimeAvailability.ToString());
+            return data;
+        }
+
+        private static Dictionary<string, string> BuildSubAssetProviderData(
+            AuthoringUnityResourceCatalogEntry entry,
+            AuthoringUnityResourceCatalogSubAsset subAsset,
+            string assetPath,
+            string providerKey,
+            string sourceFormat)
+        {
+            var data = subAsset.ProviderData != null
+                ? new Dictionary<string, string>(subAsset.ProviderData, StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+            string subClipName = ResolveSubAssetName(subAsset);
+            string subClipId = ResolveSubAssetId(subAsset, subClipName);
+            AddProviderDataIfMissing(data, "sourceFormat", sourceFormat);
+            AddProviderDataIfMissing(data, "usage", AnimationAuthoringResourceUsages.AnimationClip);
+            AddProviderDataIfMissing(data, "unityAssetPath", assetPath);
+            AddProviderDataIfMissing(data, "unityAssetGuid", entry.UnityAssetGuid);
+            AddProviderDataIfMissing(data, "unitySubAssetKey", providerKey);
+            AddProviderDataIfMissing(data, "clipName", subClipName);
+            AddProviderDataIfMissing(data, "subClipName", subClipName);
+            AddProviderDataIfMissing(data, "subClipId", subClipId);
+            AddProviderDataIfMissing(data, "subAssetId", subClipId);
+            AddProviderDataIfMissing(data, "subAssetName", subClipName);
+            AddProviderDataIfMissing(data, "subAssetType", ResolveSubAssetType(subAsset));
+            AddProviderDataIfMissing(data, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
+            AddProviderDataIfMissing(data, "bindingKind", AuthoringResourceBindingKind.UnityAsset.ToString());
+            AddProviderDataIfMissing(data, "runtimeAvailability", AuthoringResourceRuntimeAvailability.EditorOnly.ToString());
+            AddProviderDataIfMissing(data, "sourceLoadability", AuthoringResourceRuntimeAvailability.EditorOnly.ToString());
+            return data;
+        }
+
         private static string GetProviderData(AuthoringUnityResourceCatalogEntry entry, string key)
         {
             if (entry == null || entry.ProviderData == null || string.IsNullOrWhiteSpace(key))
@@ -316,6 +532,187 @@ namespace MxFramework.Authoring
 
             string value;
             return entry.ProviderData.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
+        }
+
+        private static string GetSubAssetData(AuthoringUnityResourceCatalogSubAsset subAsset, string key)
+        {
+            if (subAsset == null || subAsset.ProviderData == null || string.IsNullOrWhiteSpace(key))
+                return string.Empty;
+
+            string value;
+            return subAsset.ProviderData.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
+        }
+
+        private static string ResolveUnityAssetType(AuthoringUnityResourceCatalogEntry entry)
+        {
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry, "unityObjectType"),
+                GetProviderData(entry, "subAssetType"),
+                entry != null ? entry.Type : string.Empty,
+                entry != null ? entry.UnityMainObjectType : string.Empty);
+        }
+
+        private static string ResolveSubAssetType(AuthoringUnityResourceCatalogSubAsset subAsset)
+        {
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                subAsset != null ? subAsset.SubAssetType : string.Empty,
+                GetSubAssetData(subAsset, "subAssetType"),
+                GetSubAssetData(subAsset, "unityObjectType"));
+        }
+
+        private static bool IsAnimationClip(string type)
+        {
+            return string.Equals(type, "AnimationClip", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeUnityUsage(string usage, string entryType, string assetType)
+        {
+            if (IsAnimationClip(assetType) || IsAnimationClip(entryType))
+                return AnimationAuthoringResourceUsages.AnimationClip;
+
+            return usage ?? string.Empty;
+        }
+
+        private static string ResolveSourceFormat(AuthoringUnityResourceCatalogEntry entry, string assetPath)
+        {
+            string format = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                entry != null ? entry.SourceFormat : string.Empty,
+                GetProviderData(entry, "sourceFormat"));
+            if (!string.IsNullOrWhiteSpace(format))
+                return format.TrimStart('.').ToLowerInvariant();
+
+            string extension = Path.GetExtension(assetPath ?? string.Empty);
+            return string.IsNullOrWhiteSpace(extension) ? string.Empty : extension.TrimStart('.').ToLowerInvariant();
+        }
+
+        private static string ResolveClipName(AuthoringUnityResourceCatalogEntry entry)
+        {
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry, "clipName"),
+                GetProviderData(entry, "subClipName"),
+                GetProviderData(entry, "subAssetName"),
+                GetProviderData(entry, "unityObjectName"),
+                entry != null ? entry.Id : string.Empty);
+        }
+
+        private static string ResolveSubClipName(AuthoringUnityResourceCatalogEntry entry)
+        {
+            if (!IsAnimationClip(ResolveUnityAssetType(entry)) && !IsAnimationClip(entry != null ? entry.Type : string.Empty))
+                return string.Empty;
+
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry, "subClipName"),
+                GetProviderData(entry, "subAssetName"),
+                GetProviderData(entry, "unityObjectName"),
+                ResolveClipName(entry));
+        }
+
+        private static string ResolveSubClipId(AuthoringUnityResourceCatalogEntry entry)
+        {
+            if (!IsAnimationClip(ResolveUnityAssetType(entry)) && !IsAnimationClip(entry != null ? entry.Type : string.Empty))
+                return string.Empty;
+
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry, "subClipId"),
+                GetProviderData(entry, "subAssetId"),
+                GetProviderData(entry, "unitySubAssetKey"),
+                GetProviderData(entry, "unityLocalFileId"),
+                ResolveSubClipName(entry));
+        }
+
+        private static string ResolveSubAssetName(AuthoringUnityResourceCatalogSubAsset subAsset)
+        {
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                subAsset != null ? subAsset.SubAssetName : string.Empty,
+                GetSubAssetData(subAsset, "subAssetName"),
+                GetSubAssetData(subAsset, "subClipName"),
+                GetSubAssetData(subAsset, "unityObjectName"));
+        }
+
+        private static string ResolveSubAssetId(AuthoringUnityResourceCatalogSubAsset subAsset, string subAssetName)
+        {
+            return AuthoringResourceProviderUtilities.FirstNonEmpty(
+                subAsset != null ? subAsset.SubAssetId : string.Empty,
+                GetSubAssetData(subAsset, "subAssetId"),
+                GetSubAssetData(subAsset, "subClipId"),
+                subAsset != null ? subAsset.UnityLocalFileId : string.Empty,
+                GetSubAssetData(subAsset, "unityLocalFileId"),
+                subAssetName);
+        }
+
+        private static string ResolveSubAssetProviderKey(
+            AuthoringUnityResourceCatalogEntry entry,
+            AuthoringUnityResourceCatalogSubAsset subAsset,
+            string assetPath,
+            string subAssetId,
+            string subAssetName)
+        {
+            string explicitKey = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                subAsset != null ? subAsset.UnitySubAssetKey : string.Empty,
+                GetSubAssetData(subAsset, "unitySubAssetKey"));
+            if (!string.IsNullOrWhiteSpace(explicitKey))
+                return explicitKey;
+
+            string parentKey = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                entry != null ? entry.UnityAssetGuid : string.Empty,
+                assetPath,
+                entry != null ? entry.Id : string.Empty);
+            return parentKey + "#" + AuthoringResourceProviderUtilities.FirstNonEmpty(subAssetId, subAssetName);
+        }
+
+        private static void AddClipMetadata(
+            Dictionary<string, string> metadata,
+            AuthoringUnityResourceCatalogEntry entry,
+            string usage,
+            AuthoringResourceBindingKind bindingKind,
+            AuthoringResourceRuntimeAvailability runtimeAvailability)
+        {
+            if (metadata == null)
+                return;
+
+            string clipName = ResolveClipName(entry);
+            string subClipName = ResolveSubClipName(entry);
+            string subClipId = ResolveSubClipId(entry);
+            if (string.Equals(usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal))
+            {
+                AuthoringResourceProviderUtilities.AddIfPresent(metadata, "clipName", clipName);
+                AuthoringResourceProviderUtilities.AddIfPresent(metadata, "subClipName", subClipName);
+                AuthoringResourceProviderUtilities.AddIfPresent(metadata, "subClipId", subClipId);
+                AuthoringResourceProviderUtilities.AddIfPresent(metadata, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
+            }
+            metadata["bindingKind"] = bindingKind.ToString();
+            metadata["runtimeAvailability"] = runtimeAvailability.ToString();
+            metadata["sourceLoadability"] = runtimeAvailability.ToString();
+        }
+
+        private static List<string> BuildTags(List<string> sourceLabels, string usage, string extra)
+        {
+            var tags = sourceLabels != null ? new List<string>(sourceLabels) : new List<string>();
+            AddTag(tags, usage);
+            AddTag(tags, extra);
+            return tags;
+        }
+
+        private static void AddTag(List<string> tags, string tag)
+        {
+            if (tags == null || string.IsNullOrWhiteSpace(tag))
+                return;
+
+            for (int i = 0; i < tags.Count; i++)
+            {
+                if (string.Equals(tags[i], tag, StringComparison.Ordinal))
+                    return;
+            }
+
+            tags.Add(tag);
+        }
+
+        private static void AddProviderDataIfMissing(Dictionary<string, string> data, string key, string value)
+        {
+            if (data == null || string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value) || data.ContainsKey(key))
+                return;
+
+            data[key] = value;
         }
 
         private static void AddDependencyBindings(AuthoringResourceItem item, AuthoringUnityResourceCatalogEntry entry)

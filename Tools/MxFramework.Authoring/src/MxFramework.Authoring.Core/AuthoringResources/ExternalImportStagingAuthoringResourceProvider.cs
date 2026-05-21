@@ -132,7 +132,8 @@ namespace MxFramework.Authoring
                 ProviderResourceKey = displayPath,
                 ExternalSourcePath = displayPath,
                 AssetType = candidate.Kind,
-                Hash = sourceHash
+                Hash = sourceHash,
+                ProviderData = BuildProviderData(extension, displayPath, candidate, item.RuntimeAvailability, item.BindingKind)
             });
 
             if (!candidate.Supported)
@@ -163,15 +164,27 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "fileName", file.FileName);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "relativePath", displayPath);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "extension", extension);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceFormat", extension);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceHash", sourceHash);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "detectedKind", candidate.Kind);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "detectedUsage", candidate.Usage);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "promoteTarget", candidate.PromoteTarget);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "preloadPolicy", candidate.PreloadPolicy);
+            if (string.Equals(candidate.Usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal))
+            {
+                string clipName = AuthoringResourceProviderUtilities.GetFileDisplayName(displayPath, file.FileName);
+                AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "clipName", clipName);
+                AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipName", clipName);
+                AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipId", clipName);
+            }
             item.Metadata["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture);
             item.Metadata["supported"] = candidate.Supported ? "true" : "false";
             item.Metadata["selectable"] = selectable ? "true" : "false";
             item.Metadata["duplicateSourceHash"] = duplicate ? "true" : "false";
             item.Metadata["tooLarge"] = tooLarge ? "true" : "false";
+            item.Metadata["bindingKind"] = item.BindingKind.ToString();
+            item.Metadata["runtimeAvailability"] = item.RuntimeAvailability.ToString();
+            item.Metadata["sourceLoadability"] = item.RuntimeAvailability.ToString();
         }
 
         private static void AddExistingResourceHashes(Dictionary<string, string> hashes, CharacterPackageResourceCatalog catalog)
@@ -270,27 +283,56 @@ namespace MxFramework.Authoring
             switch (extension)
             {
                 case "fbx":
-                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model");
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model", AuthoringResourcePreloadPolicies.None);
                 case "glb":
                 case "gltf":
                     if (LooksLikeAnimationPath(displayPath))
-                        return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "unityAsset", "animation");
-                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model");
+                        return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "unityAsset", "animation", AuthoringResourcePreloadPolicies.AnimationWarmup);
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model", AuthoringResourcePreloadPolicies.None);
                 case "anim":
-                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "unityAsset", "animation");
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, AnimationAuthoringResourceUsages.AnimationClip, "unityAsset", "animation", AuthoringResourcePreloadPolicies.AnimationWarmup);
                 case "png":
                 case "jpg":
                 case "jpeg":
                 case "tga":
-                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Texture, CharacterPackageResourceUsageIds.Texture, "unityAsset", "texture");
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Texture, CharacterPackageResourceUsageIds.Texture, "unityAsset", "texture", AuthoringResourcePreloadPolicies.None);
                 case "wav":
                 case "ogg":
-                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Audio, CharacterPackageResourceUsageIds.AudioCue, "unityAsset", "audio");
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Audio, CharacterPackageResourceUsageIds.AudioCue, "unityAsset", "audio", AuthoringResourcePreloadPolicies.Audio);
                 case "json":
-                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Config, CharacterPackageResourceUsageIds.CharacterConfig, "characterPackage", "config");
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Config, CharacterPackageResourceUsageIds.CharacterConfig, "characterPackage", "config", AuthoringResourcePreloadPolicies.None);
                 default:
-                    return new ResourceTypeCandidate(false, "unsupported", string.Empty, string.Empty, "unsupported");
+                    return new ResourceTypeCandidate(false, "unsupported", string.Empty, string.Empty, "unsupported", AuthoringResourcePreloadPolicies.None);
             }
+        }
+
+        private static Dictionary<string, string> BuildProviderData(
+            string extension,
+            string displayPath,
+            ResourceTypeCandidate candidate,
+            AuthoringResourceRuntimeAvailability runtimeAvailability,
+            AuthoringResourceBindingKind bindingKind)
+        {
+            var data = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "sourceFormat", extension ?? string.Empty },
+                { "usage", candidate.Usage ?? string.Empty },
+                { "promoteTarget", candidate.PromoteTarget ?? string.Empty },
+                { "preloadPolicy", candidate.PreloadPolicy ?? AuthoringResourcePreloadPolicies.None },
+                { "bindingKind", bindingKind.ToString() },
+                { "runtimeAvailability", runtimeAvailability.ToString() },
+                { "sourceLoadability", runtimeAvailability.ToString() }
+            };
+
+            if (string.Equals(candidate.Usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal))
+            {
+                string clipName = AuthoringResourceProviderUtilities.GetFileDisplayName(displayPath, displayPath);
+                data["clipName"] = clipName;
+                data["subClipName"] = clipName;
+                data["subClipId"] = clipName;
+            }
+
+            return data;
         }
 
         private static bool LooksLikeAnimationPath(string displayPath)
@@ -305,13 +347,14 @@ namespace MxFramework.Authoring
 
         private readonly struct ResourceTypeCandidate
         {
-            public ResourceTypeCandidate(bool supported, string kind, string usage, string promoteTarget, string tag)
+            public ResourceTypeCandidate(bool supported, string kind, string usage, string promoteTarget, string tag, string preloadPolicy)
             {
                 Supported = supported;
                 Kind = kind ?? string.Empty;
                 Usage = usage ?? string.Empty;
                 PromoteTarget = promoteTarget ?? string.Empty;
                 Tag = tag ?? string.Empty;
+                PreloadPolicy = preloadPolicy ?? string.Empty;
             }
 
             public bool Supported { get; }
@@ -319,6 +362,7 @@ namespace MxFramework.Authoring
             public string Usage { get; }
             public string PromoteTarget { get; }
             public string Tag { get; }
+            public string PreloadPolicy { get; }
         }
     }
 }

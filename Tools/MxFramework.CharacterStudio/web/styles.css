@@ -1238,7 +1238,8 @@ code {
   font-size: 11px;
 }
 
-.reference-row button {
+.reference-row button,
+.reference-row .button {
   min-height: 24px;
   padding: 0 8px;
   font-size: 11px;

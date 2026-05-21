@@ -38,9 +38,23 @@ namespace MxFramework.Authoring
         public List<AuthoringUnityResourceCatalogDiagnostic> Diagnostics { get; set; } = new List<AuthoringUnityResourceCatalogDiagnostic>();
         public List<string> Labels { get; set; } = new List<string>();
         public List<AuthoringUnityResourceKey> Dependencies { get; set; } = new List<AuthoringUnityResourceKey>();
+        public List<AuthoringUnityResourceCatalogSubAsset> SubAssets { get; set; } = new List<AuthoringUnityResourceCatalogSubAsset>();
         public string Hash { get; set; } = string.Empty;
         public long Size { get; set; }
         public bool AllowOverride { get; set; }
+        public Dictionary<string, string> ProviderData { get; set; } = new Dictionary<string, string>();
+    }
+
+    public sealed class AuthoringUnityResourceCatalogSubAsset
+    {
+        public string SubAssetId { get; set; } = string.Empty;
+        public string SubAssetName { get; set; } = string.Empty;
+        public string SubAssetType { get; set; } = string.Empty;
+        public string UnitySubAssetKey { get; set; } = string.Empty;
+        public string UnityLocalFileId { get; set; } = string.Empty;
+        public float DurationSeconds { get; set; }
+        public bool LoopTime { get; set; }
+        public bool HumanMotion { get; set; }
         public Dictionary<string, string> ProviderData { get; set; } = new Dictionary<string, string>();
     }
 

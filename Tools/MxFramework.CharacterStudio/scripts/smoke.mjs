@@ -78,8 +78,12 @@ assert(indexSource.includes("animationConfigPanel") && appSource.includes("rende
 assert(appSource.includes("Tools/MxFramework.AnimationEditor/web/") && appSource.includes("打开动画编辑器"), "CharacterStudio should link to the standalone Animation Editor");
 assert(appSource.includes("animationProfiles") && appSource.includes("resourceSelection") && appSource.includes("applyResourceSelectionToAnimationSlot"), "CharacterStudio should persist animation slot ResourceSelectionRef data");
 assert(appSource.includes("animationGroups") && appSource.includes("renderAnimationGroupCard") && appSource.includes("AnimationEditor 源数据"), "CharacterStudio should show animation groups as read-only AnimationEditor references");
-assert(appSource.includes("animationGroupId") && appSource.includes("打开动画编辑器"), "CharacterStudio should keep profile group references and hand off source editing to AnimationEditor");
+assert(appSource.includes("renderAnimationProfileReferenceContext") && appSource.includes("Profile 引用"), "CharacterStudio should show animation profiles as read-only references");
+assert(appSource.includes("animationGroupId") && appSource.includes("renderAnimationEditorReferenceRow") && appSource.includes("打开动画编辑器"), "CharacterStudio should keep profile group references and hand off source editing to AnimationEditor");
 assert(!appSource.includes("data-animation-add-group") && !appSource.includes("data-animation-add-clip") && !appSource.includes("data-animation-add-blend") && !appSource.includes("data-animation-remove-group"), "CharacterStudio should not expose animation group/clip/blend authoring actions");
+assert(!appSource.includes("function addAnimationGroup(") && !appSource.includes("function createManualAnimationGroup(") && !appSource.includes("function removeAnimationGroup("), "CharacterStudio should not keep AnimationGroup source mutation functions");
+assert(!appSource.includes("function addAnimationGroupClip(") && !appSource.includes("function removeAnimationGroupClip(") && !appSource.includes("function addAnimationGroupBlendSpace("), "CharacterStudio should not keep Clip/Blend source mutation functions");
+assert(!appSource.includes('identityField("profileId"') && !appSource.includes('field("slotId"'), "CharacterStudio should not edit animation profile or slot metadata");
 assert(appSource.includes("mergeResourcePickerRows") && appSource.includes("getResourcePickerDedupeKey"), "CharacterStudio resource picker should merge duplicate provider projections");
 assert(appSource.includes("只显示可用于当前字段的资源"), "CharacterStudio resource picker should explain that blocked candidates are hidden");
 assert(appSource.includes("previewResourceSelection"), "CharacterStudio should persist ResourceSelectionRef beside weapon preview references");

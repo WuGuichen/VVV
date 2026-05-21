@@ -114,6 +114,28 @@ const EVENT_KIND_OPTIONS = [
   { value: "CameraCue", label: "camera cue" },
   { value: "Custom", label: "custom" }
 ];
+const SOURCE_PICKER_GROUPS = [
+  {
+    key: "runtimeReady",
+    title: "Runtime Ready Animation Clips",
+    description: "优先推荐：已经能通过 Runtime ResourceKey / ResourceManager 加载。"
+  },
+  {
+    key: "unityClip",
+    title: "Unity Animation Clips",
+    description: "Unity 工程内的 .anim / AnimationClip；EditorOnly 可用于编辑，但进入 runtime 前需要 catalog 同步。"
+  },
+  {
+    key: "modelSubClip",
+    title: "Unity Model Sub-Clips",
+    description: "来自 model/FBX/GLB importer 的子 AnimationClip；选择时会把 sub clip 写入 sourceSubClipId。"
+  },
+  {
+    key: "previewIncomplete",
+    title: "Preview-only / Incomplete Sources",
+    description: "预览产物、EditorOnly 缺少 runtime 绑定或导入未完成的资源；默认折叠到诊断区。"
+  }
+];
 
 const PREVIEW_RETARGET_NAME_MAP = {
   Torso: ["spine.002", "spine.001", "spine"],
@@ -195,7 +217,7 @@ function cacheElements() {
   for (const id of [
     "serverStatus", "packageSelect", "setSelect", "refreshButton", "saveButton", "validateButton",
     "compileButton", "previewButton", "openResourceManagerButton", "openCharacterStudioButton", "statusStrip", "treeSummary",
-    "addSetButton", "animationTree", "workspaceTitle", "workspaceSubtitle", "addGroupButton",
+    "addSetButton", "animationTree", "workspaceTitle", "workspaceSubtitle", "addGroupButton", "addClipFromResourceButton",
     "addClipButton", "mappingWorkspace", "inspectorSubtitle", "inspectorContent",
     "diagnosticsSummary", "copyDiagnosticsButton", "diagnosticsList", "resourcePickerOverlay",
     "resourcePickerTitle", "resourcePickerSubtitle", "closePickerButton", "resourcePickerSearch",
@@ -222,6 +244,7 @@ function bindEvents() {
   el.previewButton.addEventListener("click", previewAnimation);
   el.addSetButton.addEventListener("click", addSet);
   el.addGroupButton.addEventListener("click", addGroup);
+  el.addClipFromResourceButton.addEventListener("click", addClipFromResource);
   el.addClipButton.addEventListener("click", addClip);
   el.copyDiagnosticsButton.addEventListener("click", copyDiagnostics);
 
@@ -324,7 +347,10 @@ function bindEvents() {
   el.resourcePickerList.addEventListener("click", event => {
     const button = event.target.closest("button[data-resource-index]");
     if (!button) return;
-    chooseResourcePickerRow(Number(button.dataset.resourceIndex));
+    chooseResourcePickerRow(Number(button.dataset.resourceIndex), {
+      subClipId: button.dataset.subclipId || "",
+      subClipName: button.dataset.subclipName || ""
+    });
   });
 
   initLayoutToggles();
@@ -744,7 +770,7 @@ function renderClipMappingSummary(group, clips) {
 }
 
 function renderClipMappingTable(clips) {
-  if (clips.length === 0) return emptyBlock("当前 Group 还没有 Clip。先新增 Clip，再配置 Blend point 的本地 clipId。");
+  if (clips.length === 0) return emptyBlock("当前 Group 还没有 Clip。优先使用 Add Clip from Resource，从资源和 sub clip 自动生成映射。");
   return `
     <div class="clip-table" role="table" aria-label="Clip mapping table">
       <div class="clip-row clip-head" role="row">
@@ -1116,6 +1142,8 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
   const resources = getPreviewResources(result);
   const clips = getPreviewAnimationClips(result);
   const selectedClip = getSelectedPreviewClip();
+  const unityPreview = getUnityPreviewReportForClip(result, clip, selectedClip);
+  const authority = getUnityPreviewAuthoritySummary(unityPreview);
   const selectedResource = getPreviewDisplayResource(selectedClip, resources) || getPreviewResourceForClip(clip, resources);
   const diagnostics = getPreviewDiagnostics(result);
   const glbResources = resources.filter(resource => isPreviewModelResource(resource));
@@ -1128,11 +1156,11 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
     <article id="compilerPreviewPanel" class="workflow-report compiler-preview-panel" aria-label="编译器驱动 3D 预览">
       <div class="preview-card-heading">
         <h4>编译器驱动 3D 预览</h4>
-        <span>${escapeHtml(preview.loading ? "编译中" : result ? "编译器结果" : "等待预览")}</span>
+        <span>${escapeHtml(preview.loading ? "编译中" : result ? authority.label : "等待预览")}</span>
       </div>
       <div class="compiler-preview-layout">
         <div id="compilerPreviewViewport" class="compiler-preview-viewport" data-preview-state="${escapeHtml(preview.threeStatus || "idle")}">
-          ${renderPreviewViewportFallback(selectedResource, preview)}
+          ${renderPreviewViewportFallback(selectedResource, preview, authority)}
           <button id="toggleViewportMaximizeButton" type="button" class="viewport-maximize-btn" title="放大 3D 预览" data-toggle-viewport-maximize="1">⛶</button>
         </div>
         <div class="compiler-preview-sidebar">
@@ -1158,6 +1186,7 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
               </label>
             </div>
           </div>
+          ${renderUnityPreviewAuthorityPanel(unityPreview, authority)}
           ${renderPreviewGltfStatus(selectedResource)}
           <dl class="preview-kv compact compiler-preview-kv">
             <dt>端点</dt>
@@ -1179,7 +1208,7 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
     </article>`;
 }
 
-function renderPreviewViewportFallback(resource, preview) {
+function renderPreviewViewportFallback(resource, preview, authority = getUnityPreviewAuthoritySummary(null)) {
   if (preview.loading) {
     return `<div class="preview-viewport-fallback"><strong>正在请求编译器预览...</strong><span>端点会返回 compileResult、resource plan、clip registry 和 previewResources。</span></div>`;
   }
@@ -1189,10 +1218,67 @@ function renderPreviewViewportFallback(resource, preview) {
   if (!preview.result) {
     return `<div class="preview-viewport-fallback"><strong>尚未运行编译预览</strong><span>点击“运行编译预览”，从编译器结果读取 GLB/model 资源和 Clip Registry。</span></div>`;
   }
+  if (authority.key === "UnityPreview" && !resource) {
+    return `<div class="preview-viewport-fallback"><strong>Unity Preview 可用</strong><span>当前 Clip 可在 Unity 侧权威预览；浏览器没有 Web Preview Artifact 可显示。</span></div>`;
+  }
+  if (authority.key === "Unavailable") {
+    return `<div class="preview-viewport-fallback error"><strong>Preview Unavailable</strong><span>Unity Preview 和 Web Preview Artifact 都不可用，请查看 canPreviewInUnity / canPreviewInWeb 与诊断。</span></div>`;
+  }
   if (!resource) {
     return `<div class="preview-viewport-fallback warning"><strong>没有可显示的模型资源</strong><span>编译器返回了预览数据，但当前 Clip 没有关联 GLB/GLTF 资源。</span></div>`;
   }
   return `<div class="preview-viewport-fallback"><strong>正在初始化 Three.js 视口...</strong><span>${escapeHtml(resource.resourceKey || resource.stableId || resource.url || "model")}</span></div>`;
+}
+
+function renderUnityPreviewAuthorityPanel(report, authority) {
+  if (!state.preview3d.result) {
+    return `
+      <section class="unity-preview-authority status-idle" aria-label="Unity preview authority">
+        <div class="unity-preview-head">
+          <strong>Unity Preview Authority</strong>
+          <span>等待 /api/authoring/animation/preview</span>
+        </div>
+        <p>运行编译预览后显示 unityPreviewReport、canPreviewInUnity、canPreviewInWeb 和关键 diagnostics。</p>
+      </section>`;
+  }
+
+  const unity = report?.unity || {};
+  const web = report?.web || {};
+  const diagnostics = getUnityPreviewDiagnostics(report).slice(0, 4);
+  return `
+    <section class="unity-preview-authority status-${escapeHtml(authority.tone)}" aria-label="Unity preview authority">
+      <div class="unity-preview-head">
+        <strong>${escapeHtml(authority.label)}</strong>
+        <span>${escapeHtml(report ? "unityPreviewReport" : "未匹配 Clip 报告")}</span>
+      </div>
+      <div class="unity-preview-flags">
+        ${renderPreviewCapabilityFlag("canPreviewInUnity", Boolean(report?.canPreviewInUnity), "Unity 原生 AnimationClip 权威预览")}
+        ${renderPreviewCapabilityFlag("canPreviewInWeb", Boolean(report?.canPreviewInWeb), "GLB/GLTF Web Preview Artifact 近似预览")}
+      </div>
+      <dl class="preview-kv compact unity-preview-kv">
+        <dt>source</dt>
+        <dd><code>${escapeHtml(firstNonEmpty(unity.unityAssetPath, report?.sourceStableId, report?.runtimeResourceKey, "未解析"))}</code></dd>
+        <dt>guid/subClip</dt>
+        <dd><code>${escapeHtml(`${unity.unityGuid || "-"} / ${report?.sourceSubClipId || unity.subClipId || "-"}`)}</code></dd>
+        <dt>web artifact</dt>
+        <dd><code>${escapeHtml(firstNonEmpty(web.resourceKey, web.relativePath, "未生成"))}</code></dd>
+        <dt>target model</dt>
+        <dd><code>${escapeHtml(firstNonEmpty(web.previewModelResourceKey, web.previewModelRelativePath, "未链接"))}</code></dd>
+      </dl>
+      ${diagnostics.length ? `
+        <div class="unity-preview-diagnostics">
+          ${diagnostics.map(item => `<p class="${escapeHtml(item.tone)}"><code>${escapeHtml(item.code)}</code> ${escapeHtml(item.message)}${item.suggestedFix ? ` <span>${escapeHtml(item.suggestedFix)}</span>` : ""}</p>`).join("")}
+        </div>` : `<p class="unity-preview-diagnostics ok">当前 unityPreviewReport 没有报告阻塞诊断。</p>`}
+    </section>`;
+}
+
+function renderPreviewCapabilityFlag(name, enabled, description) {
+  return `
+    <div class="preview-capability-flag ${enabled ? "enabled" : "disabled"}">
+      <strong>${escapeHtml(name)}</strong>
+      <span>${escapeHtml(enabled ? "true" : "false")}</span>
+      <small>${escapeHtml(description)}</small>
+    </div>`;
 }
 
 function renderPreviewClipList(clips) {
@@ -1559,7 +1645,7 @@ function renderClipInspector(clip) {
       </div>
     </label>
     ${textField("sourceSubClipId", "SourceSubClipId", clip.sourceSubClipId || "")}
-    ${textField("sourceClipName", "SourceClipName", clip.sourceClipName || "")}
+    ${renderDerivedSourceClipName(clip)}
     ${textField("runtimeResourceKey", "RuntimeResourceKey", clip.runtimeResourceKey || "")}
     <label class="inspector-field">
       <span>Loop</span>
@@ -1578,6 +1664,21 @@ function renderClipInspector(clip) {
     ${textField("tagsText", "Tags", (clip.tags || []).join(", "))}
     ${renderSelectionListEditor("clip", "generatedArtifactSelections", clip.generatedArtifactSelections || [], "bakeArtifact", "Generated Artifact Selections")}
     ${textField("metadataText", "Metadata", metadataToText(clip.metadata), "key=value, key2=value2")}`;
+}
+
+function renderDerivedSourceClipName(clip) {
+  const value = getDerivedSourceClipName(clip);
+  const note = value
+    ? "由资源选择器和 sub clip 元数据派生，新增 Clip 不需要手填。"
+    : "尚未选择源资源；选择后会自动派生。";
+  return `
+    <label class="inspector-field source-clip-derived">
+      <span>SourceClipName</span>
+      <div class="derived-field" aria-readonly="true">
+        <code>${escapeHtml(value || "未派生")}</code>
+        <small>${escapeHtml(note)}</small>
+      </div>
+    </label>`;
 }
 
 function renderPackageRuntimeSections() {
@@ -2055,14 +2156,16 @@ function handleStructureEditorInput(event) {
   }
 }
 
-async function openSourceClipPicker(clip) {
-  if (!clip) return;
+async function openSourceClipPicker(clip, options = {}) {
+  if (!clip && !options.createClip) return;
   const fieldSpec = state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
   state.resourcePicker = {
     open: true,
     clip,
-    target: { kind: "sourceClip", clip },
-    title: "选择源动画 Clip",
+    target: options.createClip
+      ? { kind: "newSourceClip", setId: options.setId || state.selected.setId, groupId: options.groupId || state.selected.groupId }
+      : { kind: "sourceClip", clip },
+    title: options.createClip ? "Add Clip from Resource" : "选择源动画 Clip",
     fieldSpec,
     rows: [],
     search: "",
@@ -2202,24 +2305,90 @@ function renderResourcePicker() {
     return;
   }
 
-  el.resourcePickerList.innerHTML = rows.map(({ row, originalIndex }) => {
-    const item = row.item || {};
-    const reasons = Array.isArray(row.reasons) ? row.reasons : [];
-    return `
-      <button type="button" class="picker-row ${row.selectable ? "selectable" : "blocked"}" data-resource-index="${originalIndex}"${row.selectable ? "" : " disabled"}>
-        <span class="picker-main">
-          <strong>${escapeHtml(item.displayName || item.stableId || "resource")}</strong>
-          <small>${escapeHtml(item.kind || "-")} / ${escapeHtml(item.usage || "-")} / ${escapeHtml(item.bindingKind || "-")}</small>
-        </span>
-        <span class="picker-meta">
-          <code>${escapeHtml(item.stableId || "")}</code>
-          <small>${escapeHtml(row.selectable ? "可选" : (reasons[0]?.code || "不可选"))}</small>
-        </span>
-      </button>`;
-  }).join("");
+  const hiddenBlocked = state.resourcePicker.onlySelectable
+    ? state.resourcePicker.rows.filter(row => !row?.selectable).length
+    : 0;
+  const pickerGroups = groupPickerRows(rows);
+  const summary = `
+    <div class="picker-summary">
+      <strong>RuntimeReady 优先推荐</strong>
+      <span>EditorOnly 可保存为编辑期引用，PreviewOnly / Incomplete 默认折叠到诊断区。</span>
+      ${hiddenBlocked ? `<small>${hiddenBlocked} 个不可选资源已隐藏；取消勾选可查看原因。</small>` : ""}
+    </div>`;
+  el.resourcePickerList.innerHTML = summary + pickerGroups.map(renderPickerGroup).join("");
 }
 
-async function chooseResourcePickerRow(index) {
+function renderPickerGroup(group) {
+  return `
+    <section class="picker-group ${escapeHtml(group.key)}" aria-label="${escapeHtml(group.title)}">
+      <div class="picker-group-head">
+        <div>
+          <h3>${escapeHtml(group.title)}</h3>
+          <p>${escapeHtml(group.description)}</p>
+        </div>
+        <span>${escapeHtml(String(group.rows.length))}</span>
+      </div>
+      <div class="picker-group-list">
+        ${group.rows.map(renderPickerRow).join("")}
+      </div>
+    </section>`;
+}
+
+function renderPickerRow({ row, originalIndex }) {
+  const item = row.item || {};
+  const reasons = Array.isArray(row.reasons) ? row.reasons : [];
+  const availability = item.runtimeAvailability || getProviderData(item, "runtimeAvailability") || "Unknown";
+  const importStatus = item.importStatus || getProviderData(item, "importStatus") || getProviderData(item, "unityImportStatus") || "";
+  const subClipOptions = getPickerSubClipOptions(row);
+  const reasonSummary = reasons[0]?.message || reasons[0]?.code || getPickerAvailabilityExplanation(row);
+  return `
+    <article class="picker-row ${row.selectable ? "selectable" : "blocked"} ${row.hasWarnings ? "warning" : ""}">
+      <div class="picker-main">
+        <div class="picker-title-line">
+          <strong>${escapeHtml(item.displayName || item.stableId || "resource")}</strong>
+          <span class="picker-badge ${escapeHtml(getPickerTone(row))}">${escapeHtml(availability)}</span>
+        </div>
+        <small>${escapeHtml(item.kind || "-")} / ${escapeHtml(item.usage || "-")} / ${escapeHtml(item.bindingKind || "-")}</small>
+        <code>${escapeHtml(getPickerPath(item))}</code>
+        ${reasonSummary ? `<p>${escapeHtml(reasonSummary)}</p>` : ""}
+        ${reasons.length ? renderPickerReasons(reasons) : ""}
+      </div>
+      <div class="picker-meta">
+        <code>${escapeHtml(item.stableId || "")}</code>
+        <small>${escapeHtml(importStatus ? `import: ${importStatus}` : `provider: ${item.sourceProviderId || "-"}`)}</small>
+        ${renderPickerRowActions(row, originalIndex, subClipOptions)}
+      </div>
+    </article>`;
+}
+
+function renderPickerRowActions(row, originalIndex, subClipOptions) {
+  if (!row.selectable) {
+    return `<span class="picker-blocked-label">不可选，可展开原因</span>`;
+  }
+  if (subClipOptions.length > 1) {
+    return `
+      <div class="subclip-options" aria-label="选择子 AnimationClip">
+        <small>选择 Sub Clip</small>
+        ${subClipOptions.map(option => `
+          <button type="button" data-resource-index="${originalIndex}" data-subclip-id="${escapeHtml(option.id)}" data-subclip-name="${escapeHtml(option.name)}">${escapeHtml(option.name || option.id)}</button>
+        `).join("")}
+      </div>`;
+  }
+  const option = subClipOptions[0] || {};
+  return `<button type="button" data-resource-index="${originalIndex}" data-subclip-id="${escapeHtml(option.id || "")}" data-subclip-name="${escapeHtml(option.name || "")}">选择</button>`;
+}
+
+function renderPickerReasons(reasons) {
+  return `
+    <details class="picker-reasons">
+      <summary>查看原因</summary>
+      ${reasons.map(reason => `
+        <p><code>${escapeHtml(reason.code || "INFO")}</code> ${escapeHtml(reason.message || reason.suggestedFix || "")}</p>
+      `).join("")}
+    </details>`;
+}
+
+async function chooseResourcePickerRow(index, selectedSubClip = {}) {
   const row = state.resourcePicker.rows[index];
   if (!row?.selectable || !row.item || !state.resourcePicker.target) return;
 
@@ -2249,12 +2418,11 @@ async function chooseResourcePickerRow(index) {
 
   if (state.resourcePicker.target.kind === "sourceClip") {
     const clip = state.resourcePicker.target.clip;
-    clip.sourceSelection = result.selection || {};
-    clip.sourceClipName ||= row.item.displayName || row.item.stableId || "";
-    if (!clip.sourceSubClipId) {
-      clip.sourceSubClipId = getProviderData(row.item, "unitySubAssetKey") || getProviderData(row.item, "sourceSubClipId") || "";
-    }
+    applySourceClipSelection(clip, row, result, selectedSubClip);
     state.lastMessage = "已选择源动画资源";
+  } else if (state.resourcePicker.target.kind === "newSourceClip") {
+    createClipFromResourceSelection(row, result, selectedSubClip);
+    state.lastMessage = "已从资源新增 Clip";
   } else if (state.resourcePicker.target.kind === "timelineEvent") {
     state.resourcePicker.target.eventItem.resourceSelection = result.selection || {};
     state.resourcePicker.target.eventItem.eventKind = state.resourcePicker.target.eventKind;
@@ -2276,6 +2444,273 @@ async function chooseResourcePickerRow(index) {
   render();
 }
 
+function groupPickerRows(rows) {
+  const byKey = new Map(SOURCE_PICKER_GROUPS.map(group => [group.key, { ...group, rows: [] }]));
+  for (const entry of rows) {
+    const key = getPickerGroupKey(entry.row);
+    const group = byKey.get(key) || byKey.get("previewIncomplete");
+    group.rows.push(entry);
+  }
+  return SOURCE_PICKER_GROUPS
+    .map(group => byKey.get(group.key))
+    .filter(group => group.rows.length > 0)
+    .map(group => ({
+      ...group,
+      rows: group.rows.sort(comparePickerEntries)
+    }));
+}
+
+function comparePickerEntries(left, right) {
+  const score = getPickerRowScore(left.row) - getPickerRowScore(right.row);
+  if (score !== 0) return score;
+  const leftName = left.row?.item?.displayName || left.row?.item?.stableId || "";
+  const rightName = right.row?.item?.displayName || right.row?.item?.stableId || "";
+  return leftName.localeCompare(rightName);
+}
+
+function getPickerRowScore(row) {
+  const item = row?.item || {};
+  if (item.runtimeAvailability === "RuntimeReady") return 0;
+  if (item.bindingKind === "ResourceManagerAsset" || item.sourceKind === "RuntimeCatalogAsset") return 1;
+  if (hasPickerSubClipMetadata(row)) return 2;
+  if (item.usage === "animationClip") return 3;
+  if (row?.selectable) return 4;
+  return 9;
+}
+
+function getPickerGroupKey(row) {
+  const item = row?.item || {};
+  const availability = item.runtimeAvailability || "";
+  if (!row?.selectable || availability === "PreviewOnly" || availability === "NotRuntimeLoadable" || availability === "RuntimeMissing") {
+    return "previewIncomplete";
+  }
+  if (availability === "RuntimeReady" || item.bindingKind === "ResourceManagerAsset" || item.sourceKind === "RuntimeCatalogAsset") {
+    return "runtimeReady";
+  }
+  if (hasPickerSubClipMetadata(row) || item.usage === "animationClipGroup") {
+    return "modelSubClip";
+  }
+  if (item.sourceKind === "UnityAsset" || item.bindingKind === "UnityAsset" || item.bindingKind === "UnityEditorOnlyAsset") {
+    return "unityClip";
+  }
+  return "previewIncomplete";
+}
+
+function getPickerTone(row) {
+  const availability = row?.item?.runtimeAvailability || "";
+  if (availability === "RuntimeReady") return "ok";
+  if (availability === "EditorOnly" || availability === "RuntimeMissing") return "warn";
+  if (!row?.selectable || availability === "PreviewOnly" || availability === "NotRuntimeLoadable") return "blocked";
+  return "info";
+}
+
+function getPickerAvailabilityExplanation(row) {
+  const item = row?.item || {};
+  if (item.runtimeAvailability === "RuntimeReady") {
+    return "RuntimeReady：优先推荐，选择后会同步 runtimeResourceKey。";
+  }
+  if (item.runtimeAvailability === "EditorOnly" || item.bindingKind === "UnityEditorOnlyAsset" || item.bindingKind === "UnityAsset") {
+    return "EditorOnly：可作为编辑期源动画保存；进入 runtime 前需要 Unity 导入和 runtime catalog 同步。";
+  }
+  if (item.runtimeAvailability === "PreviewOnly" || item.bindingKind === "GeneratedPreviewOnly") {
+    return "PreviewOnly：只能用于近似预览，不能作为权威 runtime 动画源。";
+  }
+  if (!row?.selectable) {
+    return "Incomplete：当前字段不能直接选择，展开原因查看缺失的导入、绑定或类型信息。";
+  }
+  return "";
+}
+
+function getPickerPath(item) {
+  return firstNonEmpty(
+    getProviderData(item, "unityAssetPath"),
+    getProviderData(item, "parentUnityAssetPath"),
+    getProviderData(item, "sourceRelativePath"),
+    getProviderData(item, "relativePath"),
+    getProviderData(item, "address"),
+    item.resourceId,
+    item.stableId
+  );
+}
+
+function hasPickerSubClipMetadata(row) {
+  const item = row?.item || {};
+  return Boolean(
+    getProviderData(item, "unitySubAssetKey") ||
+    getProviderData(item, "sourceSubClipId") ||
+    getProviderData(item, "parentUnityAssetPath") ||
+    getPickerSubClipOptions(row).length > 0
+  );
+}
+
+function getPickerSubClipOptions(row) {
+  const item = row?.item || {};
+  const directId = firstNonEmpty(
+    getProviderData(item, "sourceSubClipId"),
+    getProviderData(item, "unitySubAssetKey")
+  );
+  const directName = firstNonEmpty(
+    getProviderData(item, "sourceClipName"),
+    getProviderData(item, "unityObjectName"),
+    getProviderData(item, "clipName")
+  );
+  const fromList = parseClipNameList(firstNonEmpty(
+    getProviderData(item, "clips"),
+    getProviderData(item, "subClips"),
+    getProviderData(item, "clipNames"),
+    getProviderData(item, "animationClips")
+  ));
+  const options = [];
+  if (directId || directName) {
+    options.push({ id: directId || directName, name: directName || directId });
+  }
+  for (const name of fromList) {
+    options.push({ id: name, name });
+  }
+  return uniquePickerSubClipOptions(options);
+}
+
+function parseClipNameList(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || "").trim()).filter(Boolean);
+  return String(value || "")
+    .split(/[,\n;|]/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function uniquePickerSubClipOptions(options) {
+  const used = new Set();
+  const result = [];
+  for (const option of options) {
+    const id = String(option.id || option.name || "").trim();
+    const name = String(option.name || option.id || "").trim();
+    const key = `${id}::${name}`;
+    if (!id && !name) continue;
+    if (used.has(key)) continue;
+    used.add(key);
+    result.push({ id, name });
+  }
+  return result;
+}
+
+function createClipFromResourceSelection(row, result, selectedSubClip) {
+  let group = findGroup(state.resourcePicker.target.setId, state.resourcePicker.target.groupId);
+  if (!group) {
+    const context = ensureEditableGroupForClipCreation();
+    group = context?.group;
+  }
+  if (!group) return;
+
+  group.clips = Array.isArray(group.clips) ? group.clips : [];
+  const defaults = deriveSourceClipDefaults(row.item, selectedSubClip);
+  const clip = {
+    clipId: uniqueId(defaults.clipId || "clip.source", group.clips.map(item => item.clipId)),
+    displayName: defaults.displayName || "Source Clip",
+    sourceSelection: {},
+    sourceSubClipId: "",
+    sourceClipName: "",
+    runtimeResourceKey: "",
+    loop: defaults.loop,
+    speed: 1,
+    rootMotionPolicy: "Ignore",
+    tags: defaults.tags
+  };
+  applySourceClipSelection(clip, row, result, selectedSubClip);
+  group.clips.push(clip);
+  selectNode("clip", state.resourcePicker.target.setId || state.selected.setId, group.groupId, clip.clipId);
+}
+
+function applySourceClipSelection(clip, row, result, selectedSubClip) {
+  if (!clip) return;
+  const defaults = deriveSourceClipDefaults(row.item, selectedSubClip);
+  clip.sourceSelection = result.selection || {};
+  clip.sourceSubClipId = defaults.sourceSubClipId;
+  clip.sourceClipName = defaults.sourceClipName;
+  clip.runtimeResourceKey = firstNonEmpty(
+    result.selection?.runtimeResourceKey,
+    getProviderData(row.item, "runtimeResourceKey"),
+    clip.runtimeResourceKey
+  );
+  if (!clip.displayName || clip.displayName === "Idle" || clip.displayName === "Source Clip") {
+    clip.displayName = defaults.displayName || clip.displayName || "Source Clip";
+  }
+  clip.metadata = {
+    ...(clip.metadata || {}),
+    sourceClipNameDerived: "true",
+    sourceRuntimeAvailability: row.item?.runtimeAvailability || "",
+    sourceImportStatus: row.item?.importStatus || ""
+  };
+}
+
+function deriveSourceClipDefaults(item, selectedSubClip = {}) {
+  const sourceClipName = firstNonEmpty(
+    selectedSubClip.subClipName,
+    selectedSubClip.name,
+    getProviderData(item, "sourceClipName"),
+    getProviderData(item, "unityObjectName"),
+    getProviderData(item, "clipName"),
+    selectedSubClip.subClipId,
+    getProviderData(item, "sourceSubClipId"),
+    getProviderData(item, "unitySubAssetKey"),
+    item?.displayName,
+    item?.stableId
+  );
+  const sourceSubClipId = firstNonEmpty(
+    selectedSubClip.subClipId,
+    selectedSubClip.id,
+    getProviderData(item, "sourceSubClipId"),
+    getProviderData(item, "unitySubAssetKey"),
+    sourceClipName
+  );
+  const displayName = toDisplayName(sourceClipName || item?.displayName || item?.stableId || "Source Clip");
+  return {
+    clipId: normalizeClipId(sourceSubClipId || sourceClipName || item?.displayName || item?.stableId || "clip.source"),
+    displayName,
+    sourceSubClipId,
+    sourceClipName: sourceClipName || sourceSubClipId,
+    loop: parseBooleanLike(firstNonEmpty(getProviderData(item, "loopTime"), getProviderData(item, "loop"), "true")),
+    tags: buildSourceClipTags(item)
+  };
+}
+
+function getDerivedSourceClipName(clip) {
+  return firstNonEmpty(clip?.sourceClipName, clip?.sourceSubClipId, clip?.sourceSelection?.runtimeResourceKey, clip?.sourceSelection?.providerResourceKey);
+}
+
+function normalizeClipId(value) {
+  const normalized = String(value || "")
+    .replace(/\.[a-z0-9]{2,5}$/i, "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1.$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .replace(/\.+/g, ".");
+  return normalized || "clip.source";
+}
+
+function toDisplayName(value) {
+  return String(value || "Source Clip")
+    .replace(/\.[a-z0-9]{2,5}$/i, "")
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, letter => letter.toUpperCase()) || "Source Clip";
+}
+
+function parseBooleanLike(value) {
+  const text = String(value || "").toLowerCase();
+  if (text === "false" || text === "0" || text === "no") return false;
+  return true;
+}
+
+function buildSourceClipTags(item) {
+  const tags = new Set(["animation"]);
+  if (item?.runtimeAvailability === "RuntimeReady") tags.add("runtimeReady");
+  if (item?.runtimeAvailability === "EditorOnly") tags.add("editorOnly");
+  if (hasPickerSubClipMetadata({ item })) tags.add("subClip");
+  return Array.from(tags);
+}
+
 function getFilteredPickerRows() {
   const needle = state.resourcePicker.search.trim().toLowerCase();
   return state.resourcePicker.rows
@@ -2286,7 +2721,9 @@ function getFilteredPickerRows() {
       const item = row.item || {};
       return [
         item.displayName, item.stableId, item.resourceId, item.sourceProviderId,
-        item.kind, item.usage, item.bindingKind, getSelectionTitle({ resourceStableId: item.stableId })
+        item.kind, item.usage, item.bindingKind, item.runtimeAvailability,
+        getProviderData(item, "unityAssetPath"), getProviderData(item, "clips"),
+        getSelectionTitle({ resourceStableId: item.stableId })
       ].some(value => String(value || "").toLowerCase().includes(needle));
     });
 }
@@ -2591,6 +3028,58 @@ function addClip() {
   });
   selectNode("clip", state.selected.setId, state.selected.groupId, clipId);
   render();
+}
+
+function addClipFromResource() {
+  const context = ensureEditableGroupForClipCreation();
+  if (!context?.group) return;
+  openSourceClipPicker(null, {
+    createClip: true,
+    setId: context.set.setId,
+    groupId: context.group.groupId
+  });
+}
+
+function ensureEditableGroupForClipCreation() {
+  ensureAnimationShape();
+  let set = findSet(state.selected.setId) || firstSet();
+  if (!set) {
+    const setId = uniqueId("set.base", []);
+    set = {
+      setId,
+      displayName: "Base Set",
+      version: "1.0",
+      defaultClipId: "",
+      fallbackClipId: "",
+      layers: [],
+      groups: [],
+      actionBindings: [],
+      compatibility: {},
+      warmup: {}
+    };
+    state.animation.sets.push(set);
+  }
+
+  set.groups = Array.isArray(set.groups) ? set.groups : [];
+  let group = findGroup(set.setId, state.selected.groupId) || set.groups[0];
+  if (!group) {
+    const groupId = uniqueId("group.locomotion", set.groups.map(item => item.groupId));
+    group = {
+      groupId,
+      displayName: "Locomotion",
+      description: "",
+      usage: "locomotion",
+      clips: [],
+      blend1D: [],
+      blend2D: [],
+      timelines: []
+    };
+    set.groups.push(group);
+  }
+
+  selectNode("group", set.setId, group.groupId, "");
+  render();
+  return { set, group };
 }
 
 function removeClip(clipId) {
@@ -3806,10 +4295,49 @@ function getPreviewAnimationClips(result = state.preview3d.result) {
   return Array.isArray(result?.previewResources?.animationClips) ? result.previewResources.animationClips : [];
 }
 
+function getUnityPreviewClipReports(result = state.preview3d.result) {
+  return Array.isArray(result?.unityPreviewReport?.clips) ? result.unityPreviewReport.clips : [];
+}
+
+function getUnityPreviewReportForClip(result = state.preview3d.result, authoringClip = findSelectedClip(), compiledClip = getSelectedPreviewClip()) {
+  const reports = getUnityPreviewClipReports(result);
+  if (!reports.length) return null;
+  const setId = compiledClip?.setId || authoringClip?.setId || state.selected.setId || "";
+  const groupId = compiledClip?.groupId || authoringClip?.groupId || state.selected.groupId || "";
+  const clipId = compiledClip?.clipId || authoringClip?.clipId || state.preview3d.selectedClipId || state.selected.clipId || "";
+  return reports.find(report =>
+    report.clipId === clipId &&
+    (!setId || !report.setId || report.setId === setId) &&
+    (!groupId || !report.groupId || report.groupId === groupId)
+  ) || reports.find(report => report.clipId === clipId) || reports[0] || null;
+}
+
+function getUnityPreviewAuthoritySummary(report) {
+  const key = report?.previewAuthority || (report?.canPreviewInUnity ? "UnityPreview" : report?.canPreviewInWeb ? "WebPreviewArtifact" : "Unavailable");
+  if (key === "UnityPreview") {
+    return { key, tone: "unity", label: "Unity Preview", description: "Unity 原生 AnimationClip 权威预览可用。" };
+  }
+  if (key === "WebPreviewArtifact") {
+    return { key, tone: "web", label: "Web Preview Artifact", description: "仅有浏览器 GLB/GLTF 近似预览，不是权威 Unity 播放。" };
+  }
+  return { key: "Unavailable", tone: "unavailable", label: "Unavailable", description: "Unity Preview 和 Web Preview Artifact 当前都不可用。" };
+}
+
+function getUnityPreviewDiagnostics(report) {
+  return Array.isArray(report?.diagnostics)
+    ? report.diagnostics.map(normalizePreviewDiagnostic)
+    : [];
+}
+
 function getPreviewDiagnostics(result = state.preview3d.result) {
   const diagnostics = [];
   if (Array.isArray(result?.diagnostics)) diagnostics.push(...result.diagnostics.map(normalizePreviewDiagnostic));
   if (Array.isArray(result?.compileResult?.Diagnostics)) diagnostics.push(...result.compileResult.Diagnostics.map(normalizePreviewDiagnostic));
+  const unityPreview = getUnityPreviewReportForClip(result);
+  diagnostics.push(...getUnityPreviewDiagnostics(unityPreview));
+  if (result?.unityPreviewReport && !unityPreview) {
+    diagnostics.push({ tone: "warning", code: "ANIM_UNITY_PREVIEW_REPORT_CLIP_MISSING", message: "unityPreviewReport 未包含当前选中 Clip 的报告。" });
+  }
   if (state.preview3d.error) diagnostics.push({ tone: "error", code: "ANIM_PREVIEW_ENDPOINT_FAILED", message: state.preview3d.error });
   if (state.preview3d.matchStatus === "empty") {
     diagnostics.push({ tone: "warning", code: "ANIM_PREVIEW_GLTF_CLIPS_EMPTY", message: state.preview3d.matchMessage || "当前 GLB/GLTF 资源没有 animations[]，无法进行真实动画播放。" });
@@ -3829,7 +4357,8 @@ function normalizePreviewDiagnostic(issue) {
   return {
     tone: severity === "error" ? "error" : severity === "warning" ? "warning" : "info",
     code: issue?.code || issue?.Code || "ANIM_PREVIEW_DIAGNOSTIC",
-    message: issue?.message || issue?.Message || JSON.stringify(issue)
+    message: issue?.message || issue?.Message || JSON.stringify(issue),
+    suggestedFix: issue?.suggestedFix || issue?.SuggestedFix || ""
   };
 }
 

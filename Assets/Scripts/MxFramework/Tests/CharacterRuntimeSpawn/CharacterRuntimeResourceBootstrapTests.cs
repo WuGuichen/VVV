@@ -1,3 +1,5 @@
+using MxFramework.Animation;
+using MxFramework.Animation.Unity;
 using MxFramework.CharacterControl;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
@@ -160,6 +162,93 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             }
         }
 
+        [Test]
+        public void LoadCharacter_WarmedRuntimeCatalogClipsCanBindAndPlayThroughUnityPlayables()
+        {
+            var bootstrapObject = new GameObject("bootstrap");
+            var characterTemplate = new GameObject("character_template");
+            var sockets = new GameObject("Sockets").transform;
+            var socket = new GameObject("Socket_mainHand").transform;
+            var weaponTemplate = new GameObject("weapon_template");
+            var idleClip = new AnimationClip { name = "Idle" };
+            var walkClip = new AnimationClip { name = "Walk" };
+            var runClip = new AnimationClip { name = "Run" };
+            var attackClip = new AnimationClip { name = "Attack" };
+            var setDefinition = new TextAsset(AnimationPlaybackSetDefinitionJson);
+            var clipRegistry = new TextAsset(AnimationPlaybackClipRegistryJson);
+            UnityPlayablesAnimationBackend backend = null;
+            try
+            {
+                characterTemplate.AddComponent<Animator>();
+                sockets.SetParent(characterTemplate.transform, false);
+                socket.SetParent(sockets, false);
+                CharacterRuntimeControllerBinding controllerBinding = characterTemplate.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureControllerBinding(controllerBinding);
+                characterTemplate.AddComponent<CharacterRuntimeInputMotionController>().EnableInputMotion = false;
+                CharacterDefaultEquipmentRuntimeBinder binder = characterTemplate.AddComponent<CharacterDefaultEquipmentRuntimeBinder>();
+                ConfigureBinder(binder, sockets, socket);
+
+                CharacterRuntimeResourceBootstrap bootstrap = bootstrapObject.AddComponent<CharacterRuntimeResourceBootstrap>();
+                ConfigureBootstrap(bootstrap, characterTemplate, weaponTemplate);
+                ConfigureAnimationPlaybackWarmup(bootstrap, idleClip, walkClip, runClip, attackClip, setDefinition, clipRegistry);
+
+                Assert.IsTrue(bootstrap.LoadCharacter());
+                Assert.IsTrue(bootstrap.AnimationWarmupResult.Success, FormatWarmupIssues(bootstrap.AnimationWarmupResult));
+                Assert.AreEqual(4, bootstrap.AnimationWarmupResult.RequiredKeys.Count);
+                Assert.AreEqual(6, bootstrap.ResourceManager.CreateDebugSnapshot().LoadedCount);
+
+                MxAnimationSetDefinition definition =
+                    MxAnimationCompiledArtifactJson.LoadSetDefinitions(setDefinition.text, "test_package")[0];
+                backend = new UnityPlayablesAnimationBackend(
+                    bootstrap.CharacterInstance.GetComponent<Animator>(),
+                    bootstrap.ResourceManager,
+                    definition,
+                    "actor.test");
+
+                MxAnimationBackendResult blend = backend.SetBlend1D(new MxAnimationBlend1DRequest
+                {
+                    BlendId = "locomotion",
+                    Parameter = new MxAnimationQuantizedParameter("locomotion.speed", 750),
+                    CorrelationId = "speed:750"
+                });
+                Assert.IsTrue(blend.Success, blend.Message);
+
+                MxAnimationBackendResult action = backend.Play(new MxAnimationPlayRequest
+                {
+                    ClipKey = new ResourceKey("char.test.anim.attack", ResourceTypeIds.AnimationClip, string.Empty, "test_package"),
+                    LayerId = new MxAnimationLayerId("upper_body"),
+                    CorrelationId = "action:attack"
+                });
+                Assert.IsTrue(action.Success, action.Message);
+
+                MxAnimationDiagnosticSnapshot snapshot = backend.CreateSnapshot();
+                MxAnimationLayerDiagnostic baseLayer = FindLayer(snapshot, MxAnimationLayerId.Base);
+                MxAnimationLayerDiagnostic upperLayer = FindLayer(snapshot, new MxAnimationLayerId("upper_body"));
+                Assert.AreEqual("locomotion", baseLayer.Blend1DId);
+                Assert.AreEqual(2, baseLayer.ActivePlayableCount);
+                Assert.AreEqual(new ResourceKey("char.test.anim.attack", ResourceTypeIds.AnimationClip, string.Empty, "test_package"), upperLayer.CurrentClipKey);
+                Assert.AreEqual(6, bootstrap.ResourceManager.CreateDebugSnapshot().LoadedCount);
+                Assert.GreaterOrEqual(bootstrap.ResourceManager.CreateDebugSnapshot().TotalRefCount, 11);
+
+                bootstrap.WarmupAnimationResources();
+                Assert.IsTrue(bootstrap.AnimationWarmupResult.Success, FormatWarmupIssues(bootstrap.AnimationWarmupResult));
+                Assert.AreEqual(6, bootstrap.ResourceManager.CreateDebugSnapshot().LoadedCount);
+            }
+            finally
+            {
+                backend?.Release();
+                Object.DestroyImmediate(bootstrapObject);
+                Object.DestroyImmediate(characterTemplate);
+                Object.DestroyImmediate(weaponTemplate);
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(walkClip);
+                Object.DestroyImmediate(runClip);
+                Object.DestroyImmediate(attackClip);
+                Object.DestroyImmediate(setDefinition);
+                Object.DestroyImmediate(clipRegistry);
+            }
+        }
+
         private static void ConfigureBinder(CharacterDefaultEquipmentRuntimeBinder binder, Transform socketsRoot, Transform socket)
         {
             var serialized = new SerializedObject(binder);
@@ -237,6 +326,54 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        private static void ConfigureAnimationPlaybackWarmup(
+            CharacterRuntimeResourceBootstrap bootstrap,
+            AnimationClip idleClip,
+            AnimationClip walkClip,
+            AnimationClip runClip,
+            AnimationClip attackClip,
+            TextAsset setDefinition,
+            TextAsset clipRegistry)
+        {
+            var serialized = new SerializedObject(bootstrap);
+            serialized.FindProperty("_warmupAnimationOnLoad").boolValue = true;
+            serialized.FindProperty("_animationSetDefinitionJson").objectReferenceValue = setDefinition;
+            serialized.FindProperty("_animationClipRegistryJson").objectReferenceValue = clipRegistry;
+            serialized.FindProperty("_animationSetId").stringValue = "set.base";
+
+            SerializedProperty resources = serialized.FindProperty("_resources");
+            resources.arraySize = 6;
+            SetResource(
+                resources.GetArrayElementAtIndex(2),
+                "char.test.anim.idle",
+                ResourceTypeIds.AnimationClip,
+                string.Empty,
+                "test/animations/idle",
+                idleClip);
+            SetResource(
+                resources.GetArrayElementAtIndex(3),
+                "char.test.anim.walk",
+                ResourceTypeIds.AnimationClip,
+                string.Empty,
+                "test/animations/walk",
+                walkClip);
+            SetResource(
+                resources.GetArrayElementAtIndex(4),
+                "char.test.anim.run",
+                ResourceTypeIds.AnimationClip,
+                string.Empty,
+                "test/animations/run",
+                runClip);
+            SetResource(
+                resources.GetArrayElementAtIndex(5),
+                "char.test.anim.attack",
+                ResourceTypeIds.AnimationClip,
+                string.Empty,
+                "test/animations/attack",
+                attackClip);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static void SetResource(SerializedProperty property, string id, string address, Object asset)
         {
             SetResource(property, id, ResourceTypeIds.GameObject, "default", address, asset);
@@ -260,6 +397,18 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             for (int i = 0; i < result.Issues.Count; i++)
                 messages.Add(result.Issues[i].Code + ":" + result.Issues[i].Message);
             return string.Join("; ", messages);
+        }
+
+        private static MxAnimationLayerDiagnostic FindLayer(MxAnimationDiagnosticSnapshot snapshot, MxAnimationLayerId layerId)
+        {
+            for (int i = 0; i < snapshot.LayerStates.Count; i++)
+            {
+                if (snapshot.LayerStates[i].LayerId == layerId)
+                    return snapshot.LayerStates[i];
+            }
+
+            Assert.Fail("Expected layer diagnostic for " + layerId + ".");
+            return null;
         }
 
         private const string AnimationSetDefinitionJson = @"{
@@ -300,6 +449,114 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
       ""groupId"": ""locomotion"",
       ""clipId"": ""idle"",
       ""runtimeResourceKey"": ""char.test.anim.idle""
+    }
+  ]
+}";
+
+        private const string AnimationPlaybackSetDefinitionJson = @"{
+  ""format"": ""mx.animationSetDefinition.v1"",
+  ""schemaVersion"": ""1.0"",
+  ""packageId"": ""animation.test"",
+  ""sets"": [
+    {
+      ""setId"": ""set.base"",
+      ""version"": ""1.0"",
+      ""defaultClipId"": ""idle"",
+      ""fallbackClipId"": ""idle"",
+      ""groups"": [
+        {
+          ""groupId"": ""locomotion"",
+          ""clips"": [
+            {
+              ""clipId"": ""idle"",
+              ""runtimeResourceKey"": ""char.test.anim.idle"",
+              ""loop"": true,
+              ""speed"": 1
+            },
+            {
+              ""clipId"": ""walk"",
+              ""runtimeResourceKey"": ""char.test.anim.walk"",
+              ""loop"": true,
+              ""speed"": 1
+            },
+            {
+              ""clipId"": ""run"",
+              ""runtimeResourceKey"": ""char.test.anim.run"",
+              ""loop"": true,
+              ""speed"": 1
+            },
+            {
+              ""clipId"": ""attack"",
+              ""runtimeResourceKey"": ""char.test.anim.attack"",
+              ""loop"": false,
+              ""speed"": 1
+            }
+          ],
+          ""blend1D"": [
+            {
+              ""blendId"": ""locomotion"",
+              ""parameter"": ""locomotion.speed"",
+              ""points"": [
+                { ""value"": 0, ""clipId"": ""idle"" },
+                { ""value"": 0.5, ""clipId"": ""walk"" },
+                { ""value"": 1, ""clipId"": ""run"" }
+              ]
+            }
+          ]
+        }
+      ],
+      ""layers"": [
+        {
+          ""layerId"": ""base"",
+          ""weight"": 1
+        },
+        {
+          ""layerId"": ""upper_body"",
+          ""purpose"": ""humanoid.upper"",
+          ""weight"": 1
+        }
+      ],
+      ""actionBindings"": [
+        {
+          ""bindingId"": ""attack"",
+          ""actionId"": ""action:attack"",
+          ""clipId"": ""attack"",
+          ""loop"": false,
+          ""speed"": 1
+        }
+      ]
+    }
+  ]
+}";
+
+        private const string AnimationPlaybackClipRegistryJson = @"{
+  ""format"": ""mx.animationClipRegistry.v1"",
+  ""schemaVersion"": ""1.0"",
+  ""packageId"": ""animation.test"",
+  ""clips"": [
+    {
+      ""setId"": ""set.base"",
+      ""groupId"": ""locomotion"",
+      ""clipId"": ""idle"",
+      ""runtimeResourceKey"": ""char.test.anim.idle""
+    },
+    {
+      ""setId"": ""set.base"",
+      ""groupId"": ""locomotion"",
+      ""clipId"": ""walk"",
+      ""runtimeResourceKey"": ""char.test.anim.walk""
+    },
+    {
+      ""setId"": ""set.base"",
+      ""groupId"": ""locomotion"",
+      ""clipId"": ""run"",
+      ""runtimeResourceKey"": ""char.test.anim.run""
+    },
+    {
+      ""setId"": ""set.base"",
+      ""groupId"": ""locomotion"",
+      ""clipId"": ""attack"",
+      ""runtimeResourceKey"": ""char.test.anim.attack""
     }
   ]
 }";

@@ -972,7 +972,8 @@ internal static class EditorServer
         {
             Package = animation,
             PackageRootPath = packageRoot,
-            ResourceCatalog = catalog
+            ResourceCatalog = catalog,
+            RuntimeResourceCatalog = AnimationPackageCommands.ReadProjectRuntimeResourceCatalogs(rootPath, jsonOptions)
         });
     }
 
@@ -985,12 +986,14 @@ internal static class EditorServer
     {
         string documentPath = ResolveAnimationDocumentPath(rootPath, packageOrPath, defaultPackage, jsonOptions);
         string packageRoot = ResolveAnimationPackageRootPath(documentPath);
+        string packageRelative = ToAnimationPackageRelative(rootPath, documentPath);
         AnimationAuthoringCompileResult compile = CompileAnimationPackage(rootPath, packageOrPath, defaultPackage, package, jsonOptions);
         CharacterPackageResourceCatalog catalog = ReadAnimationResourceCatalog(packageRoot, jsonOptions);
+        AuthoringResourceCollection authoringResources = TryReadAuthoringResources(rootPath, packageRelative, jsonOptions);
 
         return new
         {
-            package = ToAnimationPackageRelative(rootPath, documentPath),
+            package = packageRelative,
             packageRoot = ToProjectRelativePath(rootPath, packageRoot),
             serviceStatus = "ready",
             compileResult = compile,
@@ -999,8 +1002,21 @@ internal static class EditorServer
             animationResourcePlan = compile.AnimationResourcePlan,
             animationValidationReport = compile.AnimationValidationReport,
             previewResources = BuildAnimationPreviewResources(rootPath, packageRoot, catalog, compile.AnimationClipRegistry, compile.AnimationSetDefinition),
+            unityPreviewReport = BuildAnimationUnityPreviewReport(rootPath, packageRoot, catalog, compile.AnimationClipRegistry, compile.AnimationSetDefinition, authoringResources),
             diagnostics = compile.AnimationValidationReport?.Issues ?? new List<CharacterAuthoringValidationIssue>()
         };
+    }
+
+    private static AuthoringResourceCollection TryReadAuthoringResources(string rootPath, string packageRelative, JsonSerializerOptions jsonOptions)
+    {
+        try
+        {
+            return ReadAuthoringResources(rootPath, packageRelative, jsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static object BuildAnimationPreviewResources(
@@ -1076,6 +1092,253 @@ internal static class EditorServer
             resources = resourcesByKey.Values.ToArray(),
             animationClips
         };
+    }
+
+    private static object BuildAnimationUnityPreviewReport(
+        string rootPath,
+        string packageRoot,
+        CharacterPackageResourceCatalog catalog,
+        AnimationClipRegistryDocument clipRegistry,
+        AnimationSetDefinitionDocument setDefinition,
+        AuthoringResourceCollection authoringResources)
+    {
+        var clipReports = new List<object>();
+        for (int i = 0; clipRegistry != null && clipRegistry.Clips != null && i < clipRegistry.Clips.Count; i++)
+        {
+            AnimationClipRegistryEntry clip = clipRegistry.Clips[i];
+            AnimationSetDefinitionClipRef clipRef = FindAnimationSetDefinitionClip(setDefinition, clip);
+            CharacterPackageResourceEntry packageEntry = FindPackageResourceEntryByKey(catalog, clip.RuntimeResourceKey);
+            CharacterPackageResourceEntry previewModelEntry = FindPackageResourceEntryByKey(catalog, packageEntry?.Preview?.PreviewMeshResourceKey);
+            if (previewModelEntry == null)
+                previewModelEntry = FindDefaultAnimationPreviewModel(catalog);
+            AuthoringResourceItem sourceItem = FindAnimationSourceResource(authoringResources, clip.SourceSelection, clip.RuntimeResourceKey);
+            AuthoringResourceProviderBinding unityBinding = GetAuthoringUnityBinding(sourceItem);
+            AuthoringResourceProviderBinding runtimeBinding = GetAuthoringRuntimeBinding(sourceItem);
+            string unityAssetPath = FirstNonEmpty(
+                clip.SourceSelection != null ? clip.SourceSelection.UnityAssetPath : string.Empty,
+                unityBinding != null ? unityBinding.UnityAssetPath : string.Empty);
+            string unityGuid = FirstNonEmpty(
+                clip.SourceSelection != null ? clip.SourceSelection.UnityGuid : string.Empty,
+                unityBinding != null ? unityBinding.UnityGuid : string.Empty);
+            string runtimeResourceKey = FirstNonEmpty(
+                clip.RuntimeResourceKey,
+                clip.SourceSelection != null ? clip.SourceSelection.RuntimeResourceKey : string.Empty,
+                runtimeBinding != null ? runtimeBinding.RuntimeResourceKey : string.Empty);
+            string subClipId = FirstNonEmpty(
+                clip.SourceSubClipId,
+                GetAuthoringResourceMetadata(sourceItem, "subClipId"),
+                GetAuthoringResourceMetadata(sourceItem, "subClipName"),
+                GetAuthoringResourceMetadata(sourceItem, "clipName"),
+                clip.SourceClipName);
+            bool unityAssetExists = IsUnityAssetPathPresent(rootPath, unityAssetPath);
+            bool canPreviewInUnity = !string.IsNullOrWhiteSpace(unityAssetPath) && unityAssetExists && IsAnimationClipPreviewCandidate(sourceItem, packageEntry);
+            bool canPreviewInWeb = IsWebAnimationPreviewCandidate(packageEntry, packageRoot);
+            List<object> diagnostics = BuildAnimationUnityPreviewDiagnostics(clip, sourceItem, packageEntry, previewModelEntry, unityAssetPath, unityAssetExists, canPreviewInUnity, canPreviewInWeb);
+
+            clipReports.Add(new
+            {
+                setId = clip.SetId,
+                groupId = clip.GroupId,
+                clipId = clip.ClipId,
+                displayName = clip.DisplayName,
+                runtimeResourceKey,
+                sourceStableId = clip.SourceSelection != null ? clip.SourceSelection.ResourceStableId : string.Empty,
+                sourceProviderId = clip.SourceSelection != null ? clip.SourceSelection.SourceProviderId : string.Empty,
+                sourceBindingKind = clip.SourceSelection != null ? clip.SourceSelection.BindingKind.ToString() : AuthoringResourceBindingKind.None.ToString(),
+                sourceSubClipId = subClipId,
+                sourceClipName = FirstNonEmpty(clip.SourceClipName, subClipId),
+                loop = clipRef != null && clipRef.Loop,
+                speed = clipRef != null ? clipRef.Speed : 1f,
+                rootMotionPolicy = clipRef != null ? clipRef.RootMotionPolicy : string.Empty,
+                canPreviewInUnity,
+                canPreviewInWeb,
+                previewAuthority = canPreviewInUnity ? "UnityPreview" : canPreviewInWeb ? "WebPreviewArtifact" : "Unavailable",
+                unity = new
+                {
+                    unityGuid,
+                    unityAssetPath,
+                    unityAssetExists,
+                    subClipId,
+                    assetType = FirstNonEmpty(unityBinding != null ? unityBinding.AssetType : string.Empty, GetAuthoringResourceMetadata(sourceItem, "assetType"))
+                },
+                web = new
+                {
+                    resourceKey = packageEntry != null ? packageEntry.ResourceKey : string.Empty,
+                    relativePath = packageEntry != null ? packageEntry.RelativePath : string.Empty,
+                    previewModelResourceKey = previewModelEntry != null ? previewModelEntry.ResourceKey : string.Empty,
+                    previewModelRelativePath = previewModelEntry != null ? previewModelEntry.RelativePath : string.Empty
+                },
+                diagnostics
+            });
+        }
+
+        return new
+        {
+            mode = "UnityAuthoritativePreview",
+            description = "Unity preview is authoritative when canPreviewInUnity is true. Web preview artifacts are approximate editor aids.",
+            clips = clipReports
+        };
+    }
+
+    private static CharacterPackageResourceEntry FindDefaultAnimationPreviewModel(CharacterPackageResourceCatalog catalog)
+    {
+        for (int i = 0; catalog != null && catalog.Entries != null && i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry != null &&
+                string.Equals(entry.TypeId, CharacterPackageResourceTypeIds.Model, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(entry.Usage, CharacterPackageResourceUsageIds.CharacterModel, StringComparison.OrdinalIgnoreCase))
+                return entry;
+        }
+
+        return null;
+    }
+
+    private static List<object> BuildAnimationUnityPreviewDiagnostics(
+        AnimationClipRegistryEntry clip,
+        AuthoringResourceItem sourceItem,
+        CharacterPackageResourceEntry packageEntry,
+        CharacterPackageResourceEntry previewModelEntry,
+        string unityAssetPath,
+        bool unityAssetExists,
+        bool canPreviewInUnity,
+        bool canPreviewInWeb)
+    {
+        var diagnostics = new List<object>();
+        if (sourceItem == null && string.IsNullOrWhiteSpace(clip.RuntimeResourceKey))
+        {
+            diagnostics.Add(CreateAnimationPreviewDiagnostic(
+                "Error",
+                "ANIM_UNITY_PREVIEW_SOURCE_MISSING",
+                "Animation clip has no resolvable source selection or runtime resource key.",
+                "Select a Unity AnimationClip or runtime-ready animation resource in Animation Editor."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(unityAssetPath) && !unityAssetExists)
+        {
+            diagnostics.Add(CreateAnimationPreviewDiagnostic(
+                "Error",
+                "ANIM_UNITY_PREVIEW_ASSET_MISSING",
+                "Unity preview source asset does not exist: " + unityAssetPath,
+                "Refresh Unity resource sync or reimport the animation source."));
+        }
+
+        if (string.IsNullOrWhiteSpace(clip.SourceSubClipId) && string.Equals(packageEntry != null ? packageEntry.Usage : string.Empty, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal))
+        {
+            diagnostics.Add(CreateAnimationPreviewDiagnostic(
+                "Warning",
+                "ANIM_UNITY_PREVIEW_SUBCLIP_UNRESOLVED",
+                "Animation source is a clip group but no source sub-clip id is configured.",
+                "Choose a concrete sub-clip from the Animation.SourceClip picker."));
+        }
+
+        if (!canPreviewInUnity && canPreviewInWeb)
+        {
+            diagnostics.Add(CreateAnimationPreviewDiagnostic(
+                "Info",
+                "ANIM_WEB_PREVIEW_ARTIFACT_ONLY",
+                "Only web preview artifact is currently available; this is not authoritative Unity playback.",
+                "Use a Unity AnimationClip source for authoritative preview."));
+        }
+
+        if (previewModelEntry == null)
+        {
+            diagnostics.Add(CreateAnimationPreviewDiagnostic(
+                "Warning",
+                "ANIM_UNITY_PREVIEW_TARGET_MISSING",
+                "No preview model resource is linked for this animation clip.",
+                "Link a skeleton or character model preview target before running Unity preview."));
+        }
+
+        return diagnostics;
+    }
+
+    private static object CreateAnimationPreviewDiagnostic(string severity, string code, string message, string suggestedFix)
+    {
+        return new
+        {
+            severity,
+            code,
+            message,
+            suggestedFix
+        };
+    }
+
+    private static CharacterPackageResourceEntry FindPackageResourceEntryByKey(CharacterPackageResourceCatalog catalog, string resourceKey)
+    {
+        if (catalog == null || catalog.Entries == null || string.IsNullOrWhiteSpace(resourceKey))
+            return null;
+
+        for (int i = 0; i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry != null && string.Equals(entry.ResourceKey, resourceKey, StringComparison.Ordinal))
+                return entry;
+        }
+
+        return null;
+    }
+
+    private static AuthoringResourceItem FindAnimationSourceResource(AuthoringResourceCollection collection, AuthoringResourceSelectionRef selection, string runtimeResourceKey)
+    {
+        if (collection == null || collection.Items == null)
+            return null;
+
+        for (int i = 0; i < collection.Items.Count; i++)
+        {
+            AuthoringResourceItem item = collection.Items[i];
+            if (item == null)
+                continue;
+
+            if (selection != null &&
+                (AuthoringResourceMatches(selection.ResourceStableId, item, string.Empty) ||
+                 AuthoringResourceMatches(selection.RuntimeResourceKey, item, string.Empty) ||
+                 AuthoringResourceMatches(selection.UnityGuid, item, string.Empty) ||
+                 AuthoringResourceMatches(selection.UnityAssetPath, item, string.Empty) ||
+                 AuthoringResourceMatches(selection.ProviderResourceKey, item, string.Empty) ||
+                 AuthoringResourceMatches(selection.PackageResourceKey, item, string.Empty)))
+                return item;
+
+            if (AuthoringResourceMatches(runtimeResourceKey, item, string.Empty))
+                return item;
+        }
+
+        return null;
+    }
+
+    private static bool IsUnityAssetPathPresent(string rootPath, string unityAssetPath)
+    {
+        if (string.IsNullOrWhiteSpace(unityAssetPath))
+            return false;
+
+        string normalized = unityAssetPath.Replace('\\', '/');
+        if (!normalized.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return File.Exists(Path.Combine(rootPath, normalized));
+    }
+
+    private static bool IsAnimationClipPreviewCandidate(AuthoringResourceItem item, CharacterPackageResourceEntry packageEntry)
+    {
+        string usage = FirstNonEmpty(item != null ? item.Usage : string.Empty, packageEntry != null ? packageEntry.Usage : string.Empty);
+        string kind = FirstNonEmpty(item != null ? item.Kind : string.Empty, packageEntry != null ? packageEntry.TypeId : string.Empty);
+        return string.Equals(kind, CharacterPackageResourceTypeIds.Animation, StringComparison.Ordinal) &&
+            (string.Equals(usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal) ||
+             string.Equals(usage, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal));
+    }
+
+    private static bool IsWebAnimationPreviewCandidate(CharacterPackageResourceEntry packageEntry, string packageRoot)
+    {
+        if (packageEntry == null || string.IsNullOrWhiteSpace(packageEntry.RelativePath))
+            return false;
+
+        string extension = Path.GetExtension(packageEntry.RelativePath);
+        if (!string.Equals(extension, ".glb", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(extension, ".gltf", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        string fullPath = CharacterPackageResourcePipeline.ResolvePackagePath(packageRoot, packageEntry.RelativePath);
+        return !string.IsNullOrWhiteSpace(fullPath) && File.Exists(fullPath);
     }
 
     private static AnimationSetDefinitionClipRef FindAnimationSetDefinitionClip(
@@ -1327,6 +1590,8 @@ internal static class EditorServer
         string runtimeResourceCatalogPath = Path.Combine(generatedRoot, "config", "runtime_resource_catalog.json");
         string fmodAudioLibrarySnapshotPath = ResolveFmodAudioLibrarySnapshotPath(rootPath, packageId);
         CharacterResourcePlanCompileResult plan = ReadCharacterResourcePlan(rootPath, packageRelative, checkFiles: false, checkHashes: false, jsonOptions);
+        RuntimeResourceCatalogDocument projectRuntimeCatalog = AnimationPackageCommands.ReadProjectRuntimeResourceCatalogs(rootPath, jsonOptions);
+        RuntimeResourceCatalogDocument runtimeCatalog = AnimationPackageCommands.MergeRuntimeResourceCatalogs(projectRuntimeCatalog, plan != null ? plan.RuntimeResourceCatalog : null);
         var context = new AuthoringResourceProviderContext
         {
             ScopeId = scopeId,
@@ -1335,7 +1600,7 @@ internal static class EditorServer
             ProjectRootPath = rootPath,
             PackageResourceCatalog = package.ResourceCatalog,
             UnityResourceCatalog = ReadOptionalJsonFile<AuthoringUnityResourceCatalogDocument>(rootPath, unityResourceCatalogPath, jsonOptions),
-            RuntimeResourceCatalog = plan != null ? plan.RuntimeResourceCatalog : null,
+            RuntimeResourceCatalog = runtimeCatalog,
             FmodAudioLibrarySnapshot = ReadOptionalJsonFile<AuthoringFmodAudioLibrarySnapshotDocument>(rootPath, fmodAudioLibrarySnapshotPath, jsonOptions),
             UnityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
             RuntimeResourceCatalogPath = ToProjectRelativePath(rootPath, runtimeResourceCatalogPath),

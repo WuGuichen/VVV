@@ -525,8 +525,10 @@ internal static class CharacterPackageTests
     {
         string tempRoot = Path.Combine(Path.GetTempPath(), "mx-authoring-unity-provider-" + Guid.NewGuid().ToString("N"));
         string assetPath = Path.Combine(tempRoot, "Assets", "Characters", "body.prefab");
+        string modelPath = Path.Combine(tempRoot, "Assets", "Characters", "hero.fbx");
         Directory.CreateDirectory(Path.GetDirectoryName(assetPath)!);
         File.WriteAllText(assetPath, "prefab");
+        File.WriteAllText(modelPath, "fbx");
 
         var snapshot = new AuthoringUnityResourceCatalogDocument
         {
@@ -580,6 +582,32 @@ internal static class CharacterPackageTests
                 { "parentUnityAssetPath", "Assets/Characters/body.prefab" }
             }
         });
+        var modelEntry = new AuthoringUnityResourceCatalogEntry
+        {
+            Id = "unity.model.hero",
+            Type = "GameObject",
+            StableId = "unity.model.hero",
+            Usage = CharacterPackageResourceUsageIds.PreviewMesh,
+            UnityAssetGuid = "guid-hero-fbx",
+            UnityAssetPath = "Assets/Characters/hero.fbx",
+            UnityMainObjectType = "GameObject",
+            ImporterKind = "ModelImporter",
+            ImportStatus = "Imported",
+            SourceFormat = "fbx",
+            Labels = new List<string> { "character.model", "character.animation" }
+        };
+        modelEntry.SubAssets.Add(new AuthoringUnityResourceCatalogSubAsset
+        {
+            SubAssetId = "walk-forward",
+            SubAssetName = "Walk Forward",
+            SubAssetType = "AnimationClip",
+            UnitySubAssetKey = "guid-hero-fbx:walk-forward",
+            UnityLocalFileId = "7400000",
+            DurationSeconds = 1.25f,
+            LoopTime = true,
+            HumanMotion = true
+        });
+        snapshot.Entries.Add(modelEntry);
 
         try
         {
@@ -610,8 +638,32 @@ internal static class CharacterPackageTests
             Require(clip != null, "Unity animation sub-asset should be projected.");
             Require(clip.DisplayName == "standing_idle", "Unity animation sub-asset should use object name as display name.");
             Require(clip.Kind == CharacterPackageResourceTypeIds.Animation, "Unity AnimationClip should map to animation kind.");
+            Require(clip.Usage == AnimationAuthoringResourceUsages.AnimationClip, "Unity AnimationClip entries should normalize to animationClip usage.");
             Require(clip.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnitySubAssetKey && binding.ProviderResourceKey == "guid-fbx:12345"), "Unity animation sub-asset should use unique sub-asset key binding.");
             Require(clip.Metadata["unityLocalFileId"] == "12345", "Unity animation sub-asset should preserve local file id metadata.");
+            Require(clip.Metadata["clipName"] == "standing_idle", "Unity animation sub-asset should expose clipName metadata.");
+            Require(clip.Metadata["subClipName"] == "standing_idle", "Unity animation sub-asset should expose subClipName metadata.");
+            Require(clip.Metadata["subClipId"] == "guid-fbx:12345", "Unity animation sub-asset should expose subClipId metadata.");
+            Require(clip.Metadata["preloadPolicy"] == AuthoringResourcePreloadPolicies.AnimationWarmup, "Unity animation sub-asset should expose animation warmup metadata.");
+            Require(clip.Metadata["runtimeAvailability"] == AuthoringResourceRuntimeAvailability.EditorOnly.ToString(), "Unity animation sub-asset should expose editor-only loadability metadata.");
+            AuthoringResourceProviderBinding clipBinding = clip.ProviderBindings.Find(binding => binding.IsPrimary);
+            Require(clipBinding != null && clipBinding.ProviderData["sourceFormat"] == "prefab", "Unity animation sub-asset binding should preserve sourceFormat metadata.");
+            Require(clipBinding.ProviderData["subClipName"] == "standing_idle", "Unity animation sub-asset binding should expose picker subClipName metadata.");
+
+            AuthoringResourceItem nestedSubClip = collection.Items.Find(item => item.Metadata.ContainsKey("unitySubAssetKey") && item.Metadata["unitySubAssetKey"] == "guid-hero-fbx:walk-forward");
+            Require(nestedSubClip != null, "Unity model importer nested AnimationClip sub-asset should be projected.");
+            Require(nestedSubClip.Kind == CharacterPackageResourceTypeIds.Animation && nestedSubClip.Usage == AnimationAuthoringResourceUsages.AnimationClip, "Unity model sub-clips should be animationClip resources.");
+            Require(nestedSubClip.BindingKind == AuthoringResourceBindingKind.UnityAsset, "Unity model sub-clips should use Unity asset binding.");
+            Require(nestedSubClip.RuntimeAvailability == AuthoringResourceRuntimeAvailability.EditorOnly, "Unity model sub-clips should remain editor-only until runtime catalog sync.");
+            Require(nestedSubClip.Metadata["sourceFormat"] == "fbx", "Unity model sub-clips should preserve model source format.");
+            Require(nestedSubClip.Metadata["clipName"] == "Walk Forward", "Unity model sub-clips should expose clipName metadata.");
+            Require(nestedSubClip.Metadata["subClipName"] == "Walk Forward", "Unity model sub-clips should expose subClipName metadata.");
+            Require(nestedSubClip.Metadata["subClipId"] == "walk-forward", "Unity model sub-clips should expose stable subClipId metadata.");
+            Require(nestedSubClip.Metadata["loopTime"] == "true", "Unity model sub-clips should preserve loopTime metadata.");
+            Require(nestedSubClip.Metadata["humanMotion"] == "true", "Unity model sub-clips should preserve humanMotion metadata.");
+            AuthoringResourceProviderBinding nestedBinding = nestedSubClip.ProviderBindings.Find(binding => binding.IsPrimary);
+            Require(nestedBinding != null && nestedBinding.ProviderData["subClipId"] == "walk-forward", "Unity model sub-clip binding metadata should include subClipId.");
+            Require(nestedBinding.ProviderData["preloadPolicy"] == AuthoringResourcePreloadPolicies.AnimationWarmup, "Unity model sub-clip binding metadata should include preload policy.");
         }
         finally
         {
@@ -633,7 +685,9 @@ internal static class CharacterPackageTests
         Directory.CreateDirectory(modelRoot);
         Directory.CreateDirectory(generatedRoot);
         File.WriteAllText(Path.Combine(animationRoot, "standing_idle.anim"), "anim");
+        File.WriteAllText(Path.Combine(animationRoot, "standing_idle.anim.meta"), "meta");
         File.WriteAllText(Path.Combine(animationRoot, "Standing Run Forward.fbx"), "fbx");
+        File.WriteAllText(Path.Combine(animationRoot, "Standing Run Forward.fbx.meta"), "meta");
         File.WriteAllText(Path.Combine(animationRoot, "Standing Run Forward.glb"), "glb");
         File.WriteAllText(Path.Combine(modelRoot, "Skeleton.fbx"), "model");
         File.WriteAllText(Path.Combine(generatedRoot, "placeholder.glb"), "generated");
@@ -657,9 +711,19 @@ internal static class CharacterPackageTests
             Require(idle.SourceProviderId == AuthoringResourceProviderIds.UnityProjectAssets, ".anim clip should use Unity project asset provider.");
             Require(idle.BindingKind == AuthoringResourceBindingKind.UnityEditorOnlyAsset, ".anim clip should be editor-only until compiled into runtime catalogs.");
             Require(idle.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnityAssetPath && binding.UnityAssetPath.EndsWith("standing_idle.anim", StringComparison.Ordinal)), ".anim clip should expose Unity asset path binding.");
+            Require(idle.Metadata["sourceFormat"] == "anim", ".anim clip should expose sourceFormat metadata.");
+            Require(idle.Metadata["clipName"] == "standing_idle", ".anim clip should expose clipName metadata.");
+            Require(idle.Metadata["subClipName"] == "standing_idle", ".anim clip should expose subClipName metadata for picker defaults.");
+            Require(idle.Metadata["subClipId"] == "standing_idle", ".anim clip should expose subClipId metadata for picker defaults.");
+            Require(idle.Metadata["preloadPolicy"] == AuthoringResourcePreloadPolicies.AnimationWarmup, ".anim clip should expose animation warmup metadata.");
+            Require(idle.Metadata["runtimeAvailability"] == AuthoringResourceRuntimeAvailability.EditorOnly.ToString(), ".anim clip should expose editor-only loadability metadata.");
+            AuthoringResourceProviderBinding idleBinding = idle.ProviderBindings.Find(binding => binding.IsPrimary);
+            Require(idleBinding != null && idleBinding.ProviderData["sourceFormat"] == "anim", ".anim provider binding should expose sourceFormat metadata.");
+            Require(idleBinding.ProviderData["subClipId"] == "standing_idle", ".anim provider binding should expose subClipId metadata.");
 
             AuthoringResourceItem fbx = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("Standing Run Forward.fbx", StringComparison.Ordinal));
             Require(fbx == null, "FBX files should not be exposed as animationClipGroup resources.");
+            Require(collection.Items.TrueForAll(item => !item.Metadata["unityAssetPath"].EndsWith(".meta", StringComparison.OrdinalIgnoreCase)), ".meta files should not be counted as Unity project resources.");
 
             AuthoringResourceItem run = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("Standing Run Forward.glb", StringComparison.Ordinal));
             Require(run != null && run.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation-folder GLB should be exposed as animationClipGroup.");
@@ -696,6 +760,28 @@ internal static class CharacterPackageTests
                 { "retainPolicy", "KeepAlive" }
             }
         });
+        catalog.Entries.Add(new RuntimeResourceCatalogEntryDocument
+        {
+            Id = "char.test.anim.walk",
+            Type = "AnimationClip",
+            PackageId = "test",
+            Provider = "assetBundle",
+            Address = "bundles/test/walk.anim",
+            Labels = new List<string> { "animationWarmup" },
+            Hash = "sha256:walk",
+            Size = 24,
+            ProviderData = new Dictionary<string, string>
+            {
+                { "stableId", "charpkg.test.resource.anim.walk" },
+                { "packageResourceKey", "char.test.anim.walk" },
+                { "usage", CharacterPackageResourceUsageIds.AnimationClipGroup },
+                { "sourceFormat", "anim" },
+                { "clipName", "Walk" },
+                { "subClipName", "Walk" },
+                { "subClipId", "walk" },
+                { "retainPolicy", "RetainUntilSceneUnload" }
+            }
+        });
 
         AuthoringResourceCollection collection = RuntimeCatalogAuthoringResourceProvider.FromRuntimeResourceCatalog(
             catalog,
@@ -707,14 +793,29 @@ internal static class CharacterPackageTests
             });
 
         Require(collection.Providers.Count == 1 && collection.Providers[0].Available, "runtime provider should be available with a catalog.");
-        Require(collection.Items.Count == 1, "runtime catalog provider should project entries.");
-        AuthoringResourceItem item = collection.Items[0];
+        Require(collection.Items.Count == 2, "runtime catalog provider should project entries.");
+        AuthoringResourceItem item = collection.Items.Find(candidate => candidate.Metadata.ContainsKey("packageResourceKey") && candidate.Metadata["packageResourceKey"] == "char.test.model.body");
         Require(item.SourceProviderId == AuthoringResourceProviderIds.RuntimeCatalog, "runtime item should use runtime catalog provider.");
         Require(item.BindingKind == AuthoringResourceBindingKind.ResourceManagerAsset, "runtime item should use ResourceManager binding.");
         Require(item.RuntimeAvailability == AuthoringResourceRuntimeAvailability.RuntimeReady, "runtime catalog item should be runtime-ready.");
         Require(item.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.RuntimeResourceKey && binding.RuntimeResourceKey == "char.test.model.body"), "runtime resource key binding should be explicit.");
         Require(item.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.PackageResourceKey && binding.PackageResourceKey == "char.test.model.body"), "runtime item should preserve package key mapping.");
         Require(item.Metadata["retainPolicy"] == "KeepAlive", "runtime provider should preserve retain policy metadata.");
+
+        AuthoringResourceItem runtimeClip = collection.Items.Find(candidate => candidate.StableId == "runtime.charpkg.test.resource.anim.walk");
+        Require(runtimeClip != null, "runtime AnimationClip item should be projected.");
+        Require(runtimeClip.Kind == CharacterPackageResourceTypeIds.Animation, "runtime AnimationClip should map to animation kind.");
+        Require(runtimeClip.Usage == AnimationAuthoringResourceUsages.AnimationClip, "runtime AnimationClip should normalize to animationClip usage.");
+        Require(runtimeClip.RuntimeAvailability == AuthoringResourceRuntimeAvailability.RuntimeReady, "runtime AnimationClip should be runtime-ready.");
+        Require(runtimeClip.Metadata["clipName"] == "Walk", "runtime AnimationClip should expose clipName metadata.");
+        Require(runtimeClip.Metadata["subClipName"] == "Walk", "runtime AnimationClip should expose subClipName metadata.");
+        Require(runtimeClip.Metadata["subClipId"] == "walk", "runtime AnimationClip should expose subClipId metadata.");
+        Require(runtimeClip.Metadata["sourceFormat"] == "anim", "runtime AnimationClip should expose sourceFormat metadata.");
+        Require(runtimeClip.Metadata["preloadPolicy"] == AuthoringResourcePreloadPolicies.AnimationWarmup, "runtime AnimationClip should expose preloadPolicy metadata.");
+        Require(runtimeClip.Metadata["runtimeAvailability"] == AuthoringResourceRuntimeAvailability.RuntimeReady.ToString(), "runtime AnimationClip should expose runtime-ready loadability metadata.");
+        AuthoringResourceProviderBinding runtimeClipBinding = runtimeClip.ProviderBindings.Find(binding => binding.IsPrimary);
+        Require(runtimeClipBinding != null && runtimeClipBinding.ProviderData["subClipId"] == "walk", "runtime AnimationClip binding should expose subClipId metadata.");
+        Require(runtimeClipBinding.ProviderData["runtimeAvailability"] == AuthoringResourceRuntimeAvailability.RuntimeReady.ToString(), "runtime AnimationClip binding should expose runtime-ready metadata.");
 
         AuthoringResourceCollection unavailable = new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
         Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "runtime provider should expose unavailable state without a catalog.");
@@ -880,6 +981,12 @@ internal static class CharacterPackageTests
         });
         staging.Files.Add(new AuthoringExternalImportStagingFile
         {
+            FileName = "Standing Run Forward.fbx.meta",
+            RelativePath = "Art/Animations/Standing Run Forward.fbx.meta",
+            SizeBytes = 4
+        });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
             FileName = "Standing Run Forward.glb",
             RelativePath = "Art/Animations/Standing Run Forward.glb",
             SizeBytes = 6,
@@ -927,6 +1034,11 @@ internal static class CharacterPackageTests
         AuthoringResourceItem fbxCandidate = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.fbx");
         Require(fbxCandidate != null && fbxCandidate.Kind == CharacterPackageResourceTypeIds.Model, "FBX staging candidates should stay model resources even under animation folders.");
         Require(fbxCandidate.Usage == CharacterPackageResourceUsageIds.PreviewMesh, "FBX staging candidates should not infer animationClipGroup usage.");
+        Require(fbxCandidate.SourceKind == AuthoringResourceSourceKind.ExternalFile, "FBX staging candidates should remain external source files.");
+        Require(fbxCandidate.BindingKind == AuthoringResourceBindingKind.ExternalSource, "FBX staging candidates should use external source binding.");
+        Require(fbxCandidate.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "FBX staging candidates should not be runtime-ready clips.");
+        Require(fbxCandidate.Metadata["sourceFormat"] == "fbx", "FBX staging candidates should expose sourceFormat metadata.");
+        Require(fbxCandidate.ProviderBindings[0].ProviderData["runtimeAvailability"] == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable.ToString(), "FBX staging binding should expose not-runtime-loadable metadata.");
 
         AuthoringResourceItem animation = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.glb");
         Require(animation != null && animation.Kind == CharacterPackageResourceTypeIds.Animation, "animation folder GLB should infer animation kind.");
@@ -934,7 +1046,14 @@ internal static class CharacterPackageTests
 
         AuthoringResourceItem unityClip = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Clips/Idle.anim");
         Require(unityClip != null && unityClip.Kind == CharacterPackageResourceTypeIds.Animation, "Unity .anim files should infer animation kind.");
-        Require(unityClip.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "Unity .anim files should infer animationClipGroup usage.");
+        Require(unityClip.Usage == AnimationAuthoringResourceUsages.AnimationClip, "Unity .anim files should infer animationClip usage.");
+        Require(unityClip.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "staged .anim files should not be runtime-ready before Unity import/runtime sync.");
+        Require(unityClip.Metadata["clipName"] == "Idle", "staged .anim files should expose clipName metadata.");
+        Require(unityClip.Metadata["subClipName"] == "Idle", "staged .anim files should expose subClipName metadata.");
+        Require(unityClip.Metadata["subClipId"] == "Idle", "staged .anim files should expose subClipId metadata.");
+        Require(unityClip.Metadata["sourceFormat"] == "anim", "staged .anim files should expose sourceFormat metadata.");
+        Require(unityClip.Metadata["preloadPolicy"] == AuthoringResourcePreloadPolicies.AnimationWarmup, "staged .anim files should expose animation warmup metadata.");
+        Require(unityClip.ProviderBindings[0].ProviderData["subClipId"] == "Idle", "staged .anim binding metadata should expose subClipId.");
     }
 
     private static void AuthoringResourceSelectionContracts_JsonRoundTrip()
@@ -1437,7 +1556,7 @@ internal static class CharacterPackageTests
             SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
             BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
             ExpectedKind = CharacterPackageResourceTypeIds.Animation,
-            ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+            ExpectedUsage = AnimationAuthoringResourceUsages.AnimationClip,
             RuntimeResourceKey = "runtime.anim.idle"
         };
         var runSelection = new AuthoringResourceSelectionRef
@@ -1446,8 +1565,26 @@ internal static class CharacterPackageTests
             SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
             BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
             ExpectedKind = CharacterPackageResourceTypeIds.Animation,
-            ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+            ExpectedUsage = AnimationAuthoringResourceUsages.AnimationClip,
             RuntimeResourceKey = "runtime.anim.run"
+        };
+        var maskSelection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "stable.mask.full_body",
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ExpectedKind = AnimationAuthoringResourceKinds.AvatarMask,
+            ExpectedUsage = AnimationAuthoringResourceUsages.AvatarMask,
+            RuntimeResourceKey = "runtime.mask.full_body"
+        };
+        var bakeSelection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "stable.anim.idle.bake",
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ExpectedKind = CharacterPackageResourceTypeIds.Config,
+            ExpectedUsage = AnimationAuthoringResourceUsages.AnimationBakeArtifact,
+            RuntimeResourceKey = "runtime.anim.idle.bake"
         };
         var vfxSelection = new AuthoringResourceSelectionRef
         {
@@ -1474,6 +1611,10 @@ internal static class CharacterPackageTests
             DisplayName = "Base",
             DefaultClipId = "idle",
             FallbackClipId = "run",
+            Layers = new List<AnimationLayerAuthoring>
+            {
+                new AnimationLayerAuthoring { LayerId = "base", AvatarMaskSelection = maskSelection }
+            },
             Groups = new List<AnimationGroupAuthoring>
             {
                 new AnimationGroupAuthoring
@@ -1482,8 +1623,8 @@ internal static class CharacterPackageTests
                     Usage = "locomotion",
                     Clips = new List<AnimationClipMappingAuthoring>
                     {
-                        new AnimationClipMappingAuthoring { ClipId = "idle", DisplayName = "Idle", RuntimeResourceKey = "runtime.anim.idle", SourceSelection = idleSelection, Loop = true },
-                        new AnimationClipMappingAuthoring { ClipId = "run", DisplayName = "Run", RuntimeResourceKey = "runtime.anim.run", SourceSelection = runSelection, Loop = true }
+                        new AnimationClipMappingAuthoring { ClipId = "idle", DisplayName = "Idle", SourceSubClipId = "Idle", SourceClipName = "Idle", SourceSelection = idleSelection, Loop = true },
+                        new AnimationClipMappingAuthoring { ClipId = "run", DisplayName = "Run", SourceSubClipId = "Run", SourceClipName = "Run", SourceSelection = runSelection, Loop = true }
                     },
                     Blend2D = new List<AnimationBlend2DAuthoring>
                     {
@@ -1522,6 +1663,8 @@ internal static class CharacterPackageTests
             Warmup = new AnimationWarmupAuthoring
             {
                 RequiredClipIds = new List<string> { "idle", "run" },
+                AvatarMaskSelections = new List<AuthoringResourceSelectionRef> { maskSelection },
+                GeneratedArtifactSelections = new List<AuthoringResourceSelectionRef> { bakeSelection },
                 VfxSelections = new List<AuthoringResourceSelectionRef> { vfxSelection },
                 AudioCueSelections = new List<AuthoringResourceSelectionRef> { audioSelection }
             }
@@ -1542,8 +1685,10 @@ internal static class CharacterPackageTests
         {
             Entries = new List<CharacterPackageResourceEntry>
             {
-                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.idle", StableId = "stable.anim.idle", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = CharacterPackageResourceUsageIds.AnimationClipGroup, RelativePath = "resources/animations/idle.glb", Hash = "sha256:idle" },
-                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.run", StableId = "stable.anim.run", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = CharacterPackageResourceUsageIds.AnimationClipGroup, RelativePath = "resources/animations/run.glb", Hash = "sha256:run" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.idle", StableId = "stable.anim.idle", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = AnimationAuthoringResourceUsages.AnimationClip, RelativePath = "resources/animations/idle.anim", Hash = "sha256:idle" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.run", StableId = "stable.anim.run", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = AnimationAuthoringResourceUsages.AnimationClip, RelativePath = "resources/animations/run.anim", Hash = "sha256:run" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.mask.full_body", StableId = "stable.mask.full_body", TypeId = AnimationAuthoringResourceKinds.AvatarMask, Usage = AnimationAuthoringResourceUsages.AvatarMask, RelativePath = "resources/animations/full_body.mask", Hash = "sha256:mask" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.idle.bake", StableId = "stable.anim.idle.bake", TypeId = CharacterPackageResourceTypeIds.Config, Usage = AnimationAuthoringResourceUsages.AnimationBakeArtifact, RelativePath = "generated/animation/idle_bake.json", Hash = "sha256:bake" },
                 new CharacterPackageResourceEntry { ResourceKey = "runtime.vfx.footstep", StableId = "stable.vfx.footstep", TypeId = CharacterPackageResourceTypeIds.Vfx, Usage = CharacterPackageResourceUsageIds.VfxCue, RelativePath = "resources/vfx/footstep.prefab", Hash = "sha256:vfx" }
             }
         };
@@ -1556,14 +1701,81 @@ internal static class CharacterPackageTests
 
         Require(result.AnimationSetDefinition.Format == AnimationAuthoringCompileFormats.AnimationSetDefinition, "animation set definition should declare format.");
         Require(result.AnimationSetDefinition.Sets.Count == 1, "animation set definition should contain the authored set.");
+        Require(result.AnimationSetDefinition.Sets[0].Groups[0].Clips[0].RuntimeResourceKey == "runtime.anim.idle", "animation set definition should use resolved runtime clip keys.");
         Require(result.AnimationClipRegistry.Clips.Count == 2, "animation clip registry should contain authored clips.");
+        Require(result.AnimationClipRegistry.Clips[0].SourceSelection.ResourceStableId == "stable.anim.idle", "clip registry should retain source selection.");
+        Require(result.AnimationClipRegistry.Clips[0].SourceSubClipId == "Idle", "clip registry should retain source sub-clip.");
+        Require(result.AnimationClipRegistry.Clips[0].RuntimeResourceKey == "runtime.anim.idle", "clip registry should retain resolved runtime key.");
+        Require(result.AnimationClipRegistry.Clips[0].Hash == "sha256:idle", "clip registry should retain runtime resource hash.");
         Require(result.AnimationResourcePlan.RuntimeResourceCatalog.Entries.Exists(entry => entry.Id == "runtime.anim.idle"), "animation runtime catalog should include idle.");
+        RuntimeResourceCatalogEntryDocument idleRuntimeEntry = result.AnimationResourcePlan.RuntimeResourceCatalog.Entries.Find(entry => entry.Id == "runtime.anim.idle");
+        Require(idleRuntimeEntry != null && idleRuntimeEntry.Type == "AnimationClip", "runtime idle entry should declare AnimationClip type.");
+        Require(idleRuntimeEntry.Address == "resources/animations/idle.anim", "runtime idle entry should use package/runtime address, not Unity asset path.");
+        Require(!idleRuntimeEntry.Address.StartsWith("Assets/", StringComparison.Ordinal), "runtime idle entry should not use Unity asset paths as runtime input.");
         Require(result.AnimationResourcePlan.CharacterResourcePlan.AnimationWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.anim.run"), "animation warmup should include run.");
+        Require(result.AnimationResourcePlan.CharacterResourcePlan.AnimationWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.anim.idle"), "animation warmup should include default idle.");
+        Require(result.AnimationResourcePlan.CharacterResourcePlan.AnimationWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.mask.full_body"), "animation warmup should include AvatarMask resources.");
+        Require(result.AnimationResourcePlan.CharacterResourcePlan.AnimationWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.anim.idle.bake"), "animation warmup should include bake artifacts.");
         Require(result.AnimationResourcePlan.CharacterResourcePlan.VfxWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.vfx.footstep"), "VFX timeline events should enter VfxWarmup.");
         Require(result.AnimationResourcePlan.CharacterResourcePlan.Audio.RequiredCues.Contains("cue.test.footstep"), "AudioCue timeline events should enter the Audio plan.");
         Require(result.AnimationResourcePlan.AudioCueManifest.Cues.Exists(cue => cue.CueId == "cue.test.footstep"), "AudioCue manifest should include FMOD cue references.");
         Require(!string.IsNullOrWhiteSpace(result.AnimationResourcePlan.PlanHash), "animation resource plan should have a deterministic hash.");
         Require(!result.AnimationValidationReport.HasBlockingIssues, "valid animation authoring package should compile without blocking issues.");
+
+        var groupCatalog = new CharacterPackageResourceCatalog
+        {
+            Entries = new List<CharacterPackageResourceEntry>
+            {
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.idle", StableId = "stable.anim.idle", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = CharacterPackageResourceUsageIds.AnimationClipGroup, RelativePath = "resources/animations/idle.glb", Hash = "sha256:idle" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.run", StableId = "stable.anim.run", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = AnimationAuthoringResourceUsages.AnimationClip, RelativePath = "resources/animations/run.anim", Hash = "sha256:run" }
+            }
+        };
+        AnimationAuthoringCompileResult groupInvalid = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = package, ResourceCatalog = groupCatalog });
+        Require(groupInvalid.AnimationValidationReport.Issues.Exists(issue => issue.Code == "ANIM_RUNTIME_TYPE_MISMATCH"), "animationClipGroup runtime bindings should be rejected as runtime clips.");
+
+        var missingRuntimePackage = new AnimationAuthoringPackage { PackageId = "animation.missing_runtime", StableId = "animation.missing_runtime" };
+        missingRuntimePackage.Sets.Add(new AnimationAuthoringSet
+        {
+            SetId = "set.base",
+            Groups = new List<AnimationGroupAuthoring>
+            {
+                new AnimationGroupAuthoring
+                {
+                    GroupId = "group.base",
+                    Clips = new List<AnimationClipMappingAuthoring>
+                    {
+                        new AnimationClipMappingAuthoring
+                        {
+                            ClipId = "idle",
+                            SourceSelection = new AuthoringResourceSelectionRef
+                            {
+                                ResourceStableId = "unity.project.idle",
+                                SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+                                BindingKind = AuthoringResourceBindingKind.UnityEditorOnlyAsset,
+                                ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+                                ExpectedUsage = AnimationAuthoringResourceUsages.AnimationClip,
+                                RuntimeResourceKey = "runtime.anim.editor_only"
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        AnimationAuthoringCompileResult notReady = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = missingRuntimePackage, ResourceCatalog = new CharacterPackageResourceCatalog() });
+        Require(notReady.AnimationValidationReport.Issues.Exists(issue => issue.Code == "ANIM_SOURCE_NOT_RUNTIME_READY"), "editor-only required runtime clips should emit source-not-runtime-ready diagnostics.");
+
+        missingRuntimePackage.Sets[0].Groups[0].Clips[0].SourceSelection.RuntimeResourceKey = string.Empty;
+        AnimationAuthoringCompileResult missingRuntimeKey = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = missingRuntimePackage, ResourceCatalog = new CharacterPackageResourceCatalog() });
+        Require(missingRuntimeKey.AnimationValidationReport.Issues.Exists(issue => issue.Code == "ANIM_RUNTIME_KEY_MISSING"), "required runtime clips without runtime keys should emit structured missing-key diagnostics.");
+
+        var missingWarmupClipPackage = new AnimationAuthoringPackage { PackageId = "animation.missing_warmup", StableId = "animation.missing_warmup" };
+        missingWarmupClipPackage.Sets.Add(new AnimationAuthoringSet
+        {
+            SetId = "set.base",
+            Warmup = new AnimationWarmupAuthoring { RequiredClipIds = new List<string> { "missing" } }
+        });
+        AnimationAuthoringCompileResult missingWarmupClip = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = missingWarmupClipPackage, ResourceCatalog = new CharacterPackageResourceCatalog() });
+        Require(missingWarmupClip.AnimationValidationReport.Issues.Exists(issue => issue.Code == "ANIM_WARMUP_REQUIRED_CLIP_MISSING"), "missing warmup required clips should emit structured diagnostics.");
 
         package.Sets[0].Groups[0].Blend2D[0].Points.Add(new AnimationBlend2DPointAuthoring { ClipId = "missing", X = 1f, Y = 1f });
         AnimationAuthoringCompileResult invalid = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = package, ResourceCatalog = catalog });
@@ -1867,8 +2079,8 @@ internal static class CharacterPackageTests
                     ResourceKey = "runtime.anim.idle",
                     StableId = "stable.anim.idle",
                     TypeId = CharacterPackageResourceTypeIds.Animation,
-                    Usage = CharacterPackageResourceUsageIds.AnimationClipGroup,
-                    RelativePath = "resources/animations/idle.glb",
+                    Usage = AnimationAuthoringResourceUsages.AnimationClip,
+                    RelativePath = "resources/animations/idle.anim",
                     Hash = "sha256:idle"
                 }
             }
@@ -1882,7 +2094,7 @@ internal static class CharacterPackageTests
                 SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
                 BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
                 ExpectedKind = CharacterPackageResourceTypeIds.Animation,
-                ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+                ExpectedUsage = AnimationAuthoringResourceUsages.AnimationClip,
                 RuntimeResourceKey = "runtime.anim.idle"
             };
             var draft = new AnimationAuthoringPackage
@@ -1934,7 +2146,7 @@ internal static class CharacterPackageTests
             Require(animationClip.GetProperty("rootMotionPolicy").GetString() == "Ignore", "animation preview should expose root motion policy metadata for the player.");
             JsonElement resource = animationClip.GetProperty("resource");
             Require(resource.GetProperty("resourceKey").GetString() == "runtime.anim.idle", "animation preview should resolve runtime resource metadata.");
-            Require(resource.GetProperty("url").GetString().EndsWith("/resources/animations/idle.glb", StringComparison.Ordinal), "animation preview should expose a static resource URL for the viewport.");
+            Require(resource.GetProperty("url").GetString().EndsWith("/resources/animations/idle.anim", StringComparison.Ordinal), "animation preview should expose a static resource URL for the viewport.");
             Require(resource.GetProperty("exists").GetBoolean(), "animation preview should mark existing preview resource files.");
             Require(root.GetProperty("animationValidationReport").GetProperty("hasBlockingIssues").GetBoolean() == false, "valid animation preview draft should compile without blocking diagnostics.");
         }

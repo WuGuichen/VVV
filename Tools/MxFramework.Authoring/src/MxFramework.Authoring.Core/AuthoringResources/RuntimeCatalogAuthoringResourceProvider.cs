@@ -86,7 +86,7 @@ namespace MxFramework.Authoring
         {
             string packageStableId = GetProviderData(entry.ProviderData, "stableId");
             string packageResourceKey = GetProviderData(entry.ProviderData, "packageResourceKey");
-            string usage = GetProviderData(entry.ProviderData, "usage");
+            string usage = NormalizeRuntimeUsage(entry.Type, GetProviderData(entry.ProviderData, "usage"));
             string stableId = "runtime." + AuthoringResourceProviderUtilities.SanitizeStableSegment(
                 AuthoringResourceProviderUtilities.FirstNonEmpty(packageStableId, entry.Id, entry.Address));
             string resourceKey = entry.Id ?? string.Empty;
@@ -94,7 +94,10 @@ namespace MxFramework.Authoring
             {
                 ResourceId = AuthoringResourceProviderUtilities.BuildResourceId(AuthoringResourceProviderIds.RuntimeCatalog, stableId, resourceKey),
                 StableId = stableId,
-                DisplayName = AuthoringResourceProviderUtilities.GetFileDisplayName(entry.Address, AuthoringResourceProviderUtilities.FirstNonEmpty(resourceKey, stableId)),
+                DisplayName = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                    GetProviderData(entry.ProviderData, "clipName"),
+                    GetProviderData(entry.ProviderData, "subClipName"),
+                    AuthoringResourceProviderUtilities.GetFileDisplayName(entry.Address, AuthoringResourceProviderUtilities.FirstNonEmpty(resourceKey, stableId))),
                 Kind = AuthoringResourceProviderUtilities.MapRuntimeTypeToLibraryKind(entry.Type, usage),
                 Usage = usage,
                 SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
@@ -131,10 +134,15 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "retainPolicy", GetProviderData(entry.ProviderData, "retainPolicy"));
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceRelativePath", GetProviderData(entry.ProviderData, "sourceRelativePath"));
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "sourceFormat", GetProviderData(entry.ProviderData, "sourceFormat"));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "assetType", entry.Type);
+            AddAnimationClipMetadata(item, entry);
             if (context != null)
                 AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "runtimeResourceCatalogPath", context.RuntimeResourceCatalogPath);
             item.Metadata["size"] = entry.Size.ToString(System.Globalization.CultureInfo.InvariantCulture);
             item.Metadata["allowOverride"] = entry.AllowOverride ? "true" : "false";
+            item.Metadata["bindingKind"] = item.BindingKind.ToString();
+            item.Metadata["runtimeAvailability"] = item.RuntimeAvailability.ToString();
+            item.Metadata["sourceLoadability"] = item.RuntimeAvailability.ToString();
         }
 
         private static void AddRuntimeBindings(
@@ -154,9 +162,7 @@ namespace MxFramework.Authoring
                 Address = entry.Address ?? string.Empty,
                 AssetType = entry.Type ?? string.Empty,
                 Hash = entry.Hash ?? string.Empty,
-                ProviderData = entry.ProviderData != null
-                    ? new Dictionary<string, string>(entry.ProviderData, StringComparer.Ordinal)
-                    : new Dictionary<string, string>(StringComparer.Ordinal)
+                ProviderData = BuildRuntimeProviderData(entry, item.Usage)
             });
 
             if (!string.IsNullOrWhiteSpace(packageResourceKey))
@@ -209,6 +215,70 @@ namespace MxFramework.Authoring
 
             string value;
             return data.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
+        }
+
+        private static string NormalizeRuntimeUsage(string typeId, string usage)
+        {
+            if (string.Equals(typeId, "AnimationClip", StringComparison.OrdinalIgnoreCase))
+                return AnimationAuthoringResourceUsages.AnimationClip;
+
+            return usage ?? string.Empty;
+        }
+
+        private static void AddAnimationClipMetadata(AuthoringResourceItem item, RuntimeResourceCatalogEntryDocument entry)
+        {
+            if (item == null || entry == null || !string.Equals(item.Usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal))
+                return;
+
+            string clipName = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry.ProviderData, "clipName"),
+                GetProviderData(entry.ProviderData, "subClipName"),
+                AuthoringResourceProviderUtilities.GetFileDisplayName(entry.Address, entry.Id));
+            string subClipName = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry.ProviderData, "subClipName"),
+                clipName);
+            string subClipId = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                GetProviderData(entry.ProviderData, "subClipId"),
+                GetProviderData(entry.ProviderData, "subAssetId"),
+                subClipName);
+
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "clipName", clipName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipName", subClipName);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "subClipId", subClipId);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
+        }
+
+        private static Dictionary<string, string> BuildRuntimeProviderData(RuntimeResourceCatalogEntryDocument entry, string usage)
+        {
+            var data = entry.ProviderData != null
+                ? new Dictionary<string, string>(entry.ProviderData, StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+            AddProviderDataIfMissing(data, "usage", usage);
+            AddProviderDataIfMissing(data, "assetType", entry.Type);
+            if (string.Equals(usage, AnimationAuthoringResourceUsages.AnimationClip, StringComparison.Ordinal))
+            {
+                string clipName = AuthoringResourceProviderUtilities.FirstNonEmpty(
+                    GetProviderData(data, "clipName"),
+                    GetProviderData(data, "subClipName"),
+                    AuthoringResourceProviderUtilities.GetFileDisplayName(entry.Address, entry.Id));
+                AddProviderDataIfMissing(data, "clipName", clipName);
+                AddProviderDataIfMissing(data, "subClipName", AuthoringResourceProviderUtilities.FirstNonEmpty(GetProviderData(data, "subClipName"), clipName));
+                AddProviderDataIfMissing(data, "subClipId", AuthoringResourceProviderUtilities.FirstNonEmpty(GetProviderData(data, "subClipId"), GetProviderData(data, "subAssetId"), clipName));
+                AddProviderDataIfMissing(data, "preloadPolicy", AuthoringResourcePreloadPolicies.AnimationWarmup);
+            }
+
+            AddProviderDataIfMissing(data, "bindingKind", AuthoringResourceBindingKind.ResourceManagerAsset.ToString());
+            AddProviderDataIfMissing(data, "runtimeAvailability", AuthoringResourceRuntimeAvailability.RuntimeReady.ToString());
+            AddProviderDataIfMissing(data, "sourceLoadability", AuthoringResourceRuntimeAvailability.RuntimeReady.ToString());
+            return data;
+        }
+
+        private static void AddProviderDataIfMissing(Dictionary<string, string> data, string key, string value)
+        {
+            if (data == null || string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value) || data.ContainsKey(key))
+                return;
+
+            data[key] = value;
         }
     }
 }

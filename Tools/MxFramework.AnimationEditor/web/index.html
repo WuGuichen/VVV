@@ -71,7 +71,8 @@
           </div>
           <div class="panel-actions">
             <button id="addGroupButton" type="button">新增 Group</button>
-            <button id="addClipButton" type="button">新增 Clip</button>
+            <button id="addClipFromResourceButton" type="button">Add Clip from Resource</button>
+            <button id="addClipButton" type="button">新增空 Clip</button>
           </div>
         </div>
         <div id="mappingWorkspace" class="mapping-workspace"></div>
@@ -115,8 +116,8 @@
         <button id="closePickerButton" type="button" aria-label="关闭资源选择器">关闭</button>
       </header>
       <div class="picker-filter">
-        <input id="resourcePickerSearch" type="search" placeholder="搜索资源、Provider、路径">
-        <label><input id="resourcePickerOnlySelectable" type="checkbox" checked> 只显示可选资源</label>
+        <input id="resourcePickerSearch" type="search" placeholder="搜索资源、Provider、路径、Sub Clip">
+        <label><input id="resourcePickerOnlySelectable" type="checkbox" checked> 隐藏不可选/诊断</label>
       </div>
       <div id="resourcePickerList" class="resource-picker-list"></div>
     </div>

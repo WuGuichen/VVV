@@ -55,12 +55,105 @@ internal static class AnimationPackageCommands
         if (File.Exists(resourceCatalogPath))
             catalog = JsonSerializer.Deserialize<CharacterPackageResourceCatalog>(File.ReadAllText(resourceCatalogPath), options) ?? new CharacterPackageResourceCatalog();
 
+        string projectRoot = ResolveProjectRoot(packageRoot);
         return AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest
         {
             Package = package,
             PackageRootPath = packageRoot,
-            ResourceCatalog = catalog
+            ResourceCatalog = catalog,
+            RuntimeResourceCatalog = ReadProjectRuntimeResourceCatalogs(projectRoot, options)
         });
+    }
+
+    internal static RuntimeResourceCatalogDocument ReadProjectRuntimeResourceCatalogs(string rootPath, JsonSerializerOptions options)
+    {
+        var merged = new RuntimeResourceCatalogDocument
+        {
+            CatalogId = "project.runtime",
+            PackageId = string.Empty
+        };
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        string catalogRoot = Path.Combine(rootPath ?? string.Empty, "Assets", "Config", "MxFramework", "ResourceCatalogs");
+        if (!Directory.Exists(catalogRoot))
+            return merged;
+
+        foreach (string path in Directory.EnumerateFiles(catalogRoot, "*.json", SearchOption.AllDirectories))
+        {
+            RuntimeResourceCatalogDocument catalog;
+            try
+            {
+                catalog = JsonSerializer.Deserialize<RuntimeResourceCatalogDocument>(File.ReadAllText(path), options);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (catalog?.Entries == null)
+                continue;
+
+            for (int i = 0; i < catalog.Entries.Count; i++)
+            {
+                RuntimeResourceCatalogEntryDocument entry = catalog.Entries[i];
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Id) || !keys.Add(entry.Id))
+                    continue;
+                merged.Entries.Add(entry);
+            }
+        }
+
+        merged.Entries.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+        return merged;
+    }
+
+    internal static RuntimeResourceCatalogDocument MergeRuntimeResourceCatalogs(params RuntimeResourceCatalogDocument[] catalogs)
+    {
+        var merged = new RuntimeResourceCatalogDocument
+        {
+            CatalogId = "merged.runtime",
+            PackageId = string.Empty
+        };
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        if (catalogs == null)
+            return merged;
+
+        for (int catalogIndex = 0; catalogIndex < catalogs.Length; catalogIndex++)
+        {
+            RuntimeResourceCatalogDocument catalog = catalogs[catalogIndex];
+            for (int i = 0; catalog != null && catalog.Entries != null && i < catalog.Entries.Count; i++)
+            {
+                RuntimeResourceCatalogEntryDocument entry = catalog.Entries[i];
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Id) || !keys.Add(entry.Id))
+                    continue;
+                merged.Entries.Add(entry);
+            }
+        }
+
+        merged.Entries.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+        return merged;
+    }
+
+    private static string ResolveProjectRoot(string packageRoot)
+    {
+        string current = Directory.GetCurrentDirectory();
+        if (LooksLikeProjectRoot(current))
+            return current;
+
+        DirectoryInfo directory = new DirectoryInfo(Path.GetFullPath(packageRoot ?? string.Empty));
+        while (directory != null)
+        {
+            if (LooksLikeProjectRoot(directory.FullName))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        return current;
+    }
+
+    private static bool LooksLikeProjectRoot(string path)
+    {
+        return !string.IsNullOrWhiteSpace(path) &&
+            Directory.Exists(Path.Combine(path, "Assets")) &&
+            Directory.Exists(Path.Combine(path, "Tools"));
     }
 
     internal static void WriteCompileOutputs(string outDir, AnimationAuthoringCompileResult result, JsonSerializerOptions options)
