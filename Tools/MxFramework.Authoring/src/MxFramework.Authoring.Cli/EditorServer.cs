@@ -998,7 +998,7 @@ internal static class EditorServer
             animationClipRegistry = compile.AnimationClipRegistry,
             animationResourcePlan = compile.AnimationResourcePlan,
             animationValidationReport = compile.AnimationValidationReport,
-            previewResources = BuildAnimationPreviewResources(rootPath, packageRoot, catalog, compile.AnimationClipRegistry),
+            previewResources = BuildAnimationPreviewResources(rootPath, packageRoot, catalog, compile.AnimationClipRegistry, compile.AnimationSetDefinition),
             diagnostics = compile.AnimationValidationReport?.Issues ?? new List<CharacterAuthoringValidationIssue>()
         };
     }
@@ -1007,7 +1007,8 @@ internal static class EditorServer
         string rootPath,
         string packageRoot,
         CharacterPackageResourceCatalog catalog,
-        AnimationClipRegistryDocument clipRegistry)
+        AnimationClipRegistryDocument clipRegistry,
+        AnimationSetDefinitionDocument setDefinition)
     {
         var resourcesByKey = new Dictionary<string, object>(StringComparer.Ordinal);
         for (int i = 0; catalog != null && catalog.Entries != null && i < catalog.Entries.Count; i++)
@@ -1042,6 +1043,7 @@ internal static class EditorServer
         {
             AnimationClipRegistryEntry clip = clipRegistry.Clips[i];
             resourcesByKey.TryGetValue(clip.RuntimeResourceKey ?? string.Empty, out object resource);
+            AnimationSetDefinitionClipRef clipRef = FindAnimationSetDefinitionClip(setDefinition, clip);
             animationClips.Add(new
             {
                 setId = clip.SetId,
@@ -1051,6 +1053,9 @@ internal static class EditorServer
                 sourceClipName = clip.SourceClipName,
                 sourceSubClipId = clip.SourceSubClipId,
                 runtimeResourceKey = clip.RuntimeResourceKey,
+                loop = clipRef != null && clipRef.Loop,
+                speed = clipRef != null ? clipRef.Speed : 1f,
+                rootMotionPolicy = clipRef != null ? clipRef.RootMotionPolicy : string.Empty,
                 resource
             });
         }
@@ -1060,6 +1065,34 @@ internal static class EditorServer
             resources = resourcesByKey.Values.ToArray(),
             animationClips
         };
+    }
+
+    private static AnimationSetDefinitionClipRef FindAnimationSetDefinitionClip(
+        AnimationSetDefinitionDocument setDefinition,
+        AnimationClipRegistryEntry clip)
+    {
+        for (int setIndex = 0; setDefinition != null && setDefinition.Sets != null && setIndex < setDefinition.Sets.Count; setIndex++)
+        {
+            AnimationSetDefinitionSet set = setDefinition.Sets[setIndex];
+            if (set == null || !string.Equals(set.SetId, clip.SetId, StringComparison.Ordinal))
+                continue;
+
+            for (int groupIndex = 0; set.Groups != null && groupIndex < set.Groups.Count; groupIndex++)
+            {
+                AnimationSetDefinitionGroup group = set.Groups[groupIndex];
+                if (group == null || !string.Equals(group.GroupId, clip.GroupId, StringComparison.Ordinal))
+                    continue;
+
+                for (int clipIndex = 0; group.Clips != null && clipIndex < group.Clips.Count; clipIndex++)
+                {
+                    AnimationSetDefinitionClipRef item = group.Clips[clipIndex];
+                    if (item != null && string.Equals(item.ClipId, clip.ClipId, StringComparison.Ordinal))
+                        return item;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static object CreateAnimationFieldSpecs()

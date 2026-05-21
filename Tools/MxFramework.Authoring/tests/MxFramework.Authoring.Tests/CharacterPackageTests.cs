@@ -1929,6 +1929,9 @@ internal static class CharacterPackageTests
             Require(root.GetProperty("animationClipRegistry").GetProperty("clips").GetArrayLength() == 1, "animation preview should expose compiled clip registry.");
             JsonElement animationClip = root.GetProperty("previewResources").GetProperty("animationClips")[0];
             Require(animationClip.GetProperty("runtimeResourceKey").GetString() == "runtime.anim.idle", "animation preview should map clip ids to runtime resource keys.");
+            Require(animationClip.GetProperty("loop").GetBoolean(), "animation preview should expose authoring loop metadata for the player.");
+            Require(Math.Abs(animationClip.GetProperty("speed").GetSingle() - 1f) < 0.001f, "animation preview should expose authoring speed metadata for the player.");
+            Require(animationClip.GetProperty("rootMotionPolicy").GetString() == "Ignore", "animation preview should expose root motion policy metadata for the player.");
             JsonElement resource = animationClip.GetProperty("resource");
             Require(resource.GetProperty("resourceKey").GetString() == "runtime.anim.idle", "animation preview should resolve runtime resource metadata.");
             Require(resource.GetProperty("url").GetString().EndsWith("/resources/animations/idle.glb", StringComparison.Ordinal), "animation preview should expose a static resource URL for the viewport.");

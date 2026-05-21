@@ -977,6 +977,107 @@ code {
   flex-wrap: wrap;
 }
 
+.preview-player-controls {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.preview-scrub-field,
+.preview-player-meta,
+.preview-player-meta label {
+  display: grid;
+  gap: 6px;
+}
+
+.preview-scrub-field span,
+.preview-player-meta span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preview-player-meta {
+  grid-template-columns: minmax(92px, 0.7fr) minmax(110px, 1fr) minmax(84px, auto);
+  align-items: end;
+}
+
+.preview-player-meta output {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-loop-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 34px;
+}
+
+.preview-gltf-status {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preview-gltf-status strong {
+  color: var(--text);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.preview-gltf-status.status-matched {
+  border-color: rgba(32, 185, 129, 0.38);
+}
+
+.preview-gltf-status.status-fallback,
+.preview-gltf-status.status-empty {
+  border-color: rgba(229, 155, 53, 0.45);
+}
+
+.preview-gltf-status.status-missing {
+  border-color: rgba(239, 91, 91, 0.45);
+}
+
+.preview-gltf-kv {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.preview-gltf-kv dt {
+  color: var(--muted);
+}
+
+.preview-gltf-kv dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.preview-gltf-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preview-gltf-names code,
+.preview-gltf-names span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .compiler-preview-kv {
   padding: 10px;
   border: 1px solid var(--line);
@@ -1385,6 +1486,8 @@ code {
   .compatibility-grid,
   .preview-kv,
   .preview-kv.compact,
+  .preview-player-meta,
+  .preview-gltf-kv,
   .artifact-row,
   .blend-preview-state,
   .blend-point-row,

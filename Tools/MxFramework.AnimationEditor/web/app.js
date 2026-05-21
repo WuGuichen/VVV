@@ -130,8 +130,19 @@ const state = {
     error: "",
     playing: false,
     selectedClipId: "",
+    currentTime: 0,
+    duration: 1,
+    playbackSpeed: 1,
+    loop: true,
+    matchStatus: "idle",
+    matchMessage: "",
+    matchedClipName: "",
+    availableClipNames: [],
+    resourceAnimationCount: 0,
+    resourceKey: "",
     renderId: 0,
     cleanup: null,
+    controller: null,
     threeStatus: "idle"
   },
   resourcePicker: {
@@ -235,6 +246,8 @@ function bindEvents() {
       previewAnimation();
     } else if (button.dataset.previewPlayToggle) {
       togglePreviewPlayback();
+    } else if (button.dataset.previewResetTime) {
+      setPreviewTime(0);
     } else if (button.dataset.previewClipId) {
       selectPreviewClip(button.dataset.previewClipId);
     } else if (button.dataset.pickEventResource) {
@@ -252,6 +265,8 @@ function bindEvents() {
   el.mappingWorkspace.addEventListener("change", handleTimelineEditorInput);
   el.mappingWorkspace.addEventListener("input", handleTimelineEditorInput);
   el.mappingWorkspace.addEventListener("change", handlePreviewWorkflowInput);
+  el.mappingWorkspace.addEventListener("input", handlePreviewPlaybackInput);
+  el.mappingWorkspace.addEventListener("change", handlePreviewPlaybackInput);
   el.mappingWorkspace.addEventListener("change", handleStructureEditorInput);
   el.mappingWorkspace.addEventListener("input", handleStructureEditorInput);
 
@@ -403,6 +418,7 @@ async function previewAnimation() {
   if (!clips.some(clip => getPreviewClipId(clip) === state.preview3d.selectedClipId)) {
     state.preview3d.selectedClipId = getPreviewClipId(clips[0]) || "";
   }
+  applyPreviewClipPlaybackDefaults(getSelectedPreviewClip());
   state.lastMessage = `编译预览完成：${getPreviewResources(result).length} 个资源，${clips.length} 个 Clip`;
   render();
 }
@@ -960,6 +976,8 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
   const glbResources = resources.filter(resource => isPreviewModelResource(resource));
   const missingResources = resources.filter(resource => resource.exists === false);
   const endpointLabel = API.preview;
+  const duration = Math.max(0.01, Number(preview.duration || getPreviewClipDuration(selectedClip) || 1));
+  const currentTime = clamp(Number(preview.currentTime || 0), 0, duration);
 
   return `
     <article id="compilerPreviewPanel" class="workflow-report compiler-preview-panel" aria-label="编译器驱动 3D 预览">
@@ -975,7 +993,26 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
           <div class="preview-control-row">
             <button id="runCompilerPreviewButton" type="button" data-run-compiler-preview="1">${preview.loading ? "正在编译..." : "运行编译预览"}</button>
             <button id="previewPlaybackToggle" type="button" data-preview-play-toggle="1" ${selectedClip ? "" : "disabled"}>${preview.playing ? "暂停" : "播放"}</button>
+            <button id="previewResetTimeButton" type="button" data-preview-reset-time="1" ${selectedClip ? "" : "disabled"}>回到起点</button>
           </div>
+          <div class="preview-player-controls" aria-label="动画播放控制">
+            <label class="preview-scrub-field">
+              <span>时间轴</span>
+              <input id="previewTimelineScrubber" type="range" data-preview-time="1" min="0" max="${escapeHtml(String(duration))}" step="0.01" value="${escapeHtml(String(currentTime))}" ${selectedClip ? "" : "disabled"}>
+            </label>
+            <div class="preview-player-meta">
+              <output id="previewTimeReadout">${escapeHtml(formatPreviewTime(currentTime, duration))}</output>
+              <label>
+                <span>速度</span>
+                <input id="previewSpeedInput" type="number" data-preview-speed="1" min="0.05" max="4" step="0.05" value="${escapeHtml(String(preview.playbackSpeed || 1))}" ${selectedClip ? "" : "disabled"}>
+              </label>
+              <label class="preview-loop-toggle">
+                <input id="previewLoopToggle" type="checkbox" data-preview-loop="1" ${preview.loop ? "checked" : ""} ${selectedClip ? "" : "disabled"}>
+                <span>循环</span>
+              </label>
+            </div>
+          </div>
+          ${renderPreviewGltfStatus(selectedResource)}
           <dl class="preview-kv compact compiler-preview-kv">
             <dt>端点</dt>
             <dd><code>${escapeHtml(endpointLabel)}</code></dd>
@@ -1026,6 +1063,31 @@ function renderPreviewClipList(clips) {
             <code>${escapeHtml(resource.resourceKey || clip.runtimeResourceKey || "未绑定资源")}</code>
           </button>`;
       }).join("")}
+    </div>`;
+}
+
+function renderPreviewGltfStatus(resource) {
+  const preview = state.preview3d;
+  const resourceKey = resource?.resourceKey || resource?.stableId || "";
+  const isCurrentResource = !resourceKey || preview.resourceKey === resourceKey;
+  const clipNames = isCurrentResource ? preview.availableClipNames : [];
+  const status = isCurrentResource ? preview.matchStatus : "idle";
+  const matchedName = isCurrentResource ? preview.matchedClipName : "";
+  const message = isCurrentResource ? preview.matchMessage : "等待当前资源解析 GLTF animation 列表。";
+  const count = isCurrentResource ? preview.resourceAnimationCount : 0;
+  return `
+    <div id="previewClipMatchStatus" class="preview-gltf-status status-${escapeHtml(status || "idle")}" aria-label="GLTF clip match status">
+      <div>
+        <strong>${escapeHtml(matchedName || "未匹配 GLTF Clip")}</strong>
+        <span>${escapeHtml(message || "运行预览后显示资源内 animation clip。")}</span>
+      </div>
+      <dl class="preview-gltf-kv">
+        <dt>GLTF clips</dt>
+        <dd>${escapeHtml(String(count))}</dd>
+        <dt>matched</dt>
+        <dd><code>${escapeHtml(matchedName || "-")}</code></dd>
+      </dl>
+      <div class="preview-gltf-names">${clipNames.length ? clipNames.map(name => `<code>${escapeHtml(name)}</code>`).join("") : `<span>资源尚未返回可播放 animation clip。</span>`}</div>
     </div>`;
 }
 
@@ -2663,6 +2725,20 @@ function handlePreviewWorkflowInput(event) {
   renderWorkspace();
 }
 
+function handlePreviewPlaybackInput(event) {
+  if (event.target.dataset.previewTime !== undefined) {
+    setPreviewTime(Number(event.target.value));
+    return;
+  }
+  if (event.target.dataset.previewSpeed !== undefined) {
+    setPreviewSpeed(Number(event.target.value));
+    return;
+  }
+  if (event.target.dataset.previewLoop !== undefined) {
+    setPreviewLoop(Boolean(event.target.checked));
+  }
+}
+
 function getTimelineList(group) {
   if (!group) return [];
   group.timelines = Array.isArray(group.timelines) ? group.timelines : [];
@@ -3379,7 +3455,14 @@ function ensureWarmup(owner) {
 function getIssues() {
   const issues = [];
   if (Array.isArray(state.validation?.issues)) issues.push(...state.validation.issues);
-  if (Array.isArray(state.preview3d.result?.diagnostics)) issues.push(...state.preview3d.result.diagnostics);
+  if (state.preview3d.result || state.preview3d.error) {
+    issues.push(...getPreviewDiagnostics().map(issue => ({
+      severity: issue.tone === "error" ? "Error" : issue.tone === "warning" ? "Warning" : "Info",
+      code: issue.code,
+      sourceObjectPath: "preview/3d",
+      message: issue.message
+    })));
+  }
   if (Array.isArray(state.animation?.diagnostics)) issues.push(...state.animation.diagnostics);
   issues.push(...getLocalBlendIssues());
   issues.push(...getLocalTimelineIssues());
@@ -3408,6 +3491,11 @@ function clearPreview3d(reason) {
   state.preview3d.error = "";
   state.preview3d.playing = false;
   state.preview3d.selectedClipId = "";
+  state.preview3d.currentTime = 0;
+  state.preview3d.duration = 1;
+  state.preview3d.playbackSpeed = 1;
+  state.preview3d.loop = true;
+  resetPreviewClipInsight();
   state.preview3d.threeStatus = reason ? "idle" : state.preview3d.threeStatus;
 }
 
@@ -3416,23 +3504,95 @@ function cleanupPreviewViewport() {
     state.preview3d.cleanup();
   }
   state.preview3d.cleanup = null;
+  state.preview3d.controller = null;
   state.preview3d.renderId += 1;
 }
 
 function togglePreviewPlayback() {
   if (!getSelectedPreviewClip()) return;
+  if (state.preview3d.matchStatus === "empty" || state.preview3d.matchStatus === "missing") {
+    state.preview3d.playing = false;
+    state.lastMessage = state.preview3d.matchMessage || "当前资源没有可播放的 GLTF animation clip";
+    renderStatus();
+    updatePreviewControlDom();
+    return;
+  }
   state.preview3d.playing = !state.preview3d.playing;
+  state.preview3d.controller?.setPlaying?.(state.preview3d.playing);
   state.lastMessage = state.preview3d.playing ? "预览播放中" : "预览已暂停";
+  renderStatus();
+  updatePreviewControlDom(false);
+}
+
+function selectPreviewClip(clipId) {
+  cleanupPreviewViewport();
+  state.preview3d.selectedClipId = clipId || "";
+  state.preview3d.playing = false;
+  applyPreviewClipPlaybackDefaults(getSelectedPreviewClip());
+  resetPreviewClipInsight();
+  state.lastMessage = "已切换预览 Clip";
   renderStatus();
   renderWorkspace();
 }
 
-function selectPreviewClip(clipId) {
-  state.preview3d.selectedClipId = clipId || "";
-  state.preview3d.playing = false;
-  state.lastMessage = "已切换预览 Clip";
-  renderStatus();
-  renderWorkspace();
+function setPreviewTime(value) {
+  const duration = Math.max(0.01, Number(state.preview3d.duration || 1));
+  state.preview3d.currentTime = clamp(Number.isFinite(value) ? value : 0, 0, duration);
+  state.preview3d.controller?.seek?.(state.preview3d.currentTime);
+  updatePreviewControlDom(false);
+}
+
+function setPreviewSpeed(value) {
+  const speed = clamp(Number.isFinite(value) ? value : 1, 0.05, 4);
+  state.preview3d.playbackSpeed = speed;
+  state.preview3d.controller?.setSpeed?.(speed);
+  updatePreviewControlDom(false);
+}
+
+function setPreviewLoop(loop) {
+  state.preview3d.loop = Boolean(loop);
+  state.preview3d.controller?.setLoop?.(state.preview3d.loop);
+  updatePreviewControlDom(false);
+}
+
+function applyPreviewClipPlaybackDefaults(clip) {
+  const sourceClip = findAuthoringClipForPreview(clip);
+  state.preview3d.currentTime = 0;
+  state.preview3d.duration = Math.max(0.01, getPreviewClipDuration(clip, sourceClip));
+  state.preview3d.playbackSpeed = Number(clip?.speed || sourceClip?.speed || 1) || 1;
+  state.preview3d.loop = Boolean(clip?.loop ?? sourceClip?.loop ?? true);
+}
+
+function resetPreviewClipInsight() {
+  state.preview3d.matchStatus = "idle";
+  state.preview3d.matchMessage = "";
+  state.preview3d.matchedClipName = "";
+  state.preview3d.availableClipNames = [];
+  state.preview3d.resourceAnimationCount = 0;
+  state.preview3d.resourceKey = "";
+}
+
+function updatePreviewControlDom(updateStatus = true) {
+  const preview = state.preview3d;
+  const toggle = document.getElementById("previewPlaybackToggle");
+  if (toggle) toggle.textContent = preview.playing ? "暂停" : "播放";
+  const scrubber = document.getElementById("previewTimelineScrubber");
+  if (scrubber) {
+    const duration = Math.max(0.01, Number(preview.duration || 1));
+    scrubber.max = String(duration);
+    scrubber.value = String(clamp(Number(preview.currentTime || 0), 0, duration));
+  }
+  const readout = document.getElementById("previewTimeReadout");
+  if (readout) readout.textContent = formatPreviewTime(preview.currentTime, preview.duration);
+  const speed = document.getElementById("previewSpeedInput");
+  if (speed) speed.value = String(preview.playbackSpeed || 1);
+  const loop = document.getElementById("previewLoopToggle");
+  if (loop) loop.checked = Boolean(preview.loop);
+  const status = document.getElementById("previewClipMatchStatus");
+  if (updateStatus && status) {
+    const resource = getSelectedPreviewClip()?.resource || getPreviewResourceForClip(findSelectedClip(), getPreviewResources());
+    status.outerHTML = renderPreviewGltfStatus(resource);
+  }
 }
 
 function getPreviewStatusLabel() {
@@ -3461,6 +3621,13 @@ function getPreviewDiagnostics(result = state.preview3d.result) {
   if (Array.isArray(result?.diagnostics)) diagnostics.push(...result.diagnostics.map(normalizePreviewDiagnostic));
   if (Array.isArray(result?.compileResult?.Diagnostics)) diagnostics.push(...result.compileResult.Diagnostics.map(normalizePreviewDiagnostic));
   if (state.preview3d.error) diagnostics.push({ tone: "error", code: "ANIM_PREVIEW_ENDPOINT_FAILED", message: state.preview3d.error });
+  if (state.preview3d.matchStatus === "empty") {
+    diagnostics.push({ tone: "warning", code: "ANIM_PREVIEW_GLTF_CLIPS_EMPTY", message: state.preview3d.matchMessage || "当前 GLB/GLTF 资源没有 animations[]，无法进行真实动画播放。" });
+  } else if (state.preview3d.matchStatus === "missing") {
+    diagnostics.push({ tone: "error", code: "ANIM_PREVIEW_CLIP_MATCH_MISSING", message: state.preview3d.matchMessage || "当前编译 Clip 无法匹配资源内的 GLTF animation clip。" });
+  } else if (state.preview3d.matchStatus === "fallback") {
+    diagnostics.push({ tone: "warning", code: "ANIM_PREVIEW_CLIP_FALLBACK_USED", message: state.preview3d.matchMessage || "未精确匹配 GLTF clip，预览使用第一个可用 animation clip。" });
+  }
   if (result && getPreviewResources(result).length === 0) {
     diagnostics.push({ tone: "warning", code: "ANIM_PREVIEW_RESOURCES_EMPTY", message: "previewResources.resources 为空，3D 视口只能显示占位状态。" });
   }
@@ -3486,6 +3653,27 @@ function getSelectedPreviewClip() {
   return clips.find(clip => getPreviewClipId(clip) === state.preview3d.selectedClipId) || clips[0] || null;
 }
 
+function findAuthoringClipForPreview(clip) {
+  if (!clip) return null;
+  return findClip(clip.setId || state.selected.setId, clip.groupId || state.selected.groupId, clip.clipId || "");
+}
+
+function getPreviewClipDuration(clip, sourceClip = findAuthoringClipForPreview(clip)) {
+  const fromPreview = Number(clip?.durationSeconds || clip?.metadata?.durationSeconds || 0);
+  const fromSource = Number(sourceClip?.metadata?.durationSeconds || 0);
+  return Number.isFinite(fromPreview) && fromPreview > 0
+    ? fromPreview
+    : Number.isFinite(fromSource) && fromSource > 0
+      ? fromSource
+      : 1;
+}
+
+function formatPreviewTime(current, duration) {
+  const total = Math.max(0.01, Number(duration || 1));
+  const time = clamp(Number(current || 0), 0, total);
+  return `${time.toFixed(2)}s / ${total.toFixed(2)}s`;
+}
+
 function getPreviewResourceForClip(clip, resources) {
   const key = clip?.runtimeResourceKey || clip?.sourceSelection?.runtimeResourceKey || clip?.sourceSelection?.providerResourceKey || "";
   if (!key) return null;
@@ -3503,6 +3691,7 @@ async function renderCompilerPreviewViewport() {
   const host = document.getElementById("compilerPreviewViewport");
   if (!host || !state.preview3d.result || state.preview3d.loading) return;
   cleanupPreviewViewport();
+  resetPreviewClipInsight();
   const renderId = ++state.preview3d.renderId;
   const selectedClip = getSelectedPreviewClip();
   const resource = selectedClip?.resource || getPreviewResourceForClip(findSelectedClip(), getPreviewResources());
@@ -3557,11 +3746,14 @@ async function renderThreePreviewViewport(host, resource, clip, renderId) {
   let disposed = false;
   let frame = 0;
   let resizeObserver = null;
+  let mixer = null;
+  let action = null;
   const disposeLocal = () => {
     if (disposed) return;
     disposed = true;
     if (frame) cancelAnimationFrame(frame);
     if (resizeObserver) resizeObserver.disconnect();
+    if (mixer) mixer.stopAllAction();
     controls.dispose();
     renderer.dispose();
     disposeThreeObject(THREE, scene);
@@ -3580,9 +3772,30 @@ async function renderThreePreviewViewport(host, resource, clip, renderId) {
   content.add(model);
   framePreviewContent(THREE, camera, controls, content);
 
+  const animations = Array.isArray(gltf.animations) ? gltf.animations : [];
+  const clipMatch = selectGltfAnimationClip(animations, clip);
+  state.preview3d.resourceKey = resource.resourceKey || resource.stableId || resource.url || "";
+  state.preview3d.availableClipNames = animations.map(item => item.name || "(unnamed)");
+  state.preview3d.resourceAnimationCount = animations.length;
+  state.preview3d.matchStatus = clipMatch.status;
+  state.preview3d.matchMessage = clipMatch.message;
+  state.preview3d.matchedClipName = clipMatch.clip?.name || "";
+  state.preview3d.duration = Math.max(0.01, clipMatch.clip?.duration || getPreviewClipDuration(clip));
+  state.preview3d.currentTime = clamp(state.preview3d.currentTime || 0, 0, state.preview3d.duration);
+
+  if (clipMatch.clip) {
+    mixer = new THREE.AnimationMixer(model);
+    action = mixer.clipAction(clipMatch.clip);
+    action.enabled = true;
+    action.clampWhenFinished = true;
+    action.setLoop(state.preview3d.loop ? THREE.LoopRepeat : THREE.LoopOnce, state.preview3d.loop ? Infinity : 1);
+    action.play();
+    mixer.setTime(state.preview3d.currentTime);
+  }
+
   const label = document.createElement("div");
   label.className = "preview-viewport-label";
-  label.textContent = `${clip?.displayName || clip?.clipId || "Clip"} / ${resource.resourceKey || "model"}`;
+  label.textContent = `${clip?.displayName || clip?.clipId || "Clip"} / ${clipMatch.clip?.name || "no glTF clip"} / ${resource.resourceKey || "model"}`;
   host.append(label);
 
   const resize = () => {
@@ -3597,20 +3810,115 @@ async function renderThreePreviewViewport(host, resource, clip, renderId) {
   resize();
 
   const clock = new THREE.Clock();
+  const renderFrame = () => renderer.render(scene, camera);
+  state.preview3d.controller = {
+    seek(value) {
+      const duration = Math.max(0.01, Number(state.preview3d.duration || 1));
+      state.preview3d.currentTime = clamp(Number(value || 0), 0, duration);
+      if (mixer) mixer.setTime(state.preview3d.currentTime);
+      renderFrame();
+    },
+    setPlaying(value) {
+      state.preview3d.playing = Boolean(value);
+      clock.getDelta();
+    },
+    setSpeed(value) {
+      state.preview3d.playbackSpeed = clamp(Number(value || 1), 0.05, 4);
+    },
+    setLoop(value) {
+      state.preview3d.loop = Boolean(value);
+      if (action) {
+        action.setLoop(state.preview3d.loop ? THREE.LoopRepeat : THREE.LoopOnce, state.preview3d.loop ? Infinity : 1);
+        action.clampWhenFinished = true;
+      }
+    }
+  };
+  updatePreviewControlDom();
+  renderDiagnostics();
   const animate = () => {
     if (disposed) return;
-    const elapsed = clock.getElapsedTime();
-    if (state.preview3d.playing) {
-      model.rotation.y = Math.sin(elapsed * 1.4) * 0.18;
+    const delta = clock.getDelta();
+    if (mixer && state.preview3d.playing) {
+      const duration = Math.max(0.01, Number(state.preview3d.duration || clipMatch.clip?.duration || 1));
+      const nextTime = Number(state.preview3d.currentTime || 0) + delta * Number(state.preview3d.playbackSpeed || 1);
+      state.preview3d.currentTime = state.preview3d.loop ? nextTime % duration : Math.min(nextTime, duration);
+      if (!state.preview3d.loop && state.preview3d.currentTime >= duration) {
+        state.preview3d.playing = false;
+      }
+      mixer.setTime(state.preview3d.currentTime);
+      updatePreviewControlDom(false);
     }
     controls.update();
-    renderer.render(scene, camera);
+    renderFrame();
     frame = requestAnimationFrame(animate);
   };
   animate();
   state.preview3d.threeStatus = "ready";
   host.dataset.previewState = "ready";
   state.preview3d.cleanup = disposeLocal;
+}
+
+function selectGltfAnimationClip(animations, previewClip) {
+  if (!animations.length) {
+    return {
+      clip: null,
+      status: "empty",
+      message: "当前 GLB/GLTF 资源没有 animations[]；请在资源库导入包含 AnimationClip 的 GLB，或检查 Unity 导出设置。"
+    };
+  }
+
+  const candidates = [
+    previewClip?.sourceSubClipId,
+    previewClip?.sourceClipName,
+    previewClip?.clipId,
+    previewClip?.displayName
+  ]
+    .filter(value => value != null && String(value).trim() !== "")
+    .map(value => ({ label: String(value), key: normalizeAnimationClipName(value) }))
+    .filter(item => item.key);
+  const available = animations
+    .map(clip => ({ clip, key: normalizeAnimationClipName(clip.name) }))
+    .filter(item => item.key);
+
+  for (const candidate of candidates) {
+    const exact = available.find(item => item.key === candidate.key);
+    if (exact) {
+      return {
+        clip: exact.clip,
+        status: "matched",
+        message: `已按 ${candidate.label} 精确匹配 GLTF clip。`
+      };
+    }
+  }
+
+  for (const candidate of candidates) {
+    const partial = available.find(item => item.key.includes(candidate.key) || candidate.key.includes(item.key));
+    if (partial) {
+      return {
+        clip: partial.clip,
+        status: "matched",
+        message: `已按 ${candidate.label} 模糊匹配 GLTF clip ${partial.clip.name || "(unnamed)"}。`
+      };
+    }
+  }
+
+  if (animations.length === 1) {
+    return {
+      clip: animations[0],
+      status: "fallback",
+      message: `资源只有一个 GLTF clip，未匹配 ${candidates.map(item => item.label).join(", ") || "当前 clip"}，预览使用 ${animations[0].name || "(unnamed)"}。`
+    };
+  }
+
+  return {
+    clip: null,
+    status: "missing",
+    message: `无法在 ${animations.length} 个 GLTF clips 中匹配 ${candidates.map(item => item.label).join(", ") || "当前 clip"}。`
+  };
+}
+
+function normalizeAnimationClipName(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 async function loadThreeRuntime() {
