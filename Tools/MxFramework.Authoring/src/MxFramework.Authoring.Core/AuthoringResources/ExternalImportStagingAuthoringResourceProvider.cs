@@ -270,6 +270,7 @@ namespace MxFramework.Authoring
             switch (extension)
             {
                 case "fbx":
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model");
                 case "glb":
                 case "gltf":
                     if (LooksLikeAnimationPath(displayPath))

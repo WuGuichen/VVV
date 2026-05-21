@@ -103,7 +103,7 @@ namespace MxFramework.Authoring
 
         private static bool IsAnimationContainerPath(string path, string extension)
         {
-            if (extension != ".fbx" && extension != ".glb" && extension != ".gltf")
+            if (extension != ".glb" && extension != ".gltf")
                 return false;
 
             string normalized = path.Replace('\\', '/').ToLowerInvariant();

@@ -629,6 +629,7 @@ internal static class CharacterPackageTests
         Directory.CreateDirectory(generatedRoot);
         File.WriteAllText(Path.Combine(animationRoot, "standing_idle.anim"), "anim");
         File.WriteAllText(Path.Combine(animationRoot, "Standing Run Forward.fbx"), "fbx");
+        File.WriteAllText(Path.Combine(animationRoot, "Standing Run Forward.glb"), "glb");
         File.WriteAllText(Path.Combine(modelRoot, "Skeleton.fbx"), "model");
         File.WriteAllText(Path.Combine(generatedRoot, "placeholder.glb"), "generated");
 
@@ -652,8 +653,11 @@ internal static class CharacterPackageTests
             Require(idle.BindingKind == AuthoringResourceBindingKind.UnityEditorOnlyAsset, ".anim clip should be editor-only until compiled into runtime catalogs.");
             Require(idle.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnityAssetPath && binding.UnityAssetPath.EndsWith("standing_idle.anim", StringComparison.Ordinal)), ".anim clip should expose Unity asset path binding.");
 
-            AuthoringResourceItem run = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("Standing Run Forward.fbx", StringComparison.Ordinal));
-            Require(run != null && run.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation-folder FBX should be exposed as animationClipGroup.");
+            AuthoringResourceItem fbx = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("Standing Run Forward.fbx", StringComparison.Ordinal));
+            Require(fbx == null, "FBX files should not be exposed as animationClipGroup resources.");
+
+            AuthoringResourceItem run = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("Standing Run Forward.glb", StringComparison.Ordinal));
+            Require(run != null && run.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation-folder GLB should be exposed as animationClipGroup.");
             Require(collection.Items.TrueForAll(item => !item.Metadata["unityAssetPath"].Contains("MxFrameworkGenerated")), "generated package animation files should not be duplicated as project assets.");
         }
         finally
@@ -871,6 +875,13 @@ internal static class CharacterPackageTests
         });
         staging.Files.Add(new AuthoringExternalImportStagingFile
         {
+            FileName = "Standing Run Forward.glb",
+            RelativePath = "Art/Animations/Standing Run Forward.glb",
+            SizeBytes = 6,
+            BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("runglb"))
+        });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
             FileName = "Idle.anim",
             RelativePath = "Art/Clips/Idle.anim",
             SizeBytes = 4,
@@ -888,7 +899,7 @@ internal static class CharacterPackageTests
 
         Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.ExternalImportStaging, "external staging provider should be declared.");
         Require(collection.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.IgnoredImportFile), ".meta files should be ignored as diagnostics instead of primary resources.");
-        Require(collection.Items.Count == 6, "hidden/meta file should not become a staged resource item.");
+        Require(collection.Items.Count == 7, "hidden/meta file should not become a staged resource item.");
 
         AuthoringResourceItem duplicate = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Characters/body.glb");
         Require(duplicate != null && duplicate.ImportStatus == AuthoringResourceImportStatus.Conflict, "duplicate source hash should be staged as a conflict.");
@@ -908,9 +919,13 @@ internal static class CharacterPackageTests
         Require(icon.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "staged items should remain not runtime-loadable until promoted.");
         Require(icon.Metadata["selectable"] == "true", "supported unique staged items should be selectable for promotion.");
 
-        AuthoringResourceItem animation = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.fbx");
-        Require(animation != null && animation.Kind == CharacterPackageResourceTypeIds.Animation, "animation folder FBX should infer animation kind.");
-        Require(animation.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation folder FBX should infer animationClipGroup usage.");
+        AuthoringResourceItem fbxCandidate = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.fbx");
+        Require(fbxCandidate != null && fbxCandidate.Kind == CharacterPackageResourceTypeIds.Model, "FBX staging candidates should stay model resources even under animation folders.");
+        Require(fbxCandidate.Usage == CharacterPackageResourceUsageIds.PreviewMesh, "FBX staging candidates should not infer animationClipGroup usage.");
+
+        AuthoringResourceItem animation = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.glb");
+        Require(animation != null && animation.Kind == CharacterPackageResourceTypeIds.Animation, "animation folder GLB should infer animation kind.");
+        Require(animation.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation folder GLB should infer animationClipGroup usage.");
 
         AuthoringResourceItem unityClip = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Clips/Idle.anim");
         Require(unityClip != null && unityClip.Kind == CharacterPackageResourceTypeIds.Animation, "Unity .anim files should infer animation kind.");
