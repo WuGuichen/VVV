@@ -97,6 +97,13 @@ const PREVIEW_TARGET_OPTIONS = [
   { value: "characterPackage", label: "Character Package" },
   { value: "modelResource", label: "Model Resource" }
 ];
+const WORKSPACE_MODES = [
+  { value: "mapping", label: "资源映射", description: "选择源 AnimationClip，维护本地 clipId 和播放基础属性。" },
+  { value: "blend", label: "Locomotion / Blend", description: "配置 1D / 2D BlendSpace 和移动参数。" },
+  { value: "timeline", label: "动作时间轴", description: "编辑 Footstep、Trace、Hit、VFX、AudioCue 等事件点。" },
+  { value: "preview", label: "预览校验", description: "运行编译预览、查看资源计划和兼容性诊断。" },
+  { value: "advanced", label: "运行时高级", description: "配置 Profile、Layer、ActionBinding、Warmup 和兼容性。" }
+];
 const EVENT_KIND_OPTIONS = [
   { value: "Footstep", label: "footstep" },
   { value: "TraceOn", label: "trace on" },
@@ -132,6 +139,7 @@ const state = {
   validation: null,
   compileResult: null,
   selected: { kind: "package", setId: "", groupId: "", clipId: "" },
+  workspaceMode: "mapping",
   blendEditor: { view: "1D", blendId: "" },
   timelineEditor: { timelineId: "" },
   previewWorkflow: { targetType: "skeleton" },
@@ -226,7 +234,9 @@ function bindEvents() {
   el.mappingWorkspace.addEventListener("click", event => {
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.selectClip) {
+    if (button.dataset.workspaceMode) {
+      setWorkspaceMode(button.dataset.workspaceMode);
+    } else if (button.dataset.selectClip) {
       selectNode("clip", state.selected.setId, state.selected.groupId, button.dataset.selectClip);
       render();
     } else if (button.dataset.pickClip) {
@@ -573,22 +583,25 @@ function renderWorkspace() {
   const group = findGroup(state.selected.setId, state.selected.groupId);
   if (state.selected.kind === "package") {
     el.workspaceTitle.textContent = state.animation?.displayName || state.animation?.packageId || "Animation Package";
-    el.workspaceSubtitle.textContent = "编辑动画 Profile、Slot 和包级运行时意图";
-    el.mappingWorkspace.innerHTML = renderPackageRuntimeSections();
+    el.workspaceSubtitle.textContent = "包级配置只显示运行时高级页，资源映射从具体 Group 开始。";
+    state.workspaceMode = "advanced";
+    el.mappingWorkspace.innerHTML = `${renderWorkspaceModeTabs(false)}${renderPackageRuntimeSections()}`;
     return;
   }
 
   if (!set) {
     el.workspaceTitle.textContent = "Clip Mapping";
     el.workspaceSubtitle.textContent = "新增 Set 后开始配置动画组";
-    el.mappingWorkspace.innerHTML = `${emptyBlock("还没有可编辑的 AnimationSet。")}${renderPackageRuntimeSections()}`;
+    state.workspaceMode = "advanced";
+    el.mappingWorkspace.innerHTML = `${renderWorkspaceModeTabs(false)}${emptyBlock("还没有可编辑的 AnimationSet。")}${renderPackageRuntimeSections()}`;
     return;
   }
 
   if (!group) {
     el.workspaceTitle.textContent = set.displayName || set.setId || "AnimationSet";
-    el.workspaceSubtitle.textContent = "选择或新增 Group 后编辑 Clip mapping";
-    el.mappingWorkspace.innerHTML = `${emptyBlock("当前 Set 还没有 Group。")}${renderSetRuntimeSections(set)}${renderPackageRuntimeSections()}`;
+    el.workspaceSubtitle.textContent = "选择或新增 Group 后编辑资源映射；当前仅显示运行时高级配置。";
+    state.workspaceMode = "advanced";
+    el.mappingWorkspace.innerHTML = `${renderWorkspaceModeTabs(false)}${emptyBlock("当前 Set 还没有 Group。")}${renderSetRuntimeSections(set)}${renderPackageRuntimeSections()}`;
     return;
   }
 
@@ -596,23 +609,70 @@ function renderWorkspace() {
   el.workspaceTitle.textContent = group.displayName || group.groupId || "AnimationGroup";
   ensureBlendSelection(group);
   el.workspaceSubtitle.textContent = `${group.usage || "custom"} / ${clips.length} clips / ${(group.blend1D || []).length + (group.blend2D || []).length} blends`;
-  el.mappingWorkspace.innerHTML = `
-    <section class="workspace-section">
+  el.mappingWorkspace.innerHTML = `${renderWorkspaceModeTabs(true)}${renderActiveWorkspaceMode(set, group, clips)}`;
+  requestAnimationFrame(renderCompilerPreviewViewport);
+}
+
+function renderWorkspaceModeTabs(hasGroup) {
+  const activeMode = getActiveWorkspaceMode(hasGroup);
+  return `
+    <nav class="workspace-mode-tabs" aria-label="Animation workflow tabs">
+      ${WORKSPACE_MODES.map(mode => {
+        const disabled = !hasGroup && mode.value !== "advanced";
+        return `
+          <button type="button" class="${mode.value === activeMode ? "active" : ""}" data-workspace-mode="${escapeHtml(mode.value)}" ${disabled ? "disabled" : ""}>
+            <span>${escapeHtml(mode.label)}</span>
+            <small>${escapeHtml(mode.description)}</small>
+          </button>`;
+      }).join("")}
+    </nav>`;
+}
+
+function renderActiveWorkspaceMode(set, group, clips) {
+  const mode = getActiveWorkspaceMode(Boolean(group));
+  if (mode === "blend") return renderBlendEditor(group);
+  if (mode === "timeline") return renderTimelineEditor(group);
+  if (mode === "preview") return renderPreviewBakeCompatibilityWorkflow(set, group);
+  if (mode === "advanced") return `${renderSetRuntimeSections(set)}${renderPackageRuntimeSections()}`;
+  return renderClipMappingSection(group, clips);
+}
+
+function renderClipMappingSection(group, clips) {
+  return `
+    <section class="workspace-section clip-mapping-editor">
       <div class="section-heading">
         <div>
-          <h3>Clip Mapping</h3>
-          <p>Blend point 只能引用当前 Group 内的本地 clipId。</p>
+          <h3>资源映射</h3>
+          <p>把资源库里的 AnimationClip / sub-clip 映射为当前 Group 内稳定 clipId；这里不修改源动画文件。</p>
         </div>
         <button type="button" data-remove-group="1">删除 Group</button>
       </div>
+      ${renderClipMappingSummary(group, clips)}
       ${renderClipMappingTable(clips)}
-    </section>
-    ${renderBlendEditor(group)}
-    ${renderTimelineEditor(group)}
-    ${renderPreviewBakeCompatibilityWorkflow(set, group)}
-    ${renderSetRuntimeSections(set)}
-    ${renderPackageRuntimeSections()}`;
-  requestAnimationFrame(renderCompilerPreviewViewport);
+    </section>`;
+}
+
+function renderClipMappingSummary(group, clips) {
+  const missingSourceCount = clips.filter(clip => !getSelectionTitle(clip.sourceSelection) && !clip.runtimeResourceKey).length;
+  const motionDeltaCount = clips.filter(clip => clip.rootMotionPolicy === "MotionDelta").length;
+  return `
+    <div class="workflow-summary-grid" aria-label="Clip mapping summary">
+      <article>
+        <span>Group</span>
+        <strong>${escapeHtml(group.displayName || group.groupId || "AnimationGroup")}</strong>
+        <small>${escapeHtml(group.usage || "custom")}</small>
+      </article>
+      <article>
+        <span>Clips</span>
+        <strong>${escapeHtml(String(clips.length))}</strong>
+        <small>${missingSourceCount ? `${missingSourceCount} 个缺少源资源` : "源资源已配置"}</small>
+      </article>
+      <article>
+        <span>Root Motion</span>
+        <strong>${escapeHtml(String(motionDeltaCount))}</strong>
+        <small>MotionDelta clips</small>
+      </article>
+    </div>`;
 }
 
 function renderClipMappingTable(clips) {
@@ -3215,6 +3275,23 @@ function selectNode(kind, setId, groupId, clipId) {
   state.blendEditor.blendId = "";
   state.timelineEditor.timelineId = "";
   syncPreviewClipToCurrentSelection();
+}
+
+function setWorkspaceMode(mode) {
+  if (!WORKSPACE_MODES.some(item => item.value === mode)) return;
+  state.workspaceMode = mode;
+  renderWorkspace();
+}
+
+function getActiveWorkspaceMode(hasGroup = Boolean(state.selected.groupId)) {
+  if (!hasGroup) {
+    state.workspaceMode = "advanced";
+    return "advanced";
+  }
+  if (!WORKSPACE_MODES.some(item => item.value === state.workspaceMode)) {
+    state.workspaceMode = "mapping";
+  }
+  return state.workspaceMode;
 }
 
 function ensureAnimationShape() {

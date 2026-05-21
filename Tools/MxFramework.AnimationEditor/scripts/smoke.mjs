@@ -52,6 +52,7 @@ assert(app.includes("avatarMaskSelections") && app.includes("vfxSelections") && 
 assert(app.includes("ANIM_REF_BINDING_CLIP_MISSING") && app.includes("ANIM_REF_SLOT_BLEND_MISSING") && app.includes("ANIM_REF_WARMUP_CLIP_MISSING"), "AnimationEditor should diagnose cross-reference gaps after edits");
 assert(app.includes("/api/authoring/animation/compile") && index.includes("compileButton"), "AnimationEditor should expose compile preflight from the UI");
 assert(app.includes("blend1D") && app.includes("blend2D") && app.includes("Blend Editor"), "AnimationEditor should expose visual blend editing");
+assert(app.includes("WORKSPACE_MODES") && app.includes("资源映射") && app.includes("运行时高级") && app.includes("renderActiveWorkspaceMode"), "AnimationEditor should organize authoring by workflow tabs instead of showing every DTO section at once");
 assert(app.includes("1D line") && app.includes("2D plane"), "AnimationEditor should provide 1D line and 2D plane blend views");
 assert(app.includes("ANIM_BLEND_POINT_CLIP_MISSING") && app.includes("ANIM_BLEND_POINT_DUPLICATE"), "AnimationEditor should diagnose missing local clip references and duplicate blend coordinates");
 assert(app.includes("data-point-field") && app.includes("data-blend-field"), "AnimationEditor should edit blend fields and blend points without raw JSON");
@@ -80,6 +81,7 @@ assert(app.includes("Tools/MxFramework.ResourceLibrary/web/") && app.includes("T
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "AnimationEditor should remain a vanilla web workstation");
 assert(!index.includes("react") && !index.includes("vite") && !styles.includes("@vite"), "AnimationEditor should not migrate to a frontend framework or build tool");
 assert(styles.includes(".workspace") && styles.includes(".resource-picker-overlay"), "AnimationEditor should style workspace and resource picker overlay");
+assert(styles.includes(".workspace-mode-tabs") && styles.includes(".workflow-summary-grid"), "AnimationEditor should style workflow tabs and mapping summary cards");
 assert(styles.includes(".blend-track") && styles.includes(".blend-plane") && styles.includes(".blend-diagnostics"), "AnimationEditor should style visual blend editors and diagnostics");
 assert(styles.includes(".timeline-scrubber") && styles.includes(".timeline-domain-row") && styles.includes(".timeline-event-row"), "AnimationEditor should style timeline scrubber and event list");
 assert(styles.includes(".preview-bake-compatibility") && styles.includes(".artifact-table") && styles.includes(".workflow-diagnostics"), "AnimationEditor should style preview, bake, and compatibility workflow");
