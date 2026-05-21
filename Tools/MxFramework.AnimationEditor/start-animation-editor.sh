@@ -8,10 +8,10 @@ DEFAULT_PACKAGE="Tools/MxFramework.Authoring/samples/character-iron-vanguard"
 PORT="${1:-${MXFRAMEWORK_ANIMATION_EDITOR_PORT:-4873}}"
 PACKAGE_RELATIVE="${2:-${MXFRAMEWORK_ANIMATION_EDITOR_PACKAGE:-$DEFAULT_PACKAGE}}"
 OPEN_BROWSER="${MXFRAMEWORK_ANIMATION_EDITOR_OPEN_BROWSER:-1}"
-URL_PACKAGE="${PACKAGE_RELATIVE// /%20}"
-URL="http://127.0.0.1:${PORT}/Tools/MxFramework.AnimationEditor/web/?package=${URL_PACKAGE}"
-HEALTH_PACKAGES_URL="http://127.0.0.1:${PORT}/api/authoring/animation/packages"
-HEALTH_LOAD_URL="http://127.0.0.1:${PORT}/api/authoring/animation/load?package=${URL_PACKAGE}"
+URL_PACKAGE=""
+URL=""
+HEALTH_PACKAGES_URL=""
+HEALTH_LOAD_URL=""
 
 die() {
   printf '[ERROR] %s\n' "$*" >&2
@@ -20,6 +20,13 @@ die() {
 
 warn() {
   printf '[WARN] %s\n' "$*" >&2
+}
+
+configure_urls() {
+  URL_PACKAGE="${PACKAGE_RELATIVE// /%20}"
+  URL="http://127.0.0.1:${PORT}/Tools/MxFramework.AnimationEditor/web/?package=${URL_PACKAGE}"
+  HEALTH_PACKAGES_URL="http://127.0.0.1:${PORT}/api/authoring/animation/packages"
+  HEALTH_LOAD_URL="http://127.0.0.1:${PORT}/api/authoring/animation/load?package=${URL_PACKAGE}"
 }
 
 open_url() {
@@ -35,6 +42,44 @@ open_url() {
       fi
       ;;
   esac
+}
+
+select_available_port() {
+  configure_urls
+  if ! is_port_in_use; then
+    return
+  fi
+
+  if is_animation_editor_server_ready; then
+    printf 'Animation Editor-compatible Authoring server is already running on port %s.\n' "$PORT"
+    printf 'URL: %s\n' "$URL"
+    [[ "$OPEN_BROWSER" == "0" ]] || open_url
+    exit 0
+  fi
+
+  warn "Port $PORT is already in use, but it is not an Animation Editor-compatible Authoring server."
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$PORT" -sTCP:LISTEN -n -P >&2 || true
+  fi
+
+  local original_port="$PORT"
+  local candidate
+  for candidate in $(seq $((PORT + 1)) $((PORT + 30))); do
+    PORT="$candidate"
+    configure_urls
+    if ! is_port_in_use; then
+      warn "Using free fallback port $PORT instead of $original_port."
+      return
+    fi
+    if is_animation_editor_server_ready; then
+      printf 'Animation Editor-compatible Authoring server is already running on port %s.\n' "$PORT"
+      printf 'URL: %s\n' "$URL"
+      [[ "$OPEN_BROWSER" == "0" ]] || open_url
+      exit 0
+    fi
+  done
+
+  die "No free Authoring server port found in range $((original_port + 1))-$((original_port + 30)). Stop the old process or pass an explicit free port."
 }
 
 is_port_in_use() {
@@ -90,19 +135,7 @@ if ! dotnet --list-sdks | grep -Eq '^[[:space:]]*(9|[1-9][0-9])\.'; then
   die "Authoring CLI targets net9.0, but .NET 9+ SDK was not found. Installed SDKs: $(dotnet --list-sdks | tr '\n' '; ')"
 fi
 
-if is_port_in_use; then
-  if is_animation_editor_server_ready; then
-    printf 'Animation Editor-compatible Authoring server is already running on port %s.\n' "$PORT"
-    printf 'URL: %s\n' "$URL"
-    [[ "$OPEN_BROWSER" == "0" ]] || open_url
-    exit 0
-  fi
-
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:"$PORT" -sTCP:LISTEN -n -P >&2 || true
-  fi
-  die "Port $PORT is already in use, but it is not an Animation Editor-compatible Authoring server. Stop the old process or retry with another port: $0 4874"
-fi
+select_available_port
 
 printf 'MxFramework Animation Editor\n'
 printf 'Root   : %s\n' "$ROOT_DIR"

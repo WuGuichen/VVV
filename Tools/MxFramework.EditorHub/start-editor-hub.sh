@@ -8,9 +8,9 @@ DEFAULT_PACKAGE="Tools/MxFramework.Authoring/samples/character-iron-vanguard"
 PORT="${1:-${MXFRAMEWORK_EDITOR_HUB_PORT:-4873}}"
 PACKAGE_RELATIVE="${2:-${MXFRAMEWORK_EDITOR_HUB_PACKAGE:-$DEFAULT_PACKAGE}}"
 OPEN_BROWSER="${MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER:-1}"
-URL="http://127.0.0.1:${PORT}/Tools/MxFramework.EditorHub/web/"
-HEALTH_URL="http://127.0.0.1:${PORT}/api/character/packages"
-ANIMATION_HEALTH_URL="http://127.0.0.1:${PORT}/api/authoring/animation/packages"
+URL=""
+HEALTH_URL=""
+ANIMATION_HEALTH_URL=""
 
 die() {
   printf '[ERROR] %s\n' "$*" >&2
@@ -19,6 +19,12 @@ die() {
 
 warn() {
   printf '[WARN] %s\n' "$*" >&2
+}
+
+configure_urls() {
+  URL="http://127.0.0.1:${PORT}/Tools/MxFramework.EditorHub/web/"
+  HEALTH_URL="http://127.0.0.1:${PORT}/api/character/packages"
+  ANIMATION_HEALTH_URL="http://127.0.0.1:${PORT}/api/authoring/animation/packages"
 }
 
 open_url() {
@@ -36,6 +42,12 @@ open_url() {
   esac
 }
 
+is_editor_hub_server_ready() {
+  command -v curl >/dev/null 2>&1 &&
+    curl -fsS "$HEALTH_URL" >/dev/null 2>&1 &&
+    curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1
+}
+
 wait_and_open_url() {
   if ! command -v curl >/dev/null 2>&1; then
     sleep 3
@@ -44,7 +56,7 @@ wait_and_open_url() {
   fi
 
   for _ in $(seq 1 30); do
-    if curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
+    if is_editor_hub_server_ready; then
       open_url
       return
     fi
@@ -68,6 +80,49 @@ is_port_in_use() {
   return 1
 }
 
+select_available_port() {
+  configure_urls
+  if ! is_port_in_use; then
+    return
+  fi
+
+  if is_editor_hub_server_ready; then
+    printf 'MxFramework Authoring server is already running on port %s.\n' "$PORT"
+    printf 'URL: %s\n' "$URL"
+    [[ "$OPEN_BROWSER" == "0" ]] || open_url
+    exit 0
+  fi
+
+  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && ! curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
+    warn "Port $PORT has an older Authoring server without Animation Editor APIs."
+  else
+    warn "Port $PORT is already in use, but it is not an Editor Hub-compatible Authoring server."
+  fi
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$PORT" -sTCP:LISTEN -n -P >&2 || true
+  fi
+
+  local original_port="$PORT"
+  local candidate
+  for candidate in $(seq $((PORT + 1)) $((PORT + 30))); do
+    PORT="$candidate"
+    configure_urls
+    if ! is_port_in_use; then
+      warn "Using free fallback port $PORT instead of $original_port."
+      return
+    fi
+    if is_editor_hub_server_ready; then
+      printf 'MxFramework Authoring server is already running on port %s.\n' "$PORT"
+      printf 'URL: %s\n' "$URL"
+      [[ "$OPEN_BROWSER" == "0" ]] || open_url
+      exit 0
+    fi
+  done
+
+  die "No free Authoring server port found in range $((original_port + 1))-$((original_port + 30)). Stop the old process or pass an explicit free port."
+}
+
 cd "$ROOT_DIR"
 
 [[ "$PORT" =~ ^[0-9]+$ ]] || die "Port must be numeric. Example: $0 4874"
@@ -88,24 +143,7 @@ if [[ ! -d "$ROOT_DIR/Tools/MxFramework.CharacterStudio/node_modules/three" ]]; 
   warn "Run once: npm --prefix Tools/MxFramework.CharacterStudio install"
 fi
 
-if is_port_in_use; then
-  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
-    printf 'MxFramework Authoring server is already running on port %s.\n' "$PORT"
-    printf 'URL: %s\n' "$URL"
-    [[ "$OPEN_BROWSER" == "0" ]] || open_url
-    exit 0
-  fi
-
-  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && ! curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
-    warn "Port $PORT has an older Authoring server without Animation Editor APIs."
-    warn "Stop that server and rerun, or start this Hub on another port: $0 4874"
-  fi
-
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:"$PORT" -sTCP:LISTEN -n -P >&2 || true
-  fi
-  die "Port $PORT is already in use. Retry with another port: $0 4874"
-fi
+select_available_port
 
 printf 'MxFramework Editor Hub\n'
 printf 'Root   : %s\n' "$ROOT_DIR"

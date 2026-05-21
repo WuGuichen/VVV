@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
 pushd "%SCRIPT_DIR%..\.." >nul
@@ -83,12 +83,36 @@ if not "%PORT_PID%"=="" (
         )
 
         echo [WARN] Port %PORT% has an older Authoring server without Animation Editor APIs.
-        echo [WARN] Stop that server and rerun, or start this Hub on another port: Tools\MxFramework.EditorHub\start-editor-hub.bat 4874
+    ) else (
+        echo [WARN] Port %PORT% is already in use, but it is not an Editor Hub-compatible Authoring server.
     )
 
-    echo [ERROR] Port %PORT% is already in use by process %PORT_PID%.
-    echo Retry with another port: Tools\MxFramework.EditorHub\start-editor-hub.bat 4874
-    exit /b 1
+    echo [WARN] Port %PORT% is already in use by process %PORT_PID%.
+    set "ORIGINAL_PORT=%PORT%"
+    set /a START_PORT=%PORT%+1
+    set /a END_PORT=%PORT%+30
+    set "FOUND_PORT="
+    for /L %%Q in (!START_PORT!,1,!END_PORT!) do (
+        if "!FOUND_PORT!"=="" (
+            set "CANDIDATE_PID="
+            for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%%Q .*LISTENING"') do (
+                set "CANDIDATE_PID=%%P"
+            )
+            if "!CANDIDATE_PID!"=="" (
+                set "FOUND_PORT=%%Q"
+            )
+        )
+    )
+    if "!FOUND_PORT!"=="" (
+        echo [ERROR] No free Authoring server port found in range !START_PORT!-!END_PORT!.
+        echo Stop the old process or pass an explicit free port.
+        exit /b 1
+    )
+    set "PORT=!FOUND_PORT!"
+    set "URL=http://127.0.0.1:!PORT!/Tools/MxFramework.EditorHub/web/"
+    set "HEALTH_URL=http://127.0.0.1:!PORT!/api/character/packages"
+    set "ANIMATION_HEALTH_URL=http://127.0.0.1:!PORT!/api/authoring/animation/packages"
+    echo [WARN] Using free fallback port !PORT! instead of !ORIGINAL_PORT!.
 )
 
 echo MxFramework Editor Hub

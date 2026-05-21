@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
 pushd "%SCRIPT_DIR%..\.." >nul
@@ -76,10 +76,33 @@ if not "%PORT_PID%"=="" (
         exit /b 0
     )
 
-    echo [ERROR] Port %PORT% is already in use by process %PORT_PID%.
-    echo [ERROR] The existing process is not an Animation Editor-compatible Authoring server.
-    echo Stop the old process or retry with another port: Tools\MxFramework.AnimationEditor\start-animation-editor.bat 4874
-    exit /b 1
+    echo [WARN] Port %PORT% is already in use by process %PORT_PID%.
+    echo [WARN] The existing process is not an Animation Editor-compatible Authoring server.
+    set "ORIGINAL_PORT=%PORT%"
+    set /a START_PORT=%PORT%+1
+    set /a END_PORT=%PORT%+30
+    set "FOUND_PORT="
+    for /L %%Q in (!START_PORT!,1,!END_PORT!) do (
+        if "!FOUND_PORT!"=="" (
+            set "CANDIDATE_PID="
+            for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%%Q .*LISTENING"') do (
+                set "CANDIDATE_PID=%%P"
+            )
+            if "!CANDIDATE_PID!"=="" (
+                set "FOUND_PORT=%%Q"
+            )
+        )
+    )
+    if "!FOUND_PORT!"=="" (
+        echo [ERROR] No free Authoring server port found in range !START_PORT!-!END_PORT!.
+        echo Stop the old process or pass an explicit free port.
+        exit /b 1
+    )
+    set "PORT=!FOUND_PORT!"
+    set "URL=http://127.0.0.1:!PORT!/Tools/MxFramework.AnimationEditor/web/?package=!URL_PACKAGE!"
+    set "HEALTH_PACKAGES_URL=http://127.0.0.1:!PORT!/api/authoring/animation/packages"
+    set "HEALTH_LOAD_URL=http://127.0.0.1:!PORT!/api/authoring/animation/load?package=!URL_PACKAGE!"
+    echo [WARN] Using free fallback port !PORT! instead of !ORIGINAL_PORT!.
 )
 
 echo MxFramework Animation Editor
