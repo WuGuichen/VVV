@@ -108,6 +108,17 @@ const EVENT_KIND_OPTIONS = [
   { value: "Custom", label: "custom" }
 ];
 
+const PREVIEW_RETARGET_NAME_MAP = {
+  Torso: ["spine.002", "spine.001", "spine"],
+  Head: ["spine.006", "spine.005", "spine.004"],
+  LeftArm: ["upper_arm.L", "forearm.L", "shoulder.L"],
+  RightArm: ["upper_arm.R", "forearm.R", "shoulder.R"],
+  LeftLeg: ["thigh.L", "shin.L", "foot.L"],
+  RightLeg: ["thigh.R", "shin.R", "foot.R"],
+  Sword: ["hand.R", "forearm.R", "upper_arm.R"],
+  Shield: ["hand.L", "forearm.L", "upper_arm.L"]
+};
+
 let threeRuntimePromise = null;
 
 const state = {
@@ -139,6 +150,7 @@ const state = {
     matchedClipName: "",
     availableClipNames: [],
     resourceAnimationCount: 0,
+    retargetedTrackCount: 0,
     resourceKey: "",
     renderId: 0,
     cleanup: null,
@@ -1073,7 +1085,10 @@ function renderPreviewGltfStatus(resource) {
   const clipNames = isCurrentResource ? preview.availableClipNames : [];
   const status = isCurrentResource ? preview.matchStatus : "idle";
   const matchedName = isCurrentResource ? preview.matchedClipName : "";
-  const message = isCurrentResource ? preview.matchMessage : "等待当前资源解析 GLTF animation 列表。";
+  const retargetMessage = isCurrentResource && preview.retargetedTrackCount > 0
+    ? ` 已重定向 ${preview.retargetedTrackCount} 条轨道到当前预览模型。`
+    : "";
+  const message = isCurrentResource ? `${preview.matchMessage || ""}${retargetMessage}` : "等待当前资源解析 GLTF animation 列表。";
   const count = isCurrentResource ? preview.resourceAnimationCount : 0;
   return `
     <div id="previewClipMatchStatus" class="preview-gltf-status status-${escapeHtml(status || "idle")}" aria-label="GLTF clip match status">
@@ -3569,6 +3584,7 @@ function resetPreviewClipInsight() {
   state.preview3d.matchedClipName = "";
   state.preview3d.availableClipNames = [];
   state.preview3d.resourceAnimationCount = 0;
+  state.preview3d.retargetedTrackCount = 0;
   state.preview3d.resourceKey = "";
 }
 
@@ -3817,8 +3833,10 @@ async function renderThreePreviewViewport(host, resource, clip, renderId, animat
   }
 
   if (clipMatch.clip) {
+    const playableClip = createPreviewPlayableClip(THREE, clipMatch.clip, model);
+    state.preview3d.retargetedTrackCount = playableClip.retargetedTrackCount;
     mixer = new THREE.AnimationMixer(model);
-    action = mixer.clipAction(clipMatch.clip);
+    action = mixer.clipAction(playableClip.clip);
     action.enabled = true;
     action.clampWhenFinished = true;
     action.setLoop(state.preview3d.loop ? THREE.LoopRepeat : THREE.LoopOnce, state.preview3d.loop ? Infinity : 1);
@@ -3889,6 +3907,122 @@ async function renderThreePreviewViewport(host, resource, clip, renderId, animat
   state.preview3d.threeStatus = "ready";
   host.dataset.previewState = "ready";
   state.preview3d.cleanup = disposeLocal;
+}
+
+function createPreviewPlayableClip(THREE, clip, model) {
+  if (!clip || !Array.isArray(clip.tracks) || !model) {
+    return { clip, retargetedTrackCount: 0 };
+  }
+
+  let retargetedTrackCount = 0;
+  const tracks = clip.tracks.map(track => {
+    const parsed = parsePreviewTrackName(track.name || "");
+    if (!parsed) return track;
+    if (model.getObjectByName(parsed.targetName)) return track;
+
+    const target = findPreviewRetargetObject(model, parsed.targetName);
+    if (!target) return track;
+
+    retargetedTrackCount += 1;
+    return createRelativeRetargetedTrack(THREE, track, target, parsed.property, parsed.suffix);
+  });
+
+  if (retargetedTrackCount === 0) {
+    return { clip, retargetedTrackCount: 0 };
+  }
+
+  const retargetedClip = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+  retargetedClip.userData = { ...(clip.userData || {}), retargetedTrackCount };
+  return { clip: retargetedClip, retargetedTrackCount };
+}
+
+function parsePreviewTrackName(trackName) {
+  const bindings = [
+    { suffix: ".position", property: "position", bindingSuffix: ".position" },
+    { suffix: ".translation", property: "position", bindingSuffix: ".position" },
+    { suffix: ".quaternion", property: "quaternion", bindingSuffix: ".quaternion" },
+    { suffix: ".rotation", property: "quaternion", bindingSuffix: ".quaternion" },
+    { suffix: ".scale", property: "scale", bindingSuffix: ".scale" }
+  ];
+  for (const binding of bindings) {
+    if (trackName.endsWith(binding.suffix)) {
+      return {
+        targetName: trackName.slice(0, -binding.suffix.length),
+        property: binding.property,
+        suffix: binding.bindingSuffix
+      };
+    }
+  }
+  return null;
+}
+
+function findPreviewRetargetObject(model, sourceName) {
+  const mapEntry = Object.entries(PREVIEW_RETARGET_NAME_MAP).find(([name]) => {
+    const normalizedSource = sourceName.toLowerCase();
+    const normalizedName = name.toLowerCase();
+    return normalizedSource === normalizedName ||
+      normalizedSource.endsWith(normalizedName) ||
+      normalizedSource.includes(normalizedName);
+  });
+  const candidates = mapEntry ? mapEntry[1] : [];
+  for (const name of candidates) {
+    const target = model.getObjectByName(name) || model.getObjectByName(sanitizePreviewNodeName(name));
+    if (target) return target;
+  }
+  return null;
+}
+
+function sanitizePreviewNodeName(name) {
+  return String(name || "").replace(/\s/g, "_").replace(/[\[\]\.:/]/g, "");
+}
+
+function createRelativeRetargetedTrack(THREE, track, target, property, suffix) {
+  const targetName = `${target.uuid}${suffix}`;
+  if (property === "position" && track.values.length >= 3) {
+    const sourceBase = [track.values[0], track.values[1], track.values[2]];
+    const targetBase = target.position.toArray();
+    const values = Array.from(track.values);
+    for (let i = 0; i + 2 < values.length; i += 3) {
+      values[i] = targetBase[0] + (values[i] - sourceBase[0]);
+      values[i + 1] = targetBase[1] + (values[i + 1] - sourceBase[1]);
+      values[i + 2] = targetBase[2] + (values[i + 2] - sourceBase[2]);
+    }
+    return new THREE.VectorKeyframeTrack(targetName, Array.from(track.times), values);
+  }
+
+  if (property === "quaternion" && track.values.length >= 4) {
+    const sourceBase = new THREE.Quaternion(track.values[0], track.values[1], track.values[2], track.values[3]).normalize();
+    const inverseSourceBase = sourceBase.clone().invert();
+    const targetBase = target.quaternion.clone();
+    const values = [];
+    for (let i = 0; i + 3 < track.values.length; i += 4) {
+      const source = new THREE.Quaternion(track.values[i], track.values[i + 1], track.values[i + 2], track.values[i + 3]).normalize();
+      const delta = inverseSourceBase.clone().multiply(source);
+      const next = targetBase.clone().multiply(delta).normalize();
+      values.push(next.x, next.y, next.z, next.w);
+    }
+    return new THREE.QuaternionKeyframeTrack(targetName, Array.from(track.times), values);
+  }
+
+  if (property === "scale" && track.values.length >= 3) {
+    const sourceBase = [
+      track.values[0] || 1,
+      track.values[1] || 1,
+      track.values[2] || 1
+    ];
+    const targetBase = target.scale.toArray();
+    const values = Array.from(track.values);
+    for (let i = 0; i + 2 < values.length; i += 3) {
+      values[i] = targetBase[0] * (values[i] / sourceBase[0]);
+      values[i + 1] = targetBase[1] * (values[i + 1] / sourceBase[1]);
+      values[i + 2] = targetBase[2] * (values[i + 2] / sourceBase[2]);
+    }
+    return new THREE.VectorKeyframeTrack(targetName, Array.from(track.times), values);
+  }
+
+  const cloned = track.clone();
+  cloned.name = targetName;
+  return cloned;
 }
 
 function selectGltfAnimationClip(animations, previewClip) {
