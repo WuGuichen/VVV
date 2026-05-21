@@ -63,7 +63,7 @@ const IMPORT_PRESETS = [
     kind: "animation",
     usage: "animationClipGroup",
     role: "",
-    extensions: ["anim", "glb", "gltf", "fbx", "json"]
+    extensions: ["anim", "glb", "gltf", "json"]
   },
   {
     id: "audioCue",

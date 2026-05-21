@@ -13,7 +13,7 @@
 资源管理器的导入面板先选择“导入类型”，再选择单个文件或文件夹。文件夹导入会先走 external import staging 预检：
 
 - `.meta`、`.DS_Store`、隐藏目录等编辑器元数据会计入“忽略元数据”，不会成为资源。
-- 当前导入类型会作为最终归类依据。例如选择“动画 Clip/Group”后，`.anim`、`.fbx`、`.glb`、`.gltf`、`.json` 会导入为 `animation / animationClipGroup`。
+- 当前导入类型会作为最终归类依据。例如选择“动画 Clip/Group”后，`.anim`、`.glb`、`.gltf`、`.json` 会导入为 `animation / animationClipGroup`；`.fbx` 只作为模型/外部转换来源，不归类为动画 Clip 或 Clip Group。
 - 不匹配当前导入类型、格式不支持、重复 hash 或超过大小限制的文件会计入“跳过非匹配”或诊断，不会自动写入资源目录。
 - 资源浏览器只负责准备和提供资源列表；角色、动画、战斗等编辑器通过资源选择器引用这些资源。
 

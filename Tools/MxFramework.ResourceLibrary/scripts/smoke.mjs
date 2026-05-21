@@ -43,7 +43,7 @@ assert(app.includes("fmodEventPath") && app.includes("audioCueId") && app.includ
 assert(app.includes("targetResourceId") && app.includes("targetProviderResourceKey") && app.includes("targetRuntimeResourceKey"), "app should match cross-consumer reference graph targets");
 assert(app.includes("postJson") && app.includes("readFileAsBase64"), "app should post write requests with uploaded file bytes");
 assert(app.includes("IMPORT_PRESETS") && app.includes("animationClipGroup") && app.includes("audioCue"), "app should define typed animation and audio import presets");
-assert(app.includes('id: "animationClipGroup"') && app.includes('extensions: ["anim", "glb", "gltf", "fbx", "json"]'), "animation import preset should accept Unity .anim and FBX animation sources for conversion");
+assert(app.includes('id: "animationClipGroup"') && app.includes('extensions: ["anim", "glb", "gltf", "json"]'), "animation import preset should accept Unity .anim, GLB/GLTF, and JSON animation sources without treating FBX as animation");
 assert(app.includes("importResourceFolder") && app.includes("webkitRelativePath"), "app should support folder import with stable local ids");
 assert(app.includes("isIgnoredImportFile") && app.includes(".meta") && app.includes("忽略元数据"), "folder import should ignore editor metadata files separately from skipped resources");
 assert(app.includes("isImportableStagedItem") && app.includes("AUTH_RES_IMPORT_IGNORED_FILE") && app.includes("externalImportStaging"), "folder import should use staging diagnostics and provider items");
