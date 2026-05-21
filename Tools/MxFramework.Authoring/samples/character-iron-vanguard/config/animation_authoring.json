@@ -1,0 +1,477 @@
+{
+  "schemaVersion": "1.0",
+  "packageId": "animation.iron_vanguard",
+  "stableId": "charpkg.iron_vanguard.animation",
+  "displayName": "Iron Vanguard Animation",
+  "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+  "avatarProfileId": "avatar.iron_vanguard.humanoid",
+  "sets": [
+    {
+      "setId": "set.base",
+      "displayName": "Base Animation Set",
+      "version": "1.0",
+      "defaultClipId": "idle",
+      "fallbackClipId": "idle",
+      "layers": [
+        {
+          "layerId": "layer.base",
+          "displayName": "Base Layer",
+          "purpose": "fullBody",
+          "weight": 1,
+          "additive": false,
+          "syncLayerId": "",
+          "rootMotionPolicy": "Ignore",
+          "avatarMaskSelection": {},
+          "tags": [
+            "fullBody"
+          ],
+          "metadata": {}
+        }
+      ],
+      "groups": [
+        {
+          "groupId": "group.locomotion",
+          "displayName": "Locomotion",
+          "description": "Default idle and movement animation group.",
+          "usage": "locomotion",
+          "clips": [
+            {
+              "clipId": "idle",
+              "displayName": "Idle",
+              "sourceSelection": {
+                "resourceStableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+                "sourceProviderId": "characterPackage",
+                "bindingKind": "PackageResource",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClipGroup",
+                "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+                "packageResourceKey": "char.iron_vanguard.anim.locomotion"
+              },
+              "sourceSubClipId": "idle",
+              "sourceClipName": "idle",
+              "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "tags": [
+                "idle",
+                "loop"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "1.2",
+                "presentationFrameCount": "72",
+                "combatFrameCount": "60"
+              }
+            },
+            {
+              "clipId": "walk",
+              "displayName": "Walk",
+              "sourceSelection": {
+                "resourceStableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+                "sourceProviderId": "characterPackage",
+                "bindingKind": "PackageResource",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClipGroup",
+                "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+                "packageResourceKey": "char.iron_vanguard.anim.locomotion"
+              },
+              "sourceSubClipId": "walk",
+              "sourceClipName": "walk",
+              "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "MotionDelta",
+              "tags": [
+                "move",
+                "loop"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "0.9",
+                "presentationFrameCount": "54",
+                "combatFrameCount": "45"
+              }
+            },
+            {
+              "clipId": "run",
+              "displayName": "Run",
+              "sourceSelection": {
+                "resourceStableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+                "sourceProviderId": "characterPackage",
+                "bindingKind": "PackageResource",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClipGroup",
+                "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+                "packageResourceKey": "char.iron_vanguard.anim.locomotion"
+              },
+              "sourceSubClipId": "run",
+              "sourceClipName": "run",
+              "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "MotionDelta",
+              "tags": [
+                "move",
+                "loop"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "0.7",
+                "presentationFrameCount": "42",
+                "combatFrameCount": "36"
+              }
+            }
+          ],
+          "blend1D": [
+            {
+              "blendId": "blend.speed",
+              "displayName": "Speed Blend",
+              "parameter": "speed",
+              "defaultClipId": "idle",
+              "points": [
+                {
+                  "clipId": "idle",
+                  "value": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk",
+                  "value": 0.5,
+                  "weight": 1
+                },
+                {
+                  "clipId": "run",
+                  "value": 1,
+                  "weight": 1
+                }
+              ],
+              "diagnostics": [],
+              "metadata": {}
+            }
+          ],
+          "blend2D": [],
+          "timelines": [
+            {
+              "timelineId": "timeline.locomotion",
+              "displayName": "Locomotion Timeline",
+              "clipId": "walk",
+              "timeDomain": "Normalized",
+              "events": [
+                {
+                  "eventId": "event.footstep.left",
+                  "clipId": "walk",
+                  "timeDomain": "Normalized",
+                  "time": 0.25,
+                  "eventKind": "Footstep",
+                  "resourceSelection": {},
+                  "payloadJson": "{\"foot\":\"left\",\"surface\":\"default\"}",
+                  "metadata": {}
+                },
+                {
+                  "eventId": "event.footstep.right",
+                  "clipId": "walk",
+                  "timeDomain": "Normalized",
+                  "time": 0.75,
+                  "eventKind": "Footstep",
+                  "resourceSelection": {},
+                  "payloadJson": "{\"foot\":\"right\",\"surface\":\"default\"}",
+                  "metadata": {}
+                }
+              ],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "0.9",
+                "presentationFrameCount": "54",
+                "combatFrameCount": "45"
+              }
+            }
+          ],
+          "diagnostics": [],
+          "metadata": {}
+        },
+        {
+          "groupId": "group.combat",
+          "displayName": "Combat",
+          "description": "Default sword and shield combat actions.",
+          "usage": "combat",
+          "clips": [
+            {
+              "clipId": "sword_attack",
+              "displayName": "Sword Attack",
+              "sourceSelection": {
+                "resourceStableId": "charpkg.iron_vanguard.resource.anim.combat",
+                "sourceProviderId": "characterPackage",
+                "bindingKind": "PackageResource",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClipGroup",
+                "runtimeResourceKey": "char.iron_vanguard.anim.combat",
+                "packageResourceKey": "char.iron_vanguard.anim.combat"
+              },
+              "sourceSubClipId": "sword_attack",
+              "sourceClipName": "sword_attack",
+              "runtimeResourceKey": "char.iron_vanguard.anim.combat",
+              "loop": false,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "tags": [
+                "attack"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "0.8",
+                "presentationFrameCount": "48",
+                "combatFrameCount": "36"
+              }
+            },
+            {
+              "clipId": "shield_guard",
+              "displayName": "Shield Guard",
+              "sourceSelection": {
+                "resourceStableId": "charpkg.iron_vanguard.resource.anim.combat",
+                "sourceProviderId": "characterPackage",
+                "bindingKind": "PackageResource",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClipGroup",
+                "runtimeResourceKey": "char.iron_vanguard.anim.combat",
+                "packageResourceKey": "char.iron_vanguard.anim.combat"
+              },
+              "sourceSubClipId": "shield_guard",
+              "sourceClipName": "shield_guard",
+              "runtimeResourceKey": "char.iron_vanguard.anim.combat",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "tags": [
+                "guard"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "1",
+                "presentationFrameCount": "60",
+                "combatFrameCount": "60"
+              }
+            }
+          ],
+          "blend1D": [],
+          "blend2D": [],
+          "timelines": [
+            {
+              "timelineId": "timeline.sword_attack",
+              "displayName": "Sword Attack Timeline",
+              "clipId": "sword_attack",
+              "timeDomain": "Normalized",
+              "events": [
+                {
+                  "eventId": "event.trace.on",
+                  "clipId": "sword_attack",
+                  "timeDomain": "Normalized",
+                  "time": 0.25,
+                  "eventKind": "TraceOn",
+                  "resourceSelection": {},
+                  "payloadJson": "{\"traceId\":\"mainHand\"}",
+                  "metadata": {}
+                },
+                {
+                  "eventId": "event.hit",
+                  "clipId": "sword_attack",
+                  "timeDomain": "Normalized",
+                  "time": 0.45,
+                  "eventKind": "HitMarker",
+                  "resourceSelection": {},
+                  "payloadJson": "{\"marker\":\"mainHit\"}",
+                  "metadata": {}
+                },
+                {
+                  "eventId": "event.trace.off",
+                  "clipId": "sword_attack",
+                  "timeDomain": "Normalized",
+                  "time": 0.65,
+                  "eventKind": "TraceOff",
+                  "resourceSelection": {},
+                  "payloadJson": "{\"traceId\":\"mainHand\"}",
+                  "metadata": {}
+                }
+              ],
+              "diagnostics": [],
+              "metadata": {
+                "durationSeconds": "0.8",
+                "presentationFrameCount": "48",
+                "combatFrameCount": "36"
+              }
+            }
+          ],
+          "diagnostics": [],
+          "metadata": {}
+        }
+      ],
+      "actionBindings": [
+        {
+          "bindingId": "binding.locomotion",
+          "actionId": "locomotion.move",
+          "displayName": "Move",
+          "groupId": "group.locomotion",
+          "clipId": "",
+          "blendId": "blend.speed",
+          "timelineId": "timeline.locomotion",
+          "required": true,
+          "tags": [
+            "locomotion"
+          ],
+          "metadata": {}
+        },
+        {
+          "bindingId": "binding.attack.light",
+          "actionId": "combat.attack.light",
+          "displayName": "Light Attack",
+          "groupId": "group.combat",
+          "clipId": "sword_attack",
+          "blendId": "",
+          "timelineId": "timeline.sword_attack",
+          "required": true,
+          "tags": [
+            "combat"
+          ],
+          "metadata": {}
+        }
+      ],
+      "compatibility": {
+        "compatibilityId": "compat.iron_vanguard.humanoid",
+        "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+        "avatarProfileId": "avatar.iron_vanguard.humanoid",
+        "coordinateConvention": "YPositive/ZPositive/LeftHanded",
+        "allowRetargeting": true,
+        "compatibilityProfileSelection": {},
+        "avatarMaskSelection": {},
+        "requiredBoneIds": [
+          "hips",
+          "spine",
+          "left_hand",
+          "right_hand",
+          "left_foot",
+          "right_foot"
+        ],
+        "requiredSocketIds": [
+          "mainHand",
+          "offHand"
+        ],
+        "diagnostics": [],
+        "metadata": {}
+      },
+      "warmup": {
+        "warmupId": "warmup.base",
+        "preloadPolicy": "AnimationWarmup",
+        "includeDefaultClip": true,
+        "includeFallbackClip": true,
+        "includeActionBindings": true,
+        "includeBlendPoints": true,
+        "requiredClipIds": [
+          "idle",
+          "walk",
+          "run",
+          "sword_attack",
+          "shield_guard"
+        ],
+        "requiredBlendIds": [
+          "blend.speed"
+        ],
+        "avatarMaskSelections": [],
+        "vfxSelections": [],
+        "audioCueSelections": [],
+        "generatedArtifactSelections": [],
+        "additionalResourceSelections": [],
+        "diagnostics": [],
+        "metadata": {}
+      },
+      "diagnostics": [],
+      "metadata": {}
+    }
+  ],
+  "profiles": [
+    {
+      "profileId": "profile.base",
+      "displayName": "Base Profile",
+      "description": "Default animation profile for Iron Vanguard.",
+      "defaultSetId": "set.base",
+      "defaultGroupId": "group.locomotion",
+      "slots": [
+        {
+          "slotId": "locomotion",
+          "displayName": "Locomotion",
+          "purpose": "Default move and idle animation group.",
+          "setId": "set.base",
+          "groupId": "group.locomotion",
+          "defaultClipId": "idle",
+          "defaultBlendId": "blend.speed",
+          "preloadPolicy": "AnimationWarmup",
+          "required": true
+        },
+        {
+          "slotId": "lightAttack",
+          "displayName": "Light Attack",
+          "purpose": "Default main-hand attack animation.",
+          "setId": "set.base",
+          "groupId": "group.combat",
+          "defaultClipId": "sword_attack",
+          "defaultBlendId": "",
+          "preloadPolicy": "AnimationWarmup",
+          "required": true
+        }
+      ],
+      "compatibility": {
+        "compatibilityId": "compat.profile.base",
+        "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+        "avatarProfileId": "avatar.iron_vanguard.humanoid",
+        "coordinateConvention": "YPositive/ZPositive/LeftHanded",
+        "allowRetargeting": true,
+        "compatibilityProfileSelection": {},
+        "avatarMaskSelection": {},
+        "requiredBoneIds": [
+          "hips",
+          "spine",
+          "left_hand",
+          "right_hand"
+        ],
+        "requiredSocketIds": [
+          "mainHand",
+          "offHand"
+        ],
+        "diagnostics": [],
+        "metadata": {}
+      },
+      "warmup": {
+        "warmupId": "warmup.profile.base",
+        "preloadPolicy": "AnimationWarmup",
+        "includeDefaultClip": true,
+        "includeFallbackClip": true,
+        "includeActionBindings": true,
+        "includeBlendPoints": true,
+        "requiredClipIds": [
+          "idle",
+          "walk",
+          "run",
+          "sword_attack"
+        ],
+        "requiredBlendIds": [
+          "blend.speed"
+        ],
+        "avatarMaskSelections": [],
+        "vfxSelections": [],
+        "audioCueSelections": [],
+        "generatedArtifactSelections": [],
+        "additionalResourceSelections": [],
+        "diagnostics": [],
+        "metadata": {}
+      },
+      "diagnostics": [],
+      "metadata": {}
+    }
+  ],
+  "diagnostics": [],
+  "metadata": {}
+}

@@ -143,6 +143,7 @@ function renderStatus() {
   const resourceCount = Array.isArray(state.resources?.items) ? state.resources.items.length : 0;
   const providerCount = Array.isArray(state.resources?.providers) ? state.resources.providers.length : 0;
   const animationPackageCount = Array.isArray(state.animationPackages) ? state.animationPackages.length : 0;
+  const animationServiceReady = Array.isArray(state.animationPackages);
   const planStatus = getResourcePlanStatus();
 
   el.serverStatus.textContent = connected
@@ -153,7 +154,7 @@ function renderStatus() {
     statusChip("Authoring", connected ? "已连接" : "未连接", connected ? "ok" : "error"),
     statusChip("Buff Editor", state.authoringState ? "可用" : "不可用", state.authoringState ? "ok" : "warn"),
     statusChip("CharacterStudio", state.characterState?.package ? "可用" : "不可用", state.characterState?.package ? "ok" : "warn"),
-    statusChip("Animation Editor", animationPackageCount > 0 ? `${animationPackageCount} 包` : "不可用", animationPackageCount > 0 ? "ok" : "warn"),
+    statusChip("Animation Editor", animationServiceReady ? `${animationPackageCount} 包` : "不可用", animationServiceReady ? "ok" : "warn"),
     statusChip("资源 providers", String(providerCount), providerCount > 0 ? "ok" : "warn"),
     statusChip("资源项", String(resourceCount), resourceCount > 0 ? "ok" : "warn"),
     statusChip("资源计划", planStatus, planStatus === "Ready" ? "ok" : "warn")
@@ -164,7 +165,8 @@ function renderTools() {
   const characterUrl = `/Tools/MxFramework.CharacterStudio/web/?package=${encodeURIComponent(state.packageRelative)}`;
   const resourceLibraryUrl = `/Tools/MxFramework.ResourceLibrary/web/?package=${encodeURIComponent(state.packageRelative)}`;
   const animationEditorUrl = `/Tools/MxFramework.AnimationEditor/web/?package=${encodeURIComponent(state.packageRelative)}`;
-  const animationReady = Array.isArray(state.animationPackages) && state.animationPackages.length > 0;
+  const animationServiceReady = Array.isArray(state.animationPackages);
+  const animationPackageCount = animationServiceReady ? state.animationPackages.length : 0;
   const tools = [
     {
       title: "Buff Authoring Editor",
@@ -193,13 +195,15 @@ function renderTools() {
     {
       title: "Animation Editor",
       subtitle: "动画 Set / Group / Clip Mapping 编辑器",
-      status: animationReady ? "可打开" : "服务未就绪",
-      tone: animationReady ? "ok" : "warn",
+      status: animationServiceReady ? "可打开" : "服务未就绪",
+      tone: animationServiceReady ? "ok" : "warn",
       href: animationEditorUrl,
       action: "打开动画编辑器",
       details: [
-        `Animation packages: ${animationReady ? state.animationPackages.length : 0}`,
-        "用途: 动画组、源 Clip 映射、RootMotionPolicy；资源通过字段级 picker 选择"
+        `Animation packages: ${animationPackageCount}`,
+        animationPackageCount > 0
+          ? "用途: 动画组、源 Clip 映射、RootMotionPolicy；资源通过字段级 picker 选择"
+          : "未扫描到动画包时仍可打开编辑器，并从当前角色包创建动画草稿"
       ]
     },
     {

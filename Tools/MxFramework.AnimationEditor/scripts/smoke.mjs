@@ -40,6 +40,15 @@ assert(app.includes("/api/authoring/resources/pick") && app.includes("/api/autho
 assert(app.includes("Animation.SourceClip"), "AnimationEditor should use Animation.SourceClip ResourceFieldSpec");
 assert(app.includes("sourceSelection") && app.includes("sourceSubClipId") && app.includes("sourceClipName"), "AnimationEditor should persist clip source mapping fields");
 assert(app.includes("rootMotionPolicy") && app.includes("RootMotionPolicy"), "AnimationEditor should expose root motion policy editing");
+assert(app.includes("runtimeResourceKey") && app.includes("generatedArtifactSelections") && app.includes("metadataText"), "AnimationEditor should edit clip runtime key, generated artifact selections, and metadata");
+assert(app.includes("Profiles / Slots") && app.includes("profileId") && app.includes("defaultSetId") && app.includes("defaultGroupId") && app.includes("defaultBlendId") && app.includes("preloadPolicy"), "AnimationEditor should edit profiles and profile slots");
+assert(app.includes("Set Runtime Structure") && app.includes("data-add-layer") && app.includes("layerId") && app.includes("avatarMaskSelection"), "AnimationEditor should edit set layers and avatar masks");
+assert(app.includes("Action Bindings") && app.includes("data-add-action-binding") && app.includes("actionId") && app.includes("timelineId"), "AnimationEditor should edit action bindings");
+assert(app.includes("Compatibility") && app.includes("compatibilityProfileSelection") && app.includes("requiredBoneIdsText") && app.includes("requiredSocketIdsText"), "AnimationEditor should edit compatibility expectations");
+assert(app.includes("Warmup") && app.includes("includeDefaultClip") && app.includes("includeFallbackClip") && app.includes("includeActionBindings") && app.includes("includeBlendPoints") && app.includes("requiredClipIds") && app.includes("requiredBlendIds"), "AnimationEditor should edit warmup policy and required clip/blend ids");
+assert(app.includes("avatarMaskSelections") && app.includes("vfxSelections") && app.includes("audioCueSelections") && app.includes("additionalResourceSelections"), "AnimationEditor should edit warmup resource selection lists");
+assert(app.includes("ANIM_REF_BINDING_CLIP_MISSING") && app.includes("ANIM_REF_SLOT_BLEND_MISSING") && app.includes("ANIM_REF_WARMUP_CLIP_MISSING"), "AnimationEditor should diagnose cross-reference gaps after edits");
+assert(app.includes("/api/authoring/animation/compile") && index.includes("compileButton"), "AnimationEditor should expose compile preflight from the UI");
 assert(app.includes("blend1D") && app.includes("blend2D") && app.includes("Blend Editor"), "AnimationEditor should expose visual blend editing");
 assert(app.includes("1D line") && app.includes("2D plane"), "AnimationEditor should provide 1D line and 2D plane blend views");
 assert(app.includes("ANIM_BLEND_POINT_CLIP_MISSING") && app.includes("ANIM_BLEND_POINT_DUPLICATE"), "AnimationEditor should diagnose missing local clip references and duplicate blend coordinates");
@@ -61,6 +70,7 @@ assert(styles.includes(".workspace") && styles.includes(".resource-picker-overla
 assert(styles.includes(".blend-track") && styles.includes(".blend-plane") && styles.includes(".blend-diagnostics"), "AnimationEditor should style visual blend editors and diagnostics");
 assert(styles.includes(".timeline-scrubber") && styles.includes(".timeline-domain-row") && styles.includes(".timeline-event-row"), "AnimationEditor should style timeline scrubber and event list");
 assert(styles.includes(".preview-bake-compatibility") && styles.includes(".artifact-table") && styles.includes(".workflow-diagnostics"), "AnimationEditor should style preview, bake, and compatibility workflow");
+assert(styles.includes(".structure-editor") && styles.includes(".runtime-table") && styles.includes(".selection-list-editor"), "AnimationEditor should style full DTO structure editors");
 assert(launcher.includes("dotnet --list-sdks") && launcher.includes("is_animation_editor_server_ready"), "AnimationEditor launcher should check .NET and server readiness");
 assert(hubApp.includes("Tools/MxFramework.AnimationEditor/web/"), "EditorHub should link Animation Editor");
 assert(hubSmoke.includes("MxFramework.AnimationEditor"), "EditorHub smoke should check Animation Editor");

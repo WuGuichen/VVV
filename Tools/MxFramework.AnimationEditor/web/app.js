@@ -5,6 +5,7 @@ const API = {
   load: packageRelative => `/api/authoring/animation/load?package=${encodeURIComponent(packageRelative)}`,
   save: "/api/authoring/animation/save",
   validate: "/api/authoring/animation/validate",
+  compile: "/api/authoring/animation/compile",
   pick: "/api/authoring/resources/pick",
   resolveSelection: "/api/authoring/resources/resolve-selection"
 };
@@ -42,8 +43,54 @@ const FALLBACK_EVENT_AUDIO_CUE_SPEC = {
   outputKind: "AudioCueId"
 };
 
+const FALLBACK_AVATAR_MASK_SPEC = {
+  fieldKey: "Animation.AvatarMask",
+  editorKind: "AnimationEditor",
+  displayName: "Avatar Mask",
+  acceptedKinds: ["avatarMask"],
+  acceptedUsages: ["avatarMask"],
+  acceptedBindingKinds: ["UnityAsset", "ResourceManagerAsset", "PackageResource"],
+  preloadPolicy: "AnimationWarmup",
+  outputKind: "ResourceSelectionRef"
+};
+
+const FALLBACK_BAKE_ARTIFACT_SPEC = {
+  fieldKey: "Animation.BakeArtifact",
+  editorKind: "AnimationEditor",
+  displayName: "Bake Artifact",
+  acceptedKinds: ["generated", "config"],
+  acceptedUsages: ["animationBakeArtifact"],
+  acceptedBindingKinds: ["GeneratedPreviewOnly", "ResourceManagerAsset", "PackageResource"],
+  preloadPolicy: "AnimationWarmup",
+  outputKind: "ResourceSelectionRef"
+};
+
+const FALLBACK_COMPATIBILITY_PROFILE_SPEC = {
+  fieldKey: "Animation.CompatibilityProfile",
+  editorKind: "AnimationEditor",
+  displayName: "Compatibility Profile",
+  acceptedKinds: ["config"],
+  acceptedUsages: ["animationCompatibilityProfile"],
+  acceptedBindingKinds: ["ResourceManagerAsset", "PackageResource", "UnityAsset"],
+  preloadPolicy: "PresentationCritical",
+  outputKind: "ResourceSelectionRef"
+};
+
+const FALLBACK_ADDITIONAL_RESOURCE_SPEC = {
+  fieldKey: "Animation.AdditionalWarmupResource",
+  editorKind: "AnimationEditor",
+  displayName: "Additional Warmup Resource",
+  acceptedKinds: [],
+  acceptedUsages: [],
+  acceptedBindingKinds: [],
+  preloadPolicy: "AnimationWarmup",
+  outputKind: "ResourceSelectionRef"
+};
+
 const ROOT_MOTION_OPTIONS = ["Ignore", "MotionDelta", "ApplyToActorReference"];
 const TIME_DOMAIN_OPTIONS = ["Seconds", "Normalized", "PresentationFrame", "CombatFrame"];
+const PRELOAD_POLICY_OPTIONS = ["None", "SpawnCritical", "PresentationCritical", "EquipmentInitial", "AnimationWarmup", "VfxWarmup", "UiDeferred", "Audio", "AudioBank"];
+const COORDINATE_CONVENTION_OPTIONS = ["", "YPositive/ZPositive/LeftHanded", "YPositive/ZPositive/RightHanded", "ZPositive/YPositive/LeftHanded"];
 const PREVIEW_TARGET_OPTIONS = [
   { value: "skeleton", label: "Skeleton" },
   { value: "characterPackage", label: "Character Package" },
@@ -69,6 +116,7 @@ const state = {
   animation: null,
   fieldSpecs: {},
   validation: null,
+  compileResult: null,
   selected: { kind: "package", setId: "", groupId: "", clipId: "" },
   blendEditor: { view: "1D", blendId: "" },
   timelineEditor: { timelineId: "" },
@@ -102,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   for (const id of [
     "serverStatus", "packageSelect", "setSelect", "refreshButton", "saveButton", "validateButton",
-    "openResourceManagerButton", "openCharacterStudioButton", "statusStrip", "treeSummary",
+    "compileButton", "openResourceManagerButton", "openCharacterStudioButton", "statusStrip", "treeSummary",
     "addSetButton", "animationTree", "workspaceTitle", "workspaceSubtitle", "addGroupButton",
     "addClipButton", "mappingWorkspace", "inspectorSubtitle", "inspectorContent",
     "diagnosticsSummary", "copyDiagnosticsButton", "diagnosticsList", "resourcePickerOverlay",
@@ -125,6 +173,7 @@ function bindEvents() {
   });
   el.saveButton.addEventListener("click", saveAnimation);
   el.validateButton.addEventListener("click", validateAnimation);
+  el.compileButton.addEventListener("click", compileAnimation);
   el.addSetButton.addEventListener("click", addSet);
   el.addGroupButton.addEventListener("click", addGroup);
   el.addClipButton.addEventListener("click", addClip);
@@ -172,6 +221,10 @@ function bindEvents() {
       const timeline = getSelectedTimeline(findGroup(state.selected.setId, state.selected.groupId));
       const eventItem = timeline ? (timeline.events || [])[Number(button.dataset.eventIndex)] : null;
       openEventResourcePicker(timeline, eventItem, button.dataset.pickEventResource);
+    } else if (handleStructureButtonClick(button)) {
+      return;
+    } else if (handleSelectionButtonClick(button)) {
+      return;
     }
   });
   el.mappingWorkspace.addEventListener("change", handleBlendEditorInput);
@@ -179,6 +232,8 @@ function bindEvents() {
   el.mappingWorkspace.addEventListener("change", handleTimelineEditorInput);
   el.mappingWorkspace.addEventListener("input", handleTimelineEditorInput);
   el.mappingWorkspace.addEventListener("change", handlePreviewWorkflowInput);
+  el.mappingWorkspace.addEventListener("change", handleStructureEditorInput);
+  el.mappingWorkspace.addEventListener("input", handleStructureEditorInput);
 
   el.inspectorContent.addEventListener("input", handleInspectorInput);
   el.inspectorContent.addEventListener("change", handleInspectorInput);
@@ -187,6 +242,11 @@ function bindEvents() {
     if (pickerButton) {
       const clip = findSelectedClip();
       openSourceClipPicker(clip);
+      return;
+    }
+    const button = event.target.closest("button");
+    if (button && handleSelectionButtonClick(button)) {
+      return;
     }
   });
 
@@ -274,6 +334,24 @@ async function validateAnimation() {
   }
 }
 
+async function compileAnimation() {
+  ensureAnimationShape();
+  const result = await postJson(API.compile, {
+    package: state.packageRelative,
+    animation: state.animation
+  }, "编译动画包");
+  if (result) {
+    state.compileResult = result;
+    const planCount = result.animationResourcePlan?.characterResourcePlan?.animationWarmup?.resources?.length
+      || result.characterResourcePlan?.animationWarmup?.resources?.length
+      || result.characterPlan?.animationWarmup?.resources?.length
+      || 0;
+    state.lastMessage = `编译预检完成：AnimationWarmup ${planCount}`;
+    if (result.animationValidationReport || result.validationReport) state.validation = result.animationValidationReport || result.validationReport;
+    render();
+  }
+}
+
 async function readJson(url, fallback, label) {
   try {
     const response = await fetch(url, { headers: { Accept: "application/json" } });
@@ -332,6 +410,9 @@ function renderStatus() {
   const setCount = Array.isArray(animation.sets) ? animation.sets.length : 0;
   const groupCount = getAllGroups().length;
   const clipCount = getAllClips().length;
+  const profileCount = Array.isArray(animation.profiles) ? animation.profiles.length : 0;
+  const layerCount = getAllLayers().length;
+  const bindingCount = getAllActionBindings().length;
   const connected = state.errors.length === 0 || state.animation;
   el.serverStatus.textContent = connected
     ? `已连接 Authoring 服务；文档：${state.documentRelative || "未保存"}`
@@ -343,6 +424,9 @@ function renderStatus() {
     statusChip("Sets", String(setCount), setCount > 0 ? "ok" : "warn"),
     statusChip("Groups", String(groupCount), groupCount > 0 ? "ok" : "warn"),
     statusChip("Clips", String(clipCount), clipCount > 0 ? "ok" : "warn"),
+    statusChip("Profiles", String(profileCount), profileCount > 0 ? "ok" : "warn"),
+    statusChip("Layers", String(layerCount), layerCount > 0 ? "ok" : "warn"),
+    statusChip("Bindings", String(bindingCount), bindingCount > 0 ? "ok" : "warn"),
     statusChip("Diagnostics", String(issueCount), issueCount === 0 ? "ok" : "warn"),
     state.lastMessage ? statusChip("操作", state.lastMessage, "info") : ""
   ].join("");
@@ -357,13 +441,19 @@ function renderSetSelect() {
 
 function renderTree() {
   const sets = state.animation?.sets || [];
-  el.treeSummary.textContent = `${sets.length} 个 Set，${getAllGroups().length} 个 Group，${getAllClips().length} 个 Clip`;
+  const profiles = state.animation?.profiles || [];
+  el.treeSummary.textContent = `${sets.length} 个 Set，${getAllGroups().length} 个 Group，${getAllClips().length} 个 Clip，${profiles.length} 个 Profile`;
+  const packageNode = `
+    <button type="button" class="${treeButtonClass("package", "", "", "")}" data-select-kind="package">
+      <span>${escapeHtml(state.animation?.displayName || state.animation?.packageId || "Animation Package")}</span>
+      <small>${profiles.length} profiles</small>
+    </button>`;
   if (sets.length === 0) {
-    el.animationTree.innerHTML = emptyBlock("还没有 AnimationSet。");
+    el.animationTree.innerHTML = packageNode + emptyBlock("还没有 AnimationSet。");
     return;
   }
 
-  el.animationTree.innerHTML = sets.map(set => {
+  el.animationTree.innerHTML = packageNode + sets.map(set => {
     const groups = set.groups || [];
     return `
       <section class="tree-set">
@@ -392,17 +482,24 @@ function renderTree() {
 function renderWorkspace() {
   const set = findSet(state.selected.setId);
   const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (state.selected.kind === "package") {
+    el.workspaceTitle.textContent = state.animation?.displayName || state.animation?.packageId || "Animation Package";
+    el.workspaceSubtitle.textContent = "编辑动画 Profile、Slot 和包级运行时意图";
+    el.mappingWorkspace.innerHTML = renderPackageRuntimeSections();
+    return;
+  }
+
   if (!set) {
     el.workspaceTitle.textContent = "Clip Mapping";
     el.workspaceSubtitle.textContent = "新增 Set 后开始配置动画组";
-    el.mappingWorkspace.innerHTML = emptyBlock("还没有可编辑的 AnimationSet。");
+    el.mappingWorkspace.innerHTML = `${emptyBlock("还没有可编辑的 AnimationSet。")}${renderPackageRuntimeSections()}`;
     return;
   }
 
   if (!group) {
     el.workspaceTitle.textContent = set.displayName || set.setId || "AnimationSet";
     el.workspaceSubtitle.textContent = "选择或新增 Group 后编辑 Clip mapping";
-    el.mappingWorkspace.innerHTML = emptyBlock("当前 Set 还没有 Group。");
+    el.mappingWorkspace.innerHTML = `${emptyBlock("当前 Set 还没有 Group。")}${renderSetRuntimeSections(set)}${renderPackageRuntimeSections()}`;
     return;
   }
 
@@ -413,14 +510,19 @@ function renderWorkspace() {
   el.mappingWorkspace.innerHTML = `
     <section class="workspace-section">
       <div class="section-heading">
-        <h3>Clip Mapping</h3>
-        <p>Blend point 只能引用当前 Group 内的本地 clipId。</p>
+        <div>
+          <h3>Clip Mapping</h3>
+          <p>Blend point 只能引用当前 Group 内的本地 clipId。</p>
+        </div>
+        <button type="button" data-remove-group="1">删除 Group</button>
       </div>
       ${renderClipMappingTable(clips)}
     </section>
     ${renderBlendEditor(group)}
     ${renderTimelineEditor(group)}
-    ${renderPreviewBakeCompatibilityWorkflow(set, group)}`;
+    ${renderPreviewBakeCompatibilityWorkflow(set, group)}
+    ${renderSetRuntimeSections(set)}
+    ${renderPackageRuntimeSections()}`;
 }
 
 function renderClipMappingTable(clips) {
@@ -1089,6 +1191,7 @@ function renderClipInspector(clip) {
     </label>
     ${textField("sourceSubClipId", "SourceSubClipId", clip.sourceSubClipId || "")}
     ${textField("sourceClipName", "SourceClipName", clip.sourceClipName || "")}
+    ${textField("runtimeResourceKey", "RuntimeResourceKey", clip.runtimeResourceKey || "")}
     <label class="inspector-field">
       <span>Loop</span>
       <select data-field="loop" data-type="boolean">
@@ -1103,7 +1206,327 @@ function renderClipInspector(clip) {
         ${ROOT_MOTION_OPTIONS.map(option => `<option value="${option}"${(clip.rootMotionPolicy || "Ignore") === option ? " selected" : ""}>${option}</option>`).join("")}
       </select>
     </label>
-    ${textField("tagsText", "Tags", (clip.tags || []).join(", "))}`;
+    ${textField("tagsText", "Tags", (clip.tags || []).join(", "))}
+    ${renderSelectionListEditor("clip", "generatedArtifactSelections", clip.generatedArtifactSelections || [], "bakeArtifact", "Generated Artifact Selections")}
+    ${textField("metadataText", "Metadata", metadataToText(clip.metadata), "key=value, key2=value2")}`;
+}
+
+function renderPackageRuntimeSections() {
+  return `
+    <section class="workspace-section structure-editor package-profile-editor" aria-label="Animation profiles and slots">
+      <div class="section-heading">
+        <div>
+          <h3>Profiles / Slots</h3>
+          <p>Profile 定义运行时默认 Set、默认 Group 和各动画槽位；角色编辑器只引用这些结果。</p>
+        </div>
+        <button type="button" data-add-profile="1">新增 Profile</button>
+      </div>
+      ${renderProfileEditor()}
+    </section>`;
+}
+
+function renderSetRuntimeSections(set) {
+  return `
+    <section class="workspace-section structure-editor set-runtime-editor" aria-label="Set layers action bindings compatibility warmup">
+      <div class="section-heading">
+        <div>
+          <h3>Set Runtime Structure</h3>
+          <p>补齐运行时需要的 Layer、ActionBinding、Compatibility 和 Warmup，不再靠手写 JSON。</p>
+        </div>
+        <button type="button" data-remove-set="1">删除 Set</button>
+      </div>
+      ${renderLayerEditor(set)}
+      ${renderActionBindingEditor(set)}
+      ${renderCompatibilityWarmupEditor("set", set)}
+    </section>`;
+}
+
+function renderProfileEditor() {
+  const profiles = state.animation?.profiles || [];
+  if (profiles.length === 0) {
+    return emptyBlock("还没有 Animation Profile。新增后配置 Slot 与 Set/Group/Clip/Blend 的引用。");
+  }
+
+  return profiles.map((profile, profileIndex) => {
+    const setIds = getSetIds();
+    const groupIds = getGroupIds(profile.defaultSetId || setIds[0] || "");
+    return `
+      <article class="structure-block profile-block">
+        <div class="structure-block-head">
+          <div>
+            <strong>${escapeHtml(profile.displayName || profile.profileId || "Animation Profile")}</strong>
+            <span>${escapeHtml(profile.description || "profile slots and runtime defaults")}</span>
+          </div>
+          <button type="button" data-remove-profile="${profileIndex}">删除 Profile</button>
+        </div>
+        <div class="structure-grid profile-fields">
+          ${structureTextField("profile", profileIndex, "profileId", "Profile ID", profile.profileId || "")}
+          ${structureTextField("profile", profileIndex, "displayName", "显示名", profile.displayName || "")}
+          ${structureTextField("profile", profileIndex, "description", "说明", profile.description || "")}
+          ${structureSelectField("profile", profileIndex, "defaultSetId", "Default Set", profile.defaultSetId || "", setIds)}
+          ${structureSelectField("profile", profileIndex, "defaultGroupId", "Default Group", profile.defaultGroupId || "", groupIds)}
+        </div>
+        ${renderProfileSlots(profile, profileIndex)}
+        ${renderCompatibilityWarmupEditor("profile", profile, profileIndex)}
+      </article>`;
+  }).join("");
+}
+
+function renderProfileSlots(profile, profileIndex) {
+  const slots = profile.slots || [];
+  return `
+    <div class="subsection-heading">
+      <strong>Profile Slots</strong>
+      <button type="button" data-add-profile-slot="${profileIndex}">新增 Slot</button>
+    </div>
+    ${slots.length ? `
+      <div class="runtime-table profile-slot-table">
+        <div class="runtime-row runtime-head">
+          <span>Slot ID</span><span>显示名</span><span>Set</span><span>Group</span><span>Default Clip</span><span>Default Blend</span><span>Preload</span><span>Required</span><span>操作</span>
+        </div>
+        ${slots.map((slot, slotIndex) => {
+          const setId = slot.setId || profile.defaultSetId || getSetIds()[0] || "";
+          const groupId = slot.groupId || profile.defaultGroupId || getGroupIds(setId)[0] || "";
+          return `
+            <div class="runtime-row profile-slot-row">
+              ${structureInlineInput("profileSlot", slotIndex, "slotId", slot.slotId || "", { profileIndex })}
+              ${structureInlineInput("profileSlot", slotIndex, "displayName", slot.displayName || "", { profileIndex })}
+              ${structureInlineSelect("profileSlot", slotIndex, "setId", setId, getSetIds(), { profileIndex })}
+              ${structureInlineSelect("profileSlot", slotIndex, "groupId", groupId, getGroupIds(setId), { profileIndex })}
+              ${structureInlineSelect("profileSlot", slotIndex, "defaultClipId", slot.defaultClipId || "", getClipIds(setId, groupId), { profileIndex })}
+              ${structureInlineSelect("profileSlot", slotIndex, "defaultBlendId", slot.defaultBlendId || "", getBlendIds(setId, groupId), { profileIndex })}
+              ${structureInlineSelect("profileSlot", slotIndex, "preloadPolicy", slot.preloadPolicy || "AnimationWarmup", PRELOAD_POLICY_OPTIONS, { profileIndex })}
+              ${structureInlineBool("profileSlot", slotIndex, "required", Boolean(slot.required), { profileIndex })}
+              <button type="button" data-remove-profile-slot="${slotIndex}" data-profile-index="${profileIndex}">移除</button>
+            </div>`;
+        }).join("")}
+      </div>` : emptyBlock("当前 Profile 没有 Slot。")}`;
+}
+
+function renderLayerEditor(set) {
+  const layers = set.layers || [];
+  return `
+    <article class="structure-block">
+      <div class="structure-block-head">
+        <div>
+          <strong>Layers</strong>
+          <span>Layer 定义 AvatarMask、RootMotionPolicy、权重和同步关系。</span>
+        </div>
+        <button type="button" data-add-layer="1">新增 Layer</button>
+      </div>
+      ${layers.length ? `
+        <div class="runtime-table layer-table">
+          <div class="runtime-row runtime-head">
+            <span>Layer ID</span><span>显示名</span><span>用途</span><span>Weight</span><span>Additive</span><span>Sync Layer</span><span>RootMotionPolicy</span><span>AvatarMask</span><span>Tags</span><span>操作</span>
+          </div>
+          ${layers.map((layer, layerIndex) => `
+            <div class="runtime-row layer-row">
+              ${structureInlineInput("layer", layerIndex, "layerId", layer.layerId || "")}
+              ${structureInlineInput("layer", layerIndex, "displayName", layer.displayName || "")}
+              ${structureInlineInput("layer", layerIndex, "purpose", layer.purpose || "")}
+              ${structureInlineNumber("layer", layerIndex, "weight", layer.weight ?? 1, 0, 1, 0.01)}
+              ${structureInlineBool("layer", layerIndex, "additive", Boolean(layer.additive))}
+              ${structureInlineSelect("layer", layerIndex, "syncLayerId", layer.syncLayerId || "", ["", ...layers.map(item => item.layerId).filter(id => id && id !== layer.layerId)])}
+              ${structureInlineSelect("layer", layerIndex, "rootMotionPolicy", layer.rootMotionPolicy || "Ignore", ROOT_MOTION_OPTIONS)}
+              ${renderSelectionCell("layer", "avatarMaskSelection", layer.avatarMaskSelection, "avatarMask", "选择 AvatarMask", { layerIndex })}
+              ${structureInlineInput("layer", layerIndex, "tagsText", (layer.tags || []).join(", "))}
+              <button type="button" data-remove-layer="${layerIndex}">移除</button>
+            </div>`).join("")}
+        </div>` : emptyBlock("当前 Set 没有 Layer。")}`;
+}
+
+function renderActionBindingEditor(set) {
+  const bindings = set.actionBindings || [];
+  return `
+    <article class="structure-block">
+      <div class="structure-block-head">
+        <div>
+          <strong>Action Bindings</strong>
+          <span>ActionBinding 把移动、攻击、防御等动作映射到 Group / Clip / Blend / Timeline。</span>
+        </div>
+        <button type="button" data-add-action-binding="1">新增 Binding</button>
+      </div>
+      ${bindings.length ? `
+        <div class="runtime-table action-binding-table">
+          <div class="runtime-row runtime-head">
+            <span>Binding ID</span><span>Action ID</span><span>显示名</span><span>Group</span><span>Clip</span><span>Blend</span><span>Timeline</span><span>Required</span><span>Tags</span><span>操作</span>
+          </div>
+          ${bindings.map((binding, bindingIndex) => {
+            const groupId = binding.groupId || getGroupIds(set.setId)[0] || "";
+            return `
+              <div class="runtime-row action-binding-row">
+                ${structureInlineInput("actionBinding", bindingIndex, "bindingId", binding.bindingId || "")}
+                ${structureInlineInput("actionBinding", bindingIndex, "actionId", binding.actionId || "")}
+                ${structureInlineInput("actionBinding", bindingIndex, "displayName", binding.displayName || "")}
+                ${structureInlineSelect("actionBinding", bindingIndex, "groupId", groupId, getGroupIds(set.setId))}
+                ${structureInlineSelect("actionBinding", bindingIndex, "clipId", binding.clipId || "", getClipIds(set.setId, groupId))}
+                ${structureInlineSelect("actionBinding", bindingIndex, "blendId", binding.blendId || "", getBlendIds(set.setId, groupId))}
+                ${structureInlineSelect("actionBinding", bindingIndex, "timelineId", binding.timelineId || "", getTimelineIds(set.setId, groupId))}
+                ${structureInlineBool("actionBinding", bindingIndex, "required", Boolean(binding.required))}
+                ${structureInlineInput("actionBinding", bindingIndex, "tagsText", (binding.tags || []).join(", "))}
+                <button type="button" data-remove-action-binding="${bindingIndex}">移除</button>
+              </div>`;
+          }).join("")}
+        </div>` : emptyBlock("当前 Set 没有 ActionBinding。")}`;
+}
+
+function renderCompatibilityWarmupEditor(scope, owner, profileIndex) {
+  const compatibility = ensureCompatibility(owner);
+  const warmup = ensureWarmup(owner);
+  const ownerKind = scope === "profile" ? "profile" : "set";
+  const context = scope === "profile" ? { profileIndex } : {};
+  const clipIds = scope === "profile" ? getProfileClipIds(owner) : getSetClipIds(owner);
+  const blendIds = scope === "profile" ? getProfileBlendIds(owner) : getSetBlendIds(owner);
+  return `
+    <div class="runtime-dual-grid">
+      <article class="structure-block compact-block">
+        <div class="structure-block-head">
+          <div>
+            <strong>Compatibility</strong>
+            <span>骨架、Avatar、坐标系、必要骨骼和挂点。</span>
+          </div>
+        </div>
+        <div class="structure-grid compatibility-fields">
+          ${structureTextField(`${ownerKind}Compatibility`, 0, "compatibilityId", "Compatibility ID", compatibility.compatibilityId || "", context)}
+          ${structureTextField(`${ownerKind}Compatibility`, 0, "skeletonProfileId", "Skeleton Profile", compatibility.skeletonProfileId || "", context)}
+          ${structureTextField(`${ownerKind}Compatibility`, 0, "avatarProfileId", "Avatar Profile", compatibility.avatarProfileId || "", context)}
+          ${structureSelectField(`${ownerKind}Compatibility`, 0, "coordinateConvention", "Coordinate Convention", compatibility.coordinateConvention || "", COORDINATE_CONVENTION_OPTIONS, context)}
+          ${structureBoolField(`${ownerKind}Compatibility`, 0, "allowRetargeting", "Allow Retargeting", Boolean(compatibility.allowRetargeting), context)}
+          ${structureTextField(`${ownerKind}Compatibility`, 0, "requiredBoneIdsText", "Required Bones", (compatibility.requiredBoneIds || []).join(", "), context)}
+          ${structureTextField(`${ownerKind}Compatibility`, 0, "requiredSocketIdsText", "Required Sockets", (compatibility.requiredSocketIds || []).join(", "), context)}
+        </div>
+        <div class="selection-grid">
+          ${renderSelectionField(`${ownerKind}Compatibility`, "compatibilityProfileSelection", compatibility.compatibilityProfileSelection, "compatibilityProfile", "Compatibility Profile", context)}
+          ${renderSelectionField(`${ownerKind}Compatibility`, "avatarMaskSelection", compatibility.avatarMaskSelection, "avatarMask", "Avatar Mask", context)}
+        </div>
+      </article>
+      <article class="structure-block compact-block">
+        <div class="structure-block-head">
+          <div>
+            <strong>Warmup</strong>
+            <span>声明运行前预热的 Clip、Blend、VFX、AudioCue 和生成产物。</span>
+          </div>
+        </div>
+        <div class="structure-grid warmup-fields">
+          ${structureTextField(`${ownerKind}Warmup`, 0, "warmupId", "Warmup ID", warmup.warmupId || "", context)}
+          ${structureSelectField(`${ownerKind}Warmup`, 0, "preloadPolicy", "Preload Policy", warmup.preloadPolicy || "AnimationWarmup", PRELOAD_POLICY_OPTIONS, context)}
+          ${structureBoolField(`${ownerKind}Warmup`, 0, "includeDefaultClip", "Include Default Clip", warmup.includeDefaultClip !== false, context)}
+          ${structureBoolField(`${ownerKind}Warmup`, 0, "includeFallbackClip", "Include Fallback Clip", warmup.includeFallbackClip !== false, context)}
+          ${structureBoolField(`${ownerKind}Warmup`, 0, "includeActionBindings", "Include Action Bindings", warmup.includeActionBindings !== false, context)}
+          ${structureBoolField(`${ownerKind}Warmup`, 0, "includeBlendPoints", "Include Blend Points", warmup.includeBlendPoints !== false, context)}
+          ${structureMultiSelectField(`${ownerKind}Warmup`, 0, "requiredClipIds", "Required Clips", warmup.requiredClipIds || [], clipIds, context)}
+          ${structureMultiSelectField(`${ownerKind}Warmup`, 0, "requiredBlendIds", "Required Blends", warmup.requiredBlendIds || [], blendIds, context)}
+        </div>
+        ${renderSelectionListEditor(`${ownerKind}Warmup`, "avatarMaskSelections", warmup.avatarMaskSelections || [], "avatarMask", "Warmup Avatar Masks", context)}
+        ${renderSelectionListEditor(`${ownerKind}Warmup`, "vfxSelections", warmup.vfxSelections || [], "eventVfx", "Warmup VFX", context)}
+        ${renderSelectionListEditor(`${ownerKind}Warmup`, "audioCueSelections", warmup.audioCueSelections || [], "eventAudioCue", "Warmup AudioCue", context)}
+        ${renderSelectionListEditor(`${ownerKind}Warmup`, "generatedArtifactSelections", warmup.generatedArtifactSelections || [], "bakeArtifact", "Warmup Generated Artifacts", context)}
+        ${renderSelectionListEditor(`${ownerKind}Warmup`, "additionalResourceSelections", warmup.additionalResourceSelections || [], "additionalResource", "Additional Resources", context)}
+      </article>
+    </div>`;
+}
+
+function structureTextField(owner, index, field, label, value, context = {}) {
+  return `
+    <label class="structure-field">
+      <span>${escapeHtml(label)}</span>
+      ${structureInlineInput(owner, index, field, value, context)}
+    </label>`;
+}
+
+function structureSelectField(owner, index, field, label, value, options, context = {}) {
+  return `
+    <label class="structure-field">
+      <span>${escapeHtml(label)}</span>
+      ${structureInlineSelect(owner, index, field, value, options, context)}
+    </label>`;
+}
+
+function structureBoolField(owner, index, field, label, value, context = {}) {
+  return `
+    <label class="structure-field">
+      <span>${escapeHtml(label)}</span>
+      ${structureInlineBool(owner, index, field, value, context)}
+    </label>`;
+}
+
+function structureMultiSelectField(owner, index, field, label, values, options, context = {}) {
+  const selected = new Set(values || []);
+  return `
+    <label class="structure-field multi-select-field">
+      <span>${escapeHtml(label)}</span>
+      <select multiple data-structure-owner="${escapeHtml(owner)}" data-structure-index="${index}" data-structure-field="${escapeHtml(field)}" ${dataContextAttributes(context)}>
+        ${(options || []).map(option => `<option value="${escapeHtml(option)}"${selected.has(option) ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+      </select>
+    </label>`;
+}
+
+function structureInlineInput(owner, index, field, value, context = {}) {
+  return `<input data-structure-owner="${escapeHtml(owner)}" data-structure-index="${index}" data-structure-field="${escapeHtml(field)}" ${dataContextAttributes(context)} value="${escapeHtml(value)}">`;
+}
+
+function structureInlineNumber(owner, index, field, value, min, max, step, context = {}) {
+  return `<input type="number" data-type="number" data-structure-owner="${escapeHtml(owner)}" data-structure-index="${index}" data-structure-field="${escapeHtml(field)}" ${dataContextAttributes(context)} min="${min}" max="${max}" step="${step}" value="${escapeHtml(String(value))}">`;
+}
+
+function structureInlineSelect(owner, index, field, value, options, context = {}) {
+  const normalizedOptions = ["", ...(options || []).filter(option => option !== "")];
+  if (value && !normalizedOptions.includes(value)) normalizedOptions.push(value);
+  return `
+    <select data-structure-owner="${escapeHtml(owner)}" data-structure-index="${index}" data-structure-field="${escapeHtml(field)}" ${dataContextAttributes(context)}>
+      ${normalizedOptions.map(option => `<option value="${escapeHtml(option)}"${option === value ? " selected" : ""}>${escapeHtml(option || "未设置")}</option>`).join("")}
+    </select>`;
+}
+
+function structureInlineBool(owner, index, field, value, context = {}) {
+  return `
+    <select data-structure-owner="${escapeHtml(owner)}" data-structure-index="${index}" data-structure-field="${escapeHtml(field)}" data-type="boolean" ${dataContextAttributes(context)}>
+      <option value="false"${value ? "" : " selected"}>否</option>
+      <option value="true"${value ? " selected" : ""}>是</option>
+    </select>`;
+}
+
+function renderSelectionField(ownerKind, fieldName, selection, specKey, title, context = {}) {
+  return `
+    <div class="selection-card">
+      <span>${escapeHtml(title)}</span>
+      <code title="${escapeHtml(getSelectionTitle(selection))}">${escapeHtml(getSelectionTitle(selection) || "未选择")}</code>
+      <div class="selection-actions">
+        <button type="button" data-pick-selection="1" data-selection-owner="${escapeHtml(ownerKind)}" data-selection-field="${escapeHtml(fieldName)}" data-selection-spec="${escapeHtml(specKey)}" data-selection-title="${escapeHtml(title)}" ${dataContextAttributes(context)}>选择</button>
+        <button type="button" data-clear-selection="1" data-selection-owner="${escapeHtml(ownerKind)}" data-selection-field="${escapeHtml(fieldName)}" ${dataContextAttributes(context)}>清空</button>
+      </div>
+    </div>`;
+}
+
+function renderSelectionCell(ownerKind, fieldName, selection, specKey, title, context = {}) {
+  return `
+    <span class="selection-cell">
+      <code title="${escapeHtml(getSelectionTitle(selection))}">${escapeHtml(getSelectionTitle(selection) || "未选择")}</code>
+      <button type="button" data-pick-selection="1" data-selection-owner="${escapeHtml(ownerKind)}" data-selection-field="${escapeHtml(fieldName)}" data-selection-spec="${escapeHtml(specKey)}" data-selection-title="${escapeHtml(title)}" ${dataContextAttributes(context)}>选择</button>
+    </span>`;
+}
+
+function renderSelectionListEditor(ownerKind, fieldName, selections, specKey, title, context = {}) {
+  const rows = (selections || []).map((selection, index) => `
+    <div class="selection-list-row">
+      <code title="${escapeHtml(getSelectionTitle(selection))}">${escapeHtml(getSelectionTitle(selection) || "未设置")}</code>
+      <button type="button" data-remove-selection-list-item="1" data-selection-owner="${escapeHtml(ownerKind)}" data-selection-field="${escapeHtml(fieldName)}" data-selection-index="${index}" ${dataContextAttributes(context)}>移除</button>
+    </div>`).join("");
+  return `
+    <div class="selection-list-editor">
+      <div class="selection-list-head">
+        <span>${escapeHtml(title)}</span>
+        <button type="button" data-add-selection-list-item="1" data-selection-owner="${escapeHtml(ownerKind)}" data-selection-field="${escapeHtml(fieldName)}" data-selection-spec="${escapeHtml(specKey)}" data-selection-title="${escapeHtml(title)}" ${dataContextAttributes(context)}>添加</button>
+      </div>
+      ${rows || `<div class="selection-list-row empty-row"><code>未设置</code><span></span></div>`}
+    </div>`;
+}
+
+function dataContextAttributes(context = {}) {
+  return Object.entries(context)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `data-${escapeHtml(kebabCase(key))}="${escapeHtml(String(value))}"`)
+    .join(" ");
 }
 
 function renderDiagnostics() {
@@ -1140,6 +1563,8 @@ function handleInspectorInput(event) {
 
   if (field === "tagsText") {
     target.value.tags = String(value).split(",").map(item => item.trim()).filter(Boolean);
+  } else if (field === "metadataText") {
+    target.value.metadata = textToMetadata(value);
   } else {
     target.value[field] = value;
   }
@@ -1150,6 +1575,115 @@ function handleInspectorInput(event) {
   renderSetSelect();
   renderTree();
   renderWorkspace();
+}
+
+function handleStructureButtonClick(button) {
+  const set = findSet(state.selected.setId) || firstSet();
+  if (button.dataset.addProfile !== undefined) {
+    addProfile();
+    return true;
+  }
+  if (button.dataset.removeSet !== undefined) {
+    removeSet(state.selected.setId);
+    return true;
+  }
+  if (button.dataset.removeGroup !== undefined) {
+    removeGroup(state.selected.setId, state.selected.groupId);
+    return true;
+  }
+  if (button.dataset.removeProfile !== undefined) {
+    removeProfile(Number(button.dataset.removeProfile));
+    return true;
+  }
+  if (button.dataset.addProfileSlot !== undefined) {
+    addProfileSlot(Number(button.dataset.addProfileSlot));
+    return true;
+  }
+  if (button.dataset.removeProfileSlot !== undefined) {
+    removeProfileSlot(Number(button.dataset.profileIndex), Number(button.dataset.removeProfileSlot));
+    return true;
+  }
+  if (button.dataset.addLayer !== undefined) {
+    addLayer(set);
+    return true;
+  }
+  if (button.dataset.removeLayer !== undefined) {
+    removeLayer(set, Number(button.dataset.removeLayer));
+    return true;
+  }
+  if (button.dataset.addActionBinding !== undefined) {
+    addActionBinding(set);
+    return true;
+  }
+  if (button.dataset.removeActionBinding !== undefined) {
+    removeActionBinding(set, Number(button.dataset.removeActionBinding));
+    return true;
+  }
+  return false;
+}
+
+function handleSelectionButtonClick(button) {
+  if (button.dataset.pickSelection !== undefined) {
+    const owner = resolveSelectionOwner(button.dataset);
+    if (!owner) return true;
+    openSelectionPicker(owner, button.dataset.selectionField, button.dataset.selectionSpec, button.dataset.selectionTitle || "选择资源");
+    return true;
+  }
+  if (button.dataset.clearSelection !== undefined) {
+    const owner = resolveSelectionOwner(button.dataset);
+    if (owner) owner[button.dataset.selectionField] = {};
+    render();
+    return true;
+  }
+  if (button.dataset.addSelectionListItem !== undefined) {
+    const owner = resolveSelectionOwner(button.dataset);
+    if (!owner) return true;
+    openSelectionListPicker(owner, button.dataset.selectionField, button.dataset.selectionSpec, button.dataset.selectionTitle || "添加资源");
+    return true;
+  }
+  if (button.dataset.removeSelectionListItem !== undefined) {
+    const owner = resolveSelectionOwner(button.dataset);
+    const field = button.dataset.selectionField;
+    const index = Number(button.dataset.selectionIndex);
+    if (owner && Array.isArray(owner[field])) owner[field].splice(index, 1);
+    render();
+    return true;
+  }
+  return false;
+}
+
+function handleStructureEditorInput(event) {
+  const ownerKind = event.target.dataset.structureOwner;
+  const field = event.target.dataset.structureField;
+  if (!ownerKind || !field) return;
+  const target = resolveStructureTarget(event.target.dataset);
+  if (!target) return;
+
+  let value = event.target.value;
+  if (event.target.multiple) {
+    value = Array.from(event.target.selectedOptions).map(option => option.value).filter(Boolean);
+  } else if (event.target.dataset.type === "boolean") {
+    value = value === "true";
+  } else if (event.target.dataset.type === "number") {
+    value = Number(value);
+  }
+
+  if (field === "tagsText") {
+    target.tags = csvToList(value);
+  } else if (field === "requiredBoneIdsText") {
+    target.requiredBoneIds = csvToList(value);
+  } else if (field === "requiredSocketIdsText") {
+    target.requiredSocketIds = csvToList(value);
+  } else {
+    target[field] = value;
+  }
+
+  if (event.type === "change") {
+    normalizeStructureAfterEdit(ownerKind, target, field);
+    render();
+  } else {
+    renderStatus();
+  }
 }
 
 async function openSourceClipPicker(clip) {
@@ -1220,6 +1754,53 @@ async function openEventResourcePicker(timeline, eventItem, eventKind) {
     }
   }, `查询 ${fieldSpec.fieldKey || "Animation.EventResource"}`);
 
+  state.resourcePicker.loading = false;
+  state.resourcePicker.rows = Array.isArray(result?.items) ? result.items : [];
+  renderResourcePicker();
+}
+
+async function openSelectionPicker(owner, fieldName, specKey, title) {
+  const fieldSpec = getSelectionFieldSpec(specKey);
+  state.resourcePicker = {
+    open: true,
+    clip: null,
+    target: { kind: "selectionField", owner, fieldName },
+    title,
+    fieldSpec,
+    rows: [],
+    search: "",
+    onlySelectable: true,
+    loading: true,
+    error: ""
+  };
+  renderResourcePicker();
+  await loadResourcePickerRows(fieldSpec, title);
+}
+
+async function openSelectionListPicker(owner, fieldName, specKey, title) {
+  const fieldSpec = getSelectionFieldSpec(specKey);
+  state.resourcePicker = {
+    open: true,
+    clip: null,
+    target: { kind: "selectionList", owner, fieldName },
+    title,
+    fieldSpec,
+    rows: [],
+    search: "",
+    onlySelectable: true,
+    loading: true,
+    error: ""
+  };
+  renderResourcePicker();
+  await loadResourcePickerRows(fieldSpec, title);
+}
+
+async function loadResourcePickerRows(fieldSpec, label) {
+  const result = await postJson(API.pick, {
+    package: state.packageRelative,
+    fieldSpec,
+    context: getResourcePickerContext()
+  }, `查询 ${label || fieldSpec?.fieldKey || "资源"}`);
   state.resourcePicker.loading = false;
   state.resourcePicker.rows = Array.isArray(result?.items) ? result.items : [];
   renderResourcePicker();
@@ -1312,6 +1893,15 @@ async function chooseResourcePickerRow(index) {
     state.lastMessage = state.resourcePicker.target.eventKind === "AudioCue"
       ? "已选择 Timeline AudioCue"
       : "已选择 Timeline VFX";
+  } else if (state.resourcePicker.target.kind === "selectionField") {
+    state.resourcePicker.target.owner[state.resourcePicker.target.fieldName] = result.selection || {};
+    state.lastMessage = `已选择 ${fieldSpec.displayName || fieldSpec.fieldKey || "资源"}`;
+  } else if (state.resourcePicker.target.kind === "selectionList") {
+    const owner = state.resourcePicker.target.owner;
+    const fieldName = state.resourcePicker.target.fieldName;
+    owner[fieldName] = Array.isArray(owner[fieldName]) ? owner[fieldName] : [];
+    owner[fieldName].push(result.selection || {});
+    state.lastMessage = `已添加 ${fieldSpec.displayName || fieldSpec.fieldKey || "资源"}`;
   }
   closeResourcePicker();
   render();
@@ -1347,6 +1937,80 @@ function getEventResourceFieldSpec(eventKind) {
   return null;
 }
 
+function getSelectionFieldSpec(specKey) {
+  if (specKey === "sourceClip") return state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
+  if (specKey === "avatarMask") return state.fieldSpecs?.avatarMask || FALLBACK_AVATAR_MASK_SPEC;
+  if (specKey === "bakeArtifact") return state.fieldSpecs?.bakeArtifact || FALLBACK_BAKE_ARTIFACT_SPEC;
+  if (specKey === "compatibilityProfile") return state.fieldSpecs?.compatibilityProfile || FALLBACK_COMPATIBILITY_PROFILE_SPEC;
+  if (specKey === "eventVfx") return state.fieldSpecs?.eventVfx || FALLBACK_EVENT_VFX_SPEC;
+  if (specKey === "eventAudioCue") return state.fieldSpecs?.eventAudioCue || state.fieldSpecs?.eventAudioDefinition || FALLBACK_EVENT_AUDIO_CUE_SPEC;
+  return FALLBACK_ADDITIONAL_RESOURCE_SPEC;
+}
+
+function getResourcePickerContext() {
+  return {
+    consumerKind: "AnimationEditor",
+    consumerStableId: state.animation?.stableId || "",
+    scopeId: state.animation?.stableId || state.packageRelative,
+    packageId: state.animation?.packageId || "",
+    packagePath: state.packageRelative,
+    skeletonStableId: state.animation?.skeletonProfileId || "",
+    avatarStableId: state.animation?.avatarProfileId || ""
+  };
+}
+
+function resolveSelectionOwner(dataset) {
+  const owner = dataset.selectionOwner;
+  const profileIndex = Number(dataset.profileIndex);
+  const layerIndex = Number(dataset.layerIndex);
+  if (owner === "clip") return findSelectedClip();
+  if (owner === "layer") return (findSet(state.selected.setId)?.layers || [])[layerIndex];
+  if (owner === "setCompatibility") return ensureCompatibility(findSet(state.selected.setId));
+  if (owner === "setWarmup") return ensureWarmup(findSet(state.selected.setId));
+  if (owner === "profileCompatibility") return ensureCompatibility((state.animation?.profiles || [])[profileIndex]);
+  if (owner === "profileWarmup") return ensureWarmup((state.animation?.profiles || [])[profileIndex]);
+  return null;
+}
+
+function resolveStructureTarget(dataset) {
+  const owner = dataset.structureOwner;
+  const index = Number(dataset.structureIndex);
+  const profileIndex = Number(dataset.profileIndex);
+  const set = findSet(state.selected.setId) || firstSet();
+  if (owner === "profile") return (state.animation?.profiles || [])[index];
+  if (owner === "profileSlot") return ((state.animation?.profiles || [])[profileIndex]?.slots || [])[index];
+  if (owner === "layer") return (set?.layers || [])[index];
+  if (owner === "actionBinding") return (set?.actionBindings || [])[index];
+  if (owner === "setCompatibility") return ensureCompatibility(set);
+  if (owner === "setWarmup") return ensureWarmup(set);
+  if (owner === "profileCompatibility") return ensureCompatibility((state.animation?.profiles || [])[profileIndex]);
+  if (owner === "profileWarmup") return ensureWarmup((state.animation?.profiles || [])[profileIndex]);
+  return null;
+}
+
+function normalizeStructureAfterEdit(ownerKind, target, field) {
+  if (ownerKind === "profile" && field === "profileId") {
+    target.profileId ||= uniqueId("profile.base", (state.animation?.profiles || []).map(profile => profile.profileId));
+  }
+  if (ownerKind === "profileSlot") {
+    target.preloadPolicy ||= "AnimationWarmup";
+    if (field === "setId") {
+      target.groupId = getGroupIds(target.setId)[0] || "";
+      target.defaultClipId = getClipIds(target.setId, target.groupId)[0] || "";
+      target.defaultBlendId = getBlendIds(target.setId, target.groupId)[0] || "";
+    }
+    if (field === "groupId") {
+      target.defaultClipId = getClipIds(target.setId, target.groupId)[0] || "";
+      target.defaultBlendId = getBlendIds(target.setId, target.groupId)[0] || "";
+    }
+  }
+  if (ownerKind === "actionBinding" && field === "groupId") {
+    target.clipId = getClipIds(state.selected.setId, target.groupId)[0] || "";
+    target.blendId = getBlendIds(state.selected.setId, target.groupId)[0] || "";
+    target.timelineId = getTimelineIds(state.selected.setId, target.groupId)[0] || "";
+  }
+}
+
 function addSet() {
   ensureAnimationShape();
   const ids = state.animation.sets.map(set => set.setId);
@@ -1367,6 +2031,82 @@ function addSet() {
   render();
 }
 
+function addProfile() {
+  ensureAnimationShape();
+  const profileId = uniqueId("profile.base", (state.animation.profiles || []).map(profile => profile.profileId));
+  const set = firstSet();
+  const group = set ? firstGroup(set.setId) : null;
+  state.animation.profiles.push({
+    profileId,
+    displayName: "Base Profile",
+    description: "Default runtime animation profile.",
+    defaultSetId: set?.setId || "",
+    defaultGroupId: group?.groupId || "",
+    slots: [],
+    compatibility: {},
+    warmup: {},
+    diagnostics: [],
+    metadata: {}
+  });
+  state.selected.kind = "package";
+  render();
+}
+
+function removeSet(setId) {
+  if (!Array.isArray(state.animation?.sets) || !setId) return;
+  state.animation.sets = state.animation.sets.filter(set => set.setId !== setId);
+  for (const profile of state.animation.profiles || []) {
+    if (profile.defaultSetId === setId) {
+      profile.defaultSetId = "";
+      profile.defaultGroupId = "";
+    }
+    for (const slot of profile.slots || []) {
+      if (slot.setId === setId) {
+        slot.setId = "";
+        slot.groupId = "";
+        slot.defaultClipId = "";
+        slot.defaultBlendId = "";
+      }
+    }
+  }
+  ensureSelection();
+  render();
+}
+
+function removeProfile(index) {
+  if (!Array.isArray(state.animation?.profiles)) return;
+  state.animation.profiles.splice(index, 1);
+  render();
+}
+
+function addProfileSlot(profileIndex) {
+  const profile = (state.animation?.profiles || [])[profileIndex];
+  if (!profile) return;
+  profile.slots = Array.isArray(profile.slots) ? profile.slots : [];
+  const setId = profile.defaultSetId || getSetIds()[0] || "";
+  const groupId = profile.defaultGroupId || getGroupIds(setId)[0] || "";
+  const slotId = uniqueId("slot.locomotion", profile.slots.map(slot => slot.slotId));
+  profile.slots.push({
+    slotId,
+    displayName: "Locomotion",
+    purpose: "Runtime animation slot.",
+    setId,
+    groupId,
+    defaultClipId: getClipIds(setId, groupId)[0] || "",
+    defaultBlendId: getBlendIds(setId, groupId)[0] || "",
+    preloadPolicy: "AnimationWarmup",
+    required: true
+  });
+  render();
+}
+
+function removeProfileSlot(profileIndex, slotIndex) {
+  const profile = (state.animation?.profiles || [])[profileIndex];
+  if (!profile || !Array.isArray(profile.slots)) return;
+  profile.slots.splice(slotIndex, 1);
+  render();
+}
+
 function addGroup() {
   const set = findSet(state.selected.setId) || firstSet();
   if (!set) return addSet();
@@ -1383,6 +2123,83 @@ function addGroup() {
     timelines: []
   });
   selectNode("group", set.setId, groupId, "");
+  render();
+}
+
+function removeGroup(setId, groupId) {
+  const set = findSet(setId);
+  if (!set || !groupId) return;
+  set.groups = (set.groups || []).filter(group => group.groupId !== groupId);
+  for (const binding of set.actionBindings || []) {
+    if (binding.groupId === groupId) {
+      binding.groupId = "";
+      binding.clipId = "";
+      binding.blendId = "";
+      binding.timelineId = "";
+    }
+  }
+  for (const profile of state.animation.profiles || []) {
+    if (profile.defaultSetId === setId && profile.defaultGroupId === groupId) profile.defaultGroupId = "";
+    for (const slot of profile.slots || []) {
+      if (slot.setId === setId && slot.groupId === groupId) {
+        slot.groupId = "";
+        slot.defaultClipId = "";
+        slot.defaultBlendId = "";
+      }
+    }
+  }
+  ensureSelection();
+  render();
+}
+
+function addLayer(set) {
+  if (!set) return;
+  set.layers = Array.isArray(set.layers) ? set.layers : [];
+  const layerId = uniqueId("layer.base", set.layers.map(layer => layer.layerId));
+  set.layers.push({
+    layerId,
+    displayName: "Base Layer",
+    purpose: "fullBody",
+    weight: 1,
+    additive: false,
+    syncLayerId: "",
+    rootMotionPolicy: "Ignore",
+    avatarMaskSelection: {},
+    tags: [],
+    metadata: {}
+  });
+  render();
+}
+
+function removeLayer(set, index) {
+  if (!set || !Array.isArray(set.layers)) return;
+  set.layers.splice(index, 1);
+  render();
+}
+
+function addActionBinding(set) {
+  if (!set) return;
+  set.actionBindings = Array.isArray(set.actionBindings) ? set.actionBindings : [];
+  const groupId = getGroupIds(set.setId)[0] || "";
+  const bindingId = uniqueId("binding.locomotion", set.actionBindings.map(binding => binding.bindingId));
+  set.actionBindings.push({
+    bindingId,
+    actionId: "locomotion.idle",
+    displayName: "Locomotion Idle",
+    groupId,
+    clipId: getClipIds(set.setId, groupId)[0] || "",
+    blendId: getBlendIds(set.setId, groupId)[0] || "",
+    timelineId: getTimelineIds(set.setId, groupId)[0] || "",
+    required: true,
+    tags: [],
+    metadata: {}
+  });
+  render();
+}
+
+function removeActionBinding(set, index) {
+  if (!set || !Array.isArray(set.actionBindings)) return;
+  set.actionBindings.splice(index, 1);
   render();
 }
 
@@ -1411,6 +2228,26 @@ function removeClip(clipId) {
   const group = findGroup(state.selected.setId, state.selected.groupId);
   if (!group) return;
   group.clips = (group.clips || []).filter(clip => clip.clipId !== clipId);
+  if (findSet(state.selected.setId)?.defaultClipId === clipId) findSet(state.selected.setId).defaultClipId = "";
+  if (findSet(state.selected.setId)?.fallbackClipId === clipId) findSet(state.selected.setId).fallbackClipId = "";
+  for (const blend of [...(group.blend1D || []), ...(group.blend2D || [])]) {
+    if (blend.defaultClipId === clipId) blend.defaultClipId = "";
+    blend.points = (blend.points || []).filter(point => point.clipId !== clipId);
+  }
+  for (const timeline of group.timelines || []) {
+    if (timeline.clipId === clipId) timeline.clipId = "";
+    for (const eventItem of timeline.events || []) {
+      if (eventItem.clipId === clipId) eventItem.clipId = "";
+    }
+  }
+  for (const binding of findSet(state.selected.setId)?.actionBindings || []) {
+    if (binding.groupId === group.groupId && binding.clipId === clipId) binding.clipId = "";
+  }
+  for (const profile of state.animation.profiles || []) {
+    for (const slot of profile.slots || []) {
+      if (slot.setId === state.selected.setId && slot.groupId === group.groupId && slot.defaultClipId === clipId) slot.defaultClipId = "";
+    }
+  }
   if (state.selected.clipId === clipId) state.selected.clipId = group.clips[0]?.clipId || "";
   render();
 }
@@ -1485,7 +2322,16 @@ function removeBlend(kind) {
   if (!group) return;
   const normalizedKind = kind === "2D" ? "2D" : "1D";
   const key = normalizedKind === "1D" ? "blend1D" : "blend2D";
+  const removedBlendId = state.blendEditor.blendId;
   group[key] = (group[key] || []).filter(blend => blend.blendId !== state.blendEditor.blendId);
+  for (const binding of findSet(state.selected.setId)?.actionBindings || []) {
+    if (binding.groupId === group.groupId && binding.blendId === removedBlendId) binding.blendId = "";
+  }
+  for (const profile of state.animation.profiles || []) {
+    for (const slot of profile.slots || []) {
+      if (slot.setId === state.selected.setId && slot.groupId === group.groupId && slot.defaultBlendId === removedBlendId) slot.defaultBlendId = "";
+    }
+  }
   state.blendEditor.blendId = "";
   ensureBlendSelection(group);
   renderBlendEditorState();
@@ -1587,7 +2433,11 @@ function addTimeline() {
 function removeTimeline() {
   const group = findGroup(state.selected.setId, state.selected.groupId);
   if (!group) return;
-  group.timelines = getTimelineList(group).filter(timeline => timeline.timelineId !== state.timelineEditor.timelineId);
+  const removedTimelineId = state.timelineEditor.timelineId;
+  group.timelines = getTimelineList(group).filter(timeline => timeline.timelineId !== removedTimelineId);
+  for (const binding of findSet(state.selected.setId)?.actionBindings || []) {
+    if (binding.groupId === group.groupId && binding.timelineId === removedTimelineId) binding.timelineId = "";
+  }
   state.timelineEditor.timelineId = "";
   ensureTimelineSelection(group);
   renderTimelineEditorState();
@@ -2005,6 +2855,94 @@ function getLocalTimelineIssues() {
   return issues;
 }
 
+function getLocalReferenceIssues() {
+  const issues = [];
+  for (const set of state.animation?.sets || []) {
+    const groupIds = new Set((set.groups || []).map(group => group.groupId).filter(Boolean));
+    const setClipIds = new Set(getSetClipIds(set));
+    const setBlendIds = new Set(getSetBlendIds(set));
+
+    if (set.defaultClipId && !setClipIds.has(set.defaultClipId)) {
+      issues.push(refIssue("Error", "ANIM_REF_SET_DEFAULT_CLIP_MISSING", `${set.setId}/defaultClipId`, set.setId, "", set.defaultClipId, "Set defaultClipId 不存在于当前 Set 的任何 Group。"));
+    }
+    if (set.fallbackClipId && !setClipIds.has(set.fallbackClipId)) {
+      issues.push(refIssue("Warning", "ANIM_REF_SET_FALLBACK_CLIP_MISSING", `${set.setId}/fallbackClipId`, set.setId, "", set.fallbackClipId, "Set fallbackClipId 不存在于当前 Set 的任何 Group。"));
+    }
+
+    for (const binding of set.actionBindings || []) {
+      const group = findGroup(set.setId, binding.groupId);
+      if (binding.groupId && !groupIds.has(binding.groupId)) {
+        issues.push(refIssue("Error", "ANIM_REF_BINDING_GROUP_MISSING", `${set.setId}/binding/${binding.bindingId}`, set.setId, binding.groupId, binding.actionId, "ActionBinding groupId 不存在。"));
+        continue;
+      }
+      const groupClipIds = new Set(getClipIds(set.setId, binding.groupId));
+      const groupBlendIds = new Set(getBlendIds(set.setId, binding.groupId));
+      const groupTimelineIds = new Set(getTimelineIds(set.setId, binding.groupId));
+      if (binding.clipId && !groupClipIds.has(binding.clipId)) {
+        issues.push(refIssue("Error", "ANIM_REF_BINDING_CLIP_MISSING", `${set.setId}/binding/${binding.bindingId}`, set.setId, binding.groupId, binding.clipId, "ActionBinding clipId 不存在于所选 Group。"));
+      }
+      if (binding.blendId && !groupBlendIds.has(binding.blendId)) {
+        issues.push(refIssue("Error", "ANIM_REF_BINDING_BLEND_MISSING", `${set.setId}/binding/${binding.bindingId}`, set.setId, binding.groupId, binding.blendId, "ActionBinding blendId 不存在于所选 Group。"));
+      }
+      if (binding.timelineId && !groupTimelineIds.has(binding.timelineId)) {
+        issues.push(refIssue("Error", "ANIM_REF_BINDING_TIMELINE_MISSING", `${set.setId}/binding/${binding.bindingId}`, set.setId, binding.groupId, binding.timelineId, "ActionBinding timelineId 不存在于所选 Group。"));
+      }
+    }
+
+    for (const requiredClipId of set.warmup?.requiredClipIds || []) {
+      if (!setClipIds.has(requiredClipId)) {
+        issues.push(refIssue("Warning", "ANIM_REF_WARMUP_CLIP_MISSING", `${set.setId}/warmup/requiredClipIds`, set.setId, "", requiredClipId, "Warmup requiredClipIds 引用了不存在的 Clip。"));
+      }
+    }
+    for (const requiredBlendId of set.warmup?.requiredBlendIds || []) {
+      if (!setBlendIds.has(requiredBlendId)) {
+        issues.push(refIssue("Warning", "ANIM_REF_WARMUP_BLEND_MISSING", `${set.setId}/warmup/requiredBlendIds`, set.setId, "", requiredBlendId, "Warmup requiredBlendIds 引用了不存在的 Blend。"));
+      }
+    }
+  }
+
+  const setIds = new Set(getSetIds());
+  for (const profile of state.animation?.profiles || []) {
+    if (profile.defaultSetId && !setIds.has(profile.defaultSetId)) {
+      issues.push(refIssue("Error", "ANIM_REF_PROFILE_SET_MISSING", `profile/${profile.profileId}`, profile.defaultSetId, profile.defaultGroupId, profile.defaultSetId, "Profile defaultSetId 不存在。"));
+    }
+    const profileGroupIds = new Set(getGroupIds(profile.defaultSetId));
+    if (profile.defaultGroupId && !profileGroupIds.has(profile.defaultGroupId)) {
+      issues.push(refIssue("Error", "ANIM_REF_PROFILE_GROUP_MISSING", `profile/${profile.profileId}`, profile.defaultSetId, profile.defaultGroupId, profile.defaultGroupId, "Profile defaultGroupId 不存在于 defaultSetId。"));
+    }
+    for (const slot of profile.slots || []) {
+      const setId = slot.setId || profile.defaultSetId;
+      const groupId = slot.groupId || profile.defaultGroupId;
+      if (setId && !setIds.has(setId)) {
+        issues.push(refIssue("Error", "ANIM_REF_SLOT_SET_MISSING", `profile/${profile.profileId}/slot/${slot.slotId}`, setId, groupId, setId, "Slot setId 不存在。"));
+        continue;
+      }
+      if (groupId && !getGroupIds(setId).includes(groupId)) {
+        issues.push(refIssue("Error", "ANIM_REF_SLOT_GROUP_MISSING", `profile/${profile.profileId}/slot/${slot.slotId}`, setId, groupId, groupId, "Slot groupId 不存在于 setId。"));
+      }
+      if (slot.defaultClipId && !getClipIds(setId, groupId).includes(slot.defaultClipId)) {
+        issues.push(refIssue("Error", "ANIM_REF_SLOT_CLIP_MISSING", `profile/${profile.profileId}/slot/${slot.slotId}`, setId, groupId, slot.defaultClipId, "Slot defaultClipId 不存在于所选 Group。"));
+      }
+      if (slot.defaultBlendId && !getBlendIds(setId, groupId).includes(slot.defaultBlendId)) {
+        issues.push(refIssue("Error", "ANIM_REF_SLOT_BLEND_MISSING", `profile/${profile.profileId}/slot/${slot.slotId}`, setId, groupId, slot.defaultBlendId, "Slot defaultBlendId 不存在于所选 Group。"));
+      }
+    }
+  }
+
+  return issues;
+}
+
+function refIssue(severity, code, path, setId, groupId, value, message) {
+  return {
+    severity,
+    code,
+    sourceObjectPath: path,
+    setId: setId || "",
+    groupId: groupId || "",
+    message: `${message} (${value || "empty"})`
+  };
+}
+
 function selectSet(setId) {
   const set = findSet(setId);
   selectNode("set", set?.setId || "", "", "");
@@ -2029,10 +2967,37 @@ function ensureAnimationShape() {
   state.animation.schemaVersion ||= "1.0";
   state.animation.sets = Array.isArray(state.animation.sets) ? state.animation.sets : [];
   state.animation.profiles = Array.isArray(state.animation.profiles) ? state.animation.profiles : [];
+  for (const profile of state.animation.profiles) {
+    profile.slots = Array.isArray(profile.slots) ? profile.slots : [];
+    profile.compatibility = ensureCompatibility(profile);
+    profile.warmup = ensureWarmup(profile);
+    profile.diagnostics = Array.isArray(profile.diagnostics) ? profile.diagnostics : [];
+    profile.metadata ||= {};
+    for (const slot of profile.slots) {
+      slot.preloadPolicy ||= "AnimationWarmup";
+      if (slot.required == null) slot.required = false;
+    }
+  }
   for (const set of state.animation.sets) {
     set.layers = Array.isArray(set.layers) ? set.layers : [];
     set.groups = Array.isArray(set.groups) ? set.groups : [];
     set.actionBindings = Array.isArray(set.actionBindings) ? set.actionBindings : [];
+    set.compatibility = ensureCompatibility(set);
+    set.warmup = ensureWarmup(set);
+    set.diagnostics = Array.isArray(set.diagnostics) ? set.diagnostics : [];
+    set.metadata ||= {};
+    for (const layer of set.layers) {
+      layer.rootMotionPolicy ||= "Ignore";
+      if (layer.weight == null) layer.weight = 1;
+      layer.avatarMaskSelection ||= {};
+      layer.tags = Array.isArray(layer.tags) ? layer.tags : [];
+      layer.metadata ||= {};
+    }
+    for (const binding of set.actionBindings) {
+      binding.tags = Array.isArray(binding.tags) ? binding.tags : [];
+      binding.metadata ||= {};
+      if (binding.required == null) binding.required = false;
+    }
     for (const group of set.groups) {
       group.clips = Array.isArray(group.clips) ? group.clips : [];
       group.blend1D = Array.isArray(group.blend1D) ? group.blend1D : [];
@@ -2060,8 +3025,11 @@ function ensureAnimationShape() {
       for (const clip of group.clips) {
         clip.sourceSelection ||= {};
         clip.tags = Array.isArray(clip.tags) ? clip.tags : [];
+        clip.generatedArtifactSelections = Array.isArray(clip.generatedArtifactSelections) ? clip.generatedArtifactSelections : [];
         clip.rootMotionPolicy ||= "Ignore";
         if (clip.speed == null) clip.speed = 1;
+        clip.metadata ||= {};
+        clip.diagnostics = Array.isArray(clip.diagnostics) ? clip.diagnostics : [];
       }
       for (const timeline of group.timelines) {
         timeline.timeDomain ||= "Seconds";
@@ -2157,12 +3125,106 @@ function getAllClips() {
   return getAllGroups().flatMap(group => group.clips || []);
 }
 
+function getAllLayers() {
+  return (state.animation?.sets || []).flatMap(set => set.layers || []);
+}
+
+function getAllActionBindings() {
+  return (state.animation?.sets || []).flatMap(set => set.actionBindings || []);
+}
+
+function getSetIds() {
+  return (state.animation?.sets || []).map(set => set.setId).filter(Boolean);
+}
+
+function getGroupIds(setId) {
+  return (findSet(setId)?.groups || []).map(group => group.groupId).filter(Boolean);
+}
+
+function getClipIds(setId, groupId) {
+  return (findGroup(setId, groupId)?.clips || []).map(clip => clip.clipId).filter(Boolean);
+}
+
+function getBlendIds(setId, groupId) {
+  const group = findGroup(setId, groupId);
+  return [
+    ...(group?.blend1D || []).map(blend => blend.blendId).filter(Boolean),
+    ...(group?.blend2D || []).map(blend => blend.blendId).filter(Boolean)
+  ];
+}
+
+function getTimelineIds(setId, groupId) {
+  return (findGroup(setId, groupId)?.timelines || []).map(timeline => timeline.timelineId).filter(Boolean);
+}
+
+function getSetClipIds(set) {
+  return (set?.groups || []).flatMap(group => (group.clips || []).map(clip => clip.clipId)).filter(Boolean);
+}
+
+function getSetBlendIds(set) {
+  return (set?.groups || []).flatMap(group => [
+    ...(group.blend1D || []).map(blend => blend.blendId),
+    ...(group.blend2D || []).map(blend => blend.blendId)
+  ]).filter(Boolean);
+}
+
+function getProfileClipIds(profile) {
+  const ids = new Set();
+  for (const slot of profile?.slots || []) {
+    if (slot.defaultClipId) ids.add(slot.defaultClipId);
+    for (const clipId of getClipIds(slot.setId || profile.defaultSetId, slot.groupId || profile.defaultGroupId)) ids.add(clipId);
+  }
+  return Array.from(ids);
+}
+
+function getProfileBlendIds(profile) {
+  const ids = new Set();
+  for (const slot of profile?.slots || []) {
+    if (slot.defaultBlendId) ids.add(slot.defaultBlendId);
+    for (const blendId of getBlendIds(slot.setId || profile.defaultSetId, slot.groupId || profile.defaultGroupId)) ids.add(blendId);
+  }
+  return Array.from(ids);
+}
+
+function ensureCompatibility(owner) {
+  if (!owner) return {};
+  owner.compatibility ||= {};
+  owner.compatibility.requiredBoneIds = Array.isArray(owner.compatibility.requiredBoneIds) ? owner.compatibility.requiredBoneIds : [];
+  owner.compatibility.requiredSocketIds = Array.isArray(owner.compatibility.requiredSocketIds) ? owner.compatibility.requiredSocketIds : [];
+  owner.compatibility.compatibilityProfileSelection ||= {};
+  owner.compatibility.avatarMaskSelection ||= {};
+  owner.compatibility.diagnostics = Array.isArray(owner.compatibility.diagnostics) ? owner.compatibility.diagnostics : [];
+  owner.compatibility.metadata ||= {};
+  return owner.compatibility;
+}
+
+function ensureWarmup(owner) {
+  if (!owner) return {};
+  owner.warmup ||= {};
+  owner.warmup.preloadPolicy ||= "AnimationWarmup";
+  if (owner.warmup.includeDefaultClip == null) owner.warmup.includeDefaultClip = true;
+  if (owner.warmup.includeFallbackClip == null) owner.warmup.includeFallbackClip = true;
+  if (owner.warmup.includeActionBindings == null) owner.warmup.includeActionBindings = true;
+  if (owner.warmup.includeBlendPoints == null) owner.warmup.includeBlendPoints = true;
+  owner.warmup.requiredClipIds = Array.isArray(owner.warmup.requiredClipIds) ? owner.warmup.requiredClipIds : [];
+  owner.warmup.requiredBlendIds = Array.isArray(owner.warmup.requiredBlendIds) ? owner.warmup.requiredBlendIds : [];
+  owner.warmup.avatarMaskSelections = Array.isArray(owner.warmup.avatarMaskSelections) ? owner.warmup.avatarMaskSelections : [];
+  owner.warmup.vfxSelections = Array.isArray(owner.warmup.vfxSelections) ? owner.warmup.vfxSelections : [];
+  owner.warmup.audioCueSelections = Array.isArray(owner.warmup.audioCueSelections) ? owner.warmup.audioCueSelections : [];
+  owner.warmup.generatedArtifactSelections = Array.isArray(owner.warmup.generatedArtifactSelections) ? owner.warmup.generatedArtifactSelections : [];
+  owner.warmup.additionalResourceSelections = Array.isArray(owner.warmup.additionalResourceSelections) ? owner.warmup.additionalResourceSelections : [];
+  owner.warmup.diagnostics = Array.isArray(owner.warmup.diagnostics) ? owner.warmup.diagnostics : [];
+  owner.warmup.metadata ||= {};
+  return owner.warmup;
+}
+
 function getIssues() {
   const issues = [];
   if (Array.isArray(state.validation?.issues)) issues.push(...state.validation.issues);
   if (Array.isArray(state.animation?.diagnostics)) issues.push(...state.animation.diagnostics);
   issues.push(...getLocalBlendIssues());
   issues.push(...getLocalTimelineIssues());
+  issues.push(...getLocalReferenceIssues());
   for (const error of state.errors) {
     issues.push({
       severity: "Error",
@@ -2205,8 +3267,8 @@ function treeButtonClass(kind, setId, groupId, clipId) {
   return `tree-node ${kind} ${active ? "active" : ""}`;
 }
 
-function textField(field, label, value) {
-  return `<label class="inspector-field"><span>${escapeHtml(label)}</span><input data-field="${escapeHtml(field)}" value="${escapeHtml(value)}"></label>`;
+function textField(field, label, value, placeholder = "") {
+  return `<label class="inspector-field"><span>${escapeHtml(label)}</span><input data-field="${escapeHtml(field)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"></label>`;
 }
 
 function numberField(field, label, value, min, max, step) {
@@ -2215,6 +3277,30 @@ function numberField(field, label, value, min, max, step) {
 
 function textArea(field, label, value) {
   return `<label class="inspector-field"><span>${escapeHtml(label)}</span><textarea data-field="${escapeHtml(field)}">${escapeHtml(value)}</textarea></label>`;
+}
+
+function csvToList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value || "").split(",").map(item => item.trim()).filter(Boolean);
+}
+
+function metadataToText(metadata) {
+  return Object.entries(metadata || {}).map(([key, value]) => `${key}=${value}`).join(", ");
+}
+
+function textToMetadata(value) {
+  const result = {};
+  for (const token of String(value || "").split(",")) {
+    const [key, ...rest] = token.split("=");
+    const normalizedKey = key?.trim();
+    if (!normalizedKey) continue;
+    result[normalizedKey] = rest.join("=").trim();
+  }
+  return result;
+}
+
+function kebabCase(value) {
+  return String(value || "").replace(/[A-Z]/g, match => `-${match.toLowerCase()}`).replace(/^-/, "");
 }
 
 function emptyBlock(text) {

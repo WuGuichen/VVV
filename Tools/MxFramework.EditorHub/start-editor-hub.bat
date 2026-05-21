@@ -20,6 +20,7 @@ if "%PACKAGE_RELATIVE%"=="" set "PACKAGE_RELATIVE=%DEFAULT_PACKAGE%"
 if "%MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER%"=="" set "MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER=1"
 set "URL=http://127.0.0.1:%PORT%/Tools/MxFramework.EditorHub/web/"
 set "HEALTH_URL=http://127.0.0.1:%PORT%/api/character/packages"
+set "ANIMATION_HEALTH_URL=http://127.0.0.1:%PORT%/api/authoring/animation/packages"
 
 echo %PORT%| findstr /r "^[0-9][0-9]*$" >nul
 if errorlevel 1 (
@@ -73,10 +74,16 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%PORT% .*LISTENING"')
 if not "%PORT_PID%"=="" (
     powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%HEALTH_URL%' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
     if not errorlevel 1 (
-        echo MxFramework Authoring server is already running on port %PORT%.
-        echo URL: %URL%
-        if not "%MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER%"=="0" start "" "%URL%"
-        exit /b 0
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing -Uri '%ANIMATION_HEALTH_URL%' -TimeoutSec 1 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
+        if not errorlevel 1 (
+            echo MxFramework Authoring server is already running on port %PORT%.
+            echo URL: %URL%
+            if not "%MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER%"=="0" start "" "%URL%"
+            exit /b 0
+        )
+
+        echo [WARN] Port %PORT% has an older Authoring server without Animation Editor APIs.
+        echo [WARN] Stop that server and rerun, or start this Hub on another port: Tools\MxFramework.EditorHub\start-editor-hub.bat 4874
     )
 
     echo [ERROR] Port %PORT% is already in use by process %PORT_PID%.
@@ -93,7 +100,7 @@ echo Stop   : Ctrl+C
 echo.
 
 if not "%MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER%"=="0" (
-    start "Editor Hub opener" powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='%URL%'; $h='%HEALTH_URL%'; for($i=0;$i -lt 30;$i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $h -TimeoutSec 1 | Out-Null; Start-Process $u; exit 0 } catch { Start-Sleep -Seconds 1 } }; Write-Host 'Editor Hub server did not become ready in 30 seconds. Open manually:' $u"
+    start "Editor Hub opener" powershell -NoProfile -ExecutionPolicy Bypass -Command "$u='%URL%'; $h='%HEALTH_URL%'; $a='%ANIMATION_HEALTH_URL%'; for($i=0;$i -lt 30;$i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $h -TimeoutSec 1 | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri $a -TimeoutSec 1 | Out-Null; Start-Process $u; exit 0 } catch { Start-Sleep -Seconds 1 } }; Write-Host 'Editor Hub server did not become ready in 30 seconds. Open manually:' $u"
 )
 
 pushd "%ROOT_DIR%"

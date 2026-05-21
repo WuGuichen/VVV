@@ -10,6 +10,7 @@ PACKAGE_RELATIVE="${2:-${MXFRAMEWORK_EDITOR_HUB_PACKAGE:-$DEFAULT_PACKAGE}}"
 OPEN_BROWSER="${MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER:-1}"
 URL="http://127.0.0.1:${PORT}/Tools/MxFramework.EditorHub/web/"
 HEALTH_URL="http://127.0.0.1:${PORT}/api/character/packages"
+ANIMATION_HEALTH_URL="http://127.0.0.1:${PORT}/api/authoring/animation/packages"
 
 die() {
   printf '[ERROR] %s\n' "$*" >&2
@@ -43,7 +44,7 @@ wait_and_open_url() {
   fi
 
   for _ in $(seq 1 30); do
-    if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+    if curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
       open_url
       return
     fi
@@ -88,11 +89,16 @@ if [[ ! -d "$ROOT_DIR/Tools/MxFramework.CharacterStudio/node_modules/three" ]]; 
 fi
 
 if is_port_in_use; then
-  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
     printf 'MxFramework Authoring server is already running on port %s.\n' "$PORT"
     printf 'URL: %s\n' "$URL"
     [[ "$OPEN_BROWSER" == "0" ]] || open_url
     exit 0
+  fi
+
+  if command -v curl >/dev/null 2>&1 && curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && ! curl -fsS "$ANIMATION_HEALTH_URL" >/dev/null 2>&1; then
+    warn "Port $PORT has an older Authoring server without Animation Editor APIs."
+    warn "Stop that server and rerun, or start this Hub on another port: $0 4874"
   fi
 
   if command -v lsof >/dev/null 2>&1; then

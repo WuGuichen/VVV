@@ -894,6 +894,157 @@ code {
   margin: 0;
 }
 
+.structure-editor {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.structure-block {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.structure-block + .structure-block,
+.runtime-dual-grid {
+  margin-top: 12px;
+}
+
+.structure-block-head,
+.subsection-heading,
+.selection-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.structure-block-head span,
+.subsection-heading,
+.selection-list-head,
+.structure-field span,
+.selection-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.structure-block-head strong,
+.subsection-heading strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.structure-grid,
+.runtime-dual-grid,
+.selection-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.structure-grid {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
+.runtime-dual-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selection-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.structure-field,
+.selection-card,
+.selection-cell,
+.selection-list-editor {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.multi-select-field select {
+  min-height: 84px;
+  padding: 8px;
+}
+
+.runtime-table {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.runtime-row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  min-width: 980px;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+}
+
+.runtime-head {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.profile-slot-row,
+.profile-slot-table .runtime-head {
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) 140px 80px 74px;
+}
+
+.layer-row,
+.layer-table .runtime-head {
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) 80px 88px minmax(120px, 1fr) 150px minmax(180px, 1.3fr) minmax(120px, 1fr) 74px;
+}
+
+.action-binding-row,
+.action-binding-table .runtime-head {
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) 82px minmax(120px, 1fr) 74px;
+}
+
+.selection-card,
+.selection-list-editor {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.selection-card code,
+.selection-cell code,
+.selection-list-row code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-actions,
+.selection-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selection-list-row {
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.selection-cell {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -1086,6 +1237,17 @@ code {
   .blend-points.two-axis .blend-point-row,
   .timeline-domain-row,
   .timeline-event-row {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-grid,
+  .runtime-dual-grid,
+  .selection-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .runtime-row {
+    min-width: 0;
     grid-template-columns: 1fr;
   }
 
