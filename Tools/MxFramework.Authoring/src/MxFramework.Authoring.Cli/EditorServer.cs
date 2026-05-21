@@ -114,6 +114,16 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/authoring/animation/compile" && context.Request.HttpMethod == "POST")
+        {
+            AnimationAuthoringSaveRequest request = ReadAnimationAuthoringSaveRequest(context, jsonOptions);
+            string animationPackage = !string.IsNullOrWhiteSpace(request.package)
+                ? request.package
+                : context.Request.QueryString["package"] ?? string.Empty;
+            WriteJson(context.Response, CompileAnimationPackage(rootPath, animationPackage, defaultPackage, request.animation, jsonOptions), jsonOptions);
+            return;
+        }
+
         if (path == "/api/character/state" && context.Request.HttpMethod == "GET")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -935,6 +945,25 @@ internal static class EditorServer
         return report;
     }
 
+    internal static AnimationAuthoringCompileResult CompileAnimationPackage(
+        string rootPath,
+        string packageOrPath,
+        string defaultPackage,
+        AnimationAuthoringPackage package,
+        JsonSerializerOptions jsonOptions)
+    {
+        string documentPath = ResolveAnimationDocumentPath(rootPath, packageOrPath, defaultPackage, jsonOptions);
+        AnimationAuthoringPackage animation = package ?? ReadAnimationPackage(rootPath, documentPath, jsonOptions);
+        string packageRoot = ResolveAnimationPackageRootPath(documentPath);
+        CharacterPackageResourceCatalog catalog = ReadAnimationResourceCatalog(packageRoot, jsonOptions);
+        return AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest
+        {
+            Package = animation,
+            PackageRootPath = packageRoot,
+            ResourceCatalog = catalog
+        });
+    }
+
     private static object CreateAnimationFieldSpecs()
     {
         return new
@@ -1050,6 +1079,25 @@ internal static class EditorServer
         }
 
         return ToProjectRelativePath(rootPath, normalized);
+    }
+
+    private static string ResolveAnimationPackageRootPath(string documentPath)
+    {
+        string normalized = Path.GetFullPath(documentPath);
+        string fileName = Path.GetFileName(normalized);
+        if (string.Equals(fileName, Path.GetFileName(AnimationAuthoringDocumentRelativePath), StringComparison.OrdinalIgnoreCase))
+            return Path.GetDirectoryName(Path.GetDirectoryName(normalized)!)!;
+
+        return Path.GetDirectoryName(normalized)!;
+    }
+
+    private static CharacterPackageResourceCatalog ReadAnimationResourceCatalog(string packageRoot, JsonSerializerOptions jsonOptions)
+    {
+        string path = Path.Combine(packageRoot, "resource_catalog.json");
+        if (!File.Exists(path))
+            return new CharacterPackageResourceCatalog();
+
+        return JsonSerializer.Deserialize<CharacterPackageResourceCatalog>(File.ReadAllText(path), jsonOptions) ?? new CharacterPackageResourceCatalog();
     }
 
     private static AnimationAuthoringPackage ReadAnimationPackage(string rootPath, string documentPath, JsonSerializerOptions jsonOptions)
@@ -1637,7 +1685,7 @@ internal static class EditorServer
             return new AnimationAuthoringSaveRequest();
 
         AnimationAuthoringSaveRequest request = JsonSerializer.Deserialize<AnimationAuthoringSaveRequest>(body, jsonOptions);
-        if (request != null && request.animation != null)
+        if (request != null && (request.animation != null || !string.IsNullOrWhiteSpace(request.package)))
             return request;
 
         AnimationAuthoringPackage package = JsonSerializer.Deserialize<AnimationAuthoringPackage>(body, jsonOptions);

@@ -59,6 +59,9 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "character")
             return CharacterPackageCommands.Dispatch(args, JsonOptions);
 
+        if (args.Length >= 2 && args[0] == "animation")
+            return AnimationPackageCommands.Dispatch(args, JsonOptions);
+
         if (args.Length >= 2 && args[0] == "preview")
             return PreviewCommands.Dispatch(args, JsonOptions);
 
@@ -510,6 +513,7 @@ internal static class Program
         Console.WriteLine("  character compile --package <path> [--out <dir>] [--check-files] [--check-hashes] [--strict]");
         Console.WriteLine("  character import-unity --package <path> --project-root <repoRoot> [--unity-root <Assets/...>] [--check-files] [--check-hashes]");
         Console.WriteLine("  character schema");
+        Console.WriteLine("  animation compile --package <path> [--out <dir>]");
         Console.WriteLine("  package validate --package <path>");
         Console.WriteLine("  manifest export");
         Console.WriteLine("  manifest inspect --manifest <path>");
