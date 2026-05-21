@@ -63,7 +63,7 @@ const IMPORT_PRESETS = [
     kind: "animation",
     usage: "animationClipGroup",
     role: "",
-    extensions: ["glb", "gltf", "fbx", "json"]
+    extensions: ["anim", "glb", "gltf", "fbx", "json"]
   },
   {
     id: "audioCue",
@@ -341,20 +341,22 @@ async function importResourceFile(file) {
 async function importResourceFolder(files) {
   const candidates = Array.from(files || []);
   if (candidates.length === 0) return;
+  const preset = getSelectedImportPreset();
 
   state.writeState = { status: "running", action: "stage-import", error: "" };
-  state.lastActionMessage = `扫描文件夹：0 / ${candidates.length}`;
+  state.lastActionMessage = `扫描文件夹：0 / ${candidates.length}，类型 ${preset.label}`;
   render();
 
   const staging = await stageImportFiles(candidates);
   const stagedItems = asArray(pick(staging, "items")).map((raw, index) => normalizeItem(raw, index));
   const diagnostics = asArray(pick(staging, "diagnostics"));
   const ignored = diagnostics.filter(diagnostic => pick(diagnostic, "code") === "AUTH_RES_IMPORT_IGNORED_FILE").length;
-  const importable = stagedItems.filter(isImportableStagedItem);
+  const importable = stagedItems.filter(item => isImportableStagedItem(item) && isStagedItemSupportedByPreset(candidates, item, preset));
   const skipped = Math.max(0, candidates.length - ignored - importable.length);
+  const suffix = formatFolderImportCountSuffix(skipped, ignored, preset);
   if (importable.length === 0) {
     state.writeState = { status: "idle", action: "", error: "" };
-    state.lastActionMessage = `文件夹中没有可导入资源${formatFolderImportCountSuffix(skipped, ignored)}。`;
+    state.lastActionMessage = `文件夹中没有可导入资源${suffix}。`;
     if (diagnostics.length > 0) {
       state.errors.push(apiError("导入预检", new Error(diagnostics.slice(0, 3).map(diagnostic => pick(diagnostic, "message") || pick(diagnostic, "code")).join("; "))));
     }
@@ -363,7 +365,7 @@ async function importResourceFolder(files) {
   }
 
   state.writeState = { status: "running", action: "folder-import", error: "" };
-  state.lastActionMessage = `导入文件夹：0 / ${importable.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
+  state.lastActionMessage = `导入文件夹：0 / ${importable.length}${suffix}`;
   render();
 
   const failures = [];
@@ -375,12 +377,12 @@ async function importResourceFolder(files) {
       failures.push(`${staged.sourcePath || staged.displayName}: 找不到源文件`);
       continue;
     }
-    state.lastActionMessage = `导入文件夹：${i + 1} / ${importable.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
+    state.lastActionMessage = `导入文件夹：${i + 1} / ${importable.length}${suffix}`;
     renderStatus();
     try {
       const payload = await postJson(API.importResource, {
         package: state.packageRelative,
-        ...(await buildImportRequestFromStagedItem(file, staged))
+        ...(await buildImportRequestFromStagedItem(file, staged, preset))
       });
       selectedId = stringValue(pick(payload, "selectedResourceKey", "selectedId")) || selectedId;
     } catch (error) {
@@ -396,8 +398,8 @@ async function importResourceFolder(files) {
     ? { status: "error", action: "folder-import", error: `${failures.length} 个文件导入失败` }
     : { status: "idle", action: "", error: "" };
   state.lastActionMessage = failures.length > 0
-    ? `文件夹导入完成：成功 ${importable.length - failures.length}，失败 ${failures.length}${formatFolderImportCountSuffix(skipped, ignored)}`
-    : `文件夹导入完成：成功 ${importable.length}${formatFolderImportCountSuffix(skipped, ignored)}`;
+    ? `文件夹导入完成：成功 ${importable.length - failures.length}，失败 ${failures.length}${suffix}`
+    : `文件夹导入完成：成功 ${importable.length}${suffix}`;
   if (failures.length > 0) {
     state.errors.push(apiError("文件夹导入", new Error(failures.slice(0, 3).join("; "))));
   }
@@ -476,21 +478,33 @@ function isImportableStagedItem(item) {
     && stringValue(pick(item.metadata, "supported")) === "true";
 }
 
+function isStagedItemSupportedByPreset(files, item, preset) {
+  const file = findStagedSourceFile(files, item);
+  return Boolean(file && isFileSupportedByPreset(file, preset));
+}
+
 function findStagedSourceFile(files, staged) {
   const relativePath = stringValue(pick(staged.metadata, "relativePath")) || staged.sourcePath || "";
   return files.find(file => getImportDisplayPath(file) === relativePath || file.name === relativePath || file.name === staged.displayName);
 }
 
-async function buildImportRequestFromStagedItem(file, staged) {
-  const kind = stringValue(pick(staged.metadata, "detectedKind")) || staged.kind || "config";
-  const usage = stringValue(pick(staged.metadata, "detectedUsage")) || staged.usage || "characterConfig";
+async function buildImportRequestFromStagedItem(file, staged, preset) {
+  const detectedKind = stringValue(pick(staged.metadata, "detectedKind")) || staged.kind || "";
+  const kind = preset?.kind || detectedKind || "config";
+  const usage = preset?.usage || stringValue(pick(staged.metadata, "detectedUsage")) || staged.usage || "characterConfig";
+  const role = preset?.role || inferStagedRole(kind, usage);
+  const tags = ["resourcelibrary-folder-import", preset?.id || `auto-${kind}`];
+  if (detectedKind && detectedKind !== kind) {
+    tags.push(`detected-${detectedKind}`);
+  }
+
   return {
     fileName: file.name,
     kind,
     usage,
-    role: inferStagedRole(kind, usage),
-    localId: buildFolderLocalId(file, { id: kind }),
-    tags: ["resourcelibrary-folder-import", `auto-${kind}`],
+    role,
+    localId: buildFolderLocalId(file, preset || { id: kind }),
+    tags,
     bytesBase64: await readFileAsBase64(file)
   };
 }
@@ -1084,9 +1098,9 @@ function isIgnoredImportFile(file) {
   return filePath.split(/[\\/]+/).some(segment => segment.startsWith(".") && segment !== ".");
 }
 
-function formatFolderImportCountSuffix(skipped, ignored) {
-  const parts = [];
-  if (skipped > 0) parts.push(`跳过 ${skipped}`);
+function formatFolderImportCountSuffix(skipped, ignored, preset) {
+  const parts = [`类型 ${preset?.label || "自动识别"}`];
+  if (skipped > 0) parts.push(`跳过非匹配 ${skipped}`);
   if (ignored > 0) parts.push(`忽略元数据 ${ignored}`);
   return parts.length > 0 ? `，${parts.join("，")}` : "";
 }

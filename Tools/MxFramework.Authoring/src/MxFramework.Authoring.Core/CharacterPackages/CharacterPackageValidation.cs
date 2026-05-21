@@ -317,7 +317,7 @@ namespace MxFramework.Authoring
             if (!CharacterPackageResourcePipeline.IsSupportedV1Format(entry))
                 Add(report, CharacterAuthoringValidationSeverity.Error, CharacterAuthoringValidationGate.ImportBlocked,
                     CharacterAuthoringValidationCodes.UnsupportedResourceFormat, "resource_catalog.json", objectPath, "sourceFormat",
-                    "resource source format is not supported by the v1 character package contract.", "Use glTF/GLB for models and animation, png/jpg/tga for textures/previews, json for config/material/vfx descriptors, or wav/ogg for audio.");
+                    "resource source format is not supported by the v1 character package contract.", "Use glTF/GLB for models, glTF/GLB/anim/json for animation, png/jpg/tga for textures/previews, json for config/material/vfx descriptors, or wav/ogg for audio.");
         }
 
         private static void ValidateResourceFile(CharacterAuthoringValidationReport report, CharacterPackageResourceEntry entry, string objectPath, CharacterResourcePackageValidationOptions options)

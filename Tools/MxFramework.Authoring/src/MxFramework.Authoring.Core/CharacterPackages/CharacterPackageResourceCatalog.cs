@@ -20,6 +20,7 @@ namespace MxFramework.Authoring
         public const string Gltf = "gltf";
         public const string Glb = "glb";
         public const string Fbx = "fbx";
+        public const string Anim = "anim";
         public const string Png = "png";
         public const string Jpeg = "jpeg";
         public const string Jpg = "jpg";

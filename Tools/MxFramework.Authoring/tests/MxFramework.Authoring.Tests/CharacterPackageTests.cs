@@ -869,6 +869,13 @@ internal static class CharacterPackageTests
             SizeBytes = 6,
             BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("runfbx"))
         });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "Idle.anim",
+            RelativePath = "Art/Clips/Idle.anim",
+            SizeBytes = 4,
+            BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("anim"))
+        });
 
         AuthoringResourceCollection collection = ExternalImportStagingAuthoringResourceProvider.FromStagingDocument(
             staging,
@@ -881,7 +888,7 @@ internal static class CharacterPackageTests
 
         Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.ExternalImportStaging, "external staging provider should be declared.");
         Require(collection.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.IgnoredImportFile), ".meta files should be ignored as diagnostics instead of primary resources.");
-        Require(collection.Items.Count == 5, "hidden/meta file should not become a staged resource item.");
+        Require(collection.Items.Count == 6, "hidden/meta file should not become a staged resource item.");
 
         AuthoringResourceItem duplicate = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Characters/body.glb");
         Require(duplicate != null && duplicate.ImportStatus == AuthoringResourceImportStatus.Conflict, "duplicate source hash should be staged as a conflict.");
@@ -904,6 +911,10 @@ internal static class CharacterPackageTests
         AuthoringResourceItem animation = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.fbx");
         Require(animation != null && animation.Kind == CharacterPackageResourceTypeIds.Animation, "animation folder FBX should infer animation kind.");
         Require(animation.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation folder FBX should infer animationClipGroup usage.");
+
+        AuthoringResourceItem unityClip = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Clips/Idle.anim");
+        Require(unityClip != null && unityClip.Kind == CharacterPackageResourceTypeIds.Animation, "Unity .anim files should infer animation kind.");
+        Require(unityClip.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "Unity .anim files should infer animationClipGroup usage.");
     }
 
     private static void AuthoringResourceSelectionContracts_JsonRoundTrip()
@@ -1616,6 +1627,7 @@ internal static class CharacterPackageTests
         Require(HasField(FindSchema(schemas, CharacterResourcePackageSchemas.CompilerResultSchemaId), "resolverVerificationPlan"), "compiler resolver verification plan field missing.");
         Require(HasEnumOption("character.resourceSourceFormat", "glb"), "resource source format glb option missing.");
         Require(HasEnumOption("character.resourceSourceFormat", "fbx"), "resource source format fbx future option missing.");
+        Require(HasEnumOption("character.resourceSourceFormat", "anim"), "resource source format anim option missing.");
         Require(HasEnumOption("character.importTargetPathPolicy", "generatedCharacterPackage"), "import target path policy option missing.");
         Require(HasEnumOption("character.bodyPartKind", "Bone"), "body part kind Bone option missing.");
         Require(HasEnumOption("character.poseParentKind", "Socket"), "pose parent Socket option missing.");
