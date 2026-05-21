@@ -5,6 +5,7 @@ const state = {
   packageRelative: DEFAULT_CHARACTER_PACKAGE,
   authoringState: null,
   characterState: null,
+  animationPackages: null,
   resources: null,
   resourcePlan: null,
   diagnostics: [],
@@ -57,6 +58,7 @@ async function refresh(options = {}) {
   await Promise.all([
     loadAuthoringState(),
     loadCharacterState(),
+    loadAnimationPackages(),
     loadResources(),
     loadResourcePlan()
   ]);
@@ -83,6 +85,10 @@ async function loadAuthoringState() {
 
 async function loadCharacterState() {
   state.characterState = await readJson(`/api/character/state?package=${encodeURIComponent(state.packageRelative)}`, null, "CharacterStudio 状态");
+}
+
+async function loadAnimationPackages() {
+  state.animationPackages = await readJson("/api/authoring/animation/packages", null, "Animation Editor 状态");
 }
 
 async function loadResources() {
@@ -136,6 +142,7 @@ function renderStatus() {
   const characterPackage = state.characterState?.package?.manifest?.packageId || selectedPackageLabel();
   const resourceCount = Array.isArray(state.resources?.items) ? state.resources.items.length : 0;
   const providerCount = Array.isArray(state.resources?.providers) ? state.resources.providers.length : 0;
+  const animationPackageCount = Array.isArray(state.animationPackages) ? state.animationPackages.length : 0;
   const planStatus = getResourcePlanStatus();
 
   el.serverStatus.textContent = connected
@@ -146,6 +153,7 @@ function renderStatus() {
     statusChip("Authoring", connected ? "已连接" : "未连接", connected ? "ok" : "error"),
     statusChip("Buff Editor", state.authoringState ? "可用" : "不可用", state.authoringState ? "ok" : "warn"),
     statusChip("CharacterStudio", state.characterState?.package ? "可用" : "不可用", state.characterState?.package ? "ok" : "warn"),
+    statusChip("Animation Editor", animationPackageCount > 0 ? `${animationPackageCount} 包` : "不可用", animationPackageCount > 0 ? "ok" : "warn"),
     statusChip("资源 providers", String(providerCount), providerCount > 0 ? "ok" : "warn"),
     statusChip("资源项", String(resourceCount), resourceCount > 0 ? "ok" : "warn"),
     statusChip("资源计划", planStatus, planStatus === "Ready" ? "ok" : "warn")
@@ -155,6 +163,8 @@ function renderStatus() {
 function renderTools() {
   const characterUrl = `/Tools/MxFramework.CharacterStudio/web/?package=${encodeURIComponent(state.packageRelative)}`;
   const resourceLibraryUrl = `/Tools/MxFramework.ResourceLibrary/web/?package=${encodeURIComponent(state.packageRelative)}`;
+  const animationEditorUrl = `/Tools/MxFramework.AnimationEditor/web/?package=${encodeURIComponent(state.packageRelative)}`;
+  const animationReady = Array.isArray(state.animationPackages) && state.animationPackages.length > 0;
   const tools = [
     {
       title: "Buff Authoring Editor",
@@ -178,6 +188,18 @@ function renderTools() {
       details: [
         `Package: ${state.characterState?.package?.manifest?.packageId || selectedPackageLabel()}`,
         "用途: 角色配置、挂点、碰撞体、字段级资源选择；资源来自资源管理器"
+      ]
+    },
+    {
+      title: "Animation Editor",
+      subtitle: "动画 Set / Group / Clip Mapping 编辑器",
+      status: animationReady ? "可打开" : "服务未就绪",
+      tone: animationReady ? "ok" : "warn",
+      href: animationEditorUrl,
+      action: "打开动画编辑器",
+      details: [
+        `Animation packages: ${animationReady ? state.animationPackages.length : 0}`,
+        "用途: 动画组、源 Clip 映射、RootMotionPolicy；资源通过字段级 picker 选择"
       ]
     },
     {

@@ -762,10 +762,12 @@ code {
   gap: 8px;
 }
 
-.animation-panel-actions button {
+.animation-panel-actions button,
+.animation-panel-actions .button {
   min-height: 28px;
   padding: 0 10px;
   font-size: 12px;
+  text-decoration: none;
 }
 
 .animation-slot-list {
