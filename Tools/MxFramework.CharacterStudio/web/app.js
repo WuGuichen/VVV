@@ -339,11 +339,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
   el.animationConfigPanel?.addEventListener("click", event => {
-    const addGroupButton = event.target.closest("button[data-animation-add-group]");
-    if (addGroupButton) {
-      addAnimationGroup();
-      return;
-    }
     const pickButton = event.target.closest("button[data-animation-pick]");
     if (pickButton) {
       openAnimationSlotPicker(pickButton.dataset.profileId, pickButton.dataset.slotId);
@@ -357,21 +352,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const jumpButton = event.target.closest("button[data-animation-jump]");
     if (jumpButton) {
       selectPath(jumpButton.dataset.path);
-      return;
-    }
-    const addClipButton = event.target.closest("button[data-animation-add-clip]");
-    if (addClipButton) {
-      addAnimationGroupClip(addClipButton.dataset.animationAddClip);
-      return;
-    }
-    const addBlendButton = event.target.closest("button[data-animation-add-blend]");
-    if (addBlendButton) {
-      addAnimationGroupBlendSpace(addBlendButton.dataset.animationAddBlend);
-      return;
-    }
-    const removeGroupButton = event.target.closest("button[data-animation-remove-group]");
-    if (removeGroupButton) {
-      removeAnimationGroup(removeGroupButton.dataset.animationRemoveGroup);
     }
   });
   el.copyReportButton.addEventListener("click", () => copyReport());
@@ -587,7 +567,6 @@ function ensureAnimationAuthoringConfig(pkg) {
   if (!Array.isArray(appConfig.resourceKeys)) appConfig.resourceKeys = [];
   if (!Array.isArray(appConfig.animationGroups)) appConfig.animationGroups = [];
   if (!Array.isArray(appConfig.animationProfiles)) appConfig.animationProfiles = [];
-  ensureAnimationGroups(pkg);
 
   let profile = appConfig.animationProfiles.find(item => item?.profileId === DEFAULT_ANIMATION_PROFILE_ID)
     || appConfig.animationProfiles[0];
@@ -595,7 +574,7 @@ function ensureAnimationAuthoringConfig(pkg) {
     profile = {
       profileId: DEFAULT_ANIMATION_PROFILE_ID,
       displayName: "默认动画 Profile",
-      description: "CharacterStudio 编辑期动画资源选择；最终动画归属由后续 Animation / Equipment authoring 决定。",
+      description: "CharacterStudio 只保存角色对动画资源的引用；Group / Clip / Blend / Timeline 在 AnimationEditor 中编辑。",
       slots: []
     };
     appConfig.animationProfiles.push(profile);
@@ -661,17 +640,11 @@ function normalizeAnimationSlot(slot, pkg, definition = {}) {
 function ensureAnimationGroups(pkg) {
   const appConfig = pkg?.applicationConfig;
   if (!appConfig) return [];
-  appConfig.animationGroups = Array.isArray(appConfig.animationGroups) ? appConfig.animationGroups : [];
-  const groups = appConfig.animationGroups;
-  for (const resource of getPackageAnimationResources(pkg)) {
-    let group = findAnimationGroupByResource(pkg, resource.resourceKey);
-    if (!group) {
-      group = createDefaultAnimationGroup(resource);
-      groups.push(group);
-    } else {
-      normalizeAnimationGroup(group, resource);
-    }
+  if (!Array.isArray(appConfig.animationGroups)) {
+    appConfig.animationGroups = [];
+    return appConfig.animationGroups;
   }
+  const groups = appConfig.animationGroups;
   for (const group of groups) {
     normalizeAnimationGroup(group, findPackageResourceByKey(pkg, group.sourceResourceKey));
   }
@@ -1035,14 +1008,14 @@ function renderAnimationConfigPanel() {
   el.animationConfigPanel.innerHTML = `
     <div class="animation-profile-summary">
       <div><strong>${escapeHtml(profile.displayName || profile.profileId)}</strong><span>${escapeHtml(profile.profileId || DEFAULT_ANIMATION_PROFILE_ID)}</span></div>
-      <div><strong>${escapeHtml(String(groups.length))}</strong><span>可编辑 Group</span></div>
+      <div><strong>${escapeHtml(String(groups.length))}</strong><span>AnimationEditor Group</span></div>
       <div><strong>${escapeHtml(String(animationResources.length))}</strong><span>可见动画资源</span></div>
       <div><strong>${escapeHtml(String(runtimeReadyCount))}</strong><span>可编排资源</span></div>
     </div>
     <div class="animation-panel-actions">
       <a class="button" href="${escapeHtml(animationEditorUrl)}">打开动画编辑器</a>
-      <button type="button" data-animation-add-group="1">新增动画 Group</button>
     </div>
+    <p class="field-help">CharacterStudio 只维护角色对动画 Profile / Group / 资源的引用；Group、Clip、Blend、Timeline Event 的源内容请在 AnimationEditor 中编辑。</p>
     <div class="animation-slot-list">
       ${groups.map(group => renderAnimationGroupCard(group)).join("")}
     </div>
@@ -1053,34 +1026,27 @@ function renderAnimationConfigPanel() {
 
 function renderAnimationGroupCard(group) {
   const resource = findPackageResourceByKey(state.package, group.sourceResourceKey);
-  const path = getAnimationGroupPath(group.groupId);
   return `<article class="animation-slot-card">
     <div class="animation-slot-main">
       <div>
         <strong>${escapeHtml(group.displayName || group.groupId)}</strong>
-        <span>${escapeHtml(group.groupId || "animation group")}</span>
+        <span>${escapeHtml(group.groupId || "animation group")} · AnimationEditor 源数据</span>
       </div>
-      <button type="button" data-animation-jump="1" data-path="${escapeHtml(path)}" title="在属性栏编辑 Group">编辑</button>
     </div>
     <div class="animation-slot-resource">
       <span>${escapeHtml(resource ? getResourceDisplayName(resource) : group.sourceResourceKey || "未绑定资源")}</span>
       <span class="sync-badge muted">${escapeHtml(group.animationPolicy || "manual")}</span>
     </div>
     <code>${escapeHtml(`${group.clips?.length || 0} clips / ${group.blendSpaces?.length || 0} blend spaces`)}</code>
-    <div class="animation-slot-actions">
-      <button type="button" data-animation-add-clip="${escapeHtml(group.groupId)}">新增 Clip</button>
-      <button type="button" data-animation-add-blend="${escapeHtml(group.groupId)}">新增 2D Blend</button>
-      <button type="button" data-animation-remove-group="${escapeHtml(group.groupId)}">移除 Group</button>
-    </div>
     ${renderAnimationGroupChildren(group)}
   </article>`;
 }
 
 function renderAnimationGroupChildren(group) {
   const clips = (group.clips || []).slice(0, 8).map(clip =>
-    `<button type="button" class="mini-chip" data-animation-jump="1" data-path="${escapeHtml(getAnimationClipPath(group.groupId, clip.clipId))}">${escapeHtml(clip.clipId)}</button>`).join("");
+    `<span class="mini-chip">${escapeHtml(clip.clipId)}</span>`).join("");
   const blends = (group.blendSpaces || []).slice(0, 4).map(blend =>
-    `<button type="button" class="mini-chip" data-animation-jump="1" data-path="${escapeHtml(getAnimationBlendSpacePath(group.groupId, blend.blendSpaceId))}">${escapeHtml(blend.blendSpaceId)}</button>`).join("");
+    `<span class="mini-chip">${escapeHtml(blend.blendSpaceId)}</span>`).join("");
   return `<div class="mini-chip-row">${clips}${blends}</div>`;
 }
 
@@ -2631,20 +2597,10 @@ function buildTree(pkg) {
   if (!pkg) return [];
   const g = pkg.geometry || {};
   const animationProfile = getDefaultAnimationProfile();
-  const animationGroups = pkg.applicationConfig?.animationGroups || [];
   const nodes = [
     node("manifest", "manifest", "manifest", 0),
     node("config", "config", "角色配置", 0),
     node("config/animation", "animationConfig", "动画配置", 0),
-    node("config/animation/groups", "animationGroups", "Animation Groups", 1),
-    ...animationGroups.flatMap(group => [
-      node(getAnimationGroupPath(group.groupId), "animationGroup", group.groupId || "animation group", 2),
-      ...(group.clips || []).map(clip => node(getAnimationClipPath(group.groupId, clip.clipId), "animationClip", clip.clipId || "clip", 3)),
-      ...(group.blendSpaces || []).flatMap(blendSpace => [
-        node(getAnimationBlendSpacePath(group.groupId, blendSpace.blendSpaceId), "animationBlendSpace", blendSpace.blendSpaceId || "blend space", 3),
-        ...(blendSpace.clips || []).map((point, index) => node(getAnimationBlendPointPath(group.groupId, blendSpace.blendSpaceId, index), "animationBlendPoint", `${point.clipId || "clip"} (${point.x || 0}, ${point.y || 0})`, 4))
-      ])
-    ]),
     ...(animationProfile ? [
       node(`config/animation/${encodeURIComponent(animationProfile.profileId)}`, "animationProfile", animationProfile.profileId || "animation profile", 1),
       ...grouped((animationProfile.slots || []), "animationSlot", slot => getAnimationSlotPath(animationProfile.profileId, slot.slotId), slot => `${slot.slotId || "slot"}:${slot.resourceKey || "未选择"}`, 2)
@@ -3872,12 +3828,6 @@ function renderInspector() {
         state.dirty = true;
         state.message = "模型变换修正已重置。保存后写入资源包。";
         render();
-      } else if (action === "removeAnimationClip" && target.kind === "animationClip") {
-        removeAnimationGroupClip(target.groupId, target.clipId);
-      } else if (action === "addBlendPoint" && target.kind === "animationBlendSpace") {
-        addAnimationBlendPoint(target.groupId, target.blendSpaceId);
-      } else if (action === "removeBlendPoint" && target.kind === "animationBlendPoint") {
-        removeAnimationBlendPoint(target.groupId, target.blendSpaceId, target.pointIndex);
       }
     });
   });
@@ -3907,7 +3857,7 @@ function renderInspectorContext(target) {
 function renderAnimationGroupReferenceContext(group) {
   const resource = findPackageResourceByKey(state.package, group?.sourceResourceKey);
   return `<section class="reference-card">
-    <div class="reference-card-head"><strong>动画 Group</strong><span>Group 配置 clip、2D blend 和源资源映射；资源本体仍由资源管理器维护。</span></div>
+    <div class="reference-card-head"><strong>动画 Group</strong><span>只读引用摘要；Group / Clip / Blend / Timeline 源内容请在 AnimationEditor 中修改。</span></div>
     <div class="reference-row"><span>源资源</span><strong>${escapeHtml(resource ? getResourceDisplayName(resource) : group?.sourceResourceKey || "未绑定")}</strong></div>
     <div class="reference-row"><span>Clips</span><strong>${escapeHtml(String(group?.clips?.length || 0))}</strong></div>
     <div class="reference-row"><span>BlendSpaces</span><strong>${escapeHtml(String(group?.blendSpaces?.length || 0))}</strong></div>
@@ -3916,27 +3866,24 @@ function renderAnimationGroupReferenceContext(group) {
 
 function renderAnimationClipReferenceContext(target) {
   return `<section class="reference-card">
-    <div class="reference-card-head"><strong>动画 Clip</strong><span>这里编辑的是 Group 内的 clip 映射，不直接修改 Unity AnimationClip。</span></div>
+    <div class="reference-card-head"><strong>动画 Clip</strong><span>只读映射；请打开 AnimationEditor 编辑 Clip。</span></div>
     <div class="reference-row"><span>Group</span><strong>${escapeHtml(target.groupId || "")}</strong></div>
-    <button type="button" data-inspector-action="removeAnimationClip">移除 Clip</button>
   </section>`;
 }
 
 function renderAnimationBlendSpaceContext(target) {
   const group = findAnimationGroupById(target.groupId);
   return `<section class="reference-card">
-    <div class="reference-card-head"><strong>2D Blend</strong><span>BlendSpace 引用同一 Group 内的 Clip，并配置 X/Y 参数落点。</span></div>
+    <div class="reference-card-head"><strong>2D Blend</strong><span>只读映射；请打开 AnimationEditor 编辑 2D Blend。</span></div>
     <div class="reference-row"><span>Group</span><strong>${escapeHtml(group?.groupId || target.groupId || "")}</strong></div>
     <div class="reference-row"><span>可选 Clip</span><strong>${escapeHtml(String(group?.clips?.length || 0))}</strong></div>
-    <button type="button" data-inspector-action="addBlendPoint">新增 Blend 点</button>
   </section>`;
 }
 
 function renderAnimationBlendPointContext(target) {
   return `<section class="reference-card">
-    <div class="reference-card-head"><strong>Blend 点</strong><span>Blend 点只引用 Group 内的 Clip，并给出二维参数坐标。</span></div>
+    <div class="reference-card-head"><strong>Blend 点</strong><span>只读映射；请打开 AnimationEditor 编辑 Blend 点。</span></div>
     <div class="reference-row"><span>BlendSpace</span><strong>${escapeHtml(target.blendSpaceId || "")}</strong></div>
-    <button type="button" data-inspector-action="removeBlendPoint">移除 Blend 点</button>
   </section>`;
 }
 
@@ -4127,34 +4074,7 @@ function editableFields(kind, value = null) {
     field("displayName", { label: "显示名", group: "animation", help: "给主创看的动画配置名称。" }),
     field("description", { label: "说明", group: "animation", help: "描述这个 Profile 适用的角色、装备或状态。" })
   ];
-  if (kind === "animationGroup") return [
-    identityField("groupId", "Group ID", animationGroupIdSuggestions(), "稳定动画 Group ID；Profile 槽位会引用它。", "animationGroup"),
-    field("displayName", { label: "显示名", group: "animationGroup", help: "给主创看的动画组名称。" }),
-    field("description", { label: "说明", group: "animationGroup", help: "描述这个动画组适用的角色、装备或动作集合。" }),
-    field("sourceResourceKey", { label: "源动画资源", type: "select", options: animationResourceOptions("未选择"), group: "selection", picker: "resource", help: "动画组的源资源；资源本体仍由资源管理器维护。" }),
-    field("animationPolicy", { label: "拆分策略", type: "select", options: ANIMATION_GROUP_POLICY_OPTIONS, group: "selection", help: "splitByClipNames 表示按导入资源中的 clip 名称匹配。" }),
-    field("defaultBlendSpaceId", { label: "默认 2D Blend", type: "select", options: animationBlendSpaceOptionsForGroup(value, "无"), group: "selection", help: "Locomotion 等状态默认使用的 BlendSpace。" })
-  ];
-  if (kind === "animationClip") return [
-    identityField("clipId", "Clip ID", animationClipIdSuggestionsForSelectedGroup(), "动画组内稳定 Clip ID。", "animationClip"),
-    field("sourceClipName", { label: "源 Clip 名", group: "animationClip", help: "导入资源中的原始 clip 名称。" }),
-    field("displayName", { label: "显示名", group: "animationClip", help: "给主创看的 Clip 名称。" }),
-    field("loop", { label: "循环", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "animationClip", help: "移动/待机通常循环，攻击/受击通常不循环。" }),
-    field("rootMotionPolicy", { label: "Root Motion", type: "select", options: ROOT_MOTION_POLICY_OPTIONS, group: "animationClip", help: "Ignore 不影响角色运动；MotionDelta 作为表现运动差值；ApplyToActor 后续用于驱动角色位移。" }),
-    positiveField("speed", "播放速度", { min: 0.01, max: 4, step: 0.01, group: "animationClip" })
-  ];
-  if (kind === "animationBlendSpace") return [
-    identityField("blendSpaceId", "BlendSpace ID", animationBlendSpaceIdSuggestionsForSelectedGroup(), "动画组内稳定 2D Blend ID。", "animationBlend"),
-    field("displayName", { label: "显示名", group: "animationBlend", help: "给主创看的 BlendSpace 名称。" }),
-    field("xParameter", { label: "X 参数", group: "animationBlend", help: "例如 moveX。" }),
-    field("yParameter", { label: "Y 参数", group: "animationBlend", help: "例如 moveY。" }),
-    field("defaultClipId", { label: "默认 Clip", type: "select", options: animationClipOptionsForSelectedGroup("未选择"), group: "animationBlend", help: "参数缺失或落点异常时使用。" })
-  ];
-  if (kind === "animationBlendPoint") return [
-    field("clipId", { label: "Clip", type: "select", options: animationClipOptionsForSelectedGroup("未选择"), group: "animationBlend", help: "这个 2D 点对应的 Clip。" }),
-    positionField("x", "X", "animationBlend"),
-    positionField("y", "Y", "animationBlend")
-  ];
+  if (["animationGroup", "animationClip", "animationBlendSpace", "animationBlendPoint"].includes(kind)) return [];
   if (kind === "animationSlot") return [
     field("slotId", { label: "槽位 ID", type: "select", options: ANIMATION_PROFILE_SLOTS.map(slot => ({ value: slot.slotId, label: slot.displayName })), group: "animationSlot", help: "当前 Profile 内的动画资源槽位。" }),
     field("displayName", { label: "显示名", group: "animationSlot", help: "给主创看的槽位名称。" }),

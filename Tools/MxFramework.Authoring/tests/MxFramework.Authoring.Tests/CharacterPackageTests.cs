@@ -26,6 +26,7 @@ internal static class CharacterPackageTests
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         CharacterAnimationAuthoringSummary_JsonRoundTrip_PreservesSlots();
         AnimationAuthoringPackage_JsonRoundTrip_PreservesAnimationEditorContracts();
+        AnimationAuthoringCompiler_EmitsRuntimePlanArtifacts();
         AnimationAuthoringResourceFieldSpecs_FilterAndResolveContracts();
         EditorServer_AnimationPackageApi_IsFileBackedAndValidatesShallowDraft();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
@@ -1417,6 +1418,156 @@ internal static class CharacterPackageTests
         Require(roundTrip.Sets[0].Warmup.GeneratedArtifactSelections[0].ProviderResourceKey == "generated/idle_bake.json", "warmup generated artifact selection should roundtrip.");
         Require(roundTrip.Profiles[0].Slots[0].GroupId == "group.locomotion", "profile group reference should roundtrip.");
         Require(roundTrip.Diagnostics[0].Field == "points[2].clipId", "animation diagnostics should roundtrip.");
+    }
+
+    private static void AnimationAuthoringCompiler_EmitsRuntimePlanArtifacts()
+    {
+        var package = new AnimationAuthoringPackage
+        {
+            PackageId = "animation.test",
+            StableId = "character.test.animation",
+            DisplayName = "Test Animation",
+            SkeletonProfileId = "skeleton.humanoid",
+            AvatarProfileId = "avatar.test"
+        };
+        var idleSelection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "stable.anim.idle",
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+            ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+            RuntimeResourceKey = "runtime.anim.idle"
+        };
+        var runSelection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "stable.anim.run",
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+            ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+            RuntimeResourceKey = "runtime.anim.run"
+        };
+        var vfxSelection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "stable.vfx.footstep",
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ExpectedKind = CharacterPackageResourceTypeIds.Vfx,
+            ExpectedUsage = CharacterPackageResourceUsageIds.VfxCue,
+            RuntimeResourceKey = "runtime.vfx.footstep"
+        };
+        var audioSelection = new AuthoringResourceSelectionRef
+        {
+            ResourceStableId = "stable.audio.footstep",
+            SourceProviderId = AuthoringResourceProviderIds.Fmod,
+            BindingKind = AuthoringResourceBindingKind.AudioCue,
+            ExpectedKind = CharacterPackageResourceTypeIds.Audio,
+            ExpectedUsage = CharacterPackageResourceUsageIds.AudioCue,
+            AudioCueId = "cue.test.footstep"
+        };
+
+        package.Sets.Add(new AnimationAuthoringSet
+        {
+            SetId = "set.base",
+            DisplayName = "Base",
+            DefaultClipId = "idle",
+            FallbackClipId = "run",
+            Groups = new List<AnimationGroupAuthoring>
+            {
+                new AnimationGroupAuthoring
+                {
+                    GroupId = "group.locomotion",
+                    Usage = "locomotion",
+                    Clips = new List<AnimationClipMappingAuthoring>
+                    {
+                        new AnimationClipMappingAuthoring { ClipId = "idle", DisplayName = "Idle", RuntimeResourceKey = "runtime.anim.idle", SourceSelection = idleSelection, Loop = true },
+                        new AnimationClipMappingAuthoring { ClipId = "run", DisplayName = "Run", RuntimeResourceKey = "runtime.anim.run", SourceSelection = runSelection, Loop = true }
+                    },
+                    Blend2D = new List<AnimationBlend2DAuthoring>
+                    {
+                        new AnimationBlend2DAuthoring
+                        {
+                            BlendId = "locomotion",
+                            XParameter = "moveX",
+                            YParameter = "moveY",
+                            DefaultClipId = "idle",
+                            Points = new List<AnimationBlend2DPointAuthoring>
+                            {
+                                new AnimationBlend2DPointAuthoring { ClipId = "idle", X = 0f, Y = 0f },
+                                new AnimationBlend2DPointAuthoring { ClipId = "run", X = 0f, Y = 1f }
+                            }
+                        }
+                    },
+                    Timelines = new List<AnimationTimelineAuthoring>
+                    {
+                        new AnimationTimelineAuthoring
+                        {
+                            TimelineId = "run.events",
+                            ClipId = "run",
+                            Events = new List<AnimationTimelineEventAuthoring>
+                            {
+                                new AnimationTimelineEventAuthoring { EventId = "run.vfx.footstep", ClipId = "run", EventKind = "Vfx", ResourceSelection = vfxSelection },
+                                new AnimationTimelineEventAuthoring { EventId = "run.audio.footstep", ClipId = "run", EventKind = "AudioCue", ResourceSelection = audioSelection }
+                            }
+                        }
+                    }
+                }
+            },
+            ActionBindings = new List<AnimationActionBindingAuthoring>
+            {
+                new AnimationActionBindingAuthoring { BindingId = "move", ActionId = "character.move", GroupId = "group.locomotion", BlendId = "locomotion", Required = true }
+            },
+            Warmup = new AnimationWarmupAuthoring
+            {
+                RequiredClipIds = new List<string> { "idle", "run" },
+                VfxSelections = new List<AuthoringResourceSelectionRef> { vfxSelection },
+                AudioCueSelections = new List<AuthoringResourceSelectionRef> { audioSelection }
+            }
+        });
+
+        package.Profiles.Add(new AnimationAuthoringProfile
+        {
+            ProfileId = "profile.default",
+            DefaultSetId = "set.base",
+            DefaultGroupId = "group.locomotion",
+            Slots = new List<AnimationProfileSlotAuthoring>
+            {
+                new AnimationProfileSlotAuthoring { SlotId = "locomotion", SetId = "set.base", GroupId = "group.locomotion", DefaultBlendId = "locomotion", Required = true }
+            }
+        });
+
+        var catalog = new CharacterPackageResourceCatalog
+        {
+            Entries = new List<CharacterPackageResourceEntry>
+            {
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.idle", StableId = "stable.anim.idle", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = CharacterPackageResourceUsageIds.AnimationClipGroup, RelativePath = "resources/animations/idle.glb", Hash = "sha256:idle" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.anim.run", StableId = "stable.anim.run", TypeId = CharacterPackageResourceTypeIds.Animation, Usage = CharacterPackageResourceUsageIds.AnimationClipGroup, RelativePath = "resources/animations/run.glb", Hash = "sha256:run" },
+                new CharacterPackageResourceEntry { ResourceKey = "runtime.vfx.footstep", StableId = "stable.vfx.footstep", TypeId = CharacterPackageResourceTypeIds.Vfx, Usage = CharacterPackageResourceUsageIds.VfxCue, RelativePath = "resources/vfx/footstep.prefab", Hash = "sha256:vfx" }
+            }
+        };
+
+        AnimationAuthoringCompileResult result = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest
+        {
+            Package = package,
+            ResourceCatalog = catalog
+        });
+
+        Require(result.AnimationSetDefinition.Format == AnimationAuthoringCompileFormats.AnimationSetDefinition, "animation set definition should declare format.");
+        Require(result.AnimationSetDefinition.Sets.Count == 1, "animation set definition should contain the authored set.");
+        Require(result.AnimationClipRegistry.Clips.Count == 2, "animation clip registry should contain authored clips.");
+        Require(result.AnimationResourcePlan.RuntimeResourceCatalog.Entries.Exists(entry => entry.Id == "runtime.anim.idle"), "animation runtime catalog should include idle.");
+        Require(result.AnimationResourcePlan.CharacterResourcePlan.AnimationWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.anim.run"), "animation warmup should include run.");
+        Require(result.AnimationResourcePlan.CharacterResourcePlan.VfxWarmup.Resources.Exists(resource => resource.ResourceKey == "runtime.vfx.footstep"), "VFX timeline events should enter VfxWarmup.");
+        Require(result.AnimationResourcePlan.CharacterResourcePlan.Audio.RequiredCues.Contains("cue.test.footstep"), "AudioCue timeline events should enter the Audio plan.");
+        Require(result.AnimationResourcePlan.AudioCueManifest.Cues.Exists(cue => cue.CueId == "cue.test.footstep"), "AudioCue manifest should include FMOD cue references.");
+        Require(!string.IsNullOrWhiteSpace(result.AnimationResourcePlan.PlanHash), "animation resource plan should have a deterministic hash.");
+        Require(!result.AnimationValidationReport.HasBlockingIssues, "valid animation authoring package should compile without blocking issues.");
+
+        package.Sets[0].Groups[0].Blend2D[0].Points.Add(new AnimationBlend2DPointAuthoring { ClipId = "missing", X = 1f, Y = 1f });
+        AnimationAuthoringCompileResult invalid = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = package, ResourceCatalog = catalog });
+        Require(invalid.AnimationValidationReport.HasBlockingIssues, "missing clip references should block animation compile.");
+        Require(invalid.AnimationValidationReport.Issues.Exists(issue => issue.Code == "ANIM_MISSING_CLIP_REFERENCE"), "missing clip references should emit a stable diagnostic code.");
     }
 
     private static void AnimationAuthoringResourceFieldSpecs_FilterAndResolveContracts()
