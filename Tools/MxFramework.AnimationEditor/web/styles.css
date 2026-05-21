@@ -307,6 +307,259 @@ code {
   border-color: var(--accent);
 }
 
+.workspace-section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.section-heading p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.blend-editor {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.blend-heading {
+  align-items: center;
+}
+
+.segmented-control,
+.blend-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.segmented-control button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #bff8f5;
+}
+
+.blend-toolbar {
+  justify-content: space-between;
+}
+
+.blend-select-field {
+  display: grid;
+  gap: 5px;
+  min-width: min(320px, 100%);
+}
+
+.blend-select-field span,
+.blend-field span,
+.blend-preview-state span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.blend-definition {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.blend-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.blend-field {
+  display: grid;
+  gap: 6px;
+}
+
+.blend-field.invalid select,
+.blend-point-row.invalid select {
+  border-color: rgba(239, 91, 91, 0.65);
+}
+
+.blend-preview-state {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.blend-track {
+  display: grid;
+  gap: 8px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(47, 194, 189, 0.045);
+}
+
+.track-axis {
+  position: relative;
+  height: 44px;
+  margin: 0 16px;
+}
+
+.track-axis::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.blend-point-marker,
+.blend-plane-point {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(47, 194, 189, 0.8);
+  border-radius: 50%;
+  background: #102d3a;
+  color: #d9fffc;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.blend-point-marker {
+  top: 8px;
+  transform: translateX(-50%);
+}
+
+.blend-point-marker.invalid,
+.blend-plane-point.invalid {
+  border-color: var(--error);
+  background: rgba(239, 91, 91, 0.24);
+}
+
+.axis-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.blend-plane {
+  position: relative;
+  min-height: 280px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background:
+    linear-gradient(rgba(214, 226, 240, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214, 226, 240, 0.06) 1px, transparent 1px),
+    rgba(255, 255, 255, 0.025);
+  background-size: 36px 36px;
+  overflow: hidden;
+}
+
+.plane-axis {
+  position: absolute;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.plane-axis.x {
+  right: 12px;
+  bottom: 10px;
+}
+
+.plane-axis.y {
+  left: 12px;
+  top: 10px;
+}
+
+.blend-plane-point {
+  transform: translate(-50%, 50%);
+}
+
+.blend-points {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.blend-point-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(96px, 120px) minmax(96px, 120px) 96px;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.blend-points.two-axis .blend-point-row {
+  grid-template-columns: minmax(140px, 1fr) minmax(80px, 110px) minmax(80px, 110px) minmax(80px, 110px) 96px;
+}
+
+.blend-point-head {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.add-point-button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.blend-diagnostics {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(229, 155, 53, 0.45);
+  border-radius: 6px;
+  background: rgba(229, 155, 53, 0.06);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.blend-diagnostics.ok {
+  border-color: rgba(32, 185, 129, 0.35);
+  background: rgba(32, 185, 129, 0.06);
+}
+
+.blend-diagnostics p {
+  margin: 0;
+}
+
+.blend-diagnostics .error {
+  color: #ffc4c4;
+}
+
+.blend-diagnostics .warning {
+  color: #ffd798;
+}
+
 .row-actions {
   display: flex;
   gap: 6px;
@@ -481,5 +734,16 @@ code {
 
   .clip-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .blend-fields,
+  .blend-preview-state,
+  .blend-point-row,
+  .blend-points.two-axis .blend-point-row {
+    grid-template-columns: 1fr;
+  }
+
+  .blend-plane {
+    min-height: 220px;
   }
 }

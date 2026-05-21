@@ -32,6 +32,7 @@ const state = {
   fieldSpecs: {},
   validation: null,
   selected: { kind: "package", setId: "", groupId: "", clipId: "" },
+  blendEditor: { view: "1D", blendId: "" },
   resourcePicker: {
     open: false,
     clip: null,
@@ -102,8 +103,22 @@ function bindEvents() {
       openSourceClipPicker(clip);
     } else if (button.dataset.removeClip) {
       removeClip(button.dataset.removeClip);
+    } else if (button.dataset.blendView) {
+      state.blendEditor.view = button.dataset.blendView;
+      ensureBlendSelection(findGroup(state.selected.setId, state.selected.groupId));
+      renderBlendEditorState();
+    } else if (button.dataset.addBlend) {
+      addBlend(button.dataset.addBlend);
+    } else if (button.dataset.removeBlend) {
+      removeBlend(button.dataset.removeBlend);
+    } else if (button.dataset.addBlendPoint) {
+      addBlendPoint(button.dataset.addBlendPoint);
+    } else if (button.dataset.removeBlendPoint) {
+      removeBlendPoint(button.dataset.removeBlendPoint, Number(button.dataset.pointIndex));
     }
   });
+  el.mappingWorkspace.addEventListener("change", handleBlendEditorInput);
+  el.mappingWorkspace.addEventListener("input", handleBlendEditorInput);
 
   el.inspectorContent.addEventListener("input", handleInspectorInput);
   el.inspectorContent.addEventListener("change", handleInspectorInput);
@@ -333,13 +348,22 @@ function renderWorkspace() {
 
   const clips = group.clips || [];
   el.workspaceTitle.textContent = group.displayName || group.groupId || "AnimationGroup";
-  el.workspaceSubtitle.textContent = `${group.usage || "custom"} / ${clips.length} clips`;
-  if (clips.length === 0) {
-    el.mappingWorkspace.innerHTML = emptyBlock("当前 Group 还没有 Clip。");
-    return;
-  }
-
+  ensureBlendSelection(group);
+  el.workspaceSubtitle.textContent = `${group.usage || "custom"} / ${clips.length} clips / ${(group.blend1D || []).length + (group.blend2D || []).length} blends`;
   el.mappingWorkspace.innerHTML = `
+    <section class="workspace-section">
+      <div class="section-heading">
+        <h3>Clip Mapping</h3>
+        <p>Blend point 只能引用当前 Group 内的本地 clipId。</p>
+      </div>
+      ${renderClipMappingTable(clips)}
+    </section>
+    ${renderBlendEditor(group)}`;
+}
+
+function renderClipMappingTable(clips) {
+  if (clips.length === 0) return emptyBlock("当前 Group 还没有 Clip。先新增 Clip，再配置 Blend point 的本地 clipId。");
+  return `
     <div class="clip-table" role="table" aria-label="Clip mapping table">
       <div class="clip-row clip-head" role="row">
         <span>Clip ID</span>
@@ -363,6 +387,149 @@ function renderWorkspace() {
             <button type="button" data-remove-clip="${escapeHtml(clip.clipId || "")}">移除</button>
           </span>
         </div>`).join("")}
+    </div>`;
+}
+
+function renderBlendEditor(group) {
+  const kind = state.blendEditor.view === "2D" ? "2D" : "1D";
+  const blends = getBlendList(group, kind);
+  const selectedBlend = getSelectedBlend(group);
+  const localClipIds = (group.clips || []).map(clip => clip.clipId).filter(Boolean);
+  const diagnostics = selectedBlend ? getBlendDiagnostics(group, selectedBlend, kind) : [];
+
+  return `
+    <section class="workspace-section blend-editor" aria-label="Visual 1D and 2D Blend editor">
+      <div class="section-heading blend-heading">
+        <div>
+          <h3>Blend Editor</h3>
+          <p>${kind === "1D" ? "1D line" : "2D plane"} / local clipId references / cursor preview</p>
+        </div>
+        <div class="segmented-control" role="group" aria-label="Blend view">
+          <button type="button" class="${kind === "1D" ? "active" : ""}" data-blend-view="1D">1D line</button>
+          <button type="button" class="${kind === "2D" ? "active" : ""}" data-blend-view="2D">2D plane</button>
+        </div>
+      </div>
+
+      <div class="blend-toolbar">
+        <label class="blend-select-field">
+          <span>Group blend definition</span>
+          <select data-blend-select="${kind}" ${blends.length ? "" : "disabled"}>
+            ${blends.length
+              ? blends.map(blend => `<option value="${escapeHtml(blend.blendId || "")}"${blend === selectedBlend ? " selected" : ""}>${escapeHtml(blend.displayName || blend.blendId || "blend")}</option>`).join("")
+              : `<option value="">未创建 ${kind} blend</option>`}
+          </select>
+        </label>
+        <button type="button" data-add-blend="${kind}">新增 ${kind} Blend</button>
+        ${selectedBlend ? `<button type="button" data-remove-blend="${kind}">删除 Blend</button>` : ""}
+      </div>
+
+      ${selectedBlend ? renderBlendDefinition(group, selectedBlend, kind, localClipIds, diagnostics) : emptyBlock(`当前 Group 还没有 ${kind} blend 定义。`)}
+    </section>`;
+}
+
+function renderBlendDefinition(group, blend, kind, localClipIds, diagnostics) {
+  const defaultClipMissing = blend.defaultClipId && !localClipIds.includes(blend.defaultClipId);
+  return `
+    <div class="blend-definition">
+      <div class="blend-fields">
+        ${blendField("blendId", "Blend ID", blend.blendId || "")}
+        ${blendField("displayName", "显示名", blend.displayName || "")}
+        ${kind === "1D"
+          ? blendField("parameter", "Parameter", blend.parameter || "")
+          : `${blendField("xParameter", "X Parameter", blend.xParameter || "")}${blendField("yParameter", "Y Parameter", blend.yParameter || "")}`}
+        <label class="blend-field ${defaultClipMissing ? "invalid" : ""}">
+          <span>Default Clip</span>
+          ${clipSelect("defaultClipId", blend.defaultClipId || "", localClipIds, false)}
+        </label>
+      </div>
+      <div class="blend-preview-state">
+        <span>参数 cursor</span>
+        <strong>${escapeHtml(getBlendCursorText(blend, kind))}</strong>
+        <span>Default clip</span>
+        <code>${escapeHtml(blend.defaultClipId || "未设置")}</code>
+      </div>
+      ${kind === "1D" ? renderBlend1DTrack(blend, localClipIds) : renderBlend2DPlane(blend, localClipIds)}
+      ${renderBlendPoints(group, blend, kind, localClipIds)}
+      ${renderBlendDiagnostics(diagnostics)}
+    </div>`;
+}
+
+function renderBlend1DTrack(blend, localClipIds) {
+  const points = blend.points || [];
+  const values = points.map(point => Number(point.value || 0));
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  const range = max - min || 1;
+  return `
+    <div class="blend-track" aria-label="1D line blend preview">
+      <div class="track-axis">
+        ${points.map((point, index) => {
+          const left = clamp(((Number(point.value || 0) - min) / range) * 100, 0, 100);
+          const missing = point.clipId && !localClipIds.includes(point.clipId);
+          return `<span class="blend-point-marker ${missing ? "invalid" : ""}" style="left:${left}%;" title="${escapeHtml(point.clipId || "missing clipId")} / value ${escapeHtml(formatNumber(point.value || 0))}">${index + 1}</span>`;
+        }).join("")}
+      </div>
+      <div class="axis-labels"><span>${escapeHtml(formatNumber(min))}</span><span>${escapeHtml(blend.parameter || "parameter")}</span><span>${escapeHtml(formatNumber(max))}</span></div>
+    </div>`;
+}
+
+function renderBlend2DPlane(blend, localClipIds) {
+  const points = blend.points || [];
+  const xs = points.map(point => Number(point.x || 0));
+  const ys = points.map(point => Number(point.y || 0));
+  const minX = xs.length ? Math.min(...xs) : -1;
+  const maxX = xs.length ? Math.max(...xs) : 1;
+  const minY = ys.length ? Math.min(...ys) : -1;
+  const maxY = ys.length ? Math.max(...ys) : 1;
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  return `
+    <div class="blend-plane" aria-label="2D plane blend preview">
+      <div class="plane-axis x">${escapeHtml(blend.xParameter || "x")}</div>
+      <div class="plane-axis y">${escapeHtml(blend.yParameter || "y")}</div>
+      ${points.map((point, index) => {
+        const left = clamp(((Number(point.x || 0) - minX) / rangeX) * 100, 0, 100);
+        const bottom = clamp(((Number(point.y || 0) - minY) / rangeY) * 100, 0, 100);
+        const missing = point.clipId && !localClipIds.includes(point.clipId);
+        return `<span class="blend-plane-point ${missing ? "invalid" : ""}" style="left:${left}%; bottom:${bottom}%;" title="${escapeHtml(point.clipId || "missing clipId")} / (${escapeHtml(formatNumber(point.x || 0))}, ${escapeHtml(formatNumber(point.y || 0))})">${index + 1}</span>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderBlendPoints(group, blend, kind, localClipIds) {
+  const points = blend.points || [];
+  return `
+    <div class="blend-points ${kind === "2D" ? "two-axis" : "one-axis"}">
+      <div class="blend-point-row blend-point-head">
+        <span>clipId</span>
+        ${kind === "1D" ? "<span>threshold / value</span>" : "<span>X</span><span>Y</span>"}
+        <span>weight</span>
+        <span>操作</span>
+      </div>
+      ${points.map((point, index) => {
+        const missing = point.clipId && !localClipIds.includes(point.clipId);
+        return `
+          <div class="blend-point-row ${missing ? "invalid" : ""}">
+            ${clipSelect("pointClipId", point.clipId || "", localClipIds, true, index)}
+            ${kind === "1D"
+              ? pointNumberField("value", point.value ?? 0, index, -1000, 1000, 0.01)
+              : `${pointNumberField("x", point.x ?? 0, index, -1000, 1000, 0.01)}${pointNumberField("y", point.y ?? 0, index, -1000, 1000, 0.01)}`}
+            ${pointNumberField("weight", point.weight ?? 1, index, 0, 10, 0.01)}
+            <span class="row-actions">
+              <button type="button" data-remove-blend-point="${kind}" data-point-index="${index}">移除</button>
+            </span>
+          </div>`;
+      }).join("")}
+      <button type="button" class="add-point-button" data-add-blend-point="${kind}">添加 Blend Point</button>
+    </div>`;
+}
+
+function renderBlendDiagnostics(diagnostics) {
+  if (diagnostics.length === 0) return `<div class="blend-diagnostics ok">Blend diagnostics: 当前定义可用于预览。</div>`;
+  return `
+    <div class="blend-diagnostics">
+      <strong>Blend diagnostics</strong>
+      ${diagnostics.map(item => `<p class="${escapeHtml(item.tone)}">${escapeHtml(item.message)}</p>`).join("")}
     </div>`;
 }
 
@@ -680,6 +847,252 @@ function removeClip(clipId) {
   render();
 }
 
+function handleBlendEditorInput(event) {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!group) return;
+
+  if (event.target.dataset.blendSelect) {
+    state.blendEditor.view = event.target.dataset.blendSelect;
+    state.blendEditor.blendId = event.target.value;
+    renderBlendEditorState();
+    return;
+  }
+
+  const blend = getSelectedBlend(group);
+  if (!blend) return;
+
+  if (event.target.dataset.blendField) {
+    const field = event.target.dataset.blendField;
+    blend[field] = event.target.dataset.type === "number" ? Number(event.target.value) : event.target.value;
+    if (field === "blendId") state.blendEditor.blendId = blend.blendId;
+    if (event.type === "change") renderBlendEditorState();
+    return;
+  }
+
+  if (event.target.dataset.pointField) {
+    const index = Number(event.target.dataset.pointIndex);
+    const point = (blend.points || [])[index];
+    if (!point) return;
+    const field = event.target.dataset.pointField;
+    point[field] = event.target.dataset.type === "number" ? Number(event.target.value) : event.target.value;
+    if (event.type === "change") renderBlendEditorState();
+  }
+}
+
+function addBlend(kind) {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!group) return;
+  const normalizedKind = kind === "2D" ? "2D" : "1D";
+  const blends = getBlendList(group, normalizedKind);
+  const blendId = uniqueId(normalizedKind === "1D" ? "blend.speed" : "blend.move2d", blends.map(blend => blend.blendId));
+  const firstClipId = (group.clips || []).find(clip => clip.clipId)?.clipId || "";
+  const blend = normalizedKind === "1D"
+    ? {
+      blendId,
+      displayName: "Speed Blend",
+      parameter: "speed",
+      defaultClipId: firstClipId,
+      points: firstClipId ? [{ clipId: firstClipId, value: 0, weight: 1 }] : [],
+      diagnostics: [],
+      metadata: {}
+    }
+    : {
+      blendId,
+      displayName: "Move Blend",
+      xParameter: "moveX",
+      yParameter: "moveY",
+      defaultClipId: firstClipId,
+      points: firstClipId ? [{ clipId: firstClipId, x: 0, y: 0, weight: 1 }] : [],
+      diagnostics: [],
+      metadata: {}
+    };
+  blends.push(blend);
+  state.blendEditor.view = normalizedKind;
+  state.blendEditor.blendId = blendId;
+  renderBlendEditorState();
+}
+
+function removeBlend(kind) {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!group) return;
+  const normalizedKind = kind === "2D" ? "2D" : "1D";
+  const key = normalizedKind === "1D" ? "blend1D" : "blend2D";
+  group[key] = (group[key] || []).filter(blend => blend.blendId !== state.blendEditor.blendId);
+  state.blendEditor.blendId = "";
+  ensureBlendSelection(group);
+  renderBlendEditorState();
+}
+
+function addBlendPoint(kind) {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  const blend = group ? getSelectedBlend(group) : null;
+  if (!blend) return;
+  blend.points ||= [];
+  const clipId = (group.clips || []).find(clip => clip.clipId && !(blend.points || []).some(point => point.clipId === clip.clipId))?.clipId ||
+    (group.clips || [])[0]?.clipId || "";
+  if (kind === "2D") {
+    blend.points.push({ clipId, x: blend.points.length, y: 0, weight: 1 });
+  } else {
+    blend.points.push({ clipId, value: blend.points.length, weight: 1 });
+  }
+  renderBlendEditorState();
+}
+
+function removeBlendPoint(kind, index) {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  const blend = group ? getSelectedBlend(group) : null;
+  if (!blend || !Array.isArray(blend.points)) return;
+  blend.points.splice(index, 1);
+  renderBlendEditorState();
+}
+
+function renderBlendEditorState() {
+  renderStatus();
+  renderWorkspace();
+  renderDiagnostics();
+}
+
+function getBlendList(group, kind) {
+  if (!group) return [];
+  if (kind === "2D") {
+    group.blend2D = Array.isArray(group.blend2D) ? group.blend2D : [];
+    return group.blend2D;
+  }
+  group.blend1D = Array.isArray(group.blend1D) ? group.blend1D : [];
+  return group.blend1D;
+}
+
+function ensureBlendSelection(group) {
+  if (!group) {
+    state.blendEditor.blendId = "";
+    return;
+  }
+  const kind = state.blendEditor.view === "2D" ? "2D" : "1D";
+  state.blendEditor.view = kind;
+  const blends = getBlendList(group, kind);
+  if (!blends.some(blend => blend.blendId === state.blendEditor.blendId)) {
+    state.blendEditor.blendId = blends[0]?.blendId || "";
+  }
+}
+
+function getSelectedBlend(group) {
+  ensureBlendSelection(group);
+  const blends = getBlendList(group, state.blendEditor.view);
+  return blends.find(blend => blend.blendId === state.blendEditor.blendId) || null;
+}
+
+function blendField(field, label, value) {
+  return `
+    <label class="blend-field">
+      <span>${escapeHtml(label)}</span>
+      <input data-blend-field="${escapeHtml(field)}" value="${escapeHtml(value)}">
+    </label>`;
+}
+
+function clipSelect(field, value, localClipIds, pointField, pointIndex) {
+  const data = pointField
+    ? `data-point-field="clipId" data-point-index="${pointIndex}"`
+    : `data-blend-field="${escapeHtml(field)}"`;
+  const options = [
+    `<option value="">未设置</option>`,
+    ...localClipIds.map(clipId => `<option value="${escapeHtml(clipId)}"${clipId === value ? " selected" : ""}>${escapeHtml(clipId)}</option>`)
+  ];
+  if (value && !localClipIds.includes(value)) {
+    options.push(`<option value="${escapeHtml(value)}" selected>${escapeHtml(value)} (missing)</option>`);
+  }
+  return `<select ${data}>${options.join("")}</select>`;
+}
+
+function pointNumberField(field, value, pointIndex, min, max, step) {
+  return `
+    <input
+      type="number"
+      data-type="number"
+      data-point-field="${escapeHtml(field)}"
+      data-point-index="${pointIndex}"
+      min="${min}"
+      max="${max}"
+      step="${step}"
+      value="${escapeHtml(String(value))}">`;
+}
+
+function getBlendCursorText(blend, kind) {
+  const points = blend.points || [];
+  if (kind === "2D") {
+    const xs = points.map(point => Number(point.x || 0));
+    const ys = points.map(point => Number(point.y || 0));
+    return `${blend.xParameter || "x"} ${formatRange(xs)} / ${blend.yParameter || "y"} ${formatRange(ys)}`;
+  }
+  return `${blend.parameter || "parameter"} ${formatRange(points.map(point => Number(point.value || 0)))}`;
+}
+
+function getBlendDiagnostics(group, blend, kind) {
+  const localClipIds = new Set((group.clips || []).map(clip => clip.clipId).filter(Boolean));
+  const diagnostics = [];
+  const points = Array.isArray(blend.points) ? blend.points : [];
+  const minPointCount = kind === "2D" ? 3 : 2;
+
+  if (kind === "1D" && !blend.parameter) {
+    diagnostics.push({ tone: "warning", code: "ANIM_BLEND_PARAMETER_MISSING", message: "1D Blend 缺少 parameter，运行时无法根据参数采样。" });
+  }
+  if (kind === "2D" && (!blend.xParameter || !blend.yParameter)) {
+    diagnostics.push({ tone: "warning", code: "ANIM_BLEND_PARAMETER_MISSING", message: "2D Blend 需要 X/Y parameter。" });
+  }
+  if (points.length < minPointCount) {
+    diagnostics.push({ tone: "warning", code: "ANIM_BLEND_POINT_COUNT_LOW", message: `${kind} Blend 至少需要 ${minPointCount} 个点才适合稳定采样。` });
+  }
+  if (blend.defaultClipId && !localClipIds.has(blend.defaultClipId)) {
+    diagnostics.push({ tone: "error", code: "ANIM_BLEND_DEFAULT_CLIP_MISSING", message: `Default clip ${blend.defaultClipId} 不在当前 Group 的本地 clipId 列表中。` });
+  }
+
+  const seen = new Map();
+  points.forEach((point, index) => {
+    if (!point.clipId) {
+      diagnostics.push({ tone: "error", code: "ANIM_BLEND_POINT_CLIP_EMPTY", message: `Point ${index + 1} 缺少本地 clipId。` });
+    } else if (!localClipIds.has(point.clipId)) {
+      diagnostics.push({ tone: "error", code: "ANIM_BLEND_POINT_CLIP_MISSING", message: `Point ${index + 1} 引用的 clipId ${point.clipId} 不存在于当前 Group。` });
+    }
+
+    const key = kind === "2D"
+      ? `${roundKey(point.x)}:${roundKey(point.y)}`
+      : roundKey(point.value);
+    if (seen.has(key)) {
+      diagnostics.push({ tone: "warning", code: "ANIM_BLEND_POINT_DUPLICATE", message: `Point ${seen.get(key) + 1} 和 Point ${index + 1} 坐标重复。` });
+    } else {
+      seen.set(key, index);
+    }
+  });
+
+  return diagnostics;
+}
+
+function getLocalBlendIssues() {
+  const issues = [];
+  for (const set of state.animation?.sets || []) {
+    for (const group of set.groups || []) {
+      for (const blend of group.blend1D || []) {
+        issues.push(...getBlendDiagnostics(group, blend, "1D").map(issue => toBlendIssue(issue, set, group, blend, "1D")));
+      }
+      for (const blend of group.blend2D || []) {
+        issues.push(...getBlendDiagnostics(group, blend, "2D").map(issue => toBlendIssue(issue, set, group, blend, "2D")));
+      }
+    }
+  }
+  return issues;
+}
+
+function toBlendIssue(issue, set, group, blend, kind) {
+  return {
+    severity: issue.tone === "error" ? "Error" : "Warning",
+    code: issue.code,
+    sourceObjectPath: `${set.setId || "set"}/${group.groupId || "group"}/${kind}/${blend.blendId || "blend"}`,
+    setId: set.setId || "",
+    groupId: group.groupId || "",
+    blendId: blend.blendId || "",
+    message: issue.message
+  };
+}
+
 function selectSet(setId) {
   const set = findSet(setId);
   selectNode("set", set?.setId || "", "", "");
@@ -695,6 +1108,7 @@ function selectNode(kind, setId, groupId, clipId) {
   if (kind === "group") {
     state.selected.clipId = "";
   }
+  state.blendEditor.blendId = "";
 }
 
 function ensureAnimationShape() {
@@ -711,6 +1125,25 @@ function ensureAnimationShape() {
       group.blend1D = Array.isArray(group.blend1D) ? group.blend1D : [];
       group.blend2D = Array.isArray(group.blend2D) ? group.blend2D : [];
       group.timelines = Array.isArray(group.timelines) ? group.timelines : [];
+      for (const blend of group.blend1D) {
+        blend.points = Array.isArray(blend.points) ? blend.points : [];
+        blend.diagnostics = Array.isArray(blend.diagnostics) ? blend.diagnostics : [];
+        blend.metadata ||= {};
+        for (const point of blend.points) {
+          if (point.weight == null) point.weight = 1;
+          if (point.value == null) point.value = 0;
+        }
+      }
+      for (const blend of group.blend2D) {
+        blend.points = Array.isArray(blend.points) ? blend.points : [];
+        blend.diagnostics = Array.isArray(blend.diagnostics) ? blend.diagnostics : [];
+        blend.metadata ||= {};
+        for (const point of blend.points) {
+          if (point.weight == null) point.weight = 1;
+          if (point.x == null) point.x = 0;
+          if (point.y == null) point.y = 0;
+        }
+      }
       for (const clip of group.clips) {
         clip.sourceSelection ||= {};
         clip.tags = Array.isArray(clip.tags) ? clip.tags : [];
@@ -800,6 +1233,7 @@ function getIssues() {
   const issues = [];
   if (Array.isArray(state.validation?.issues)) issues.push(...state.validation.issues);
   if (Array.isArray(state.animation?.diagnostics)) issues.push(...state.animation.diagnostics);
+  issues.push(...getLocalBlendIssues());
   for (const error of state.errors) {
     issues.push({
       severity: "Error",
@@ -870,6 +1304,21 @@ function uniqueId(base, existing) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 3 });
+}
+
+function formatRange(values) {
+  if (!values.length) return "未设置";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return min === max ? formatNumber(min) : `${formatNumber(min)}..${formatNumber(max)}`;
+}
+
+function roundKey(value) {
+  return String(Math.round(Number(value || 0) * 1000) / 1000);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 async function copyDiagnostics() {

@@ -40,9 +40,14 @@ assert(app.includes("/api/authoring/resources/pick") && app.includes("/api/autho
 assert(app.includes("Animation.SourceClip"), "AnimationEditor should use Animation.SourceClip ResourceFieldSpec");
 assert(app.includes("sourceSelection") && app.includes("sourceSubClipId") && app.includes("sourceClipName"), "AnimationEditor should persist clip source mapping fields");
 assert(app.includes("rootMotionPolicy") && app.includes("RootMotionPolicy"), "AnimationEditor should expose root motion policy editing");
+assert(app.includes("blend1D") && app.includes("blend2D") && app.includes("Blend Editor"), "AnimationEditor should expose visual blend editing");
+assert(app.includes("1D line") && app.includes("2D plane"), "AnimationEditor should provide 1D line and 2D plane blend views");
+assert(app.includes("ANIM_BLEND_POINT_CLIP_MISSING") && app.includes("ANIM_BLEND_POINT_DUPLICATE"), "AnimationEditor should diagnose missing local clip references and duplicate blend coordinates");
+assert(app.includes("data-point-field") && app.includes("data-blend-field"), "AnimationEditor should edit blend fields and blend points without raw JSON");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/") && app.includes("Tools/MxFramework.CharacterStudio/web/"), "AnimationEditor should link Resource Manager and CharacterStudio");
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "AnimationEditor should remain a vanilla web workstation");
 assert(styles.includes(".workspace") && styles.includes(".resource-picker-overlay"), "AnimationEditor should style workspace and resource picker overlay");
+assert(styles.includes(".blend-track") && styles.includes(".blend-plane") && styles.includes(".blend-diagnostics"), "AnimationEditor should style visual blend editors and diagnostics");
 assert(launcher.includes("dotnet --list-sdks") && launcher.includes("is_animation_editor_server_ready"), "AnimationEditor launcher should check .NET and server readiness");
 assert(hubApp.includes("Tools/MxFramework.AnimationEditor/web/"), "EditorHub should link Animation Editor");
 assert(hubSmoke.includes("MxFramework.AnimationEditor"), "EditorHub smoke should check Animation Editor");
