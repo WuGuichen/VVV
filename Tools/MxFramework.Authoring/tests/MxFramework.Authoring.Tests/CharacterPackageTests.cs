@@ -25,6 +25,7 @@ internal static class CharacterPackageTests
         ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         CharacterAnimationAuthoringSummary_JsonRoundTrip_PreservesSlots();
+        AnimationAuthoringPackage_JsonRoundTrip_PreservesAnimationEditorContracts();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
@@ -1096,6 +1097,324 @@ internal static class CharacterPackageTests
         Require(roundTrip.AnimationProfiles[0].Slots[0].AnimationGroupId == "anim.locomotion", "animation slot group reference should roundtrip.");
         Require(roundTrip.AnimationProfiles[0].Slots[0].ResourceSelection.PackageResourceKey == "char.iron_vanguard.anim.locomotion", "animation slot ResourceSelectionRef should roundtrip.");
         Require(roundTrip.AnimationProfiles[0].Slots[0].PreloadPolicy == AuthoringResourcePreloadPolicies.AnimationWarmup, "animation slot preload policy should roundtrip.");
+    }
+
+    private static void AnimationAuthoringPackage_JsonRoundTrip_PreservesAnimationEditorContracts()
+    {
+        var package = new AnimationAuthoringPackage
+        {
+            PackageId = "animation.iron_vanguard",
+            StableId = "anim.iron_vanguard",
+            DisplayName = "Iron Vanguard Animation",
+            SkeletonProfileId = "skeleton.humanoid",
+            AvatarProfileId = "avatar.iron_vanguard",
+            Diagnostics = new List<AnimationAuthoringDiagnostic>
+            {
+                new AnimationAuthoringDiagnostic
+                {
+                    Severity = CharacterAuthoringValidationSeverity.Warning,
+                    Gate = CharacterAuthoringValidationGate.WarningOnly,
+                    Code = "ANIM_BLEND_POINT_MISSING_CLIP",
+                    SourceObjectPath = "sets/base/groups/locomotion/blend2D/locomotion2d",
+                    Field = "points[2].clipId",
+                    SetId = "set.base",
+                    GroupId = "group.locomotion",
+                    BlendId = "locomotion2d",
+                    Message = "Blend point references a missing local clip."
+                }
+            }
+        };
+
+        package.Sets.Add(new AnimationAuthoringSet
+        {
+            SetId = "set.base",
+            DisplayName = "Base Set",
+            DefaultClipId = "idle",
+            FallbackClipId = "idle",
+            Layers = new List<AnimationLayerAuthoring>
+            {
+                new AnimationLayerAuthoring
+                {
+                    LayerId = "base",
+                    DisplayName = "Base",
+                    Weight = 1f,
+                    RootMotionPolicy = "MotionDelta",
+                    AvatarMaskSelection = new AuthoringResourceSelectionRef
+                    {
+                        ResourceStableId = "mask.full_body",
+                        SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+                        BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                        ExpectedKind = "avatarMask",
+                        ExpectedUsage = "avatarMask",
+                        UnityGuid = "mask-guid"
+                    }
+                }
+            },
+            Groups = new List<AnimationGroupAuthoring>
+            {
+                new AnimationGroupAuthoring
+                {
+                    GroupId = "group.locomotion",
+                    DisplayName = "Locomotion",
+                    Usage = "locomotion",
+                    Clips = new List<AnimationClipMappingAuthoring>
+                    {
+                        new AnimationClipMappingAuthoring
+                        {
+                            ClipId = "idle",
+                            DisplayName = "Idle",
+                            SourceSelection = new AuthoringResourceSelectionRef
+                            {
+                                ResourceStableId = "anim.source.iron_vanguard.locomotion",
+                                SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+                                BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                                ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+                                ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+                                UnityGuid = "anim-guid",
+                                UnityAssetPath = "Assets/Art/Characters/IronVanguard/locomotion.glb"
+                            },
+                            SourceSubClipId = "Take 001/Idle",
+                            SourceClipName = "Idle",
+                            RuntimeResourceKey = "char.iron_vanguard.anim.idle",
+                            Loop = true,
+                            Speed = 1f,
+                            RootMotionPolicy = "Ignore",
+                            Tags = new List<string> { "locomotion", "idle" },
+                            GeneratedArtifactSelections = new List<AuthoringResourceSelectionRef>
+                            {
+                                new AuthoringResourceSelectionRef
+                                {
+                                    ResourceStableId = "artifact.idle.bake",
+                                    SourceProviderId = AuthoringResourceProviderIds.GeneratedAssets,
+                                    BindingKind = AuthoringResourceBindingKind.GeneratedPreviewOnly,
+                                    ExpectedKind = CharacterPackageResourceTypeIds.Config,
+                                    ExpectedUsage = "animationBakeArtifact",
+                                    ProviderResourceKey = "generated/idle_bake.json"
+                                }
+                            }
+                        },
+                        new AnimationClipMappingAuthoring
+                        {
+                            ClipId = "run",
+                            DisplayName = "Run",
+                            SourceSelection = new AuthoringResourceSelectionRef
+                            {
+                                ResourceStableId = "anim.source.iron_vanguard.locomotion",
+                                SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+                                BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                                ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+                                ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+                                UnityGuid = "anim-guid",
+                                UnityAssetPath = "Assets/Art/Characters/IronVanguard/locomotion.glb"
+                            },
+                            SourceSubClipId = "Take 001/Run",
+                            SourceClipName = "Run Forward",
+                            RuntimeResourceKey = "char.iron_vanguard.anim.run",
+                            Loop = true,
+                            Speed = 1.1f,
+                            RootMotionPolicy = "MotionDelta"
+                        }
+                    },
+                    Blend1D = new List<AnimationBlend1DAuthoring>
+                    {
+                        new AnimationBlend1DAuthoring
+                        {
+                            BlendId = "locomotion_speed",
+                            Parameter = "speed",
+                            DefaultClipId = "idle",
+                            Points = new List<AnimationBlend1DPointAuthoring>
+                            {
+                                new AnimationBlend1DPointAuthoring { ClipId = "idle", Value = 0f },
+                                new AnimationBlend1DPointAuthoring { ClipId = "run", Value = 1f }
+                            }
+                        }
+                    },
+                    Blend2D = new List<AnimationBlend2DAuthoring>
+                    {
+                        new AnimationBlend2DAuthoring
+                        {
+                            BlendId = "locomotion2d",
+                            XParameter = "moveX",
+                            YParameter = "moveY",
+                            DefaultClipId = "idle",
+                            Points = new List<AnimationBlend2DPointAuthoring>
+                            {
+                                new AnimationBlend2DPointAuthoring { ClipId = "idle", X = 0f, Y = 0f },
+                                new AnimationBlend2DPointAuthoring { ClipId = "run", X = 0f, Y = 1f }
+                            }
+                        }
+                    },
+                    Timelines = new List<AnimationTimelineAuthoring>
+                    {
+                        new AnimationTimelineAuthoring
+                        {
+                            TimelineId = "idle.events",
+                            ClipId = "idle",
+                            TimeDomain = "NormalizedTime",
+                            Events = new List<AnimationTimelineEventAuthoring>
+                            {
+                                new AnimationTimelineEventAuthoring
+                                {
+                                    EventId = "idle.audio.breath",
+                                    ClipId = "idle",
+                                    TimeDomain = "NormalizedTime",
+                                    Time = 0.5f,
+                                    EventKind = "AudioCue",
+                                    ResourceSelection = new AuthoringResourceSelectionRef
+                                    {
+                                        ResourceStableId = "audio.cue.breath",
+                                        SourceProviderId = AuthoringResourceProviderIds.Fmod,
+                                        BindingKind = AuthoringResourceBindingKind.AudioCue,
+                                        ExpectedKind = CharacterPackageResourceTypeIds.Audio,
+                                        ExpectedUsage = CharacterPackageResourceUsageIds.AudioCue,
+                                        AudioCueId = "cue.iron_vanguard.breath",
+                                        AudioEventDefinitionId = "event:/Character/IronVanguard/Breath"
+                                    },
+                                    PayloadJson = "{\"volume\":0.8}"
+                                },
+                                new AnimationTimelineEventAuthoring
+                                {
+                                    EventId = "idle.vfx.steam",
+                                    ClipId = "idle",
+                                    TimeDomain = "Seconds",
+                                    Time = 0.2f,
+                                    EventKind = "Vfx",
+                                    ResourceSelection = new AuthoringResourceSelectionRef
+                                    {
+                                        ResourceStableId = "vfx.steam",
+                                        SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                                        BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                                        ExpectedKind = CharacterPackageResourceTypeIds.Vfx,
+                                        ExpectedUsage = CharacterPackageResourceUsageIds.VfxCue,
+                                        RuntimeResourceKey = "vfx.iron_vanguard.steam"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ActionBindings = new List<AnimationActionBindingAuthoring>
+            {
+                new AnimationActionBindingAuthoring
+                {
+                    BindingId = "action.move",
+                    ActionId = "character.move",
+                    GroupId = "group.locomotion",
+                    BlendId = "locomotion2d",
+                    Required = true
+                }
+            },
+            Compatibility = new AnimationCompatibilityExpectationAuthoring
+            {
+                CompatibilityId = "compat.humanoid",
+                SkeletonProfileId = "skeleton.humanoid",
+                AvatarProfileId = "avatar.iron_vanguard",
+                CoordinateConvention = "UnityYUp",
+                AllowRetargeting = true,
+                CompatibilityProfileSelection = new AuthoringResourceSelectionRef
+                {
+                    ResourceStableId = "compat.profile.humanoid",
+                    SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                    BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                    ExpectedKind = CharacterPackageResourceTypeIds.Config,
+                    ExpectedUsage = "animationCompatibilityProfile",
+                    RuntimeResourceKey = "animation.compatibility.humanoid"
+                },
+                AvatarMaskSelection = new AuthoringResourceSelectionRef
+                {
+                    ResourceStableId = "mask.full_body",
+                    SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    ExpectedKind = "avatarMask",
+                    ExpectedUsage = "avatarMask",
+                    UnityGuid = "mask-guid"
+                },
+                RequiredBoneIds = new List<string> { "hips", "spine" },
+                RequiredSocketIds = new List<string> { "weapon.main" }
+            },
+            Warmup = new AnimationWarmupAuthoring
+            {
+                WarmupId = "warmup.base",
+                RequiredClipIds = new List<string> { "idle", "run" },
+                RequiredBlendIds = new List<string> { "locomotion2d" },
+                AudioCueSelections = new List<AuthoringResourceSelectionRef>
+                {
+                    new AuthoringResourceSelectionRef
+                    {
+                        ResourceStableId = "audio.cue.breath",
+                        SourceProviderId = AuthoringResourceProviderIds.Fmod,
+                        BindingKind = AuthoringResourceBindingKind.AudioCue,
+                        AudioCueId = "cue.iron_vanguard.breath"
+                    }
+                },
+                VfxSelections = new List<AuthoringResourceSelectionRef>
+                {
+                    new AuthoringResourceSelectionRef
+                    {
+                        ResourceStableId = "vfx.steam",
+                        SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                        BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                        RuntimeResourceKey = "vfx.iron_vanguard.steam"
+                    }
+                },
+                GeneratedArtifactSelections = new List<AuthoringResourceSelectionRef>
+                {
+                    new AuthoringResourceSelectionRef
+                    {
+                        ResourceStableId = "artifact.idle.bake",
+                        SourceProviderId = AuthoringResourceProviderIds.GeneratedAssets,
+                        BindingKind = AuthoringResourceBindingKind.GeneratedPreviewOnly,
+                        ProviderResourceKey = "generated/idle_bake.json"
+                    }
+                }
+            }
+        });
+
+        package.Profiles.Add(new AnimationAuthoringProfile
+        {
+            ProfileId = "profile.default",
+            DisplayName = "Default",
+            DefaultSetId = "set.base",
+            DefaultGroupId = "group.locomotion",
+            Slots = new List<AnimationProfileSlotAuthoring>
+            {
+                new AnimationProfileSlotAuthoring
+                {
+                    SlotId = "locomotion",
+                    Purpose = "base movement",
+                    SetId = "set.base",
+                    GroupId = "group.locomotion",
+                    DefaultClipId = "idle",
+                    DefaultBlendId = "locomotion2d",
+                    Required = true
+                }
+            }
+        });
+
+        string json = JsonSerializer.Serialize(package, JsonOptions);
+        AnimationAuthoringPackage roundTrip = JsonSerializer.Deserialize<AnimationAuthoringPackage>(json, JsonOptions);
+
+        Require(json.Contains("\"sourceSelection\""), "animation clip sourceSelection should serialize.");
+        Require(json.Contains("\"sourceSubClipId\""), "animation clip sourceSubClipId should serialize.");
+        Require(json.Contains("\"audioCueId\""), "timeline AudioCue ResourceSelectionRef should serialize.");
+        Require(roundTrip != null && roundTrip.Sets.Count == 1, "animation set should roundtrip.");
+        AnimationGroupAuthoring group = roundTrip.Sets[0].Groups[0];
+        Require(group.Clips[0].SourceSelection.ResourceStableId == "anim.source.iron_vanguard.locomotion", "source selection should be the primary clip identity.");
+        Require(group.Clips[0].SourceSubClipId == "Take 001/Idle", "source sub clip id should roundtrip.");
+        Require(group.Clips[0].SourceClipName == "Idle", "source clip name should roundtrip as metadata.");
+        Require(group.Blend1D[0].Points[1].ClipId == "run", "1D blend points should reference local clip ids.");
+        Require(group.Blend2D[0].Points[1].ClipId == "run", "2D blend points should reference local clip ids.");
+        Require(group.Timelines[0].Events[0].ResourceSelection.BindingKind == AuthoringResourceBindingKind.AudioCue, "timeline audio event should use AudioCue ResourceSelectionRef.");
+        Require(group.Timelines[0].Events[0].ResourceSelection.AudioCueId == "cue.iron_vanguard.breath", "timeline audio cue id should roundtrip.");
+        Require(group.Timelines[0].Events[1].ResourceSelection.RuntimeResourceKey == "vfx.iron_vanguard.steam", "timeline VFX selection should roundtrip.");
+        Require(roundTrip.Sets[0].Layers[0].AvatarMaskSelection.UnityGuid == "mask-guid", "AvatarMask selection should roundtrip.");
+        Require(roundTrip.Sets[0].Compatibility.CompatibilityProfileSelection.RuntimeResourceKey == "animation.compatibility.humanoid", "compatibility profile selection should roundtrip.");
+        Require(roundTrip.Sets[0].Compatibility.RequiredSocketIds[0] == "weapon.main", "compatibility socket expectation should roundtrip.");
+        Require(roundTrip.Sets[0].Warmup.AudioCueSelections[0].AudioCueId == "cue.iron_vanguard.breath", "warmup AudioCue selection should roundtrip.");
+        Require(roundTrip.Sets[0].Warmup.GeneratedArtifactSelections[0].ProviderResourceKey == "generated/idle_bake.json", "warmup generated artifact selection should roundtrip.");
+        Require(roundTrip.Profiles[0].Slots[0].GroupId == "group.locomotion", "profile group reference should roundtrip.");
+        Require(roundTrip.Diagnostics[0].Field == "points[2].clipId", "animation diagnostics should roundtrip.");
     }
 
     private static void AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs()
