@@ -12,6 +12,8 @@ const ANIMATION_PROFILE_SLOTS = [
   { slotId: "locomotion", displayName: "移动 Locomotion", purpose: "idle / walk / run 等移动表现", resourceHint: "locomotion", required: true },
   { slotId: "combat", displayName: "战斗 Combat", purpose: "攻击、防御、受击等战斗表现", resourceHint: "combat", required: false }
 ];
+const ROOT_MOTION_POLICY_OPTIONS = ["Ignore", "MotionDelta", "ApplyToActor"];
+const ANIMATION_GROUP_POLICY_OPTIONS = ["splitByClipNames", "manual"];
 
 const MODEL_IMPORT_ROLES = {
   body: {
@@ -148,6 +150,9 @@ const FIELD_GROUP_LABELS = {
   base: "基础属性",
   binding: "引用关系",
   animation: "动画配置",
+  animationGroup: "动画 Group",
+  animationClip: "动画 Clip",
+  animationBlend: "2D Blend",
   animationSlot: "动画槽位",
   selection: "资源选择",
   combat: "战斗映射",
@@ -210,7 +215,12 @@ const KIND_LABELS = {
   resource: "资源",
   config: "配置",
   animationConfig: "动画",
+  animationGroups: "动画组",
+  animationGroup: "动画组",
   animationProfile: "动画",
+  animationClip: "Clip",
+  animationBlendSpace: "Blend",
+  animationBlendPoint: "Blend点",
   animationSlot: "动画槽",
   body: "身体",
   part: "部位",
@@ -329,6 +339,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
   el.animationConfigPanel?.addEventListener("click", event => {
+    const addGroupButton = event.target.closest("button[data-animation-add-group]");
+    if (addGroupButton) {
+      addAnimationGroup();
+      return;
+    }
     const pickButton = event.target.closest("button[data-animation-pick]");
     if (pickButton) {
       openAnimationSlotPicker(pickButton.dataset.profileId, pickButton.dataset.slotId);
@@ -342,6 +357,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const jumpButton = event.target.closest("button[data-animation-jump]");
     if (jumpButton) {
       selectPath(jumpButton.dataset.path);
+      return;
+    }
+    const addClipButton = event.target.closest("button[data-animation-add-clip]");
+    if (addClipButton) {
+      addAnimationGroupClip(addClipButton.dataset.animationAddClip);
+      return;
+    }
+    const addBlendButton = event.target.closest("button[data-animation-add-blend]");
+    if (addBlendButton) {
+      addAnimationGroupBlendSpace(addBlendButton.dataset.animationAddBlend);
+      return;
+    }
+    const removeGroupButton = event.target.closest("button[data-animation-remove-group]");
+    if (removeGroupButton) {
+      removeAnimationGroup(removeGroupButton.dataset.animationRemoveGroup);
     }
   });
   el.copyReportButton.addEventListener("click", () => copyReport());
@@ -555,7 +585,9 @@ function ensureAnimationAuthoringConfig(pkg) {
   const appConfig = pkg.applicationConfig || {};
   pkg.applicationConfig = appConfig;
   if (!Array.isArray(appConfig.resourceKeys)) appConfig.resourceKeys = [];
+  if (!Array.isArray(appConfig.animationGroups)) appConfig.animationGroups = [];
   if (!Array.isArray(appConfig.animationProfiles)) appConfig.animationProfiles = [];
+  ensureAnimationGroups(pkg);
 
   let profile = appConfig.animationProfiles.find(item => item?.profileId === DEFAULT_ANIMATION_PROFILE_ID)
     || appConfig.animationProfiles[0];
@@ -589,11 +621,13 @@ function ensureAnimationAuthoringConfig(pkg) {
 
 function createDefaultAnimationSlot(pkg, definition) {
   const resource = findDefaultAnimationResource(pkg, definition.resourceHint);
+  const group = resource ? findAnimationGroupByResource(pkg, resource.resourceKey) : null;
   const resourceKey = resource?.resourceKey || "";
   return {
     slotId: definition.slotId,
     displayName: definition.displayName,
     purpose: definition.purpose,
+    animationGroupId: group?.groupId || "",
     resourceKey,
     preloadPolicy: "AnimationWarmup",
     required: Boolean(definition.required),
@@ -605,9 +639,14 @@ function normalizeAnimationSlot(slot, pkg, definition = {}) {
   slot.slotId ||= definition.slotId || "";
   slot.displayName ||= definition.displayName || slot.slotId || "动画槽位";
   slot.purpose ||= definition.purpose || "";
+  slot.animationGroupId ||= "";
   slot.resourceKey ||= "";
   slot.preloadPolicy ||= "AnimationWarmup";
   slot.required = Boolean(slot.required || definition.required);
+  if (!slot.animationGroupId && slot.resourceKey) {
+    const group = findAnimationGroupByResource(pkg, slot.resourceKey);
+    if (group) slot.animationGroupId = group.groupId;
+  }
   if (!slot.resourceSelection || typeof slot.resourceSelection !== "object") {
     const resource = findPackageResourceByKey(pkg, slot.resourceKey);
     slot.resourceSelection = resource ? createPackageAnimationSelectionRef(resource) : {};
@@ -617,6 +656,204 @@ function normalizeAnimationSlot(slot, pkg, definition = {}) {
     slot.resourceKey = selected.runtimeResourceKey || selected.packageResourceKey || "";
   }
   return slot;
+}
+
+function ensureAnimationGroups(pkg) {
+  const appConfig = pkg?.applicationConfig;
+  if (!appConfig) return [];
+  appConfig.animationGroups = Array.isArray(appConfig.animationGroups) ? appConfig.animationGroups : [];
+  const groups = appConfig.animationGroups;
+  for (const resource of getPackageAnimationResources(pkg)) {
+    let group = findAnimationGroupByResource(pkg, resource.resourceKey);
+    if (!group) {
+      group = createDefaultAnimationGroup(resource);
+      groups.push(group);
+    } else {
+      normalizeAnimationGroup(group, resource);
+    }
+  }
+  for (const group of groups) {
+    normalizeAnimationGroup(group, findPackageResourceByKey(pkg, group.sourceResourceKey));
+  }
+  return groups;
+}
+
+function addAnimationGroup() {
+  ensureAnimationAuthoringConfig(state.package);
+  const groups = state.package?.applicationConfig?.animationGroups || [];
+  const group = createManualAnimationGroup(groups);
+  groups.push(group);
+  state.selectedPath = getAnimationGroupPath(group.groupId);
+  state.dirty = true;
+  state.message = "已新增动画 Group；请在属性栏选择源动画资源并配置 Clip / 2D Blend。";
+  render();
+}
+
+function createManualAnimationGroup(groups) {
+  const groupId = createUniqueConfigId("animation.group", groups.map(group => group?.groupId));
+  return {
+    groupId,
+    displayName: toDisplayName(groupId),
+    description: "手动创建的动画 Group。",
+    sourceResourceKey: "",
+    animationPolicy: "manual",
+    defaultBlendSpaceId: "",
+    clips: [],
+    blendSpaces: []
+  };
+}
+
+function removeAnimationGroup(groupId) {
+  const groups = state.package?.applicationConfig?.animationGroups || [];
+  const index = groups.findIndex(group => group?.groupId === groupId);
+  if (index < 0) return;
+  groups.splice(index, 1);
+  for (const profile of state.package?.applicationConfig?.animationProfiles || []) {
+    for (const slot of profile?.slots || []) {
+      if (slot?.animationGroupId === groupId) slot.animationGroupId = "";
+    }
+  }
+  state.selectedPath = "config/animation/groups";
+  state.dirty = true;
+  state.message = "已移除动画 Group 配置；源资源未删除，Profile 槽位引用已解除。";
+  render();
+}
+
+function createDefaultAnimationGroup(resource) {
+  const groupId = resource?.localId || resource?.resourceKey || `animation.group.${Date.now()}`;
+  const clips = parseClipMetadata(resource).map(name => createAnimationClipEntry(name));
+  const group = {
+    groupId,
+    displayName: toDisplayName(groupId),
+    description: "从动画资源生成的可编辑 Clip Group。",
+    sourceResourceKey: resource?.resourceKey || "",
+    animationPolicy: resource?.importHints?.animationPolicy || "splitByClipNames",
+    defaultBlendSpaceId: "",
+    clips,
+    blendSpaces: []
+  };
+  maybeCreateDefaultBlendSpace(group);
+  return group;
+}
+
+function normalizeAnimationGroup(group, resource = null) {
+  group.groupId ||= resource?.localId || resource?.resourceKey || `animation.group.${Date.now()}`;
+  group.displayName ||= toDisplayName(group.groupId);
+  group.description ||= "";
+  group.sourceResourceKey ||= resource?.resourceKey || "";
+  group.animationPolicy ||= resource?.importHints?.animationPolicy || "splitByClipNames";
+  group.defaultBlendSpaceId ||= "";
+  group.clips = Array.isArray(group.clips) ? group.clips : [];
+  group.blendSpaces = Array.isArray(group.blendSpaces) ? group.blendSpaces : [];
+  for (const clip of group.clips) normalizeAnimationClipEntry(clip);
+  for (const blendSpace of group.blendSpaces) normalizeAnimationBlendSpace(group, blendSpace);
+}
+
+function normalizeAnimationClipEntry(clip) {
+  clip.clipId ||= normalizeConfigId(clip.sourceClipName || clip.displayName || "clip");
+  clip.sourceClipName ||= clip.clipId;
+  clip.displayName ||= toDisplayName(clip.clipId);
+  clip.loop = Boolean(clip.loop);
+  clip.rootMotionPolicy ||= "Ignore";
+  clip.speed = Number.isFinite(Number(clip.speed)) ? Number(clip.speed) : 1;
+}
+
+function normalizeAnimationBlendSpace(group, blendSpace) {
+  blendSpace.blendSpaceId ||= `${group.groupId}.blend`;
+  blendSpace.displayName ||= toDisplayName(blendSpace.blendSpaceId);
+  blendSpace.xParameter ||= "moveX";
+  blendSpace.yParameter ||= "moveY";
+  blendSpace.defaultClipId ||= group.clips[0]?.clipId || "";
+  blendSpace.clips = Array.isArray(blendSpace.clips) ? blendSpace.clips : [];
+  for (const point of blendSpace.clips) {
+    point.clipId ||= group.clips[0]?.clipId || "";
+    point.x = Number.isFinite(Number(point.x)) ? Number(point.x) : 0;
+    point.y = Number.isFinite(Number(point.y)) ? Number(point.y) : 0;
+  }
+}
+
+function maybeCreateDefaultBlendSpace(group) {
+  if (!group || group.blendSpaces.length > 0) return;
+  const clipIds = new Set(group.clips.map(clip => clip.clipId));
+  if (!clipIds.has("idle") || !clipIds.has("walk") || !clipIds.has("run")) return;
+  const blendSpace = {
+    blendSpaceId: `${group.groupId}.locomotion2d`,
+    displayName: "Locomotion 2D",
+    xParameter: "moveX",
+    yParameter: "moveY",
+    defaultClipId: "idle",
+    clips: [
+      { clipId: "idle", x: 0, y: 0 },
+      { clipId: "walk", x: 0, y: 0.5 },
+      { clipId: "run", x: 0, y: 1 }
+    ]
+  };
+  group.blendSpaces.push(blendSpace);
+  group.defaultBlendSpaceId ||= blendSpace.blendSpaceId;
+}
+
+function parseClipMetadata(resource) {
+  const raw = resource?.importHints?.metadata?.clips || resource?.metadata?.clips || "";
+  return String(raw)
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function createAnimationClipEntry(name) {
+  const clipId = normalizeConfigId(name);
+  return {
+    clipId,
+    sourceClipName: name,
+    displayName: toDisplayName(name),
+    loop: /idle|walk|run|locomotion/i.test(name),
+    rootMotionPolicy: /walk|run/i.test(name) ? "MotionDelta" : "Ignore",
+    speed: 1
+  };
+}
+
+function getPackageAnimationResources(pkg) {
+  return (pkg?.resourceCatalog?.entries || []).filter(resource =>
+    resource?.resourceKey &&
+    (mapResourceKind(resource.typeId) === "Animation" || resource.usage === "animationClipGroup"));
+}
+
+function findAnimationGroupByResource(pkg, resourceKey) {
+  if (!pkg || !resourceKey) return null;
+  return (pkg.applicationConfig?.animationGroups || []).find(group => group?.sourceResourceKey === resourceKey) || null;
+}
+
+function findAnimationGroupById(groupId) {
+  ensureAnimationAuthoringConfig(state.package);
+  return (state.package?.applicationConfig?.animationGroups || []).find(group => group?.groupId === groupId) || null;
+}
+
+function normalizeConfigId(value) {
+  return String(value || "item")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .toLowerCase() || "item";
+}
+
+function createUniqueConfigId(base, existingValues) {
+  const normalizedBase = normalizeConfigId(base);
+  const existing = new Set((existingValues || []).filter(Boolean).map(String));
+  if (!existing.has(normalizedBase)) return normalizedBase;
+  for (let index = 2; index < 1000; index++) {
+    const candidate = `${normalizedBase}.${index}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+  return `${normalizedBase}.${Date.now()}`;
+}
+
+function toDisplayName(value) {
+  return String(value || "")
+    .split(/[._/-]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function createPackageAnimationSelectionRef(resource) {
@@ -677,6 +914,111 @@ function getAnimationSlotPath(profileId, slotId) {
   return `config/animation/${encodeURIComponent(profileId || DEFAULT_ANIMATION_PROFILE_ID)}/slots/${encodeURIComponent(slotId || "")}`;
 }
 
+function getAnimationGroupPath(groupId) {
+  return `config/animation/groups/${encodeURIComponent(groupId || "")}`;
+}
+
+function getAnimationClipPath(groupId, clipId) {
+  return `${getAnimationGroupPath(groupId)}/clips/${encodeURIComponent(clipId || "")}`;
+}
+
+function getAnimationBlendSpacePath(groupId, blendSpaceId) {
+  return `${getAnimationGroupPath(groupId)}/blendSpaces/${encodeURIComponent(blendSpaceId || "")}`;
+}
+
+function getAnimationBlendPointPath(groupId, blendSpaceId, index) {
+  return `${getAnimationBlendSpacePath(groupId, blendSpaceId)}/clips/${index}`;
+}
+
+function addAnimationGroupClip(groupId) {
+  const group = findAnimationGroupById(groupId);
+  if (!group) return;
+  const base = "clip";
+  let index = (group.clips || []).length + 1;
+  let clipId = `${base}.${index}`;
+  while ((group.clips || []).some(clip => clip?.clipId === clipId)) {
+    index += 1;
+    clipId = `${base}.${index}`;
+  }
+  group.clips.push({
+    clipId,
+    sourceClipName: clipId,
+    displayName: toDisplayName(clipId),
+    loop: false,
+    rootMotionPolicy: "Ignore",
+    speed: 1
+  });
+  state.selectedPath = getAnimationClipPath(group.groupId, clipId);
+  state.dirty = true;
+  state.message = `已新增动画 Clip ${clipId}`;
+  render();
+}
+
+function removeAnimationGroupClip(groupId, clipId) {
+  const group = findAnimationGroupById(groupId);
+  if (!group || !clipId) return;
+  group.clips = (group.clips || []).filter(clip => clip?.clipId !== clipId);
+  for (const blendSpace of group.blendSpaces || []) {
+    blendSpace.clips = (blendSpace.clips || []).filter(point => point?.clipId !== clipId);
+    if (blendSpace.defaultClipId === clipId) blendSpace.defaultClipId = group.clips[0]?.clipId || "";
+  }
+  state.selectedPath = getAnimationGroupPath(group.groupId);
+  state.dirty = true;
+  state.message = `已移除动画 Clip ${clipId}`;
+  render();
+}
+
+function addAnimationGroupBlendSpace(groupId) {
+  const group = findAnimationGroupById(groupId);
+  if (!group) return;
+  let index = (group.blendSpaces || []).length + 1;
+  let blendSpaceId = `${group.groupId}.blend${index}`;
+  while ((group.blendSpaces || []).some(space => space?.blendSpaceId === blendSpaceId)) {
+    index += 1;
+    blendSpaceId = `${group.groupId}.blend${index}`;
+  }
+  const defaultClipId = group.clips[0]?.clipId || "";
+  group.blendSpaces.push({
+    blendSpaceId,
+    displayName: toDisplayName(blendSpaceId),
+    xParameter: "moveX",
+    yParameter: "moveY",
+    defaultClipId,
+    clips: defaultClipId ? [{ clipId: defaultClipId, x: 0, y: 0 }] : []
+  });
+  group.defaultBlendSpaceId ||= blendSpaceId;
+  state.selectedPath = getAnimationBlendSpacePath(group.groupId, blendSpaceId);
+  state.dirty = true;
+  state.message = `已新增 2D Blend ${blendSpaceId}`;
+  render();
+}
+
+function addAnimationBlendPoint(groupId, blendSpaceId) {
+  const group = findAnimationGroupById(groupId);
+  const blendSpace = (group?.blendSpaces || []).find(space => space?.blendSpaceId === blendSpaceId);
+  if (!group || !blendSpace) return;
+  const clipId = group.clips.find(clip => !(blendSpace.clips || []).some(point => point?.clipId === clip.clipId))?.clipId
+    || group.clips[0]?.clipId
+    || "";
+  blendSpace.clips = Array.isArray(blendSpace.clips) ? blendSpace.clips : [];
+  blendSpace.clips.push({ clipId, x: 0, y: 0 });
+  state.selectedPath = getAnimationBlendPointPath(groupId, blendSpaceId, blendSpace.clips.length - 1);
+  state.dirty = true;
+  state.message = `已新增 Blend 点 ${clipId || "未选择"}`;
+  render();
+}
+
+function removeAnimationBlendPoint(groupId, blendSpaceId, index) {
+  const group = findAnimationGroupById(groupId);
+  const blendSpace = (group?.blendSpaces || []).find(space => space?.blendSpaceId === blendSpaceId);
+  if (!blendSpace || index < 0) return;
+  blendSpace.clips.splice(index, 1);
+  state.selectedPath = getAnimationBlendSpacePath(groupId, blendSpaceId);
+  state.dirty = true;
+  state.message = "已移除 Blend 点";
+  render();
+}
+
 function renderAnimationConfigPanel() {
   if (!el.animationConfigPanel) return;
   const profile = getDefaultAnimationProfile();
@@ -687,16 +1029,57 @@ function renderAnimationConfigPanel() {
 
   const animationResources = getResourceLibraryItems().filter(item => item.kind === "Animation");
   const runtimeReadyCount = animationResources.filter(item => item.runtimeAvailability === "RuntimeReady" || item.bindingKind === "PackageResource" || item.bindingKind === "ResourceManagerAsset").length;
+  const groups = state.package?.applicationConfig?.animationGroups || [];
   const slots = profile.slots || [];
   el.animationConfigPanel.innerHTML = `
     <div class="animation-profile-summary">
       <div><strong>${escapeHtml(profile.displayName || profile.profileId)}</strong><span>${escapeHtml(profile.profileId || DEFAULT_ANIMATION_PROFILE_ID)}</span></div>
+      <div><strong>${escapeHtml(String(groups.length))}</strong><span>可编辑 Group</span></div>
       <div><strong>${escapeHtml(String(animationResources.length))}</strong><span>可见动画资源</span></div>
       <div><strong>${escapeHtml(String(runtimeReadyCount))}</strong><span>可编排资源</span></div>
+    </div>
+    <div class="animation-panel-actions">
+      <button type="button" data-animation-add-group="1">新增动画 Group</button>
+    </div>
+    <div class="animation-slot-list">
+      ${groups.map(group => renderAnimationGroupCard(group)).join("")}
     </div>
     <div class="animation-slot-list">
       ${slots.map(slot => renderAnimationSlotCard(profile, slot)).join("")}
     </div>`;
+}
+
+function renderAnimationGroupCard(group) {
+  const resource = findPackageResourceByKey(state.package, group.sourceResourceKey);
+  const path = getAnimationGroupPath(group.groupId);
+  return `<article class="animation-slot-card">
+    <div class="animation-slot-main">
+      <div>
+        <strong>${escapeHtml(group.displayName || group.groupId)}</strong>
+        <span>${escapeHtml(group.groupId || "animation group")}</span>
+      </div>
+      <button type="button" data-animation-jump="1" data-path="${escapeHtml(path)}" title="在属性栏编辑 Group">编辑</button>
+    </div>
+    <div class="animation-slot-resource">
+      <span>${escapeHtml(resource ? getResourceDisplayName(resource) : group.sourceResourceKey || "未绑定资源")}</span>
+      <span class="sync-badge muted">${escapeHtml(group.animationPolicy || "manual")}</span>
+    </div>
+    <code>${escapeHtml(`${group.clips?.length || 0} clips / ${group.blendSpaces?.length || 0} blend spaces`)}</code>
+    <div class="animation-slot-actions">
+      <button type="button" data-animation-add-clip="${escapeHtml(group.groupId)}">新增 Clip</button>
+      <button type="button" data-animation-add-blend="${escapeHtml(group.groupId)}">新增 2D Blend</button>
+      <button type="button" data-animation-remove-group="${escapeHtml(group.groupId)}">移除 Group</button>
+    </div>
+    ${renderAnimationGroupChildren(group)}
+  </article>`;
+}
+
+function renderAnimationGroupChildren(group) {
+  const clips = (group.clips || []).slice(0, 8).map(clip =>
+    `<button type="button" class="mini-chip" data-animation-jump="1" data-path="${escapeHtml(getAnimationClipPath(group.groupId, clip.clipId))}">${escapeHtml(clip.clipId)}</button>`).join("");
+  const blends = (group.blendSpaces || []).slice(0, 4).map(blend =>
+    `<button type="button" class="mini-chip" data-animation-jump="1" data-path="${escapeHtml(getAnimationBlendSpacePath(group.groupId, blend.blendSpaceId))}">${escapeHtml(blend.blendSpaceId)}</button>`).join("");
+  return `<div class="mini-chip-row">${clips}${blends}</div>`;
 }
 
 function renderAnimationSlotCard(profile, slot) {
@@ -936,6 +1319,13 @@ function getResourceFieldSpecForInspectorField(target, fieldPath) {
       ...RESOURCE_FIELD_SPECS.animationClip,
       fieldKey: `Animation.Profile.${target.value?.slotId || "slot"}`,
       displayName: target.value?.displayName || "动画资源"
+    };
+  }
+  if (target.kind === "animationGroup" && fieldPath === "sourceResourceKey") {
+    return {
+      ...RESOURCE_FIELD_SPECS.animationClip,
+      fieldKey: `Animation.Group.${target.value?.groupId || "group"}.sourceResourceKey`,
+      displayName: target.value?.displayName || "动画组源资源"
     };
   }
   if (target.kind === "weapon" && fieldPath === "previewResourceKey") {
@@ -1367,6 +1757,9 @@ function applyResourceSelectionToField(item, selectionRef) {
   if (!target?.value) return;
   const value = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
   setNested(target.value, picker.fieldPath, value);
+  if (target.kind === "animationGroup" && picker.fieldPath === "sourceResourceKey" && value) {
+    ensureApplicationResourceKey(value);
+  }
   if (picker.fieldPath === "previewResourceKey") {
     setNested(target.value, "previewResourceSelection", selectionRef);
   }
@@ -1383,6 +1776,8 @@ function applyResourceSelectionToAnimationSlot(item, selectionRef, picker) {
   const value = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
   slot.resourceKey = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || item.resourceKey || "";
   slot.resourceSelection = selectionRef;
+  const group = findAnimationGroupByResource(state.package, slot.resourceKey);
+  if (group) slot.animationGroupId = group.groupId;
   slot.preloadPolicy = picker.fieldSpec?.preloadPolicy || "AnimationWarmup";
   if ((selectionRef.runtimeResourceKey || selectionRef.packageResourceKey) && slot.resourceKey) {
     ensureApplicationResourceKey(slot.resourceKey);
@@ -1613,6 +2008,9 @@ function buildFallbackResourcePlan() {
 
 function collectAnimationSlotResourceKeys(pkg) {
   const keys = [];
+  for (const group of pkg?.applicationConfig?.animationGroups || []) {
+    if (group?.sourceResourceKey) keys.push(group.sourceResourceKey);
+  }
   for (const profile of pkg?.applicationConfig?.animationProfiles || []) {
     for (const slot of profile?.slots || []) {
       const key = firstNonEmpty(
@@ -2231,10 +2629,20 @@ function buildTree(pkg) {
   if (!pkg) return [];
   const g = pkg.geometry || {};
   const animationProfile = getDefaultAnimationProfile();
+  const animationGroups = pkg.applicationConfig?.animationGroups || [];
   const nodes = [
     node("manifest", "manifest", "manifest", 0),
     node("config", "config", "角色配置", 0),
     node("config/animation", "animationConfig", "动画配置", 0),
+    node("config/animation/groups", "animationGroups", "Animation Groups", 1),
+    ...animationGroups.flatMap(group => [
+      node(getAnimationGroupPath(group.groupId), "animationGroup", group.groupId || "animation group", 2),
+      ...(group.clips || []).map(clip => node(getAnimationClipPath(group.groupId, clip.clipId), "animationClip", clip.clipId || "clip", 3)),
+      ...(group.blendSpaces || []).flatMap(blendSpace => [
+        node(getAnimationBlendSpacePath(group.groupId, blendSpace.blendSpaceId), "animationBlendSpace", blendSpace.blendSpaceId || "blend space", 3),
+        ...(blendSpace.clips || []).map((point, index) => node(getAnimationBlendPointPath(group.groupId, blendSpace.blendSpaceId, index), "animationBlendPoint", `${point.clipId || "clip"} (${point.x || 0}, ${point.y || 0})`, 4))
+      ])
+    ]),
     ...(animationProfile ? [
       node(`config/animation/${encodeURIComponent(animationProfile.profileId)}`, "animationProfile", animationProfile.profileId || "animation profile", 1),
       ...grouped((animationProfile.slots || []), "animationSlot", slot => getAnimationSlotPath(animationProfile.profileId, slot.slotId), slot => `${slot.slotId || "slot"}:${slot.resourceKey || "未选择"}`, 2)
@@ -3456,12 +3864,19 @@ function renderInspector() {
   wireBonePicker(el.inspector);
   el.inspector.querySelectorAll("[data-inspector-action]").forEach(button => {
     button.addEventListener("click", () => {
-      if (button.dataset.inspectorAction !== "resetModelWrapperPose") return;
-      if (target.kind !== "resource" || target.value?.typeId !== "model") return;
-      resetModelWrapperPose(target.value);
-      state.dirty = true;
-      state.message = "模型变换修正已重置。保存后写入资源包。";
-      render();
+      const action = button.dataset.inspectorAction;
+      if (action === "resetModelWrapperPose" && target.kind === "resource" && target.value?.typeId === "model") {
+        resetModelWrapperPose(target.value);
+        state.dirty = true;
+        state.message = "模型变换修正已重置。保存后写入资源包。";
+        render();
+      } else if (action === "removeAnimationClip" && target.kind === "animationClip") {
+        removeAnimationGroupClip(target.groupId, target.clipId);
+      } else if (action === "addBlendPoint" && target.kind === "animationBlendSpace") {
+        addAnimationBlendPoint(target.groupId, target.blendSpaceId);
+      } else if (action === "removeBlendPoint" && target.kind === "animationBlendPoint") {
+        removeAnimationBlendPoint(target.groupId, target.blendSpaceId, target.pointIndex);
+      }
     });
   });
   el.inspector.querySelectorAll("button[data-jump]").forEach(button => {
@@ -3474,6 +3889,10 @@ function renderObjectTitle(target) {
 }
 
 function renderInspectorContext(target) {
+  if (target.kind === "animationGroup") return renderAnimationGroupReferenceContext(target.value);
+  if (target.kind === "animationClip") return renderAnimationClipReferenceContext(target);
+  if (target.kind === "animationBlendSpace") return renderAnimationBlendSpaceContext(target);
+  if (target.kind === "animationBlendPoint") return renderAnimationBlendPointContext(target);
   if (target.kind === "animationSlot") return renderAnimationSlotReferenceContext(target.value);
   if (target.kind === "weapon") return renderWeaponReferenceContext(target.value);
   if (target.kind === "resource" && target.value) {
@@ -3481,6 +3900,42 @@ function renderInspectorContext(target) {
     return `${modelContext}${renderResourceSyncContext(target.value)}`;
   }
   return "";
+}
+
+function renderAnimationGroupReferenceContext(group) {
+  const resource = findPackageResourceByKey(state.package, group?.sourceResourceKey);
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>动画 Group</strong><span>Group 配置 clip、2D blend 和源资源映射；资源本体仍由资源管理器维护。</span></div>
+    <div class="reference-row"><span>源资源</span><strong>${escapeHtml(resource ? getResourceDisplayName(resource) : group?.sourceResourceKey || "未绑定")}</strong></div>
+    <div class="reference-row"><span>Clips</span><strong>${escapeHtml(String(group?.clips?.length || 0))}</strong></div>
+    <div class="reference-row"><span>BlendSpaces</span><strong>${escapeHtml(String(group?.blendSpaces?.length || 0))}</strong></div>
+  </section>`;
+}
+
+function renderAnimationClipReferenceContext(target) {
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>动画 Clip</strong><span>这里编辑的是 Group 内的 clip 映射，不直接修改 Unity AnimationClip。</span></div>
+    <div class="reference-row"><span>Group</span><strong>${escapeHtml(target.groupId || "")}</strong></div>
+    <button type="button" data-inspector-action="removeAnimationClip">移除 Clip</button>
+  </section>`;
+}
+
+function renderAnimationBlendSpaceContext(target) {
+  const group = findAnimationGroupById(target.groupId);
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>2D Blend</strong><span>BlendSpace 引用同一 Group 内的 Clip，并配置 X/Y 参数落点。</span></div>
+    <div class="reference-row"><span>Group</span><strong>${escapeHtml(group?.groupId || target.groupId || "")}</strong></div>
+    <div class="reference-row"><span>可选 Clip</span><strong>${escapeHtml(String(group?.clips?.length || 0))}</strong></div>
+    <button type="button" data-inspector-action="addBlendPoint">新增 Blend 点</button>
+  </section>`;
+}
+
+function renderAnimationBlendPointContext(target) {
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>Blend 点</strong><span>Blend 点只引用 Group 内的 Clip，并给出二维参数坐标。</span></div>
+    <div class="reference-row"><span>BlendSpace</span><strong>${escapeHtml(target.blendSpaceId || "")}</strong></div>
+    <button type="button" data-inspector-action="removeBlendPoint">移除 Blend 点</button>
+  </section>`;
 }
 
 function renderAnimationSlotReferenceContext(slot) {
@@ -3568,6 +4023,16 @@ function collectResourceReferences(resource) {
   for (const attachment of state.package?.geometry?.weaponAttachments || []) {
     if (attachment?.previewResourceKey === key) {
       references.push({ sourceConfigKind: "weapon", sourceStableId: attachment.weaponId, sourceField: "previewResourceKey", preloadPolicy: "EquipmentInitial" });
+    }
+  }
+  for (const group of state.package?.applicationConfig?.animationGroups || []) {
+    if (group?.sourceResourceKey === key || group?.sourceResourceKey === stableId) {
+      references.push({
+        sourceConfigKind: "animationGroup",
+        sourceStableId: group.groupId,
+        sourceField: "sourceResourceKey",
+        preloadPolicy: "AnimationWarmup"
+      });
     }
   }
   for (const profile of state.package?.applicationConfig?.animationProfiles || []) {
@@ -3660,10 +4125,39 @@ function editableFields(kind, value = null) {
     field("displayName", { label: "显示名", group: "animation", help: "给主创看的动画配置名称。" }),
     field("description", { label: "说明", group: "animation", help: "描述这个 Profile 适用的角色、装备或状态。" })
   ];
+  if (kind === "animationGroup") return [
+    identityField("groupId", "Group ID", animationGroupIdSuggestions(), "稳定动画 Group ID；Profile 槽位会引用它。", "animationGroup"),
+    field("displayName", { label: "显示名", group: "animationGroup", help: "给主创看的动画组名称。" }),
+    field("description", { label: "说明", group: "animationGroup", help: "描述这个动画组适用的角色、装备或动作集合。" }),
+    field("sourceResourceKey", { label: "源动画资源", type: "select", options: animationResourceOptions("未选择"), group: "selection", picker: "resource", help: "动画组的源资源；资源本体仍由资源管理器维护。" }),
+    field("animationPolicy", { label: "拆分策略", type: "select", options: ANIMATION_GROUP_POLICY_OPTIONS, group: "selection", help: "splitByClipNames 表示按导入资源中的 clip 名称匹配。" }),
+    field("defaultBlendSpaceId", { label: "默认 2D Blend", type: "select", options: animationBlendSpaceOptionsForGroup(value, "无"), group: "selection", help: "Locomotion 等状态默认使用的 BlendSpace。" })
+  ];
+  if (kind === "animationClip") return [
+    identityField("clipId", "Clip ID", animationClipIdSuggestionsForSelectedGroup(), "动画组内稳定 Clip ID。", "animationClip"),
+    field("sourceClipName", { label: "源 Clip 名", group: "animationClip", help: "导入资源中的原始 clip 名称。" }),
+    field("displayName", { label: "显示名", group: "animationClip", help: "给主创看的 Clip 名称。" }),
+    field("loop", { label: "循环", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "animationClip", help: "移动/待机通常循环，攻击/受击通常不循环。" }),
+    field("rootMotionPolicy", { label: "Root Motion", type: "select", options: ROOT_MOTION_POLICY_OPTIONS, group: "animationClip", help: "Ignore 不影响角色运动；MotionDelta 作为表现运动差值；ApplyToActor 后续用于驱动角色位移。" }),
+    positiveField("speed", "播放速度", { min: 0.01, max: 4, step: 0.01, group: "animationClip" })
+  ];
+  if (kind === "animationBlendSpace") return [
+    identityField("blendSpaceId", "BlendSpace ID", animationBlendSpaceIdSuggestionsForSelectedGroup(), "动画组内稳定 2D Blend ID。", "animationBlend"),
+    field("displayName", { label: "显示名", group: "animationBlend", help: "给主创看的 BlendSpace 名称。" }),
+    field("xParameter", { label: "X 参数", group: "animationBlend", help: "例如 moveX。" }),
+    field("yParameter", { label: "Y 参数", group: "animationBlend", help: "例如 moveY。" }),
+    field("defaultClipId", { label: "默认 Clip", type: "select", options: animationClipOptionsForSelectedGroup("未选择"), group: "animationBlend", help: "参数缺失或落点异常时使用。" })
+  ];
+  if (kind === "animationBlendPoint") return [
+    field("clipId", { label: "Clip", type: "select", options: animationClipOptionsForSelectedGroup("未选择"), group: "animationBlend", help: "这个 2D 点对应的 Clip。" }),
+    positionField("x", "X", "animationBlend"),
+    positionField("y", "Y", "animationBlend")
+  ];
   if (kind === "animationSlot") return [
     field("slotId", { label: "槽位 ID", type: "select", options: ANIMATION_PROFILE_SLOTS.map(slot => ({ value: slot.slotId, label: slot.displayName })), group: "animationSlot", help: "当前 Profile 内的动画资源槽位。" }),
     field("displayName", { label: "显示名", group: "animationSlot", help: "给主创看的槽位名称。" }),
     field("purpose", { label: "用途说明", group: "animationSlot", help: "说明该槽位用于移动、战斗、基础姿势或后续扩展。" }),
+    field("animationGroupId", { label: "动画 Group", type: "select", options: animationGroupOptions("未选择"), group: "selection", help: "选择已编辑的动画组；资源字段保留为运行时预热引用。" }),
     field("resourceKey", { label: "动画资源", type: "select", options: animationResourceOptions("未选择"), group: "selection", picker: "resource", help: "通过资源选择器选择动画资源；不要手填未知 ResourceKey。" }),
     field("preloadPolicy", { label: "预热分组", type: "select", options: ["AnimationWarmup"], group: "selection", help: "动画资源进入运行时资源计划时使用 AnimationWarmup 分组。" }),
     field("required", { label: "Spawn 必需", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "selection", help: "必需槽位缺失时后续编译可升级为错误。" })
@@ -3816,6 +4310,48 @@ function animationResourceOptions(emptyLabel = "") {
     }))
     .filter(option => option.value);
   return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function animationGroupOptions(emptyLabel = "") {
+  const options = (state.package?.applicationConfig?.animationGroups || [])
+    .filter(group => group?.groupId)
+    .map(group => ({ value: group.groupId, label: group.displayName ? `${group.displayName} (${group.groupId})` : group.groupId }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function animationGroupIdSuggestions() {
+  return collectOptions((state.package?.applicationConfig?.animationGroups || []).map(group => group?.groupId));
+}
+
+function getSelectedAnimationGroup() {
+  const target = findTarget(state.selectedPath);
+  const groupId = target.groupId || (target.kind === "animationGroup" ? target.value?.groupId : "");
+  return findAnimationGroupById(groupId);
+}
+
+function animationClipOptionsForSelectedGroup(emptyLabel = "") {
+  const group = getSelectedAnimationGroup();
+  const options = (group?.clips || [])
+    .filter(clip => clip?.clipId)
+    .map(clip => ({ value: clip.clipId, label: clip.displayName ? `${clip.displayName} (${clip.clipId})` : clip.clipId }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function animationClipIdSuggestionsForSelectedGroup() {
+  const group = getSelectedAnimationGroup();
+  return collectOptions((group?.clips || []).map(clip => clip?.clipId));
+}
+
+function animationBlendSpaceOptionsForGroup(group, emptyLabel = "") {
+  const options = (group?.blendSpaces || [])
+    .filter(space => space?.blendSpaceId)
+    .map(space => ({ value: space.blendSpaceId, label: space.displayName ? `${space.displayName} (${space.blendSpaceId})` : space.blendSpaceId }));
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function animationBlendSpaceIdSuggestionsForSelectedGroup() {
+  const group = getSelectedAnimationGroup();
+  return collectOptions((group?.blendSpaces || []).map(space => space?.blendSpaceId));
 }
 
 function animationProfileIdSuggestions() {
@@ -4208,7 +4744,7 @@ function commitInspectorField(target, input) {
     renderResourceBindingBar();
     renderResourcePicker();
   }
-  if (target.kind === "animationSlot") {
+  if (["animationSlot", "animationGroup", "animationClip", "animationBlendSpace", "animationBlendPoint"].includes(target.kind)) {
     renderAnimationConfigPanel();
     renderResourcePlanPreview();
     renderTree();
@@ -4264,6 +4800,35 @@ function afterInspectorFieldEdited(target, path) {
   const posePath = getPosePathFromEulerField(path);
   if (posePath) syncPoseRotationFromEuler(target.value, posePath);
   if (path.endsWith(".parentKind")) applyPoseParentDefault(target, path.slice(0, -".parentKind".length));
+  if (target.kind === "animationGroup" && path === "groupId") {
+    const oldGroupId = target.groupId;
+    const nextGroupId = target.value.groupId;
+    for (const profile of state.package?.applicationConfig?.animationProfiles || []) {
+      for (const slot of profile?.slots || []) {
+        if (slot?.animationGroupId === oldGroupId) slot.animationGroupId = nextGroupId;
+      }
+    }
+    state.selectedPath = getAnimationGroupPath(nextGroupId);
+  }
+  if (target.kind === "animationClip" && path === "clipId") {
+    const oldClipId = target.clipId;
+    const nextClipId = target.value.clipId;
+    const group = findAnimationGroupById(target.groupId);
+    for (const blendSpace of group?.blendSpaces || []) {
+      if (blendSpace.defaultClipId === oldClipId) blendSpace.defaultClipId = nextClipId;
+      for (const point of blendSpace.clips || []) {
+        if (point?.clipId === oldClipId) point.clipId = nextClipId;
+      }
+    }
+    state.selectedPath = getAnimationClipPath(target.groupId, nextClipId);
+  }
+  if (target.kind === "animationBlendSpace" && path === "blendSpaceId") {
+    const oldBlendSpaceId = target.blendSpaceId;
+    const nextBlendSpaceId = target.value.blendSpaceId;
+    const group = findAnimationGroupById(target.groupId);
+    if (group?.defaultBlendSpaceId === oldBlendSpaceId) group.defaultBlendSpaceId = nextBlendSpaceId;
+    state.selectedPath = getAnimationBlendSpacePath(target.groupId, nextBlendSpaceId);
+  }
   if (target.kind === "animationSlot" && path === "resourceKey") {
     const item = findResourceLibraryItemByKey(target.value.resourceKey);
     if (item) {
@@ -4275,10 +4840,22 @@ function afterInspectorFieldEdited(target, path) {
       target.value.resourceSelection = {};
     }
   }
+  if (target.kind === "animationSlot" && path === "animationGroupId") {
+    const group = findAnimationGroupById(target.value.animationGroupId);
+    if (group?.sourceResourceKey) {
+      target.value.resourceKey = group.sourceResourceKey;
+      const item = findResourceLibraryItemByKey(group.sourceResourceKey);
+      target.value.resourceSelection = item ? createResourceSelectionRef(item, RESOURCE_FIELD_SPECS.animationClip) : {};
+      ensureApplicationResourceKey(group.sourceResourceKey);
+    }
+  }
+  if (target.kind === "animationGroup" && path === "sourceResourceKey" && target.value.sourceResourceKey) {
+    ensureApplicationResourceKey(target.value.sourceResourceKey);
+  }
 }
 
 function shouldRefreshInspectorForField(path) {
-  return path.endsWith(".parentKind") || path === "resourceKey";
+  return path.endsWith(".parentKind") || path === "resourceKey" || path === "animationGroupId" || path === "sourceResourceKey";
 }
 
 function applyPoseParentDefault(target, posePath) {
@@ -4608,7 +5185,26 @@ function findTarget(path) {
   if (path === "resources") return target("resources", "Resource Catalog", pkg.resourceCatalog);
   if (path.startsWith("resources/")) return target("resource", path.slice(10), (pkg.resourceCatalog?.entries || []).find(x => x.resourceKey === path.slice(10)));
   if (path === "config") return target("config", "Character Application", pkg.applicationConfig);
-  if (path === "config/animation") return target("animationConfig", "Animation Profiles", pkg.applicationConfig?.animationProfiles || []);
+  if (path === "config/animation") return target("animationConfig", "Animation", pkg.applicationConfig);
+  if (path === "config/animation/groups") return target("animationGroups", "Animation Groups", pkg.applicationConfig?.animationGroups || []);
+  if (path.startsWith("config/animation/groups/")) {
+    const parts = path.split("/");
+    const groupId = decodeURIComponent(parts[3] || "");
+    const group = (pkg.applicationConfig?.animationGroups || []).find(item => item?.groupId === groupId);
+    if (parts.length <= 4) return target("animationGroup", group?.groupId || "Animation Group", group, { groupId });
+    if (parts[4] === "clips") {
+      const clipId = decodeURIComponent(parts[5] || "");
+      const clip = (group?.clips || []).find(item => item?.clipId === clipId);
+      return target("animationClip", clip?.clipId || clipId || "Animation Clip", clip, { groupId, clipId });
+    }
+    if (parts[4] === "blendSpaces") {
+      const blendSpaceId = decodeURIComponent(parts[5] || "");
+      const blendSpace = (group?.blendSpaces || []).find(item => item?.blendSpaceId === blendSpaceId);
+      if (parts.length <= 6) return target("animationBlendSpace", blendSpace?.blendSpaceId || blendSpaceId || "Blend Space", blendSpace, { groupId, blendSpaceId });
+      const index = Number(parts[7] || 0);
+      return target("animationBlendPoint", `Blend Point ${index + 1}`, (blendSpace?.clips || [])[index], { groupId, blendSpaceId, pointIndex: index });
+    }
+  }
   if (path.startsWith("config/animation/")) {
     const parts = path.split("/");
     const profileId = decodeURIComponent(parts[2] || "");

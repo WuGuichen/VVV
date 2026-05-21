@@ -159,6 +159,24 @@ namespace MxFramework.Authoring
                     isRequiredAtRuntime: true);
             }
 
+            for (int groupIndex = 0; application.AnimationGroups != null && groupIndex < application.AnimationGroups.Count; groupIndex++)
+            {
+                CharacterAnimationGroupAuthoringSummary group = application.AnimationGroups[groupIndex];
+                if (group == null || string.IsNullOrWhiteSpace(group.SourceResourceKey))
+                    continue;
+
+                string groupId = FirstNonEmpty(group.GroupId, "animationGroup/" + groupIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                AddReferenceByKey(
+                    graph,
+                    index,
+                    "animationGroup",
+                    groupId,
+                    "animationGroups/" + groupIndex.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/sourceResourceKey",
+                    group.SourceResourceKey,
+                    AuthoringResourcePreloadPolicies.AnimationWarmup,
+                    isRequiredAtRuntime: true);
+            }
+
             if (application.AnimationProfiles == null)
                 return;
 
