@@ -6,6 +6,13 @@ const LOADOUTS = [
   { id: "sword_shield", label: "剑盾", slots: ["mainHand", "offHand"] }
 ];
 
+const DEFAULT_ANIMATION_PROFILE_ID = "anim_profile.default";
+const ANIMATION_PROFILE_SLOTS = [
+  { slotId: "base", displayName: "基础 Profile", purpose: "默认姿势和基础表现", resourceHint: "locomotion", required: false },
+  { slotId: "locomotion", displayName: "移动 Locomotion", purpose: "idle / walk / run 等移动表现", resourceHint: "locomotion", required: true },
+  { slotId: "combat", displayName: "战斗 Combat", purpose: "攻击、防御、受击等战斗表现", resourceHint: "combat", required: false }
+];
+
 const MODEL_IMPORT_ROLES = {
   body: {
     label: "角色主体模型",
@@ -140,6 +147,9 @@ const FIELD_GROUP_LABELS = {
   modelTransform: "模型尺寸 / 旋转 / 位置修正",
   base: "基础属性",
   binding: "引用关系",
+  animation: "动画配置",
+  animationSlot: "动画槽位",
+  selection: "资源选择",
   combat: "战斗映射",
   usage: "用途",
   localPose: "局部变换",
@@ -199,6 +209,9 @@ const KIND_LABELS = {
   resources: "资源",
   resource: "资源",
   config: "配置",
+  animationConfig: "动画",
+  animationProfile: "动画",
+  animationSlot: "动画槽",
   body: "身体",
   part: "部位",
   collider: "碰撞体",
@@ -257,6 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "workspace", "treeCollapseButton", "previewPoseSelect", "previewMotionSelect", "resetCameraButton",
     "configCreateSelect", "configCreateButton",
     "resourceBindingTarget", "openResourcePickerButton", "clearModelBindingButton",
+    "animationConfigPanel",
     "resourcePickerOverlay", "resourcePickerTitle", "resourcePickerSummary", "resourcePickerList", "closeResourcePickerButton",
     "resourcePlanPreview",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
@@ -314,6 +328,22 @@ document.addEventListener("DOMContentLoaded", () => {
     selectLibraryItem(button.dataset.libraryId);
   });
   el.clearModelBindingButton.addEventListener("click", clearCurrentModelBinding);
+  el.animationConfigPanel?.addEventListener("click", event => {
+    const pickButton = event.target.closest("button[data-animation-pick]");
+    if (pickButton) {
+      openAnimationSlotPicker(pickButton.dataset.profileId, pickButton.dataset.slotId);
+      return;
+    }
+    const clearButton = event.target.closest("button[data-animation-clear]");
+    if (clearButton) {
+      clearAnimationSlotSelection(clearButton.dataset.profileId, clearButton.dataset.slotId);
+      return;
+    }
+    const jumpButton = event.target.closest("button[data-animation-jump]");
+    if (jumpButton) {
+      selectPath(jumpButton.dataset.path);
+    }
+  });
   el.copyReportButton.addEventListener("click", () => copyReport());
   el.packageSelect.addEventListener("change", event => {
     state.packageRelative = event.target.value;
@@ -371,6 +401,7 @@ async function loadPackageState() {
   const apiState = await readJson(`/api/character/state?package=${encodeURIComponent(state.packageRelative)}`, null);
   if (apiState && apiState.package) {
     state.package = clone(apiState.package);
+    ensureAnimationAuthoringConfig(state.package);
     state.validation = apiState.validation || apiState.package.validationReport || { issues: [] };
     state.importResult = apiState.importReport || null;
     state.unityResourceCatalog = apiState.unityResourceCatalog || null;
@@ -387,6 +418,7 @@ async function loadPackageState() {
   }
 
   state.package = await readStaticPackage(state.packageRelative);
+  ensureAnimationAuthoringConfig(state.package);
   state.validation = state.package.validationReport || { issues: [] };
   state.importResult = null;
   await loadUnityResourceCatalog();
@@ -433,7 +465,7 @@ async function readStaticPackage(root) {
     readJson(`/${root}/config/character_application.json`, {}),
     readJson(`/${root}/validation/last_report.json`, { issues: [] })
   ]);
-  return {
+  const pkg = {
     manifest,
     resourceCatalog,
     geometry: {
@@ -448,6 +480,8 @@ async function readStaticPackage(root) {
     applicationConfig: appConfig,
     validationReport: validation
   };
+  ensureAnimationAuthoringConfig(pkg);
+  return pkg;
 }
 
 function render() {
@@ -459,6 +493,7 @@ function render() {
   renderPreviewControls();
   renderResourceBindingBar();
   renderResourcePicker();
+  renderAnimationConfigPanel();
   renderResourcePlanPreview();
   renderViewport();
   renderInspector();
@@ -515,6 +550,214 @@ function normalizeResourcePlanPayload(payload) {
   return null;
 }
 
+function ensureAnimationAuthoringConfig(pkg) {
+  if (!pkg) return null;
+  const appConfig = pkg.applicationConfig || {};
+  pkg.applicationConfig = appConfig;
+  if (!Array.isArray(appConfig.resourceKeys)) appConfig.resourceKeys = [];
+  if (!Array.isArray(appConfig.animationProfiles)) appConfig.animationProfiles = [];
+
+  let profile = appConfig.animationProfiles.find(item => item?.profileId === DEFAULT_ANIMATION_PROFILE_ID)
+    || appConfig.animationProfiles[0];
+  if (!profile) {
+    profile = {
+      profileId: DEFAULT_ANIMATION_PROFILE_ID,
+      displayName: "默认动画 Profile",
+      description: "CharacterStudio 编辑期动画资源选择；最终动画归属由后续 Animation / Equipment authoring 决定。",
+      slots: []
+    };
+    appConfig.animationProfiles.push(profile);
+  }
+  if (!Array.isArray(profile.slots)) profile.slots = [];
+
+  for (const definition of ANIMATION_PROFILE_SLOTS) {
+    let slot = profile.slots.find(item => item?.slotId === definition.slotId);
+    if (!slot) {
+      slot = createDefaultAnimationSlot(pkg, definition);
+      profile.slots.push(slot);
+    } else {
+      normalizeAnimationSlot(slot, pkg, definition);
+    }
+  }
+  profile.slots.sort((a, b) => {
+    const ai = ANIMATION_PROFILE_SLOTS.findIndex(item => item.slotId === a.slotId);
+    const bi = ANIMATION_PROFILE_SLOTS.findIndex(item => item.slotId === b.slotId);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
+  return appConfig;
+}
+
+function createDefaultAnimationSlot(pkg, definition) {
+  const resource = findDefaultAnimationResource(pkg, definition.resourceHint);
+  const resourceKey = resource?.resourceKey || "";
+  return {
+    slotId: definition.slotId,
+    displayName: definition.displayName,
+    purpose: definition.purpose,
+    resourceKey,
+    preloadPolicy: "AnimationWarmup",
+    required: Boolean(definition.required),
+    resourceSelection: resource ? createPackageAnimationSelectionRef(resource) : {}
+  };
+}
+
+function normalizeAnimationSlot(slot, pkg, definition = {}) {
+  slot.slotId ||= definition.slotId || "";
+  slot.displayName ||= definition.displayName || slot.slotId || "动画槽位";
+  slot.purpose ||= definition.purpose || "";
+  slot.resourceKey ||= "";
+  slot.preloadPolicy ||= "AnimationWarmup";
+  slot.required = Boolean(slot.required || definition.required);
+  if (!slot.resourceSelection || typeof slot.resourceSelection !== "object") {
+    const resource = findPackageResourceByKey(pkg, slot.resourceKey);
+    slot.resourceSelection = resource ? createPackageAnimationSelectionRef(resource) : {};
+  }
+  if (!slot.resourceKey) {
+    const selected = slot.resourceSelection || {};
+    slot.resourceKey = selected.runtimeResourceKey || selected.packageResourceKey || "";
+  }
+  return slot;
+}
+
+function createPackageAnimationSelectionRef(resource) {
+  return {
+    resourceStableId: resource.stableId || "",
+    sourceProviderId: "characterPackage",
+    bindingKind: "PackageResource",
+    expectedKind: "Animation",
+    expectedUsage: resource.usage || "animationClipGroup",
+    expectedHash: resource.hash || resource.hashes?.contentHash || "",
+    runtimeResourceKey: "",
+    providerResourceKey: resource.resourceKey || "",
+    packageResourceKey: resource.resourceKey || "",
+    unityGuid: "",
+    unityAssetPath: "",
+    audioCueId: "",
+    audioEventDefinitionId: ""
+  };
+}
+
+function findDefaultAnimationResource(pkg, hint) {
+  const resources = (pkg?.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Animation");
+  if (!resources.length) return null;
+  if (hint) {
+    const normalized = String(hint).toLowerCase();
+    const matched = resources.find(resource => [
+      resource.localId,
+      resource.resourceKey,
+      resource.stableId,
+      resource.relativePath,
+      ...(resource.tags || [])
+    ].filter(Boolean).some(value => String(value).toLowerCase().includes(normalized)));
+    if (matched) return matched;
+  }
+  return resources[0];
+}
+
+function findPackageResourceByKey(pkg, key) {
+  if (!pkg || !key) return null;
+  return (pkg.resourceCatalog?.entries || []).find(resource => resource?.resourceKey === key) || null;
+}
+
+function getDefaultAnimationProfile() {
+  ensureAnimationAuthoringConfig(state.package);
+  const profiles = state.package?.applicationConfig?.animationProfiles || [];
+  return profiles.find(profile => profile?.profileId === DEFAULT_ANIMATION_PROFILE_ID) || profiles[0] || null;
+}
+
+function findAnimationSlot(profileId, slotId) {
+  ensureAnimationAuthoringConfig(state.package);
+  const profiles = state.package?.applicationConfig?.animationProfiles || [];
+  const profile = profiles.find(item => item?.profileId === profileId) || profiles[0];
+  const slot = profile?.slots?.find(item => item?.slotId === slotId) || null;
+  return { profile, slot };
+}
+
+function getAnimationSlotPath(profileId, slotId) {
+  return `config/animation/${encodeURIComponent(profileId || DEFAULT_ANIMATION_PROFILE_ID)}/slots/${encodeURIComponent(slotId || "")}`;
+}
+
+function renderAnimationConfigPanel() {
+  if (!el.animationConfigPanel) return;
+  const profile = getDefaultAnimationProfile();
+  if (!profile) {
+    el.animationConfigPanel.innerHTML = `<div class="empty">暂无动画 Profile。</div>`;
+    return;
+  }
+
+  const animationResources = getResourceLibraryItems().filter(item => item.kind === "Animation");
+  const runtimeReadyCount = animationResources.filter(item => item.runtimeAvailability === "RuntimeReady" || item.bindingKind === "PackageResource" || item.bindingKind === "ResourceManagerAsset").length;
+  const slots = profile.slots || [];
+  el.animationConfigPanel.innerHTML = `
+    <div class="animation-profile-summary">
+      <div><strong>${escapeHtml(profile.displayName || profile.profileId)}</strong><span>${escapeHtml(profile.profileId || DEFAULT_ANIMATION_PROFILE_ID)}</span></div>
+      <div><strong>${escapeHtml(String(animationResources.length))}</strong><span>可见动画资源</span></div>
+      <div><strong>${escapeHtml(String(runtimeReadyCount))}</strong><span>可编排资源</span></div>
+    </div>
+    <div class="animation-slot-list">
+      ${slots.map(slot => renderAnimationSlotCard(profile, slot)).join("")}
+    </div>`;
+}
+
+function renderAnimationSlotCard(profile, slot) {
+  const resource = findAnimationSlotResource(slot);
+  const selection = slot.resourceSelection || {};
+  const selectedText = resource
+    ? getResourceDisplayName(resource.resource || resource)
+    : firstNonEmpty(slot.resourceKey, selection.runtimeResourceKey, selection.packageResourceKey, selection.providerResourceKey, selection.unityAssetPath, "未选择");
+  const availability = resource?.runtimeAvailability || (selection.bindingKind === "UnityEditorOnlyAsset" ? "EditorOnly" : "");
+  const keyText = firstNonEmpty(slot.resourceKey, selection.runtimeResourceKey, selection.packageResourceKey, selection.providerResourceKey, selection.unityAssetPath, "-");
+  const path = getAnimationSlotPath(profile.profileId, slot.slotId);
+  return `<article class="animation-slot-card">
+    <div class="animation-slot-main">
+      <div>
+        <strong>${escapeHtml(slot.displayName || slot.slotId)}</strong>
+        <span>${escapeHtml(slot.purpose || "动画资源槽位")}</span>
+      </div>
+      <button type="button" data-animation-jump="1" data-path="${escapeHtml(path)}" title="在属性栏查看该槽位">查看</button>
+    </div>
+    <div class="animation-slot-resource">
+      <span>${escapeHtml(selectedText)}</span>
+      ${availability ? `<span class="sync-badge ${escapeHtml(getResourceAvailabilityTone(availability))}">${escapeHtml(availability)}</span>` : ""}
+    </div>
+    <code title="${escapeHtml(keyText)}">${escapeHtml(keyText)}</code>
+    <div class="animation-slot-actions">
+      <button type="button" data-animation-pick="1" data-profile-id="${escapeHtml(profile.profileId)}" data-slot-id="${escapeHtml(slot.slotId)}">选择动画资源</button>
+      <button type="button" data-animation-clear="1" data-profile-id="${escapeHtml(profile.profileId)}" data-slot-id="${escapeHtml(slot.slotId)}">清空</button>
+    </div>
+  </article>`;
+}
+
+function getResourceAvailabilityTone(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized.includes("ready") || normalized.includes("package")) return "ok";
+  if (normalized.includes("editor") || normalized.includes("missing")) return "warn";
+  return "muted";
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function findAnimationSlotResource(slot) {
+  if (!slot) return null;
+  const values = [
+    slot.resourceKey,
+    slot.resourceSelection?.runtimeResourceKey,
+    slot.resourceSelection?.packageResourceKey,
+    slot.resourceSelection?.providerResourceKey,
+    slot.resourceSelection?.resourceStableId,
+    slot.resourceSelection?.unityAssetPath
+  ].filter(Boolean).map(String);
+  if (!values.length) return null;
+  return getResourceLibraryItems().find(item => values.some(value => getResourceIdentityValues(item).includes(value))) || null;
+}
+
 function renderResourceBindingBar() {
   if (!el.resourceBindingTarget) return;
   const targetRole = el.modelImportRole?.value || "preview";
@@ -550,6 +793,9 @@ async function openResourcePickerForField(fieldPath) {
   const fieldSpec = getResourceFieldSpecForInspectorField(target, fieldPath);
   if (!fieldSpec) return;
   state.resourcePickerField = {
+    kind: target.kind === "animationSlot" ? "animationSlot" : "",
+    profileId: target.profileId || "",
+    slotId: target.value?.slotId || "",
     targetPath: state.selectedPath,
     fieldPath,
     fieldSpec,
@@ -558,6 +804,45 @@ async function openResourcePickerForField(fieldPath) {
   state.resourcePickerOpen = true;
   state.resourcePickerQuery = null;
   await loadResourcePickerQuery(fieldSpec);
+}
+
+async function openAnimationSlotPicker(profileId, slotId) {
+  if (!state.package) return;
+  const { profile, slot } = findAnimationSlot(profileId, slotId);
+  if (!profile || !slot) return;
+  const definition = ANIMATION_PROFILE_SLOTS.find(item => item.slotId === slot.slotId) || {};
+  const fieldSpec = {
+    ...RESOURCE_FIELD_SPECS.animationClip,
+    fieldKey: `Animation.Profile.${slot.slotId}`,
+    displayName: slot.displayName || definition.displayName || "动画资源",
+    compatibilityFilter: { ...(RESOURCE_FIELD_SPECS.animationClip.compatibilityFilter || {}) }
+  };
+  state.resourcePickerField = {
+    kind: "animationSlot",
+    profileId: profile.profileId,
+    slotId: slot.slotId,
+    targetPath: getAnimationSlotPath(profile.profileId, slot.slotId),
+    fieldPath: "resourceKey",
+    fieldSpec,
+    title: `${profile.displayName || profile.profileId}.${slot.displayName || slot.slotId}`
+  };
+  state.resourcePickerOpen = true;
+  state.resourcePickerQuery = null;
+  state.selectedPath = getAnimationSlotPath(profile.profileId, slot.slotId);
+  renderTree();
+  renderInspector();
+  await loadResourcePickerQuery(fieldSpec);
+}
+
+function clearAnimationSlotSelection(profileId, slotId) {
+  const { slot } = findAnimationSlot(profileId, slotId);
+  if (!slot) return;
+  slot.resourceKey = "";
+  slot.resourceSelection = {};
+  state.selectedPath = getAnimationSlotPath(profileId, slotId);
+  state.dirty = true;
+  state.message = `${slot.displayName || slot.slotId} 已清空引用；资源本体不会被删除。`;
+  render();
 }
 
 function closeResourcePicker() {
@@ -646,6 +931,13 @@ function getActiveResourceFieldSpec() {
 }
 
 function getResourceFieldSpecForInspectorField(target, fieldPath) {
+  if (target.kind === "animationSlot" && fieldPath === "resourceKey") {
+    return {
+      ...RESOURCE_FIELD_SPECS.animationClip,
+      fieldKey: `Animation.Profile.${target.value?.slotId || "slot"}`,
+      displayName: target.value?.displayName || "动画资源"
+    };
+  }
   if (target.kind === "weapon" && fieldPath === "previewResourceKey") {
     const slot = target.value?.equipSlot || "mainHand";
     const base = RESOURCE_FIELD_SPECS[slot] || RESOURCE_FIELD_SPECS.mainHand;
@@ -680,6 +972,16 @@ function evaluateServerPickerItem(row, spec) {
 
 function getCurrentResourceFieldValue() {
   if (!state.resourcePickerField) return "";
+  if (state.resourcePickerField.kind === "animationSlot") {
+    const { slot } = findAnimationSlot(state.resourcePickerField.profileId, state.resourcePickerField.slotId);
+    return firstNonEmpty(
+      slot?.resourceKey,
+      slot?.resourceSelection?.runtimeResourceKey,
+      slot?.resourceSelection?.packageResourceKey,
+      slot?.resourceSelection?.providerResourceKey,
+      slot?.resourceSelection?.resourceStableId,
+      slot?.resourceSelection?.unityAssetPath);
+  }
   const target = findTarget(state.resourcePickerField.targetPath);
   return getNested(target.value, state.resourcePickerField.fieldPath) || "";
 }
@@ -933,6 +1235,10 @@ async function selectLibraryItem(libraryItemId) {
 
 function applyResourceSelectionToField(item, selectionRef) {
   const picker = state.resourcePickerField;
+  if (picker?.kind === "animationSlot") {
+    applyResourceSelectionToAnimationSlot(item, selectionRef, picker);
+    return;
+  }
   const target = picker ? findTarget(picker.targetPath) : null;
   if (!target?.value) return;
   const value = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
@@ -943,6 +1249,23 @@ function applyResourceSelectionToField(item, selectionRef) {
   state.selectedPath = picker.targetPath;
   state.dirty = true;
   state.message = `${picker.title} 已引用 ${item.displayName}；资源本体仍归资源管理器。`;
+  closeResourcePicker();
+  render();
+}
+
+function applyResourceSelectionToAnimationSlot(item, selectionRef, picker) {
+  const { profile, slot } = findAnimationSlot(picker.profileId, picker.slotId);
+  if (!profile || !slot) return;
+  const value = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
+  slot.resourceKey = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || item.resourceKey || "";
+  slot.resourceSelection = selectionRef;
+  slot.preloadPolicy = picker.fieldSpec?.preloadPolicy || "AnimationWarmup";
+  if ((selectionRef.runtimeResourceKey || selectionRef.packageResourceKey) && slot.resourceKey) {
+    ensureApplicationResourceKey(slot.resourceKey);
+  }
+  state.selectedPath = getAnimationSlotPath(profile.profileId, slot.slotId);
+  state.dirty = true;
+  state.message = `${slot.displayName || slot.slotId} 已引用 ${item.displayName}；${value ? "可进入资源计划或等待编译解析。" : "仅保存编辑期选择。"}`;
   closeResourcePicker();
   render();
 }
@@ -1024,6 +1347,7 @@ function toAuthoringResourceFieldSpec(spec) {
 }
 
 function buildResourceConsumerContext(spec) {
+  const picker = state.resourcePickerField || {};
   return {
     consumerKind: "CharacterStudio",
     consumerStableId: state.package?.manifest?.stableId || state.package?.manifest?.packageId || "",
@@ -1032,7 +1356,12 @@ function buildResourceConsumerContext(spec) {
     packagePath: state.packageRelative,
     slotId: spec.compatibilityFilter?.slotId || "",
     providerFilterIds: spec.acceptedProviderIds || [],
-    metadata: { selectedPath: state.selectedPath || "" }
+    metadata: {
+      selectedPath: state.selectedPath || "",
+      pickerKind: picker.kind || "",
+      animationProfileId: picker.profileId || "",
+      animationSlotId: picker.slotId || ""
+    }
   };
 }
 
@@ -1141,7 +1470,9 @@ function buildFallbackResourcePlan() {
   if (!pkg) return null;
   const bodyKeys = getModelResources(pkg).filter(resource => isBodyModelBinding(resource, pkg)).map(resource => resource.resourceKey);
   const equipmentKeys = (pkg.geometry?.weaponAttachments || []).map(attachment => attachment?.previewResourceKey).filter(Boolean);
-  const animationKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Animation").map(resource => resource.resourceKey).filter(Boolean);
+  const selectedAnimationKeys = collectAnimationSlotResourceKeys(pkg);
+  const catalogAnimationKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Animation").map(resource => resource.resourceKey).filter(Boolean);
+  const animationKeys = Array.from(new Set([...selectedAnimationKeys, ...catalogAnimationKeys]));
   const uiKeys = (pkg.resourceCatalog?.entries || []).filter(resource => resource.usage === "previewThumbnail" || mapResourceKind(resource.typeId) === "Texture").map(resource => resource.resourceKey).filter(Boolean);
   const vfxKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Vfx").map(resource => resource.resourceKey).filter(Boolean);
   const audioKeys = (pkg.resourceCatalog?.entries || []).filter(resource => mapResourceKind(resource.typeId) === "Audio").map(resource => resource.resourceKey || resource.stableId).filter(Boolean);
@@ -1154,6 +1485,20 @@ function buildFallbackResourcePlan() {
     uiDeferred: { required: false, resources: uiKeys, failurePolicy: "ShowPlaceholder" },
     audio: { required: false, requiredCues: audioKeys, failurePolicy: "MuteMissingCue" }
   };
+}
+
+function collectAnimationSlotResourceKeys(pkg) {
+  const keys = [];
+  for (const profile of pkg?.applicationConfig?.animationProfiles || []) {
+    for (const slot of profile?.slots || []) {
+      const key = firstNonEmpty(
+        slot.resourceKey,
+        slot.resourceSelection?.runtimeResourceKey,
+        slot.resourceSelection?.packageResourceKey);
+      if (key) keys.push(key);
+    }
+  }
+  return keys;
 }
 
 function getModelResources(pkg) {
@@ -1761,9 +2106,15 @@ function renderTree() {
 function buildTree(pkg) {
   if (!pkg) return [];
   const g = pkg.geometry || {};
+  const animationProfile = getDefaultAnimationProfile();
   const nodes = [
     node("manifest", "manifest", "manifest", 0),
     node("config", "config", "角色配置", 0),
+    node("config/animation", "animationConfig", "动画配置", 0),
+    ...(animationProfile ? [
+      node(`config/animation/${encodeURIComponent(animationProfile.profileId)}`, "animationProfile", animationProfile.profileId || "animation profile", 1),
+      ...grouped((animationProfile.slots || []), "animationSlot", slot => getAnimationSlotPath(animationProfile.profileId, slot.slotId), slot => `${slot.slotId || "slot"}:${slot.resourceKey || "未选择"}`, 2)
+    ] : []),
     node("geometry/body", "body", g.bodyProfile?.profileId || "body geometry", 0),
     ...grouped((g.bodyParts || []), "part", part => `geometry/body_parts/${part.partId}`, part => part.partId || "part", 1),
     ...grouped((g.colliders || []), "collider", collider => `geometry/colliders/${collider.colliderId}`, collider => collider.colliderId || "collider", 1),
@@ -2999,12 +3350,28 @@ function renderObjectTitle(target) {
 }
 
 function renderInspectorContext(target) {
+  if (target.kind === "animationSlot") return renderAnimationSlotReferenceContext(target.value);
   if (target.kind === "weapon") return renderWeaponReferenceContext(target.value);
   if (target.kind === "resource" && target.value) {
     const modelContext = target.value?.typeId === "model" ? renderModelResourceContext(target.value) : "";
     return `${modelContext}${renderResourceSyncContext(target.value)}`;
   }
   return "";
+}
+
+function renderAnimationSlotReferenceContext(slot) {
+  const resource = findAnimationSlotResource(slot);
+  const selection = slot?.resourceSelection || {};
+  const selectedText = resource
+    ? getResourceDisplayName(resource.resource || resource)
+    : firstNonEmpty(slot?.resourceKey, selection.runtimeResourceKey, selection.packageResourceKey, selection.providerResourceKey, selection.unityAssetPath, "未选择");
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>动画槽位引用</strong><span>该槽位保存 ResourceSelectionRef；资源由 Resource Manager 负责准备。</span></div>
+    <div class="reference-row"><span>当前资源</span><strong>${escapeHtml(selectedText)}</strong></div>
+    <div class="reference-row"><span>绑定类型</span><strong>${escapeHtml(selection.bindingKind || resource?.bindingKind || "未解析")}</strong></div>
+    <div class="reference-row"><span>预热分组</span><strong>${escapeHtml(slot?.preloadPolicy || "AnimationWarmup")}</strong></div>
+    ${resource?.path ? renderReferenceRow("资源详情", resource.displayName, resource.path, "打开资源") : ""}
+  </section>`;
 }
 
 function renderWeaponReferenceContext(weapon) {
@@ -3079,6 +3446,25 @@ function collectResourceReferences(resource) {
       references.push({ sourceConfigKind: "weapon", sourceStableId: attachment.weaponId, sourceField: "previewResourceKey", preloadPolicy: "EquipmentInitial" });
     }
   }
+  for (const profile of state.package?.applicationConfig?.animationProfiles || []) {
+    for (const slot of profile?.slots || []) {
+      const selected = [
+        slot?.resourceKey,
+        slot?.resourceSelection?.runtimeResourceKey,
+        slot?.resourceSelection?.packageResourceKey,
+        slot?.resourceSelection?.providerResourceKey,
+        slot?.resourceSelection?.resourceStableId
+      ].filter(Boolean);
+      if (selected.includes(key) || selected.includes(stableId)) {
+        references.push({
+          sourceConfigKind: "animation",
+          sourceStableId: profile.profileId,
+          sourceField: `slots/${slot.slotId}`,
+          preloadPolicy: slot.preloadPolicy || "AnimationWarmup"
+        });
+      }
+    }
+  }
   for (const entry of state.package?.resourceCatalog?.entries || []) {
     if (entry === resource) continue;
     for (const dependency of entry.dependencies || []) {
@@ -3144,6 +3530,19 @@ function editableFields(kind, value = null) {
     modelScaleField("importHints.modelWrapperPose.scale.x", "缩放 X"),
     modelScaleField("importHints.modelWrapperPose.scale.y", "缩放 Y"),
     modelScaleField("importHints.modelWrapperPose.scale.z", "缩放 Z")
+  ];
+  if (kind === "animationProfile") return [
+    identityField("profileId", "Profile ID", animationProfileIdSuggestions(), "稳定动画 Profile ID；装备状态后续会引用它。", "animation"),
+    field("displayName", { label: "显示名", group: "animation", help: "给主创看的动画配置名称。" }),
+    field("description", { label: "说明", group: "animation", help: "描述这个 Profile 适用的角色、装备或状态。" })
+  ];
+  if (kind === "animationSlot") return [
+    field("slotId", { label: "槽位 ID", type: "select", options: ANIMATION_PROFILE_SLOTS.map(slot => ({ value: slot.slotId, label: slot.displayName })), group: "animationSlot", help: "当前 Profile 内的动画资源槽位。" }),
+    field("displayName", { label: "显示名", group: "animationSlot", help: "给主创看的槽位名称。" }),
+    field("purpose", { label: "用途说明", group: "animationSlot", help: "说明该槽位用于移动、战斗、基础姿势或后续扩展。" }),
+    field("resourceKey", { label: "动画资源", type: "select", options: animationResourceOptions("未选择"), group: "selection", picker: "resource", help: "通过资源选择器选择动画资源；不要手填未知 ResourceKey。" }),
+    field("preloadPolicy", { label: "预热分组", type: "select", options: ["AnimationWarmup"], group: "selection", help: "动画资源进入运行时资源计划时使用 AnimationWarmup 分组。" }),
+    field("required", { label: "Spawn 必需", type: "select", options: [{ value: "false", label: "否" }, { value: "true", label: "是" }], dataType: "boolean", group: "selection", help: "必需槽位缺失时后续编译可升级为错误。" })
   ];
   if (kind === "part") return [
     identityField("partId", "部位 ID", bodyPartIdSuggestions(), "稳定部位 ID；被碰撞体、挂点和父部位引用。"),
@@ -3282,6 +3681,24 @@ function modelResourceOptions(emptyLabel = "") {
     }))
     .filter(option => option.value);
   return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function animationResourceOptions(emptyLabel = "") {
+  const options = getResourceLibraryItems()
+    .filter(item => item.kind === "Animation")
+    .map(item => ({
+      value: item.runtimeResourceKey || item.packageResourceKey || item.providerResourceKey || item.resourceKey || item.unityAssetPath,
+      label: `${item.displayName} (${item.sourceProviderId})`
+    }))
+    .filter(option => option.value);
+  return emptyLabel ? withEmptyOption(options, emptyLabel) : options;
+}
+
+function animationProfileIdSuggestions() {
+  return collectOptions(
+    DEFAULT_ANIMATION_PROFILE_ID,
+    (state.package?.applicationConfig?.animationProfiles || []).map(profile => profile?.profileId)
+  );
 }
 
 function weaponOptions(emptyLabel = "") {
@@ -3555,7 +3972,7 @@ function renderField(target, fieldSpec) {
     const options = spec.options || [];
     const select = `<select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderPickerAttribute(spec)}${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>`;
     if (spec.picker === "resource") {
-      const picker = `<button type="button" class="picker-button" data-picker-action="openResourcePicker" data-picker-field="${escapeHtml(spec.path)}">????????????</button>`;
+      const picker = `<button type="button" class="picker-button" data-picker-action="openResourcePicker" data-picker-field="${escapeHtml(spec.path)}">选择</button>`;
       return `<div class="field field-wide"><label>${escapeHtml(label)}</label><div class="field-control">${select}${picker}</div>${renderFieldHint(spec)}</div>`;
     }
     return `<div class="field"><label>${escapeHtml(label)}</label>${select}${renderFieldHint(spec)}</div>`;
@@ -3667,6 +4084,11 @@ function commitInspectorField(target, input) {
     renderResourceBindingBar();
     renderResourcePicker();
   }
+  if (target.kind === "animationSlot") {
+    renderAnimationConfigPanel();
+    renderResourcePlanPreview();
+    renderTree();
+  }
   return value;
 }
 
@@ -3718,10 +4140,21 @@ function afterInspectorFieldEdited(target, path) {
   const posePath = getPosePathFromEulerField(path);
   if (posePath) syncPoseRotationFromEuler(target.value, posePath);
   if (path.endsWith(".parentKind")) applyPoseParentDefault(target, path.slice(0, -".parentKind".length));
+  if (target.kind === "animationSlot" && path === "resourceKey") {
+    const item = findResourceLibraryItemByKey(target.value.resourceKey);
+    if (item) {
+      target.value.resourceSelection = createResourceSelectionRef(item, RESOURCE_FIELD_SPECS.animationClip);
+      if (target.value.resourceSelection.runtimeResourceKey || target.value.resourceSelection.packageResourceKey) {
+        ensureApplicationResourceKey(target.value.resourceKey);
+      }
+    } else if (!target.value.resourceKey) {
+      target.value.resourceSelection = {};
+    }
+  }
 }
 
 function shouldRefreshInspectorForField(path) {
-  return path.endsWith(".parentKind");
+  return path.endsWith(".parentKind") || path === "resourceKey";
 }
 
 function applyPoseParentDefault(target, posePath) {
@@ -4051,6 +4484,16 @@ function findTarget(path) {
   if (path === "resources") return target("resources", "Resource Catalog", pkg.resourceCatalog);
   if (path.startsWith("resources/")) return target("resource", path.slice(10), (pkg.resourceCatalog?.entries || []).find(x => x.resourceKey === path.slice(10)));
   if (path === "config") return target("config", "Character Application", pkg.applicationConfig);
+  if (path === "config/animation") return target("animationConfig", "Animation Profiles", pkg.applicationConfig?.animationProfiles || []);
+  if (path.startsWith("config/animation/")) {
+    const parts = path.split("/");
+    const profileId = decodeURIComponent(parts[2] || "");
+    const profile = (pkg.applicationConfig?.animationProfiles || []).find(item => item?.profileId === profileId) || getDefaultAnimationProfile();
+    if (parts.length <= 3) return target("animationProfile", profile?.profileId || "Animation Profile", profile, { profileId: profile?.profileId || "" });
+    const slotId = decodeURIComponent(parts[4] || "");
+    const slot = (profile?.slots || []).find(item => item?.slotId === slotId);
+    return target("animationSlot", slot?.displayName || slotId || "Animation Slot", slot, { profileId: profile?.profileId || "" });
+  }
   if (path === "geometry/body") return target("body", "Body Geometry", g.bodyProfile);
   if (path.startsWith("geometry/body_parts/")) return target("part", path.split("/").pop(), (g.bodyParts || []).find(x => x.partId === path.split("/").pop()));
   if (path.startsWith("geometry/colliders/")) return target("collider", path.split("/").pop(), (g.colliders || []).find(x => x.colliderId === path.split("/").pop()));
@@ -4061,8 +4504,8 @@ function findTarget(path) {
   return target("", path, null);
 }
 
-function target(kind, label, value) {
-  return { kind, label, value };
+function target(kind, label, value, extra = {}) {
+  return { kind, label, value, ...extra };
 }
 
 function normalizeIssuePath(sourceObjectPath) {

@@ -85,6 +85,13 @@
           <button id="openResourcePickerButton" type="button" title="为当前字段选择已有资源">选择已有资源</button>
           <button id="clearModelBindingButton" type="button" title="只清空当前字段的模型引用，不删除资源库资源">清空引用</button>
         </div>
+        <details id="animationPanel" class="animation-config-panel" open>
+          <summary class="animation-config-head">
+            <strong>动画配置</strong>
+            <span>通过资源选择器绑定 Profile 槽位，不手填 ResourceKey</span>
+          </summary>
+          <div id="animationConfigPanel" class="animation-config-grid" aria-label="Animation profile configuration"></div>
+        </details>
         <details id="resourcePlanPanel" class="resource-plan-preview">
           <summary class="resource-plan-head">
             <strong>运行时资源计划</strong>

@@ -24,6 +24,7 @@ internal static class CharacterPackageTests
         FmodAudioLibraryProvider_ProjectsEventsAndUnavailableState();
         ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
+        CharacterAnimationAuthoringSummary_JsonRoundTrip_PreservesSlots();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
@@ -968,6 +969,51 @@ internal static class CharacterPackageTests
         Require(specRoundTrip != null && specRoundTrip.AcceptedProviderIds[0] == AuthoringResourceProviderIds.Fmod, "field spec should roundtrip accepted provider ids.");
         Require(specRoundTrip.OutputKind == AuthoringResourceSelectionOutputKind.AudioCueId, "field spec should roundtrip output kind.");
         Require(contextRoundTrip != null && contextRoundTrip.ConsumerKind == "combatAction", "consumer context should roundtrip.");
+    }
+
+    private static void CharacterAnimationAuthoringSummary_JsonRoundTrip_PreservesSlots()
+    {
+        var summary = new CharacterApplicationAuthoringSummary
+        {
+            CharacterStableId = "char.iron_vanguard",
+            AnimationProfiles = new List<CharacterAnimationProfileAuthoringSummary>
+            {
+                new CharacterAnimationProfileAuthoringSummary
+                {
+                    ProfileId = "anim_profile.default",
+                    DisplayName = "Default Animation Profile",
+                    Slots = new List<CharacterAnimationSlotAuthoringSummary>
+                    {
+                        new CharacterAnimationSlotAuthoringSummary
+                        {
+                            SlotId = "locomotion",
+                            DisplayName = "Locomotion",
+                            Purpose = "idle walk run",
+                            ResourceKey = "char.iron_vanguard.anim.locomotion",
+                            PreloadPolicy = AuthoringResourcePreloadPolicies.AnimationWarmup,
+                            Required = true,
+                            ResourceSelection = new AuthoringResourceSelectionRef
+                            {
+                                ResourceStableId = "charpkg.iron_vanguard.resource.anim.locomotion",
+                                SourceProviderId = AuthoringResourceProviderIds.CharacterPackage,
+                                BindingKind = AuthoringResourceBindingKind.PackageResource,
+                                ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+                                ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+                                PackageResourceKey = "char.iron_vanguard.anim.locomotion"
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        string json = JsonSerializer.Serialize(summary, JsonOptions);
+        CharacterApplicationAuthoringSummary roundTrip = JsonSerializer.Deserialize<CharacterApplicationAuthoringSummary>(json, JsonOptions);
+        Require(json.Contains("\"animationProfiles\""), "character application config should serialize animationProfiles.");
+        Require(roundTrip != null && roundTrip.AnimationProfiles.Count == 1, "animation profiles should roundtrip.");
+        Require(roundTrip.AnimationProfiles[0].Slots.Count == 1, "animation profile slots should roundtrip.");
+        Require(roundTrip.AnimationProfiles[0].Slots[0].ResourceSelection.PackageResourceKey == "char.iron_vanguard.anim.locomotion", "animation slot ResourceSelectionRef should roundtrip.");
+        Require(roundTrip.AnimationProfiles[0].Slots[0].PreloadPolicy == AuthoringResourcePreloadPolicies.AnimationWarmup, "animation slot preload policy should roundtrip.");
     }
 
     private static void AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs()
