@@ -20,7 +20,40 @@ const FALLBACK_SOURCE_CLIP_SPEC = {
   outputKind: "ResourceSelectionRef"
 };
 
+const FALLBACK_EVENT_VFX_SPEC = {
+  fieldKey: "Animation.EventVfx",
+  editorKind: "AnimationEditor",
+  displayName: "Event VFX",
+  acceptedKinds: ["vfx"],
+  acceptedUsages: ["vfxCue"],
+  acceptedBindingKinds: ["ResourceManagerAsset", "PackageResource", "UnityAsset"],
+  preloadPolicy: "VfxWarmup",
+  outputKind: "ResourceSelectionRef"
+};
+
+const FALLBACK_EVENT_AUDIO_CUE_SPEC = {
+  fieldKey: "Animation.EventAudioCue",
+  editorKind: "AnimationEditor",
+  displayName: "Event Audio Cue",
+  acceptedKinds: ["audio"],
+  acceptedUsages: ["audioCue", "fmodEvent"],
+  acceptedBindingKinds: ["AudioCue", "AudioEventDefinition"],
+  preloadPolicy: "AudioBank",
+  outputKind: "AudioCueId"
+};
+
 const ROOT_MOTION_OPTIONS = ["Ignore", "MotionDelta", "ApplyToActorReference"];
+const TIME_DOMAIN_OPTIONS = ["Seconds", "Normalized", "PresentationFrame", "CombatFrame"];
+const EVENT_KIND_OPTIONS = [
+  { value: "Footstep", label: "footstep" },
+  { value: "TraceOn", label: "trace on" },
+  { value: "TraceOff", label: "trace off" },
+  { value: "HitMarker", label: "hit marker" },
+  { value: "Vfx", label: "VFX" },
+  { value: "AudioCue", label: "AudioCue" },
+  { value: "CameraCue", label: "camera cue" },
+  { value: "Custom", label: "custom" }
+];
 
 const state = {
   packages: [],
@@ -33,9 +66,13 @@ const state = {
   validation: null,
   selected: { kind: "package", setId: "", groupId: "", clipId: "" },
   blendEditor: { view: "1D", blendId: "" },
+  timelineEditor: { timelineId: "" },
   resourcePicker: {
     open: false,
     clip: null,
+    target: null,
+    title: "",
+    fieldSpec: null,
     rows: [],
     search: "",
     onlySelectable: true,
@@ -115,10 +152,26 @@ function bindEvents() {
       addBlendPoint(button.dataset.addBlendPoint);
     } else if (button.dataset.removeBlendPoint) {
       removeBlendPoint(button.dataset.removeBlendPoint, Number(button.dataset.pointIndex));
+    } else if (button.dataset.addTimeline) {
+      addTimeline();
+    } else if (button.dataset.removeTimeline) {
+      removeTimeline();
+    } else if (button.dataset.addTimelineEvent) {
+      addTimelineEvent();
+    } else if (button.dataset.removeTimelineEvent) {
+      removeTimelineEvent(Number(button.dataset.eventIndex));
+    } else if (button.dataset.copyTimelineContext) {
+      copyTimelineContext();
+    } else if (button.dataset.pickEventResource) {
+      const timeline = getSelectedTimeline(findGroup(state.selected.setId, state.selected.groupId));
+      const eventItem = timeline ? (timeline.events || [])[Number(button.dataset.eventIndex)] : null;
+      openEventResourcePicker(timeline, eventItem, button.dataset.pickEventResource);
     }
   });
   el.mappingWorkspace.addEventListener("change", handleBlendEditorInput);
   el.mappingWorkspace.addEventListener("input", handleBlendEditorInput);
+  el.mappingWorkspace.addEventListener("change", handleTimelineEditorInput);
+  el.mappingWorkspace.addEventListener("input", handleTimelineEditorInput);
 
   el.inspectorContent.addEventListener("input", handleInspectorInput);
   el.inspectorContent.addEventListener("change", handleInspectorInput);
@@ -358,7 +411,8 @@ function renderWorkspace() {
       </div>
       ${renderClipMappingTable(clips)}
     </section>
-    ${renderBlendEditor(group)}`;
+    ${renderBlendEditor(group)}
+    ${renderTimelineEditor(group)}`;
 }
 
 function renderClipMappingTable(clips) {
@@ -533,6 +587,138 @@ function renderBlendDiagnostics(diagnostics) {
     </div>`;
 }
 
+function renderTimelineEditor(group) {
+  ensureTimelineSelection(group);
+  const timelines = getTimelineList(group);
+  const timeline = getSelectedTimeline(group);
+  return `
+    <section class="workspace-section timeline-editor" aria-label="Timeline event editor">
+      <div class="section-heading timeline-heading">
+        <div>
+          <h3>Timeline Events</h3>
+          <p>按 Seconds / Normalized / PresentationFrame / CombatFrame 轨道编辑表现和战斗事件。</p>
+        </div>
+        <div class="timeline-actions">
+          <button type="button" data-add-timeline="1">新增 Timeline</button>
+          ${timeline ? `<button type="button" data-remove-timeline="1">删除 Timeline</button>` : ""}
+          ${timeline ? `<button type="button" data-copy-timeline-context="1">复制 Event JSON</button>` : ""}
+        </div>
+      </div>
+
+      <div class="timeline-toolbar">
+        <label class="timeline-select-field">
+          <span>Group timeline</span>
+          <select data-timeline-select ${timelines.length ? "" : "disabled"}>
+            ${timelines.length
+              ? timelines.map(item => `<option value="${escapeHtml(item.timelineId || "")}"${item === timeline ? " selected" : ""}>${escapeHtml(item.displayName || item.timelineId || "timeline")}</option>`).join("")
+              : `<option value="">未创建 timeline</option>`}
+          </select>
+        </label>
+        ${timeline ? `<button type="button" data-add-timeline-event="1">添加 Event</button>` : ""}
+      </div>
+
+      ${timeline ? renderTimelineDefinition(group, timeline) : emptyBlock("当前 Group 还没有 Timeline。")}
+    </section>`;
+}
+
+function renderTimelineDefinition(group, timeline) {
+  const localClipIds = getLocalClipIds(group);
+  const diagnostics = getTimelineDiagnostics(group, timeline);
+  return `
+    <div class="timeline-definition">
+      <div class="timeline-fields">
+        ${timelineField("timelineId", "Timeline ID", timeline.timelineId || "")}
+        ${timelineField("displayName", "显示名", timeline.displayName || "")}
+        <label class="timeline-field ${timeline.clipId && !localClipIds.includes(timeline.clipId) ? "invalid" : ""}">
+          <span>Clip ID</span>
+          ${timelineClipSelect("clipId", timeline.clipId || "", localClipIds)}
+        </label>
+        <label class="timeline-field">
+          <span>默认 TimeDomain</span>
+          ${timeDomainSelect("timeDomain", timeline.timeDomain || "Seconds", false)}
+        </label>
+        ${timelineMetadataNumberField("durationSeconds", "Clip Duration Seconds", getTimelineMetadata(timeline, "durationSeconds") || "", 0, 600, 0.01)}
+        ${timelineMetadataNumberField("presentationFrameCount", "Presentation Frames", getTimelineMetadata(timeline, "presentationFrameCount") || "", 0, 100000, 1)}
+        ${timelineMetadataNumberField("combatFrameCount", "Combat Frames", getTimelineMetadata(timeline, "combatFrameCount") || "", 0, 100000, 1)}
+      </div>
+      ${renderTimelineScrubber(group, timeline)}
+      ${renderTimelineEventRows(group, timeline)}
+      ${renderTimelineDiagnostics(diagnostics)}
+    </div>`;
+}
+
+function renderTimelineScrubber(group, timeline) {
+  const events = timeline.events || [];
+  return `
+    <div class="timeline-scrubber" aria-label="Timeline scrubber rows">
+      ${TIME_DOMAIN_OPTIONS.map(domain => {
+        const domainEvents = events
+          .map((eventItem, index) => ({ eventItem, index }))
+          .filter(({ eventItem }) => (eventItem.timeDomain || timeline.timeDomain || "Seconds") === domain);
+        return `
+          <div class="timeline-domain-row">
+            <span class="domain-label">${escapeHtml(domain)}</span>
+            <div class="domain-track">
+              ${domainEvents.map(({ eventItem, index }) => {
+                const left = clamp(getTimelineEventPercent(timeline, eventItem, domain), 0, 100);
+                return `<button type="button" class="timeline-marker ${getTimelineEventTone(eventItem)}" style="left:${left}%;" data-event-index="${index}" title="${escapeHtml(eventItem.eventId || "event")} / ${escapeHtml(formatNumber(eventItem.time || 0))}">${index + 1}</button>`;
+              }).join("")}
+            </div>
+          </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderTimelineEventRows(group, timeline) {
+  const events = timeline.events || [];
+  const localClipIds = getLocalClipIds(group);
+  if (events.length === 0) return emptyBlock("当前 Timeline 还没有 Event。");
+  return `
+    <div class="timeline-event-list">
+      <div class="timeline-event-row timeline-event-head">
+        <span>Event ID</span>
+        <span>clipId</span>
+        <span>Domain</span>
+        <span>Time</span>
+        <span>Kind</span>
+        <span>ResourceSelection</span>
+        <span>Payload JSON</span>
+        <span>操作</span>
+      </div>
+      ${events.map((eventItem, index) => {
+        const clipMissing = eventItem.clipId && !localClipIds.includes(eventItem.clipId);
+        return `
+          <div class="timeline-event-row ${clipMissing ? "invalid" : ""}">
+            <input data-event-field="eventId" data-event-index="${index}" value="${escapeHtml(eventItem.eventId || "")}">
+            ${timelineClipSelect("clipId", eventItem.clipId || "", localClipIds, true, index)}
+            ${timeDomainSelect("timeDomain", eventItem.timeDomain || timeline.timeDomain || "Seconds", true, index)}
+            <input type="number" data-type="number" data-event-field="time" data-event-index="${index}" min="-100000" max="100000" step="0.01" value="${escapeHtml(String(eventItem.time ?? 0))}">
+            ${eventKindSelect(eventItem.eventKind || "custom", index)}
+            <span class="event-resource-cell">
+              <code>${escapeHtml(getSelectionTitle(eventItem.resourceSelection) || getTimelineAudioSelectionTitle(eventItem.resourceSelection) || "未选择")}</code>
+              <span class="event-resource-actions">
+                <button type="button" data-pick-event-resource="vfx" data-event-index="${index}">VFX</button>
+                <button type="button" data-pick-event-resource="audioCue" data-event-index="${index}">AudioCue</button>
+              </span>
+            </span>
+            <textarea data-event-field="payloadJson" data-event-index="${index}" spellcheck="false">${escapeHtml(eventItem.payloadJson || "")}</textarea>
+            <span class="row-actions">
+              <button type="button" data-remove-timeline-event="1" data-event-index="${index}">移除</button>
+            </span>
+          </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderTimelineDiagnostics(diagnostics) {
+  if (diagnostics.length === 0) return `<div class="timeline-diagnostics ok">Timeline diagnostics: 当前事件列表可用于后续编译。</div>`;
+  return `
+    <div class="timeline-diagnostics">
+      <strong>Timeline diagnostics</strong>
+      ${diagnostics.map(item => `<p class="${escapeHtml(item.tone)}">${escapeHtml(item.message)}</p>`).join("")}
+    </div>`;
+}
+
 function renderInspector() {
   const target = getSelectedTarget();
   if (!target.value) {
@@ -657,9 +843,13 @@ function handleInspectorInput(event) {
 
 async function openSourceClipPicker(clip) {
   if (!clip) return;
+  const fieldSpec = state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
   state.resourcePicker = {
     open: true,
     clip,
+    target: { kind: "sourceClip", clip },
+    title: "选择源动画 Clip",
+    fieldSpec,
     rows: [],
     search: "",
     onlySelectable: true,
@@ -668,7 +858,6 @@ async function openSourceClipPicker(clip) {
   };
   renderResourcePicker();
 
-  const fieldSpec = state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
   const result = await postJson(API.pick, {
     package: state.packageRelative,
     fieldSpec,
@@ -686,8 +875,48 @@ async function openSourceClipPicker(clip) {
   renderResourcePicker();
 }
 
+async function openEventResourcePicker(timeline, eventItem, eventKind) {
+  if (!timeline || !eventItem) return;
+  const normalizedKind = normalizeEventKind(eventKind || eventItem.eventKind);
+  const fieldSpec = getEventResourceFieldSpec(normalizedKind);
+  if (!fieldSpec) return;
+
+  state.resourcePicker = {
+    open: true,
+    clip: null,
+    target: { kind: "timelineEvent", timeline, eventItem, eventKind: normalizedKind },
+    title: normalizedKind === "AudioCue" ? "选择 Event AudioCue / FMOD" : "选择 Event VFX",
+    fieldSpec,
+    rows: [],
+    search: "",
+    onlySelectable: true,
+    loading: true,
+    error: ""
+  };
+  renderResourcePicker();
+
+  const result = await postJson(API.pick, {
+    package: state.packageRelative,
+    fieldSpec,
+    context: {
+      consumerKind: "AnimationEditor",
+      consumerStableId: state.animation?.stableId || "",
+      scopeId: state.animation?.stableId || state.packageRelative,
+      packageId: state.animation?.packageId || "",
+      packagePath: state.packageRelative,
+      timelineId: timeline.timelineId || "",
+      eventId: eventItem.eventId || ""
+    }
+  }, `查询 ${fieldSpec.fieldKey || "Animation.EventResource"}`);
+
+  state.resourcePicker.loading = false;
+  state.resourcePicker.rows = Array.isArray(result?.items) ? result.items : [];
+  renderResourcePicker();
+}
+
 function closeResourcePicker() {
   state.resourcePicker.open = false;
+  state.resourcePicker.target = null;
   renderResourcePicker();
 }
 
@@ -696,6 +925,10 @@ function renderResourcePicker() {
   el.resourcePickerSearch.value = state.resourcePicker.search;
   el.resourcePickerOnlySelectable.checked = state.resourcePicker.onlySelectable;
   if (!state.resourcePicker.open) return;
+  el.resourcePickerTitle.textContent = state.resourcePicker.title || "选择资源";
+  el.resourcePickerSubtitle.textContent = state.resourcePicker.fieldSpec
+    ? `${state.resourcePicker.fieldSpec.fieldKey} / ${state.resourcePicker.fieldSpec.outputKind} / ${state.resourcePicker.fieldSpec.preloadPolicy}`
+    : "ResourceFieldSpec";
 
   if (state.resourcePicker.loading) {
     el.resourcePickerList.innerHTML = emptyBlock("正在读取资源候选...");
@@ -727,9 +960,9 @@ function renderResourcePicker() {
 
 async function chooseResourcePickerRow(index) {
   const row = state.resourcePicker.rows[index];
-  if (!row?.selectable || !row.item || !state.resourcePicker.clip) return;
+  if (!row?.selectable || !row.item || !state.resourcePicker.target) return;
 
-  const fieldSpec = state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
+  const fieldSpec = state.resourcePicker.fieldSpec || state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
   const result = await postJson(API.resolveSelection, {
     package: state.packageRelative,
     fieldSpec,
@@ -745,7 +978,7 @@ async function chooseResourcePickerRow(index) {
       sourceProviderId: row.item.sourceProviderId || "",
       bindingKind: row.item.bindingKind || "None"
     }
-  }, "解析 Animation.SourceClip");
+  }, `解析 ${fieldSpec.fieldKey || "ResourceSelection"}`);
 
   if (!result?.accepted) {
     state.lastMessage = "资源选择未通过校验";
@@ -753,13 +986,22 @@ async function chooseResourcePickerRow(index) {
     return;
   }
 
-  const clip = state.resourcePicker.clip;
-  clip.sourceSelection = result.selection || {};
-  clip.sourceClipName ||= row.item.displayName || row.item.stableId || "";
-  if (!clip.sourceSubClipId) {
-    clip.sourceSubClipId = getProviderData(row.item, "unitySubAssetKey") || getProviderData(row.item, "sourceSubClipId") || "";
+  if (state.resourcePicker.target.kind === "sourceClip") {
+    const clip = state.resourcePicker.target.clip;
+    clip.sourceSelection = result.selection || {};
+    clip.sourceClipName ||= row.item.displayName || row.item.stableId || "";
+    if (!clip.sourceSubClipId) {
+      clip.sourceSubClipId = getProviderData(row.item, "unitySubAssetKey") || getProviderData(row.item, "sourceSubClipId") || "";
+    }
+    state.lastMessage = "已选择源动画资源";
+  } else if (state.resourcePicker.target.kind === "timelineEvent") {
+    state.resourcePicker.target.eventItem.resourceSelection = result.selection || {};
+    state.resourcePicker.target.eventItem.eventKind = state.resourcePicker.target.eventKind;
+    updateEventPayloadTemplate(state.resourcePicker.target.eventItem);
+    state.lastMessage = state.resourcePicker.target.eventKind === "AudioCue"
+      ? "已选择 Timeline AudioCue"
+      : "已选择 Timeline VFX";
   }
-  state.lastMessage = "已选择源动画资源";
   closeResourcePicker();
   render();
 }
@@ -777,6 +1019,21 @@ function getFilteredPickerRows() {
         item.kind, item.usage, item.bindingKind, getSelectionTitle({ resourceStableId: item.stableId })
       ].some(value => String(value || "").toLowerCase().includes(needle));
     });
+}
+
+function normalizeEventKind(kind) {
+  const value = String(kind || "").toLowerCase();
+  if (value === "audio" || value === "audiocue" || value === "fmod") return "audioCue";
+  if (value === "vfx" || value === "visualeffect") return "vfx";
+  return kind || "custom";
+}
+
+function getEventResourceFieldSpec(eventKind) {
+  if (eventKind === "audioCue") {
+    return state.fieldSpecs?.eventAudioCue || state.fieldSpecs?.eventAudioDefinition || FALLBACK_EVENT_AUDIO_CUE_SPEC;
+  }
+  if (eventKind === "vfx") return state.fieldSpecs?.eventVfx || FALLBACK_EVENT_VFX_SPEC;
+  return null;
 }
 
 function addSet() {
@@ -952,6 +1209,155 @@ function renderBlendEditorState() {
   renderDiagnostics();
 }
 
+function handleTimelineEditorInput(event) {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!group) return;
+
+  if (event.target.dataset.timelineSelect !== undefined) {
+    state.timelineEditor.timelineId = event.target.value;
+    renderTimelineEditorState();
+    return;
+  }
+
+  const timeline = getSelectedTimeline(group);
+  if (!timeline) return;
+
+  if (event.target.dataset.timelineField) {
+    const field = event.target.dataset.timelineField;
+    timeline[field] = event.target.dataset.type === "number" ? Number(event.target.value) : event.target.value;
+    if (field === "timelineId") state.timelineEditor.timelineId = timeline.timelineId;
+    if (event.type === "change") renderTimelineEditorState();
+    return;
+  }
+
+  if (event.target.dataset.timelineMetadata) {
+    timeline.metadata ||= {};
+    const key = event.target.dataset.timelineMetadata;
+    if (event.target.value === "") delete timeline.metadata[key];
+    else timeline.metadata[key] = String(Number(event.target.value));
+    if (event.type === "change") renderTimelineEditorState();
+    return;
+  }
+
+  if (event.target.dataset.eventField) {
+    const index = Number(event.target.dataset.eventIndex);
+    const eventItem = (timeline.events || [])[index];
+    if (!eventItem) return;
+    const field = event.target.dataset.eventField;
+    eventItem[field] = event.target.dataset.type === "number" ? Number(event.target.value) : event.target.value;
+    if (field === "eventKind") {
+      eventItem.eventKind = normalizeEventKind(eventItem.eventKind);
+      updateEventPayloadTemplate(eventItem);
+    }
+    if (event.type === "change") renderTimelineEditorState();
+  }
+}
+
+function addTimeline() {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!group) return;
+  const timelines = getTimelineList(group);
+  const timelineId = uniqueId("timeline.base", timelines.map(timeline => timeline.timelineId));
+  const firstClipId = getLocalClipIds(group)[0] || "";
+  const timeline = {
+    timelineId,
+    displayName: "Base Timeline",
+    clipId: firstClipId,
+    timeDomain: "Seconds",
+    events: [],
+    diagnostics: [],
+    metadata: {}
+  };
+  timelines.push(timeline);
+  state.timelineEditor.timelineId = timelineId;
+  renderTimelineEditorState();
+}
+
+function removeTimeline() {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!group) return;
+  group.timelines = getTimelineList(group).filter(timeline => timeline.timelineId !== state.timelineEditor.timelineId);
+  state.timelineEditor.timelineId = "";
+  ensureTimelineSelection(group);
+  renderTimelineEditorState();
+}
+
+function addTimelineEvent() {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  const timeline = group ? getSelectedTimeline(group) : null;
+  if (!timeline) return;
+  timeline.events ||= [];
+  const eventId = uniqueId("event.marker", timeline.events.map(eventItem => eventItem.eventId));
+  const eventItem = {
+    eventId,
+    clipId: timeline.clipId || getLocalClipIds(group)[0] || "",
+    timeDomain: timeline.timeDomain || "Seconds",
+    time: 0,
+    eventKind: "Custom",
+    resourceSelection: {},
+    payloadJson: "",
+    metadata: {}
+  };
+  updateEventPayloadTemplate(eventItem);
+  timeline.events.push(eventItem);
+  renderTimelineEditorState();
+}
+
+function removeTimelineEvent(index) {
+  const timeline = getSelectedTimeline(findGroup(state.selected.setId, state.selected.groupId));
+  if (!timeline || !Array.isArray(timeline.events)) return;
+  timeline.events.splice(index, 1);
+  renderTimelineEditorState();
+}
+
+async function copyTimelineContext() {
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  const timeline = getSelectedTimeline(group);
+  if (!timeline) return;
+  const context = {
+    packageId: state.animation?.packageId || "",
+    setId: state.selected.setId,
+    groupId: state.selected.groupId,
+    timeline,
+    diagnostics: getTimelineDiagnostics(group, timeline)
+  };
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(context, null, 2));
+    state.lastMessage = "Timeline Event JSON 已复制";
+  } catch {
+    state.lastMessage = "Timeline Event JSON 复制失败";
+  }
+  renderStatus();
+}
+
+function renderTimelineEditorState() {
+  renderStatus();
+  renderWorkspace();
+  renderDiagnostics();
+}
+
+function getTimelineList(group) {
+  if (!group) return [];
+  group.timelines = Array.isArray(group.timelines) ? group.timelines : [];
+  return group.timelines;
+}
+
+function ensureTimelineSelection(group) {
+  if (!group) {
+    state.timelineEditor.timelineId = "";
+    return;
+  }
+  const timelines = getTimelineList(group);
+  if (!timelines.some(timeline => timeline.timelineId === state.timelineEditor.timelineId)) {
+    state.timelineEditor.timelineId = timelines[0]?.timelineId || "";
+  }
+}
+
+function getSelectedTimeline(group) {
+  ensureTimelineSelection(group);
+  return getTimelineList(group).find(timeline => timeline.timelineId === state.timelineEditor.timelineId) || null;
+}
+
 function getBlendList(group, kind) {
   if (!group) return [];
   if (kind === "2D") {
@@ -1093,6 +1499,193 @@ function toBlendIssue(issue, set, group, blend, kind) {
   };
 }
 
+function timelineField(field, label, value) {
+  return `
+    <label class="timeline-field">
+      <span>${escapeHtml(label)}</span>
+      <input data-timeline-field="${escapeHtml(field)}" value="${escapeHtml(value)}">
+    </label>`;
+}
+
+function timelineMetadataNumberField(key, label, value, min, max, step) {
+  return `
+    <label class="timeline-field">
+      <span>${escapeHtml(label)}</span>
+      <input type="number" data-timeline-metadata="${escapeHtml(key)}" min="${min}" max="${max}" step="${step}" value="${escapeHtml(String(value))}" placeholder="auto">
+    </label>`;
+}
+
+function timelineClipSelect(field, value, localClipIds, eventField, eventIndex) {
+  const data = eventField
+    ? `data-event-field="${escapeHtml(field)}" data-event-index="${eventIndex}"`
+    : `data-timeline-field="${escapeHtml(field)}"`;
+  const options = [
+    `<option value="">未设置</option>`,
+    ...localClipIds.map(clipId => `<option value="${escapeHtml(clipId)}"${clipId === value ? " selected" : ""}>${escapeHtml(clipId)}</option>`)
+  ];
+  if (value && !localClipIds.includes(value)) {
+    options.push(`<option value="${escapeHtml(value)}" selected>${escapeHtml(value)} (missing)</option>`);
+  }
+  return `<select ${data}>${options.join("")}</select>`;
+}
+
+function timeDomainSelect(field, value, eventField, eventIndex) {
+  const data = eventField
+    ? `data-event-field="${escapeHtml(field)}" data-event-index="${eventIndex}"`
+    : `data-timeline-field="${escapeHtml(field)}"`;
+  return `<select ${data}>${TIME_DOMAIN_OPTIONS.map(option => `<option value="${option}"${option === value ? " selected" : ""}>${option}</option>`).join("")}</select>`;
+}
+
+function eventKindSelect(value, eventIndex) {
+  const normalized = normalizeEventKind(value);
+  return `
+    <select data-event-field="eventKind" data-event-index="${eventIndex}">
+      ${EVENT_KIND_OPTIONS.map(option => `<option value="${escapeHtml(option.value)}"${option.value === normalized ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+    </select>`;
+}
+
+function getLocalClipIds(group) {
+  return (group?.clips || []).map(clip => clip.clipId).filter(Boolean);
+}
+
+function getTimelineMetadata(timeline, key) {
+  return timeline?.metadata?.[key] || "";
+}
+
+function getTimelineDurationSeconds(timeline, group) {
+  const clip = (group?.clips || []).find(item => item.clipId === timeline?.clipId);
+  return Number(timeline?.metadata?.durationSeconds || clip?.metadata?.durationSeconds || 1);
+}
+
+function getTimelineFrameCount(timeline, domain) {
+  const key = domain === "CombatFrame" ? "combatFrameCount" : "presentationFrameCount";
+  return Number(timeline?.metadata?.[key] || 60);
+}
+
+function getTimelineEventPercent(timeline, eventItem, domain) {
+  const time = Number(eventItem.time || 0);
+  if (domain === "Normalized") return time * 100;
+  if (domain === "PresentationFrame" || domain === "CombatFrame") {
+    const max = getTimelineFrameCount(timeline, domain) || 1;
+    return (time / max) * 100;
+  }
+  const max = getTimelineDurationSeconds(timeline, findGroup(state.selected.setId, state.selected.groupId)) || 1;
+  return (time / max) * 100;
+}
+
+function getTimelineEventTone(eventItem) {
+  const kind = normalizeEventKind(eventItem.eventKind);
+  if (kind === "AudioCue") return "audio";
+  if (kind === "Vfx") return "vfx";
+  if (kind === "TraceOn" || kind === "TraceOff") return "trace";
+  if (kind === "HitMarker") return "hit";
+  return "";
+}
+
+function getTimelineAudioSelectionTitle(selection) {
+  if (!selection) return "";
+  return selection.audioCueId || selection.audioEventDefinitionId || selection.fmodEventPath || selection.fmodEventGuid || "";
+}
+
+function updateEventPayloadTemplate(eventItem) {
+  if (!eventItem || eventItem.payloadJson) return;
+  const kind = normalizeEventKind(eventItem.eventKind);
+  if (kind === "Footstep") eventItem.payloadJson = "{\"surface\":\"default\"}";
+  else if (kind === "TraceOn") eventItem.payloadJson = "{\"traceId\":\"main\"}";
+  else if (kind === "TraceOff") eventItem.payloadJson = "{\"traceId\":\"main\"}";
+  else if (kind === "HitMarker") eventItem.payloadJson = "{\"marker\":\"hit\"}";
+  else if (kind === "CameraCue") eventItem.payloadJson = "{\"cue\":\"impact\"}";
+  else if (kind === "Vfx") eventItem.payloadJson = "{\"attach\":\"socket\"}";
+  else if (kind === "AudioCue") eventItem.payloadJson = "{\"audioCueMode\":\"FMOD\"}";
+}
+
+function getTimelineDiagnostics(group, timeline) {
+  const diagnostics = [];
+  const localClipIds = new Set(getLocalClipIds(group));
+  const duration = getTimelineDurationSeconds(timeline, group);
+  if (!timeline.clipId) {
+    diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_CLIP_EMPTY", message: "Timeline 缺少本地 clipId。" });
+  } else if (!localClipIds.has(timeline.clipId)) {
+    diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_CLIP_MISSING", message: `Timeline clipId ${timeline.clipId} 不存在于当前 Group。` });
+  }
+
+  const eventIds = new Map();
+  for (const [index, eventItem] of (timeline.events || []).entries()) {
+    if (!eventItem.eventId) {
+      diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_ID_EMPTY", message: `Event ${index + 1} 缺少 eventId。` });
+    } else if (eventIds.has(eventItem.eventId)) {
+      diagnostics.push({ tone: "warning", code: "ANIM_TIMELINE_EVENT_ID_DUPLICATE", message: `Event ${eventIds.get(eventItem.eventId) + 1} 和 Event ${index + 1} 使用重复 eventId ${eventItem.eventId}。` });
+    } else {
+      eventIds.set(eventItem.eventId, index);
+    }
+
+    const clipId = eventItem.clipId || timeline.clipId || "";
+    if (!clipId) {
+      diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_CLIP_EMPTY", message: `Event ${index + 1} 缺少 clipId。` });
+    } else if (!localClipIds.has(clipId)) {
+      diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_CLIP_MISSING", message: `Event ${index + 1} 引用的 clipId ${clipId} 不存在于当前 Group。` });
+    }
+
+    const domain = eventItem.timeDomain || timeline.timeDomain || "Seconds";
+    const time = Number(eventItem.time || 0);
+    if (domain === "Normalized" && (time < 0 || time > 1)) {
+      diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_NORMALIZED_RANGE", message: `Event ${index + 1} normalized time 必须在 0..1。` });
+    } else if ((domain === "PresentationFrame" || domain === "CombatFrame") && time < 0) {
+      diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_FRAME_NEGATIVE", message: `Event ${index + 1} frame 不能小于 0。` });
+    } else if (domain === "Seconds" && (time < 0 || time > duration)) {
+      diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_SECONDS_RANGE", message: `Event ${index + 1} seconds 超出 clip duration ${formatNumber(duration)}。` });
+    }
+
+    const kind = normalizeEventKind(eventItem.eventKind);
+    if ((kind === "Vfx" || kind === "AudioCue") && !hasEventResourceSelection(eventItem)) {
+      diagnostics.push({ tone: "warning", code: "ANIM_TIMELINE_EVENT_RESOURCE_MISSING", message: `Event ${index + 1} 是 ${kind}，但还没有选择资源。` });
+    }
+  }
+  return diagnostics;
+}
+
+function hasEventResourceSelection(eventItem) {
+  return Boolean(getSelectionTitle(eventItem.resourceSelection) || getTimelineAudioSelectionTitle(eventItem.resourceSelection));
+}
+
+function normalizeEventKind(value) {
+  const normalized = String(value || "").trim().toLowerCase().replaceAll(".", "").replaceAll("_", "").replaceAll(" ", "");
+  if (normalized === "footstep") return "Footstep";
+  if (normalized === "traceon") return "TraceOn";
+  if (normalized === "traceoff") return "TraceOff";
+  if (normalized === "hitmarker" || normalized === "hit") return "HitMarker";
+  if (normalized === "vfx" || normalized === "visualeffect") return "Vfx";
+  if (normalized === "audiocue" || normalized === "fmod" || normalized === "fmodevent") return "AudioCue";
+  if (normalized === "cameracue" || normalized === "camera") return "CameraCue";
+  return "Custom";
+}
+
+function getEventResourceFieldSpec(kind) {
+  if (kind === "Vfx") return state.fieldSpecs?.eventVfx || FALLBACK_EVENT_VFX_SPEC;
+  if (kind === "AudioCue") return state.fieldSpecs?.eventAudioCue || FALLBACK_EVENT_AUDIO_CUE_SPEC;
+  return null;
+}
+
+function getLocalTimelineIssues() {
+  const issues = [];
+  for (const set of state.animation?.sets || []) {
+    for (const group of set.groups || []) {
+      for (const timeline of group.timelines || []) {
+        issues.push(...getTimelineDiagnostics(group, timeline).map(issue => ({
+          severity: issue.tone === "error" ? "Error" : "Warning",
+          code: issue.code,
+          sourceObjectPath: `${set.setId || "set"}/${group.groupId || "group"}/timeline/${timeline.timelineId || "timeline"}`,
+          setId: set.setId || "",
+          groupId: group.groupId || "",
+          eventId: "",
+          message: issue.message
+        })));
+      }
+    }
+  }
+  return issues;
+}
+
 function selectSet(setId) {
   const set = findSet(setId);
   selectNode("set", set?.setId || "", "", "");
@@ -1109,6 +1702,7 @@ function selectNode(kind, setId, groupId, clipId) {
     state.selected.clipId = "";
   }
   state.blendEditor.blendId = "";
+  state.timelineEditor.timelineId = "";
 }
 
 function ensureAnimationShape() {
@@ -1144,11 +1738,39 @@ function ensureAnimationShape() {
           if (point.y == null) point.y = 0;
         }
       }
+      for (const timeline of group.timelines) {
+        timeline.timeDomain ||= "Seconds";
+        timeline.events = Array.isArray(timeline.events) ? timeline.events : [];
+        timeline.diagnostics = Array.isArray(timeline.diagnostics) ? timeline.diagnostics : [];
+        timeline.metadata ||= {};
+        for (const eventItem of timeline.events) {
+          eventItem.timeDomain ||= timeline.timeDomain || "Seconds";
+          eventItem.eventKind ||= "custom";
+          eventItem.resourceSelection ||= {};
+          eventItem.metadata ||= {};
+          if (eventItem.time == null) eventItem.time = 0;
+        }
+      }
       for (const clip of group.clips) {
         clip.sourceSelection ||= {};
         clip.tags = Array.isArray(clip.tags) ? clip.tags : [];
         clip.rootMotionPolicy ||= "Ignore";
         if (clip.speed == null) clip.speed = 1;
+      }
+      for (const timeline of group.timelines) {
+        timeline.timeDomain ||= "Seconds";
+        timeline.events = Array.isArray(timeline.events) ? timeline.events : [];
+        timeline.diagnostics = Array.isArray(timeline.diagnostics) ? timeline.diagnostics : [];
+        timeline.metadata ||= {};
+        for (const eventItem of timeline.events) {
+          eventItem.clipId ||= timeline.clipId || "";
+          eventItem.timeDomain ||= timeline.timeDomain || "Seconds";
+          if (eventItem.time == null) eventItem.time = 0;
+          eventItem.eventKind = normalizeEventKind(eventItem.eventKind);
+          eventItem.resourceSelection ||= {};
+          eventItem.payloadJson ||= "";
+          eventItem.metadata ||= {};
+        }
       }
     }
   }
@@ -1234,6 +1856,7 @@ function getIssues() {
   if (Array.isArray(state.validation?.issues)) issues.push(...state.validation.issues);
   if (Array.isArray(state.animation?.diagnostics)) issues.push(...state.animation.diagnostics);
   issues.push(...getLocalBlendIssues());
+  issues.push(...getLocalTimelineIssues());
   for (const error of state.errors) {
     issues.push({
       severity: "Error",
@@ -1247,7 +1870,7 @@ function getIssues() {
 
 function getSelectionTitle(selection) {
   if (!selection) return "";
-  return selection.resourceStableId || selection.runtimeResourceKey || selection.providerResourceKey ||
+  return selection.audioCueId || selection.audioEventDefinitionId || selection.resourceStableId || selection.runtimeResourceKey || selection.providerResourceKey ||
     selection.packageResourceKey || selection.unityAssetPath || selection.unityGuid || "";
 }
 
