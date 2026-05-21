@@ -74,6 +74,8 @@ assert(appSource.includes('slotId: "mainHand"') && appSource.includes('slotId: "
 assert(!appSource.includes("compatibilityFilter: { equipSlot"), "CharacterStudio should not use obsolete equipSlot compatibility filters");
 assert(appSource.includes("Animation.Clip") && appSource.includes("animationClip") && appSource.includes("AnimationWarmup"), "CharacterStudio should define an animation clip ResourceFieldSpec for future animation fields");
 assert(appSource.includes("unityProjectAssets") && appSource.includes("UnityEditorOnlyAsset") && appSource.includes("PackageResource"), "CharacterStudio animation picker should accept Unity project and package animation assets");
+assert(indexSource.includes("animationConfigPanel") && appSource.includes("renderAnimationConfigPanel") && appSource.includes("openAnimationSlotPicker"), "CharacterStudio should expose an animation profile picker panel");
+assert(appSource.includes("animationProfiles") && appSource.includes("resourceSelection") && appSource.includes("applyResourceSelectionToAnimationSlot"), "CharacterStudio should persist animation slot ResourceSelectionRef data");
 assert(appSource.includes("previewResourceSelection"), "CharacterStudio should persist ResourceSelectionRef beside weapon preview references");
 assert(!appSource.includes('node("resources", "resources"'), "CharacterStudio should not expose the full resource browser in the package tree");
 assert(editorServerSource.includes("/api/authoring/resources/pick"), "Authoring server should expose picker query API");

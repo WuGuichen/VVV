@@ -139,14 +139,14 @@ namespace MxFramework.Authoring
             CharacterResourcePackage package)
         {
             CharacterApplicationAuthoringSummary application = package != null ? package.ApplicationConfig : null;
-            if (application == null || application.ResourceKeys == null)
+            if (application == null)
                 return;
 
             string sourceStableId = FirstNonEmpty(
                 application.CharacterStableId,
                 package != null && package.Manifest != null ? package.Manifest.StableId : string.Empty);
 
-            for (int i = 0; i < application.ResourceKeys.Count; i++)
+            for (int i = 0; application.ResourceKeys != null && i < application.ResourceKeys.Count; i++)
             {
                 AddReferenceByKey(
                     graph,
@@ -157,6 +157,59 @@ namespace MxFramework.Authoring
                     application.ResourceKeys[i],
                     AuthoringResourcePreloadPolicies.SpawnCritical,
                     isRequiredAtRuntime: true);
+            }
+
+            if (application.AnimationProfiles == null)
+                return;
+
+            for (int profileIndex = 0; profileIndex < application.AnimationProfiles.Count; profileIndex++)
+            {
+                CharacterAnimationProfileAuthoringSummary profile = application.AnimationProfiles[profileIndex];
+                if (profile == null || profile.Slots == null)
+                    continue;
+
+                string profileId = FirstNonEmpty(profile.ProfileId, "animationProfile/" + profileIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                for (int slotIndex = 0; slotIndex < profile.Slots.Count; slotIndex++)
+                {
+                    CharacterAnimationSlotAuthoringSummary slot = profile.Slots[slotIndex];
+                    if (slot == null)
+                        continue;
+
+                    string sourceField = "animationProfiles/" + profileIndex.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/slots/" + slotIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    if (!string.IsNullOrWhiteSpace(slot.ResourceKey))
+                    {
+                        AddReferenceByKey(
+                            graph,
+                            index,
+                            "animation",
+                            profileId,
+                            sourceField + "/resourceKey",
+                            slot.ResourceKey,
+                            AuthoringResourcePreloadPolicies.AnimationWarmup,
+                            isRequiredAtRuntime: slot.Required);
+                    }
+
+                    if (slot.ResourceSelection != null)
+                    {
+                        string selectedKey = FirstNonEmpty(
+                            slot.ResourceSelection.RuntimeResourceKey,
+                            slot.ResourceSelection.PackageResourceKey,
+                            slot.ResourceSelection.ProviderResourceKey);
+                        if (!string.IsNullOrWhiteSpace(selectedKey) &&
+                            !string.Equals(selectedKey, slot.ResourceKey, System.StringComparison.Ordinal))
+                        {
+                            AddReferenceByKey(
+                                graph,
+                                index,
+                                "animation",
+                                profileId,
+                                sourceField + "/resourceSelection",
+                                selectedKey,
+                                AuthoringResourcePreloadPolicies.AnimationWarmup,
+                                isRequiredAtRuntime: slot.Required);
+                        }
+                    }
+                }
             }
         }
 
