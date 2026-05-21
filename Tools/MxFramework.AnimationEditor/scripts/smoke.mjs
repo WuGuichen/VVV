@@ -44,10 +44,18 @@ assert(app.includes("blend1D") && app.includes("blend2D") && app.includes("Blend
 assert(app.includes("1D line") && app.includes("2D plane"), "AnimationEditor should provide 1D line and 2D plane blend views");
 assert(app.includes("ANIM_BLEND_POINT_CLIP_MISSING") && app.includes("ANIM_BLEND_POINT_DUPLICATE"), "AnimationEditor should diagnose missing local clip references and duplicate blend coordinates");
 assert(app.includes("data-point-field") && app.includes("data-blend-field"), "AnimationEditor should edit blend fields and blend points without raw JSON");
+assert(app.includes("Timeline Events") && app.includes("data-add-timeline") && app.includes("data-add-timeline-event"), "AnimationEditor should expose timeline event editing controls");
+assert(app.includes("timelineId") && app.includes("Animation.EventVfx") && app.includes("Animation.EventAudioCue"), "AnimationEditor should edit timelines and expose event resource picker hooks");
+assert(app.includes("Footstep") && app.includes("TraceOn") && app.includes("TraceOff") && app.includes("HitMarker") && app.includes("Vfx") && app.includes("AudioCue") && app.includes("CameraCue") && app.includes("Custom"), "AnimationEditor should offer required timeline event kinds");
+assert(app.includes("Seconds") && app.includes("Normalized") && app.includes("PresentationFrame") && app.includes("CombatFrame"), "AnimationEditor should expose timeline time domains");
+assert(app.includes("ANIM_TIMELINE_EVENT_NORMALIZED_RANGE") && app.includes("ANIM_TIMELINE_EVENT_FRAME_NEGATIVE") && app.includes("ANIM_TIMELINE_CLIP_MISSING"), "AnimationEditor should diagnose timeline range and local clip issues");
+assert(app.includes("copyTimelineContext") && app.includes("Timeline Event JSON"), "AnimationEditor should copy timeline event JSON context");
+assert(app.includes("audioCueId") && !app.includes("Event AudioClip"), "Timeline AudioCue picker should not be treated as an AudioClip selector");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/") && app.includes("Tools/MxFramework.CharacterStudio/web/"), "AnimationEditor should link Resource Manager and CharacterStudio");
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "AnimationEditor should remain a vanilla web workstation");
 assert(styles.includes(".workspace") && styles.includes(".resource-picker-overlay"), "AnimationEditor should style workspace and resource picker overlay");
 assert(styles.includes(".blend-track") && styles.includes(".blend-plane") && styles.includes(".blend-diagnostics"), "AnimationEditor should style visual blend editors and diagnostics");
+assert(styles.includes(".timeline-scrubber") && styles.includes(".timeline-domain-row") && styles.includes(".timeline-event-row"), "AnimationEditor should style timeline scrubber and event list");
 assert(launcher.includes("dotnet --list-sdks") && launcher.includes("is_animation_editor_server_ready"), "AnimationEditor launcher should check .NET and server readiness");
 assert(hubApp.includes("Tools/MxFramework.AnimationEditor/web/"), "EditorHub should link Animation Editor");
 assert(hubSmoke.includes("MxFramework.AnimationEditor"), "EditorHub smoke should check Animation Editor");
