@@ -7,10 +7,11 @@ Animation Editor 是独立动画配置编辑器，用于维护 `AnimationAuthori
 - 动画包列表、加载、保存、校验。
 - Set / Group / Clip 树和基础 Inspector。
 - Clip mapping 表，支持 `SourceSelection`、`SourceSubClipId`、`SourceClipName`、Loop、Speed、RootMotionPolicy、tags。
+- Group 级 1D line / 2D plane Blend 编辑器，Blend point 只引用当前 Group 内的本地 `clipId`，并显示缺失引用、重复坐标、点位不足等本地诊断。
 - `Animation.SourceClip` 字段级资源选择器。
 - EditorHub 和 CharacterStudio 跳转入口。
 
-视觉 BlendSpace、Timeline Events、3D 预览、Bake、Compiler 集成和 CharacterStudio 迁移由后续里程碑任务完成。
+Timeline Events、3D 预览、Bake、Compiler 集成和 CharacterStudio 迁移由后续里程碑任务完成。
 
 ## 启动
 
