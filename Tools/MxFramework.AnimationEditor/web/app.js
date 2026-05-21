@@ -220,6 +220,7 @@ function bindEvents() {
     const button = event.target.closest("button[data-select-kind]");
     if (!button) return;
     selectNode(button.dataset.selectKind, button.dataset.setId || "", button.dataset.groupId || "", button.dataset.clipId || "");
+    render();
   });
 
   el.mappingWorkspace.addEventListener("click", event => {
@@ -227,6 +228,7 @@ function bindEvents() {
     if (!button) return;
     if (button.dataset.selectClip) {
       selectNode("clip", state.selected.setId, state.selected.groupId, button.dataset.selectClip);
+      render();
     } else if (button.dataset.pickClip) {
       const clip = findClip(state.selected.setId, state.selected.groupId, button.dataset.pickClip);
       openSourceClipPicker(clip);
@@ -427,7 +429,10 @@ async function previewAnimation() {
   state.compileResult = result.compileResult || state.compileResult;
   if (result.animationValidationReport) state.validation = result.animationValidationReport;
   const clips = getPreviewAnimationClips(result);
-  if (!clips.some(clip => getPreviewClipId(clip) === state.preview3d.selectedClipId)) {
+  const selectedClipId = getPreviewClipIdForSelection(state.selected, clips);
+  if (selectedClipId) {
+    state.preview3d.selectedClipId = selectedClipId;
+  } else if (!clips.some(clip => getPreviewClipId(clip) === state.preview3d.selectedClipId)) {
     state.preview3d.selectedClipId = getPreviewClipId(clips[0]) || "";
   }
   applyPreviewClipPlaybackDefaults(getSelectedPreviewClip());
@@ -3209,6 +3214,7 @@ function selectNode(kind, setId, groupId, clipId) {
   }
   state.blendEditor.blendId = "";
   state.timelineEditor.timelineId = "";
+  syncPreviewClipToCurrentSelection();
 }
 
 function ensureAnimationShape() {
@@ -3364,6 +3370,26 @@ function findClip(setId, groupId, clipId) {
 
 function findSelectedClip() {
   return findClip(state.selected.setId, state.selected.groupId, state.selected.clipId);
+}
+
+function getPreviewClipIdForSelection(selection, clips = getPreviewAnimationClips()) {
+  if (!selection?.clipId || !Array.isArray(clips) || clips.length === 0) return "";
+  const match = clips.find(clip =>
+    clip.setId === selection.setId &&
+    clip.groupId === selection.groupId &&
+    clip.clipId === selection.clipId);
+  return getPreviewClipId(match);
+}
+
+function syncPreviewClipToCurrentSelection() {
+  if (!state.preview3d.result) return;
+  const selectedClipId = getPreviewClipIdForSelection(state.selected);
+  if (!selectedClipId || selectedClipId === state.preview3d.selectedClipId) return;
+  cleanupPreviewViewport();
+  state.preview3d.selectedClipId = selectedClipId;
+  state.preview3d.playing = false;
+  applyPreviewClipPlaybackDefaults(getSelectedPreviewClip());
+  resetPreviewClipInsight();
 }
 
 function getAllGroups() {
