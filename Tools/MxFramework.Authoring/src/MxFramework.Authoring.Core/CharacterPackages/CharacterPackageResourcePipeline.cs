@@ -434,7 +434,7 @@ namespace MxFramework.Authoring
             if (string.Equals(typeId, CharacterPackageResourceTypeIds.Material, StringComparison.OrdinalIgnoreCase))
                 return IsAny(format, CharacterPackageResourceFormatIds.Json, CharacterPackageResourceFormatIds.MaterialJson);
             if (string.Equals(typeId, CharacterPackageResourceTypeIds.Animation, StringComparison.OrdinalIgnoreCase))
-                return IsAny(format, CharacterPackageResourceFormatIds.Glb, CharacterPackageResourceFormatIds.Gltf, CharacterPackageResourceFormatIds.AnimationGroupJson, CharacterPackageResourceFormatIds.Json);
+                return IsAny(format, CharacterPackageResourceFormatIds.Anim, CharacterPackageResourceFormatIds.Glb, CharacterPackageResourceFormatIds.Gltf, CharacterPackageResourceFormatIds.AnimationGroupJson, CharacterPackageResourceFormatIds.Json);
             if (string.Equals(typeId, CharacterPackageResourceTypeIds.Audio, StringComparison.OrdinalIgnoreCase))
                 return IsAny(format, CharacterPackageResourceFormatIds.Wav, CharacterPackageResourceFormatIds.Ogg);
             if (string.Equals(typeId, CharacterPackageResourceTypeIds.Vfx, StringComparison.OrdinalIgnoreCase))

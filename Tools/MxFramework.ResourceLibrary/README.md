@@ -6,7 +6,16 @@
 
 设计目标已经调整为全局 Authoring Resource Manager。角色包资源只是 `characterPackage` provider，Unity AssetDatabase、现有 `MxFramework.Resources.ResourceCatalog`、FMOD snapshot、external import staging 和 generated assets 也应进入统一资源视图。
 
-写入型资源管理入口在 MVP 阶段保持禁用，并通过 Authoring API gate 补齐后再开放。
+导入、重导和替换资源已经通过 Authoring API gate 开放；删除和标签编辑仍等待 reference graph delete guard 后再开放。
+
+## 导入规则
+
+资源管理器的导入面板先选择“导入类型”，再选择单个文件或文件夹。文件夹导入会先走 external import staging 预检：
+
+- `.meta`、`.DS_Store`、隐藏目录等编辑器元数据会计入“忽略元数据”，不会成为资源。
+- 当前导入类型会作为最终归类依据。例如选择“动画 Clip/Group”后，`.anim`、`.fbx`、`.glb`、`.gltf`、`.json` 会导入为 `animation / animationClipGroup`。
+- 不匹配当前导入类型、格式不支持、重复 hash 或超过大小限制的文件会计入“跳过非匹配”或诊断，不会自动写入资源目录。
+- 资源浏览器只负责准备和提供资源列表；角色、动画、战斗等编辑器通过资源选择器引用这些资源。
 
 ## 启动
 

@@ -136,7 +136,7 @@ namespace MxFramework.Authoring
             });
 
             if (!candidate.Supported)
-                AddItemDiagnostic(item, CharacterAuthoringValidationSeverity.Warning, AuthoringResourceDiagnosticCodes.UnsupportedFormat, "Unsupported import format: ." + extension, "Use .fbx, .glb, .gltf, .png, .jpg, .jpeg, .tga, .wav, .ogg, or .json.");
+                AddItemDiagnostic(item, CharacterAuthoringValidationSeverity.Warning, AuthoringResourceDiagnosticCodes.UnsupportedFormat, "Unsupported import format: ." + extension, "Use .anim, .fbx, .glb, .gltf, .png, .jpg, .jpeg, .tga, .wav, .ogg, or .json.");
             if (tooLarge)
                 AddItemDiagnostic(item, CharacterAuthoringValidationSeverity.Error, AuthoringResourceDiagnosticCodes.SourceFileTooLarge, "File exceeds the staging size limit.", "Import a smaller file or increase the staging limit.");
             if (duplicate)
@@ -275,6 +275,8 @@ namespace MxFramework.Authoring
                     if (LooksLikeAnimationPath(displayPath))
                         return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "unityAsset", "animation");
                     return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model");
+                case "anim":
+                    return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "unityAsset", "animation");
                 case "png":
                 case "jpg":
                 case "jpeg":

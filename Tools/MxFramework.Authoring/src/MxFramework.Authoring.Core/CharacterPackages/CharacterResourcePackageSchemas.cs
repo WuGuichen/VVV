@@ -294,7 +294,7 @@ namespace MxFramework.Authoring
 
         private static EnumDomain CreateResourceSourceFormatEnum()
         {
-            return Enum("character.resourceSourceFormat", ("gltf", 1), ("glb", 2), ("fbx", 100), ("png", 10), ("jpg", 11), ("jpeg", 12), ("tga", 13), ("json", 20), ("materialJson", 21), ("animationGroupJson", 22), ("wav", 30), ("ogg", 31), ("vfxJson", 40));
+            return Enum("character.resourceSourceFormat", ("gltf", 1), ("glb", 2), ("fbx", 100), ("anim", 23), ("png", 10), ("jpg", 11), ("jpeg", 12), ("tga", 13), ("json", 20), ("materialJson", 21), ("animationGroupJson", 22), ("wav", 30), ("ogg", 31), ("vfxJson", 40));
         }
 
         private static EnumDomain CreateResourceUsageEnum()

@@ -43,10 +43,11 @@ assert(app.includes("fmodEventPath") && app.includes("audioCueId") && app.includ
 assert(app.includes("targetResourceId") && app.includes("targetProviderResourceKey") && app.includes("targetRuntimeResourceKey"), "app should match cross-consumer reference graph targets");
 assert(app.includes("postJson") && app.includes("readFileAsBase64"), "app should post write requests with uploaded file bytes");
 assert(app.includes("IMPORT_PRESETS") && app.includes("animationClipGroup") && app.includes("audioCue"), "app should define typed animation and audio import presets");
-assert(app.includes('id: "animationClipGroup"') && app.includes('extensions: ["glb", "gltf", "fbx", "json"]'), "animation import preset should accept FBX animation sources for conversion");
+assert(app.includes('id: "animationClipGroup"') && app.includes('extensions: ["anim", "glb", "gltf", "fbx", "json"]'), "animation import preset should accept Unity .anim and FBX animation sources for conversion");
 assert(app.includes("importResourceFolder") && app.includes("webkitRelativePath"), "app should support folder import with stable local ids");
 assert(app.includes("isIgnoredImportFile") && app.includes(".meta") && app.includes("忽略元数据"), "folder import should ignore editor metadata files separately from skipped resources");
 assert(app.includes("isImportableStagedItem") && app.includes("AUTH_RES_IMPORT_IGNORED_FILE") && app.includes("externalImportStaging"), "folder import should use staging diagnostics and provider items");
+assert(app.includes("isStagedItemSupportedByPreset") && app.includes("buildImportRequestFromStagedItem(file, staged, preset)") && app.includes("跳过非匹配"), "folder import should filter and promote staged files by the selected import preset");
 assert(app.includes("inspectCache.clear") && app.includes("loadPackageData"), "write responses should refresh resource data");
 assert(app.includes("buildFallbackInspect") && app.includes("inspect endpoint 不可用"), "app should include inspect fallback behavior");
 assert(app.includes("onlyRuntimeLoadable") && app.includes("onlyDiagnostics"), "app should include client-side filters");
