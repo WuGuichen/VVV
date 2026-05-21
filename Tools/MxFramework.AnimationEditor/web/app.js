@@ -199,7 +199,8 @@ function cacheElements() {
     "addClipButton", "mappingWorkspace", "inspectorSubtitle", "inspectorContent",
     "diagnosticsSummary", "copyDiagnosticsButton", "diagnosticsList", "resourcePickerOverlay",
     "resourcePickerTitle", "resourcePickerSubtitle", "closePickerButton", "resourcePickerSearch",
-    "resourcePickerOnlySelectable", "resourcePickerList"
+    "resourcePickerOnlySelectable", "resourcePickerList", "toggleTreeButton", "toggleInspectorButton",
+    "toggleDiagnosticsButton"
   ]) {
     el[id] = document.getElementById(id);
   }
@@ -274,6 +275,8 @@ function bindEvents() {
       setPreviewTime(0);
     } else if (button.dataset.previewClipId) {
       selectPreviewClip(button.dataset.previewClipId);
+    } else if (button.dataset.toggleViewportMaximize) {
+      toggleViewportMaximize();
     } else if (button.dataset.pickEventResource) {
       const timeline = getSelectedTimeline(findGroup(state.selected.setId, state.selected.groupId));
       const eventItem = timeline ? (timeline.events || [])[Number(button.dataset.eventIndex)] : null;
@@ -323,6 +326,72 @@ function bindEvents() {
     if (!button) return;
     chooseResourcePickerRow(Number(button.dataset.resourceIndex));
   });
+
+  initLayoutToggles();
+}
+
+function initLayoutToggles() {
+  const treePanel = document.getElementById("treePanel");
+  const inspectorPanel = document.getElementById("inspectorPanel");
+  const diagnosticsPanel = document.getElementById("diagnosticsPanel");
+
+  const toggleTreeBtn = el.toggleTreeButton;
+  const toggleInspectorBtn = el.toggleInspectorButton;
+  const toggleDiagnosticsBtn = el.toggleDiagnosticsButton;
+
+  // Load initial states from localStorage
+  const treeCollapsed = localStorage.getItem("mx-animation-editor-tree-collapsed") === "true";
+  const inspectorCollapsed = localStorage.getItem("mx-animation-editor-inspector-collapsed") === "true";
+  const diagnosticsCollapsed = localStorage.getItem("mx-animation-editor-diagnostics-collapsed") === "true";
+
+  if (treeCollapsed && treePanel) {
+    treePanel.classList.add("collapsed");
+    if (toggleTreeBtn) toggleTreeBtn.textContent = "▶";
+  }
+  if (inspectorCollapsed && inspectorPanel) {
+    inspectorPanel.classList.add("collapsed");
+    if (toggleInspectorBtn) toggleInspectorBtn.textContent = "◀";
+  }
+  if (diagnosticsCollapsed && diagnosticsPanel) {
+    diagnosticsPanel.classList.add("collapsed");
+    if (toggleDiagnosticsBtn) toggleDiagnosticsBtn.textContent = "▲";
+  }
+
+  // Add event listeners
+  if (toggleTreeBtn && treePanel) {
+    toggleTreeBtn.addEventListener("click", () => {
+      const isCollapsed = treePanel.classList.toggle("collapsed");
+      toggleTreeBtn.textContent = isCollapsed ? "▶" : "◀";
+      localStorage.setItem("mx-animation-editor-tree-collapsed", isCollapsed);
+    });
+  }
+
+  if (toggleInspectorBtn && inspectorPanel) {
+    toggleInspectorBtn.addEventListener("click", () => {
+      const isCollapsed = inspectorPanel.classList.toggle("collapsed");
+      toggleInspectorBtn.textContent = isCollapsed ? "◀" : "▶";
+      localStorage.setItem("mx-animation-editor-inspector-collapsed", isCollapsed);
+    });
+  }
+
+  if (toggleDiagnosticsBtn && diagnosticsPanel) {
+    toggleDiagnosticsBtn.addEventListener("click", () => {
+      const isCollapsed = diagnosticsPanel.classList.toggle("collapsed");
+      toggleDiagnosticsBtn.textContent = isCollapsed ? "▲" : "▼";
+      localStorage.setItem("mx-animation-editor-diagnostics-collapsed", isCollapsed);
+    });
+  }
+}
+
+function toggleViewportMaximize() {
+  const viewport = document.getElementById("compilerPreviewViewport");
+  if (!viewport) return;
+  const isMaximized = viewport.classList.toggle("maximized");
+  const button = document.getElementById("toggleViewportMaximizeButton");
+  if (button) {
+    button.textContent = isMaximized ? "❐" : "⛶";
+    button.title = isMaximized ? "还原 3D 预览" : "放大 3D 预览";
+  }
 }
 
 async function refreshAll() {
@@ -620,9 +689,8 @@ function renderWorkspaceModeTabs(hasGroup) {
       ${WORKSPACE_MODES.map(mode => {
         const disabled = !hasGroup && mode.value !== "advanced";
         return `
-          <button type="button" class="${mode.value === activeMode ? "active" : ""}" data-workspace-mode="${escapeHtml(mode.value)}" ${disabled ? "disabled" : ""}>
+          <button type="button" class="${mode.value === activeMode ? "active" : ""}" data-workspace-mode="${escapeHtml(mode.value)}" ${disabled ? "disabled" : ""} title="${escapeHtml(mode.description)}">
             <span>${escapeHtml(mode.label)}</span>
-            <small>${escapeHtml(mode.description)}</small>
           </button>`;
       }).join("")}
     </nav>`;
@@ -1065,6 +1133,7 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
       <div class="compiler-preview-layout">
         <div id="compilerPreviewViewport" class="compiler-preview-viewport" data-preview-state="${escapeHtml(preview.threeStatus || "idle")}">
           ${renderPreviewViewportFallback(selectedResource, preview)}
+          <button id="toggleViewportMaximizeButton" type="button" class="viewport-maximize-btn" title="放大 3D 预览" data-toggle-viewport-maximize="1">⛶</button>
         </div>
         <div class="compiler-preview-sidebar">
           <div class="preview-control-row">
@@ -3865,6 +3934,17 @@ async function renderThreePreviewViewport(host, resource, clip, renderId, animat
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   host.append(renderer.domElement);
+
+  // Re-append the maximize button since innerHTML was cleared
+  const isCurrentlyMaximized = host.classList.contains("maximized");
+  const maxBtn = document.createElement("button");
+  maxBtn.id = "toggleViewportMaximizeButton";
+  maxBtn.type = "button";
+  maxBtn.className = "viewport-maximize-btn";
+  maxBtn.title = isCurrentlyMaximized ? "还原 3D 预览" : "放大 3D 预览";
+  maxBtn.dataset.toggleViewportMaximize = "1";
+  maxBtn.textContent = isCurrentlyMaximized ? "❐" : "⛶";
+  host.append(maxBtn);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;

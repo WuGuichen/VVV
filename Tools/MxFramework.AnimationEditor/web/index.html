@@ -48,14 +48,18 @@
     <section id="statusStrip" class="status-strip" aria-label="动画包状态"></section>
 
     <main class="workspace">
-      <aside class="tree-panel" aria-label="Animation structure">
+      <aside id="treePanel" class="tree-panel" aria-label="Animation structure">
         <div class="panel-heading">
-          <div>
+          <div class="panel-heading-title">
             <h2>动画结构</h2>
             <p id="treeSummary">尚未读取动画包</p>
           </div>
-          <button id="addSetButton" type="button">新增 Set</button>
+          <div class="panel-heading-actions">
+            <button id="addSetButton" type="button">新增 Set</button>
+            <button id="toggleTreeButton" class="icon-toggle-btn" type="button" title="折叠/展开动画结构">◀</button>
+          </div>
         </div>
+        <div class="collapsed-vertical-title">动画结构</div>
         <nav id="animationTree" class="animation-tree" aria-label="Animation sets groups clips"></nav>
       </aside>
 
@@ -75,22 +79,27 @@
 
       <aside id="inspectorPanel" class="inspector-panel" aria-label="Inspector">
         <div class="panel-heading">
-          <div>
+          <div class="panel-heading-title">
             <h2>Inspector</h2>
             <p id="inspectorSubtitle">选择 Set、Group 或 Clip</p>
           </div>
+          <button id="toggleInspectorButton" class="icon-toggle-btn" type="button" title="折叠/展开 Inspector">▶</button>
         </div>
+        <div class="collapsed-vertical-title">INSPECTOR</div>
         <div id="inspectorContent" class="inspector-content"></div>
       </aside>
     </main>
 
     <section id="diagnosticsPanel" class="diagnostics-panel" aria-label="Diagnostics">
       <div class="panel-heading">
-        <div>
+        <div class="panel-heading-title">
           <h2>诊断</h2>
           <p id="diagnosticsSummary">尚未运行校验</p>
         </div>
-        <button id="copyDiagnosticsButton" type="button">复制诊断 JSON</button>
+        <div class="panel-heading-actions">
+          <button id="copyDiagnosticsButton" type="button">复制诊断 JSON</button>
+          <button id="toggleDiagnosticsButton" class="icon-toggle-btn" type="button" title="折叠/展开诊断">▼</button>
+        </div>
       </div>
       <div id="diagnosticsList" class="diagnostics-list"></div>
     </section>
