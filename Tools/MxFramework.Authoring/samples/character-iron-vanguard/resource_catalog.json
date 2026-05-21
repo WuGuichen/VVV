@@ -293,10 +293,10 @@
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
       "relativePath": "resources/animations/locomotion.glb",
-      "hash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
+      "hash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
+        "contentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
         "importHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
         "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
@@ -342,7 +342,7 @@
         ],
         "metadata": {
           "clips": "idle,walk,run",
-          "placeholderResource": "true"
+          "placeholderResource": "false"
         }
       },
       "dependencies": [
@@ -367,18 +367,18 @@
         "previewMeshResourceKey": "char.iron_vanguard.model.body",
         "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
         "previewCameraPresetId": "humanoidFullBody",
-        "isPlaceholder": true
+        "isPlaceholder": false
       },
       "provenance": {
         "sourceTool": "MxFramework.Authoring.Sample",
         "sourceFile": "resources/animations/locomotion.glb",
         "authoringSchemaVersion": "1.0",
-        "license": "sample-placeholder",
+        "license": "sample-generated",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-21T00:00:00Z"
       }
     },
     {
@@ -391,10 +391,10 @@
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
       "relativePath": "resources/animations/combat.glb",
-      "hash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
+      "hash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
+        "contentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
         "importHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
         "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
@@ -440,7 +440,7 @@
         ],
         "metadata": {
           "clips": "sword_attack,shield_guard,unarmed_attack",
-          "placeholderResource": "true"
+          "placeholderResource": "false"
         }
       },
       "dependencies": [
@@ -466,18 +466,18 @@
         "previewMeshResourceKey": "char.iron_vanguard.model.body",
         "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
         "previewCameraPresetId": "humanoidFullBody",
-        "isPlaceholder": true
+        "isPlaceholder": false
       },
       "provenance": {
         "sourceTool": "MxFramework.Authoring.Sample",
         "sourceFile": "resources/animations/combat.glb",
         "authoringSchemaVersion": "1.0",
-        "license": "sample-placeholder",
+        "license": "sample-generated",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-21T00:00:00Z"
       }
     },
     {
