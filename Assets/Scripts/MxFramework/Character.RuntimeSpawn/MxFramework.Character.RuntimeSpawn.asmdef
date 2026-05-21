@@ -3,6 +3,7 @@
     "rootNamespace": "MxFramework.CharacterRuntimeSpawn",
     "references": [
         "MxFramework.Character.Application",
+        "MxFramework.Animation",
         "MxFramework.CharacterControl",
         "MxFramework.Combat",
         "MxFramework.Config",

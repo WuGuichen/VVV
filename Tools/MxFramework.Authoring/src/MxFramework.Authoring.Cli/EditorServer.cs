@@ -124,6 +124,18 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/authoring/animation/preview" && (context.Request.HttpMethod == "GET" || context.Request.HttpMethod == "POST"))
+        {
+            AnimationAuthoringSaveRequest request = context.Request.HttpMethod == "POST"
+                ? ReadAnimationAuthoringSaveRequest(context, jsonOptions)
+                : new AnimationAuthoringSaveRequest();
+            string animationPackage = !string.IsNullOrWhiteSpace(request.package)
+                ? request.package
+                : context.Request.QueryString["package"] ?? string.Empty;
+            WriteJson(context.Response, ReadAnimationPreview(rootPath, animationPackage, defaultPackage, request.animation, jsonOptions), jsonOptions);
+            return;
+        }
+
         if (path == "/api/character/state" && context.Request.HttpMethod == "GET")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -962,6 +974,92 @@ internal static class EditorServer
             PackageRootPath = packageRoot,
             ResourceCatalog = catalog
         });
+    }
+
+    internal static object ReadAnimationPreview(
+        string rootPath,
+        string packageOrPath,
+        string defaultPackage,
+        AnimationAuthoringPackage package,
+        JsonSerializerOptions jsonOptions)
+    {
+        string documentPath = ResolveAnimationDocumentPath(rootPath, packageOrPath, defaultPackage, jsonOptions);
+        string packageRoot = ResolveAnimationPackageRootPath(documentPath);
+        AnimationAuthoringCompileResult compile = CompileAnimationPackage(rootPath, packageOrPath, defaultPackage, package, jsonOptions);
+        CharacterPackageResourceCatalog catalog = ReadAnimationResourceCatalog(packageRoot, jsonOptions);
+
+        return new
+        {
+            package = ToAnimationPackageRelative(rootPath, documentPath),
+            packageRoot = ToProjectRelativePath(rootPath, packageRoot),
+            serviceStatus = "ready",
+            compileResult = compile,
+            animationSetDefinition = compile.AnimationSetDefinition,
+            animationClipRegistry = compile.AnimationClipRegistry,
+            animationResourcePlan = compile.AnimationResourcePlan,
+            animationValidationReport = compile.AnimationValidationReport,
+            previewResources = BuildAnimationPreviewResources(rootPath, packageRoot, catalog, compile.AnimationClipRegistry),
+            diagnostics = compile.AnimationValidationReport?.Issues ?? new List<CharacterAuthoringValidationIssue>()
+        };
+    }
+
+    private static object BuildAnimationPreviewResources(
+        string rootPath,
+        string packageRoot,
+        CharacterPackageResourceCatalog catalog,
+        AnimationClipRegistryDocument clipRegistry)
+    {
+        var resourcesByKey = new Dictionary<string, object>(StringComparer.Ordinal);
+        for (int i = 0; catalog != null && catalog.Entries != null && i < catalog.Entries.Count; i++)
+        {
+            CharacterPackageResourceEntry entry = catalog.Entries[i];
+            if (entry == null || string.IsNullOrWhiteSpace(entry.ResourceKey))
+                continue;
+
+            string fullPath = CharacterPackageResourcePipeline.ResolvePackagePath(packageRoot, entry.RelativePath);
+            string projectRelative = !string.IsNullOrWhiteSpace(fullPath) && File.Exists(fullPath)
+                ? ToProjectRelativePath(rootPath, fullPath)
+                : string.Empty;
+            string url = string.IsNullOrWhiteSpace(projectRelative)
+                ? string.Empty
+                : "/" + projectRelative.Replace('\\', '/');
+            resourcesByKey[entry.ResourceKey] = new
+            {
+                resourceKey = entry.ResourceKey,
+                stableId = entry.StableId,
+                kind = entry.TypeId,
+                usage = entry.Usage,
+                relativePath = entry.RelativePath,
+                projectRelativePath = projectRelative,
+                url,
+                exists = !string.IsNullOrWhiteSpace(projectRelative),
+                tags = entry.Tags ?? new List<string>()
+            };
+        }
+
+        var animationClips = new List<object>();
+        for (int i = 0; clipRegistry != null && clipRegistry.Clips != null && i < clipRegistry.Clips.Count; i++)
+        {
+            AnimationClipRegistryEntry clip = clipRegistry.Clips[i];
+            resourcesByKey.TryGetValue(clip.RuntimeResourceKey ?? string.Empty, out object resource);
+            animationClips.Add(new
+            {
+                setId = clip.SetId,
+                groupId = clip.GroupId,
+                clipId = clip.ClipId,
+                displayName = clip.DisplayName,
+                sourceClipName = clip.SourceClipName,
+                sourceSubClipId = clip.SourceSubClipId,
+                runtimeResourceKey = clip.RuntimeResourceKey,
+                resource
+            });
+        }
+
+        return new
+        {
+            resources = resourcesByKey.Values.ToArray(),
+            animationClips
+        };
     }
 
     private static object CreateAnimationFieldSpecs()

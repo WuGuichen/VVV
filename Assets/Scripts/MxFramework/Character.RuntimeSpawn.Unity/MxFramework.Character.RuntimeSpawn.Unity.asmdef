@@ -3,6 +3,7 @@
     "rootNamespace": "MxFramework.CharacterRuntimeSpawn.Unity",
     "references": [
         "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Animation",
         "MxFramework.Character.Application",
         "MxFramework.CharacterControl",
         "MxFramework.CharacterControl.Input",

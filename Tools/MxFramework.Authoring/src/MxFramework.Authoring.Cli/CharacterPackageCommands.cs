@@ -325,12 +325,19 @@ internal static class CharacterPackageCommands
         string resourceMapping = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResourceMapping, options));
         string resolverPlan = EnsureTrailingNewline(JsonSerializer.Serialize(result.ResolverVerificationPlan, options));
         string unityCatalog = CreateUnityResourceCatalogJson(packagePath, package, result, options);
+        AnimationAuthoringCompileResult animationArtifacts = AnimationPackageCommands.Compile(packagePath, options);
         CharacterResourcePlanCompileResult resourcePlanArtifacts = CharacterResourcePlanCompiler.Compile(new CharacterResourcePlanCompileRequest
         {
             Package = package,
             PackageRootPath = packagePath,
             AuthoringCompileResult = result
         });
+        string animationSetDefinition = EnsureTrailingNewline(JsonSerializer.Serialize(animationArtifacts.AnimationSetDefinition, options));
+        string animationClipRegistry = EnsureTrailingNewline(JsonSerializer.Serialize(animationArtifacts.AnimationClipRegistry, options));
+        string animationResourcePlan = EnsureTrailingNewline(JsonSerializer.Serialize(animationArtifacts.AnimationResourcePlan, options));
+        string animationCompileResult = EnsureTrailingNewline(JsonSerializer.Serialize(animationArtifacts, options));
+        string animationPackageExpectation = EnsureTrailingNewline(JsonSerializer.Serialize(animationArtifacts.AnimationPackageExpectation, options));
+        string animationValidationReport = EnsureTrailingNewline(JsonSerializer.Serialize(animationArtifacts.AnimationValidationReport, options));
         string runtimeResourceCatalog = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.RuntimeResourceCatalog, options));
         string characterResourcePlan = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.CharacterResourcePlan, options));
         string audioCueManifest = EnsureTrailingNewline(JsonSerializer.Serialize(resourcePlanArtifacts.AudioCueManifest, options));
@@ -348,12 +355,18 @@ internal static class CharacterPackageCommands
         AddContentWrite(writes, "packageCache", "compiler/resource_hash_report.json", CombineProjectPath(targetRoot, "package_cache/resource_hash_report.json"), resourceHashReport, "Recreate");
         AddContentWrite(writes, "packageCache", "compiler/dependency_graph.json", CombineProjectPath(targetRoot, "package_cache/dependency_graph.json"), dependencyGraph, "Recreate");
         AddContentWrite(writes, "packageCache", "compiler/gate_report.txt", CombineProjectPath(targetRoot, "package_cache/gate_report.txt"), gateReportText, "Recreate");
+        AddContentWrite(writes, "packageCache", "animation/animation_compile_result.json", CombineProjectPath(targetRoot, "package_cache/animation_compile_result.json"), animationCompileResult, "Recreate");
+        AddContentWrite(writes, "packageCache", "animation/animation_package_expectation.json", CombineProjectPath(targetRoot, "package_cache/animation_package_expectation.json"), animationPackageExpectation, "Recreate");
+        AddContentWrite(writes, "packageCache", "animation/animation_validation_report.json", CombineProjectPath(targetRoot, "package_cache/animation_validation_report.json"), animationValidationReport, "Recreate");
 
         AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.GeneratedConfigPatch, "compiler/generated_config_patch.json", CombineProjectPath(targetRoot, "config/character_config_patch.json"), configPatch, "Recreate");
         AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.GeometryBinding, "compiler/geometry_binding.json", CombineProjectPath(targetRoot, "config/geometry_binding.json"), geometryBinding, "Recreate");
         AddContentWrite(writes, CharacterAuthoringCompilerWriteKinds.ResourceMapping, "compiler/resource_mapping.json", CombineProjectPath(targetRoot, "config/resource_catalog_mapping.json"), resourceMapping, "Recreate");
         AddContentWrite(writes, "resolverVerificationPlan", "compiler/resolver_verification_plan.json", CombineProjectPath(targetRoot, "config/resolver_verification_plan.json"), resolverPlan, "Recreate");
         AddContentWrite(writes, "unityResourceCatalog", "compiler/unity_resource_catalog.json", CombineProjectPath(targetRoot, "config/unity_resource_catalog.json"), unityCatalog, "Recreate");
+        AddContentWrite(writes, "animationSetDefinition", "animation/animation_set_definition.json", CombineProjectPath(targetRoot, "config/animation_set_definition.json"), animationSetDefinition, "Recreate");
+        AddContentWrite(writes, "animationClipRegistry", "animation/animation_clip_registry.json", CombineProjectPath(targetRoot, "config/animation_clip_registry.json"), animationClipRegistry, "Recreate");
+        AddContentWrite(writes, "animationResourcePlan", "animation/animation_resource_plan.json", CombineProjectPath(targetRoot, "config/animation_resource_plan.json"), animationResourcePlan, "Recreate");
         AddContentWrite(writes, "runtimeResourceCatalog", "compiler/runtime_resource_catalog.json", CombineProjectPath(targetRoot, "config/runtime_resource_catalog.json"), runtimeResourceCatalog, "Recreate");
         AddContentWrite(writes, "characterResourcePlan", "compiler/character_resource_plan.json", CombineProjectPath(targetRoot, "config/character_resource_plan.json"), characterResourcePlan, "Recreate");
         AddContentWrite(writes, "audioCueManifest", "compiler/audio_cue_manifest.json", CombineProjectPath(targetRoot, "config/audio_cue_manifest.json"), audioCueManifest, "Recreate");

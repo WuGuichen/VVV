@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MxFramework.Animation;
 using MxFramework.Resources;
 using MxFramework.Resources.Unity;
 using UnityEngine;
@@ -17,14 +18,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private Transform _spawnParent;
         [SerializeField] private bool _loadOnStart = true;
         [SerializeField] private CharacterRuntimeSerializedResource[] _resources = Array.Empty<CharacterRuntimeSerializedResource>();
+        [SerializeField] private bool _warmupAnimationOnLoad = true;
+        [SerializeField] private TextAsset _animationSetDefinitionJson;
+        [SerializeField] private TextAsset _animationClipRegistryJson;
+        [SerializeField] private string _animationSetId = string.Empty;
 
         private ResourceManager _resourceManager;
         private MemoryResourceProvider _memoryProvider;
+        private ResourceCatalog _resourceCatalog;
+        private MxAnimationWarmupService _animationWarmupService;
+        private MxAnimationWarmupResult _animationWarmupResult;
         private ResourceHandle<GameObject> _characterHandle;
         private GameObject _characterInstance;
 
         public ResourceManager ResourceManager => _resourceManager;
         public GameObject CharacterInstance => _characterInstance;
+        public MxAnimationWarmupResult AnimationWarmupResult => _animationWarmupResult;
 
         private void Start()
         {
@@ -34,6 +43,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void OnDestroy()
         {
+            ReleaseAnimationWarmup();
             if (_characterInstance != null)
                 Destroy(_characterInstance);
             if (_characterHandle != null)
@@ -43,6 +53,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _characterHandle = null;
             _resourceManager = null;
             _memoryProvider = null;
+            _resourceCatalog = null;
         }
 
         public bool LoadCharacter()
@@ -50,6 +61,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             EnsureResourceManager();
             if (_characterInstance != null)
                 return true;
+
+            WarmupAnimationResources();
 
             var key = new ResourceKey(_characterResourceId, ResourceTypeIds.GameObject, _characterResourceVariant, _packageId);
             ResourceLoadResult<ResourceHandle<GameObject>> result = _resourceManager.Load<GameObject>(key);
@@ -71,6 +84,57 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             CharacterRuntimeControllerBinding controllerBinding = _characterInstance.GetComponent<CharacterRuntimeControllerBinding>();
             if (controllerBinding != null)
                 controllerBinding.Initialize();
+
+            return true;
+        }
+
+        public bool WarmupAnimationResources()
+        {
+            ReleaseAnimationWarmup();
+            if (!_warmupAnimationOnLoad || _animationSetDefinitionJson == null || _animationClipRegistryJson == null)
+                return true;
+
+            EnsureResourceManager();
+            IReadOnlyList<MxAnimationSetDefinition> definitions;
+            try
+            {
+                definitions = MxAnimationCompiledArtifactJson.LoadSetDefinitions(_animationSetDefinitionJson.text, _packageId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("MxFramework Character: failed to parse animation set definition. " + ex.Message, this);
+                return false;
+            }
+
+            MxAnimationSetDefinition definition = ResolveAnimationSet(definitions);
+            if (definition == null)
+            {
+                Debug.LogWarning("MxFramework Character: animation set definition is missing. setId=" + _animationSetId, this);
+                return false;
+            }
+
+            MxAnimationClipRegistry registry;
+            try
+            {
+                registry = MxAnimationCompiledArtifactJson.LoadClipRegistry(_animationClipRegistryJson.text, _resourceCatalog, _packageId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("MxFramework Character: failed to parse animation clip registry. " + ex.Message, this);
+                return false;
+            }
+
+            _animationWarmupService = new MxAnimationWarmupService(new ResourcePreloadService(_resourceManager));
+            _animationWarmupResult = _animationWarmupService.Warmup(new MxAnimationWarmupRequest(
+                definition,
+                registry,
+                _resourceCatalog,
+                skipPreloadWhenInvalid: false));
+            if (_animationWarmupResult == null || !_animationWarmupResult.Success)
+            {
+                Debug.LogWarning("MxFramework Character: animation warmup completed with issues. " + FormatWarmupIssues(_animationWarmupResult), this);
+                return false;
+            }
 
             return true;
         }
@@ -112,13 +176,52 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     string.IsNullOrWhiteSpace(resource.PackageId) ? _packageId : resource.PackageId));
             }
 
+            _resourceCatalog = new ResourceCatalog(_catalogId, _packageId, catalogEntries);
             _resourceManager = new ResourceManager();
             if (usesMemoryProvider)
                 _resourceManager.RegisterProvider(_memoryProvider);
             if (usesResourcesProvider)
                 _resourceManager.RegisterProvider(new ResourcesProvider());
-            _resourceManager.AddCatalog(new ResourceCatalog(_catalogId, _packageId, catalogEntries));
+            _resourceManager.AddCatalog(_resourceCatalog);
             _resourceManager.ValidateCatalogs();
+        }
+
+        private void ReleaseAnimationWarmup()
+        {
+            if (_animationWarmupService != null && _animationWarmupResult != null)
+                _animationWarmupService.Release(_animationWarmupResult);
+            _animationWarmupResult = null;
+            _animationWarmupService = null;
+        }
+
+        private MxAnimationSetDefinition ResolveAnimationSet(IReadOnlyList<MxAnimationSetDefinition> definitions)
+        {
+            if (definitions == null || definitions.Count == 0)
+                return null;
+            if (string.IsNullOrWhiteSpace(_animationSetId))
+                return definitions[0];
+
+            for (int i = 0; i < definitions.Count; i++)
+            {
+                MxAnimationSetDefinition definition = definitions[i];
+                if (definition != null && string.Equals(definition.SetId, _animationSetId, StringComparison.Ordinal))
+                    return definition;
+            }
+
+            return null;
+        }
+
+        private static string FormatWarmupIssues(MxAnimationWarmupResult result)
+        {
+            if (result == null)
+                return "result=missing";
+            if (result.Issues.Count == 0)
+                return "none";
+
+            var messages = new List<string>();
+            for (int i = 0; i < result.Issues.Count; i++)
+                messages.Add(result.Issues[i].Code + ":" + result.Issues[i].Message);
+            return string.Join("; ", messages);
         }
     }
 

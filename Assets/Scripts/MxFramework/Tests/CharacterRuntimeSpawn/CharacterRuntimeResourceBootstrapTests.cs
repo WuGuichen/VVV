@@ -115,6 +115,51 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             }
         }
 
+        [Test]
+        public void LoadCharacter_WarmsCompiledAnimationResourcesBeforeSpawn()
+        {
+            var bootstrapObject = new GameObject("bootstrap");
+            var characterTemplate = new GameObject("character_template");
+            var sockets = new GameObject("Sockets").transform;
+            var socket = new GameObject("Socket_mainHand").transform;
+            var weaponTemplate = new GameObject("weapon_template");
+            var idleClip = new AnimationClip();
+            var setDefinition = new TextAsset(AnimationSetDefinitionJson);
+            var clipRegistry = new TextAsset(AnimationClipRegistryJson);
+            try
+            {
+                sockets.SetParent(characterTemplate.transform, false);
+                socket.SetParent(sockets, false);
+                CharacterRuntimeControllerBinding controllerBinding = characterTemplate.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureControllerBinding(controllerBinding);
+                characterTemplate.AddComponent<CharacterRuntimeInputMotionController>().EnableInputMotion = false;
+                CharacterDefaultEquipmentRuntimeBinder binder = characterTemplate.AddComponent<CharacterDefaultEquipmentRuntimeBinder>();
+                ConfigureBinder(binder, sockets, socket);
+
+                CharacterRuntimeResourceBootstrap bootstrap = bootstrapObject.AddComponent<CharacterRuntimeResourceBootstrap>();
+                ConfigureBootstrap(bootstrap, characterTemplate, weaponTemplate);
+                ConfigureAnimationWarmup(bootstrap, idleClip, setDefinition, clipRegistry);
+
+                Assert.IsTrue(bootstrap.LoadCharacter());
+
+                Assert.NotNull(bootstrap.AnimationWarmupResult);
+                Assert.IsTrue(bootstrap.AnimationWarmupResult.Success, FormatWarmupIssues(bootstrap.AnimationWarmupResult));
+                CollectionAssert.Contains(
+                    bootstrap.AnimationWarmupResult.RequiredKeys,
+                    new ResourceKey("char.test.anim.idle", ResourceTypeIds.AnimationClip, string.Empty, "test_package"));
+                Assert.GreaterOrEqual(bootstrap.ResourceManager.CreateDebugSnapshot().LoadedCount, 3);
+            }
+            finally
+            {
+                Object.DestroyImmediate(bootstrapObject);
+                Object.DestroyImmediate(characterTemplate);
+                Object.DestroyImmediate(weaponTemplate);
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(setDefinition);
+                Object.DestroyImmediate(clipRegistry);
+            }
+        }
+
         private static void ConfigureBinder(CharacterDefaultEquipmentRuntimeBinder binder, Transform socketsRoot, Transform socket)
         {
             var serialized = new SerializedObject(binder);
@@ -168,14 +213,95 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        private static void ConfigureAnimationWarmup(
+            CharacterRuntimeResourceBootstrap bootstrap,
+            AnimationClip idleClip,
+            TextAsset setDefinition,
+            TextAsset clipRegistry)
+        {
+            var serialized = new SerializedObject(bootstrap);
+            serialized.FindProperty("_warmupAnimationOnLoad").boolValue = true;
+            serialized.FindProperty("_animationSetDefinitionJson").objectReferenceValue = setDefinition;
+            serialized.FindProperty("_animationClipRegistryJson").objectReferenceValue = clipRegistry;
+            serialized.FindProperty("_animationSetId").stringValue = "set.base";
+
+            SerializedProperty resources = serialized.FindProperty("_resources");
+            resources.arraySize = 3;
+            SetResource(
+                resources.GetArrayElementAtIndex(2),
+                "char.test.anim.idle",
+                ResourceTypeIds.AnimationClip,
+                string.Empty,
+                "test/idle",
+                idleClip);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static void SetResource(SerializedProperty property, string id, string address, Object asset)
         {
+            SetResource(property, id, ResourceTypeIds.GameObject, "default", address, asset);
+        }
+
+        private static void SetResource(SerializedProperty property, string id, string typeId, string variant, string address, Object asset)
+        {
             property.FindPropertyRelative("_id").stringValue = id;
-            property.FindPropertyRelative("_typeId").stringValue = ResourceTypeIds.GameObject;
-            property.FindPropertyRelative("_variant").stringValue = "default";
+            property.FindPropertyRelative("_typeId").stringValue = typeId;
+            property.FindPropertyRelative("_variant").stringValue = variant;
             property.FindPropertyRelative("_packageId").stringValue = "test_package";
             property.FindPropertyRelative("_address").stringValue = address;
             property.FindPropertyRelative("_asset").objectReferenceValue = asset;
         }
+
+        private static string FormatWarmupIssues(MxFramework.Animation.MxAnimationWarmupResult result)
+        {
+            if (result == null)
+                return "missing";
+            var messages = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < result.Issues.Count; i++)
+                messages.Add(result.Issues[i].Code + ":" + result.Issues[i].Message);
+            return string.Join("; ", messages);
+        }
+
+        private const string AnimationSetDefinitionJson = @"{
+  ""format"": ""mx.animationSetDefinition.v1"",
+  ""schemaVersion"": ""1.0"",
+  ""packageId"": ""animation.test"",
+  ""sets"": [
+    {
+      ""setId"": ""set.base"",
+      ""version"": ""1.0"",
+      ""defaultClipId"": ""idle"",
+      ""fallbackClipId"": ""idle"",
+      ""groups"": [
+        {
+          ""groupId"": ""locomotion"",
+          ""clips"": [
+            {
+              ""clipId"": ""idle"",
+              ""runtimeResourceKey"": ""char.test.anim.idle"",
+              ""loop"": true,
+              ""speed"": 1
+            }
+          ]
+        }
+      ],
+      ""actionBindings"": []
+    }
+  ]
+}";
+
+        private const string AnimationClipRegistryJson = @"{
+  ""format"": ""mx.animationClipRegistry.v1"",
+  ""schemaVersion"": ""1.0"",
+  ""packageId"": ""animation.test"",
+  ""clips"": [
+    {
+      ""setId"": ""set.base"",
+      ""groupId"": ""locomotion"",
+      ""clipId"": ""idle"",
+      ""runtimeResourceKey"": ""char.test.anim.idle""
+    }
+  ]
+}";
     }
 }

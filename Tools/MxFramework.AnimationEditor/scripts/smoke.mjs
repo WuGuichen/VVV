@@ -36,6 +36,8 @@ assert(app.includes("/api/authoring/animation/packages"), "AnimationEditor shoul
 assert(app.includes("/api/authoring/animation/load"), "AnimationEditor should load animation package through Authoring API");
 assert(app.includes("/api/authoring/animation/save"), "AnimationEditor should save animation package through Authoring API");
 assert(app.includes("/api/authoring/animation/validate"), "AnimationEditor should validate animation package through Authoring API");
+assert(app.includes("/api/authoring/animation/preview"), "AnimationEditor preview should call compiler-backed preview endpoint");
+assert(app.includes("previewAnimation") && app.includes("package: state.packageRelative") && app.includes("animation: state.animation"), "AnimationEditor preview should post { package, animation } to the compiler-backed endpoint");
 assert(app.includes("/api/authoring/resources/pick") && app.includes("/api/authoring/resources/resolve-selection"), "AnimationEditor should use shared resource picker APIs");
 assert(app.includes("Animation.SourceClip"), "AnimationEditor should use Animation.SourceClip ResourceFieldSpec");
 assert(app.includes("sourceSelection") && app.includes("sourceSubClipId") && app.includes("sourceClipName"), "AnimationEditor should persist clip source mapping fields");
@@ -62,14 +64,19 @@ assert(app.includes("copyTimelineContext") && app.includes("Timeline Event JSON"
 assert(app.includes("audioCueId") && !app.includes("Event AudioClip"), "Timeline AudioCue picker should not be treated as an AudioClip selector");
 assert(app.includes("Preview / Bake / Compatibility") && app.includes("PREVIEW_TARGET_OPTIONS"), "AnimationEditor should expose preview, bake, and compatibility workflow");
 assert(app.includes("runtime authority") && app.includes("Unity scene/prefab"), "Preview workflow should state it is not runtime authority and does not write Unity scene/prefab");
+assert(index.includes("previewButton") && app.includes("compilerPreviewPanel") && app.includes("compilerPreviewViewport") && app.includes("previewPlaybackToggle") && app.includes("previewClipList") && app.includes("previewResourceStatus"), "AnimationEditor should expose compiler-backed 3D preview panel controls and DOM hooks");
+assert(app.includes("previewResources") && app.includes("animationClips") && app.includes("compileResult") && app.includes("animationResourcePlan"), "AnimationEditor should render compiler preview resource and compile output state");
+assert(index.includes("type=\"importmap\"") && index.includes("/Tools/MxFramework.CharacterStudio/node_modules/three") && app.includes("GLTFLoader") && app.includes("OrbitControls"), "AnimationEditor 3D preview should use CharacterStudio local Three.js runtime when available");
 assert(app.includes("getBakeArtifactSummary") && app.includes("generatedArtifactSelections") && app.includes("ANIM_BAKE_ARTIFACT_STALE"), "AnimationEditor should summarize bake artifacts and stale hashes");
 assert(app.includes("getCompatibilityReport") && app.includes("ANIM_COMPAT_ROOT_MOTION_POLICY_MISMATCH") && app.includes("ANIM_COMPAT_SKELETON_PROFILE_MISSING"), "AnimationEditor should diagnose compatibility and root motion policy issues");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/") && app.includes("Tools/MxFramework.CharacterStudio/web/"), "AnimationEditor should link Resource Manager and CharacterStudio");
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "AnimationEditor should remain a vanilla web workstation");
+assert(!index.includes("react") && !index.includes("vite") && !styles.includes("@vite"), "AnimationEditor should not migrate to a frontend framework or build tool");
 assert(styles.includes(".workspace") && styles.includes(".resource-picker-overlay"), "AnimationEditor should style workspace and resource picker overlay");
 assert(styles.includes(".blend-track") && styles.includes(".blend-plane") && styles.includes(".blend-diagnostics"), "AnimationEditor should style visual blend editors and diagnostics");
 assert(styles.includes(".timeline-scrubber") && styles.includes(".timeline-domain-row") && styles.includes(".timeline-event-row"), "AnimationEditor should style timeline scrubber and event list");
 assert(styles.includes(".preview-bake-compatibility") && styles.includes(".artifact-table") && styles.includes(".workflow-diagnostics"), "AnimationEditor should style preview, bake, and compatibility workflow");
+assert(styles.includes(".compiler-preview-panel") && styles.includes(".compiler-preview-viewport") && styles.includes(".preview-resource-status") && styles.includes(".preview-clip-list"), "AnimationEditor should style compiler-backed 3D preview panel");
 assert(styles.includes(".structure-editor") && styles.includes(".runtime-table") && styles.includes(".selection-list-editor"), "AnimationEditor should style full DTO structure editors");
 assert(launcher.includes("dotnet --list-sdks") && launcher.includes("is_animation_editor_server_ready"), "AnimationEditor launcher should check .NET and server readiness");
 assert(hubApp.includes("Tools/MxFramework.AnimationEditor/web/"), "EditorHub should link Animation Editor");

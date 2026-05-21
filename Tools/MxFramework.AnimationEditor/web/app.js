@@ -6,6 +6,7 @@ const API = {
   save: "/api/authoring/animation/save",
   validate: "/api/authoring/animation/validate",
   compile: "/api/authoring/animation/compile",
+  preview: "/api/authoring/animation/preview",
   pick: "/api/authoring/resources/pick",
   resolveSelection: "/api/authoring/resources/resolve-selection"
 };
@@ -107,6 +108,8 @@ const EVENT_KIND_OPTIONS = [
   { value: "Custom", label: "custom" }
 ];
 
+let threeRuntimePromise = null;
+
 const state = {
   packages: [],
   packageRelative: DEFAULT_PACKAGE,
@@ -121,6 +124,16 @@ const state = {
   blendEditor: { view: "1D", blendId: "" },
   timelineEditor: { timelineId: "" },
   previewWorkflow: { targetType: "skeleton" },
+  preview3d: {
+    loading: false,
+    result: null,
+    error: "",
+    playing: false,
+    selectedClipId: "",
+    renderId: 0,
+    cleanup: null,
+    threeStatus: "idle"
+  },
   resourcePicker: {
     open: false,
     clip: null,
@@ -150,7 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   for (const id of [
     "serverStatus", "packageSelect", "setSelect", "refreshButton", "saveButton", "validateButton",
-    "compileButton", "openResourceManagerButton", "openCharacterStudioButton", "statusStrip", "treeSummary",
+    "compileButton", "previewButton", "openResourceManagerButton", "openCharacterStudioButton", "statusStrip", "treeSummary",
     "addSetButton", "animationTree", "workspaceTitle", "workspaceSubtitle", "addGroupButton",
     "addClipButton", "mappingWorkspace", "inspectorSubtitle", "inspectorContent",
     "diagnosticsSummary", "copyDiagnosticsButton", "diagnosticsList", "resourcePickerOverlay",
@@ -174,6 +187,7 @@ function bindEvents() {
   el.saveButton.addEventListener("click", saveAnimation);
   el.validateButton.addEventListener("click", validateAnimation);
   el.compileButton.addEventListener("click", compileAnimation);
+  el.previewButton.addEventListener("click", previewAnimation);
   el.addSetButton.addEventListener("click", addSet);
   el.addGroupButton.addEventListener("click", addGroup);
   el.addClipButton.addEventListener("click", addClip);
@@ -217,6 +231,12 @@ function bindEvents() {
       removeTimelineEvent(Number(button.dataset.eventIndex));
     } else if (button.dataset.copyTimelineContext) {
       copyTimelineContext();
+    } else if (button.dataset.runCompilerPreview) {
+      previewAnimation();
+    } else if (button.dataset.previewPlayToggle) {
+      togglePreviewPlayback();
+    } else if (button.dataset.previewClipId) {
+      selectPreviewClip(button.dataset.previewClipId);
     } else if (button.dataset.pickEventResource) {
       const timeline = getSelectedTimeline(findGroup(state.selected.setId, state.selected.groupId));
       const eventItem = timeline ? (timeline.events || [])[Number(button.dataset.eventIndex)] : null;
@@ -299,6 +319,7 @@ async function loadAnimation() {
   state.animation = payload.package || createEmptyAnimationPackage();
   state.fieldSpecs = payload.fieldSpecs || {};
   state.validation = payload.validation || null;
+  clearPreview3d("动画包已重新读取");
   ensureAnimationShape();
   ensureSelection();
   render();
@@ -350,6 +371,40 @@ async function compileAnimation() {
     if (result.animationValidationReport || result.validationReport) state.validation = result.animationValidationReport || result.validationReport;
     render();
   }
+}
+
+async function previewAnimation() {
+  ensureAnimationShape();
+  cleanupPreviewViewport();
+  state.preview3d.loading = true;
+  state.preview3d.error = "";
+  state.preview3d.result = null;
+  state.preview3d.threeStatus = "loading";
+  state.lastMessage = "正在请求编译预览";
+  render();
+
+  const result = await postJson(API.preview, {
+    package: state.packageRelative,
+    animation: state.animation
+  }, "编译预览");
+
+  state.preview3d.loading = false;
+  if (!result) {
+    state.preview3d.error = "编译预览失败，请查看诊断。";
+    state.preview3d.threeStatus = "error";
+    render();
+    return;
+  }
+
+  state.preview3d.result = result;
+  state.compileResult = result.compileResult || state.compileResult;
+  if (result.animationValidationReport) state.validation = result.animationValidationReport;
+  const clips = getPreviewAnimationClips(result);
+  if (!clips.some(clip => getPreviewClipId(clip) === state.preview3d.selectedClipId)) {
+    state.preview3d.selectedClipId = getPreviewClipId(clips[0]) || "";
+  }
+  state.lastMessage = `编译预览完成：${getPreviewResources(result).length} 个资源，${clips.length} 个 Clip`;
+  render();
 }
 
 async function readJson(url, fallback, label) {
@@ -427,6 +482,7 @@ function renderStatus() {
     statusChip("Profiles", String(profileCount), profileCount > 0 ? "ok" : "warn"),
     statusChip("Layers", String(layerCount), layerCount > 0 ? "ok" : "warn"),
     statusChip("Bindings", String(bindingCount), bindingCount > 0 ? "ok" : "warn"),
+    statusChip("预览", getPreviewStatusLabel(), getPreviewStatusTone()),
     statusChip("Diagnostics", String(issueCount), issueCount === 0 ? "ok" : "warn"),
     state.lastMessage ? statusChip("操作", state.lastMessage, "info") : ""
   ].join("");
@@ -523,6 +579,7 @@ function renderWorkspace() {
     ${renderPreviewBakeCompatibilityWorkflow(set, group)}
     ${renderSetRuntimeSections(set)}
     ${renderPackageRuntimeSections()}`;
+  requestAnimationFrame(renderCompilerPreviewViewport);
 }
 
 function renderClipMappingTable(clips) {
@@ -888,7 +945,108 @@ function renderPreviewBakeCompatibilityWorkflow(set, group) {
 
       ${renderBakeArtifactSummary(bake)}
       ${renderCompatibilityReport(compatibility)}
+      ${renderCompilerBackedPreviewPanel(set, group, clip)}
     </section>`;
+}
+
+function renderCompilerBackedPreviewPanel(set, group, clip) {
+  const preview = state.preview3d;
+  const result = preview.result;
+  const resources = getPreviewResources(result);
+  const clips = getPreviewAnimationClips(result);
+  const selectedClip = getSelectedPreviewClip();
+  const selectedResource = selectedClip?.resource || getPreviewResourceForClip(clip, resources);
+  const diagnostics = getPreviewDiagnostics(result);
+  const glbResources = resources.filter(resource => isPreviewModelResource(resource));
+  const missingResources = resources.filter(resource => resource.exists === false);
+  const endpointLabel = API.preview;
+
+  return `
+    <article id="compilerPreviewPanel" class="workflow-report compiler-preview-panel" aria-label="编译器驱动 3D 预览">
+      <div class="preview-card-heading">
+        <h4>编译器驱动 3D 预览</h4>
+        <span>${escapeHtml(preview.loading ? "编译中" : result ? "编译器结果" : "等待预览")}</span>
+      </div>
+      <div class="compiler-preview-layout">
+        <div id="compilerPreviewViewport" class="compiler-preview-viewport" data-preview-state="${escapeHtml(preview.threeStatus || "idle")}">
+          ${renderPreviewViewportFallback(selectedResource, preview)}
+        </div>
+        <div class="compiler-preview-sidebar">
+          <div class="preview-control-row">
+            <button id="runCompilerPreviewButton" type="button" data-run-compiler-preview="1">${preview.loading ? "正在编译..." : "运行编译预览"}</button>
+            <button id="previewPlaybackToggle" type="button" data-preview-play-toggle="1" ${selectedClip ? "" : "disabled"}>${preview.playing ? "暂停" : "播放"}</button>
+          </div>
+          <dl class="preview-kv compact compiler-preview-kv">
+            <dt>端点</dt>
+            <dd><code>${escapeHtml(endpointLabel)}</code></dd>
+            <dt>请求载荷</dt>
+            <dd><code>{ package, animation }</code></dd>
+            <dt>Set/Group/Clip</dt>
+            <dd><code>${escapeHtml(`${set?.setId || "set"}/${group?.groupId || "group"}/${clip?.clipId || "clip"}`)}</code></dd>
+            <dt>模型资源</dt>
+            <dd>${escapeHtml(`${glbResources.length}/${resources.length}`)}</dd>
+            <dt>缺失资源</dt>
+            <dd>${escapeHtml(String(missingResources.length))}</dd>
+          </dl>
+          ${renderPreviewClipList(clips)}
+        </div>
+      </div>
+      ${renderPreviewResourceStatus(resources, selectedResource)}
+      ${renderWorkflowDiagnostics("预览诊断", diagnostics)}
+    </article>`;
+}
+
+function renderPreviewViewportFallback(resource, preview) {
+  if (preview.loading) {
+    return `<div class="preview-viewport-fallback"><strong>正在请求编译器预览...</strong><span>端点会返回 compileResult、resource plan、clip registry 和 previewResources。</span></div>`;
+  }
+  if (preview.error) {
+    return `<div class="preview-viewport-fallback error"><strong>预览不可用</strong><span>${escapeHtml(preview.error)}</span></div>`;
+  }
+  if (!preview.result) {
+    return `<div class="preview-viewport-fallback"><strong>尚未运行编译预览</strong><span>点击“运行编译预览”，从编译器结果读取 GLB/model 资源和 Clip Registry。</span></div>`;
+  }
+  if (!resource) {
+    return `<div class="preview-viewport-fallback warning"><strong>没有可显示的模型资源</strong><span>编译器返回了预览数据，但当前 Clip 没有关联 GLB/GLTF 资源。</span></div>`;
+  }
+  return `<div class="preview-viewport-fallback"><strong>正在初始化 Three.js 视口...</strong><span>${escapeHtml(resource.resourceKey || resource.stableId || resource.url || "model")}</span></div>`;
+}
+
+function renderPreviewClipList(clips) {
+  if (!clips.length) return emptyBlock("编译器还没有返回 animationClipRegistry。");
+  return `
+      <div id="previewClipList" class="preview-clip-list" aria-label="编译后的动画 Clip">
+      ${clips.map(clip => {
+        const clipId = getPreviewClipId(clip);
+        const resource = clip.resource || {};
+        const active = clipId === state.preview3d.selectedClipId;
+        return `
+          <button type="button" class="preview-clip-row ${active ? "active" : ""}" data-preview-clip-id="${escapeHtml(clipId)}">
+            <span>${escapeHtml(clip.displayName || clip.clipId || "clip")}</span>
+            <code>${escapeHtml(resource.resourceKey || clip.runtimeResourceKey || "未绑定资源")}</code>
+          </button>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderPreviewResourceStatus(resources, selectedResource) {
+  if (!resources.length) {
+    return `<div id="previewResourceStatus" class="preview-resource-status empty-row">previewResources.resources 为空；请先检查编译输出和 resource_catalog.json。</div>`;
+  }
+  return `
+    <div id="previewResourceStatus" class="preview-resource-status" role="table" aria-label="预览资源状态">
+      <div class="preview-resource-row preview-resource-head"><span>resourceKey</span><span>kind/usage</span><span>路径</span><span>状态</span></div>
+      ${resources.map(resource => {
+        const selected = selectedResource && resource.resourceKey === selectedResource.resourceKey;
+        return `
+          <div class="preview-resource-row ${selected ? "active" : ""} ${resource.exists === false ? "missing" : ""}">
+            <code>${escapeHtml(resource.resourceKey || resource.stableId || "-")}</code>
+            <span>${escapeHtml(`${resource.kind || "-"}/${resource.usage || "-"}`)}</span>
+            <code title="${escapeHtml(resource.projectRelativePath || resource.relativePath || resource.url || "")}">${escapeHtml(resource.projectRelativePath || resource.relativePath || resource.url || "-")}</code>
+            <span>${escapeHtml(resource.exists === false ? "缺失" : isPreviewModelResource(resource) ? "GLB 可用" : "元数据")}</span>
+          </div>`;
+      }).join("")}
+    </div>`;
 }
 
 function renderBakeArtifactSummary(summary) {
@@ -3221,6 +3379,7 @@ function ensureWarmup(owner) {
 function getIssues() {
   const issues = [];
   if (Array.isArray(state.validation?.issues)) issues.push(...state.validation.issues);
+  if (Array.isArray(state.preview3d.result?.diagnostics)) issues.push(...state.preview3d.result.diagnostics);
   if (Array.isArray(state.animation?.diagnostics)) issues.push(...state.animation.diagnostics);
   issues.push(...getLocalBlendIssues());
   issues.push(...getLocalTimelineIssues());
@@ -3240,6 +3399,265 @@ function getSelectionTitle(selection) {
   if (!selection) return "";
   return selection.audioCueId || selection.audioEventDefinitionId || selection.resourceStableId || selection.runtimeResourceKey || selection.providerResourceKey ||
     selection.packageResourceKey || selection.unityAssetPath || selection.unityGuid || "";
+}
+
+function clearPreview3d(reason) {
+  cleanupPreviewViewport();
+  state.preview3d.loading = false;
+  state.preview3d.result = null;
+  state.preview3d.error = "";
+  state.preview3d.playing = false;
+  state.preview3d.selectedClipId = "";
+  state.preview3d.threeStatus = reason ? "idle" : state.preview3d.threeStatus;
+}
+
+function cleanupPreviewViewport() {
+  if (typeof state.preview3d.cleanup === "function") {
+    state.preview3d.cleanup();
+  }
+  state.preview3d.cleanup = null;
+  state.preview3d.renderId += 1;
+}
+
+function togglePreviewPlayback() {
+  if (!getSelectedPreviewClip()) return;
+  state.preview3d.playing = !state.preview3d.playing;
+  state.lastMessage = state.preview3d.playing ? "预览播放中" : "预览已暂停";
+  renderStatus();
+  renderWorkspace();
+}
+
+function selectPreviewClip(clipId) {
+  state.preview3d.selectedClipId = clipId || "";
+  state.preview3d.playing = false;
+  state.lastMessage = "已切换预览 Clip";
+  renderStatus();
+  renderWorkspace();
+}
+
+function getPreviewStatusLabel() {
+  if (state.preview3d.loading) return "编译中";
+  if (state.preview3d.error) return "失败";
+  if (state.preview3d.result) return state.preview3d.playing ? "播放中" : "已就绪";
+  return "未运行";
+}
+
+function getPreviewStatusTone() {
+  if (state.preview3d.error) return "error";
+  if (state.preview3d.loading || state.preview3d.result) return "ok";
+  return "warn";
+}
+
+function getPreviewResources(result = state.preview3d.result) {
+  return Array.isArray(result?.previewResources?.resources) ? result.previewResources.resources : [];
+}
+
+function getPreviewAnimationClips(result = state.preview3d.result) {
+  return Array.isArray(result?.previewResources?.animationClips) ? result.previewResources.animationClips : [];
+}
+
+function getPreviewDiagnostics(result = state.preview3d.result) {
+  const diagnostics = [];
+  if (Array.isArray(result?.diagnostics)) diagnostics.push(...result.diagnostics.map(normalizePreviewDiagnostic));
+  if (Array.isArray(result?.compileResult?.Diagnostics)) diagnostics.push(...result.compileResult.Diagnostics.map(normalizePreviewDiagnostic));
+  if (state.preview3d.error) diagnostics.push({ tone: "error", code: "ANIM_PREVIEW_ENDPOINT_FAILED", message: state.preview3d.error });
+  if (result && getPreviewResources(result).length === 0) {
+    diagnostics.push({ tone: "warning", code: "ANIM_PREVIEW_RESOURCES_EMPTY", message: "previewResources.resources 为空，3D 视口只能显示占位状态。" });
+  }
+  return diagnostics;
+}
+
+function normalizePreviewDiagnostic(issue) {
+  const severity = String(issue?.severity || issue?.Severity || "").toLowerCase();
+  return {
+    tone: severity === "error" ? "error" : severity === "warning" ? "warning" : "info",
+    code: issue?.code || issue?.Code || "ANIM_PREVIEW_DIAGNOSTIC",
+    message: issue?.message || issue?.Message || JSON.stringify(issue)
+  };
+}
+
+function getPreviewClipId(clip) {
+  if (!clip) return "";
+  return `${clip.setId || ""}/${clip.groupId || ""}/${clip.clipId || ""}`;
+}
+
+function getSelectedPreviewClip() {
+  const clips = getPreviewAnimationClips();
+  return clips.find(clip => getPreviewClipId(clip) === state.preview3d.selectedClipId) || clips[0] || null;
+}
+
+function getPreviewResourceForClip(clip, resources) {
+  const key = clip?.runtimeResourceKey || clip?.sourceSelection?.runtimeResourceKey || clip?.sourceSelection?.providerResourceKey || "";
+  if (!key) return null;
+  return resources.find(resource => resource.resourceKey === key || resource.stableId === key) || null;
+}
+
+function isPreviewModelResource(resource) {
+  const path = String(resource?.url || resource?.relativePath || resource?.projectRelativePath || "").toLowerCase();
+  const kind = String(resource?.kind || "").toLowerCase();
+  const usage = String(resource?.usage || "").toLowerCase();
+  return resource?.exists !== false && (path.endsWith(".glb") || path.endsWith(".gltf") || kind.includes("model") || usage.includes("model"));
+}
+
+async function renderCompilerPreviewViewport() {
+  const host = document.getElementById("compilerPreviewViewport");
+  if (!host || !state.preview3d.result || state.preview3d.loading) return;
+  cleanupPreviewViewport();
+  const renderId = ++state.preview3d.renderId;
+  const selectedClip = getSelectedPreviewClip();
+  const resource = selectedClip?.resource || getPreviewResourceForClip(findSelectedClip(), getPreviewResources());
+  if (!resource || !isPreviewModelResource(resource) || !resource.url) {
+    state.preview3d.threeStatus = "fallback";
+    host.dataset.previewState = "fallback";
+    return;
+  }
+
+  state.preview3d.threeStatus = "loading";
+  host.dataset.previewState = "loading";
+  try {
+    await renderThreePreviewViewport(host, resource, selectedClip, renderId);
+  } catch (error) {
+    if (renderId !== state.preview3d.renderId) return;
+    state.preview3d.threeStatus = "fallback";
+    host.dataset.previewState = "fallback";
+    host.innerHTML = `<div class="preview-viewport-fallback warning"><strong>Three.js 预览不可用</strong><span>${escapeHtml(error instanceof Error ? error.message : String(error))}</span></div>`;
+  }
+}
+
+async function renderThreePreviewViewport(host, resource, clip, renderId) {
+  const { THREE, GLTFLoader, OrbitControls } = await loadThreeRuntime();
+  if (renderId !== state.preview3d.renderId) return;
+
+  host.innerHTML = "";
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b111d);
+
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
+  camera.position.set(2.2, 1.5, 3);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  host.append(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.target.set(0, 0.9, 0);
+  controls.minDistance = 0.5;
+  controls.maxDistance = 8;
+
+  scene.add(new THREE.HemisphereLight(0xddeeff, 0x1f2a38, 1.7));
+  const key = new THREE.DirectionalLight(0xffffff, 1.8);
+  key.position.set(2.5, 3.5, 2);
+  scene.add(key);
+  scene.add(new THREE.GridHelper(3.2, 16, 0x34515f, 0x1f2a38));
+
+  const content = new THREE.Group();
+  scene.add(content);
+
+  let disposed = false;
+  let frame = 0;
+  let resizeObserver = null;
+  const disposeLocal = () => {
+    if (disposed) return;
+    disposed = true;
+    if (frame) cancelAnimationFrame(frame);
+    if (resizeObserver) resizeObserver.disconnect();
+    controls.dispose();
+    renderer.dispose();
+    disposeThreeObject(THREE, scene);
+  };
+  state.preview3d.cleanup = disposeLocal;
+
+  const loader = new GLTFLoader();
+  const gltf = await new Promise((resolve, reject) => loader.load(resource.url, resolve, undefined, reject));
+  if (renderId !== state.preview3d.renderId) {
+    disposeThreeObject(THREE, gltf.scene);
+    disposeLocal();
+    return;
+  }
+  const model = gltf.scene;
+  model.name = resource.resourceKey || resource.stableId || clip?.clipId || "previewModel";
+  content.add(model);
+  framePreviewContent(THREE, camera, controls, content);
+
+  const label = document.createElement("div");
+  label.className = "preview-viewport-label";
+  label.textContent = `${clip?.displayName || clip?.clipId || "Clip"} / ${resource.resourceKey || "model"}`;
+  host.append(label);
+
+  const resize = () => {
+    const width = Math.max(1, host.clientWidth);
+    const height = Math.max(1, host.clientHeight);
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  };
+  resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(host);
+  resize();
+
+  const clock = new THREE.Clock();
+  const animate = () => {
+    if (disposed) return;
+    const elapsed = clock.getElapsedTime();
+    if (state.preview3d.playing) {
+      model.rotation.y = Math.sin(elapsed * 1.4) * 0.18;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    frame = requestAnimationFrame(animate);
+  };
+  animate();
+  state.preview3d.threeStatus = "ready";
+  host.dataset.previewState = "ready";
+  state.preview3d.cleanup = disposeLocal;
+}
+
+async function loadThreeRuntime() {
+  if (!threeRuntimePromise) {
+    threeRuntimePromise = Promise.all([
+      import("three"),
+      import("three/addons/loaders/GLTFLoader.js"),
+      import("three/addons/controls/OrbitControls.js")
+    ]).then(([THREE, loaderModule, controlsModule]) => ({
+      THREE,
+      GLTFLoader: loaderModule.GLTFLoader,
+      OrbitControls: controlsModule.OrbitControls
+    }));
+  }
+  return threeRuntimePromise;
+}
+
+function framePreviewContent(THREE, camera, controls, content) {
+  const box = new THREE.Box3().setFromObject(content);
+  if (box.isEmpty()) {
+    controls.target.set(0, 0.9, 0);
+    camera.position.set(2.2, 1.5, 3);
+    return;
+  }
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 0.8);
+  const distance = maxDim * 2.2;
+  controls.target.copy(center);
+  camera.position.copy(center).add(new THREE.Vector3(distance * 0.8, distance * 0.55, distance));
+  camera.near = Math.max(0.01, distance / 100);
+  camera.far = Math.max(50, distance * 10);
+  camera.updateProjectionMatrix();
+}
+
+function disposeThreeObject(THREE, root) {
+  root.traverse(object => {
+    if (object.geometry) object.geometry.dispose();
+    const materials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
+    for (const material of materials) {
+      for (const key of Object.keys(material)) {
+        const value = material[key];
+        if (value && value.isTexture) value.dispose();
+      }
+      material.dispose();
+    }
+  });
 }
 
 function getProviderData(item, key) {

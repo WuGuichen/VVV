@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using MxFramework.Animation;
 using MxFramework.CharacterApplication;
 using MxFramework.Config;
 using MxFramework.Resources;
@@ -28,13 +29,14 @@ namespace MxFramework.CharacterRuntimeSpawn
             ResourceCatalog runtimeCatalog = LoadOptionalResourceCatalogFromFile(Path.Combine(configRoot, "runtime_resource_catalog.json"));
             CharacterResourcePlan runtimePlan = LoadOptionalCharacterResourcePlanFromFile(Path.Combine(configRoot, "character_resource_plan.json"));
             CharacterAudioCueManifest audioCueManifest = LoadOptionalAudioCueManifestFromFile(Path.Combine(configRoot, "audio_cue_manifest.json"));
+            CharacterCompiledAnimationArtifacts compiledAnimationArtifacts = LoadCompiledAnimationArtifacts(configRoot, runtimeCatalog);
             CharacterUnityImportRuntimeReport report = LoadImportReportFromFile(Path.Combine(cacheRoot, "import_report.json"));
 
             string packageId = !string.IsNullOrEmpty(report.PackageId)
                 ? report.PackageId
                 : !string.IsNullOrEmpty(geometry.PackageId) ? geometry.PackageId : mapping.PackageId;
 
-            return new CharacterImportedPackage(importedPackageRoot, packageId, configs, geometry, mapping, catalog, report, runtimeCatalog, runtimePlan, audioCueManifest);
+            return new CharacterImportedPackage(importedPackageRoot, packageId, configs, geometry, mapping, catalog, report, runtimeCatalog, runtimePlan, audioCueManifest, compiledAnimationArtifacts);
         }
 
         public static CharacterImportedConfigSet LoadConfigSetFromFile(string path)
@@ -65,6 +67,21 @@ namespace MxFramework.CharacterRuntimeSpawn
         public static CharacterAudioCueManifest LoadAudioCueManifestFromFile(string path)
         {
             return LoadAudioCueManifest(ReadRequiredFile(path, "audio cue manifest"));
+        }
+
+        public static CharacterAnimationSetDefinition LoadAnimationSetDefinitionFromFile(string path)
+        {
+            return LoadAnimationSetDefinition(ReadRequiredFile(path, "animation set definition"));
+        }
+
+        public static CharacterAnimationClipRegistry LoadAnimationClipRegistryFromFile(string path)
+        {
+            return LoadAnimationClipRegistry(ReadRequiredFile(path, "animation clip registry"));
+        }
+
+        public static CharacterAnimationResourcePlan LoadAnimationResourcePlanFromFile(string path)
+        {
+            return LoadAnimationResourcePlan(ReadRequiredFile(path, "animation resource plan"));
         }
 
         public static CharacterUnityImportRuntimeReport LoadImportReportFromFile(string path)
@@ -291,6 +308,51 @@ namespace MxFramework.CharacterRuntimeSpawn
                 ParseArray(root["cues"] as JArray, ParseAudioCueManifestEntry));
         }
 
+        public static CharacterAnimationSetDefinition LoadAnimationSetDefinition(string json)
+        {
+            JObject root = ParseRoot(json, "animation set definition");
+            if (!string.Equals(ReadString(root, "format"), "mx.animationSetDefinition.v1", StringComparison.Ordinal))
+                throw new CharacterImportedPackageJsonException("Unsupported animation set definition format.");
+
+            return new CharacterAnimationSetDefinition(
+                ReadString(root, "format"),
+                ReadString(root, "schemaVersion"),
+                ReadString(root, "packageId"),
+                ReadString(root, "stableId"),
+                ReadString(root, "displayName"),
+                ReadString(root, "skeletonProfileId"),
+                ReadString(root, "avatarProfileId"),
+                ParseArray(root["sets"] as JArray, ParseAnimationSet),
+                ParseArray(root["profiles"] as JArray, ParseAnimationProfile));
+        }
+
+        public static CharacterAnimationClipRegistry LoadAnimationClipRegistry(string json)
+        {
+            JObject root = ParseRoot(json, "animation clip registry");
+            if (!string.Equals(ReadString(root, "format"), "mx.animationClipRegistry.v1", StringComparison.Ordinal))
+                throw new CharacterImportedPackageJsonException("Unsupported animation clip registry format.");
+
+            return new CharacterAnimationClipRegistry(
+                ReadString(root, "format"),
+                ReadString(root, "schemaVersion"),
+                ReadString(root, "packageId"),
+                ParseArray(root["clips"] as JArray, ParseAnimationClipRegistryEntry));
+        }
+
+        public static CharacterAnimationResourcePlan LoadAnimationResourcePlan(string json)
+        {
+            JObject root = ParseRoot(json, "animation resource plan");
+            if (!string.Equals(ReadString(root, "format"), "mx.animationResourcePlan.v1", StringComparison.Ordinal))
+                throw new CharacterImportedPackageJsonException("Unsupported animation resource plan format.");
+
+            return new CharacterAnimationResourcePlan(
+                ReadString(root, "format"),
+                ReadString(root, "schemaVersion"),
+                ReadString(root, "packageId"),
+                ReadString(root, "stableId"),
+                ReadString(root, "planHash"));
+        }
+
         private static ResourceCatalog LoadOptionalResourceCatalogFromFile(string path)
         {
             return File.Exists(path) ? LoadResourceCatalog(File.ReadAllText(path)) : null;
@@ -304,6 +366,64 @@ namespace MxFramework.CharacterRuntimeSpawn
         private static CharacterAudioCueManifest LoadOptionalAudioCueManifestFromFile(string path)
         {
             return File.Exists(path) ? LoadAudioCueManifest(File.ReadAllText(path)) : CharacterAudioCueManifest.Empty;
+        }
+
+        private static CharacterCompiledAnimationArtifacts LoadCompiledAnimationArtifacts(string configRoot, ResourceCatalog runtimeCatalog)
+        {
+            var diagnostics = new List<CharacterRuntimeSpawnIssue>();
+            string setPath = Path.Combine(configRoot, "animation_set_definition.json");
+            string clipRegistryPath = Path.Combine(configRoot, "animation_clip_registry.json");
+            string resourcePlanPath = Path.Combine(configRoot, "animation_resource_plan.json");
+            CharacterAnimationSetDefinition setDefinition = LoadOptionalAnimationArtifact(
+                setPath,
+                "config/animation_set_definition.json",
+                "animation set definition",
+                LoadAnimationSetDefinition,
+                diagnostics);
+            CharacterAnimationClipRegistry clipRegistry = LoadOptionalAnimationArtifact(
+                clipRegistryPath,
+                "config/animation_clip_registry.json",
+                "animation clip registry",
+                LoadAnimationClipRegistry,
+                diagnostics);
+            CharacterAnimationResourcePlan resourcePlan = LoadOptionalAnimationArtifact(
+                resourcePlanPath,
+                "config/animation_resource_plan.json",
+                "animation resource plan",
+                LoadAnimationResourcePlan,
+                diagnostics);
+
+            string runtimeResourcePackageId = runtimeCatalog != null && !string.IsNullOrWhiteSpace(runtimeCatalog.PackageId)
+                ? runtimeCatalog.PackageId
+                : setDefinition != null ? setDefinition.PackageId : string.Empty;
+            IMxAnimationMappingProvider runtimeMappingProvider = File.Exists(setPath)
+                ? MxAnimationCompiledArtifactJson.LoadMappingProvider(File.ReadAllText(setPath), runtimeResourcePackageId)
+                : new MxAnimationStaticMappingProvider(null);
+            MxAnimationClipRegistry runtimeClipRegistry = File.Exists(clipRegistryPath)
+                ? MxAnimationCompiledArtifactJson.LoadClipRegistry(File.ReadAllText(clipRegistryPath), runtimeCatalog, runtimeResourcePackageId)
+                : new MxAnimationClipRegistry(0, runtimeCatalog != null ? runtimeCatalog.CatalogId : string.Empty, string.Empty, null);
+
+            return new CharacterCompiledAnimationArtifacts(setDefinition, clipRegistry, resourcePlan, diagnostics.ToArray(), runtimeMappingProvider, runtimeClipRegistry);
+        }
+
+        private static T LoadOptionalAnimationArtifact<T>(
+            string path,
+            string sourcePath,
+            string description,
+            Func<string, T> parse,
+            List<CharacterRuntimeSpawnIssue> diagnostics)
+            where T : class
+        {
+            if (File.Exists(path))
+                return parse(File.ReadAllText(path));
+
+            diagnostics.Add(new CharacterRuntimeSpawnIssue(
+                CharacterRuntimeSpawnIssueSeverity.Error,
+                CharacterRuntimeSpawnIssueCodes.MissingCompiledAnimationArtifact,
+                sourcePath,
+                string.Empty,
+                "Compiled " + description + " artifact is missing."));
+            return null;
         }
 
         private static CharacterResourcePlanGroup ParseResourcePlanGroup(
@@ -364,6 +484,73 @@ namespace MxFramework.CharacterRuntimeSpawn
                 ReadString(fields, "bank"),
                 ReadEnum(fields, "fallbackPolicy", CharacterResourceFailurePolicy.MuteMissingCue),
                 ReadStringDictionary(fields["providerData"] as JObject));
+        }
+
+        private static CharacterAnimationSet ParseAnimationSet(JObject fields)
+        {
+            return new CharacterAnimationSet(
+                ReadString(fields, "setId"),
+                ReadString(fields, "displayName"),
+                ReadString(fields, "version"),
+                ReadString(fields, "defaultClipId"),
+                ReadString(fields, "fallbackClipId"),
+                ParseArray(fields["groups"] as JArray, ParseAnimationGroup),
+                ParseArray(fields["actionBindings"] as JArray, ParseAnimationActionBinding));
+        }
+
+        private static CharacterAnimationGroup ParseAnimationGroup(JObject fields)
+        {
+            return new CharacterAnimationGroup(
+                ReadString(fields, "groupId"),
+                ReadString(fields, "displayName"),
+                ReadString(fields, "usage"),
+                ParseArray(fields["clips"] as JArray, ParseAnimationClipReference));
+        }
+
+        private static CharacterAnimationClipReference ParseAnimationClipReference(JObject fields)
+        {
+            return new CharacterAnimationClipReference(
+                ReadString(fields, "clipId"),
+                ReadString(fields, "displayName"),
+                ReadString(fields, "runtimeResourceKey"),
+                ReadString(fields, "sourceClipName"),
+                ReadString(fields, "sourceSubClipId"),
+                ReadBool(fields, "loop"),
+                ReadFloat(fields, "speed", 1f),
+                ReadString(fields, "rootMotionPolicy"));
+        }
+
+        private static CharacterAnimationActionBinding ParseAnimationActionBinding(JObject fields)
+        {
+            return new CharacterAnimationActionBinding(
+                ReadString(fields, "bindingId"),
+                ReadString(fields, "actionId"),
+                ReadString(fields, "groupId"),
+                ReadString(fields, "clipId"),
+                ReadString(fields, "blendId"),
+                ReadString(fields, "timelineId"),
+                ReadBool(fields, "required"));
+        }
+
+        private static CharacterAnimationProfile ParseAnimationProfile(JObject fields)
+        {
+            return new CharacterAnimationProfile(
+                ReadString(fields, "profileId"),
+                ReadString(fields, "displayName"),
+                ReadString(fields, "defaultSetId"),
+                ReadString(fields, "defaultGroupId"));
+        }
+
+        private static CharacterAnimationClipRegistryEntry ParseAnimationClipRegistryEntry(JObject fields)
+        {
+            return new CharacterAnimationClipRegistryEntry(
+                ReadString(fields, "setId"),
+                ReadString(fields, "groupId"),
+                ReadString(fields, "clipId"),
+                ReadString(fields, "displayName"),
+                ReadString(fields, "sourceClipName"),
+                ReadString(fields, "sourceSubClipId"),
+                ReadString(fields, "runtimeResourceKey"));
         }
 
         private static void MirrorUnityCatalogField(Dictionary<string, string> providerData, JObject entry, string name)

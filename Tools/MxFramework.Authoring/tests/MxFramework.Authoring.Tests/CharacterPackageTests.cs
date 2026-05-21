@@ -29,6 +29,7 @@ internal static class CharacterPackageTests
         AnimationAuthoringCompiler_EmitsRuntimePlanArtifacts();
         AnimationAuthoringResourceFieldSpecs_FilterAndResolveContracts();
         EditorServer_AnimationPackageApi_IsFileBackedAndValidatesShallowDraft();
+        EditorServer_AnimationPreview_IsCompilerBackedAndResolvesResources();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
@@ -1843,6 +1844,103 @@ internal static class CharacterPackageTests
         }
     }
 
+    private static void EditorServer_AnimationPreview_IsCompilerBackedAndResolvesResources()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "mx-animation-preview-" + Guid.NewGuid().ToString("N"));
+        string packageRelative = "Tools/MxFramework.Authoring/samples/animation-preview-test";
+        string packagePath = Path.Combine(tempRoot, "Tools", "MxFramework.Authoring", "samples", "animation-preview-test");
+        Directory.CreateDirectory(Path.Combine(packagePath, "config"));
+        Directory.CreateDirectory(Path.Combine(packagePath, "resources", "animations"));
+        File.WriteAllText(Path.Combine(packagePath, "resources", "animations", "idle.glb"), "preview glb placeholder");
+        File.WriteAllText(Path.Combine(packagePath, "manifest.json"), JsonSerializer.Serialize(new CharacterPackageManifest
+        {
+            PackageId = "animation_preview_test",
+            StableId = "char.animation_preview_test",
+            DisplayName = "Animation Preview Test"
+        }, JsonOptions));
+        File.WriteAllText(Path.Combine(packagePath, "resource_catalog.json"), JsonSerializer.Serialize(new CharacterPackageResourceCatalog
+        {
+            Entries = new List<CharacterPackageResourceEntry>
+            {
+                new CharacterPackageResourceEntry
+                {
+                    ResourceKey = "runtime.anim.idle",
+                    StableId = "stable.anim.idle",
+                    TypeId = CharacterPackageResourceTypeIds.Animation,
+                    Usage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+                    RelativePath = "resources/animations/idle.glb",
+                    Hash = "sha256:idle"
+                }
+            }
+        }, JsonOptions));
+
+        try
+        {
+            var sourceSelection = new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "stable.anim.idle",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                ExpectedKind = CharacterPackageResourceTypeIds.Animation,
+                ExpectedUsage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+                RuntimeResourceKey = "runtime.anim.idle"
+            };
+            var draft = new AnimationAuthoringPackage
+            {
+                PackageId = "animation.preview",
+                StableId = "animation.preview",
+                DisplayName = "Animation Preview"
+            };
+            draft.Sets.Add(new AnimationAuthoringSet
+            {
+                SetId = "set.base",
+                DisplayName = "Base",
+                DefaultClipId = "idle",
+                Groups = new List<AnimationGroupAuthoring>
+                {
+                    new AnimationGroupAuthoring
+                    {
+                        GroupId = "group.locomotion",
+                        Usage = "locomotion",
+                        Clips = new List<AnimationClipMappingAuthoring>
+                        {
+                            new AnimationClipMappingAuthoring
+                            {
+                                ClipId = "idle",
+                                DisplayName = "Idle",
+                                RuntimeResourceKey = "runtime.anim.idle",
+                                SourceSelection = sourceSelection,
+                                Loop = true
+                            }
+                        }
+                    }
+                },
+                Warmup = new AnimationWarmupAuthoring
+                {
+                    RequiredClipIds = new List<string> { "idle" }
+                }
+            });
+
+            object preview = MxFramework.Authoring.Cli.EditorServer.ReadAnimationPreview(tempRoot, packageRelative, packageRelative, draft, JsonOptions);
+            using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(preview, JsonOptions));
+            JsonElement root = document.RootElement;
+            Require(root.GetProperty("serviceStatus").GetString() == "ready", "animation preview endpoint should report ready service status.");
+            Require(root.GetProperty("animationSetDefinition").GetProperty("sets").GetArrayLength() == 1, "animation preview should expose compiled animation set definition.");
+            Require(root.GetProperty("animationClipRegistry").GetProperty("clips").GetArrayLength() == 1, "animation preview should expose compiled clip registry.");
+            JsonElement animationClip = root.GetProperty("previewResources").GetProperty("animationClips")[0];
+            Require(animationClip.GetProperty("runtimeResourceKey").GetString() == "runtime.anim.idle", "animation preview should map clip ids to runtime resource keys.");
+            JsonElement resource = animationClip.GetProperty("resource");
+            Require(resource.GetProperty("resourceKey").GetString() == "runtime.anim.idle", "animation preview should resolve runtime resource metadata.");
+            Require(resource.GetProperty("url").GetString().EndsWith("/resources/animations/idle.glb", StringComparison.Ordinal), "animation preview should expose a static resource URL for the viewport.");
+            Require(resource.GetProperty("exists").GetBoolean(), "animation preview should mark existing preview resource files.");
+            Require(root.GetProperty("animationValidationReport").GetProperty("hasBlockingIssues").GetBoolean() == false, "valid animation preview draft should compile without blocking diagnostics.");
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
     private static void AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs()
     {
         AuthoringResourceCollection collection = BuildAuthoringSelectionCollection();
@@ -3167,10 +3265,18 @@ internal static class CharacterPackageTests
         Require(File.Exists(Path.Combine(targetRoot, "generated", "character_application_config_patch.json")), "Unity import should write compiler config patch target.");
         Require(File.Exists(Path.Combine(targetRoot, "config", "geometry_binding.json")), "Unity import should write readable config geometry binding alias.");
         Require(File.Exists(catalogPath), "Unity import should write project ResourceCatalog JSON.");
+        Require(File.Exists(Path.Combine(targetRoot, "config", "animation_set_definition.json")), "Unity import should write runtime animation set definition.");
+        Require(File.Exists(Path.Combine(targetRoot, "config", "animation_clip_registry.json")), "Unity import should write runtime animation clip registry.");
+        Require(File.Exists(Path.Combine(targetRoot, "config", "animation_resource_plan.json")), "Unity import should write runtime animation resource plan.");
+        Require(File.Exists(Path.Combine(targetRoot, "config", "character_resource_plan.json")), "Unity import should write character resource plan.");
+        Require(File.Exists(Path.Combine(targetRoot, "package_cache", "animation_compile_result.json")), "Unity import should preserve animation compile result in package cache.");
 
         CharacterUnityImportReport firstReport = JsonSerializer.Deserialize<CharacterUnityImportReport>(File.ReadAllText(reportPath), JsonOptions);
         Require(firstReport != null && firstReport.Status == CharacterAuthoringCompilerStatus.Ready.ToString(), "first import report should be Ready.");
         Require(firstReport.AddedCount > 0, "first import should add files.");
+        Require(firstReport.Operations.Exists(operation => operation.TargetPath.EndsWith("config/animation_set_definition.json", StringComparison.Ordinal)), "import report should include animation set definition write.");
+        Require(firstReport.Operations.Exists(operation => operation.TargetPath.EndsWith("config/animation_clip_registry.json", StringComparison.Ordinal)), "import report should include animation clip registry write.");
+        Require(firstReport.Operations.Exists(operation => operation.TargetPath.EndsWith("config/animation_resource_plan.json", StringComparison.Ordinal)), "import report should include animation resource plan write.");
         string catalogJson = File.ReadAllText(catalogPath);
         Require(catalogJson.Contains("\"format\": \"mx.characterUnityResourceCatalog.v1\""), "generated Unity ResourceCatalog should declare C2 catalog format.");
         Require(catalogJson.Contains("\"packageResourceKey\": \"char.iron_vanguard.model.body\""), "generated Unity ResourceCatalog should expose package resource key as a top-level ledger field.");

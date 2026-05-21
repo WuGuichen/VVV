@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MxFramework.Animation;
 using MxFramework.CharacterApplication;
 using MxFramework.CharacterControl;
 using MxFramework.Combat.Core;
@@ -33,6 +34,7 @@ namespace MxFramework.CharacterRuntimeSpawn
         public const string ResolverFailed = "CHAR_RUNTIME_RESOLVER_FAILED";
         public const string MissingResourceMapping = "CHAR_RUNTIME_MISSING_RESOURCE_MAPPING";
         public const string DeferredBinding = "CHAR_RUNTIME_DEFERRED_BINDING";
+        public const string MissingCompiledAnimationArtifact = "CHAR_RUNTIME_MISSING_COMPILED_ANIMATION_ARTIFACT";
     }
 
     public readonly struct CharacterRuntimeSpawnIssue
@@ -121,7 +123,8 @@ namespace MxFramework.CharacterRuntimeSpawn
             CharacterUnityImportRuntimeReport importReport,
             ResourceCatalog runtimeResourceCatalog = null,
             CharacterResourcePlan runtimeResourcePlan = null,
-            CharacterAudioCueManifest audioCueManifest = null)
+            CharacterAudioCueManifest audioCueManifest = null,
+            CharacterCompiledAnimationArtifacts compiledAnimationArtifacts = null)
         {
             RootPath = rootPath ?? string.Empty;
             PackageId = packageId ?? string.Empty;
@@ -133,6 +136,7 @@ namespace MxFramework.CharacterRuntimeSpawn
             RuntimeResourceCatalog = runtimeResourceCatalog;
             RuntimeResourcePlan = runtimeResourcePlan;
             AudioCueManifest = audioCueManifest ?? CharacterAudioCueManifest.Empty;
+            CompiledAnimationArtifacts = compiledAnimationArtifacts ?? CharacterCompiledAnimationArtifacts.Empty;
         }
 
         public string RootPath { get; }
@@ -144,7 +148,229 @@ namespace MxFramework.CharacterRuntimeSpawn
         public ResourceCatalog RuntimeResourceCatalog { get; }
         public CharacterResourcePlan RuntimeResourcePlan { get; }
         public CharacterAudioCueManifest AudioCueManifest { get; }
+        public CharacterCompiledAnimationArtifacts CompiledAnimationArtifacts { get; }
         public CharacterUnityImportRuntimeReport ImportReport { get; }
+    }
+
+    public sealed class CharacterCompiledAnimationArtifacts
+    {
+        public CharacterCompiledAnimationArtifacts(
+            CharacterAnimationSetDefinition animationSetDefinition,
+            CharacterAnimationClipRegistry animationClipRegistry,
+            CharacterAnimationResourcePlan animationResourcePlan,
+            CharacterRuntimeSpawnIssue[] diagnostics,
+            IMxAnimationMappingProvider runtimeMappingProvider = null,
+            MxAnimationClipRegistry runtimeClipRegistry = null)
+        {
+            AnimationSetDefinition = animationSetDefinition;
+            AnimationClipRegistry = animationClipRegistry;
+            AnimationResourcePlan = animationResourcePlan;
+            Diagnostics = diagnostics ?? Array.Empty<CharacterRuntimeSpawnIssue>();
+            RuntimeMappingProvider = runtimeMappingProvider ?? new MxAnimationStaticMappingProvider(null);
+            RuntimeClipRegistry = runtimeClipRegistry ?? new MxAnimationClipRegistry(0, string.Empty, string.Empty, null);
+        }
+
+        public static CharacterCompiledAnimationArtifacts Empty { get; } = new CharacterCompiledAnimationArtifacts(null, null, null, Array.Empty<CharacterRuntimeSpawnIssue>());
+
+        public CharacterAnimationSetDefinition AnimationSetDefinition { get; }
+        public CharacterAnimationClipRegistry AnimationClipRegistry { get; }
+        public CharacterAnimationResourcePlan AnimationResourcePlan { get; }
+        public CharacterRuntimeSpawnIssue[] Diagnostics { get; }
+        public IMxAnimationMappingProvider RuntimeMappingProvider { get; }
+        public MxAnimationClipRegistry RuntimeClipRegistry { get; }
+        public bool HasRequiredArtifacts => AnimationSetDefinition != null && AnimationClipRegistry != null && AnimationResourcePlan != null;
+        public bool HasRuntimeAnimationContracts => RuntimeMappingProvider.Definitions.Count > 0 && RuntimeClipRegistry.Entries.Count > 0;
+    }
+
+    public sealed class CharacterAnimationSetDefinition
+    {
+        public CharacterAnimationSetDefinition(
+            string format,
+            string schemaVersion,
+            string packageId,
+            string stableId,
+            string displayName,
+            string skeletonProfileId,
+            string avatarProfileId,
+            CharacterAnimationSet[] sets,
+            CharacterAnimationProfile[] profiles)
+        {
+            Format = format ?? string.Empty;
+            SchemaVersion = schemaVersion ?? string.Empty;
+            PackageId = packageId ?? string.Empty;
+            StableId = stableId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            SkeletonProfileId = skeletonProfileId ?? string.Empty;
+            AvatarProfileId = avatarProfileId ?? string.Empty;
+            Sets = sets ?? Array.Empty<CharacterAnimationSet>();
+            Profiles = profiles ?? Array.Empty<CharacterAnimationProfile>();
+        }
+
+        public string Format { get; }
+        public string SchemaVersion { get; }
+        public string PackageId { get; }
+        public string StableId { get; }
+        public string DisplayName { get; }
+        public string SkeletonProfileId { get; }
+        public string AvatarProfileId { get; }
+        public CharacterAnimationSet[] Sets { get; }
+        public CharacterAnimationProfile[] Profiles { get; }
+    }
+
+    public sealed class CharacterAnimationSet
+    {
+        public CharacterAnimationSet(string setId, string displayName, string version, string defaultClipId, string fallbackClipId, CharacterAnimationGroup[] groups, CharacterAnimationActionBinding[] actionBindings)
+        {
+            SetId = setId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            Version = version ?? string.Empty;
+            DefaultClipId = defaultClipId ?? string.Empty;
+            FallbackClipId = fallbackClipId ?? string.Empty;
+            Groups = groups ?? Array.Empty<CharacterAnimationGroup>();
+            ActionBindings = actionBindings ?? Array.Empty<CharacterAnimationActionBinding>();
+        }
+
+        public string SetId { get; }
+        public string DisplayName { get; }
+        public string Version { get; }
+        public string DefaultClipId { get; }
+        public string FallbackClipId { get; }
+        public CharacterAnimationGroup[] Groups { get; }
+        public CharacterAnimationActionBinding[] ActionBindings { get; }
+    }
+
+    public sealed class CharacterAnimationGroup
+    {
+        public CharacterAnimationGroup(string groupId, string displayName, string usage, CharacterAnimationClipReference[] clips)
+        {
+            GroupId = groupId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            Usage = usage ?? string.Empty;
+            Clips = clips ?? Array.Empty<CharacterAnimationClipReference>();
+        }
+
+        public string GroupId { get; }
+        public string DisplayName { get; }
+        public string Usage { get; }
+        public CharacterAnimationClipReference[] Clips { get; }
+    }
+
+    public sealed class CharacterAnimationClipReference
+    {
+        public CharacterAnimationClipReference(string clipId, string displayName, string runtimeResourceKey, string sourceClipName, string sourceSubClipId, bool loop, float speed, string rootMotionPolicy)
+        {
+            ClipId = clipId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            RuntimeResourceKey = runtimeResourceKey ?? string.Empty;
+            SourceClipName = sourceClipName ?? string.Empty;
+            SourceSubClipId = sourceSubClipId ?? string.Empty;
+            Loop = loop;
+            Speed = speed;
+            RootMotionPolicy = rootMotionPolicy ?? string.Empty;
+        }
+
+        public string ClipId { get; }
+        public string DisplayName { get; }
+        public string RuntimeResourceKey { get; }
+        public string SourceClipName { get; }
+        public string SourceSubClipId { get; }
+        public bool Loop { get; }
+        public float Speed { get; }
+        public string RootMotionPolicy { get; }
+    }
+
+    public sealed class CharacterAnimationActionBinding
+    {
+        public CharacterAnimationActionBinding(string bindingId, string actionId, string groupId, string clipId, string blendId, string timelineId, bool required)
+        {
+            BindingId = bindingId ?? string.Empty;
+            ActionId = actionId ?? string.Empty;
+            GroupId = groupId ?? string.Empty;
+            ClipId = clipId ?? string.Empty;
+            BlendId = blendId ?? string.Empty;
+            TimelineId = timelineId ?? string.Empty;
+            Required = required;
+        }
+
+        public string BindingId { get; }
+        public string ActionId { get; }
+        public string GroupId { get; }
+        public string ClipId { get; }
+        public string BlendId { get; }
+        public string TimelineId { get; }
+        public bool Required { get; }
+    }
+
+    public sealed class CharacterAnimationProfile
+    {
+        public CharacterAnimationProfile(string profileId, string displayName, string defaultSetId, string defaultGroupId)
+        {
+            ProfileId = profileId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            DefaultSetId = defaultSetId ?? string.Empty;
+            DefaultGroupId = defaultGroupId ?? string.Empty;
+        }
+
+        public string ProfileId { get; }
+        public string DisplayName { get; }
+        public string DefaultSetId { get; }
+        public string DefaultGroupId { get; }
+    }
+
+    public sealed class CharacterAnimationClipRegistry
+    {
+        public CharacterAnimationClipRegistry(string format, string schemaVersion, string packageId, CharacterAnimationClipRegistryEntry[] clips)
+        {
+            Format = format ?? string.Empty;
+            SchemaVersion = schemaVersion ?? string.Empty;
+            PackageId = packageId ?? string.Empty;
+            Clips = clips ?? Array.Empty<CharacterAnimationClipRegistryEntry>();
+        }
+
+        public string Format { get; }
+        public string SchemaVersion { get; }
+        public string PackageId { get; }
+        public CharacterAnimationClipRegistryEntry[] Clips { get; }
+    }
+
+    public sealed class CharacterAnimationClipRegistryEntry
+    {
+        public CharacterAnimationClipRegistryEntry(string setId, string groupId, string clipId, string displayName, string sourceClipName, string sourceSubClipId, string runtimeResourceKey)
+        {
+            SetId = setId ?? string.Empty;
+            GroupId = groupId ?? string.Empty;
+            ClipId = clipId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            SourceClipName = sourceClipName ?? string.Empty;
+            SourceSubClipId = sourceSubClipId ?? string.Empty;
+            RuntimeResourceKey = runtimeResourceKey ?? string.Empty;
+        }
+
+        public string SetId { get; }
+        public string GroupId { get; }
+        public string ClipId { get; }
+        public string DisplayName { get; }
+        public string SourceClipName { get; }
+        public string SourceSubClipId { get; }
+        public string RuntimeResourceKey { get; }
+    }
+
+    public sealed class CharacterAnimationResourcePlan
+    {
+        public CharacterAnimationResourcePlan(string format, string schemaVersion, string packageId, string stableId, string planHash)
+        {
+            Format = format ?? string.Empty;
+            SchemaVersion = schemaVersion ?? string.Empty;
+            PackageId = packageId ?? string.Empty;
+            StableId = stableId ?? string.Empty;
+            PlanHash = planHash ?? string.Empty;
+        }
+
+        public string Format { get; }
+        public string SchemaVersion { get; }
+        public string PackageId { get; }
+        public string StableId { get; }
+        public string PlanHash { get; }
     }
 
     public sealed class CharacterImportedConfigSet
