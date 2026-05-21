@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework 动画编辑器</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect y=%2210%22 width=%22100%22 height=%2280%22 rx=%2215%22 fill=%22%231f7a7a%22/><path d=%22M25 68V32l24 18V32l26 36%22 stroke=%22white%22 stroke-width=%229%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 fill=%22none%22/></svg>">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">AN</div>
+        <div>
+          <h1>MxFramework 动画编辑器</h1>
+          <p id="serverStatus">正在连接 Authoring 服务...</p>
+        </div>
+      </div>
+
+      <div class="toolbar" aria-label="动画编辑器工具栏">
+        <label class="field" for="packageSelect">
+          <span>动画包</span>
+          <select id="packageSelect"></select>
+        </label>
+        <label class="field" for="setSelect">
+          <span>当前 Set</span>
+          <select id="setSelect"></select>
+        </label>
+        <button id="refreshButton" type="button">刷新</button>
+        <button id="saveButton" type="button">保存</button>
+        <button id="validateButton" type="button">校验</button>
+        <a id="openResourceManagerButton" class="button" href="/Tools/MxFramework.ResourceLibrary/web/">打开资源管理器</a>
+        <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">打开 CharacterStudio</a>
+      </div>
+    </header>
+
+    <section id="statusStrip" class="status-strip" aria-label="动画包状态"></section>
+
+    <main class="workspace">
+      <aside class="tree-panel" aria-label="Animation structure">
+        <div class="panel-heading">
+          <div>
+            <h2>动画结构</h2>
+            <p id="treeSummary">尚未读取动画包</p>
+          </div>
+          <button id="addSetButton" type="button">新增 Set</button>
+        </div>
+        <nav id="animationTree" class="animation-tree" aria-label="Animation sets groups clips"></nav>
+      </aside>
+
+      <section class="mapping-panel" aria-label="Group and clip mapping">
+        <div class="panel-heading">
+          <div>
+            <h2 id="workspaceTitle">Clip Mapping</h2>
+            <p id="workspaceSubtitle">选择一个 Group 后编辑 Clip 映射</p>
+          </div>
+          <div class="panel-actions">
+            <button id="addGroupButton" type="button">新增 Group</button>
+            <button id="addClipButton" type="button">新增 Clip</button>
+          </div>
+        </div>
+        <div id="mappingWorkspace" class="mapping-workspace"></div>
+      </section>
+
+      <aside id="inspectorPanel" class="inspector-panel" aria-label="Inspector">
+        <div class="panel-heading">
+          <div>
+            <h2>Inspector</h2>
+            <p id="inspectorSubtitle">选择 Set、Group 或 Clip</p>
+          </div>
+        </div>
+        <div id="inspectorContent" class="inspector-content"></div>
+      </aside>
+    </main>
+
+    <section id="diagnosticsPanel" class="diagnostics-panel" aria-label="Diagnostics">
+      <div class="panel-heading">
+        <div>
+          <h2>诊断</h2>
+          <p id="diagnosticsSummary">尚未运行校验</p>
+        </div>
+        <button id="copyDiagnosticsButton" type="button">复制诊断 JSON</button>
+      </div>
+      <div id="diagnosticsList" class="diagnostics-list"></div>
+    </section>
+  </div>
+
+  <div id="resourcePickerOverlay" class="resource-picker-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="resourcePickerTitle">
+    <div class="resource-picker-dialog">
+      <header class="picker-head">
+        <div>
+          <h2 id="resourcePickerTitle">选择源动画 Clip</h2>
+          <p id="resourcePickerSubtitle">Animation.SourceClip / ResourceFieldSpec</p>
+        </div>
+        <button id="closePickerButton" type="button" aria-label="关闭资源选择器">关闭</button>
+      </header>
+      <div class="picker-filter">
+        <input id="resourcePickerSearch" type="search" placeholder="搜索资源、Provider、路径">
+        <label><input id="resourcePickerOnlySelectable" type="checkbox" checked> 只显示可选资源</label>
+      </div>
+      <div id="resourcePickerList" class="resource-picker-list"></div>
+    </div>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

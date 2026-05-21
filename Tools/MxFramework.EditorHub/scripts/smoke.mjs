@@ -4,6 +4,7 @@ import path from "node:path";
 const repoRoot = path.resolve(new URL("../../../", import.meta.url).pathname);
 const hubRoot = path.join(repoRoot, "Tools/MxFramework.EditorHub");
 const resourceLibraryRoot = path.join(repoRoot, "Tools/MxFramework.ResourceLibrary");
+const animationEditorRoot = path.join(repoRoot, "Tools/MxFramework.AnimationEditor");
 const required = [
   "web/index.html",
   "web/app.js",
@@ -19,6 +20,16 @@ const requiredResourceLibrary = [
   "start-resource-library.bat",
   "start-resource-library.command"
 ];
+const requiredAnimationEditor = [
+  "README.md",
+  "start-animation-editor.sh",
+  "start-animation-editor.bat",
+  "start-animation-editor.command",
+  "scripts/smoke.mjs",
+  "web/index.html",
+  "web/app.js",
+  "web/styles.css"
+];
 
 for (const relative of required) {
   const full = path.join(hubRoot, relative);
@@ -28,6 +39,11 @@ for (const relative of required) {
 for (const relative of requiredResourceLibrary) {
   const full = path.join(resourceLibraryRoot, relative);
   assert(fs.existsSync(full), `missing ResourceLibrary ${relative}`);
+}
+
+for (const relative of requiredAnimationEditor) {
+  const full = path.join(animationEditorRoot, relative);
+  assert(fs.existsSync(full), `missing AnimationEditor ${relative}`);
 }
 
 const index = fs.readFileSync(path.join(hubRoot, "web/index.html"), "utf8");
@@ -42,6 +58,7 @@ assert(index.includes("diagnosticsConsole") && index.includes("diagnosticsFilter
 assert(app.includes("/api/authoring/resources?package=") && app.includes("/api/authoring/resources/resource-plan?package="), "hub should read Authoring Resource Manager APIs");
 assert(app.includes("Tools/MxFramework.CharacterStudio/web/") && app.includes("Tools/MxFramework.Authoring.Editor/web/"), "hub should link existing editors");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/"), "hub should link Resource Library editor");
+assert(app.includes("Tools/MxFramework.AnimationEditor/web/") && app.includes("/api/authoring/animation/packages"), "hub should link Animation Editor and read animation package API");
 assert(app.includes("资源管理器") && app.includes("默认包上下文") && app.includes("资源 providers"), "hub should present Resource Manager as global resource center with package context");
 assert(!app.includes('action: "待实现"') && !app.includes("disabled: true"), "Resource Library card should be enabled");
 assert(app.includes("renderDiagnostics") && app.includes("getFilteredDiagnostics"), "hub should render and filter diagnostics");

@@ -1031,6 +1031,7 @@ function renderAnimationConfigPanel() {
   const runtimeReadyCount = animationResources.filter(item => item.runtimeAvailability === "RuntimeReady" || item.bindingKind === "PackageResource" || item.bindingKind === "ResourceManagerAsset").length;
   const groups = state.package?.applicationConfig?.animationGroups || [];
   const slots = profile.slots || [];
+  const animationEditorUrl = `/Tools/MxFramework.AnimationEditor/web/?package=${encodeURIComponent(state.packageRelative || DEFAULT_PACKAGE)}`;
   el.animationConfigPanel.innerHTML = `
     <div class="animation-profile-summary">
       <div><strong>${escapeHtml(profile.displayName || profile.profileId)}</strong><span>${escapeHtml(profile.profileId || DEFAULT_ANIMATION_PROFILE_ID)}</span></div>
@@ -1039,6 +1040,7 @@ function renderAnimationConfigPanel() {
       <div><strong>${escapeHtml(String(runtimeReadyCount))}</strong><span>可编排资源</span></div>
     </div>
     <div class="animation-panel-actions">
+      <a class="button" href="${escapeHtml(animationEditorUrl)}">打开动画编辑器</a>
       <button type="button" data-animation-add-group="1">新增动画 Group</button>
     </div>
     <div class="animation-slot-list">
