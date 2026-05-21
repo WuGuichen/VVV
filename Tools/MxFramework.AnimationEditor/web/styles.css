@@ -758,6 +758,146 @@ code {
   margin: 0;
 }
 
+.preview-bake-compatibility {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.preview-heading {
+  align-items: center;
+}
+
+.preview-target-select {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.preview-target-select span,
+.preview-card-heading span,
+.preview-kv dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preview-workflow-grid,
+.compatibility-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.preview-card,
+.workflow-report {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.workflow-report {
+  display: grid;
+  gap: 12px;
+}
+
+.preview-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.preview-card-heading h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.preview-kv {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.preview-kv.compact {
+  grid-template-columns: 170px minmax(0, 1fr);
+}
+
+.preview-kv dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.preview-kv code,
+.artifact-row code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-table {
+  display: grid;
+  gap: 6px;
+}
+
+.artifact-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 1.2fr) minmax(120px, 0.7fr) 90px;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.artifact-head {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.artifact-row .ok {
+  color: var(--ok);
+}
+
+.artifact-row .warning,
+.workflow-diagnostics .warning {
+  color: #ffd798;
+}
+
+.artifact-row .error,
+.workflow-diagnostics .error {
+  color: #ffc4c4;
+}
+
+.workflow-diagnostics {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(229, 155, 53, 0.45);
+  border-radius: 6px;
+  background: rgba(229, 155, 53, 0.06);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workflow-diagnostics.ok {
+  border-color: rgba(32, 185, 129, 0.35);
+  background: rgba(32, 185, 129, 0.06);
+}
+
+.workflow-diagnostics p {
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
 .row-actions {
   display: flex;
   gap: 6px;
@@ -936,6 +1076,11 @@ code {
 
   .blend-fields,
   .timeline-fields,
+  .preview-workflow-grid,
+  .compatibility-grid,
+  .preview-kv,
+  .preview-kv.compact,
+  .artifact-row,
   .blend-preview-state,
   .blend-point-row,
   .blend-points.two-axis .blend-point-row,

@@ -11,9 +11,10 @@ Animation Editor 是独立动画配置编辑器，用于维护 `AnimationAuthori
 - Group 级 Timeline event 编辑器，支持创建绑定本地 `clipId` 的 `AnimationTimelineAuthoring`，编辑 `eventId`、`clipId`、`timeDomain`、`time`、`eventKind`、`payloadJson`，并用 Seconds / Normalized / PresentationFrame / CombatFrame 轨道显示事件点位。
 - `Animation.SourceClip`、`Animation.EventVfx`、`Animation.EventAudioCue` 字段级资源选择器；AudioCue 事件走 AudioCue 选择契约，不按普通 AudioClip 处理。
 - Timeline event 本地诊断和 JSON / AI context 复制。
+- Preview / Bake / Compatibility 工作流面板，显示 preview target、reference path、bake artifact summary、skeleton/avatar/clip 兼容性诊断；Preview 只作为编辑期辅助，不写 Unity scene/prefab。
 - EditorHub 和 CharacterStudio 跳转入口。
 
-3D 预览、Bake、Compiler 集成和 CharacterStudio 迁移由后续里程碑任务完成。
+真实 3D 播放器、Bake 执行、Compiler 集成和 CharacterStudio 迁移由后续里程碑任务完成。
 
 ## 启动
 

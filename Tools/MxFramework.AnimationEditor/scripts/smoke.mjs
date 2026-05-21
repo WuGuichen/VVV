@@ -51,11 +51,16 @@ assert(app.includes("Seconds") && app.includes("Normalized") && app.includes("Pr
 assert(app.includes("ANIM_TIMELINE_EVENT_NORMALIZED_RANGE") && app.includes("ANIM_TIMELINE_EVENT_FRAME_NEGATIVE") && app.includes("ANIM_TIMELINE_CLIP_MISSING"), "AnimationEditor should diagnose timeline range and local clip issues");
 assert(app.includes("copyTimelineContext") && app.includes("Timeline Event JSON"), "AnimationEditor should copy timeline event JSON context");
 assert(app.includes("audioCueId") && !app.includes("Event AudioClip"), "Timeline AudioCue picker should not be treated as an AudioClip selector");
+assert(app.includes("Preview / Bake / Compatibility") && app.includes("PREVIEW_TARGET_OPTIONS"), "AnimationEditor should expose preview, bake, and compatibility workflow");
+assert(app.includes("runtime authority") && app.includes("Unity scene/prefab"), "Preview workflow should state it is not runtime authority and does not write Unity scene/prefab");
+assert(app.includes("getBakeArtifactSummary") && app.includes("generatedArtifactSelections") && app.includes("ANIM_BAKE_ARTIFACT_STALE"), "AnimationEditor should summarize bake artifacts and stale hashes");
+assert(app.includes("getCompatibilityReport") && app.includes("ANIM_COMPAT_ROOT_MOTION_POLICY_MISMATCH") && app.includes("ANIM_COMPAT_SKELETON_PROFILE_MISSING"), "AnimationEditor should diagnose compatibility and root motion policy issues");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/") && app.includes("Tools/MxFramework.CharacterStudio/web/"), "AnimationEditor should link Resource Manager and CharacterStudio");
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "AnimationEditor should remain a vanilla web workstation");
 assert(styles.includes(".workspace") && styles.includes(".resource-picker-overlay"), "AnimationEditor should style workspace and resource picker overlay");
 assert(styles.includes(".blend-track") && styles.includes(".blend-plane") && styles.includes(".blend-diagnostics"), "AnimationEditor should style visual blend editors and diagnostics");
 assert(styles.includes(".timeline-scrubber") && styles.includes(".timeline-domain-row") && styles.includes(".timeline-event-row"), "AnimationEditor should style timeline scrubber and event list");
+assert(styles.includes(".preview-bake-compatibility") && styles.includes(".artifact-table") && styles.includes(".workflow-diagnostics"), "AnimationEditor should style preview, bake, and compatibility workflow");
 assert(launcher.includes("dotnet --list-sdks") && launcher.includes("is_animation_editor_server_ready"), "AnimationEditor launcher should check .NET and server readiness");
 assert(hubApp.includes("Tools/MxFramework.AnimationEditor/web/"), "EditorHub should link Animation Editor");
 assert(hubSmoke.includes("MxFramework.AnimationEditor"), "EditorHub smoke should check Animation Editor");
