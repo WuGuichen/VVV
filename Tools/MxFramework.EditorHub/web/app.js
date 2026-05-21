@@ -6,6 +6,7 @@ const state = {
   authoringState: null,
   characterState: null,
   animationPackages: null,
+  animationState: null,
   resources: null,
   resourcePlan: null,
   diagnostics: [],
@@ -59,6 +60,7 @@ async function refresh(options = {}) {
     loadAuthoringState(),
     loadCharacterState(),
     loadAnimationPackages(),
+    loadAnimationState(),
     loadResources(),
     loadResourcePlan()
   ]);
@@ -89,6 +91,10 @@ async function loadCharacterState() {
 
 async function loadAnimationPackages() {
   state.animationPackages = await readJson("/api/authoring/animation/packages", null, "Animation Editor 状态");
+}
+
+async function loadAnimationState() {
+  state.animationState = await readJson(`/api/authoring/animation/load?package=${encodeURIComponent(state.packageRelative)}`, null, "Animation Editor 当前包");
 }
 
 async function loadResources() {
@@ -142,19 +148,20 @@ function renderStatus() {
   const characterPackage = state.characterState?.package?.manifest?.packageId || selectedPackageLabel();
   const resourceCount = Array.isArray(state.resources?.items) ? state.resources.items.length : 0;
   const providerCount = Array.isArray(state.resources?.providers) ? state.resources.providers.length : 0;
-  const animationPackageCount = Array.isArray(state.animationPackages) ? state.animationPackages.length : 0;
-  const animationServiceReady = Array.isArray(state.animationPackages);
+  const animationStatus = getAnimationEditorStatus();
   const planStatus = getResourcePlanStatus();
 
   el.serverStatus.textContent = connected
     ? `已连接本机 Authoring 服务；默认包上下文：${characterPackage}`
-    : "未连接 Authoring 服务。请通过启动脚本打开。";
+    : isHttpServed()
+      ? "未连接 Authoring 服务。请通过启动脚本打开。"
+      : "当前是静态 file:// 页面，不能读取 Authoring API。请通过 Tools/MxFramework.EditorHub/start-editor-hub 启动。";
 
   el.statusStrip.innerHTML = [
     statusChip("Authoring", connected ? "已连接" : "未连接", connected ? "ok" : "error"),
     statusChip("Buff Editor", state.authoringState ? "可用" : "不可用", state.authoringState ? "ok" : "warn"),
     statusChip("CharacterStudio", state.characterState?.package ? "可用" : "不可用", state.characterState?.package ? "ok" : "warn"),
-    statusChip("Animation Editor", animationServiceReady ? `${animationPackageCount} 包` : "不可用", animationServiceReady ? "ok" : "warn"),
+    statusChip("Animation Editor", animationStatus.strip, animationStatus.tone),
     statusChip("资源 providers", String(providerCount), providerCount > 0 ? "ok" : "warn"),
     statusChip("资源项", String(resourceCount), resourceCount > 0 ? "ok" : "warn"),
     statusChip("资源计划", planStatus, planStatus === "Ready" ? "ok" : "warn")
@@ -165,8 +172,8 @@ function renderTools() {
   const characterUrl = `/Tools/MxFramework.CharacterStudio/web/?package=${encodeURIComponent(state.packageRelative)}`;
   const resourceLibraryUrl = `/Tools/MxFramework.ResourceLibrary/web/?package=${encodeURIComponent(state.packageRelative)}`;
   const animationEditorUrl = `/Tools/MxFramework.AnimationEditor/web/?package=${encodeURIComponent(state.packageRelative)}`;
-  const animationServiceReady = Array.isArray(state.animationPackages);
-  const animationPackageCount = animationServiceReady ? state.animationPackages.length : 0;
+  const animationStatus = getAnimationEditorStatus();
+  const animationPackageCount = Array.isArray(state.animationPackages) ? state.animationPackages.length : 0;
   const tools = [
     {
       title: "Buff Authoring Editor",
@@ -195,15 +202,14 @@ function renderTools() {
     {
       title: "Animation Editor",
       subtitle: "动画 Set / Group / Clip Mapping 编辑器",
-      status: animationServiceReady ? "可打开" : "服务未就绪",
-      tone: animationServiceReady ? "ok" : "warn",
+      status: animationStatus.card,
+      tone: animationStatus.tone,
       href: animationEditorUrl,
       action: "打开动画编辑器",
       details: [
         `Animation packages: ${animationPackageCount}`,
-        animationPackageCount > 0
-          ? "用途: 动画组、源 Clip 映射、RootMotionPolicy；资源通过字段级 picker 选择"
-          : "未扫描到动画包时仍可打开编辑器，并从当前角色包创建动画草稿"
+        animationStatus.detail,
+        "用途: 动画组、源 Clip 映射、RootMotionPolicy、Timeline 事件、编译器驱动 3D 预览"
       ]
     },
     {
@@ -324,6 +330,13 @@ function extractResourceKeys(group) {
 
 function collectDiagnostics() {
   const all = [];
+  if (!isHttpServed()) {
+    all.push({
+      severity: "Warning",
+      code: "EDITOR_HUB_STATIC_FILE_MODE",
+      message: "Editor Hub is opened as a file:// page. Start it through Tools/MxFramework.EditorHub/start-editor-hub so local Authoring APIs are available."
+    });
+  }
   if (Array.isArray(state.resources?.diagnostics)) all.push(...state.resources.diagnostics);
   if (Array.isArray(state.resourcePlan?.diagnostics)) all.push(...state.resourcePlan.diagnostics);
   if (Array.isArray(state.resourcePlan?.resourceValidationReport?.diagnostics)) all.push(...state.resourcePlan.resourceValidationReport.diagnostics);
@@ -392,6 +405,45 @@ function getResourcePlanStatus() {
   return state.resourcePlan?.status
     || state.resourcePlan?.resourceValidationReport?.status
     || (state.resourcePlan ? "Unknown" : "Missing");
+}
+
+function getAnimationEditorStatus() {
+  if (!isHttpServed()) {
+    return {
+      strip: "需启动Hub",
+      card: "需启动 Hub",
+      tone: "warn",
+      detail: "当前页面以 file:// 打开，浏览器不能访问 /api/authoring/animation/*。"
+    };
+  }
+
+  if (isAnimationEditorApiReady()) {
+    const packageCount = Array.isArray(state.animationPackages) ? state.animationPackages.length : 0;
+    const currentPackage = state.animationState?.package?.packageId || "";
+    return {
+      strip: currentPackage ? "当前包" : `${packageCount} 包`,
+      card: "可打开",
+      tone: "ok",
+      detail: currentPackage
+        ? `当前动画包: ${currentPackage}`
+        : "动画 API 可用；未扫描到动画包时编辑器仍可从当前角色包创建草稿。"
+    };
+  }
+
+  return {
+    strip: "API未连接",
+    card: "入口存在",
+    tone: "warn",
+    detail: "Authoring server 未返回动画 API；请刷新服务，或用启动脚本重启以避免旧 server。"
+  };
+}
+
+function isAnimationEditorApiReady() {
+  return Boolean(state.animationState?.package) || Array.isArray(state.animationPackages);
+}
+
+function isHttpServed() {
+  return window.location.protocol === "http:" || window.location.protocol === "https:";
 }
 
 async function copyDiagnostics() {

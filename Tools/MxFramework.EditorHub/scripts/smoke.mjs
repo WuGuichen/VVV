@@ -59,7 +59,8 @@ assert(app.includes("/api/authoring/resources?package=") && app.includes("/api/a
 assert(app.includes("Tools/MxFramework.CharacterStudio/web/") && app.includes("Tools/MxFramework.Authoring.Editor/web/"), "hub should link existing editors");
 assert(app.includes("Tools/MxFramework.ResourceLibrary/web/"), "hub should link Resource Library editor");
 assert(app.includes("Tools/MxFramework.AnimationEditor/web/") && app.includes("/api/authoring/animation/packages"), "hub should link Animation Editor and read animation package API");
-assert(app.includes("animationServiceReady") && app.includes("未扫描到动画包时仍可打开编辑器"), "hub should separate Animation Editor API readiness from package count");
+assert(app.includes("getAnimationEditorStatus") && app.includes("isAnimationEditorApiReady") && app.includes("EDITOR_HUB_STATIC_FILE_MODE"), "hub should separate Animation Editor entry availability from Authoring API readiness");
+assert(app.includes("入口存在") && app.includes("API未连接") && app.includes("当前动画包"), "hub should explain Animation Editor API states without marking the tool unavailable");
 assert(app.includes("资源管理器") && app.includes("默认包上下文") && app.includes("资源 providers"), "hub should present Resource Manager as global resource center with package context");
 assert(!app.includes('action: "待实现"') && !app.includes("disabled: true"), "Resource Library card should be enabled");
 assert(app.includes("renderDiagnostics") && app.includes("getFilteredDiagnostics"), "hub should render and filter diagnostics");
