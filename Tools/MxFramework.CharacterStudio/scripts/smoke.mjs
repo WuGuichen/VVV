@@ -76,6 +76,8 @@ assert(appSource.includes("Animation.Clip") && appSource.includes("animationClip
 assert(appSource.includes("unityProjectAssets") && appSource.includes("UnityEditorOnlyAsset") && appSource.includes("PackageResource"), "CharacterStudio animation picker should accept Unity project and package animation assets");
 assert(indexSource.includes("animationConfigPanel") && appSource.includes("renderAnimationConfigPanel") && appSource.includes("openAnimationSlotPicker"), "CharacterStudio should expose an animation profile picker panel");
 assert(appSource.includes("animationProfiles") && appSource.includes("resourceSelection") && appSource.includes("applyResourceSelectionToAnimationSlot"), "CharacterStudio should persist animation slot ResourceSelectionRef data");
+assert(appSource.includes("mergeResourcePickerRows") && appSource.includes("getResourcePickerDedupeKey"), "CharacterStudio resource picker should merge duplicate provider projections");
+assert(appSource.includes("只显示可用于当前字段的资源"), "CharacterStudio resource picker should explain that blocked candidates are hidden");
 assert(appSource.includes("previewResourceSelection"), "CharacterStudio should persist ResourceSelectionRef beside weapon preview references");
 assert(!appSource.includes('node("resources", "resources"'), "CharacterStudio should not expose the full resource browser in the package tree");
 assert(editorServerSource.includes("/api/authoring/resources/pick"), "Authoring server should expose picker query API");

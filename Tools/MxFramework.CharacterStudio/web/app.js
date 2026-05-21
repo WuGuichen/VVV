@@ -878,7 +878,7 @@ function renderResourcePicker() {
   const request = getActiveResourcePickerRequest();
   const fieldSpec = request.fieldSpec;
   el.resourcePickerTitle.textContent = `选择${request.title}`;
-  el.resourcePickerSummary.textContent = `${fieldSpec.fieldKey} / ${fieldSpec.outputKind} / ${fieldSpec.preloadPolicy}。资源来自 Authoring Resource Manager，当前角色只保存引用。`;
+  el.resourcePickerSummary.textContent = `${fieldSpec.fieldKey} / ${fieldSpec.outputKind} / ${fieldSpec.preloadPolicy}。只显示可用于当前字段的资源；重复来源会合并。`;
   if (state.resourcePickerLoading) {
     el.resourcePickerList.innerHTML = `<div class="empty">正在读取资源管理器候选项...</div>`;
     return;
@@ -906,7 +906,7 @@ function renderResourcePicker() {
         <span class="resource-info">
           <span class="resource-title"><strong>${escapeHtml(item.displayName)}</strong>${renderSyncBadge({ label: item.importStatusLabel, tone: item.importTone })}</span>
           <span>${escapeHtml(item.kindLabel)} / ${escapeHtml(item.usage || "usage?")} / ${escapeHtml(item.runtimeAvailability)}</span>
-          <span>${escapeHtml(item.bindingKind)} / ${escapeHtml(item.sourceProviderId)} / refs ${escapeHtml(String(item.referenceCount || 0))} / ${escapeHtml(diagnostics)}</span>
+          <span>${escapeHtml(item.bindingKind)} / ${escapeHtml(item.sourceProviderSummary || item.sourceProviderId)} / refs ${escapeHtml(String(item.referenceCount || 0))} / ${escapeHtml(diagnostics)}</span>
           <span>${renderSelectionBadge(selection)} ${escapeHtml(selection.reason)}</span>
           <span class="resource-unity-path">${escapeHtml(item.unityAssetPath || item.sourceName || item.stableId || "未绑定 Unity 资产")}</span>
         </span>
@@ -953,13 +953,136 @@ function getResourceFieldSpecForInspectorField(target, fieldPath) {
 
 function getResourcePickerRows(fieldSpec) {
   const queryItems = Array.isArray(state.resourcePickerQuery?.items) ? state.resourcePickerQuery.items : [];
+  let rows = [];
   if (queryItems.length) {
-    return queryItems
+    rows = queryItems
       .map(row => ({ item: normalizeResourceLibraryItem(row.item), selection: evaluateServerPickerItem(row, fieldSpec) }))
-      .filter(row => row.item)
-      .sort((a, b) => getResourceLibrarySortKey(a.item).localeCompare(getResourceLibrarySortKey(b.item)));
+      .filter(row => row.item);
+  } else {
+    rows = getResourceLibraryItems().map(item => ({ item, selection: evaluateResourceFieldSelection(item, fieldSpec) }));
   }
-  return getResourceLibraryItems().map(item => ({ item, selection: evaluateResourceFieldSelection(item, fieldSpec) }));
+  return mergeResourcePickerRows(rows, fieldSpec)
+    .sort((a, b) => getResourcePickerSortKey(a, fieldSpec).localeCompare(getResourcePickerSortKey(b, fieldSpec)));
+}
+
+function mergeResourcePickerRows(rows, fieldSpec) {
+  const selectableRows = rows.filter(row => row.selection?.tone !== "blocked");
+  const groups = new Map();
+  for (const row of selectableRows) {
+    const key = getResourcePickerDedupeKey(row.item);
+    const current = groups.get(key);
+    if (!current) {
+      groups.set(key, { ...row, item: { ...row.item } });
+      continue;
+    }
+    groups.set(key, mergeResourcePickerRow(current, row, fieldSpec));
+  }
+  return Array.from(groups.values());
+}
+
+function mergeResourcePickerRow(left, right, fieldSpec) {
+  const preferred = compareResourcePickerRowPriority(left, right, fieldSpec) >= 0 ? left : right;
+  const secondary = preferred === left ? right : left;
+  return {
+    item: mergeResourcePickerItems(preferred.item, secondary.item),
+    selection: preferred.selection?.tone === "match" || secondary.selection?.tone !== "match"
+      ? preferred.selection
+      : secondary.selection
+  };
+}
+
+function mergeResourcePickerItems(primary, secondary) {
+  const providerSummary = mergeStringValues([
+    primary.sourceProviderSummary,
+    primary.sourceProviderId,
+    secondary.sourceProviderSummary,
+    secondary.sourceProviderId
+  ]);
+  return {
+    ...primary,
+    providerBindings: mergeProviderBindings(primary.providerBindings, secondary.providerBindings),
+    diagnostics: mergeStringValues([...(primary.diagnostics || []), ...(secondary.diagnostics || [])]),
+    referenceCount: Math.max(primary.referenceCount || 0, secondary.referenceCount || 0),
+    sourceProviderSummary: providerSummary.join(" + "),
+    mergedProviderCount: providerSummary.length
+  };
+}
+
+function mergeProviderBindings(left = [], right = []) {
+  const merged = [];
+  for (const binding of [...left, ...right]) {
+    if (!binding) continue;
+    const key = [
+      binding.bindingKind,
+      binding.runtimeResourceKey,
+      binding.packageResourceKey,
+      binding.providerResourceKey,
+      binding.unityGuid,
+      binding.unityAssetPath
+    ].filter(Boolean).join("|");
+    if (!merged.some(item => [
+      item.bindingKind,
+      item.runtimeResourceKey,
+      item.packageResourceKey,
+      item.providerResourceKey,
+      item.unityGuid,
+      item.unityAssetPath
+    ].filter(Boolean).join("|") === key)) {
+      merged.push(binding);
+    }
+  }
+  return merged;
+}
+
+function mergeStringValues(values) {
+  const result = [];
+  for (const value of values) {
+    const parts = String(value || "")
+      .split("+")
+      .map(part => part.trim())
+      .filter(Boolean);
+    for (const text of parts) {
+      if (!result.includes(text)) result.push(text);
+    }
+  }
+  return result;
+}
+
+function getResourcePickerDedupeKey(item) {
+  return firstNonEmpty(
+    item.packageResourceKey,
+    item.resourceKey,
+    item.stableId,
+    item.runtimeResourceKey,
+    item.providerResourceKey,
+    `${item.kind}:${item.usage}:${item.displayName}`
+  ).toLowerCase();
+}
+
+function compareResourcePickerRowPriority(left, right, fieldSpec) {
+  return getResourcePickerPriority(left, fieldSpec) - getResourcePickerPriority(right, fieldSpec);
+}
+
+function getResourcePickerPriority(row, fieldSpec) {
+  const item = row.item;
+  const binding = getBindingForFieldSpec(item, fieldSpec) || {};
+  let score = 0;
+  if (row.selection?.tone === "match") score += 1000;
+  if (row.selection?.tone === "warn") score += 500;
+  if (binding.runtimeResourceKey || item.runtimeResourceKey) score += 240;
+  if (item.runtimeAvailability === "RuntimeReady") score += 180;
+  if (item.bindingKind === "ResourceManagerAsset") score += 140;
+  if (binding.packageResourceKey || item.packageResourceKey) score += 100;
+  if (item.sourceProviderId === "runtimeCatalog") score += 80;
+  if (item.sourceProviderId === "characterPackage") score += 50;
+  if (item.sourceProviderId === "unityAssetDatabase" || item.sourceProviderId === "unityProjectAssets") score += 20;
+  if (item.importTone === "ok") score += 10;
+  return score;
+}
+
+function getResourcePickerSortKey(row, fieldSpec) {
+  const priority = String(9999 - getResourcePickerPriority(row, fieldSpec)).padStart(4, "0");
+  return `${priority}:${getResourceLibrarySortKey(row.item)}`;
 }
 
 function evaluateServerPickerItem(row, spec) {
@@ -1199,11 +1322,12 @@ function renderSelectionBadge(selection) {
 }
 
 async function selectLibraryItem(libraryItemId) {
-  const item = getResourceLibraryItems().find(candidate => candidate.resourceId === libraryItemId || candidate.libraryItemId === libraryItemId);
-  if (!item) return;
   const request = getActiveResourcePickerRequest();
   const spec = request.fieldSpec;
-  const localSelection = evaluateResourceFieldSelection(item, spec);
+  const row = getResourcePickerRows(spec).find(candidate => candidate.item.resourceId === libraryItemId || candidate.item.libraryItemId === libraryItemId);
+  const item = row?.item || getResourceLibraryItems().find(candidate => candidate.resourceId === libraryItemId || candidate.libraryItemId === libraryItemId);
+  if (!item) return;
+  const localSelection = row?.selection || evaluateResourceFieldSelection(item, spec);
   let selectionRef = createResourceSelectionRef(item, spec);
   const resolved = await resolveResourceSelection(selectionRef, spec);
   if (resolved?.selection) selectionRef = normalizeResolvedSelectionRef(resolved.selection, selectionRef);
