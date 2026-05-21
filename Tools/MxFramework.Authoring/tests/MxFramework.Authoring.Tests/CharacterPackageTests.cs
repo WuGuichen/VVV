@@ -26,6 +26,8 @@ internal static class CharacterPackageTests
         AuthoringResourceSelectionContracts_JsonRoundTrip();
         CharacterAnimationAuthoringSummary_JsonRoundTrip_PreservesSlots();
         AnimationAuthoringPackage_JsonRoundTrip_PreservesAnimationEditorContracts();
+        AnimationAuthoringResourceFieldSpecs_FilterAndResolveContracts();
+        EditorServer_AnimationPackageApi_IsFileBackedAndValidatesShallowDraft();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
@@ -1415,6 +1417,279 @@ internal static class CharacterPackageTests
         Require(roundTrip.Sets[0].Warmup.GeneratedArtifactSelections[0].ProviderResourceKey == "generated/idle_bake.json", "warmup generated artifact selection should roundtrip.");
         Require(roundTrip.Profiles[0].Slots[0].GroupId == "group.locomotion", "profile group reference should roundtrip.");
         Require(roundTrip.Diagnostics[0].Field == "points[2].clipId", "animation diagnostics should roundtrip.");
+    }
+
+    private static void AnimationAuthoringResourceFieldSpecs_FilterAndResolveContracts()
+    {
+        var collection = new AuthoringResourceCollection { ScopeId = "animation.test" };
+        collection.Items.Add(CreateAnimationSourceItem(
+            "unity.project.idle",
+            AnimationAuthoringResourceUsages.AnimationClip,
+            AuthoringResourceProviderIds.UnityProjectAssets,
+            AuthoringResourceSourceKind.UnityAsset,
+            AuthoringResourceBindingKind.UnityEditorOnlyAsset,
+            "Assets/Art/Animations/idle.anim",
+            string.Empty));
+        collection.Items.Add(CreateAnimationSourceItem(
+            "runtime.anim.locomotion",
+            CharacterPackageResourceUsageIds.AnimationClipGroup,
+            AuthoringResourceProviderIds.RuntimeCatalog,
+            AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            AuthoringResourceBindingKind.ResourceManagerAsset,
+            "char.test.anim.locomotion",
+            "char.test.anim.locomotion"));
+        collection.Items.Add(CreateAnimationSourceItem(
+            "charpkg.test.anim.locomotion",
+            CharacterPackageResourceUsageIds.AnimationClipGroup,
+            AuthoringResourceProviderIds.CharacterPackage,
+            AuthoringResourceSourceKind.PackageResource,
+            AuthoringResourceBindingKind.PackageResource,
+            "char.test.anim.locomotion",
+            string.Empty));
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "unity:fbx",
+            StableId = "unity.project.fbx.container",
+            DisplayName = "Standing Run Forward.fbx",
+            Kind = CharacterPackageResourceTypeIds.Model,
+            Usage = CharacterPackageResourceUsageIds.PreviewMesh,
+            SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+            SourceKind = AuthoringResourceSourceKind.UnityAsset,
+            BindingKind = AuthoringResourceBindingKind.UnityEditorOnlyAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.EditorOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+                    BindingKind = AuthoringResourceBindingKind.UnityEditorOnlyAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityAssetPath,
+                    IsPrimary = true,
+                    UnityAssetPath = "Assets/Art/Animations/Standing Run Forward.fbx",
+                    ProviderResourceKey = "Assets/Art/Animations/Standing Run Forward.fbx"
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "fmod:event",
+            StableId = "fmod.event.footstep",
+            DisplayName = "Footstep",
+            Kind = CharacterPackageResourceTypeIds.Audio,
+            Usage = AnimationAuthoringResourceUsages.FmodEvent,
+            SourceProviderId = AuthoringResourceProviderIds.Fmod,
+            SourceKind = AuthoringResourceSourceKind.FmodLibrary,
+            BindingKind = AuthoringResourceBindingKind.AudioEventDefinition,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.AudioCueOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.AudioEventDefinition,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.FmodEventGuid,
+                    IsPrimary = true,
+                    ProviderResourceKey = "event:/Character/Test/Footstep",
+                    FmodEventGuid = "{footstep}",
+                    ProviderData = new Dictionary<string, string>
+                    {
+                        { "audioCueId", "audio.cue.character.test.footstep" },
+                        { "audioEventDefinitionId", "audio.event.character.test.footstep" }
+                    }
+                },
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.AudioCue,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.FmodEventGuid,
+                    ProviderResourceKey = "audio.cue.character.test.footstep",
+                    FmodEventGuid = "{footstep}",
+                    ProviderData = new Dictionary<string, string>
+                    {
+                        { "audioCueId", "audio.cue.character.test.footstep" },
+                        { "audioEventDefinitionId", "audio.event.character.test.footstep" }
+                    }
+                }
+            }
+        });
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "runtime:vfx",
+            StableId = "runtime.vfx.spark",
+            DisplayName = "Spark",
+            Kind = CharacterPackageResourceTypeIds.Vfx,
+            Usage = CharacterPackageResourceUsageIds.VfxCue,
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.RuntimeReady
+        });
+
+        var service = new AuthoringResourceSelectionService();
+        AuthoringResourceFieldSpec sourceClipSpec = AnimationAuthoringResourceFieldSpecs.CreateSourceClip();
+        AuthoringResourcePickerQueryResult sourceQuery = service.Query(collection, sourceClipSpec, new AuthoringResourceConsumerContext { ConsumerKind = "AnimationEditor" });
+        Require(sourceClipSpec.FieldKey == AnimationAuthoringResourceFieldKeys.SourceClip, "source clip field key should be stable.");
+        Require(sourceClipSpec.PreloadPolicy == AuthoringResourcePreloadPolicies.AnimationWarmup, "source clip should use animation warmup preload policy.");
+        Require(sourceQuery.Items.Find(item => item.Item.StableId == "unity.project.idle").Selectable, "direct Unity .anim source clip should be selectable.");
+        Require(sourceQuery.Items.Find(item => item.Item.StableId == "runtime.anim.locomotion").Selectable, "runtime animation clip group should be selectable.");
+        Require(sourceQuery.Items.Find(item => item.Item.StableId == "charpkg.test.anim.locomotion").Selectable, "package animation clip group should be selectable.");
+        AuthoringResourcePickerItem fbxCandidate = sourceQuery.Items.Find(item => item.Item.StableId == "unity.project.fbx.container");
+        Require(fbxCandidate != null && !fbxCandidate.Selectable, "FBX/model containers should not be selectable as Animation.SourceClip.");
+        Require(fbxCandidate.Reasons.Exists(reason => reason.Code == AuthoringResourceSelectionReasonCodes.KindMismatch), "FBX/model rejection should include a kind mismatch.");
+
+        AuthoringResourceSelectionResolutionResult sourceResult = service.Resolve(
+            collection,
+            sourceClipSpec,
+            new AuthoringResourceConsumerContext(),
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.anim.locomotion",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog
+            });
+        Require(sourceResult.Accepted, "Animation.SourceClip should resolve runtime clip groups.");
+        Require(sourceResult.Selection.RuntimeResourceKey == "char.test.anim.locomotion", "Animation.SourceClip runtime selection should preserve runtime resource key.");
+
+        AuthoringResourceFieldSpec audioCueSpec = AnimationAuthoringResourceFieldSpecs.CreateEventAudioCue();
+        AuthoringResourceSelectionResolutionResult audioCueResult = service.Resolve(
+            collection,
+            audioCueSpec,
+            new AuthoringResourceConsumerContext(),
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "fmod.event.footstep",
+                SourceProviderId = AuthoringResourceProviderIds.Fmod
+            });
+        Require(audioCueResult.Accepted, "Animation.EventAudioCue should accept FMOD event audio resources.");
+        Require(audioCueResult.Selection.AudioCueId == "audio.cue.character.test.footstep", "Animation.EventAudioCue default output should fill AudioCueId.");
+        Require(audioCueSpec.AcceptedUsages.Contains(AnimationAuthoringResourceUsages.FmodEvent), "Animation.EventAudioCue should accept fmodEvent usage.");
+
+        AuthoringResourceSelectionResolutionResult audioEventResult = service.Resolve(
+            collection,
+            AnimationAuthoringResourceFieldSpecs.CreateEventAudioCue(AuthoringResourceSelectionOutputKind.AudioEventDefinitionId),
+            new AuthoringResourceConsumerContext(),
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "fmod.event.footstep",
+                SourceProviderId = AuthoringResourceProviderIds.Fmod
+            });
+        Require(audioEventResult.Accepted, "Animation.EventAudioCue should resolve audio event definitions when requested.");
+        Require(audioEventResult.Selection.AudioEventDefinitionId == "audio.event.character.test.footstep", "Animation.EventAudioCue should fill AudioEventDefinitionId output.");
+
+        AuthoringResourceSelectionResolutionResult wrongAudioResult = service.Resolve(
+            collection,
+            audioCueSpec,
+            new AuthoringResourceConsumerContext(),
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.vfx.spark",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog
+            });
+        Require(!wrongAudioResult.Accepted, "Animation.EventAudioCue should reject VFX resources.");
+        Require(wrongAudioResult.Reasons.Exists(reason => reason.Code == AuthoringResourceSelectionReasonCodes.KindMismatch), "Animation.EventAudioCue kind mismatch should be structured.");
+    }
+
+    private static AuthoringResourceItem CreateAnimationSourceItem(
+        string stableId,
+        string usage,
+        string providerId,
+        AuthoringResourceSourceKind sourceKind,
+        AuthoringResourceBindingKind bindingKind,
+        string providerKey,
+        string runtimeKey)
+    {
+        return new AuthoringResourceItem
+        {
+            ResourceId = providerId + ":" + stableId,
+            StableId = stableId,
+            DisplayName = stableId,
+            Kind = CharacterPackageResourceTypeIds.Animation,
+            Usage = usage,
+            SourceProviderId = providerId,
+            SourceKind = sourceKind,
+            BindingKind = bindingKind,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = string.IsNullOrWhiteSpace(runtimeKey) ? AuthoringResourceRuntimeAvailability.EditorOnly : AuthoringResourceRuntimeAvailability.RuntimeReady,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = providerId,
+                    BindingKind = bindingKind,
+                    BindingKeyKind = string.IsNullOrWhiteSpace(runtimeKey) ? AuthoringResourceBindingKeyKinds.UnityAssetPath : AuthoringResourceBindingKeyKinds.RuntimeResourceKey,
+                    IsPrimary = true,
+                    ProviderResourceKey = providerKey,
+                    RuntimeResourceKey = runtimeKey,
+                    PackageResourceKey = bindingKind == AuthoringResourceBindingKind.PackageResource ? providerKey : string.Empty,
+                    UnityAssetPath = bindingKind == AuthoringResourceBindingKind.UnityEditorOnlyAsset || bindingKind == AuthoringResourceBindingKind.UnityAsset ? providerKey : string.Empty
+                }
+            }
+        };
+    }
+
+    private static void EditorServer_AnimationPackageApi_IsFileBackedAndValidatesShallowDraft()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "mx-animation-api-" + Guid.NewGuid().ToString("N"));
+        string packagePath = Path.Combine(tempRoot, "Tools", "MxFramework.Authoring", "samples", "animation-test");
+        Directory.CreateDirectory(Path.Combine(packagePath, "config"));
+        File.WriteAllText(Path.Combine(packagePath, "manifest.json"), JsonSerializer.Serialize(new CharacterPackageManifest
+        {
+            PackageId = "animation_test",
+            StableId = "char.animation_test",
+            DisplayName = "Animation Test"
+        }, JsonOptions));
+        File.WriteAllText(Path.Combine(packagePath, "resource_catalog.json"), JsonSerializer.Serialize(new CharacterPackageResourceCatalog(), JsonOptions));
+
+        try
+        {
+            string packageRelative = "Tools/MxFramework.Authoring/samples/animation-test";
+            List<object> packages = MxFramework.Authoring.Cli.EditorServer.ListAnimationPackages(tempRoot, packageRelative, JsonOptions);
+            Require(packages.Count == 1, "animation package list should include character package scopes.");
+            Require(GetAnonymousPropertyForTest(packages[0], "packageId") == "animation.animation_test", "animation package list should seed package id from character manifest.");
+            Require(GetAnonymousPropertyForTest(packages[0], "characterPackageId") == "animation_test", "animation package list should expose the source character package id.");
+
+            object initialState = MxFramework.Authoring.Cli.EditorServer.ReadAnimationPackageState(tempRoot, "animation_test", packageRelative, JsonOptions);
+            Require(GetAnonymousPropertyForTest(initialState, "documentRelative").EndsWith("config/animation_authoring.json", StringComparison.Ordinal), "animation load should resolve id to a package-scoped document.");
+
+            var draft = new AnimationAuthoringPackage
+            {
+                PackageId = "animation.animation_test",
+                StableId = "anim.animation_test",
+                DisplayName = "Animation Test"
+            };
+            draft.Sets.Add(new AnimationAuthoringSet
+            {
+                SetId = "set.base",
+                Groups = new List<AnimationGroupAuthoring>
+                {
+                    new AnimationGroupAuthoring
+                    {
+                        GroupId = "group.locomotion",
+                        Clips = new List<AnimationClipMappingAuthoring>
+                        {
+                            new AnimationClipMappingAuthoring { ClipId = "idle" },
+                            new AnimationClipMappingAuthoring { ClipId = "idle", SourceSelection = new AuthoringResourceSelectionRef { ResourceStableId = "unity.project.idle" } }
+                        }
+                    }
+                }
+            });
+
+            CharacterAuthoringValidationReport validation = MxFramework.Authoring.Cli.EditorServer.ValidateAnimationPackage(draft);
+            Require(validation.Issues.Exists(issue => issue.Code == "ANIM_DUPLICATE_CLIP_ID"), "animation validation should report duplicate clip ids.");
+            Require(validation.Issues.Exists(issue => issue.Code == "ANIM_MISSING_SOURCE_SELECTION"), "animation validation should report missing source selections.");
+
+            MxFramework.Authoring.Cli.EditorServer.SaveAnimationPackage(tempRoot, packageRelative, packageRelative, draft, JsonOptions);
+            string documentPath = Path.Combine(packagePath, "config", "animation_authoring.json");
+            Require(File.Exists(documentPath), "animation save should write the package-scoped animation authoring document.");
+            AnimationAuthoringPackage saved = JsonSerializer.Deserialize<AnimationAuthoringPackage>(File.ReadAllText(documentPath), JsonOptions);
+            Require(saved != null && saved.PackageId == "animation.animation_test", "animation save should persist the draft package.");
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
     }
 
     private static void AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs()
@@ -2980,6 +3255,11 @@ internal static class CharacterPackageTests
         }
 
         return false;
+    }
+
+    private static string GetAnonymousPropertyForTest(object value, string propertyName)
+    {
+        return value?.GetType().GetProperty(propertyName)?.GetValue(value)?.ToString() ?? string.Empty;
     }
 
     private static void Require(bool condition, string message)

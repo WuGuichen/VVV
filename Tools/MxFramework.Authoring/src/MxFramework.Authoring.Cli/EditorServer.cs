@@ -14,6 +14,7 @@ internal static class EditorServer
 {
     private const string DefaultPackageRelativePath = "Tools/MxFramework.Authoring/samples/buff-preview";
     private const string DefaultCharacterPackageRelativePath = "Tools/MxFramework.Authoring/samples/character-iron-vanguard";
+    private const string AnimationAuthoringDocumentRelativePath = "config/animation_authoring.json";
     private const string ManifestRelativePath = "Tools/MxFramework.Authoring/samples/project-manifest/project-authoring-manifest.json";
     private const string SamplesRelativePath = "Tools/MxFramework.Authoring/samples";
 
@@ -72,6 +73,44 @@ internal static class EditorServer
         if (path == "/api/character/packages" && context.Request.HttpMethod == "GET")
         {
             WriteJson(context.Response, ListCharacterPackages(rootPath, defaultPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/animation/packages" && context.Request.HttpMethod == "GET")
+        {
+            WriteJson(context.Response, ListAnimationPackages(rootPath, defaultPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/animation/load" && context.Request.HttpMethod == "GET")
+        {
+            string animationPackage = context.Request.QueryString["package"] ?? string.Empty;
+            WriteJson(context.Response, ReadAnimationPackageState(rootPath, animationPackage, defaultPackage, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/animation/save" && context.Request.HttpMethod == "POST")
+        {
+            AnimationAuthoringSaveRequest request = ReadAnimationAuthoringSaveRequest(context, jsonOptions);
+            string animationPackage = !string.IsNullOrWhiteSpace(request.package)
+                ? request.package
+                : context.Request.QueryString["package"] ?? string.Empty;
+            WriteJson(context.Response, SaveAnimationPackage(rootPath, animationPackage, defaultPackage, request.animation, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/animation/validate" && context.Request.HttpMethod == "POST")
+        {
+            AnimationAuthoringSaveRequest request = ReadAnimationAuthoringSaveRequest(context, jsonOptions);
+            AnimationAuthoringPackage package = request.animation;
+            if (package == null)
+            {
+                string animationPackage = !string.IsNullOrWhiteSpace(request.package)
+                    ? request.package
+                    : context.Request.QueryString["package"] ?? string.Empty;
+                package = ReadAnimationPackage(rootPath, ResolveAnimationDocumentPath(rootPath, animationPackage, defaultPackage, jsonOptions), jsonOptions);
+            }
+            WriteJson(context.Response, ValidateAnimationPackage(package), jsonOptions);
             return;
         }
 
@@ -706,6 +745,342 @@ internal static class EditorServer
         }
     }
 
+    internal static List<object> ListAnimationPackages(string rootPath, string defaultPackage, JsonSerializerOptions jsonOptions)
+    {
+        var result = new List<object>();
+        AddAnimationPackageListItem(result, rootPath, IsCharacterPackage(rootPath, defaultPackage) ? defaultPackage : DefaultCharacterPackageRelativePath, jsonOptions);
+
+        string samplesDir = Path.Combine(rootPath, SamplesRelativePath);
+        if (!Directory.Exists(samplesDir))
+            return result;
+
+        foreach (string dir in Directory.GetDirectories(samplesDir).OrderBy(p => p, StringComparer.Ordinal))
+        {
+            string relative = Path.GetRelativePath(rootPath, dir).Replace('\\', '/');
+            AddAnimationPackageListItem(result, rootPath, relative, jsonOptions);
+        }
+
+        return result;
+    }
+
+    private static void AddAnimationPackageListItem(List<object> result, string rootPath, string relative, JsonSerializerOptions jsonOptions)
+    {
+        if (!IsCharacterPackage(rootPath, relative))
+            return;
+
+        string packagePath = ResolveSafePath(rootPath, relative);
+        string documentPath = Path.Combine(packagePath, AnimationAuthoringDocumentRelativePath);
+        CharacterPackageManifest manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(Path.Combine(packagePath, "manifest.json")), jsonOptions) ?? new CharacterPackageManifest();
+        }
+        catch
+        {
+            return;
+        }
+
+        string normalized = Path.GetRelativePath(rootPath, packagePath).Replace('\\', '/');
+        if (result.Any(item => string.Equals(GetAnonymousProperty(item, "relative"), normalized, StringComparison.Ordinal)))
+            return;
+
+        AnimationAuthoringPackage animation = File.Exists(documentPath)
+            ? ReadAnimationPackage(rootPath, documentPath, jsonOptions)
+            : CreateAnimationPackageFromCharacterManifest(manifest);
+
+        result.Add(new
+        {
+            relative = normalized,
+            packageId = string.IsNullOrWhiteSpace(animation.PackageId) ? manifest.PackageId : animation.PackageId,
+            characterPackageId = manifest.PackageId,
+            stableId = string.IsNullOrWhiteSpace(animation.StableId) ? manifest.StableId : animation.StableId,
+            displayName = string.IsNullOrWhiteSpace(animation.DisplayName) ? manifest.DisplayName : animation.DisplayName,
+            document = ToProjectRelativePath(rootPath, documentPath),
+            exists = File.Exists(documentPath),
+            kind = "AnimationAuthoring"
+        });
+    }
+
+    internal static object ReadAnimationPackageState(string rootPath, string packageOrPath, string defaultPackage, JsonSerializerOptions jsonOptions)
+    {
+        string documentPath = ResolveAnimationDocumentPath(rootPath, packageOrPath, defaultPackage, jsonOptions);
+        AnimationAuthoringPackage package = ReadAnimationPackage(rootPath, documentPath, jsonOptions);
+        return new
+        {
+            packageRelative = ToAnimationPackageRelative(rootPath, documentPath),
+            documentRelative = ToProjectRelativePath(rootPath, documentPath),
+            exists = File.Exists(documentPath),
+            canWrite = true,
+            package,
+            fieldSpecs = CreateAnimationFieldSpecs(),
+            validation = ValidateAnimationPackage(package)
+        };
+    }
+
+    internal static object SaveAnimationPackage(
+        string rootPath,
+        string packageOrPath,
+        string defaultPackage,
+        AnimationAuthoringPackage package,
+        JsonSerializerOptions jsonOptions)
+    {
+        if (package == null)
+            throw new ArgumentException("animation package is required.");
+
+        string documentPath = ResolveAnimationDocumentPath(rootPath, packageOrPath, defaultPackage, jsonOptions);
+        Directory.CreateDirectory(Path.GetDirectoryName(documentPath)!);
+        WriteJsonFileAtomic(documentPath, package, jsonOptions);
+        return ReadAnimationPackageState(rootPath, ToProjectRelativePath(rootPath, documentPath), defaultPackage, jsonOptions);
+    }
+
+    internal static CharacterAuthoringValidationReport ValidateAnimationPackage(AnimationAuthoringPackage package)
+    {
+        var report = new CharacterAuthoringValidationReport
+        {
+            PackageId = package != null ? package.PackageId ?? string.Empty : string.Empty
+        };
+        if (package == null)
+        {
+            report.Issues.Add(CreateAnimationValidationIssue("ANIM_PACKAGE_MISSING", "package", string.Empty, "Animation authoring package is missing.", CharacterAuthoringValidationSeverity.Error));
+            return report;
+        }
+
+        var setIds = new HashSet<string>(StringComparer.Ordinal);
+        for (int setIndex = 0; package.Sets != null && setIndex < package.Sets.Count; setIndex++)
+        {
+            AnimationAuthoringSet set = package.Sets[setIndex];
+            if (set == null)
+                continue;
+            AddDuplicateIssue(report, setIds, set.SetId, "ANIM_DUPLICATE_SET_ID", "sets/" + setIndex, "setId");
+
+            var layerIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int layerIndex = 0; set.Layers != null && layerIndex < set.Layers.Count; layerIndex++)
+            {
+                AnimationLayerAuthoring layer = set.Layers[layerIndex];
+                if (layer != null)
+                    AddDuplicateIssue(report, layerIds, layer.LayerId, "ANIM_DUPLICATE_LAYER_ID", "sets/" + setIndex + "/layers/" + layerIndex, "layerId");
+            }
+
+            var groupIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int groupIndex = 0; set.Groups != null && groupIndex < set.Groups.Count; groupIndex++)
+            {
+                AnimationGroupAuthoring group = set.Groups[groupIndex];
+                if (group == null)
+                    continue;
+                AddDuplicateIssue(report, groupIds, group.GroupId, "ANIM_DUPLICATE_GROUP_ID", "sets/" + setIndex + "/groups/" + groupIndex, "groupId");
+
+                var clipIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int clipIndex = 0; group.Clips != null && clipIndex < group.Clips.Count; clipIndex++)
+                {
+                    AnimationClipMappingAuthoring clip = group.Clips[clipIndex];
+                    if (clip == null)
+                        continue;
+                    string path = "sets/" + setIndex + "/groups/" + groupIndex + "/clips/" + clipIndex;
+                    AddDuplicateIssue(report, clipIds, clip.ClipId, "ANIM_DUPLICATE_CLIP_ID", path, "clipId");
+                    if (IsSelectionEmpty(clip.SourceSelection))
+                    {
+                        report.Issues.Add(CreateAnimationValidationIssue(
+                            "ANIM_MISSING_SOURCE_SELECTION",
+                            path,
+                            "sourceSelection",
+                            "Animation clip mapping is missing a source ResourceSelectionRef.",
+                            CharacterAuthoringValidationSeverity.Error));
+                    }
+                }
+
+                var blend1DIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int blendIndex = 0; group.Blend1D != null && blendIndex < group.Blend1D.Count; blendIndex++)
+                {
+                    AnimationBlend1DAuthoring blend = group.Blend1D[blendIndex];
+                    if (blend != null)
+                        AddDuplicateIssue(report, blend1DIds, blend.BlendId, "ANIM_DUPLICATE_BLEND_ID", "sets/" + setIndex + "/groups/" + groupIndex + "/blend1D/" + blendIndex, "blendId");
+                }
+
+                var blend2DIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int blendIndex = 0; group.Blend2D != null && blendIndex < group.Blend2D.Count; blendIndex++)
+                {
+                    AnimationBlend2DAuthoring blend = group.Blend2D[blendIndex];
+                    if (blend != null)
+                        AddDuplicateIssue(report, blend2DIds, blend.BlendId, "ANIM_DUPLICATE_BLEND_ID", "sets/" + setIndex + "/groups/" + groupIndex + "/blend2D/" + blendIndex, "blendId");
+                }
+
+                var timelineIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int timelineIndex = 0; group.Timelines != null && timelineIndex < group.Timelines.Count; timelineIndex++)
+                {
+                    AnimationTimelineAuthoring timeline = group.Timelines[timelineIndex];
+                    if (timeline == null)
+                        continue;
+                    AddDuplicateIssue(report, timelineIds, timeline.TimelineId, "ANIM_DUPLICATE_TIMELINE_ID", "sets/" + setIndex + "/groups/" + groupIndex + "/timelines/" + timelineIndex, "timelineId");
+
+                    var eventIds = new HashSet<string>(StringComparer.Ordinal);
+                    for (int eventIndex = 0; timeline.Events != null && eventIndex < timeline.Events.Count; eventIndex++)
+                    {
+                        AnimationTimelineEventAuthoring timelineEvent = timeline.Events[eventIndex];
+                        if (timelineEvent != null)
+                            AddDuplicateIssue(report, eventIds, timelineEvent.EventId, "ANIM_DUPLICATE_EVENT_ID", "sets/" + setIndex + "/groups/" + groupIndex + "/timelines/" + timelineIndex + "/events/" + eventIndex, "eventId");
+                    }
+                }
+            }
+        }
+
+        var profileIds = new HashSet<string>(StringComparer.Ordinal);
+        for (int profileIndex = 0; package.Profiles != null && profileIndex < package.Profiles.Count; profileIndex++)
+        {
+            AnimationAuthoringProfile profile = package.Profiles[profileIndex];
+            if (profile == null)
+                continue;
+            AddDuplicateIssue(report, profileIds, profile.ProfileId, "ANIM_DUPLICATE_PROFILE_ID", "profiles/" + profileIndex, "profileId");
+        }
+
+        return report;
+    }
+
+    private static object CreateAnimationFieldSpecs()
+    {
+        return new
+        {
+            sourceClip = AnimationAuthoringResourceFieldSpecs.CreateSourceClip(),
+            avatarMask = AnimationAuthoringResourceFieldSpecs.CreateAvatarMask(),
+            bakeArtifact = AnimationAuthoringResourceFieldSpecs.CreateBakeArtifact(),
+            compatibilityProfile = AnimationAuthoringResourceFieldSpecs.CreateCompatibilityProfile(),
+            eventVfx = AnimationAuthoringResourceFieldSpecs.CreateEventVfx(),
+            eventAudioCue = AnimationAuthoringResourceFieldSpecs.CreateEventAudioCue(),
+            eventAudioDefinition = AnimationAuthoringResourceFieldSpecs.CreateEventAudioCue(AuthoringResourceSelectionOutputKind.AudioEventDefinitionId)
+        };
+    }
+
+    private static void AddDuplicateIssue(
+        CharacterAuthoringValidationReport report,
+        HashSet<string> ids,
+        string id,
+        string code,
+        string sourceObjectPath,
+        string field)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return;
+        if (ids.Add(id))
+            return;
+
+        report.Issues.Add(CreateAnimationValidationIssue(
+            code,
+            sourceObjectPath,
+            field,
+            "Animation authoring id is duplicated: " + id,
+            CharacterAuthoringValidationSeverity.Error));
+    }
+
+    private static CharacterAuthoringValidationIssue CreateAnimationValidationIssue(
+        string code,
+        string sourceObjectPath,
+        string field,
+        string message,
+        CharacterAuthoringValidationSeverity severity)
+    {
+        return new CharacterAuthoringValidationIssue
+        {
+            Severity = severity,
+            Gate = severity == CharacterAuthoringValidationSeverity.Error ? CharacterAuthoringValidationGate.ExportBlocked : CharacterAuthoringValidationGate.WarningOnly,
+            Code = code,
+            SourcePath = AnimationAuthoringDocumentRelativePath,
+            SourceObjectPath = sourceObjectPath,
+            Field = field,
+            Message = message,
+            SuggestedFix = "Fix the animation authoring draft, then run validation again."
+        };
+    }
+
+    private static bool IsSelectionEmpty(AuthoringResourceSelectionRef selection)
+    {
+        return selection == null ||
+            (string.IsNullOrWhiteSpace(selection.ResourceStableId) &&
+             string.IsNullOrWhiteSpace(selection.ProviderResourceKey) &&
+             string.IsNullOrWhiteSpace(selection.PackageResourceKey) &&
+             string.IsNullOrWhiteSpace(selection.RuntimeResourceKey) &&
+             string.IsNullOrWhiteSpace(selection.UnityGuid) &&
+             string.IsNullOrWhiteSpace(selection.UnityAssetPath) &&
+             string.IsNullOrWhiteSpace(selection.AudioCueId) &&
+             string.IsNullOrWhiteSpace(selection.AudioEventDefinitionId));
+    }
+
+    private static string ResolveAnimationDocumentPath(string rootPath, string packageOrPath, string defaultPackage, JsonSerializerOptions jsonOptions)
+    {
+        string requested = packageOrPath ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(requested))
+            requested = IsCharacterPackage(rootPath, defaultPackage) ? defaultPackage : DefaultCharacterPackageRelativePath;
+
+        string resolved = ResolveSafePath(rootPath, requested);
+        if (File.Exists(resolved) || string.Equals(Path.GetExtension(resolved), ".json", StringComparison.OrdinalIgnoreCase))
+            return resolved;
+        if (Directory.Exists(resolved) || requested.Contains('/') || requested.Contains('\\'))
+            return Path.Combine(resolved, AnimationAuthoringDocumentRelativePath);
+
+        string matched = FindAnimationPackageRelativeById(rootPath, requested, defaultPackage, jsonOptions);
+        if (!string.IsNullOrWhiteSpace(matched))
+            return Path.Combine(ResolveSafePath(rootPath, matched), AnimationAuthoringDocumentRelativePath);
+
+        return Path.Combine(resolved, AnimationAuthoringDocumentRelativePath);
+    }
+
+    private static string FindAnimationPackageRelativeById(string rootPath, string id, string defaultPackage, JsonSerializerOptions jsonOptions)
+    {
+        foreach (object item in ListAnimationPackages(rootPath, defaultPackage, jsonOptions))
+        {
+            string relative = GetAnonymousProperty(item, "relative");
+            string packageId = GetAnonymousProperty(item, "packageId");
+            string characterPackageId = GetAnonymousProperty(item, "characterPackageId");
+            string stableId = GetAnonymousProperty(item, "stableId");
+            if (string.Equals(id, packageId, StringComparison.Ordinal) ||
+                string.Equals(id, characterPackageId, StringComparison.Ordinal) ||
+                string.Equals(id, stableId, StringComparison.Ordinal))
+                return relative;
+        }
+
+        return string.Empty;
+    }
+
+    private static string ToAnimationPackageRelative(string rootPath, string documentPath)
+    {
+        string normalized = Path.GetFullPath(documentPath);
+        string fileName = Path.GetFileName(normalized);
+        if (string.Equals(fileName, Path.GetFileName(AnimationAuthoringDocumentRelativePath), StringComparison.OrdinalIgnoreCase))
+        {
+            string packagePath = Path.GetDirectoryName(Path.GetDirectoryName(normalized)!)!;
+            return ToProjectRelativePath(rootPath, packagePath);
+        }
+
+        return ToProjectRelativePath(rootPath, normalized);
+    }
+
+    private static AnimationAuthoringPackage ReadAnimationPackage(string rootPath, string documentPath, JsonSerializerOptions jsonOptions)
+    {
+        if (File.Exists(documentPath))
+            return JsonSerializer.Deserialize<AnimationAuthoringPackage>(File.ReadAllText(documentPath), jsonOptions) ?? new AnimationAuthoringPackage();
+
+        string packagePath = Path.GetDirectoryName(Path.GetDirectoryName(documentPath)!)!;
+        string manifestPath = Path.Combine(packagePath, "manifest.json");
+        if (File.Exists(manifestPath))
+        {
+            CharacterPackageManifest manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(manifestPath), jsonOptions) ?? new CharacterPackageManifest();
+            return CreateAnimationPackageFromCharacterManifest(manifest);
+        }
+
+        return new AnimationAuthoringPackage();
+    }
+
+    private static AnimationAuthoringPackage CreateAnimationPackageFromCharacterManifest(CharacterPackageManifest manifest)
+    {
+        string packageId = manifest != null ? manifest.PackageId ?? string.Empty : string.Empty;
+        string stableId = manifest != null ? manifest.StableId ?? string.Empty : string.Empty;
+        string displayName = manifest != null ? manifest.DisplayName ?? string.Empty : string.Empty;
+        return new AnimationAuthoringPackage
+        {
+            PackageId = string.IsNullOrWhiteSpace(packageId) ? string.Empty : "animation." + packageId,
+            StableId = string.IsNullOrWhiteSpace(stableId) ? string.Empty : stableId + ".animation",
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? "Animation Authoring" : displayName + " Animation"
+        };
+    }
+
     private static string GetAnonymousProperty(object value, string propertyName)
     {
         return value?.GetType().GetProperty(propertyName)?.GetValue(value)?.ToString() ?? string.Empty;
@@ -1253,6 +1628,20 @@ internal static class EditorServer
         return string.IsNullOrWhiteSpace(body)
             ? new ExternalImportStageRequest()
             : (JsonSerializer.Deserialize<ExternalImportStageRequest>(body, jsonOptions) ?? new ExternalImportStageRequest());
+    }
+
+    private static AnimationAuthoringSaveRequest ReadAnimationAuthoringSaveRequest(HttpListenerContext context, JsonSerializerOptions jsonOptions)
+    {
+        string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+        if (string.IsNullOrWhiteSpace(body))
+            return new AnimationAuthoringSaveRequest();
+
+        AnimationAuthoringSaveRequest request = JsonSerializer.Deserialize<AnimationAuthoringSaveRequest>(body, jsonOptions);
+        if (request != null && request.animation != null)
+            return request;
+
+        AnimationAuthoringPackage package = JsonSerializer.Deserialize<AnimationAuthoringPackage>(body, jsonOptions);
+        return new AnimationAuthoringSaveRequest { animation = package };
     }
 
     private static AuthoringResourceCollection StageExternalImport(
@@ -3316,6 +3705,12 @@ internal static class EditorServer
         public AuthoringResourceFieldSpec fieldSpec { get; set; } = new AuthoringResourceFieldSpec();
         public AuthoringResourceConsumerContext context { get; set; } = new AuthoringResourceConsumerContext();
         public AuthoringResourceSelectionRef selection { get; set; } = new AuthoringResourceSelectionRef();
+    }
+
+    private sealed class AnimationAuthoringSaveRequest
+    {
+        public string package { get; set; } = string.Empty;
+        public AnimationAuthoringPackage animation { get; set; }
     }
 
     private sealed class ResourceLibraryWriteException : Exception
