@@ -44,6 +44,11 @@ const FALLBACK_EVENT_AUDIO_CUE_SPEC = {
 
 const ROOT_MOTION_OPTIONS = ["Ignore", "MotionDelta", "ApplyToActorReference"];
 const TIME_DOMAIN_OPTIONS = ["Seconds", "Normalized", "PresentationFrame", "CombatFrame"];
+const PREVIEW_TARGET_OPTIONS = [
+  { value: "skeleton", label: "Skeleton" },
+  { value: "characterPackage", label: "Character Package" },
+  { value: "modelResource", label: "Model Resource" }
+];
 const EVENT_KIND_OPTIONS = [
   { value: "Footstep", label: "footstep" },
   { value: "TraceOn", label: "trace on" },
@@ -67,6 +72,7 @@ const state = {
   selected: { kind: "package", setId: "", groupId: "", clipId: "" },
   blendEditor: { view: "1D", blendId: "" },
   timelineEditor: { timelineId: "" },
+  previewWorkflow: { targetType: "skeleton" },
   resourcePicker: {
     open: false,
     clip: null,
@@ -172,6 +178,7 @@ function bindEvents() {
   el.mappingWorkspace.addEventListener("input", handleBlendEditorInput);
   el.mappingWorkspace.addEventListener("change", handleTimelineEditorInput);
   el.mappingWorkspace.addEventListener("input", handleTimelineEditorInput);
+  el.mappingWorkspace.addEventListener("change", handlePreviewWorkflowInput);
 
   el.inspectorContent.addEventListener("input", handleInspectorInput);
   el.inspectorContent.addEventListener("change", handleInspectorInput);
@@ -412,7 +419,8 @@ function renderWorkspace() {
       ${renderClipMappingTable(clips)}
     </section>
     ${renderBlendEditor(group)}
-    ${renderTimelineEditor(group)}`;
+    ${renderTimelineEditor(group)}
+    ${renderPreviewBakeCompatibilityWorkflow(set, group)}`;
 }
 
 function renderClipMappingTable(clips) {
@@ -717,6 +725,309 @@ function renderTimelineDiagnostics(diagnostics) {
       <strong>Timeline diagnostics</strong>
       ${diagnostics.map(item => `<p class="${escapeHtml(item.tone)}">${escapeHtml(item.message)}</p>`).join("")}
     </div>`;
+}
+
+function renderPreviewBakeCompatibilityWorkflow(set, group) {
+  const clip = findSelectedClip() || (group.clips || [])[0] || null;
+  const blend = getSelectedBlend(group);
+  const timeline = getSelectedTimeline(group);
+  const target = getPreviewTargetSummary(state.previewWorkflow.targetType, set, group, clip);
+  const bake = getBakeArtifactSummary(set, group, clip);
+  const compatibility = getCompatibilityReport(set, group, clip, bake);
+
+  return `
+    <section class="workspace-section preview-bake-compatibility" aria-label="Preview Bake Compatibility workflow">
+      <div class="section-heading preview-heading">
+        <div>
+          <h3>Preview / Bake / Compatibility</h3>
+          <p>Preview 是编辑期辅助，不是 runtime authority，不写 Unity scene/prefab。</p>
+        </div>
+        <label class="preview-target-select">
+          <span>Preview Target</span>
+          <select data-preview-target-type>
+            ${PREVIEW_TARGET_OPTIONS.map(option => `<option value="${escapeHtml(option.value)}"${option.value === state.previewWorkflow.targetType ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+
+      <div class="preview-workflow-grid">
+        <article class="preview-card">
+          <div class="preview-card-heading">
+            <h4>Preview Target</h4>
+            <span>${escapeHtml(target.label)}</span>
+          </div>
+          <dl class="preview-kv">
+            <dt>resource reference</dt>
+            <dd><code>${escapeHtml(target.reference || "未设置")}</code></dd>
+            <dt>scope</dt>
+            <dd>${escapeHtml(target.scope || "-")}</dd>
+            <dt>ResourceFieldSpec</dt>
+            <dd>${escapeHtml(target.fieldSpec || "复用已有 SourceSelection / compatibility profile 入口")}</dd>
+          </dl>
+        </article>
+
+        <article class="preview-card">
+          <div class="preview-card-heading">
+            <h4>Reference Path</h4>
+            <span>clip / blend / timeline</span>
+          </div>
+          <dl class="preview-kv">
+            <dt>set/group/clip</dt>
+            <dd><code>${escapeHtml(`${set.setId || "set"}/${group.groupId || "group"}/${clip?.clipId || "clip"}`)}</code></dd>
+            <dt>blend/timeline</dt>
+            <dd><code>${escapeHtml(`${state.blendEditor.view}:${blend?.blendId || "none"} / ${timeline?.timelineId || "none"}`)}</code></dd>
+            <dt>rootMotionPolicy</dt>
+            <dd>${escapeHtml(clip?.rootMotionPolicy || "Ignore")}</dd>
+            <dt>source selection</dt>
+            <dd><code>${escapeHtml(getSelectionTitle(clip?.sourceSelection) || "未选择")}</code></dd>
+          </dl>
+        </article>
+      </div>
+
+      ${renderBakeArtifactSummary(bake)}
+      ${renderCompatibilityReport(compatibility)}
+    </section>`;
+}
+
+function renderBakeArtifactSummary(summary) {
+  const artifactRows = summary.artifacts.length
+    ? summary.artifacts.map(artifact => `
+      <div class="artifact-row">
+        <span>${escapeHtml(artifact.source)}</span>
+        <code>${escapeHtml(artifact.reference || "未设置")}</code>
+        <span>${escapeHtml(artifact.expectedHash || "-")}</span>
+        <span class="${escapeHtml(artifact.tone)}">${escapeHtml(artifact.status)}</span>
+      </div>`).join("")
+    : `<div class="artifact-row empty-row"><span>generatedArtifactSelections</span><code>未声明 Animation.BakeArtifact</code><span>-</span><span class="warning">pending</span></div>`;
+
+  return `
+    <article class="workflow-report bake-report">
+      <div class="preview-card-heading">
+        <h4>Bake Artifact Summary</h4>
+        <span>${escapeHtml(summary.status)}</span>
+      </div>
+      <dl class="preview-kv compact">
+        <dt>runtimeResourceKey</dt>
+        <dd><code>${escapeHtml(summary.runtimeResourceKey || "未生成")}</code></dd>
+        <dt>source hash</dt>
+        <dd><code>${escapeHtml(summary.sourceHash || "unknown")}</code></dd>
+        <dt>artifact hash</dt>
+        <dd><code>${escapeHtml(summary.artifactHash || "unknown")}</code></dd>
+      </dl>
+      <div class="artifact-table" role="table" aria-label="Bake artifact summary">
+        <div class="artifact-row artifact-head"><span>selection source</span><span>resource</span><span>expectedHash</span><span>hash/stale</span></div>
+        ${artifactRows}
+      </div>
+      ${renderWorkflowDiagnostics("Bake diagnostics", summary.diagnostics)}
+    </article>`;
+}
+
+function renderCompatibilityReport(report) {
+  return `
+    <article class="workflow-report compatibility-report">
+      <div class="preview-card-heading">
+        <h4>Skeleton / Avatar / Clip Compatibility</h4>
+        <span>${escapeHtml(report.status)}</span>
+      </div>
+      <div class="compatibility-grid">
+        <dl class="preview-kv compact">
+          <dt>skeletonProfileId</dt>
+          <dd><code>${escapeHtml(report.skeletonProfileId || "缺失")}</code></dd>
+          <dt>avatarProfileId</dt>
+          <dd><code>${escapeHtml(report.avatarProfileId || "缺失")}</code></dd>
+          <dt>profile resource</dt>
+          <dd><code>${escapeHtml(report.profileSelection || "未选择")}</code></dd>
+        </dl>
+        <dl class="preview-kv compact">
+          <dt>missing bone</dt>
+          <dd>${renderInlineList(report.missingBones)}</dd>
+          <dt>missing socket</dt>
+          <dd>${renderInlineList(report.missingSockets)}</dd>
+          <dt>avatar path</dt>
+          <dd>${renderInlineList(report.missingAvatarPaths)}</dd>
+        </dl>
+      </div>
+      ${renderWorkflowDiagnostics("Compatibility diagnostics", report.diagnostics)}
+    </article>`;
+}
+
+function renderWorkflowDiagnostics(title, diagnostics) {
+  if (!diagnostics.length) {
+    return `<div class="workflow-diagnostics ok"><strong>${escapeHtml(title)}</strong><p>当前 DTO 未报告阻塞问题。</p></div>`;
+  }
+  return `
+    <div class="workflow-diagnostics">
+      <strong>${escapeHtml(title)}</strong>
+      ${diagnostics.map(item => `<p class="${escapeHtml(item.tone)}"><code>${escapeHtml(item.code || "INFO")}</code> ${escapeHtml(item.message || "")}</p>`).join("")}
+    </div>`;
+}
+
+function renderInlineList(items) {
+  return items.length
+    ? items.map(item => `<code>${escapeHtml(item)}</code>`).join(" ")
+    : `<span class="muted">未报告</span>`;
+}
+
+function getPreviewTargetSummary(targetType, set, group, clip) {
+  const animation = state.animation || {};
+  if (targetType === "characterPackage") {
+    return {
+      label: "Character Package",
+      reference: state.packageRelative || animation.packageId || "",
+      scope: `${animation.packageId || "animation package"} / ${set?.setId || "set"}`,
+      fieldSpec: "package context"
+    };
+  }
+  if (targetType === "modelResource") {
+    return {
+      label: "Model Resource",
+      reference: getSelectionTitle(clip?.sourceSelection) || clip?.runtimeResourceKey || "",
+      scope: `${group?.groupId || "group"} / ${clip?.clipId || "clip"}`,
+      fieldSpec: "Animation.SourceClip"
+    };
+  }
+  return {
+    label: "Skeleton",
+    reference: firstNonEmpty(animation.skeletonProfileId, set?.compatibility?.skeletonProfileId),
+    scope: `${animation.packageId || "animation package"} / compatibility`,
+    fieldSpec: "Animation.CompatibilityProfile"
+  };
+}
+
+function getBakeArtifactSummary(set, group, clip) {
+  const artifactSelections = [
+    ...selectionEntries("clip.generatedArtifactSelections", clip?.generatedArtifactSelections),
+    ...selectionEntries("set.warmup.generatedArtifactSelections", set?.warmup?.generatedArtifactSelections),
+    ...selectionEntries("set.warmup.additionalResourceSelections", set?.warmup?.additionalResourceSelections)
+  ];
+  const sourceHash = firstNonEmpty(
+    clip?.sourceSelection?.expectedHash,
+    clip?.metadata?.sourceHash,
+    clip?.metadata?.sourceClipHash,
+    getSelectionTitle(clip?.sourceSelection)
+  );
+  const artifactHash = firstNonEmpty(
+    clip?.metadata?.artifactHash,
+    clip?.metadata?.bakeArtifactHash,
+    clip?.metadata?.generatedConfigHash,
+    artifactSelections.find(entry => entry.selection?.expectedHash)?.selection?.expectedHash
+  );
+  const diagnostics = [];
+  const artifacts = artifactSelections.map(entry => {
+    const expectedHash = entry.selection?.expectedHash || "";
+    const stale = Boolean(expectedHash && sourceHash && expectedHash !== sourceHash);
+    if (stale) {
+      diagnostics.push({
+        tone: "warning",
+        code: "ANIM_BAKE_ARTIFACT_STALE",
+        message: `${entry.source} expectedHash 与 source clip/profile/skeleton context 不一致。`
+      });
+    }
+    return {
+      source: entry.source,
+      reference: getSelectionTitle(entry.selection),
+      expectedHash,
+      tone: stale ? "warning" : "ok",
+      status: stale ? "stale" : expectedHash ? "hash tracked" : "no hash"
+    };
+  });
+
+  if (!clip) {
+    diagnostics.push({ tone: "warning", code: "ANIM_BAKE_CLIP_MISSING", message: "未选择 Clip，无法显示 bake artifact 上下文。" });
+  }
+  if (clip && !getSelectionTitle(clip.sourceSelection)) {
+    diagnostics.push({ tone: "warning", code: "ANIM_BAKE_SOURCE_CLIP_MISSING", message: "当前 Clip 尚未选择源动画资源。" });
+  }
+  if (artifacts.length === 0) {
+    diagnostics.push({ tone: "warning", code: "ANIM_BAKE_ARTIFACT_MISSING", message: "没有 generatedArtifactSelections；Bake 产物尚未声明或尚未生成。" });
+  }
+
+  return {
+    runtimeResourceKey: clip?.runtimeResourceKey || "",
+    sourceHash,
+    artifactHash,
+    artifacts,
+    status: diagnostics.some(item => item.tone === "warning" || item.tone === "error") ? "needs review" : "clean",
+    diagnostics
+  };
+}
+
+function getCompatibilityReport(set, group, clip, bake) {
+  const animation = state.animation || {};
+  const compatibility = set?.compatibility || {};
+  const diagnostics = [];
+  const skeletonProfileId = firstNonEmpty(compatibility.skeletonProfileId, animation.skeletonProfileId);
+  const avatarProfileId = firstNonEmpty(compatibility.avatarProfileId, animation.avatarProfileId);
+  const profileSelection = firstNonEmpty(
+    getSelectionTitle(compatibility.compatibilityProfileSelection),
+    getSelectionTitle(compatibility.avatarMaskSelection)
+  );
+  const requiredBones = Array.isArray(compatibility.requiredBoneIds) ? compatibility.requiredBoneIds : [];
+  const requiredSockets = Array.isArray(compatibility.requiredSocketIds) ? compatibility.requiredSocketIds : [];
+  const missingBones = collectDiagnosticValues([animation, set, group, clip], ["bone", "requiredBone", "missingBone"]);
+  const missingSockets = collectDiagnosticValues([animation, set, group, clip], ["socket", "requiredSocket", "missingSocket"]);
+  const missingAvatarPaths = collectDiagnosticValues([animation, set, group, clip], ["avatar", "avatarPath", "missingAvatar"]);
+
+  if (!skeletonProfileId) {
+    diagnostics.push({ tone: "error", code: "ANIM_COMPAT_SKELETON_PROFILE_MISSING", message: "缺少 skeletonProfileId，骨骼路径缺失无法在运行前暴露。" });
+  }
+  if (!avatarProfileId) {
+    diagnostics.push({ tone: "warning", code: "ANIM_COMPAT_AVATAR_PROFILE_MISSING", message: "缺少 avatarProfileId；Avatar/retargeting 路径需要补充。" });
+  }
+  if (!requiredBones.length) {
+    diagnostics.push({ tone: "warning", code: "ANIM_COMPAT_REQUIRED_BONES_EMPTY", message: "未声明 requiredBoneIds，missing bone/socket 检查只能依赖外部诊断。" });
+  }
+  if (!requiredSockets.length) {
+    diagnostics.push({ tone: "warning", code: "ANIM_COMPAT_REQUIRED_SOCKETS_EMPTY", message: "未声明 requiredSocketIds，挂点缺失不能在编辑期完全暴露。" });
+  }
+
+  const rootPolicies = new Set((set?.layers || []).map(layer => layer.rootMotionPolicy).filter(Boolean));
+  const clipPolicy = clip?.rootMotionPolicy || "Ignore";
+  if (rootPolicies.size > 0 && !rootPolicies.has(clipPolicy)) {
+    diagnostics.push({
+      tone: "warning",
+      code: "ANIM_COMPAT_ROOT_MOTION_POLICY_MISMATCH",
+      message: `Clip RootMotionPolicy ${clipPolicy} 与 Set layer policy ${Array.from(rootPolicies).join(", ")} 不一致。`
+    });
+  }
+  diagnostics.push(...(bake?.diagnostics || []));
+
+  return {
+    skeletonProfileId,
+    avatarProfileId,
+    profileSelection,
+    missingBones: missingBones.length ? missingBones : requiredBones.length ? [] : ["requiredBoneIds not declared"],
+    missingSockets: missingSockets.length ? missingSockets : requiredSockets.length ? [] : ["requiredSocketIds not declared"],
+    missingAvatarPaths: missingAvatarPaths.length ? missingAvatarPaths : avatarProfileId ? [] : ["avatarProfileId not declared"],
+    status: diagnostics.some(item => item.tone === "error") ? "blocked" : diagnostics.length ? "needs review" : "clean",
+    diagnostics
+  };
+}
+
+function selectionEntries(source, selections) {
+  return Array.isArray(selections)
+    ? selections.map(selection => ({ source, selection }))
+    : [];
+}
+
+function collectDiagnosticValues(sources, needles) {
+  const values = new Set();
+  for (const source of sources) {
+    for (const diagnostic of source?.diagnostics || []) {
+      const code = String(diagnostic.code || "").toLowerCase();
+      const field = String(diagnostic.field || "").toLowerCase();
+      const message = String(diagnostic.message || "").toLowerCase();
+      if (!needles.some(needle => code.includes(needle.toLowerCase()) || field.includes(needle.toLowerCase()) || message.includes(needle.toLowerCase()))) {
+        continue;
+      }
+      values.add(firstNonEmpty(diagnostic.field, diagnostic.sourceObjectPath, diagnostic.message, diagnostic.code));
+    }
+  }
+  return Array.from(values);
+}
+
+function firstNonEmpty(...values) {
+  return values.find(value => value != null && String(value).trim() !== "") || "";
 }
 
 function renderInspector() {
@@ -1336,6 +1647,14 @@ function renderTimelineEditorState() {
   renderDiagnostics();
 }
 
+function handlePreviewWorkflowInput(event) {
+  if (event.target.dataset.previewTargetType === undefined) {
+    return;
+  }
+  state.previewWorkflow.targetType = event.target.value || "skeleton";
+  renderWorkspace();
+}
+
 function getTimelineList(group) {
   if (!group) return [];
   group.timelines = Array.isArray(group.timelines) ? group.timelines : [];
@@ -1736,19 +2055,6 @@ function ensureAnimationShape() {
           if (point.weight == null) point.weight = 1;
           if (point.x == null) point.x = 0;
           if (point.y == null) point.y = 0;
-        }
-      }
-      for (const timeline of group.timelines) {
-        timeline.timeDomain ||= "Seconds";
-        timeline.events = Array.isArray(timeline.events) ? timeline.events : [];
-        timeline.diagnostics = Array.isArray(timeline.diagnostics) ? timeline.diagnostics : [];
-        timeline.metadata ||= {};
-        for (const eventItem of timeline.events) {
-          eventItem.timeDomain ||= timeline.timeDomain || "Seconds";
-          eventItem.eventKind ||= "custom";
-          eventItem.resourceSelection ||= {};
-          eventItem.metadata ||= {};
-          if (eventItem.time == null) eventItem.time = 0;
         }
       }
       for (const clip of group.clips) {
