@@ -1011,6 +1011,7 @@ internal static class EditorServer
         AnimationSetDefinitionDocument setDefinition)
     {
         var resourcesByKey = new Dictionary<string, object>(StringComparer.Ordinal);
+        var entriesByKey = new Dictionary<string, CharacterPackageResourceEntry>(StringComparer.Ordinal);
         for (int i = 0; catalog != null && catalog.Entries != null && i < catalog.Entries.Count; i++)
         {
             CharacterPackageResourceEntry entry = catalog.Entries[i];
@@ -1036,6 +1037,7 @@ internal static class EditorServer
                 exists = !string.IsNullOrWhiteSpace(projectRelative),
                 tags = entry.Tags ?? new List<string>()
             };
+            entriesByKey[entry.ResourceKey] = entry;
         }
 
         var animationClips = new List<object>();
@@ -1043,6 +1045,12 @@ internal static class EditorServer
         {
             AnimationClipRegistryEntry clip = clipRegistry.Clips[i];
             resourcesByKey.TryGetValue(clip.RuntimeResourceKey ?? string.Empty, out object resource);
+            object previewModelResource = null;
+            string previewModelResourceKey = string.Empty;
+            if (entriesByKey.TryGetValue(clip.RuntimeResourceKey ?? string.Empty, out CharacterPackageResourceEntry clipResourceEntry))
+                previewModelResourceKey = clipResourceEntry.Preview?.PreviewMeshResourceKey ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(previewModelResourceKey))
+                resourcesByKey.TryGetValue(previewModelResourceKey, out previewModelResource);
             AnimationSetDefinitionClipRef clipRef = FindAnimationSetDefinitionClip(setDefinition, clip);
             animationClips.Add(new
             {
@@ -1056,7 +1064,10 @@ internal static class EditorServer
                 loop = clipRef != null && clipRef.Loop,
                 speed = clipRef != null ? clipRef.Speed : 1f,
                 rootMotionPolicy = clipRef != null ? clipRef.RootMotionPolicy : string.Empty,
-                resource
+                resource,
+                animationResource = resource,
+                previewModelResourceKey,
+                previewModelResource
             });
         }
 

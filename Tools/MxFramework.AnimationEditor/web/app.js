@@ -971,7 +971,7 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
   const resources = getPreviewResources(result);
   const clips = getPreviewAnimationClips(result);
   const selectedClip = getSelectedPreviewClip();
-  const selectedResource = selectedClip?.resource || getPreviewResourceForClip(clip, resources);
+  const selectedResource = getPreviewDisplayResource(selectedClip, resources) || getPreviewResourceForClip(clip, resources);
   const diagnostics = getPreviewDiagnostics(result);
   const glbResources = resources.filter(resource => isPreviewModelResource(resource));
   const missingResources = resources.filter(resource => resource.exists === false);
@@ -3590,7 +3590,9 @@ function updatePreviewControlDom(updateStatus = true) {
   if (loop) loop.checked = Boolean(preview.loop);
   const status = document.getElementById("previewClipMatchStatus");
   if (updateStatus && status) {
-    const resource = getSelectedPreviewClip()?.resource || getPreviewResourceForClip(findSelectedClip(), getPreviewResources());
+    const selectedClip = getSelectedPreviewClip();
+    const resources = getPreviewResources();
+    const resource = getPreviewDisplayResource(selectedClip, resources) || getPreviewResourceForClip(findSelectedClip(), resources);
     status.outerHTML = renderPreviewGltfStatus(resource);
   }
 }
@@ -3680,6 +3682,21 @@ function getPreviewResourceForClip(clip, resources) {
   return resources.find(resource => resource.resourceKey === key || resource.stableId === key) || null;
 }
 
+function getPreviewDisplayResource(clip, resources = getPreviewResources()) {
+  if (clip?.previewModelResource) return clip.previewModelResource;
+  const key = clip?.previewModelResourceKey || clip?.resource?.previewModelResourceKey || "";
+  if (key) {
+    const resource = resources.find(item => item.resourceKey === key || item.stableId === key);
+    if (resource) return resource;
+  }
+  return clip?.resource || null;
+}
+
+function getPreviewAnimationResource(clip, resources = getPreviewResources()) {
+  if (clip?.animationResource) return clip.animationResource;
+  return clip?.resource || getPreviewResourceForClip(clip, resources);
+}
+
 function isPreviewModelResource(resource) {
   const path = String(resource?.url || resource?.relativePath || resource?.projectRelativePath || "").toLowerCase();
   const kind = String(resource?.kind || "").toLowerCase();
@@ -3694,7 +3711,9 @@ async function renderCompilerPreviewViewport() {
   resetPreviewClipInsight();
   const renderId = ++state.preview3d.renderId;
   const selectedClip = getSelectedPreviewClip();
-  const resource = selectedClip?.resource || getPreviewResourceForClip(findSelectedClip(), getPreviewResources());
+  const resources = getPreviewResources();
+  const resource = getPreviewDisplayResource(selectedClip, resources) || getPreviewResourceForClip(findSelectedClip(), resources);
+  const animationResource = getPreviewAnimationResource(selectedClip, resources) || resource;
   if (!resource || !isPreviewModelResource(resource) || !resource.url) {
     state.preview3d.threeStatus = "fallback";
     host.dataset.previewState = "fallback";
@@ -3704,7 +3723,7 @@ async function renderCompilerPreviewViewport() {
   state.preview3d.threeStatus = "loading";
   host.dataset.previewState = "loading";
   try {
-    await renderThreePreviewViewport(host, resource, selectedClip, renderId);
+    await renderThreePreviewViewport(host, resource, selectedClip, renderId, animationResource);
   } catch (error) {
     if (renderId !== state.preview3d.renderId) return;
     state.preview3d.threeStatus = "fallback";
@@ -3713,7 +3732,7 @@ async function renderCompilerPreviewViewport() {
   }
 }
 
-async function renderThreePreviewViewport(host, resource, clip, renderId) {
+async function renderThreePreviewViewport(host, resource, clip, renderId, animationResource = resource) {
   const { THREE, GLTFLoader, OrbitControls } = await loadThreeRuntime();
   if (renderId !== state.preview3d.renderId) return;
 
@@ -3772,7 +3791,18 @@ async function renderThreePreviewViewport(host, resource, clip, renderId) {
   content.add(model);
   framePreviewContent(THREE, camera, controls, content);
 
-  const animations = Array.isArray(gltf.animations) ? gltf.animations : [];
+  let animationGltf = gltf;
+  if (animationResource?.url && animationResource.url !== resource.url) {
+    animationGltf = await new Promise((resolve, reject) => loader.load(animationResource.url, resolve, undefined, reject));
+    if (renderId !== state.preview3d.renderId) {
+      disposeThreeObject(THREE, gltf.scene);
+      disposeThreeObject(THREE, animationGltf.scene);
+      disposeLocal();
+      return;
+    }
+  }
+
+  const animations = Array.isArray(animationGltf.animations) ? animationGltf.animations : [];
   const clipMatch = selectGltfAnimationClip(animations, clip);
   state.preview3d.resourceKey = resource.resourceKey || resource.stableId || resource.url || "";
   state.preview3d.availableClipNames = animations.map(item => item.name || "(unnamed)");
@@ -3782,6 +3812,9 @@ async function renderThreePreviewViewport(host, resource, clip, renderId) {
   state.preview3d.matchedClipName = clipMatch.clip?.name || "";
   state.preview3d.duration = Math.max(0.01, clipMatch.clip?.duration || getPreviewClipDuration(clip));
   state.preview3d.currentTime = clamp(state.preview3d.currentTime || 0, 0, state.preview3d.duration);
+  if (animationGltf !== gltf) {
+    disposeThreeObject(THREE, animationGltf.scene);
+  }
 
   if (clipMatch.clip) {
     mixer = new THREE.AnimationMixer(model);
