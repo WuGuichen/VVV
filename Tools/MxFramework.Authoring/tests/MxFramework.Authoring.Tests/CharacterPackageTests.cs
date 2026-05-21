@@ -19,6 +19,7 @@ internal static class CharacterPackageTests
         CharacterPackageProvider_ProjectsPackageResourceWithoutRuntimeKey();
         CharacterPackageProvider_ReportsDuplicateStableIdsAndProviderKeys();
         UnityAssetDatabaseProvider_ProjectsSnapshotAndUnavailableState();
+        UnityProjectAssetProvider_DiscoversAnimationAssets();
         RuntimeCatalogProvider_ProjectsRuntimeReadyEntries();
         FmodAudioLibraryProvider_ProjectsEventsAndUnavailableState();
         ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates();
@@ -552,6 +553,27 @@ internal static class CharacterPackageTests
             UnityAssetPath = "Assets/Characters/missing.png",
             ImportStatus = "Imported"
         });
+        snapshot.Entries.Add(new AuthoringUnityResourceCatalogEntry
+        {
+            Id = "unity.anim.standing_idle",
+            Type = "AnimationClip",
+            StableId = "unity.anim.standing_idle",
+            Usage = CharacterPackageResourceUsageIds.AnimationClipGroup,
+            UnityAssetGuid = "guid-fbx",
+            UnityAssetPath = "Assets/Characters/body.prefab",
+            UnityMainObjectType = "GameObject",
+            ImporterKind = "ModelImporter",
+            ImportStatus = "Imported",
+            Labels = new List<string> { "character.animation" },
+            ProviderData = new Dictionary<string, string>
+            {
+                { "unitySubAssetKey", "guid-fbx:12345" },
+                { "unityObjectType", "AnimationClip" },
+                { "unityObjectName", "standing_idle" },
+                { "unityLocalFileId", "12345" },
+                { "parentUnityAssetPath", "Assets/Characters/body.prefab" }
+            }
+        });
 
         try
         {
@@ -577,6 +599,13 @@ internal static class CharacterPackageTests
             AuthoringResourceItem missing = collection.Items.Find(item => item.Metadata.ContainsKey("packageResourceKey") && item.Metadata["packageResourceKey"] == "char.test.texture.icon");
             Require(missing != null && missing.ImportStatus == AuthoringResourceImportStatus.UnityMissing, "missing Unity asset should be marked UnityMissing.");
             Require(missing.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.UnityAssetMissing), "missing Unity asset should emit a diagnostic.");
+
+            AuthoringResourceItem clip = collection.Items.Find(item => item.StableId == "unity.unity.anim.standing_idle");
+            Require(clip != null, "Unity animation sub-asset should be projected.");
+            Require(clip.DisplayName == "standing_idle", "Unity animation sub-asset should use object name as display name.");
+            Require(clip.Kind == CharacterPackageResourceTypeIds.Animation, "Unity AnimationClip should map to animation kind.");
+            Require(clip.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnitySubAssetKey && binding.ProviderResourceKey == "guid-fbx:12345"), "Unity animation sub-asset should use unique sub-asset key binding.");
+            Require(clip.Metadata["unityLocalFileId"] == "12345", "Unity animation sub-asset should preserve local file id metadata.");
         }
         finally
         {
@@ -586,6 +615,50 @@ internal static class CharacterPackageTests
         AuthoringResourceCollection unavailable = new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
         Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "Unity provider should expose unavailable state without a snapshot.");
         Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable Unity provider should emit a diagnostic.");
+    }
+
+    private static void UnityProjectAssetProvider_DiscoversAnimationAssets()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "mx-authoring-project-assets-" + Guid.NewGuid().ToString("N"));
+        string animationRoot = Path.Combine(tempRoot, "Assets", "Art", "Characters", "Skeleton", "AnimationClips");
+        string modelRoot = Path.Combine(tempRoot, "Assets", "Art", "Characters", "Skeleton", "Models");
+        string generatedRoot = Path.Combine(tempRoot, "Assets", "MxFrameworkGenerated", "CharacterPackages", "test", "resources", "animations");
+        Directory.CreateDirectory(animationRoot);
+        Directory.CreateDirectory(modelRoot);
+        Directory.CreateDirectory(generatedRoot);
+        File.WriteAllText(Path.Combine(animationRoot, "standing_idle.anim"), "anim");
+        File.WriteAllText(Path.Combine(animationRoot, "Standing Run Forward.fbx"), "fbx");
+        File.WriteAllText(Path.Combine(modelRoot, "Skeleton.fbx"), "model");
+        File.WriteAllText(Path.Combine(generatedRoot, "placeholder.glb"), "generated");
+
+        try
+        {
+            AuthoringResourceCollection collection = new UnityProjectAssetAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext
+            {
+                ScopeId = "test",
+                PackageId = "test",
+                ProjectRootPath = tempRoot
+            });
+
+            Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.UnityProjectAssets, "Unity project asset provider should be declared.");
+            Require(collection.Providers[0].Available, "Unity project asset provider should be available when Assets exists.");
+            Require(collection.Items.Count == 2, "Unity project asset provider should discover animation clips and animation containers only.");
+
+            AuthoringResourceItem idle = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("standing_idle.anim", StringComparison.Ordinal));
+            Require(idle != null, "direct .anim clip should be discovered.");
+            Require(idle.Kind == CharacterPackageResourceTypeIds.Animation && idle.Usage == "animationClip", ".anim clip should be exposed as an animationClip resource.");
+            Require(idle.SourceProviderId == AuthoringResourceProviderIds.UnityProjectAssets, ".anim clip should use Unity project asset provider.");
+            Require(idle.BindingKind == AuthoringResourceBindingKind.UnityEditorOnlyAsset, ".anim clip should be editor-only until compiled into runtime catalogs.");
+            Require(idle.ProviderBindings.Exists(binding => binding.BindingKeyKind == AuthoringResourceBindingKeyKinds.UnityAssetPath && binding.UnityAssetPath.EndsWith("standing_idle.anim", StringComparison.Ordinal)), ".anim clip should expose Unity asset path binding.");
+
+            AuthoringResourceItem run = collection.Items.Find(item => item.Metadata.ContainsKey("unityAssetPath") && item.Metadata["unityAssetPath"].EndsWith("Standing Run Forward.fbx", StringComparison.Ordinal));
+            Require(run != null && run.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation-folder FBX should be exposed as animationClipGroup.");
+            Require(collection.Items.TrueForAll(item => !item.Metadata["unityAssetPath"].Contains("MxFrameworkGenerated")), "generated package animation files should not be duplicated as project assets.");
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
     }
 
     private static void RuntimeCatalogProvider_ProjectsRuntimeReadyEntries()
@@ -788,6 +861,13 @@ internal static class CharacterPackageTests
             SizeBytes = 4,
             BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("icon"))
         });
+        staging.Files.Add(new AuthoringExternalImportStagingFile
+        {
+            FileName = "Standing Run Forward.fbx",
+            RelativePath = "Art/Animations/Standing Run Forward.fbx",
+            SizeBytes = 6,
+            BytesBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("runfbx"))
+        });
 
         AuthoringResourceCollection collection = ExternalImportStagingAuthoringResourceProvider.FromStagingDocument(
             staging,
@@ -800,7 +880,7 @@ internal static class CharacterPackageTests
 
         Require(collection.Providers.Count == 1 && collection.Providers[0].ProviderId == AuthoringResourceProviderIds.ExternalImportStaging, "external staging provider should be declared.");
         Require(collection.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.IgnoredImportFile), ".meta files should be ignored as diagnostics instead of primary resources.");
-        Require(collection.Items.Count == 4, "hidden/meta file should not become a staged resource item.");
+        Require(collection.Items.Count == 5, "hidden/meta file should not become a staged resource item.");
 
         AuthoringResourceItem duplicate = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Characters/body.glb");
         Require(duplicate != null && duplicate.ImportStatus == AuthoringResourceImportStatus.Conflict, "duplicate source hash should be staged as a conflict.");
@@ -819,6 +899,10 @@ internal static class CharacterPackageTests
         Require(icon.Kind == CharacterPackageResourceTypeIds.Texture && icon.Usage == CharacterPackageResourceUsageIds.Texture, "texture import candidates should infer kind and usage.");
         Require(icon.RuntimeAvailability == AuthoringResourceRuntimeAvailability.NotRuntimeLoadable, "staged items should remain not runtime-loadable until promoted.");
         Require(icon.Metadata["selectable"] == "true", "supported unique staged items should be selectable for promotion.");
+
+        AuthoringResourceItem animation = collection.Items.Find(item => item.Metadata.ContainsKey("relativePath") && item.Metadata["relativePath"] == "Art/Animations/Standing Run Forward.fbx");
+        Require(animation != null && animation.Kind == CharacterPackageResourceTypeIds.Animation, "animation folder FBX should infer animation kind.");
+        Require(animation.Usage == CharacterPackageResourceUsageIds.AnimationClipGroup, "animation folder FBX should infer animationClipGroup usage.");
     }
 
     private static void AuthoringResourceSelectionContracts_JsonRoundTrip()

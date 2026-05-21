@@ -98,7 +98,7 @@ namespace MxFramework.Authoring
             int index)
         {
             string extension = Path.GetExtension(file.FileName ?? displayPath).TrimStart('.').ToLowerInvariant();
-            ResourceTypeCandidate candidate = DetectCandidate(extension);
+            ResourceTypeCandidate candidate = DetectCandidate(extension, displayPath);
             string sourceHash = ResolveSourceHash(file);
             long size = file.SizeBytes > 0 ? file.SizeBytes : GetDecodedSize(file.BytesBase64);
             string stableId = "external." + AuthoringResourceProviderUtilities.SanitizeStableSegment(
@@ -265,13 +265,15 @@ namespace MxFramework.Authoring
             return AuthoringResourceProviderUtilities.FirstNonEmpty(file != null ? file.RelativePath : string.Empty, file != null ? file.FileName : string.Empty).Replace('\\', '/');
         }
 
-        private static ResourceTypeCandidate DetectCandidate(string extension)
+        private static ResourceTypeCandidate DetectCandidate(string extension, string displayPath)
         {
             switch (extension)
             {
                 case "fbx":
                 case "glb":
                 case "gltf":
+                    if (LooksLikeAnimationPath(displayPath))
+                        return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Animation, CharacterPackageResourceUsageIds.AnimationClipGroup, "unityAsset", "animation");
                     return new ResourceTypeCandidate(true, CharacterPackageResourceTypeIds.Model, CharacterPackageResourceUsageIds.PreviewMesh, "unityAsset", "model");
                 case "png":
                 case "jpg":
@@ -286,6 +288,16 @@ namespace MxFramework.Authoring
                 default:
                     return new ResourceTypeCandidate(false, "unsupported", string.Empty, string.Empty, "unsupported");
             }
+        }
+
+        private static bool LooksLikeAnimationPath(string displayPath)
+        {
+            string path = (displayPath ?? string.Empty).Replace('\\', '/').ToLowerInvariant();
+            return path.Contains("/animation/")
+                || path.Contains("/animations/")
+                || path.Contains("/animationclips/")
+                || path.Contains("_animation")
+                || path.Contains(".animation");
         }
 
         private readonly struct ResourceTypeCandidate

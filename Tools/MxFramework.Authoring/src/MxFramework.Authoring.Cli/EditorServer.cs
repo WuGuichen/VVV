@@ -780,6 +780,7 @@ internal static class EditorServer
         AuthoringResourceCollection collection = AuthoringResourceCollectionMerger.Merge(
             new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(context),
             new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(context),
+            new UnityProjectAssetAuthoringResourceProvider().BuildResourceCollection(context),
             new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(context),
             new FmodAudioLibraryAuthoringResourceProvider().BuildResourceCollection(context),
             new ExternalImportStagingAuthoringResourceProvider().BuildResourceCollection(context));
@@ -1414,6 +1415,17 @@ internal static class EditorServer
         string packageId = package.Manifest?.PackageId ?? string.Empty;
         string typeId = NormalizeResourceTypeId(!string.IsNullOrWhiteSpace(request.kind) ? request.kind : entry.TypeId, extension);
         string format = NormalizeSourceFormat(extension);
+        string targetExtension = extension;
+        byte[] packageResourceBytes = bytes;
+        string fileStem = CharacterPackageResourceKeyGenerator.NormalizeSegment(Path.GetFileNameWithoutExtension(request.fileName)).Replace('.', '_');
+        if (string.Equals(typeId, CharacterPackageResourceTypeIds.Animation, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(format, CharacterPackageResourceFormatIds.Fbx, StringComparison.OrdinalIgnoreCase))
+        {
+            packageResourceBytes = ConvertFbxToGlb(rootPath, fileStem, request.fileName, bytes);
+            targetExtension = ".glb";
+            format = CharacterPackageResourceFormatIds.Glb;
+        }
+
         string usage = !string.IsNullOrWhiteSpace(request.usage) ? request.usage.Trim() : (!string.IsNullOrWhiteSpace(entry.Usage) ? entry.Usage : GetDefaultResourceUsage(typeId));
         if (!CharacterPackageResourcePipeline.IsSupportedV1Format(new CharacterPackageResourceEntry { TypeId = typeId, SourceFormat = format }))
             throw new ResourceLibraryWriteException("RESOURCE_LIBRARY_UNSUPPORTED_FORMAT", "Resource type '" + typeId + "' does not support ." + format + " files.", 400);
@@ -1424,15 +1436,14 @@ internal static class EditorServer
                 "Replacing this resource changes the source format from ." + entry.SourceFormat + " to ." + format + ". Set allowFormatChange to true to confirm.",
                 409);
 
-        string fileStem = CharacterPackageResourceKeyGenerator.NormalizeSegment(Path.GetFileNameWithoutExtension(request.fileName)).Replace('.', '_');
         string localId = !string.IsNullOrWhiteSpace(request.localId)
             ? CharacterPackageResourceKeyGenerator.NormalizeSegment(request.localId)
             : (!string.IsNullOrWhiteSpace(entry.LocalId) ? entry.LocalId : typeId + "." + fileStem);
-        string targetRelativePath = ResolveResourceWriteTargetRelativePath(request, entry, preserveExistingPath, typeId, fileStem, extension);
+        string targetRelativePath = ResolveResourceWriteTargetRelativePath(request, entry, preserveExistingPath, typeId, fileStem, targetExtension);
         string outputPath = Path.Combine(packagePath, targetRelativePath);
-        string contentHash = CharacterPackageHashUtility.ComputeSha256(bytes);
+        string contentHash = CharacterPackageHashUtility.ComputeSha256(packageResourceBytes);
         if (!File.Exists(outputPath) || !string.Equals(CharacterPackageHashUtility.ComputeFileSha256(outputPath), contentHash, StringComparison.OrdinalIgnoreCase))
-            WriteBytesAtomic(outputPath, bytes);
+            WriteBytesAtomic(outputPath, packageResourceBytes);
 
         if (string.IsNullOrWhiteSpace(entry.ResourceKey))
             entry.ResourceKey = CharacterPackageResourceKeyGenerator.Generate(packageId, typeId, localId);

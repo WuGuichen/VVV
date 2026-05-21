@@ -105,6 +105,20 @@ const RESOURCE_FIELD_SPECS = {
     preloadPolicy: "EquipmentInitial",
     outputKind: "RuntimeResourceKey"
   },
+  animationClip: {
+    fieldKey: "Animation.Clip",
+    editorKind: "CharacterStudio",
+    displayName: "动画 Clip",
+    acceptedKinds: ["Animation"],
+    acceptedUsages: ["animationClip", "animationClipGroup"],
+    acceptedProviderIds: ["unityProjectAssets", "unityAssetDatabase", "runtimeCatalog", "characterPackage"],
+    acceptedBindingKinds: ["UnityEditorOnlyAsset", "UnityAsset", "ResourceManagerAsset", "PackageResource"],
+    requireRuntimeLoadable: false,
+    requireUnityImported: false,
+    allowIncompatibleWithWarning: true,
+    preloadPolicy: "AnimationWarmup",
+    outputKind: "ResourceSelectionRef"
+  },
   preview: {
     fieldKey: "CharacterStudio.Selection",
     editorKind: "CharacterStudio",

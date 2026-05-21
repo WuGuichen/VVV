@@ -128,9 +128,11 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderContext context)
         {
             string assetPath = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.UnityAssetPath, entry.Address);
+            string subAssetKey = GetProviderData(entry, "unitySubAssetKey");
+            string unityObjectName = GetProviderData(entry, "unityObjectName");
             string stableId = "unity." + AuthoringResourceProviderUtilities.SanitizeStableSegment(
-                AuthoringResourceProviderUtilities.FirstNonEmpty(entry.StableId, entry.UnityAssetGuid, assetPath, entry.Id));
-            string providerKey = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.UnityAssetGuid, assetPath, entry.Id);
+                AuthoringResourceProviderUtilities.FirstNonEmpty(entry.StableId, subAssetKey, entry.UnityAssetGuid, assetPath, entry.Id));
+            string providerKey = AuthoringResourceProviderUtilities.FirstNonEmpty(subAssetKey, entry.UnityAssetGuid, assetPath, entry.Id);
             bool assetExists = AuthoringResourceProviderUtilities.ProjectFileExists(context != null ? context.ProjectRootPath : string.Empty, assetPath);
             bool missing = !string.IsNullOrWhiteSpace(assetPath) && !assetExists;
             string importStatusText = entry.ImportStatus ?? string.Empty;
@@ -142,7 +144,7 @@ namespace MxFramework.Authoring
             {
                 ResourceId = AuthoringResourceProviderUtilities.BuildResourceId(AuthoringResourceProviderIds.UnityAssetDatabase, stableId, providerKey),
                 StableId = stableId,
-                DisplayName = AuthoringResourceProviderUtilities.GetFileDisplayName(assetPath, AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Id, entry.PackageResourceKey, stableId)),
+                DisplayName = AuthoringResourceProviderUtilities.FirstNonEmpty(unityObjectName, AuthoringResourceProviderUtilities.GetFileDisplayName(assetPath, AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Id, entry.PackageResourceKey, stableId))),
                 Kind = AuthoringResourceProviderUtilities.MapRuntimeTypeToLibraryKind(entry.Type, entry.Usage),
                 Usage = entry.Usage ?? string.Empty,
                 SourceProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
@@ -239,6 +241,11 @@ namespace MxFramework.Authoring
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityAssetPath", entry.UnityAssetPath);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityAssetGuid", entry.UnityAssetGuid);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityMainObjectType", entry.UnityMainObjectType);
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unitySubAssetKey", GetProviderData(entry, "unitySubAssetKey"));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityObjectType", GetProviderData(entry, "unityObjectType"));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityObjectName", GetProviderData(entry, "unityObjectName"));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityLocalFileId", GetProviderData(entry, "unityLocalFileId"));
+            AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "parentUnityAssetPath", GetProviderData(entry, "parentUnityAssetPath"));
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "importerKind", entry.ImporterKind);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "unityImportStatus", entry.ImportStatus);
             AuthoringResourceProviderUtilities.AddIfPresent(item.Metadata, "hash", AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Hash, entry.ContentHash, entry.DeclaredContentHash));
@@ -254,17 +261,20 @@ namespace MxFramework.Authoring
             string providerKey)
         {
             bool hasGuid = !string.IsNullOrWhiteSpace(entry.UnityAssetGuid);
+            string subAssetKey = GetProviderData(entry, "unitySubAssetKey");
+            bool hasSubAssetKey = !string.IsNullOrWhiteSpace(subAssetKey);
+            string assetType = AuthoringResourceProviderUtilities.FirstNonEmpty(GetProviderData(entry, "unityObjectType"), entry.UnityMainObjectType, entry.Type);
             item.ProviderBindings.Add(new AuthoringResourceProviderBinding
             {
                 ProviderId = AuthoringResourceProviderIds.UnityAssetDatabase,
                 BindingKind = AuthoringResourceBindingKind.UnityAsset,
-                BindingKeyKind = hasGuid ? AuthoringResourceBindingKeyKinds.UnityGuid : AuthoringResourceBindingKeyKinds.UnityAssetPath,
-                DisplayValue = hasGuid ? entry.UnityAssetGuid : assetPath,
+                BindingKeyKind = hasSubAssetKey ? AuthoringResourceBindingKeyKinds.UnitySubAssetKey : hasGuid ? AuthoringResourceBindingKeyKinds.UnityGuid : AuthoringResourceBindingKeyKinds.UnityAssetPath,
+                DisplayValue = hasSubAssetKey ? subAssetKey : hasGuid ? entry.UnityAssetGuid : assetPath,
                 IsPrimary = true,
                 ProviderResourceKey = providerKey,
                 UnityGuid = entry.UnityAssetGuid ?? string.Empty,
                 UnityAssetPath = assetPath ?? string.Empty,
-                AssetType = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.UnityMainObjectType, entry.Type),
+                AssetType = assetType,
                 Hash = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.Hash, entry.ContentHash, entry.DeclaredContentHash),
                 ProviderData = entry.ProviderData != null
                     ? new Dictionary<string, string>(entry.ProviderData, StringComparer.Ordinal)
@@ -281,7 +291,7 @@ namespace MxFramework.Authoring
                     DisplayValue = assetPath,
                     ProviderResourceKey = assetPath,
                     UnityAssetPath = assetPath,
-                    AssetType = AuthoringResourceProviderUtilities.FirstNonEmpty(entry.UnityMainObjectType, entry.Type)
+                    AssetType = assetType
                 });
             }
 
@@ -297,6 +307,15 @@ namespace MxFramework.Authoring
                     PackageResourceKey = entry.PackageResourceKey
                 });
             }
+        }
+
+        private static string GetProviderData(AuthoringUnityResourceCatalogEntry entry, string key)
+        {
+            if (entry == null || entry.ProviderData == null || string.IsNullOrWhiteSpace(key))
+                return string.Empty;
+
+            string value;
+            return entry.ProviderData.TryGetValue(key, out value) ? value ?? string.Empty : string.Empty;
         }
 
         private static void AddDependencyBindings(AuthoringResourceItem item, AuthoringUnityResourceCatalogEntry entry)

@@ -92,6 +92,8 @@ namespace MxFramework.Authoring
                 return CharacterPackageResourceTypeIds.Model;
             if (string.Equals(usage, CharacterPackageResourceUsageIds.AnimationClipGroup, StringComparison.Ordinal))
                 return CharacterPackageResourceTypeIds.Animation;
+            if (string.Equals(usage, "animationClip", StringComparison.Ordinal))
+                return CharacterPackageResourceTypeIds.Animation;
             if (string.Equals(usage, CharacterPackageResourceUsageIds.AudioCue, StringComparison.Ordinal))
                 return CharacterPackageResourceTypeIds.Audio;
             if (string.Equals(usage, CharacterPackageResourceUsageIds.VfxCue, StringComparison.Ordinal))

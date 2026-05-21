@@ -5,6 +5,7 @@ namespace MxFramework.Authoring
     public static class AuthoringResourceProviderIds
     {
         public const string UnityAssetDatabase = "unityAssetDatabase";
+        public const string UnityProjectAssets = "unityProjectAssets";
         public const string RuntimeCatalog = "runtimeCatalog";
         public const string CharacterPackage = "characterPackage";
         public const string Fmod = "fmod";
@@ -67,6 +68,7 @@ namespace MxFramework.Authoring
         public const string RuntimeResourceKey = "runtimeResourceKey";
         public const string UnityGuid = "unityGuid";
         public const string UnityAssetPath = "unityAssetPath";
+        public const string UnitySubAssetKey = "unitySubAssetKey";
         public const string FmodEventPath = "fmodEventPath";
         public const string FmodEventGuid = "fmodEventGuid";
         public const string ExternalSourcePath = "externalSourcePath";
