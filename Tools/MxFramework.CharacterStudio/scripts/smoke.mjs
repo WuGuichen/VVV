@@ -76,6 +76,8 @@ assert(appSource.includes("Animation.Clip") && appSource.includes("animationClip
 assert(appSource.includes("unityProjectAssets") && appSource.includes("UnityEditorOnlyAsset") && appSource.includes("PackageResource"), "CharacterStudio animation picker should accept Unity project and package animation assets");
 assert(indexSource.includes("animationConfigPanel") && appSource.includes("renderAnimationConfigPanel") && appSource.includes("openAnimationSlotPicker"), "CharacterStudio should expose an animation profile picker panel");
 assert(appSource.includes("animationProfiles") && appSource.includes("resourceSelection") && appSource.includes("applyResourceSelectionToAnimationSlot"), "CharacterStudio should persist animation slot ResourceSelectionRef data");
+assert(appSource.includes("animationGroups") && appSource.includes("renderAnimationGroupCard") && appSource.includes("addAnimationGroup"), "CharacterStudio should expose editable animation groups");
+assert(appSource.includes("addAnimationGroupClip") && appSource.includes("addAnimationBlendPoint") && appSource.includes("animationGroupId"), "CharacterStudio should edit group clips, blend points, and profile group references");
 assert(appSource.includes("mergeResourcePickerRows") && appSource.includes("getResourcePickerDedupeKey"), "CharacterStudio resource picker should merge duplicate provider projections");
 assert(appSource.includes("只显示可用于当前字段的资源"), "CharacterStudio resource picker should explain that blocked candidates are hidden");
 assert(appSource.includes("previewResourceSelection"), "CharacterStudio should persist ResourceSelectionRef beside weapon preview references");

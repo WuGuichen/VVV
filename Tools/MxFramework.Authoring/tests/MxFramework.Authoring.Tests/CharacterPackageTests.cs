@@ -1002,6 +1002,55 @@ internal static class CharacterPackageTests
         var summary = new CharacterApplicationAuthoringSummary
         {
             CharacterStableId = "char.iron_vanguard",
+            AnimationGroups = new List<CharacterAnimationGroupAuthoringSummary>
+            {
+                new CharacterAnimationGroupAuthoringSummary
+                {
+                    GroupId = "anim.locomotion",
+                    DisplayName = "Locomotion",
+                    Description = "Idle / walk / run clip group.",
+                    SourceResourceKey = "char.iron_vanguard.anim.locomotion",
+                    AnimationPolicy = "splitByClipNames",
+                    DefaultBlendSpaceId = "locomotion2d",
+                    Clips = new List<CharacterAnimationClipAuthoringSummary>
+                    {
+                        new CharacterAnimationClipAuthoringSummary
+                        {
+                            ClipId = "idle",
+                            SourceClipName = "Idle",
+                            DisplayName = "Idle",
+                            Loop = true,
+                            RootMotionPolicy = "Ignore",
+                            Speed = 1f
+                        },
+                        new CharacterAnimationClipAuthoringSummary
+                        {
+                            ClipId = "run",
+                            SourceClipName = "Run Forward",
+                            DisplayName = "Run Forward",
+                            Loop = true,
+                            RootMotionPolicy = "MotionDelta",
+                            Speed = 1.2f
+                        }
+                    },
+                    BlendSpaces = new List<CharacterAnimationBlendSpaceAuthoringSummary>
+                    {
+                        new CharacterAnimationBlendSpaceAuthoringSummary
+                        {
+                            BlendSpaceId = "locomotion2d",
+                            DisplayName = "Locomotion 2D",
+                            XParameter = "moveX",
+                            YParameter = "moveY",
+                            DefaultClipId = "idle",
+                            Clips = new List<CharacterAnimationBlendSpaceClipAuthoringSummary>
+                            {
+                                new CharacterAnimationBlendSpaceClipAuthoringSummary { ClipId = "idle", X = 0f, Y = 0f },
+                                new CharacterAnimationBlendSpaceClipAuthoringSummary { ClipId = "run", X = 0f, Y = 1f }
+                            }
+                        }
+                    }
+                }
+            },
             AnimationProfiles = new List<CharacterAnimationProfileAuthoringSummary>
             {
                 new CharacterAnimationProfileAuthoringSummary
@@ -1015,6 +1064,7 @@ internal static class CharacterPackageTests
                             SlotId = "locomotion",
                             DisplayName = "Locomotion",
                             Purpose = "idle walk run",
+                            AnimationGroupId = "anim.locomotion",
                             ResourceKey = "char.iron_vanguard.anim.locomotion",
                             PreloadPolicy = AuthoringResourcePreloadPolicies.AnimationWarmup,
                             Required = true,
@@ -1035,9 +1085,15 @@ internal static class CharacterPackageTests
 
         string json = JsonSerializer.Serialize(summary, JsonOptions);
         CharacterApplicationAuthoringSummary roundTrip = JsonSerializer.Deserialize<CharacterApplicationAuthoringSummary>(json, JsonOptions);
+        Require(json.Contains("\"animationGroups\""), "character application config should serialize animationGroups.");
         Require(json.Contains("\"animationProfiles\""), "character application config should serialize animationProfiles.");
+        Require(roundTrip != null && roundTrip.AnimationGroups.Count == 1, "animation groups should roundtrip.");
+        Require(roundTrip.AnimationGroups[0].Clips.Count == 2, "animation group clips should roundtrip.");
+        Require(roundTrip.AnimationGroups[0].BlendSpaces.Count == 1, "animation group blend spaces should roundtrip.");
+        Require(roundTrip.AnimationGroups[0].BlendSpaces[0].Clips[1].ClipId == "run", "animation blend space points should roundtrip.");
         Require(roundTrip != null && roundTrip.AnimationProfiles.Count == 1, "animation profiles should roundtrip.");
         Require(roundTrip.AnimationProfiles[0].Slots.Count == 1, "animation profile slots should roundtrip.");
+        Require(roundTrip.AnimationProfiles[0].Slots[0].AnimationGroupId == "anim.locomotion", "animation slot group reference should roundtrip.");
         Require(roundTrip.AnimationProfiles[0].Slots[0].ResourceSelection.PackageResourceKey == "char.iron_vanguard.anim.locomotion", "animation slot ResourceSelectionRef should roundtrip.");
         Require(roundTrip.AnimationProfiles[0].Slots[0].PreloadPolicy == AuthoringResourcePreloadPolicies.AnimationWarmup, "animation slot preload policy should roundtrip.");
     }
