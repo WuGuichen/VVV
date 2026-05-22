@@ -207,7 +207,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _resourceManager,
                 definition,
                 characterInstance.name);
-            locomotion.ConfigureAnimationBackend(backend, blend, ownsBackend: true);
+            locomotion.ConfigureAnimationBackend(backend, blend, definition, ownsBackend: true);
         }
 
         public void EnsureResourceManager()

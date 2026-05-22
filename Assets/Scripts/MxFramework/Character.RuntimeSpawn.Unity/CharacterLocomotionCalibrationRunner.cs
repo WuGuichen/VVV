@@ -1733,6 +1733,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 + " cameraHeight=" + FormatFloat(_cameraHeight)
                 + " loop=" + (_enableLoopingPlane ? "on" : "off")
                 + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off")
+                + "\nactualSpeed=" + FormatFloat(_locomotionController != null ? _locomotionController.LastActualPlanarSpeed : 0f)
+                + " nativeSpeed=" + FormatFloat(_locomotionController != null ? _locomotionController.LastBlendedNativeSpeed : 0f)
+                + " animComp=" + FormatFloat(_locomotionController != null ? _locomotionController.PlaybackSpeedCompensation : 1f) + "x"
                 + "\nSpeed is move-speed scale: it drives logical velocity and blend sample radius.";
             UpdateDirectionButtonStyles();
             UpdateObservationButtons();

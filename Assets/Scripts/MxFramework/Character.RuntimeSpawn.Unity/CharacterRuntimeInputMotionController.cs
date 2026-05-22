@@ -52,6 +52,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private CharacterMotionResult _lastMotionResult;
         private Vector2 _lastLocalMove;
         private float _lastSpeed01;
+        private float _lastPlanarSpeed;
         private bool _lastSourceJumpPressed;
         private Vector3 _previousRootPosition;
         private Vector3 _currentRootPosition;
@@ -87,6 +88,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public long CurrentFrame => _frame;
         public Vector2 LastLocalMove => _lastLocalMove;
         public float LastSpeed01 => _lastSpeed01;
+        public float LastPlanarSpeed => _lastPlanarSpeed;
         public bool UsesPhysicsWorld => _physicsWorld != null;
 
         private void Awake()
@@ -174,6 +176,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _accumulator = 0f;
             _lastLocalMove = Vector2.zero;
             _lastSpeed01 = 0f;
+            _lastPlanarSpeed = 0f;
             _lastSourceJumpPressed = false;
             ResetVisualMotionState(transform.position, transform.rotation);
             SyncBufferedInput();
@@ -384,6 +387,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 ? Vector2.zero
                 : new Vector2(ToFloat(command.MoveDirection.X), ToFloat(command.MoveDirection.Z)) * moveScale;
             _lastSpeed01 = speed;
+            FixVector3 velocity = _lastMotionResult.Velocity;
+            float velocityX = ToFloat(velocity.X);
+            float velocityZ = ToFloat(velocity.Z);
+            _lastPlanarSpeed = Mathf.Sqrt((velocityX * velocityX) + (velocityZ * velocityZ));
         }
 
         private CombatMotionConfig CreateMotionConfig()
