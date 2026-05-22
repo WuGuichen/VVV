@@ -1603,6 +1603,17 @@ function firstNonEmpty(...values) {
   return values.find(value => value != null && String(value).trim() !== "") || "";
 }
 
+function isUnityAssetPath(value) {
+  return /^Assets\//.test(String(value || "").trim());
+}
+
+function firstUnityAssetPath(...values) {
+  for (const value of values) {
+    if (isUnityAssetPath(value)) return String(value).trim();
+  }
+  return "";
+}
+
 function renderInspector() {
   const target = getSelectedTarget();
   if (!target.value) {
@@ -1691,7 +1702,7 @@ function renderClipInspector(clip) {
       ${renderReadOnlyBindingField("SourceSubClipId", clip.sourceSubClipId || "未派生", "资源选择器从 sub clip / Unity sub-asset 元数据派生。")}
       ${renderDerivedSourceClipName(clip)}
       ${renderReadOnlyBindingField("RuntimeResourceKey", getClipRuntimeResourceKey(clip) || "未解析", "运行时 ResourceManager 加载 key，只能通过选择源动画或重新导入资源更新。")}
-      ${renderReadOnlyBindingField("Unity Asset", clip.sourceSelection?.unityAssetPath || "未链接", "Unity 原生预览路径；由资源库同步结果提供。")}
+      ${renderReadOnlyBindingField("Unity Asset", getClipUnityAssetDisplay(clip) || "未链接", "Unity 原生预览路径；由资源库同步结果提供。")}
       ${renderSelectionListEditor("clip", "generatedArtifactSelections", clip.generatedArtifactSelections || [], "bakeArtifact", "Generated Artifact Selections")}
       ${textFieldWithHint("metadataText", "Metadata", metadataToText(clip.metadata), "key=value, key2=value2", "编辑辅助数据，格式为 key=value；不要在这里写资源引用。")}
     </details>`;
@@ -1708,7 +1719,9 @@ function renderClipIdField(clip) {
 function renderSourceSelectionBlock(clip) {
   const selected = getSelectionTitle(clip.sourceSelection);
   const runtimeKey = getClipRuntimeResourceKey(clip);
-  const unityPath = clip.sourceSelection?.unityAssetPath || "";
+  const rawUnityPath = String(clip.sourceSelection?.unityAssetPath || "").trim();
+  const unityPath = firstUnityAssetPath(rawUnityPath);
+  const hasInvalidUnityPath = Boolean(rawUnityPath) && !Boolean(unityPath);
   const hasRuntime = Boolean(runtimeKey);
   const hasUnity = Boolean(unityPath);
   const linkState = hasRuntime ? (hasUnity ? "linked" : "partial") : "unlinked";
@@ -1718,8 +1731,11 @@ function renderSourceSelectionBlock(clip) {
   const linkHint = hasRuntime
     ? (hasUnity
       ? "Runtime + Unity asset path are available for Unity preview/validation."
-      : "RuntimeResourceKey is available but Unity Asset is missing. Unity-only preview may fail.")
+      : (hasInvalidUnityPath
+        ? "RuntimeResourceKey is available, but Unity Asset path is invalid (must start with Assets/)."
+        : "RuntimeResourceKey is available but Unity Asset is missing. Unity-only preview may fail."))
     : "Please select a RuntimeReady AnimationClip first.";
+  const unityPathDisplay = hasUnity ? unityPath : (hasInvalidUnityPath ? `${rawUnityPath} (invalid)` : "Not linked");
   return `
     <section class="clip-source-card ${linkState}">
       <div class="clip-source-head">
@@ -1735,12 +1751,20 @@ function renderSourceSelectionBlock(clip) {
         <dt>RuntimeResourceKey</dt>
         <dd><code>${escapeHtml(runtimeKey || "Not resolved")}</code></dd>
         <dt>Unity Asset</dt>
-        <dd><code>${escapeHtml(unityPath || "Not linked")}</code></dd>
+        <dd><code>${escapeHtml(unityPathDisplay)}</code></dd>
         <dt>SourceLink</dt>
         <dd><code>${escapeHtml(linkStateText)}</code></dd>
       </dl>
       <p>${escapeHtml(linkHint)}</p>
     </section>`;
+}
+
+function getClipUnityAssetDisplay(clip) {
+  const raw = String(clip?.sourceSelection?.unityAssetPath || "").trim();
+  const path = firstUnityAssetPath(raw);
+  if (path) return path;
+  if (raw) return `${raw} (invalid)`;
+  return "";
 }
 
 function renderDerivedSourceClipName(clip) {
@@ -2859,18 +2883,12 @@ function applySourceClipSelection(clip, row, result, selectedSubClip) {
   const sourceSelection = result.selection ? { ...result.selection } : {};
   sourceSelection.runtimeResourceKey = firstNonEmpty(
     sourceSelection.runtimeResourceKey,
-    getProviderData(item, "runtimeResourceKey"),
-    clip.runtimeResourceKey
+    getProviderData(item, "runtimeResourceKey")
   );
-  sourceSelection.unityAssetPath = firstNonEmpty(
+  sourceSelection.unityAssetPath = firstUnityAssetPath(
     sourceSelection.unityAssetPath,
     getProviderData(item, "unityAssetPath"),
-    getProviderData(item, "parentUnityAssetPath"),
-    getProviderData(item, "sourceRelativePath"),
-    getProviderData(item, "relativePath"),
-    getProviderData(item, "address"),
-    item.resourceId,
-    item.stableId
+    getProviderData(item, "parentUnityAssetPath")
   );
   clip.sourceSelection = sourceSelection;
   clip.sourceSubClipId = defaults.sourceSubClipId;
