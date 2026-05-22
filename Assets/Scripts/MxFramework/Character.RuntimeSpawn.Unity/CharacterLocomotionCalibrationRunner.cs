@@ -26,14 +26,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private bool _showHud = true;
         [SerializeField] private PanelSettings _panelSettings;
         [SerializeField] private int _hudSortOrder = 64;
+        [SerializeField] private string _leftFootPath = string.Empty;
+        [SerializeField] private string _rightFootPath = string.Empty;
+        [SerializeField] private float _footContactThreshold = 0.5f;
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
+        private CharacterLocomotionFootSlipSampler _footSlipSampler;
+        private CharacterLocomotionFootSlipSnapshot _footSlipSnapshot;
         private UIDocument _hudDocument;
         private VisualElement _hudRoot;
         private VisualElement _blendMap;
         private Label _hudSummaryLabel;
         private Label _blendWeightsLabel;
+        private Label _slipMetricsLabel;
 
         public CharacterRuntimeResourceBootstrap Bootstrap => _bootstrap;
         public GameObject CharacterInstance => _bootstrap != null ? _bootstrap.CharacterInstance : null;
@@ -84,6 +90,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendMap = null;
             _hudSummaryLabel = null;
             _blendWeightsLabel = null;
+            _slipMetricsLabel = null;
         }
 
         public void Configure(CharacterRuntimeResourceBootstrap bootstrap, bool loadOnStart = true)
@@ -115,6 +122,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             else
             {
                 builder.Append("missing");
+            }
+
+            if (_footSlipSnapshot != null && _footSlipSnapshot.Frame != null)
+            {
+                builder.Append('\n').Append("slipGrade: ").Append(_footSlipSnapshot.Grade)
+                    .Append(" grounded=").Append(_footSlipSnapshot.Grounded ? "true" : "false");
             }
 
             AppendResourceErrorSummary(builder);
@@ -318,6 +331,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             blendProbeRow.Add(_blendMap);
             blendProbeRow.Add(_blendWeightsLabel);
             _hudRoot.Add(blendProbeRow);
+
+            _slipMetricsLabel = new Label("Slip metrics: waiting for character")
+            {
+                name = "locomotion-calibration-slip-metrics"
+            };
+            _slipMetricsLabel.style.whiteSpace = WhiteSpace.Normal;
+            _slipMetricsLabel.style.fontSize = 12f;
+            _slipMetricsLabel.style.color = new Color(0.9f, 0.94f, 0.98f, 1f);
+            _slipMetricsLabel.style.marginTop = 2f;
+            _slipMetricsLabel.style.marginBottom = 6f;
+            _hudRoot.Add(_slipMetricsLabel);
             _hudRoot.Add(help);
             _hudDocument.rootVisualElement.Add(_hudRoot);
         }
@@ -325,9 +349,45 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private void UpdateHud()
         {
             EnsureHud();
+            UpdateFootSlipSnapshot();
             if (_hudSummaryLabel != null)
                 _hudSummaryLabel.text = CreateHeaderSummary();
             UpdateBlendProbeHud();
+            if (_slipMetricsLabel != null)
+                _slipMetricsLabel.text = CreateSlipMetricsSummary(_footSlipSnapshot);
+        }
+
+        private void UpdateFootSlipSnapshot()
+        {
+            if (_footSlipSampler == null)
+                _footSlipSampler = new CharacterLocomotionFootSlipSampler(
+                    MxAnimationFootSlipThresholds.Default,
+                    _footContactThreshold);
+
+            GameObject character = CharacterInstance;
+            if (character == null || _locomotionController == null)
+            {
+                _footSlipSnapshot = null;
+                _footSlipSampler.Reset();
+                return;
+            }
+
+            Animator animator = character.GetComponentInChildren<Animator>(includeInactive: true);
+            MxAnimationLocomotionBlendProbeSnapshot probe = _locomotionController.CreateLocomotionBlendProbeSnapshot();
+            MxAnimationDiagnosticSnapshot animationSnapshot = _locomotionController.CreateAnimationSnapshot();
+            MxAnimationSetDefinition definition = _bootstrap != null ? _bootstrap.RuntimeAnimationSetDefinition : null;
+            bool grounded = _motionController == null || !_motionController.IsInitialized || _motionController.LastMotionResult.Grounded;
+            _footSlipSnapshot = _footSlipSampler.Sample(
+                _motionController != null ? _motionController.CurrentFrame : Time.frameCount,
+                Time.deltaTime,
+                character.transform,
+                animator,
+                definition,
+                probe,
+                animationSnapshot,
+                grounded,
+                _leftFootPath,
+                _rightFootPath);
         }
 
         private void UpdateBlendProbeHud()
@@ -484,6 +544,39 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     .Append("- ").Append(ShortClipName(weight.ClipKey))
                     .Append(" point=(").Append(weight.X).Append(',').Append(weight.Y).Append(')')
                     .Append(" w=").Append(FormatFloat(weight.Weight));
+            }
+
+            return builder.ToString();
+        }
+
+        private static string CreateSlipMetricsSummary(CharacterLocomotionFootSlipSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Frame == null)
+                return "Slip metrics: waiting for character";
+
+            MxAnimationLocomotionCalibrationFrame frame = snapshot.Frame;
+            var builder = new StringBuilder();
+            builder.Append("Slip metrics: ").Append(snapshot.Grade)
+                .Append(" grounded=").Append(snapshot.Grounded ? "true" : "false")
+                .Append(" feet=").Append(snapshot.LeftFootResolved ? "L" : "-")
+                .Append(snapshot.RightFootResolved ? "R" : "-")
+                .Append('\n');
+            builder.Append("actual=(").Append(FormatFloat(frame.ActualLocalVelocityX)).Append(',')
+                .Append(FormatFloat(frame.ActualLocalVelocityY)).Append(") native=(")
+                .Append(FormatFloat(frame.BlendedNativeVelocityX)).Append(',')
+                .Append(FormatFloat(frame.BlendedNativeVelocityY)).Append(") error=")
+                .Append(FormatFloat(frame.VelocityErrorRatio)).Append('\n');
+            builder.Append("contact L=").Append(FormatFloat(frame.LeftFootContactConfidence))
+                .Append(" R=").Append(FormatFloat(frame.RightFootContactConfidence))
+                .Append(" slip cm/s L=").Append(FormatFloat(frame.LeftFootSlipCmPerSecond))
+                .Append(" R=").Append(FormatFloat(frame.RightFootSlipCmPerSecond))
+                .Append(" max=").Append(FormatFloat(frame.MaxSlipDistanceCm)).Append('\n');
+            if (snapshot.Diagnostics.Count > 0)
+            {
+                builder.Append("diagnostics:");
+                int max = Mathf.Min(snapshot.Diagnostics.Count, 3);
+                for (int i = 0; i < max; i++)
+                    builder.Append('\n').Append("- ").Append(snapshot.Diagnostics[i]);
             }
 
             return builder.ToString();

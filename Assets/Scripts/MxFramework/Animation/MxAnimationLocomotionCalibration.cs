@@ -29,6 +29,9 @@ namespace MxFramework.Animation
         public const string ApplyRangeInvalid = "LOCO_CAL_APPLY_RANGE_INVALID";
         public const string ApplyConflict = "LOCO_CAL_APPLY_CONFLICT";
         public const string ApplyCompileFailed = "LOCO_CAL_APPLY_COMPILE_FAILED";
+        public const string FootBoneMissing = "LOCO_CAL_FOOT_BONE_MISSING";
+        public const string ClipTimeMissing = "LOCO_CAL_CLIP_TIME_MISSING";
+        public const string FootMetadataMissing = "LOCO_CAL_FOOT_METADATA_MISSING";
     }
 
     public readonly struct MxAnimationVelocity2D : IEquatable<MxAnimationVelocity2D>
@@ -581,6 +584,62 @@ namespace MxFramework.Animation
             return error / denominator;
         }
 
+        public static float CalculateWeightedFootContactConfidence(
+            MxAnimationLocomotionFoot foot,
+            IEnumerable<MxAnimationBlend2DWeight> weights,
+            IEnumerable<MxAnimationClipPlaybackDiagnostic> playbacks,
+            IEnumerable<MxAnimationLocomotionClipCalibration> calibrations)
+        {
+            if (weights == null || playbacks == null || calibrations == null)
+                return 0f;
+
+            float confidence = 0f;
+            foreach (MxAnimationBlend2DWeight weight in weights)
+            {
+                if (weight.Weight <= 0f)
+                    continue;
+
+                MxAnimationLocomotionClipCalibration calibration = FindCalibration(calibrations, weight.ClipKey);
+                if (calibration == null)
+                    continue;
+
+                MxAnimationClipPlaybackDiagnostic playback = FindPlayback(playbacks, weight.ClipKey);
+                if (playback == null)
+                    continue;
+
+                confidence += calibration.GetContactConfidence(foot, playback.NormalizedTime) * weight.Weight;
+            }
+
+            return confidence <= 0f ? 0f : confidence >= 1f ? 1f : confidence;
+        }
+
+        public static float CalculateSlipCmPerSecond(
+            float previousX,
+            float previousY,
+            float currentX,
+            float currentY,
+            float deltaTime)
+        {
+            if (deltaTime <= Epsilon || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime))
+                return 0f;
+
+            float dx = currentX - previousX;
+            float dy = currentY - previousY;
+            float meters = (float)Math.Sqrt((dx * dx) + (dy * dy));
+            return (meters * 100f) / deltaTime;
+        }
+
+        public static float CalculateSlipDistanceCm(
+            float anchorX,
+            float anchorY,
+            float currentX,
+            float currentY)
+        {
+            float dx = currentX - anchorX;
+            float dy = currentY - anchorY;
+            return (float)Math.Sqrt((dx * dx) + (dy * dy)) * 100f;
+        }
+
         private static MxAnimationLocomotionClipCalibration FindCalibration(
             IEnumerable<MxAnimationLocomotionClipCalibration> calibrations,
             ResourceKey clipKey)
@@ -589,6 +648,19 @@ namespace MxFramework.Animation
             {
                 if (calibration != null && calibration.ClipKey == clipKey)
                     return calibration;
+            }
+
+            return null;
+        }
+
+        private static MxAnimationClipPlaybackDiagnostic FindPlayback(
+            IEnumerable<MxAnimationClipPlaybackDiagnostic> playbacks,
+            ResourceKey clipKey)
+        {
+            foreach (MxAnimationClipPlaybackDiagnostic playback in playbacks)
+            {
+                if (playback != null && playback.ClipKey == clipKey)
+                    return playback;
             }
 
             return null;
