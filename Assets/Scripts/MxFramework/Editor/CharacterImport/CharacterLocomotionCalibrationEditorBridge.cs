@@ -65,31 +65,73 @@ namespace MxFramework.Editor.CharacterImport
                 }
 
                 JObject draft = JObject.Parse(draftJson);
-                string path = ResolveAnimationAuthoringPath(ReadString(draft, "packageId"));
-                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                string packageId = ReadString(draft, "packageId");
+                string authoringPath = ResolveAnimationAuthoringPath(packageId);
+                if (string.IsNullOrWhiteSpace(authoringPath) || !File.Exists(authoringPath))
                 {
                     ReportApplyResult("Apply Config failed: animation_authoring.json was not found.");
                     return;
                 }
 
-                JObject config = JObject.Parse(File.ReadAllText(path));
-                int clipChanges = ApplyClipOverrides(config, draft["clipOverrides"] as JArray);
-                int pointChanges = ApplyBlendPointOverrides(config, draft["blendPointOverrides"] as JArray);
+                int clipChanges = 0;
+                int pointChanges = 0;
+                int savedFiles = 0;
+                string savedTargets = string.Empty;
+                ApplyDraftToDocument(
+                    authoringPath,
+                    draft,
+                    ref clipChanges,
+                    ref pointChanges,
+                    ref savedFiles,
+                    ref savedTargets);
+
+                string runtimePath = ResolveGeneratedAnimationSetDefinitionPath(packageId);
+                if (!string.IsNullOrWhiteSpace(runtimePath) && File.Exists(runtimePath))
+                {
+                    ApplyDraftToDocument(
+                        runtimePath,
+                        draft,
+                        ref clipChanges,
+                        ref pointChanges,
+                        ref savedFiles,
+                        ref savedTargets);
+                }
+
                 if (clipChanges == 0 && pointChanges == 0)
                 {
                     ReportApplyResult("Apply Config skipped: no matching clip or blend point changes.");
                     return;
                 }
 
-                File.WriteAllText(path, config.ToString(Formatting.Indented) + Environment.NewLine);
                 AssetDatabase.Refresh();
                 ReportApplyResult("Apply Config saved " + clipChanges + " clip override(s), "
-                    + pointChanges + " blend point(s): " + path);
+                    + pointChanges + " blend point(s) in " + savedFiles + " file(s): " + savedTargets);
             }
             catch (Exception ex)
             {
                 ReportApplyResult("Apply Config failed: " + ex.Message);
             }
+        }
+
+        private static void ApplyDraftToDocument(
+            string path,
+            JObject draft,
+            ref int clipChanges,
+            ref int pointChanges,
+            ref int savedFiles,
+            ref string savedTargets)
+        {
+            JObject config = JObject.Parse(File.ReadAllText(path));
+            int clipChangesInFile = ApplyClipOverrides(config, draft["clipOverrides"] as JArray);
+            int pointChangesInFile = ApplyBlendPointOverrides(config, draft["blendPointOverrides"] as JArray);
+            if (clipChangesInFile == 0 && pointChangesInFile == 0)
+                return;
+
+            File.WriteAllText(path, config.ToString(Formatting.Indented) + Environment.NewLine);
+            clipChanges += clipChangesInFile;
+            pointChanges += pointChangesInFile;
+            savedFiles++;
+            savedTargets = string.IsNullOrEmpty(savedTargets) ? path : savedTargets + "; " + path;
         }
 
         private static int ApplyClipOverrides(JObject config, JArray overrides)
@@ -237,6 +279,51 @@ namespace MxFramework.Editor.CharacterImport
             }
 
             return candidates.Length > 0 ? candidates[0] : string.Empty;
+        }
+
+        private static string ResolveGeneratedAnimationSetDefinitionPath(string packageId)
+        {
+            string root = Directory.GetParent(Application.dataPath)?.FullName ?? Directory.GetCurrentDirectory();
+            string packageSlug = NormalizePackageSlug(packageId);
+            string generatedRoot = Path.Combine(root, "Assets", "MxFrameworkGenerated", "CharacterPackages");
+            if (!string.IsNullOrWhiteSpace(packageSlug))
+            {
+                string direct = Path.Combine(generatedRoot, packageSlug, "config", "animation_set_definition.json");
+                if (File.Exists(direct))
+                    return direct;
+            }
+
+            if (!Directory.Exists(generatedRoot))
+                return string.Empty;
+
+            string[] candidates = Directory.GetFiles(generatedRoot, "animation_set_definition.json", SearchOption.AllDirectories);
+            if (candidates.Length == 1)
+                return candidates[0];
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                string candidate = candidates[i];
+                if (string.IsNullOrWhiteSpace(packageSlug)
+                    || candidate.IndexOf(packageSlug, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return candidate;
+                }
+            }
+
+            return candidates.Length > 0 ? candidates[0] : string.Empty;
+        }
+
+        private static string NormalizePackageSlug(string packageId)
+        {
+            if (string.IsNullOrWhiteSpace(packageId))
+                return string.Empty;
+
+            string value = packageId.Trim();
+            if (value.StartsWith("animation.", StringComparison.Ordinal))
+                value = value.Substring("animation.".Length);
+            if (value.StartsWith("character.", StringComparison.Ordinal))
+                value = value.Substring("character.".Length);
+            return value;
         }
 
         private static bool SetNumber(JObject obj, string key, float value)
