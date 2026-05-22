@@ -57,11 +57,11 @@
       "preloadPolicy": "AnimationWarmup",
       "requiredClipIds": [
         "idle",
-        "walk_f",
-        "run_f",
-        "walk_r",
-        "walk_l",
-        "walk_b",
+        "walk.f",
+        "run.f",
+        "walk.r",
+        "walk.l",
+        "walk.b",
         "sword_attack",
         "shield_guard"
       ],
@@ -77,11 +77,11 @@
       "preloadPolicy": "AnimationWarmup",
       "requiredClipIds": [
         "idle",
-        "walk_f",
-        "run_f",
-        "walk_r",
-        "walk_l",
-        "walk_b",
+        "walk.f",
+        "run.f",
+        "walk.r",
+        "walk.l",
+        "walk.b",
         "sword_attack"
       ],
       "requiredBlendIds": [

@@ -79,7 +79,7 @@
                 }
               },
               {
-                "clipId": "walk_f",
+                "clipId": "walk.f",
                 "displayName": "Walk_F",
                 "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_forward",
                 "sourceClipName": "standing_walk_forward",
@@ -109,18 +109,18 @@
                 }
               },
               {
-                "clipId": "run_f",
+                "clipId": "run.f",
                 "displayName": "Run_F",
                 "runtimeResourceKey": "art.character.skeleton.animation.standing_run_forward",
                 "sourceClipName": "standing_run_forward",
                 "sourceSubClipId": "standing_run_forward",
                 "loop": true,
-                "speed": 1,
+                "speed": 0.65,
                 "rootMotionPolicy": "Ignore",
                 "calibration": {
                   "nativeVelocityX": 0,
                   "nativeVelocityY": 2.35,
-                  "playbackSpeed": 1,
+                  "playbackSpeed": 0.65,
                   "cycleDurationSeconds": 0.7,
                   "leftFootContactWindows": [
                     {
@@ -139,7 +139,7 @@
                 }
               },
               {
-                "clipId": "walk_r",
+                "clipId": "walk.r",
                 "displayName": "Walk_R",
                 "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_right",
                 "sourceClipName": "standing_walk_right",
@@ -169,7 +169,7 @@
                 }
               },
               {
-                "clipId": "walk_l",
+                "clipId": "walk.l",
                 "displayName": "Walk_L",
                 "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_left",
                 "sourceClipName": "standing_walk_left",
@@ -199,7 +199,7 @@
                 }
               },
               {
-                "clipId": "walk_b",
+                "clipId": "walk.b",
                 "displayName": "Walk_B",
                 "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
                 "sourceClipName": "standing_walk_back",
@@ -227,6 +227,39 @@
                     }
                   ]
                 }
+              },
+              {
+                "clipId": "run.r",
+                "displayName": "Run_R",
+                "runtimeResourceKey": "art.character.skeleton.animation.standing_run_right",
+                "sourceClipName": "standing_run_right",
+                "sourceSubClipId": "standing_run_right",
+                "loop": true,
+                "speed": 1,
+                "rootMotionPolicy": "Ignore",
+                "calibration": null
+              },
+              {
+                "clipId": "run.l",
+                "displayName": "Run_L",
+                "runtimeResourceKey": "art.character.skeleton.animation.standing_run_left",
+                "sourceClipName": "standing_run_left",
+                "sourceSubClipId": "standing_run_left",
+                "loop": true,
+                "speed": 1,
+                "rootMotionPolicy": "Ignore",
+                "calibration": null
+              },
+              {
+                "clipId": "run.b",
+                "displayName": "Run_B",
+                "runtimeResourceKey": "art.character.skeleton.animation.standing_run_back",
+                "sourceClipName": "standing_run_back",
+                "sourceSubClipId": "standing_run_back",
+                "loop": true,
+                "speed": 1,
+                "rootMotionPolicy": "Ignore",
+                "calibration": null
               }
             ],
             "blend1D": [],
@@ -245,33 +278,51 @@
                     "weight": 1
                   },
                   {
-                    "clipId": "walk_f",
+                    "clipId": "walk.f",
                     "x": 0,
-                    "y": 1,
+                    "y": 0.45,
                     "weight": 1
                   },
                   {
-                    "clipId": "run_f",
+                    "clipId": "run.f",
                     "x": 0,
-                    "y": 2,
+                    "y": 0.65,
                     "weight": 1
                   },
                   {
-                    "clipId": "walk_r",
-                    "x": 1,
+                    "clipId": "walk.r",
+                    "x": 0.35,
                     "y": 0,
                     "weight": 1
                   },
                   {
-                    "clipId": "walk_l",
-                    "x": -1,
+                    "clipId": "walk.l",
+                    "x": -0.35,
                     "y": 0,
                     "weight": 1
                   },
                   {
-                    "clipId": "walk_b",
+                    "clipId": "walk.b",
                     "x": 0,
-                    "y": -1,
+                    "y": -0.3,
+                    "weight": 1
+                  },
+                  {
+                    "clipId": "run.r",
+                    "x": 0.65,
+                    "y": 0,
+                    "weight": 1
+                  },
+                  {
+                    "clipId": "run.l",
+                    "x": -0.65,
+                    "y": 0,
+                    "weight": 1
+                  },
+                  {
+                    "clipId": "run.b",
+                    "x": 0,
+                    "y": -0.45,
                     "weight": 1
                   }
                 ]
@@ -281,12 +332,12 @@
               {
                 "timelineId": "timeline.locomotion",
                 "displayName": "Locomotion Timeline",
-                "clipId": "walk_f",
+                "clipId": "walk.f",
                 "timeDomain": "Normalized",
                 "events": [
                   {
                     "eventId": "event.footstep.left",
-                    "clipId": "walk_f",
+                    "clipId": "walk.f",
                     "timeDomain": "Normalized",
                     "time": 0.25,
                     "eventKind": "Footstep",
@@ -310,7 +361,7 @@
                   },
                   {
                     "eventId": "event.footstep.right",
-                    "clipId": "walk_f",
+                    "clipId": "walk.f",
                     "timeDomain": "Normalized",
                     "time": 0.75,
                     "eventKind": "Footstep",
@@ -566,11 +617,11 @@
         "preloadPolicy": "AnimationWarmup",
         "requiredClipIds": [
           "idle",
-          "walk_f",
-          "run_f",
-          "walk_r",
-          "walk_l",
-          "walk_b",
+          "walk.f",
+          "run.f",
+          "walk.r",
+          "walk.l",
+          "walk.b",
           "sword_attack",
           "shield_guard"
         ],
@@ -586,11 +637,11 @@
         "preloadPolicy": "AnimationWarmup",
         "requiredClipIds": [
           "idle",
-          "walk_f",
-          "run_f",
-          "walk_r",
-          "walk_l",
-          "walk_b",
+          "walk.f",
+          "run.f",
+          "walk.r",
+          "walk.l",
+          "walk.b",
           "sword_attack"
         ],
         "requiredBlendIds": [
@@ -604,7 +655,7 @@
     "schemaVersion": "1.0",
     "packageId": "animation.iron_vanguard",
     "stableId": "charpkg.iron_vanguard.animation",
-    "planHash": "sha256:3cdc0a32ccd84bafb3134425439f5ec27d9f00a78c1e5c771c447a318fe8527f",
+    "planHash": "sha256:f7e6dd401ec5295ab5bc568f2252f9ee179e6c30fc2843d75c3988b81afb85a3",
     "runtimeResourceCatalog": {
       "format": "mx.characterRuntimeResourceCatalog.v1",
       "schemaVersion": 1,
@@ -650,6 +701,25 @@
           }
         },
         {
+          "id": "art.character.skeleton.animation.standing_run_back",
+          "type": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "provider": "memory",
+          "address": "mxframework.samples/art/character/skeleton/animation/standing_run_back",
+          "labels": [],
+          "dependencies": [],
+          "hash": "",
+          "size": 0,
+          "allowOverride": false,
+          "providerData": {
+            "sourcePath": "sets/0/groups/0/clips/8",
+            "sourceField": "runtimeResourceKey",
+            "usage": "animationClip",
+            "stableId": "runtime.art.character.skeleton.animation.standing_run_back"
+          }
+        },
+        {
           "id": "art.character.skeleton.animation.standing_run_forward",
           "type": "AnimationClip",
           "variant": "",
@@ -666,6 +736,44 @@
             "sourceField": "runtimeResourceKey",
             "usage": "animationClip",
             "stableId": "runtime.art.character.skeleton.animation.standing_run_forward"
+          }
+        },
+        {
+          "id": "art.character.skeleton.animation.standing_run_left",
+          "type": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "provider": "memory",
+          "address": "mxframework.samples/art/character/skeleton/animation/standing_run_left",
+          "labels": [],
+          "dependencies": [],
+          "hash": "",
+          "size": 0,
+          "allowOverride": false,
+          "providerData": {
+            "sourcePath": "sets/0/groups/0/clips/7",
+            "sourceField": "runtimeResourceKey",
+            "usage": "animationClip",
+            "stableId": "runtime.art.character.skeleton.animation.standing_run_left"
+          }
+        },
+        {
+          "id": "art.character.skeleton.animation.standing_run_right",
+          "type": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "provider": "memory",
+          "address": "mxframework.samples/art/character/skeleton/animation/standing_run_right",
+          "labels": [],
+          "dependencies": [],
+          "hash": "",
+          "size": 0,
+          "allowOverride": false,
+          "providerData": {
+            "sourcePath": "sets/0/groups/0/clips/6",
+            "sourceField": "runtimeResourceKey",
+            "usage": "animationClip",
+            "stableId": "runtime.art.character.skeleton.animation.standing_run_right"
           }
         },
         {
@@ -751,7 +859,7 @@
       "schemaVersion": "1.0",
       "packageId": "animation.iron_vanguard",
       "characterStableId": "charpkg.iron_vanguard.animation",
-      "planHash": "sha256:3cdc0a32ccd84bafb3134425439f5ec27d9f00a78c1e5c771c447a318fe8527f",
+      "planHash": "sha256:f7e6dd401ec5295ab5bc568f2252f9ee179e6c30fc2843d75c3988b81afb85a3",
       "spawnCritical": {
         "required": true,
         "failurePolicy": "FailSpawn",
@@ -788,12 +896,36 @@
             "stableId": "runtime.art.character.skeleton.animation.standing_jump"
           },
           {
+            "resourceKey": "art.character.skeleton.animation.standing_run_back",
+            "typeId": "AnimationClip",
+            "variant": "",
+            "packageId": "animation.iron_vanguard",
+            "usage": "animationClip",
+            "stableId": "runtime.art.character.skeleton.animation.standing_run_back"
+          },
+          {
             "resourceKey": "art.character.skeleton.animation.standing_run_forward",
             "typeId": "AnimationClip",
             "variant": "",
             "packageId": "animation.iron_vanguard",
             "usage": "animationClip",
             "stableId": "runtime.art.character.skeleton.animation.standing_run_forward"
+          },
+          {
+            "resourceKey": "art.character.skeleton.animation.standing_run_left",
+            "typeId": "AnimationClip",
+            "variant": "",
+            "packageId": "animation.iron_vanguard",
+            "usage": "animationClip",
+            "stableId": "runtime.art.character.skeleton.animation.standing_run_left"
+          },
+          {
+            "resourceKey": "art.character.skeleton.animation.standing_run_right",
+            "typeId": "AnimationClip",
+            "variant": "",
+            "packageId": "animation.iron_vanguard",
+            "usage": "animationClip",
+            "stableId": "runtime.art.character.skeleton.animation.standing_run_right"
           },
           {
             "resourceKey": "art.character.skeleton.animation.standing_walk_back",
@@ -892,7 +1024,7 @@
       {
         "setId": "set.base",
         "groupId": "group.locomotion",
-        "clipId": "walk_f",
+        "clipId": "walk.f",
         "displayName": "Walk_F",
         "sourceClipName": "standing_walk_forward",
         "sourceSubClipId": "standing_walk_forward",
@@ -918,7 +1050,7 @@
       {
         "setId": "set.base",
         "groupId": "group.locomotion",
-        "clipId": "run_f",
+        "clipId": "run.f",
         "displayName": "Run_F",
         "sourceClipName": "standing_run_forward",
         "sourceSubClipId": "standing_run_forward",
@@ -944,7 +1076,7 @@
       {
         "setId": "set.base",
         "groupId": "group.locomotion",
-        "clipId": "walk_r",
+        "clipId": "walk.r",
         "displayName": "Walk_R",
         "sourceClipName": "standing_walk_right",
         "sourceSubClipId": "standing_walk_right",
@@ -970,7 +1102,7 @@
       {
         "setId": "set.base",
         "groupId": "group.locomotion",
-        "clipId": "walk_l",
+        "clipId": "walk.l",
         "displayName": "Walk_L",
         "sourceClipName": "standing_walk_left",
         "sourceSubClipId": "standing_walk_left",
@@ -996,7 +1128,7 @@
       {
         "setId": "set.base",
         "groupId": "group.locomotion",
-        "clipId": "walk_b",
+        "clipId": "walk.b",
         "displayName": "Walk_B",
         "sourceClipName": "standing_walk_back",
         "sourceSubClipId": "standing_walk_back",
@@ -1013,6 +1145,84 @@
           "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
           "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
           "providerResourceKey": "art.character.skeleton.animation.standing_walk_back",
+          "packageResourceKey": "",
+          "audioCueId": "",
+          "audioEventDefinitionId": ""
+        },
+        "generatedArtifactSelections": []
+      },
+      {
+        "setId": "set.base",
+        "groupId": "group.locomotion",
+        "clipId": "run.r",
+        "displayName": "Run_R",
+        "sourceClipName": "standing_run_right",
+        "sourceSubClipId": "standing_run_right",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_right",
+        "hash": "",
+        "sourceSelection": {
+          "resourceStableId": "runtime.art.character.skeleton.animation.standing_run_right",
+          "sourceProviderId": "runtimeCatalog",
+          "bindingKind": "ResourceManagerAsset",
+          "expectedKind": "animation",
+          "expectedUsage": "animationClip",
+          "expectedHash": "",
+          "unityGuid": "",
+          "unityAssetPath": "",
+          "runtimeResourceKey": "art.character.skeleton.animation.standing_run_right",
+          "providerResourceKey": "art.character.skeleton.animation.standing_run_right",
+          "packageResourceKey": "",
+          "audioCueId": "",
+          "audioEventDefinitionId": ""
+        },
+        "generatedArtifactSelections": []
+      },
+      {
+        "setId": "set.base",
+        "groupId": "group.locomotion",
+        "clipId": "run.l",
+        "displayName": "Run_L",
+        "sourceClipName": "standing_run_left",
+        "sourceSubClipId": "standing_run_left",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_left",
+        "hash": "",
+        "sourceSelection": {
+          "resourceStableId": "runtime.art.character.skeleton.animation.standing_run_left",
+          "sourceProviderId": "runtimeCatalog",
+          "bindingKind": "ResourceManagerAsset",
+          "expectedKind": "animation",
+          "expectedUsage": "animationClip",
+          "expectedHash": "",
+          "unityGuid": "",
+          "unityAssetPath": "",
+          "runtimeResourceKey": "art.character.skeleton.animation.standing_run_left",
+          "providerResourceKey": "art.character.skeleton.animation.standing_run_left",
+          "packageResourceKey": "",
+          "audioCueId": "",
+          "audioEventDefinitionId": ""
+        },
+        "generatedArtifactSelections": []
+      },
+      {
+        "setId": "set.base",
+        "groupId": "group.locomotion",
+        "clipId": "run.b",
+        "displayName": "Run_B",
+        "sourceClipName": "standing_run_back",
+        "sourceSubClipId": "standing_run_back",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_back",
+        "hash": "",
+        "sourceSelection": {
+          "resourceStableId": "runtime.art.character.skeleton.animation.standing_run_back",
+          "sourceProviderId": "runtimeCatalog",
+          "bindingKind": "ResourceManagerAsset",
+          "expectedKind": "animation",
+          "expectedUsage": "animationClip",
+          "expectedHash": "",
+          "unityGuid": "",
+          "unityAssetPath": "",
+          "runtimeResourceKey": "art.character.skeleton.animation.standing_run_back",
+          "providerResourceKey": "art.character.skeleton.animation.standing_run_back",
           "packageResourceKey": "",
           "audioCueId": "",
           "audioEventDefinitionId": ""
@@ -1076,7 +1286,38 @@
   "animationValidationReport": {
     "schemaVersion": "1.0",
     "packageId": "animation.iron_vanguard",
-    "issues": [],
+    "issues": [
+      {
+        "severity": "Warning",
+        "gate": "WarningOnly",
+        "code": "LOCO_CAL_CLIP_METADATA_MISSING",
+        "sourcePath": "config/animation_authoring.json",
+        "sourceObjectPath": "sets/0/groups/0/clips/6",
+        "field": "calibration",
+        "message": "Locomotion clip 'run.r' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+        "suggestedFix": "Open AnimationEditor, fix the animation authoring data, then compile again."
+      },
+      {
+        "severity": "Warning",
+        "gate": "WarningOnly",
+        "code": "LOCO_CAL_CLIP_METADATA_MISSING",
+        "sourcePath": "config/animation_authoring.json",
+        "sourceObjectPath": "sets/0/groups/0/clips/7",
+        "field": "calibration",
+        "message": "Locomotion clip 'run.l' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+        "suggestedFix": "Open AnimationEditor, fix the animation authoring data, then compile again."
+      },
+      {
+        "severity": "Warning",
+        "gate": "WarningOnly",
+        "code": "LOCO_CAL_CLIP_METADATA_MISSING",
+        "sourcePath": "config/animation_authoring.json",
+        "sourceObjectPath": "sets/0/groups/0/clips/8",
+        "field": "calibration",
+        "message": "Locomotion clip 'run.b' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+        "suggestedFix": "Open AnimationEditor, fix the animation authoring data, then compile again."
+      }
+    ],
     "hasBlockingIssues": false
   }
 }

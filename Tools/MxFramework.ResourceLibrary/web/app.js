@@ -551,7 +551,6 @@ async function applyWriteResponse(payload, fallbackSelection) {
 
 async function selectResource(resourceKey) {
   state.selectedResourceKey = resourceKey;
-  state.activeTab = "overview";
   state.inspectState = { id: "", status: "idle", payload: null, error: "" };
   render();
   await loadInspectForSelection();

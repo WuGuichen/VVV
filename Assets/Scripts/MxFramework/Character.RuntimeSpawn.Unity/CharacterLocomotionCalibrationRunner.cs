@@ -2791,8 +2791,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return "-";
 
             int lastDot = id.LastIndexOf('.');
-            string name = lastDot >= 0 && lastDot < id.Length - 1 ? id.Substring(lastDot + 1) : id;
-            return name.Length <= 10 ? name : name.Substring(0, 10);
+            return lastDot >= 0 && lastDot < id.Length - 1
+                ? id.Substring(lastDot + 1)
+                : id;
         }
 
         private static float Clamp(float value, float min, float max)

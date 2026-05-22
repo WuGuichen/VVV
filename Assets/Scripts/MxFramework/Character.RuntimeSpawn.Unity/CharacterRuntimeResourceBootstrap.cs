@@ -22,6 +22,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private bool _warmupAnimationOnLoad = true;
         [SerializeField] private TextAsset _animationSetDefinitionJson;
         [SerializeField] private TextAsset _animationClipRegistryJson;
+        [SerializeField] private string _animationSetDefinitionJsonPath = string.Empty;
+        [SerializeField] private string _animationClipRegistryPath = string.Empty;
+        [SerializeField] private string _animationResourcePlanJsonPath = string.Empty;
+        [SerializeField] private string _animationSetDefinitionContentHash = string.Empty;
+        [SerializeField] private string _animationClipRegistryContentHash = string.Empty;
+        [SerializeField] private string _animationResourcePlanContentHash = string.Empty;
+        [SerializeField] private string _importReportPath = string.Empty;
+        [SerializeField] private string _sourcePackageHash = string.Empty;
+        [SerializeField] private string _generatedConfigHash = string.Empty;
+        [SerializeField] private string _geometryBindingHash = string.Empty;
+        [SerializeField] private string _resourceMappingHash = string.Empty;
         [SerializeField] private string _animationSetId = string.Empty;
 
         private ResourceManager _resourceManager;
@@ -40,6 +51,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public string CharacterResourceId => _characterResourceId;
         public string CharacterResourceVariant => _characterResourceVariant;
         public string AnimationSetId => _animationSetId;
+        public bool HasAnimationArtifacts => _animationSetDefinitionJson != null && _animationClipRegistryJson != null;
+        public string AnimationSetDefinitionJsonPath => _animationSetDefinitionJsonPath;
+        public string AnimationClipRegistryPath => _animationClipRegistryPath;
+        public string AnimationResourcePlanPath => _animationResourcePlanJsonPath;
+        public string AnimationSetDefinitionContentHash => _animationSetDefinitionContentHash;
+        public string AnimationClipRegistryContentHash => _animationClipRegistryContentHash;
+        public string AnimationResourcePlanContentHash => _animationResourcePlanContentHash;
+        public string ImportReportPath => _importReportPath;
+        public string SourcePackageHash => _sourcePackageHash;
+        public string GeneratedConfigHash => _generatedConfigHash;
+        public string GeometryBindingHash => _geometryBindingHash;
+        public string ResourceMappingHash => _resourceMappingHash;
         public MxAnimationSetDefinition RuntimeAnimationSetDefinition => _runtimeAnimationSetDefinition;
 
         private void Start()

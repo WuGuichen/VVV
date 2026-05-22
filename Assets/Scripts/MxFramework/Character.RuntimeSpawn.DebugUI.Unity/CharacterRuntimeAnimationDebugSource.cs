@@ -69,6 +69,19 @@ namespace MxFramework.CharacterRuntimeSpawn.DebugUI.Unity
             if (_bootstrap == null)
                 return builder.ToString();
 
+            builder.Append("authority: ").Append(DescribeAnimationAuthority(_bootstrap)).Append('\n');
+            builder.Append("animationArtifacts: ").Append(_bootstrap.HasAnimationArtifacts ? "present" : "missing").Append('\n');
+            builder.Append("animationSetDefinitionJsonPath: ").Append(EmptyAsDash(_bootstrap.AnimationSetDefinitionJsonPath)).Append('\n');
+            builder.Append("animationClipRegistryPath: ").Append(EmptyAsDash(_bootstrap.AnimationClipRegistryPath)).Append('\n');
+            builder.Append("animationResourcePlanPath: ").Append(EmptyAsDash(_bootstrap.AnimationResourcePlanPath)).Append('\n');
+            builder.Append("animationSetDefinitionContentHash: ").Append(EmptyAsDash(_bootstrap.AnimationSetDefinitionContentHash)).Append('\n');
+            builder.Append("animationClipRegistryContentHash: ").Append(EmptyAsDash(_bootstrap.AnimationClipRegistryContentHash)).Append('\n');
+            builder.Append("animationResourcePlanContentHash: ").Append(EmptyAsDash(_bootstrap.AnimationResourcePlanContentHash)).Append('\n');
+            builder.Append("importReportPath: ").Append(EmptyAsDash(_bootstrap.ImportReportPath)).Append('\n');
+            builder.Append("sourcePackageHash: ").Append(EmptyAsDash(_bootstrap.SourcePackageHash)).Append('\n');
+            builder.Append("generatedConfigHash: ").Append(EmptyAsDash(_bootstrap.GeneratedConfigHash)).Append('\n');
+            builder.Append("geometryBindingHash: ").Append(EmptyAsDash(_bootstrap.GeometryBindingHash)).Append('\n');
+            builder.Append("resourceMappingHash: ").Append(EmptyAsDash(_bootstrap.ResourceMappingHash)).Append('\n');
             builder.Append("packageId: ").Append(EmptyAsDash(_bootstrap.PackageId)).Append('\n');
             builder.Append("characterResourceId: ").Append(EmptyAsDash(_bootstrap.CharacterResourceId)).Append('\n');
             builder.Append("characterVariant: ").Append(EmptyAsDash(_bootstrap.CharacterResourceVariant)).Append('\n');
@@ -76,6 +89,13 @@ namespace MxFramework.CharacterRuntimeSpawn.DebugUI.Unity
             builder.Append("resourceManager: ").Append(_bootstrap.ResourceManager != null ? "ready" : "missing").Append('\n');
             builder.Append("characterInstance: ").Append(_bootstrap.CharacterInstance != null ? _bootstrap.CharacterInstance.name : "not loaded");
             return builder.ToString();
+        }
+
+        private static string DescribeAnimationAuthority(CharacterRuntimeResourceBootstrap bootstrap)
+        {
+            if (bootstrap == null || !bootstrap.HasAnimationArtifacts)
+                return "non-authoritative";
+            return "authoritative";
         }
 
         private static string CreateWarmupSection(MxAnimationWarmupResult warmup)

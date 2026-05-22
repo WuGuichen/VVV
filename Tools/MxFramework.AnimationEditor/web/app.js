@@ -757,7 +757,7 @@ function renderClipMappingSection(group, clips) {
 }
 
 function renderClipMappingSummary(group, clips) {
-  const missingSourceCount = clips.filter(clip => !getSelectionTitle(clip.sourceSelection) && !clip.runtimeResourceKey).length;
+  const missingSourceCount = clips.filter(clip => !getClipRuntimeResourceKey(clip)).length;
   const motionDeltaCount = clips.filter(clip => clip.rootMotionPolicy === "MotionDelta").length;
   return `
     <div class="workflow-summary-grid" aria-label="Clip mapping summary">
@@ -1709,7 +1709,7 @@ function renderSourceSelectionBlock(clip) {
   const selected = getSelectionTitle(clip.sourceSelection);
   const runtimeKey = getClipRuntimeResourceKey(clip);
   const unityPath = clip.sourceSelection?.unityAssetPath || "";
-  const hasSource = Boolean(selected || runtimeKey);
+  const hasSource = Boolean(runtimeKey);
   return `
     <section class="clip-source-card ${hasSource ? "" : "missing"}">
       <div class="clip-source-head">
@@ -1760,9 +1760,7 @@ function renderReadOnlyBindingField(label, value, hint) {
 function getClipRuntimeResourceKey(clip) {
   return firstNonEmpty(
     clip?.runtimeResourceKey,
-    clip?.sourceSelection?.runtimeResourceKey,
-    clip?.sourceSelection?.providerResourceKey,
-    clip?.sourceSelection?.packageResourceKey
+    clip?.sourceSelection?.runtimeResourceKey
   );
 }
 

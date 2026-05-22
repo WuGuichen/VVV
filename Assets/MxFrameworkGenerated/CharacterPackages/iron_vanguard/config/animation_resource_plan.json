@@ -3,7 +3,7 @@
   "schemaVersion": "1.0",
   "packageId": "animation.iron_vanguard",
   "stableId": "charpkg.iron_vanguard.animation",
-  "planHash": "sha256:3cdc0a32ccd84bafb3134425439f5ec27d9f00a78c1e5c771c447a318fe8527f",
+  "planHash": "sha256:f7e6dd401ec5295ab5bc568f2252f9ee179e6c30fc2843d75c3988b81afb85a3",
   "runtimeResourceCatalog": {
     "format": "mx.characterRuntimeResourceCatalog.v1",
     "schemaVersion": 1,
@@ -49,6 +49,25 @@
         }
       },
       {
+        "id": "art.character.skeleton.animation.standing_run_back",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_run_back",
+        "labels": [],
+        "dependencies": [],
+        "hash": "",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/8",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_back"
+        }
+      },
+      {
         "id": "art.character.skeleton.animation.standing_run_forward",
         "type": "AnimationClip",
         "variant": "",
@@ -65,6 +84,44 @@
           "sourceField": "runtimeResourceKey",
           "usage": "animationClip",
           "stableId": "runtime.art.character.skeleton.animation.standing_run_forward"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_run_left",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_run_left",
+        "labels": [],
+        "dependencies": [],
+        "hash": "",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/7",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_left"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_run_right",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_run_right",
+        "labels": [],
+        "dependencies": [],
+        "hash": "",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/6",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_right"
         }
       },
       {
@@ -150,7 +207,7 @@
     "schemaVersion": "1.0",
     "packageId": "animation.iron_vanguard",
     "characterStableId": "charpkg.iron_vanguard.animation",
-    "planHash": "sha256:3cdc0a32ccd84bafb3134425439f5ec27d9f00a78c1e5c771c447a318fe8527f",
+    "planHash": "sha256:f7e6dd401ec5295ab5bc568f2252f9ee179e6c30fc2843d75c3988b81afb85a3",
     "spawnCritical": {
       "required": true,
       "failurePolicy": "FailSpawn",
@@ -187,12 +244,36 @@
           "stableId": "runtime.art.character.skeleton.animation.standing_jump"
         },
         {
+          "resourceKey": "art.character.skeleton.animation.standing_run_back",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_back"
+        },
+        {
           "resourceKey": "art.character.skeleton.animation.standing_run_forward",
           "typeId": "AnimationClip",
           "variant": "",
           "packageId": "animation.iron_vanguard",
           "usage": "animationClip",
           "stableId": "runtime.art.character.skeleton.animation.standing_run_forward"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_run_left",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_left"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_run_right",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_right"
         },
         {
           "resourceKey": "art.character.skeleton.animation.standing_walk_back",

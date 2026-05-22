@@ -76,7 +76,7 @@
               }
             },
             {
-              "clipId": "walk_f",
+              "clipId": "walk.f",
               "displayName": "Walk_F",
               "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_forward",
               "sourceClipName": "standing_walk_forward",
@@ -106,7 +106,7 @@
               }
             },
             {
-              "clipId": "run_f",
+              "clipId": "run.f",
               "displayName": "Run_F",
               "runtimeResourceKey": "art.character.skeleton.animation.standing_run_forward",
               "sourceClipName": "standing_run_forward",
@@ -136,7 +136,7 @@
               }
             },
             {
-              "clipId": "walk_r",
+              "clipId": "walk.r",
               "displayName": "Walk_R",
               "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_right",
               "sourceClipName": "standing_walk_right",
@@ -166,7 +166,7 @@
               }
             },
             {
-              "clipId": "walk_l",
+              "clipId": "walk.l",
               "displayName": "Walk_L",
               "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_left",
               "sourceClipName": "standing_walk_left",
@@ -196,7 +196,7 @@
               }
             },
             {
-              "clipId": "walk_b",
+              "clipId": "walk.b",
               "displayName": "Walk_B",
               "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
               "sourceClipName": "standing_walk_back",
@@ -224,6 +224,39 @@
                   }
                 ]
               }
+            },
+            {
+              "clipId": "run.r",
+              "displayName": "Run_R",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_run_right",
+              "sourceClipName": "standing_run_right",
+              "sourceSubClipId": "standing_run_right",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "calibration": null
+            },
+            {
+              "clipId": "run.l",
+              "displayName": "Run_L",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_run_left",
+              "sourceClipName": "standing_run_left",
+              "sourceSubClipId": "standing_run_left",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "calibration": null
+            },
+            {
+              "clipId": "run.b",
+              "displayName": "Run_B",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_run_back",
+              "sourceClipName": "standing_run_back",
+              "sourceSubClipId": "standing_run_back",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "calibration": null
             }
           ],
           "blend1D": [],
@@ -242,33 +275,51 @@
                   "weight": 1
                 },
                 {
-                  "clipId": "walk_f",
+                  "clipId": "walk.f",
                   "x": 0,
                   "y": 0.45,
                   "weight": 1
                 },
                 {
-                  "clipId": "run_f",
+                  "clipId": "run.f",
                   "x": 0,
                   "y": 0.65,
                   "weight": 1
                 },
                 {
-                  "clipId": "walk_r",
-                  "x": 1,
+                  "clipId": "walk.r",
+                  "x": 0.35,
                   "y": 0,
                   "weight": 1
                 },
                 {
-                  "clipId": "walk_l",
-                  "x": -1,
+                  "clipId": "walk.l",
+                  "x": -0.35,
                   "y": 0,
                   "weight": 1
                 },
                 {
-                  "clipId": "walk_b",
+                  "clipId": "walk.b",
                   "x": 0,
-                  "y": -1,
+                  "y": -0.3,
+                  "weight": 1
+                },
+                {
+                  "clipId": "run.r",
+                  "x": 0.65,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "run.l",
+                  "x": -0.65,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "run.b",
+                  "x": 0,
+                  "y": -0.45,
                   "weight": 1
                 }
               ]
@@ -278,12 +329,12 @@
             {
               "timelineId": "timeline.locomotion",
               "displayName": "Locomotion Timeline",
-              "clipId": "walk_f",
+              "clipId": "walk.f",
               "timeDomain": "Normalized",
               "events": [
                 {
                   "eventId": "event.footstep.left",
-                  "clipId": "walk_f",
+                  "clipId": "walk.f",
                   "timeDomain": "Normalized",
                   "time": 0.25,
                   "eventKind": "Footstep",
@@ -307,7 +358,7 @@
                 },
                 {
                   "eventId": "event.footstep.right",
-                  "clipId": "walk_f",
+                  "clipId": "walk.f",
                   "timeDomain": "Normalized",
                   "time": 0.75,
                   "eventKind": "Footstep",

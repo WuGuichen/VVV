@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using MxFramework.CharacterRuntimeSpawn;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
@@ -642,10 +643,24 @@ namespace MxFramework.Editor.CharacterImport
 
             string animationSetPath = DefaultImportedPackageRoot + "/config/animation_set_definition.json";
             string animationClipRegistryPath = DefaultImportedPackageRoot + "/config/animation_clip_registry.json";
+            string animationResourcePlanPath = DefaultImportedPackageRoot + "/config/animation_resource_plan.json";
             TextAsset animationSet = AssetDatabase.LoadAssetAtPath<TextAsset>(animationSetPath);
             TextAsset animationClipRegistry = AssetDatabase.LoadAssetAtPath<TextAsset>(animationClipRegistryPath);
             serialized.FindProperty("_animationSetDefinitionJson").objectReferenceValue = animationSet;
             serialized.FindProperty("_animationClipRegistryJson").objectReferenceValue = animationClipRegistry;
+            serialized.FindProperty("_animationResourcePlanJsonPath").stringValue = File.Exists(animationResourcePlanPath)
+                ? animationResourcePlanPath
+                : string.Empty;
+            serialized.FindProperty("_animationSetDefinitionJsonPath").stringValue = animationSetPath;
+            serialized.FindProperty("_animationClipRegistryPath").stringValue = animationClipRegistryPath;
+            serialized.FindProperty("_animationSetDefinitionContentHash").stringValue = ComputeFileContentHash(animationSetPath);
+            serialized.FindProperty("_animationClipRegistryContentHash").stringValue = ComputeFileContentHash(animationClipRegistryPath);
+            serialized.FindProperty("_animationResourcePlanContentHash").stringValue = ComputeFileContentHash(animationResourcePlanPath);
+            serialized.FindProperty("_importReportPath").stringValue = package.ImportReport == null ? string.Empty : package.ImportReport.ReportPath;
+            serialized.FindProperty("_sourcePackageHash").stringValue = package.ImportReport == null ? string.Empty : package.ImportReport.SourcePackageHash;
+            serialized.FindProperty("_generatedConfigHash").stringValue = package.ImportReport == null ? string.Empty : package.ImportReport.GeneratedConfigHash;
+            serialized.FindProperty("_geometryBindingHash").stringValue = package.ImportReport == null ? string.Empty : package.ImportReport.GeometryBindingHash;
+            serialized.FindProperty("_resourceMappingHash").stringValue = package.ImportReport == null ? string.Empty : package.ImportReport.ResourceMappingHash;
             serialized.FindProperty("_animationSetId").stringValue = ReadFirstAnimationSetId(animationSetPath);
 
             serialized.ApplyModifiedPropertiesWithoutUndo();
@@ -819,6 +834,19 @@ namespace MxFramework.Editor.CharacterImport
             JArray sets = root["sets"] as JArray;
             JObject first = sets != null && sets.Count > 0 ? sets[0] as JObject : null;
             return ReadString(first, "setId");
+        }
+
+        private static string ComputeFileContentHash(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return string.Empty;
+
+            using (var sha = SHA256.Create())
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                byte[] hash = sha.ComputeHash(bytes);
+                return BitConverter.ToString(hash).Replace("-", string.Empty);
+            }
         }
 
         private static void EnsureFolderPath(string path)

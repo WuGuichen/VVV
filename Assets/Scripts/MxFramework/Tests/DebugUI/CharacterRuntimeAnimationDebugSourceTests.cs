@@ -95,6 +95,27 @@ namespace MxFramework.Tests.DebugUI
             }
         }
 
+        [Test]
+        public void CreateSnapshot_StatusMarksMissingAnimationArtifactsAsNonAuthoritative()
+        {
+            var bootstrapObject = new GameObject("debug-bootstrap");
+            try
+            {
+                CharacterRuntimeResourceBootstrap bootstrap = bootstrapObject.AddComponent<CharacterRuntimeResourceBootstrap>();
+
+                var source = new CharacterRuntimeAnimationDebugSource(bootstrap);
+
+                string status = FindSection(source.CreateSnapshot(), "Status");
+                Assert.That(status, Does.Contain("authority: non-authoritative"));
+                Assert.That(status, Does.Contain("animationArtifacts: missing"));
+                Assert.That(status, Does.Contain("animationSetDefinitionJsonPath: -"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(bootstrapObject);
+            }
+        }
+
         private static string FindSection(FrameworkDebugSnapshot snapshot, string title)
         {
             for (int i = 0; i < snapshot.Sections.Count; i++)

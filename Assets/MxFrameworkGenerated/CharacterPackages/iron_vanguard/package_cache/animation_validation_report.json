@@ -1,6 +1,37 @@
 {
   "schemaVersion": "1.0",
   "packageId": "animation.iron_vanguard",
-  "issues": [],
+  "issues": [
+    {
+      "severity": "Warning",
+      "gate": "WarningOnly",
+      "code": "LOCO_CAL_CLIP_METADATA_MISSING",
+      "sourcePath": "config/animation_authoring.json",
+      "sourceObjectPath": "sets/0/groups/0/clips/6",
+      "field": "calibration",
+      "message": "Locomotion clip 'run.r' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+      "suggestedFix": "Open AnimationEditor, fix the animation authoring data, then compile again."
+    },
+    {
+      "severity": "Warning",
+      "gate": "WarningOnly",
+      "code": "LOCO_CAL_CLIP_METADATA_MISSING",
+      "sourcePath": "config/animation_authoring.json",
+      "sourceObjectPath": "sets/0/groups/0/clips/7",
+      "field": "calibration",
+      "message": "Locomotion clip 'run.l' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+      "suggestedFix": "Open AnimationEditor, fix the animation authoring data, then compile again."
+    },
+    {
+      "severity": "Warning",
+      "gate": "WarningOnly",
+      "code": "LOCO_CAL_CLIP_METADATA_MISSING",
+      "sourcePath": "config/animation_authoring.json",
+      "sourceObjectPath": "sets/0/groups/0/clips/8",
+      "field": "calibration",
+      "message": "Locomotion clip 'run.b' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+      "suggestedFix": "Open AnimationEditor, fix the animation authoring data, then compile again."
+    }
+  ],
   "hasBlockingIssues": false
 }
