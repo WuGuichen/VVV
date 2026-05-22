@@ -87,6 +87,7 @@ Assets/Scenes/MxFramework/CharacterLocomotionCalibration.unity
 - 可按 preset 运行标准测试：Idle、Walk Forward、Run Forward、Walk Back、Strafe Left、Strafe Right、Diagonal、Speed Ramp。
 - 实时显示 BlendTree 权重、clip playback speed、native velocity、controller target velocity、actual velocity。
 - 实时显示左右脚接地状态、脚底锁定点、脚滑速度和脚滑距离。
+- 支持运行时临时调参，生成 `Calibration Draft`，再通过 Authoring API 显式写回 animation authoring 配置。
 - 支持一键生成校准报告，供 Issue / PR / 调试面板复制。
 
 ## Non-goals
@@ -95,6 +96,7 @@ Assets/Scenes/MxFramework/CharacterLocomotionCalibration.unity
 - 不让 runtime authority 依赖 Unity Animator / PlayableGraph 的当前骨骼姿态。
 - 不在 `MxFramework.Animation` noEngine 层引用 `UnityEngine`。
 - 不替代 Animation Editor。Animation Editor 负责编辑 clip / blend / timeline / calibration metadata；Calibration Lab 负责运行时验证和调参观察。
+- 不直接修改编译产物、Unity `.anim` 源文件或 runtime catalog。Lab 只能通过显式 Authoring apply 写入 authoring 配置，再由 compiler 重新生成运行时产物。
 - 不把脚滑检测结果写入 Replay hash / SaveState。
 - 不解决完整 IK、foot locking runtime 修正或 Motion Matching。Lab 只先做观测、诊断和校准依据。
 
@@ -110,6 +112,7 @@ Assets/Scenes/MxFramework/CharacterLocomotionCalibration.unity
 | 运行时 UI | UI Toolkit、`MxFramework.UI.Toolkit` 控件 | 新建专用 HUD，使用 `MxStatusBadge`、`MxCommandButton`、`MxPanelTabs`、`MxStatBar` 等。 | 不继续把复杂校准 UI 塞进通用 Debug UI。 |
 | 诊断 / 调试快照 | `IFrameworkDebugSource`、`FrameworkDebugSnapshot` | Lab 可以同时注册 debug source，但专用 HUD 直接展示校准模型。 | Debug UI 作为辅助，不作为主要交互界面。 |
 | 配置 / 数据 | Animation authoring、compiled artifacts、ResourceSelectionRef | clip calibration metadata 从 animation authoring 编译进入 runtime 可读 artifact。 | 不把校准数据只存在 Inspector 字段里。 |
+| 配置写回 | Authoring API、Animation Editor 保存链路、Authoring Compiler | Lab 只提交 `Calibration Draft`，由 Authoring 服务做 diff、validate、save、compile。 | 不直接写 `animation_set_definition.json`、runtime catalog 或 Unity 源动画。 |
 
 ## Core Concepts
 
@@ -265,9 +268,101 @@ footSlipSpeedCmPerSec =
 3. 跑 `Run Forward`，确认 controller 能到达 run blend point；如果不可达，先修 blend domain，不调 clip。
 4. 跑 `Diagonal`，观察混合方向的 `directionErrorDegrees` 和接地脚滑峰值。
 5. 跑 `Speed Ramp`，检查 walk -> run 过渡区是否脚滑，而不是只看端点。
-6. 保存 JSON 报告，作为 animation authoring metadata 或 controller mapping 改动的验收证据。
+6. 如果运行时临时调参得到更好的结果，生成 `Calibration Draft` 并预览配置 diff。
+7. 显式 Apply 到 animation authoring 配置。
+8. 重新 compile / import，让 runtime artifact 和 Unity 预览使用新数据。
+9. 保存 JSON 报告，作为 animation authoring metadata 或 controller mapping 改动的验收证据。
 
-Lab 只报告和建议，不在运行时自动改写配置；配置修改应回到 Animation Editor / Authoring Compiler 链路。
+Lab 不自动静默改写配置；但必须支持“运行时试调 -> 生成补丁 -> 显式写回 authoring 配置 -> 编译验证”的闭环。配置修改应回到 Animation Editor / Authoring Compiler 链路。
+
+## Authoring Feedback Loop
+
+Calibration Lab 必须支持把运行时调出来的正确数据回填到配置中，但写回对象是编辑期配置，不是运行时编译产物。
+
+```text
+Runtime Calibration Lab
+  -> temporary tuning override
+  -> Calibration Draft
+  -> diff preview
+  -> Authoring API apply
+  -> animation_authoring.json / package config updated
+  -> Authoring Compiler
+  -> animation_set_definition.json / runtime_resource_catalog.json / character_resource_plan.json regenerated
+  -> Play Mode reload and verify
+```
+
+### 可运行时调参的字段
+
+首版只允许调这些字段：
+
+| 字段 | 写回位置 | 说明 |
+| --- | --- | --- |
+| `nativeVelocityX/Y` | animation authoring locomotion calibration metadata | 每个 clip 的原生脚步速度向量。 |
+| `playbackSpeed` | clip mapping 或 locomotion calibration metadata | 用于匹配角色实际速度。 |
+| `cycleDurationSeconds` | locomotion calibration metadata | 可由 clip length 派生，也允许手动覆盖。 |
+| `left/rightFootContactWindows` | locomotion calibration metadata | 用于 planted foot 判定。 |
+| `blendPoint x/y` | blend definition | 仅在确认 controller domain 与配置不一致时修改。 |
+| `controllerBlendDomain` | controller / profile mapping 配置 | 用于修复 `run_f (0,2)` 不可达这类问题。 |
+
+首版不允许从 Lab 写回：
+
+- Unity `.anim` 源文件。
+- 外部 `.fbx/.glb/.gltf` 源文件。
+- `runtime_resource_catalog.json`、`animation_set_definition.json`、`character_resource_plan.json` 等编译产物。
+- 角色移动权威参数，除非后续明确它属于角色 controller profile 配置。
+
+### Calibration Draft
+
+运行时调参不能立即落盘。HUD 应先生成 draft：
+
+```json
+{
+  "packageId": "iron_vanguard",
+  "animationSetId": "set.base",
+  "blendId": "blend.move2d",
+  "changes": [
+    {
+      "target": "clip",
+      "clipId": "walk_f",
+      "field": "playbackSpeed",
+      "oldValue": 1.0,
+      "newValue": 1.18,
+      "reason": "avgFootSlip=2.4cm/s, velocityErrorRatio=0.06"
+    }
+  ]
+}
+```
+
+Draft 必须包含：
+
+- 改动字段和旧值 / 新值。
+- 采样 preset、样本时长、平均速度误差、最大脚滑、当前 dominant clip。
+- 诊断 reason。
+- 是否需要重新编译。
+
+### Apply Gate
+
+Apply 操作必须经过明确门禁：
+
+1. 用户在 HUD 或 Animation Editor 中点击 `Apply Draft`。
+2. UI 显示 diff，不允许无提示保存。
+3. Authoring API 校验字段类型、范围、clip id、blend id 和 package id。
+4. 保存 authoring 配置。
+5. 自动运行 animation compile。
+6. 刷新运行时预览或提示需要 reload。
+
+失败时不得产生半写入状态；必须返回 diagnostics。
+
+建议错误码：
+
+| Code | 含义 |
+| --- | --- |
+| `LOCO_CAL_DRAFT_EMPTY` | 没有可写回改动。 |
+| `LOCO_CAL_APPLY_FIELD_UNSUPPORTED` | 字段不允许由 Lab 写回。 |
+| `LOCO_CAL_APPLY_TARGET_MISSING` | clip / blend / profile 目标不存在。 |
+| `LOCO_CAL_APPLY_RANGE_INVALID` | 新值越界，例如 speed <= 0。 |
+| `LOCO_CAL_APPLY_CONFLICT` | 配置已被外部修改，需要刷新后重试。 |
+| `LOCO_CAL_APPLY_COMPILE_FAILED` | 写回后重新编译失败。 |
 
 ## Data Contracts
 
@@ -347,6 +442,33 @@ public sealed class CharacterLocomotionCalibrationFrame
 ```
 
 Unity adapter 可以把 Unity `Vector2/Vector3` 转换成 primitive DTO，不让 noEngine contract 依赖 Unity 类型。
+
+### `CharacterLocomotionCalibrationDraft`
+
+```csharp
+public sealed class CharacterLocomotionCalibrationDraft
+{
+    public string PackageId { get; }
+    public string AnimationSetId { get; }
+    public string BlendId { get; }
+    public IReadOnlyList<CharacterLocomotionCalibrationChange> Changes { get; }
+    public IReadOnlyList<string> Diagnostics { get; }
+}
+```
+
+### `CharacterLocomotionCalibrationChange`
+
+```csharp
+public sealed class CharacterLocomotionCalibrationChange
+{
+    public string TargetKind { get; }
+    public string TargetId { get; }
+    public string Field { get; }
+    public string OldValue { get; }
+    public string NewValue { get; }
+    public string Reason { get; }
+}
+```
 
 ## Runtime Architecture
 
@@ -449,6 +571,10 @@ Open CharacterLocomotionCalibration.unity
 
 - Direction pad：前 / 后 / 左 / 右 / 斜向。
 - Speed slider：0 到当前角色最大速度。
+- Per-clip tuning：
+  - Native Velocity X / Y
+  - Playback Speed
+  - Contact Window Start / End
 - Walk / Run mode：可以切换 controller speed band 或直接设置目标 speed。
 - Presets：
   - Idle
@@ -466,6 +592,11 @@ Open CharacterLocomotionCalibration.unity
 - Report：
   - Copy Summary
   - Save JSON Report
+- Authoring：
+  - Create Draft
+  - Preview Diff
+  - Apply Draft
+  - Recompile and Reload
 
 ## Scene Visualization
 
@@ -584,6 +715,22 @@ Open CharacterLocomotionCalibration.unity
 - 可以生成包含各 preset 的平均速度误差、最大脚滑、unreachable 点、resource errors 的报告。
 - EditMode / PlayMode tests 至少覆盖 report DTO 和一个场景 smoke。
 
+### Slice 08：Calibration Draft Apply
+
+目标：
+
+- 支持运行时临时调参。
+- 生成 `Calibration Draft`。
+- 通过 Authoring API 预览 diff、保存 authoring 配置、重新 compile。
+- reload 后使用新编译产物继续验证。
+
+验收：
+
+- 不直接写 runtime compiled artifacts。
+- 修改 `walk_f.playbackSpeed` 后，`animation_authoring.json` 或等价 authoring 配置出现对应改动。
+- Apply 后自动重新编译并刷新 runtime artifact。
+- Apply 失败时返回结构化 diagnostics，不产生半写入。
+
 ## Diagnostics
 
 建议错误码：
@@ -599,6 +746,8 @@ Open CharacterLocomotionCalibration.unity
 | `LOCO_CAL_SLIP_WARN` | 脚滑超过 warning 阈值。 |
 | `LOCO_CAL_SLIP_BAD` | 脚滑超过 bad 阈值。 |
 | `LOCO_CAL_VELOCITY_MISMATCH` | blended native velocity 和 actual local velocity 偏差过大。 |
+| `LOCO_CAL_APPLY_FIELD_UNSUPPORTED` | 当前调参字段不允许写回配置。 |
+| `LOCO_CAL_APPLY_COMPILE_FAILED` | 校准补丁写回后重新编译失败。 |
 
 ## Required Backend Additions
 
@@ -636,7 +785,11 @@ Open CharacterLocomotionCalibration.unity
 8. 运行 `Speed Ramp`：
    - 观察 walk -> run 权重过渡。
    - 观察是否出现过渡区脚滑峰值。
-9. 复制 report summary 到 Issue / PR。
+9. 在 HUD 中调整当前 dominant clip 的 `playbackSpeed` 或 `nativeVelocity`。
+10. 点击 `Create Draft`，确认 diff 只包含允许写回的 authoring 字段。
+11. 点击 `Apply Draft`，确认 authoring 配置更新并触发重新 compile。
+12. reload 后重复 preset，确认新数据被 runtime artifact 消费。
+13. 复制 report summary 到 Issue / PR。
 
 ## Automated Validation Plan
 
@@ -660,6 +813,9 @@ Open CharacterLocomotionCalibration.unity
 - 当前配置中不可达的 BlendTree 点会被明确标出。
 - 可通过 preset 复现 walk / run / strafe 的权重和 foot sliding 指标。
 - 每个方向 clip 都能独立显示实际速度、动画表达速度、方向误差和建议 playback speed。
+- 可在运行时临时调整 `nativeVelocity`、`playbackSpeed`、接地窗口等校准字段。
+- 可生成 calibration draft、预览 diff，并显式写回 animation authoring 配置。
+- Apply 后能重新编译并让运行时使用新数据。
 - 可复制或保存校准报告。
 - Console 无新增 error；warning 必须解释。
 - 文档写清如何手测和如何解读结果。
@@ -671,6 +827,7 @@ Open CharacterLocomotionCalibration.unity
 - BlendTree 混合下每个 clip normalized time 的取值需要 backend diagnostics 支持，否则 contact confidence 只能近似。
 - 斜向移动可能需要单独 diagonal clip；没有 diagonal clip 时方向混合的脚步表现可能天然更差，Lab 只报告，不自动修正。
 - playback speed 是否由 controller、animation profile 还是 action binding 决定，需要后续实现时明确权威来源。
+- Apply Draft 需要处理配置外部修改冲突；首版至少要用 package hash 或 file timestamp 防止覆盖用户改动。
 
 ## Suggested Issue Split
 
@@ -681,5 +838,7 @@ Open CharacterLocomotionCalibration.unity
 5. `Character Locomotion Calibration 05：Foot Sampling and Slip Metrics`
 6. `Character Locomotion Calibration 06：UI Toolkit HUD and Scene Gizmos`
 7. `Character Locomotion Calibration 07：Automated Preset Report`
+8. `Character Locomotion Calibration 08：Calibration Draft Apply`
 
 这些 Issue 应放入同一个 milestone。建议先做 01-03，让当前 `run_f` 可达性和权重问题立刻可见；再做 04-07 进入真正 foot sliding 校准。
+08 是把调出来的正确数据落回配置的闭环，不能省略，否则 Lab 只能观察，不能帮助修正配置。
