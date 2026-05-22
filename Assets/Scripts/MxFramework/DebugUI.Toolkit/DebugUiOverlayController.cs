@@ -95,6 +95,19 @@ namespace MxFramework.DebugUI.Toolkit
             SetVisibility(_visibility == DebugUiVisibility.Expanded ? DebugUiVisibility.Collapsed : DebugUiVisibility.Expanded);
         }
 
+        public void SetActiveTab(int index)
+        {
+            _binder.SetActiveTab(index);
+        }
+
+        public void ConfigurePanelSettings(PanelSettings panelSettings)
+        {
+            _panelSettings = panelSettings;
+            if (_document != null && panelSettings != null)
+                _document.panelSettings = panelSettings;
+            EnsureDocument();
+        }
+
         public void SetRefreshPaused(bool paused)
         {
             RefreshPaused = paused;
@@ -188,12 +201,9 @@ namespace MxFramework.DebugUI.Toolkit
             panel.style.position = Position.Absolute;
             panel.style.right = 12;
             panel.style.top = 12;
-            panel.style.maxWidth = 520;
-            panel.style.maxHeight = 720;
-            panel.style.paddingLeft = 8;
-            panel.style.paddingRight = 8;
-            panel.style.paddingTop = 8;
-            panel.style.paddingBottom = 8;
+            panel.style.width = 560;
+            panel.style.maxWidth = 560;
+            panel.style.maxHeight = 650;
         }
     }
 }

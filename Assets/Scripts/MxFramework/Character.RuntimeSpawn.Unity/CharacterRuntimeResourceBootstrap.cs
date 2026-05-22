@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MxFramework.Animation;
+using MxFramework.Animation.Unity;
 using MxFramework.Resources;
 using MxFramework.Resources.Unity;
 using UnityEngine;
@@ -28,12 +29,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private ResourceCatalog _resourceCatalog;
         private MxAnimationWarmupService _animationWarmupService;
         private MxAnimationWarmupResult _animationWarmupResult;
+        private MxAnimationSetDefinition _runtimeAnimationSetDefinition;
         private ResourceHandle<GameObject> _characterHandle;
         private GameObject _characterInstance;
 
         public ResourceManager ResourceManager => _resourceManager;
         public GameObject CharacterInstance => _characterInstance;
         public MxAnimationWarmupResult AnimationWarmupResult => _animationWarmupResult;
+        public string PackageId => _packageId;
+        public string CharacterResourceId => _characterResourceId;
+        public string CharacterResourceVariant => _characterResourceVariant;
+        public string AnimationSetId => _animationSetId;
 
         private void Start()
         {
@@ -85,6 +91,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (controllerBinding != null)
                 controllerBinding.Initialize();
 
+            ConfigureRuntimeAnimationPlayback(_characterInstance);
             return true;
         }
 
@@ -130,6 +137,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 registry,
                 _resourceCatalog,
                 skipPreloadWhenInvalid: false));
+            _runtimeAnimationSetDefinition = definition;
             if (_animationWarmupResult == null || !_animationWarmupResult.Success)
             {
                 Debug.LogWarning("MxFramework Character: animation warmup completed with issues. " + FormatWarmupIssues(_animationWarmupResult), this);
@@ -137,6 +145,44 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             return true;
+        }
+
+        private void ConfigureRuntimeAnimationPlayback(GameObject characterInstance)
+        {
+            if (characterInstance == null || !_warmupAnimationOnLoad || _animationSetDefinitionJson == null)
+                return;
+
+            CharacterRuntimeLocomotionBlendController locomotion =
+                characterInstance.GetComponent<CharacterRuntimeLocomotionBlendController>();
+            if (locomotion == null)
+                return;
+
+            MxAnimationSetDefinition definition = ResolveRuntimeAnimationSetDefinition();
+            if (definition == null)
+                return;
+
+            MxAnimationBlend2DDefinition blend = ResolveDefaultLocomotionBlend2D(definition);
+            if (blend == null)
+            {
+                Debug.LogWarning("MxFramework Character: no 2D locomotion blend definition was found. setId="
+                    + definition.SetId, characterInstance);
+                return;
+            }
+
+            Animator animator = characterInstance.GetComponentInChildren<Animator>(includeInactive: true);
+            if (animator == null)
+            {
+                Debug.LogWarning("MxFramework Character: runtime animation backend was not created because the character prefab has no Animator. "
+                    + "The locomotion controller will keep fallback motion enabled.", characterInstance);
+                return;
+            }
+
+            var backend = new UnityPlayablesAnimationBackend(
+                animator,
+                _resourceManager,
+                definition,
+                characterInstance.name);
+            locomotion.ConfigureAnimationBackend(backend, blend, ownsBackend: true);
         }
 
         public void EnsureResourceManager()
@@ -192,6 +238,49 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _animationWarmupService.Release(_animationWarmupResult);
             _animationWarmupResult = null;
             _animationWarmupService = null;
+            _runtimeAnimationSetDefinition = null;
+        }
+
+        private MxAnimationSetDefinition ResolveRuntimeAnimationSetDefinition()
+        {
+            if (_runtimeAnimationSetDefinition != null)
+                return _runtimeAnimationSetDefinition;
+
+            if (_animationSetDefinitionJson == null)
+                return null;
+
+            IReadOnlyList<MxAnimationSetDefinition> definitions;
+            try
+            {
+                definitions = MxAnimationCompiledArtifactJson.LoadSetDefinitions(_animationSetDefinitionJson.text, _packageId);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("MxFramework Character: failed to parse animation set definition for playback. " + ex.Message, this);
+                return null;
+            }
+
+            _runtimeAnimationSetDefinition = ResolveAnimationSet(definitions);
+            return _runtimeAnimationSetDefinition;
+        }
+
+        private static MxAnimationBlend2DDefinition ResolveDefaultLocomotionBlend2D(MxAnimationSetDefinition definition)
+        {
+            if (definition == null || definition.Blend2DDefinitions.Count == 0)
+                return null;
+
+            for (int i = 0; i < definition.Blend2DDefinitions.Count; i++)
+            {
+                MxAnimationBlend2DDefinition candidate = definition.Blend2DDefinitions[i];
+                if (candidate != null
+                    && (candidate.BlendId.IndexOf("locomotion", StringComparison.OrdinalIgnoreCase) >= 0
+                        || candidate.BlendId.IndexOf("move", StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    return candidate;
+                }
+            }
+
+            return definition.Blend2DDefinitions[0];
         }
 
         private MxAnimationSetDefinition ResolveAnimationSet(IReadOnlyList<MxAnimationSetDefinition> definitions)

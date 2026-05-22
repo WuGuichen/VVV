@@ -1,0 +1,96 @@
+{
+  "format": "mx.characterResourcePlan.v1",
+  "schemaVersion": "1.0",
+  "packageId": "iron_vanguard",
+  "characterStableId": "char.iron_vanguard",
+  "planHash": "sha256:c272ba4866482176d60b3b9f86690e9c4e79718a0b36c43c3c4ae686e595a162",
+  "spawnCritical": {
+    "required": true,
+    "failurePolicy": "FailSpawn",
+    "resources": [
+      {
+        "resourceKey": "char.iron_vanguard.model.body",
+        "typeId": "GameObject",
+        "variant": "default",
+        "packageId": "iron_vanguard",
+        "usage": "characterModel",
+        "stableId": "charpkg.iron_vanguard.resource.model.body"
+      }
+    ]
+  },
+  "presentationCritical": {
+    "required": true,
+    "failurePolicy": "UseFallbackVisual",
+    "resources": []
+  },
+  "equipmentInitial": {
+    "required": true,
+    "failurePolicy": "UseFallbackEquipment",
+    "resources": [
+      {
+        "resourceKey": "char.iron_vanguard.weapon.shield.model",
+        "typeId": "GameObject",
+        "variant": "default",
+        "packageId": "iron_vanguard",
+        "usage": "weaponModel",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.weapon.sword.model",
+        "typeId": "GameObject",
+        "variant": "default",
+        "packageId": "iron_vanguard",
+        "usage": "weaponModel",
+        "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model"
+      }
+    ]
+  },
+  "animationWarmup": {
+    "required": true,
+    "failurePolicy": "UseFallbackPose",
+    "resources": [
+      {
+        "resourceKey": "char.iron_vanguard.anim.combat",
+        "typeId": "AnimationClip",
+        "variant": "default",
+        "packageId": "iron_vanguard",
+        "usage": "animationClipGroup",
+        "stableId": "charpkg.iron_vanguard.resource.anim.combat"
+      },
+      {
+        "resourceKey": "char.iron_vanguard.anim.locomotion",
+        "typeId": "AnimationClip",
+        "variant": "default",
+        "packageId": "iron_vanguard",
+        "usage": "animationClipGroup",
+        "stableId": "charpkg.iron_vanguard.resource.anim.locomotion"
+      }
+    ]
+  },
+  "vfxWarmup": {
+    "required": false,
+    "failurePolicy": "SkipEffect",
+    "resources": []
+  },
+  "uiDeferred": {
+    "required": false,
+    "failurePolicy": "ShowPlaceholder",
+    "resources": [
+      {
+        "resourceKey": "char.iron_vanguard.preview.thumbnail",
+        "typeId": "Texture2D",
+        "variant": "default",
+        "packageId": "iron_vanguard",
+        "usage": "previewThumbnail",
+        "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail"
+      }
+    ]
+  },
+  "audio": {
+    "required": false,
+    "failurePolicy": "MuteMissingCue",
+    "requiredBanks": [],
+    "requiredCues": []
+  },
+  "diagnostics": []
+}

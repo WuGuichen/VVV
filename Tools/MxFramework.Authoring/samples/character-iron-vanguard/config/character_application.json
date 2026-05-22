@@ -18,6 +18,88 @@
     "char.iron_vanguard.anim.combat",
     "char.iron_vanguard.preview.thumbnail"
   ],
+  "animationGroups": [],
+  "animationProfiles": [
+    {
+      "profileId": "anim_profile.default",
+      "displayName": "默认动画 Profile",
+      "description": "CharacterStudio 只保存角色对动画资源的引用；Group / Clip / Blend / Timeline 在 AnimationEditor 中编辑。",
+      "slots": [
+        {
+          "slotId": "base",
+          "displayName": "基础 Profile",
+          "purpose": "默认姿势和基础表现",
+          "animationGroupId": "",
+          "resourceKey": "char.iron_vanguard.anim.locomotion",
+          "preloadPolicy": "AnimationWarmup",
+          "required": false,
+          "resourceSelection": {
+            "resourceStableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+            "sourceProviderId": "characterPackage",
+            "bindingKind": "PackageResource",
+            "expectedKind": "Animation",
+            "expectedUsage": "animationClipGroup",
+            "expectedHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+            "unityGuid": "",
+            "unityAssetPath": "",
+            "runtimeResourceKey": "",
+            "providerResourceKey": "char.iron_vanguard.anim.locomotion",
+            "packageResourceKey": "char.iron_vanguard.anim.locomotion",
+            "audioCueId": "",
+            "audioEventDefinitionId": ""
+          }
+        },
+        {
+          "slotId": "locomotion",
+          "displayName": "移动 Locomotion",
+          "purpose": "idle / walk / run 等移动表现",
+          "animationGroupId": "",
+          "resourceKey": "char.iron_vanguard.anim.locomotion",
+          "preloadPolicy": "AnimationWarmup",
+          "required": true,
+          "resourceSelection": {
+            "resourceStableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+            "sourceProviderId": "characterPackage",
+            "bindingKind": "PackageResource",
+            "expectedKind": "Animation",
+            "expectedUsage": "animationClipGroup",
+            "expectedHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+            "unityGuid": "",
+            "unityAssetPath": "",
+            "runtimeResourceKey": "",
+            "providerResourceKey": "char.iron_vanguard.anim.locomotion",
+            "packageResourceKey": "char.iron_vanguard.anim.locomotion",
+            "audioCueId": "",
+            "audioEventDefinitionId": ""
+          }
+        },
+        {
+          "slotId": "combat",
+          "displayName": "战斗 Combat",
+          "purpose": "攻击、防御、受击等战斗表现",
+          "animationGroupId": "",
+          "resourceKey": "char.iron_vanguard.anim.combat",
+          "preloadPolicy": "AnimationWarmup",
+          "required": false,
+          "resourceSelection": {
+            "resourceStableId": "charpkg.iron_vanguard.resource.anim.combat",
+            "sourceProviderId": "characterPackage",
+            "bindingKind": "PackageResource",
+            "expectedKind": "Animation",
+            "expectedUsage": "animationClipGroup",
+            "expectedHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+            "unityGuid": "",
+            "unityAssetPath": "",
+            "runtimeResourceKey": "",
+            "providerResourceKey": "char.iron_vanguard.anim.combat",
+            "packageResourceKey": "char.iron_vanguard.anim.combat",
+            "audioCueId": "",
+            "audioEventDefinitionId": ""
+          }
+        }
+      ]
+    }
+  ],
   "compileBoundary": {
     "authoringOnly": [
       "localPose.eulerHint",

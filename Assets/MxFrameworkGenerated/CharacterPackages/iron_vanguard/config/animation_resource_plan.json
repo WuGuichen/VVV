@@ -1,0 +1,259 @@
+{
+  "format": "mx.animationResourcePlan.v1",
+  "schemaVersion": "1.0",
+  "packageId": "animation.iron_vanguard",
+  "stableId": "charpkg.iron_vanguard.animation",
+  "planHash": "sha256:3cdc0a32ccd84bafb3134425439f5ec27d9f00a78c1e5c771c447a318fe8527f",
+  "runtimeResourceCatalog": {
+    "format": "mx.characterRuntimeResourceCatalog.v1",
+    "schemaVersion": 1,
+    "catalogId": "animation.package.animation.iron_vanguard.runtime",
+    "packageId": "animation.iron_vanguard",
+    "entries": [
+      {
+        "id": "art.character.skeleton.animation.standing_idle",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_idle",
+        "labels": [],
+        "dependencies": [],
+        "hash": "sha256:3a33f6cdfab9a497d1c0e80a088a1e53028ad628a0bb5abaafc997bbf7ca8290",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/0",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_idle"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_jump",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_jump",
+        "labels": [],
+        "dependencies": [],
+        "hash": "sha256:2b8ff03af72f5ce0817d84a080aa87b38ada1b1f6cbf4dbd211cd3629ef4f738",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/1/clips/0",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_jump"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_run_forward",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_run_forward",
+        "labels": [],
+        "dependencies": [],
+        "hash": "sha256:813602f6f0bf98d05bd4dafcc28e10c06fa6ab9b5914d1d8fbdf7aa9c6c0ed68",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/2",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_forward"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_walk_back",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_back",
+        "labels": [],
+        "dependencies": [],
+        "hash": "",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/5",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_back"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_walk_forward",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_forward",
+        "labels": [],
+        "dependencies": [],
+        "hash": "sha256:e685db489f8316b9d022f54f138ccd75ba87e593e95bcd5bd36ee01e4af234e5",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/1",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_forward"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_walk_left",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_left",
+        "labels": [],
+        "dependencies": [],
+        "hash": "",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/4",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_left"
+        }
+      },
+      {
+        "id": "art.character.skeleton.animation.standing_walk_right",
+        "type": "AnimationClip",
+        "variant": "",
+        "packageId": "animation.iron_vanguard",
+        "provider": "memory",
+        "address": "mxframework.samples/art/character/skeleton/animation/standing_walk_right",
+        "labels": [],
+        "dependencies": [],
+        "hash": "",
+        "size": 0,
+        "allowOverride": false,
+        "providerData": {
+          "sourcePath": "sets/0/groups/0/clips/3",
+          "sourceField": "runtimeResourceKey",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_right"
+        }
+      }
+    ]
+  },
+  "characterResourcePlan": {
+    "format": "mx.characterResourcePlan.v1",
+    "schemaVersion": "1.0",
+    "packageId": "animation.iron_vanguard",
+    "characterStableId": "charpkg.iron_vanguard.animation",
+    "planHash": "sha256:3cdc0a32ccd84bafb3134425439f5ec27d9f00a78c1e5c771c447a318fe8527f",
+    "spawnCritical": {
+      "required": true,
+      "failurePolicy": "FailSpawn",
+      "resources": []
+    },
+    "presentationCritical": {
+      "required": true,
+      "failurePolicy": "UseFallbackVisual",
+      "resources": []
+    },
+    "equipmentInitial": {
+      "required": true,
+      "failurePolicy": "UseFallbackEquipment",
+      "resources": []
+    },
+    "animationWarmup": {
+      "required": true,
+      "failurePolicy": "UseFallbackPose",
+      "resources": [
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_idle",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_idle"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_jump",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_jump"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_run_forward",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_run_forward"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_walk_back",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_back"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_walk_forward",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_forward"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_walk_left",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_left"
+        },
+        {
+          "resourceKey": "art.character.skeleton.animation.standing_walk_right",
+          "typeId": "AnimationClip",
+          "variant": "",
+          "packageId": "animation.iron_vanguard",
+          "usage": "animationClip",
+          "stableId": "runtime.art.character.skeleton.animation.standing_walk_right"
+        }
+      ]
+    },
+    "vfxWarmup": {
+      "required": false,
+      "failurePolicy": "SkipEffect",
+      "resources": []
+    },
+    "uiDeferred": {
+      "required": false,
+      "failurePolicy": "ShowPlaceholder",
+      "resources": []
+    },
+    "audio": {
+      "required": false,
+      "failurePolicy": "MuteMissingCue",
+      "requiredBanks": [],
+      "requiredCues": []
+    },
+    "diagnostics": []
+  },
+  "audioCueManifest": {
+    "format": "mx.characterAudioCueManifest.v1",
+    "schemaVersion": "1.0",
+    "packageId": "animation.iron_vanguard",
+    "characterStableId": "charpkg.iron_vanguard.animation",
+    "banks": [],
+    "cues": [],
+    "diagnostics": []
+  },
+  "diagnostics": []
+}

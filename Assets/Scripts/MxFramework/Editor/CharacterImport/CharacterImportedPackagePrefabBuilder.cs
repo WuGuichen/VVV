@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MxFramework.CharacterRuntimeSpawn;
+using MxFramework.CharacterRuntimeSpawn.DebugUI.Unity;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
 using MxFramework.Resources.Unity;
@@ -10,6 +11,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 namespace MxFramework.Editor.CharacterImport
 {
@@ -20,6 +22,13 @@ namespace MxFramework.Editor.CharacterImport
         private const string RuntimeResourcesRootName = "runtime_resources";
         private const string UnityResourcesFolderName = "Resources";
         private const string RuntimeResourcesAddressRoot = "MxFrameworkGenerated/CharacterPackages";
+        private const string RuntimeDebugPanelSettingsPath = "Assets/UI/MxFramework/MxAnimationSmoke/MxAnimationSmokePanelSettings.asset";
+        private static readonly string[] HumanoidAvatarSearchRoots =
+        {
+            "Assets/MxFrameworkGenerated/CharacterPackages",
+            "Assets/Art/MxFramework/Samples/Characters"
+        };
+
         private static string _previewMaterialFolder;
 
         [MenuItem("MxFramework/Character/Create Preview Prefab For Iron Vanguard", priority = 220)]
@@ -103,7 +112,7 @@ namespace MxFramework.Editor.CharacterImport
             EnsureFolder(root, "preview_materials");
             _previewMaterialFolder = root + "/preview_materials";
             Dictionary<string, GameObject> weaponPrefabs = BuildWeaponPrefabs(package, resources, root);
-            AnimationClip[] animationClips = LoadAnimationClips(package);
+            AnimationClip[] animationClips = LoadAnimationClips(package, root);
             GameObject rootObject = new GameObject(package.PackageId + "_CharacterPreview");
             try
             {
@@ -294,36 +303,123 @@ namespace MxFramework.Editor.CharacterImport
         {
             CharacterRuntimeLocomotionBlendController controller = rootObject.AddComponent<CharacterRuntimeLocomotionBlendController>();
             Animator animator = bodyModel == null ? null : bodyModel.GetComponentInChildren<Animator>(includeInactive: true);
+            if (animator == null && bodyModel != null)
+            {
+                animator = bodyModel.gameObject.AddComponent<Animator>();
+                animator.applyRootMotion = false;
+                EditorUtility.SetDirty(animator);
+            }
+
+            AssignHumanoidAvatarIfNeeded(animator, animationClips);
             controller.Configure(modelRoot, animator, animationClips);
             EditorUtility.SetDirty(controller);
         }
 
-        private static AnimationClip[] LoadAnimationClips(CharacterImportedPackage package)
+        private static void AssignHumanoidAvatarIfNeeded(Animator animator, AnimationClip[] animationClips)
         {
-            var clips = new List<AnimationClip>();
-            if (package == null || package.UnityResourceCatalog == null)
-                return clips.ToArray();
+            if (animator == null)
+                return;
+            if (animator.avatar != null && animator.avatar.isValid)
+                return;
+            if (!RequiresHumanoidAvatar(animationClips))
+                return;
 
-            for (int i = 0; i < package.UnityResourceCatalog.Entries.Count; i++)
+            Avatar avatar = FindHumanoidAvatar();
+            if (avatar == null)
             {
-                ResourceCatalogEntry entry = package.UnityResourceCatalog.Entries[i];
-                if (!IsAnimationResource(entry))
-                    continue;
-                if (!IsUnityCatalogEntryImported(entry))
-                    continue;
-
-                string assetPath = ResolveUnityAssetPath(entry, GetUnityAssetGuid(entry), requireGameObject: false);
-                if (string.IsNullOrWhiteSpace(assetPath))
-                {
-                    Debug.LogWarning("MxFramework Character Preview: animation catalog entry is imported but the Unity asset could not be resolved. resource="
-                        + entry.Id + " status=" + GetImportStatus(entry) + " address=" + entry.Address + FormatAssetGuid(GetUnityAssetGuid(entry)));
-                    continue;
-                }
-
-                AddAnimationClipsAtPath(assetPath, clips);
+                Debug.LogWarning("MxFramework Character Preview: Humanoid animation clips are configured, but no valid Humanoid Avatar was found. Runtime animation may not drive the model.");
+                return;
             }
 
+            animator.avatar = avatar;
+            animator.applyRootMotion = false;
+            EditorUtility.SetDirty(animator);
+        }
+
+        private static bool RequiresHumanoidAvatar(AnimationClip[] animationClips)
+        {
+            for (int i = 0; animationClips != null && i < animationClips.Length; i++)
+            {
+                AnimationClip clip = animationClips[i];
+                if (clip != null && clip.humanMotion)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static Avatar FindHumanoidAvatar()
+        {
+            string[] guids = AssetDatabase.FindAssets("t:Avatar", HumanoidAvatarSearchRoots);
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath(path);
+                for (int assetIndex = 0; assetIndex < assets.Length; assetIndex++)
+                {
+                    if (assets[assetIndex] is Avatar avatar && avatar.isValid && avatar.isHuman)
+                        return avatar;
+                }
+            }
+
+            return null;
+        }
+
+        private static AnimationClip[] LoadAnimationClips(CharacterImportedPackage package, string importedPackageRoot)
+        {
+            var clips = new List<AnimationClip>();
+            if (package != null && package.UnityResourceCatalog != null)
+            {
+                for (int i = 0; i < package.UnityResourceCatalog.Entries.Count; i++)
+                {
+                    ResourceCatalogEntry entry = package.UnityResourceCatalog.Entries[i];
+                    if (!IsAnimationResource(entry))
+                        continue;
+                    if (!IsUnityCatalogEntryImported(entry))
+                        continue;
+
+                    string assetPath = ResolveUnityAssetPath(entry, GetUnityAssetGuid(entry), requireGameObject: false);
+                    if (string.IsNullOrWhiteSpace(assetPath))
+                    {
+                        Debug.LogWarning("MxFramework Character Preview: animation catalog entry is imported but the Unity asset could not be resolved. resource="
+                            + entry.Id + " status=" + GetImportStatus(entry) + " address=" + entry.Address + FormatAssetGuid(GetUnityAssetGuid(entry)));
+                        continue;
+                    }
+
+                    AddAnimationClipsAtPath(assetPath, clips);
+                }
+            }
+
+            AddAnimationClipsFromRegistry(importedPackageRoot, clips);
             return clips.ToArray();
+        }
+
+        private static void AddAnimationClipsFromRegistry(string importedPackageRoot, List<AnimationClip> clips)
+        {
+            string registryPath = NormalizeProjectPath(importedPackageRoot) + "/config/animation_clip_registry.json";
+            if (!File.Exists(registryPath))
+                return;
+
+            JObject root = JObject.Parse(File.ReadAllText(registryPath));
+            JArray registryClips = root["clips"] as JArray;
+            for (int i = 0; registryClips != null && i < registryClips.Count; i++)
+            {
+                JObject clip = registryClips[i] as JObject;
+                if (clip == null)
+                    continue;
+
+                string resourceKey = ReadString(clip, "runtimeResourceKey");
+                string sourceClipName = ReadString(clip, "sourceClipName");
+                string assetPath = ReadString(clip["sourceSelection"] as JObject, "unityAssetPath");
+                if (string.IsNullOrWhiteSpace(assetPath))
+                    assetPath = FindProjectRuntimeCatalogAssetPath(resourceKey);
+
+                AnimationClip animationClip = LoadAnimationClipAsset(assetPath, sourceClipName);
+                if (animationClip == null || clips.Contains(animationClip))
+                    continue;
+
+                clips.Add(animationClip);
+            }
         }
 
         private static bool IsAnimationResource(ResourceCatalogEntry entry)
@@ -444,7 +540,10 @@ namespace MxFramework.Editor.CharacterImport
         {
             var loader = new GameObject("CharacterRuntimeResourceBootstrap");
             var bootstrap = loader.AddComponent<CharacterRuntimeResourceBootstrap>();
+            Component debugOverlay = AddDebugUiOverlayController(loader);
+            CharacterRuntimeAnimationDebugPanel debugPanel = loader.AddComponent<CharacterRuntimeAnimationDebugPanel>();
             CharacterImportedPackage package = CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(DefaultImportedPackageRoot));
+            ConfigureRuntimeAnimationDebugPanel(debugPanel, debugOverlay);
             var serialized = new SerializedObject(bootstrap);
             serialized.FindProperty("_catalogId").stringValue = "character.runtime." + package.PackageId;
             serialized.FindProperty("_packageId").stringValue = package.PackageId;
@@ -463,6 +562,10 @@ namespace MxFramework.Editor.CharacterImport
                     package.PackageId,
                     GetRuntimeResourcesAddress(DefaultImportedPackageRoot, package.PackageId, characterPrefabPath))
             };
+            var runtimeResourceIds = new HashSet<string>(StringComparer.Ordinal)
+            {
+                GetCharacterPrefabResourceId(package)
+            };
 
             for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
             {
@@ -475,14 +578,20 @@ namespace MxFramework.Editor.CharacterImport
                 if (!File.Exists(weaponPrefabPath))
                     continue;
 
+                string weaponResourceId = GetWeaponPrefabResourceId(package, attachment);
+                if (!runtimeResourceIds.Add(weaponResourceId))
+                    continue;
+
                 runtimeResources.Add(new RuntimeResourceBootstrapEntry(
-                    GetWeaponPrefabResourceId(package, attachment),
+                    weaponResourceId,
                     ResourceTypeIds.GameObject,
                     ResourcesProvider.Id,
                     "default",
                     package.PackageId,
                     GetRuntimeResourcesAddress(DefaultImportedPackageRoot, package.PackageId, weaponPrefabPath)));
             }
+
+            AddAnimationRuntimeResources(DefaultImportedPackageRoot, package.PackageId, runtimeResources, runtimeResourceIds);
 
             resources.arraySize = runtimeResources.Count;
             for (int i = 0; i < runtimeResources.Count; i++)
@@ -496,11 +605,161 @@ namespace MxFramework.Editor.CharacterImport
                     entry.Variant,
                     entry.PackageId,
                     entry.Address,
-                    null);
+                    entry.Asset);
             }
+
+            string animationSetPath = DefaultImportedPackageRoot + "/config/animation_set_definition.json";
+            string animationClipRegistryPath = DefaultImportedPackageRoot + "/config/animation_clip_registry.json";
+            TextAsset animationSet = AssetDatabase.LoadAssetAtPath<TextAsset>(animationSetPath);
+            TextAsset animationClipRegistry = AssetDatabase.LoadAssetAtPath<TextAsset>(animationClipRegistryPath);
+            serialized.FindProperty("_animationSetDefinitionJson").objectReferenceValue = animationSet;
+            serialized.FindProperty("_animationClipRegistryJson").objectReferenceValue = animationClipRegistry;
+            serialized.FindProperty("_animationSetId").stringValue = ReadFirstAnimationSetId(animationSetPath);
 
             serialized.ApplyModifiedPropertiesWithoutUndo();
             return loader;
+        }
+
+        private static void ConfigureRuntimeAnimationDebugPanel(
+            CharacterRuntimeAnimationDebugPanel debugPanel,
+            Component debugOverlay)
+        {
+            if (debugPanel == null)
+                return;
+
+            PanelSettings panelSettings = AssetDatabase.LoadAssetAtPath<PanelSettings>(RuntimeDebugPanelSettingsPath);
+            if (panelSettings == null)
+                return;
+
+            var serialized = new SerializedObject(debugPanel);
+            serialized.FindProperty("_panelSettings").objectReferenceValue = panelSettings;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            if (debugOverlay == null)
+                return;
+
+            var overlaySerialized = new SerializedObject(debugOverlay);
+            SerializedProperty panelSettingsProperty = overlaySerialized.FindProperty("_panelSettings");
+            if (panelSettingsProperty != null)
+                panelSettingsProperty.objectReferenceValue = panelSettings;
+            overlaySerialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static Component AddDebugUiOverlayController(GameObject owner)
+        {
+            if (owner == null)
+                return null;
+
+            Type overlayType = Type.GetType("MxFramework.DebugUI.Toolkit.DebugUiOverlayController, MxFramework.DebugUI.Toolkit");
+            return overlayType != null ? owner.AddComponent(overlayType) : null;
+        }
+
+        private static void AddAnimationRuntimeResources(
+            string importedPackageRoot,
+            string packageId,
+            List<RuntimeResourceBootstrapEntry> runtimeResources,
+            HashSet<string> runtimeResourceIds)
+        {
+            string registryPath = importedPackageRoot + "/config/animation_clip_registry.json";
+            if (!File.Exists(registryPath))
+                return;
+
+            JObject root = JObject.Parse(File.ReadAllText(registryPath));
+            JArray clips = root["clips"] as JArray;
+            for (int i = 0; clips != null && i < clips.Count; i++)
+            {
+                JObject clip = clips[i] as JObject;
+                if (clip == null)
+                    continue;
+
+                string resourceKey = ReadString(clip, "runtimeResourceKey");
+                if (string.IsNullOrWhiteSpace(resourceKey) || !runtimeResourceIds.Add(resourceKey))
+                    continue;
+
+                string sourceClipName = ReadString(clip, "sourceClipName");
+                string assetPath = ReadString(clip["sourceSelection"] as JObject, "unityAssetPath");
+                if (string.IsNullOrWhiteSpace(assetPath))
+                    assetPath = FindProjectRuntimeCatalogAssetPath(resourceKey);
+
+                AnimationClip animationClip = LoadAnimationClipAsset(assetPath, sourceClipName);
+                if (animationClip == null)
+                {
+                    Debug.LogWarning("MxFramework Character Runtime: animation clip could not be registered for runtime playback. resource="
+                        + resourceKey + " sourceClip=" + sourceClipName + " assetPath=" + assetPath);
+                    continue;
+                }
+
+                runtimeResources.Add(new RuntimeResourceBootstrapEntry(
+                    resourceKey,
+                    ResourceTypeIds.AnimationClip,
+                    "memory",
+                    string.Empty,
+                    packageId,
+                    resourceKey,
+                    animationClip));
+            }
+        }
+
+        private static AnimationClip LoadAnimationClipAsset(string assetPath, string sourceClipName)
+        {
+            if (string.IsNullOrWhiteSpace(assetPath))
+                return null;
+
+            AnimationClip direct = AssetDatabase.LoadAssetAtPath<AnimationClip>(assetPath);
+            if (direct != null && (string.IsNullOrWhiteSpace(sourceClipName) || string.Equals(direct.name, sourceClipName, StringComparison.Ordinal)))
+                return direct;
+            if (direct != null && !assetPath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) && !assetPath.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase))
+                return direct;
+
+            UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            AnimationClip first = null;
+            for (int i = 0; i < assets.Length; i++)
+            {
+                if (!(assets[i] is AnimationClip clip))
+                    continue;
+                if (first == null)
+                    first = clip;
+                if (!string.IsNullOrWhiteSpace(sourceClipName) && string.Equals(clip.name, sourceClipName, StringComparison.Ordinal))
+                    return clip;
+            }
+
+            return first;
+        }
+
+        private static string FindProjectRuntimeCatalogAssetPath(string resourceKey)
+        {
+            string root = "Assets/Config/MxFramework/ResourceCatalogs";
+            if (string.IsNullOrWhiteSpace(resourceKey) || !Directory.Exists(root))
+                return string.Empty;
+
+            foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
+            {
+                JObject catalog = JObject.Parse(File.ReadAllText(path));
+                JArray entries = catalog["entries"] as JArray;
+                for (int i = 0; entries != null && i < entries.Count; i++)
+                {
+                    JObject entry = entries[i] as JObject;
+                    if (!string.Equals(ReadString(entry, "id"), resourceKey, StringComparison.Ordinal))
+                        continue;
+
+                    string assetPath = ReadString(entry["providerData"] as JObject, "assetPath");
+                    if (!string.IsNullOrWhiteSpace(assetPath))
+                        return assetPath;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string ReadFirstAnimationSetId(string animationSetPath)
+        {
+            if (string.IsNullOrWhiteSpace(animationSetPath) || !File.Exists(animationSetPath))
+                return string.Empty;
+
+            JObject root = JObject.Parse(File.ReadAllText(animationSetPath));
+            JArray sets = root["sets"] as JArray;
+            JObject first = sets != null && sets.Count > 0 ? sets[0] as JObject : null;
+            return ReadString(first, "setId");
         }
 
         private static void EnsureFolderPath(string path)
@@ -1390,7 +1649,8 @@ namespace MxFramework.Editor.CharacterImport
                 string providerId,
                 string variant,
                 string packageId,
-                string address)
+                string address,
+                UnityEngine.Object asset = null)
             {
                 Id = id ?? string.Empty;
                 TypeId = typeId ?? string.Empty;
@@ -1398,6 +1658,7 @@ namespace MxFramework.Editor.CharacterImport
                 Variant = variant ?? string.Empty;
                 PackageId = packageId ?? string.Empty;
                 Address = address ?? string.Empty;
+                Asset = asset;
             }
 
             public string Id { get; }
@@ -1406,6 +1667,7 @@ namespace MxFramework.Editor.CharacterImport
             public string Variant { get; }
             public string PackageId { get; }
             public string Address { get; }
+            public UnityEngine.Object Asset { get; }
         }
 
         private sealed class ResourcePreviewInfo

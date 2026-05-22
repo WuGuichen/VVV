@@ -1,0 +1,18 @@
+{
+  "format": "mx.characterResourceValidationReport.v1",
+  "schemaVersion": "1.0",
+  "packageId": "iron_vanguard",
+  "characterStableId": "char.iron_vanguard",
+  "status": "Ready",
+  "hasErrors": false,
+  "diagnostics": [],
+  "groupCounts": {
+    "spawnCritical": 1,
+    "presentationCritical": 0,
+    "equipmentInitial": 2,
+    "animationWarmup": 2,
+    "vfxWarmup": 0,
+    "uiDeferred": 1,
+    "audio": 0
+  }
+}

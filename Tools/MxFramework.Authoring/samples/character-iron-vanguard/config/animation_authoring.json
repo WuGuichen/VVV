@@ -86,8 +86,8 @@
               }
             },
             {
-              "clipId": "walk",
-              "displayName": "Walk",
+              "clipId": "walk_f",
+              "displayName": "Walk_F",
               "sourceSelection": {
                 "resourceStableId": "runtime.art.character.skeleton.animation.standing_walk_forward",
                 "sourceProviderId": "runtimeCatalog",
@@ -108,7 +108,7 @@
               "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_forward",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "MotionDelta",
+              "rootMotionPolicy": "Ignore",
               "tags": [
                 "move",
                 "loop"
@@ -122,8 +122,8 @@
               }
             },
             {
-              "clipId": "run",
-              "displayName": "Run",
+              "clipId": "run_f",
+              "displayName": "Run_F",
               "sourceSelection": {
                 "resourceStableId": "runtime.art.character.skeleton.animation.standing_run_forward",
                 "sourceProviderId": "runtimeCatalog",
@@ -144,7 +144,7 @@
               "runtimeResourceKey": "art.character.skeleton.animation.standing_run_forward",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "MotionDelta",
+              "rootMotionPolicy": "Ignore",
               "tags": [
                 "move",
                 "loop"
@@ -156,28 +156,159 @@
                 "presentationFrameCount": "42",
                 "combatFrameCount": "36"
               }
+            },
+            {
+              "clipId": "walk_r",
+              "displayName": "Walk_R",
+              "sourceSelection": {
+                "resourceStableId": "runtime.art.character.skeleton.animation.standing_walk_right",
+                "sourceProviderId": "runtimeCatalog",
+                "bindingKind": "ResourceManagerAsset",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClip",
+                "expectedHash": "",
+                "unityGuid": "",
+                "unityAssetPath": "",
+                "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_right",
+                "providerResourceKey": "art.character.skeleton.animation.standing_walk_right",
+                "packageResourceKey": "",
+                "audioCueId": "",
+                "audioEventDefinitionId": ""
+              },
+              "sourceSubClipId": "standing_walk_right",
+              "sourceClipName": "standing_walk_right",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_right",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "tags": [
+                "move",
+                "loop"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "sourceClipNameDerived": "true",
+                "sourceRuntimeAvailability": "RuntimeReady",
+                "sourceImportStatus": "Clean"
+              }
+            },
+            {
+              "clipId": "walk_l",
+              "displayName": "Walk_L",
+              "sourceSelection": {
+                "resourceStableId": "runtime.art.character.skeleton.animation.standing_walk_left",
+                "sourceProviderId": "runtimeCatalog",
+                "bindingKind": "ResourceManagerAsset",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClip",
+                "expectedHash": "",
+                "unityGuid": "",
+                "unityAssetPath": "",
+                "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_left",
+                "providerResourceKey": "art.character.skeleton.animation.standing_walk_left",
+                "packageResourceKey": "",
+                "audioCueId": "",
+                "audioEventDefinitionId": ""
+              },
+              "sourceSubClipId": "standing_walk_left",
+              "sourceClipName": "standing_walk_left",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_left",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "tags": [
+                "move",
+                "loop"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "sourceClipNameDerived": "true",
+                "sourceRuntimeAvailability": "RuntimeReady",
+                "sourceImportStatus": "Clean"
+              }
+            },
+            {
+              "clipId": "walk_b",
+              "displayName": "Walk_B",
+              "sourceSelection": {
+                "resourceStableId": "runtime.art.character.skeleton.animation.standing_walk_back",
+                "sourceProviderId": "runtimeCatalog",
+                "bindingKind": "ResourceManagerAsset",
+                "expectedKind": "animation",
+                "expectedUsage": "animationClip",
+                "expectedHash": "",
+                "unityGuid": "",
+                "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
+                "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
+                "providerResourceKey": "art.character.skeleton.animation.standing_walk_back",
+                "packageResourceKey": "",
+                "audioCueId": "",
+                "audioEventDefinitionId": ""
+              },
+              "sourceSubClipId": "standing_walk_back",
+              "sourceClipName": "standing_walk_back",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore",
+              "tags": [
+                "move",
+                "loop"
+              ],
+              "generatedArtifactSelections": [],
+              "diagnostics": [],
+              "metadata": {
+                "sourceClipNameDerived": "true",
+                "sourceRuntimeAvailability": "RuntimeReady",
+                "sourceImportStatus": "Clean"
+              }
             }
           ],
-          "blend1D": [
+          "blend1D": [],
+          "blend2D": [
             {
-              "blendId": "blend.speed",
-              "displayName": "Speed Blend",
-              "parameter": "speed",
+              "blendId": "blend.move2d",
+              "displayName": "Move Blend",
+              "xParameter": "moveX",
+              "yParameter": "moveY",
               "defaultClipId": "idle",
               "points": [
                 {
                   "clipId": "idle",
-                  "value": 0,
+                  "x": 0,
+                  "y": 0,
                   "weight": 1
                 },
                 {
-                  "clipId": "walk",
-                  "value": 0.5,
+                  "clipId": "walk_f",
+                  "x": 0,
+                  "y": 1,
                   "weight": 1
                 },
                 {
-                  "clipId": "run",
-                  "value": 1,
+                  "clipId": "run_f",
+                  "x": 0,
+                  "y": 2,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_r",
+                  "x": 1,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_l",
+                  "x": -1,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_b",
+                  "x": 0,
+                  "y": -1,
                   "weight": 1
                 }
               ],
@@ -185,17 +316,16 @@
               "metadata": {}
             }
           ],
-          "blend2D": [],
           "timelines": [
             {
               "timelineId": "timeline.locomotion",
               "displayName": "Locomotion Timeline",
-              "clipId": "walk",
+              "clipId": "walk_f",
               "timeDomain": "Normalized",
               "events": [
                 {
                   "eventId": "event.footstep.left",
-                  "clipId": "walk",
+                  "clipId": "walk_f",
                   "timeDomain": "Normalized",
                   "time": 0.25,
                   "eventKind": "Footstep",
@@ -219,7 +349,7 @@
                 },
                 {
                   "eventId": "event.footstep.right",
-                  "clipId": "walk",
+                  "clipId": "walk_f",
                   "timeDomain": "Normalized",
                   "time": 0.75,
                   "eventKind": "Footstep",
@@ -431,7 +561,7 @@
           "displayName": "Move",
           "groupId": "group.locomotion",
           "clipId": "",
-          "blendId": "blend.speed",
+          "blendId": "blend.move2d",
           "timelineId": "timeline.locomotion",
           "required": true,
           "tags": [
@@ -514,13 +644,16 @@
         "includeBlendPoints": true,
         "requiredClipIds": [
           "idle",
-          "walk",
-          "run",
+          "walk_f",
+          "run_f",
+          "walk_r",
+          "walk_l",
+          "walk_b",
           "sword_attack",
           "shield_guard"
         ],
         "requiredBlendIds": [
-          "blend.speed"
+          "blend.move2d"
         ],
         "avatarMaskSelections": [],
         "vfxSelections": [],
@@ -549,7 +682,7 @@
           "setId": "set.base",
           "groupId": "group.locomotion",
           "defaultClipId": "idle",
-          "defaultBlendId": "blend.speed",
+          "defaultBlendId": "blend.move2d",
           "preloadPolicy": "AnimationWarmup",
           "required": true
         },
@@ -623,12 +756,15 @@
         "includeBlendPoints": true,
         "requiredClipIds": [
           "idle",
-          "walk",
-          "run",
+          "walk_f",
+          "run_f",
+          "walk_r",
+          "walk_l",
+          "walk_b",
           "sword_attack"
         ],
         "requiredBlendIds": [
-          "blend.speed"
+          "blend.move2d"
         ],
         "avatarMaskSelections": [],
         "vfxSelections": [],

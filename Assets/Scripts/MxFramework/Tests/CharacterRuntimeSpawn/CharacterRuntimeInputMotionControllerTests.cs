@@ -1,6 +1,9 @@
 using System.Reflection;
+using MxFramework.Animation;
+using MxFramework.Animation.Unity;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Input;
+using MxFramework.Resources;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -176,6 +179,80 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             finally
             {
                 Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void LocomotionBlend_WithAnimationBackendSendsConfiguredBlend2DRequest()
+        {
+            var go = new GameObject("character");
+            var idleClip = new AnimationClip { name = "Idle" };
+            var forwardClip = new AnimationClip { name = "Forward" };
+            try
+            {
+                var modelRoot = new GameObject("ModelRoot").transform;
+                modelRoot.SetParent(go.transform, false);
+                Animator animator = go.AddComponent<Animator>();
+                CharacterRuntimeControllerBinding binding = go.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureBinding(binding);
+                CharacterRuntimeInputMotionController motion = go.AddComponent<CharacterRuntimeInputMotionController>();
+                CharacterRuntimeLocomotionBlendController locomotion = go.AddComponent<CharacterRuntimeLocomotionBlendController>();
+                locomotion.Configure(modelRoot, animator, new[] { idleClip, forwardClip });
+
+                var idleKey = new ResourceKey("test.anim.idle", ResourceTypeIds.AnimationClip);
+                var forwardKey = new ResourceKey("test.anim.forward", ResourceTypeIds.AnimationClip);
+                var provider = new MemoryResourceProvider()
+                    .Register("test/idle", idleClip)
+                    .Register("test/forward", forwardClip);
+                var manager = new ResourceManager();
+                manager.RegisterProvider(provider);
+                manager.AddCatalog(new ResourceCatalog(
+                        "test.animations",
+                        string.Empty,
+                        new[]
+                        {
+                            new ResourceCatalogEntry(idleKey.Id, idleKey.TypeId, "memory", "test/idle"),
+                            new ResourceCatalogEntry(forwardKey.Id, forwardKey.TypeId, "memory", "test/forward")
+                        }));
+                var blend = new MxAnimationBlend2DDefinition(
+                    "blend.move2d",
+                    "moveX",
+                    "moveY",
+                    MxAnimationLayerId.Base,
+                    new[]
+                    {
+                        new MxAnimationBlend2DPoint(0, 0, idleKey),
+                        new MxAnimationBlend2DPoint(0, 1000, forwardKey)
+                    });
+                var definition = new MxAnimationSetDefinition(
+                    "set.base",
+                    1,
+                    idleKey,
+                    idleKey,
+                    blend2DDefinitions: new[] { blend });
+                locomotion.ConfigureAnimationBackend(
+                    new UnityPlayablesAnimationBackend(animator, manager, definition, "actor.test"),
+                    blend);
+
+                var input = new FakeInputProvider();
+                input.SetContext(InputContext.Gameplay);
+                input.SetSnapshot(CreateMoveSnapshot(Vector2.up));
+                motion.ConfigureInputProvider(input);
+
+                Assert.IsTrue(motion.StepFrame());
+                InvokeLateUpdate(locomotion);
+
+                Assert.IsTrue(locomotion.HasAnimationBackend);
+                Assert.IsFalse(locomotion.UsingFallback);
+                Assert.AreEqual("blend.move2d", locomotion.ActiveBlend2DId);
+                Assert.Greater(locomotion.LastQuantizedBlendY, 0);
+                Assert.IsTrue(locomotion.LastAnimationResult.Success, locomotion.LastAnimationResult.Message);
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(forwardClip);
             }
         }
 

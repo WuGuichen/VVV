@@ -1,0 +1,92 @@
+{
+  "format": "mx.animationPackageExpectation.v1",
+  "schemaVersion": "1.0",
+  "packageId": "animation.iron_vanguard",
+  "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+  "avatarProfileId": "avatar.iron_vanguard.humanoid",
+  "compatibility": [
+    {
+      "source": "set",
+      "setId": "set.base",
+      "profileId": "",
+      "compatibilityId": "compat.iron_vanguard.humanoid",
+      "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+      "avatarProfileId": "avatar.iron_vanguard.humanoid",
+      "coordinateConvention": "YPositive/ZPositive/LeftHanded",
+      "allowRetargeting": true,
+      "requiredBoneIds": [
+        "hips",
+        "spine",
+        "left_hand",
+        "right_hand",
+        "left_foot",
+        "right_foot"
+      ],
+      "requiredSocketIds": [
+        "mainHand",
+        "offHand"
+      ]
+    },
+    {
+      "source": "profile",
+      "setId": "",
+      "profileId": "profile.base",
+      "compatibilityId": "compat.profile.base",
+      "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+      "avatarProfileId": "avatar.iron_vanguard.humanoid",
+      "coordinateConvention": "YPositive/ZPositive/LeftHanded",
+      "allowRetargeting": true,
+      "requiredBoneIds": [
+        "hips",
+        "spine",
+        "left_hand",
+        "right_hand"
+      ],
+      "requiredSocketIds": [
+        "mainHand",
+        "offHand"
+      ]
+    }
+  ],
+  "warmup": [
+    {
+      "source": "set",
+      "setId": "set.base",
+      "profileId": "",
+      "warmupId": "warmup.base",
+      "preloadPolicy": "AnimationWarmup",
+      "requiredClipIds": [
+        "idle",
+        "walk_f",
+        "run_f",
+        "walk_r",
+        "walk_l",
+        "walk_b",
+        "sword_attack",
+        "shield_guard"
+      ],
+      "requiredBlendIds": [
+        "blend.move2d"
+      ]
+    },
+    {
+      "source": "profile",
+      "setId": "",
+      "profileId": "profile.base",
+      "warmupId": "warmup.profile.base",
+      "preloadPolicy": "AnimationWarmup",
+      "requiredClipIds": [
+        "idle",
+        "walk_f",
+        "run_f",
+        "walk_r",
+        "walk_l",
+        "walk_b",
+        "sword_attack"
+      ],
+      "requiredBlendIds": [
+        "blend.move2d"
+      ]
+    }
+  ]
+}

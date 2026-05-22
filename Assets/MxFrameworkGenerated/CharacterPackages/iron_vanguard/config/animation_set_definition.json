@@ -1,0 +1,384 @@
+{
+  "format": "mx.animationSetDefinition.v1",
+  "schemaVersion": "1.0",
+  "packageId": "animation.iron_vanguard",
+  "stableId": "charpkg.iron_vanguard.animation",
+  "displayName": "Iron Vanguard Animation",
+  "skeletonProfileId": "skeleton.iron_vanguard.humanoid",
+  "avatarProfileId": "avatar.iron_vanguard.humanoid",
+  "sets": [
+    {
+      "setId": "set.base",
+      "displayName": "Base Animation Set",
+      "version": "1.0",
+      "defaultClipId": "idle",
+      "fallbackClipId": "idle",
+      "layers": [
+        {
+          "layerId": "layer.base",
+          "displayName": "Base Layer",
+          "purpose": "fullBody",
+          "weight": 1,
+          "additive": false,
+          "syncLayerId": "",
+          "rootMotionPolicy": "Ignore",
+          "avatarMaskSelection": {
+            "resourceStableId": "",
+            "sourceProviderId": "",
+            "bindingKind": "None",
+            "expectedKind": "",
+            "expectedUsage": "",
+            "expectedHash": "",
+            "unityGuid": "",
+            "unityAssetPath": "",
+            "runtimeResourceKey": "",
+            "providerResourceKey": "",
+            "packageResourceKey": "",
+            "audioCueId": "",
+            "audioEventDefinitionId": ""
+          }
+        }
+      ],
+      "groups": [
+        {
+          "groupId": "group.locomotion",
+          "displayName": "Locomotion",
+          "usage": "locomotion",
+          "clips": [
+            {
+              "clipId": "idle",
+              "displayName": "Idle",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_idle",
+              "sourceClipName": "standing_idle",
+              "sourceSubClipId": "standing_idle",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            },
+            {
+              "clipId": "walk_f",
+              "displayName": "Walk_F",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_forward",
+              "sourceClipName": "standing_walk_forward",
+              "sourceSubClipId": "standing_walk_forward",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            },
+            {
+              "clipId": "run_f",
+              "displayName": "Run_F",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_run_forward",
+              "sourceClipName": "standing_run_forward",
+              "sourceSubClipId": "standing_run_forward",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            },
+            {
+              "clipId": "walk_r",
+              "displayName": "Walk_R",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_right",
+              "sourceClipName": "standing_walk_right",
+              "sourceSubClipId": "standing_walk_right",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            },
+            {
+              "clipId": "walk_l",
+              "displayName": "Walk_L",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_left",
+              "sourceClipName": "standing_walk_left",
+              "sourceSubClipId": "standing_walk_left",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            },
+            {
+              "clipId": "walk_b",
+              "displayName": "Walk_B",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
+              "sourceClipName": "standing_walk_back",
+              "sourceSubClipId": "standing_walk_back",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            }
+          ],
+          "blend1D": [],
+          "blend2D": [
+            {
+              "blendId": "blend.move2d",
+              "displayName": "Move Blend",
+              "xParameter": "moveX",
+              "yParameter": "moveY",
+              "defaultClipId": "idle",
+              "points": [
+                {
+                  "clipId": "idle",
+                  "x": 0,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_f",
+                  "x": 0,
+                  "y": 1,
+                  "weight": 1
+                },
+                {
+                  "clipId": "run_f",
+                  "x": 0,
+                  "y": 2,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_r",
+                  "x": 1,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_l",
+                  "x": -1,
+                  "y": 0,
+                  "weight": 1
+                },
+                {
+                  "clipId": "walk_b",
+                  "x": 0,
+                  "y": -1,
+                  "weight": 1
+                }
+              ]
+            }
+          ],
+          "timelines": [
+            {
+              "timelineId": "timeline.locomotion",
+              "displayName": "Locomotion Timeline",
+              "clipId": "walk_f",
+              "timeDomain": "Normalized",
+              "events": [
+                {
+                  "eventId": "event.footstep.left",
+                  "clipId": "walk_f",
+                  "timeDomain": "Normalized",
+                  "time": 0.25,
+                  "eventKind": "Footstep",
+                  "resourceSelection": {
+                    "resourceStableId": "",
+                    "sourceProviderId": "",
+                    "bindingKind": "None",
+                    "expectedKind": "",
+                    "expectedUsage": "",
+                    "expectedHash": "",
+                    "unityGuid": "",
+                    "unityAssetPath": "",
+                    "runtimeResourceKey": "",
+                    "providerResourceKey": "",
+                    "packageResourceKey": "",
+                    "audioCueId": "",
+                    "audioEventDefinitionId": ""
+                  },
+                  "payloadJson": "{\"foot\":\"left\",\"surface\":\"default\"}",
+                  "metadata": {}
+                },
+                {
+                  "eventId": "event.footstep.right",
+                  "clipId": "walk_f",
+                  "timeDomain": "Normalized",
+                  "time": 0.75,
+                  "eventKind": "Footstep",
+                  "resourceSelection": {
+                    "resourceStableId": "",
+                    "sourceProviderId": "",
+                    "bindingKind": "None",
+                    "expectedKind": "",
+                    "expectedUsage": "",
+                    "expectedHash": "",
+                    "unityGuid": "",
+                    "unityAssetPath": "",
+                    "runtimeResourceKey": "",
+                    "providerResourceKey": "",
+                    "packageResourceKey": "",
+                    "audioCueId": "",
+                    "audioEventDefinitionId": ""
+                  },
+                  "payloadJson": "{\"foot\":\"right\",\"surface\":\"default\"}",
+                  "metadata": {}
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "groupId": "group.combat",
+          "displayName": "Combat",
+          "usage": "combat",
+          "clips": [
+            {
+              "clipId": "sword_attack",
+              "displayName": "Sword Attack",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_jump",
+              "sourceClipName": "standing_jump",
+              "sourceSubClipId": "standing_jump",
+              "loop": false,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            },
+            {
+              "clipId": "shield_guard",
+              "displayName": "Shield Guard",
+              "runtimeResourceKey": "art.character.skeleton.animation.standing_idle",
+              "sourceClipName": "standing_idle",
+              "sourceSubClipId": "standing_idle",
+              "loop": true,
+              "speed": 1,
+              "rootMotionPolicy": "Ignore"
+            }
+          ],
+          "blend1D": [],
+          "blend2D": [],
+          "timelines": [
+            {
+              "timelineId": "timeline.sword_attack",
+              "displayName": "Sword Attack Timeline",
+              "clipId": "sword_attack",
+              "timeDomain": "Normalized",
+              "events": [
+                {
+                  "eventId": "event.trace.on",
+                  "clipId": "sword_attack",
+                  "timeDomain": "Normalized",
+                  "time": 0.25,
+                  "eventKind": "TraceOn",
+                  "resourceSelection": {
+                    "resourceStableId": "",
+                    "sourceProviderId": "",
+                    "bindingKind": "None",
+                    "expectedKind": "",
+                    "expectedUsage": "",
+                    "expectedHash": "",
+                    "unityGuid": "",
+                    "unityAssetPath": "",
+                    "runtimeResourceKey": "",
+                    "providerResourceKey": "",
+                    "packageResourceKey": "",
+                    "audioCueId": "",
+                    "audioEventDefinitionId": ""
+                  },
+                  "payloadJson": "{\"traceId\":\"mainHand\"}",
+                  "metadata": {}
+                },
+                {
+                  "eventId": "event.hit",
+                  "clipId": "sword_attack",
+                  "timeDomain": "Normalized",
+                  "time": 0.45,
+                  "eventKind": "HitMarker",
+                  "resourceSelection": {
+                    "resourceStableId": "",
+                    "sourceProviderId": "",
+                    "bindingKind": "None",
+                    "expectedKind": "",
+                    "expectedUsage": "",
+                    "expectedHash": "",
+                    "unityGuid": "",
+                    "unityAssetPath": "",
+                    "runtimeResourceKey": "",
+                    "providerResourceKey": "",
+                    "packageResourceKey": "",
+                    "audioCueId": "",
+                    "audioEventDefinitionId": ""
+                  },
+                  "payloadJson": "{\"marker\":\"mainHit\"}",
+                  "metadata": {}
+                },
+                {
+                  "eventId": "event.trace.off",
+                  "clipId": "sword_attack",
+                  "timeDomain": "Normalized",
+                  "time": 0.65,
+                  "eventKind": "TraceOff",
+                  "resourceSelection": {
+                    "resourceStableId": "",
+                    "sourceProviderId": "",
+                    "bindingKind": "None",
+                    "expectedKind": "",
+                    "expectedUsage": "",
+                    "expectedHash": "",
+                    "unityGuid": "",
+                    "unityAssetPath": "",
+                    "runtimeResourceKey": "",
+                    "providerResourceKey": "",
+                    "packageResourceKey": "",
+                    "audioCueId": "",
+                    "audioEventDefinitionId": ""
+                  },
+                  "payloadJson": "{\"traceId\":\"mainHand\"}",
+                  "metadata": {}
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "actionBindings": [
+        {
+          "bindingId": "binding.locomotion",
+          "actionId": "locomotion.move",
+          "displayName": "Move",
+          "groupId": "group.locomotion",
+          "clipId": "",
+          "blendId": "blend.move2d",
+          "timelineId": "timeline.locomotion",
+          "required": true
+        },
+        {
+          "bindingId": "binding.attack.light",
+          "actionId": "combat.attack.light",
+          "displayName": "Light Attack",
+          "groupId": "group.combat",
+          "clipId": "sword_attack",
+          "blendId": "",
+          "timelineId": "timeline.sword_attack",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "profileId": "profile.base",
+      "displayName": "Base Profile",
+      "defaultSetId": "set.base",
+      "defaultGroupId": "group.locomotion",
+      "slots": [
+        {
+          "slotId": "locomotion",
+          "displayName": "Locomotion",
+          "purpose": "Default move and idle animation group.",
+          "setId": "set.base",
+          "groupId": "group.locomotion",
+          "defaultClipId": "idle",
+          "defaultBlendId": "blend.move2d",
+          "preloadPolicy": "AnimationWarmup",
+          "required": true
+        },
+        {
+          "slotId": "lightAttack",
+          "displayName": "Light Attack",
+          "purpose": "Default main-hand attack animation.",
+          "setId": "set.base",
+          "groupId": "group.combat",
+          "defaultClipId": "sword_attack",
+          "defaultBlendId": "",
+          "preloadPolicy": "AnimationWarmup",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

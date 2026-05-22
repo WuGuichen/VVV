@@ -7,11 +7,11 @@
   "status": "Ready",
   "hashes": {
     "algorithm": "sha256",
-    "sourcePackageHash": "sha256:15f506612ed0243c33f31e98115927c1501219e84f168b62dc87e8c34348d808",
+    "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
     "generatedConfigHash": "sha256:0225540c5f42d3667c64c10b14214e6eb7e2dcb160ec75fbf0931f561854dc1f",
     "geometryBindingHash": "sha256:0af4c97f8f25d963ef1a0c0220a48740511c88bb676fc2fba38aa0c2c72fa2cb",
-    "resourceMappingHash": "sha256:1eb1dafabb6872d0648034353330c0ce7e2682f38513eb051ad4abaeb3acc514",
-    "writePlanHash": "sha256:95755881b31d2550ce8b2a26fd951c5f2ce5bf73a9bc45f188ade788520e1484"
+    "resourceMappingHash": "sha256:38977dfe453770a606468de6cbde39730239533004386cc61efdc2adca348c28",
+    "writePlanHash": "sha256:9b6ab05537772392dfabd272d490ac8557b61a40e307e5560492cd81c2e5b271"
   },
   "gateReport": {
     "schemaVersion": "1.0",
@@ -1757,7 +1757,7 @@
         "usage": "characterModel",
         "sourceFormat": "glb",
         "sourceRelativePath": "resources/models/skeleton.glb",
-        "declaredContentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
+        "declaredContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
         "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "providerId": "unityAsset",
@@ -1880,9 +1880,9 @@
         "usage": "animationClipGroup",
         "sourceFormat": "glb",
         "sourceRelativePath": "resources/animations/locomotion.glb",
-        "declaredContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
-        "importHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
-        "dependencyHash": "sha256:06c04771f3ff482c1142f6ad968e197d71541e726242fa520e125fc603bef48c",
+        "declaredContentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+        "importHash": "sha256:6e8ebb6bd5643c417ba738d33bf96b70fe7612f1a0f2979fbd41e4aba669fd66",
+        "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
         "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
@@ -1921,9 +1921,9 @@
         "usage": "animationClipGroup",
         "sourceFormat": "glb",
         "sourceRelativePath": "resources/animations/combat.glb",
-        "declaredContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
-        "importHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
-        "dependencyHash": "sha256:06c04771f3ff482c1142f6ad968e197d71541e726242fa520e125fc603bef48c",
+        "declaredContentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+        "importHash": "sha256:758a8f74116327ad820713f505cb361e935b204222a3e30f4a00e79d295e30f5",
+        "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
         "providerId": "unityAsset",
         "targetPathPolicy": "generatedCharacterPackage",
         "importTargetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
@@ -2028,7 +2028,7 @@
         "sourcePath": "compiler/resource_mapping.json",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
         "writePolicy": "Recreate",
-        "contentHash": "sha256:1eb1dafabb6872d0648034353330c0ce7e2682f38513eb051ad4abaeb3acc514"
+        "contentHash": "sha256:38977dfe453770a606468de6cbde39730239533004386cc61efdc2adca348c28"
       },
       {
         "kind": "resourceFile",
@@ -2036,7 +2036,7 @@
         "sourcePath": "resources/models/skeleton.glb",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf"
+        "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815"
       },
       {
         "kind": "resourceFile",
@@ -2060,7 +2060,7 @@
         "sourcePath": "resources/animations/locomotion.glb",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b"
+        "contentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701"
       },
       {
         "kind": "resourceFile",
@@ -2068,7 +2068,7 @@
         "sourcePath": "resources/animations/combat.glb",
         "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
         "writePolicy": "CopyIfHashChanged",
-        "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865"
+        "contentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b"
       },
       {
         "kind": "resourceFile",
@@ -2328,8 +2328,8 @@
         "resourceKey": "char.iron_vanguard.model.body",
         "relativePath": "resources/models/skeleton.glb",
         "exists": true,
-        "declaredContentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
-        "computedContentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
+        "declaredContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+        "computedContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
         "computedImportHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "computedDependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
@@ -2355,19 +2355,19 @@
         "resourceKey": "char.iron_vanguard.anim.locomotion",
         "relativePath": "resources/animations/locomotion.glb",
         "exists": true,
-        "declaredContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
-        "computedContentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
-        "computedImportHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
-        "computedDependencyHash": "sha256:06c04771f3ff482c1142f6ad968e197d71541e726242fa520e125fc603bef48c"
+        "declaredContentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+        "computedContentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+        "computedImportHash": "sha256:6e8ebb6bd5643c417ba738d33bf96b70fe7612f1a0f2979fbd41e4aba669fd66",
+        "computedDependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       {
         "resourceKey": "char.iron_vanguard.anim.combat",
         "relativePath": "resources/animations/combat.glb",
         "exists": true,
-        "declaredContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
-        "computedContentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
-        "computedImportHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
-        "computedDependencyHash": "sha256:06c04771f3ff482c1142f6ad968e197d71541e726242fa520e125fc603bef48c"
+        "declaredContentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+        "computedContentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+        "computedImportHash": "sha256:758a8f74116327ad820713f505cb361e935b204222a3e30f4a00e79d295e30f5",
+        "computedDependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       {
         "resourceKey": "char.iron_vanguard.preview.thumbnail",

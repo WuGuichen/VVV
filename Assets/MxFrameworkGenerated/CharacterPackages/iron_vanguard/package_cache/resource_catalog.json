@@ -11,10 +11,10 @@
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
       "relativePath": "resources/models/skeleton.glb",
-      "hash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
+      "hash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf",
+        "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
         "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
@@ -69,7 +69,8 @@
         "characterstudio-import",
         "converted-from-fbx",
         "weapon",
-        "characterstudio-bind"
+        "characterstudio-bind",
+        "preview"
       ],
       "conflictPolicy": {
         "sameStableIdAction": "reportWhenHashChanged",
@@ -84,6 +85,21 @@
         "previewCameraPresetId": "humanoidFullBody",
         "isPlaceholder": true
       },
+      "resourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
+      },
       "provenance": {
         "sourceTool": "CharacterStudio/FBX2glTF",
         "sourceFile": "Skeleton.fbx",
@@ -93,7 +109,7 @@
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-20T09:55:36.1007400Z"
+        "modifiedUtc": "2026-05-20T14:55:52.1965680Z"
       }
     },
     {
@@ -178,6 +194,21 @@
         "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
         "previewCameraPresetId": "weaponCloseup",
         "isPlaceholder": true
+      },
+      "resourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
       },
       "provenance": {
         "sourceTool": "CharacterStudio/FBX2glTF",
@@ -271,6 +302,21 @@
         "previewCameraPresetId": "weaponCloseup",
         "isPlaceholder": true
       },
+      "resourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
+      },
       "provenance": {
         "sourceTool": "MxFramework.Authoring.Sample",
         "sourceFile": "resources/models/kite_shield.glb",
@@ -293,11 +339,11 @@
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
       "relativePath": "resources/animations/locomotion.glb",
-      "hash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
+      "hash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b",
-        "importHash": "sha256:ac66212cdcaf7a51e2f2bae7ebe36d8322309368500228fbac54ff19d975110f",
+        "contentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+        "importHash": "sha256:6e8ebb6bd5643c417ba738d33bf96b70fe7612f1a0f2979fbd41e4aba669fd66",
         "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       "importHints": {
@@ -342,7 +388,7 @@
         ],
         "metadata": {
           "clips": "idle,walk,run",
-          "placeholderResource": "true"
+          "placeholderResource": "false"
         }
       },
       "dependencies": [
@@ -367,18 +413,33 @@
         "previewMeshResourceKey": "char.iron_vanguard.model.body",
         "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
         "previewCameraPresetId": "humanoidFullBody",
-        "isPlaceholder": true
+        "isPlaceholder": false
+      },
+      "resourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
       },
       "provenance": {
         "sourceTool": "MxFramework.Authoring.Sample",
         "sourceFile": "resources/animations/locomotion.glb",
         "authoringSchemaVersion": "1.0",
-        "license": "sample-placeholder",
+        "license": "sample-generated",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-21T00:00:00Z"
       }
     },
     {
@@ -391,11 +452,11 @@
       "sourceFormat": "glb",
       "packageId": "iron_vanguard",
       "relativePath": "resources/animations/combat.glb",
-      "hash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
+      "hash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
       "hashes": {
         "algorithm": "sha256",
-        "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865",
-        "importHash": "sha256:4db08592198e870dd1bb48c83fa048530d77f1b94e8cbb043aa0f98a83f968e5",
+        "contentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+        "importHash": "sha256:758a8f74116327ad820713f505cb361e935b204222a3e30f4a00e79d295e30f5",
         "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01"
       },
       "importHints": {
@@ -440,7 +501,7 @@
         ],
         "metadata": {
           "clips": "sword_attack,shield_guard,unarmed_attack",
-          "placeholderResource": "true"
+          "placeholderResource": "false"
         }
       },
       "dependencies": [
@@ -466,18 +527,33 @@
         "previewMeshResourceKey": "char.iron_vanguard.model.body",
         "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
         "previewCameraPresetId": "humanoidFullBody",
-        "isPlaceholder": true
+        "isPlaceholder": false
+      },
+      "resourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
       },
       "provenance": {
         "sourceTool": "MxFramework.Authoring.Sample",
         "sourceFile": "resources/animations/combat.glb",
         "authoringSchemaVersion": "1.0",
-        "license": "sample-placeholder",
+        "license": "sample-generated",
         "origin": "mxframework-sample",
         "createdBy": "MxFramework",
         "modifiedBy": "MxFramework",
         "createdUtc": "2026-05-19T00:00:00Z",
-        "modifiedUtc": "2026-05-19T00:00:00Z"
+        "modifiedUtc": "2026-05-21T00:00:00Z"
       }
     },
     {
@@ -557,6 +633,21 @@
         "placeholderResourceKey": "char.iron_vanguard.preview.thumbnail",
         "previewCameraPresetId": "thumbnail",
         "isPlaceholder": true
+      },
+      "resourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
       },
       "provenance": {
         "sourceTool": "MxFramework.Authoring.Sample",

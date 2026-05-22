@@ -1,0 +1,9 @@
+{
+  "format": "mx.characterAudioCueManifest.v1",
+  "schemaVersion": "1.0",
+  "packageId": "iron_vanguard",
+  "characterStableId": "char.iron_vanguard",
+  "banks": [],
+  "cues": [],
+  "diagnostics": []
+}

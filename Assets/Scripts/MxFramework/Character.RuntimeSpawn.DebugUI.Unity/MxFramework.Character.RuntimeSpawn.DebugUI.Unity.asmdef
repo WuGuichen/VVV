@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.Character.RuntimeSpawn.DebugUI.Unity",
+    "rootNamespace": "MxFramework.CharacterRuntimeSpawn.DebugUI.Unity",
+    "references": [
+        "MxFramework.Animation",
+        "MxFramework.Character.RuntimeSpawn.Unity",
+        "MxFramework.DebugUI",
+        "MxFramework.DebugUI.Toolkit",
+        "MxFramework.Diagnostics",
+        "MxFramework.Resources"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

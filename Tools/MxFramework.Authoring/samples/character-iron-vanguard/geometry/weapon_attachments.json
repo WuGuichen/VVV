@@ -31,6 +31,21 @@
         }
       },
       "previewResourceKey": "char.iron_vanguard.weapon.sword.model",
+      "previewResourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
+      },
       "traceId": "trace.iron_sword.blade",
       "traceStartSocketId": "mainHand",
       "traceEndSocketId": "",
@@ -67,6 +82,21 @@
         }
       },
       "previewResourceKey": "char.iron_vanguard.weapon.shield.model",
+      "previewResourceSelection": {
+        "resourceStableId": "",
+        "sourceProviderId": "",
+        "bindingKind": "None",
+        "expectedKind": "",
+        "expectedUsage": "",
+        "expectedHash": "",
+        "unityGuid": "",
+        "unityAssetPath": "",
+        "runtimeResourceKey": "",
+        "providerResourceKey": "",
+        "packageResourceKey": "",
+        "audioCueId": "",
+        "audioEventDefinitionId": ""
+      },
       "traceId": "",
       "traceStartSocketId": "",
       "traceEndSocketId": "",

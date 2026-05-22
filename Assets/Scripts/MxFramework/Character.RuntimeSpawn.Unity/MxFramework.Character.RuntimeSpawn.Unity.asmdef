@@ -4,6 +4,7 @@
     "references": [
         "MxFramework.Character.RuntimeSpawn",
         "MxFramework.Animation",
+        "MxFramework.Animation.Unity",
         "MxFramework.Character.Application",
         "MxFramework.CharacterControl",
         "MxFramework.CharacterControl.Input",

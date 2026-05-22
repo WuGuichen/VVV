@@ -29,7 +29,7 @@
       "sourcePath": "compiler/resource_mapping.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/generated/character_resource_mapping.json",
       "writePolicy": "Recreate",
-      "contentHash": "sha256:1eb1dafabb6872d0648034353330c0ce7e2682f38513eb051ad4abaeb3acc514"
+      "contentHash": "sha256:38977dfe453770a606468de6cbde39730239533004386cc61efdc2adca348c28"
     },
     {
       "kind": "resourceFile",
@@ -37,7 +37,7 @@
       "sourcePath": "resources/models/skeleton.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:46e39cbf5a3d4090a6c9b9c3e7ef7ff3482a770da2e852d8a03955093619debf"
+      "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815"
     },
     {
       "kind": "resourceFile",
@@ -61,7 +61,7 @@
       "sourcePath": "resources/animations/locomotion.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:1bc0c7178b8b2fdf15cb661659ec393e9b224c1f5645c7e7a3750cdf39f6b63b"
+      "contentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701"
     },
     {
       "kind": "resourceFile",
@@ -69,7 +69,7 @@
       "sourcePath": "resources/animations/combat.glb",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
       "writePolicy": "CopyIfHashChanged",
-      "contentHash": "sha256:b1129ca5cf1b8f319afb838540868498a46194daa220d5637b20b290b2699865"
+      "contentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b"
     },
     {
       "kind": "resourceFile",

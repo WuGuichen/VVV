@@ -17,7 +17,8 @@
         "MxFramework.Animation",
         "MxFramework.Character.Application",
         "MxFramework.Character.RuntimeSpawn",
-        "MxFramework.Character.RuntimeSpawn.Unity"
+        "MxFramework.Character.RuntimeSpawn.Unity",
+        "MxFramework.Character.RuntimeSpawn.DebugUI.Unity"
     ],
     "includePlatforms": [
         "Editor"

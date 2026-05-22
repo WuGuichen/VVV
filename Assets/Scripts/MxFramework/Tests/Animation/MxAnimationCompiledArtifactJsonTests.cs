@@ -85,6 +85,45 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void LoadSetDefinitions_SkipsBlendOnlyActionBindings()
+        {
+            string json = AnimationSetDefinitionJson.Replace(
+                @"""actionBindings"": [
+        {
+          ""bindingId"": ""lightAttack"",
+          ""actionId"": ""attack.light"",
+          ""clipId"": ""attack"",
+          ""timelineId"": ""attack.timeline""
+        }
+      ]",
+                @"""actionBindings"": [
+        {
+          ""bindingId"": ""locomotion"",
+          ""actionId"": ""locomotion.move"",
+          ""clipId"": """",
+          ""blendId"": ""move2d"",
+          ""timelineId"": ""attack.timeline""
+        },
+        {
+          ""bindingId"": ""lightAttack"",
+          ""actionId"": ""attack.light"",
+          ""clipId"": ""attack"",
+          ""timelineId"": ""attack.timeline""
+        }
+      ]");
+
+            MxAnimationSetDefinition definition = MxAnimationCompiledArtifactJson
+                .LoadSetDefinitions(json)
+                .Single();
+
+            Assert.AreEqual(1, definition.Actions.Count);
+            Assert.AreEqual("lightAttack", definition.Actions[0].BindingId);
+            CollectionAssert.Contains(
+                definition.Warmup.RequiredKeys,
+                new ResourceKey("char.test.anim.attack", ResourceTypeIds.AnimationClip, string.Empty, "test_package"));
+        }
+
+        [Test]
         public void LoadClipRegistry_UsesRuntimeCatalogPackageOverAnimationPackage()
         {
             string json = ClipRegistryJson.Replace(@"""packageId"": ""test_package""", @"""packageId"": ""animation.test""");

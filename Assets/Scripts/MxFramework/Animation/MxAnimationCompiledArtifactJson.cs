@@ -123,7 +123,12 @@ namespace MxFramework.Animation
                 if (binding == null)
                     continue;
 
-                ClipRuntimeInfo clip = ResolveClip(ReadString(binding, "clipId"), clipsById);
+                string clipId = ReadString(binding, "clipId");
+                string blendId = ReadString(binding, "blendId");
+                if (string.IsNullOrWhiteSpace(clipId) && !string.IsNullOrWhiteSpace(blendId))
+                    continue;
+
+                ClipRuntimeInfo clip = ResolveClip(clipId, clipsById);
                 List<MxAnimationPresentationEvent> events = null;
                 string timelineId = ReadString(binding, "timelineId");
                 if (!string.IsNullOrWhiteSpace(timelineId))

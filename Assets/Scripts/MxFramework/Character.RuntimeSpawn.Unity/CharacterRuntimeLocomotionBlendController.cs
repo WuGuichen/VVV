@@ -1,4 +1,6 @@
 using System;
+using MxFramework.Animation;
+using MxFramework.Animation.Unity;
 using UnityEngine;
 
 namespace MxFramework.CharacterRuntimeSpawn.Unity
@@ -12,8 +14,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private Transform _modelRoot;
         [SerializeField] private Animator _animator;
         [SerializeField] private AnimationClip[] _animationClips = Array.Empty<AnimationClip>();
-        [SerializeField] private string _blendXParameter = "LocomotionX";
-        [SerializeField] private string _blendYParameter = "LocomotionY";
+        [SerializeField] private string _blend2DId = "blend.move2d";
+        [SerializeField] private string _blendXParameter = "moveX";
+        [SerializeField] private string _blendYParameter = "moveY";
+        [SerializeField] private int _blendParameterScale = 1000;
         [SerializeField] private string _speedParameter = "LocomotionSpeed";
         [SerializeField] private bool _enableFallbackPose = true;
         [SerializeField] private float _fallbackBobAmplitude = 0.035f;
@@ -27,16 +31,31 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Vector2 _blend;
         private float _speed01;
         private bool _usingFallback;
+        private UnityPlayablesAnimationBackend _animationBackend;
+        private bool _ownsAnimationBackend;
+        private MxAnimationBackendResult _lastAnimationResult;
+        private int _lastQuantizedBlendX;
+        private int _lastQuantizedBlendY;
 
         public Vector2 Blend => _blend;
         public float Speed01 => _speed01;
         public bool HasAnimationClips => _animationClips != null && _animationClips.Length > 0;
+        public bool HasAnimationBackend => _animationBackend != null;
         public bool UsingFallback => _usingFallback;
+        public string ActiveBlend2DId => _blend2DId;
+        public MxAnimationBackendResult LastAnimationResult => _lastAnimationResult;
+        public int LastQuantizedBlendX => _lastQuantizedBlendX;
+        public int LastQuantizedBlendY => _lastQuantizedBlendY;
 
         private void Awake()
         {
             ResolveReferences();
             CaptureBasePose();
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseAnimationBackend();
         }
 
         private void LateUpdate()
@@ -48,6 +67,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blend = Vector2.ClampMagnitude(_motionController.LastLocalMove, 1f);
             _speed01 = Mathf.Clamp01(_motionController.LastSpeed01);
             ApplyAnimatorParameters();
+            ApplyAnimationBackend();
             ApplyFallbackPose();
         }
 
@@ -60,6 +80,32 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _animator = animator;
             _animationClips = animationClips ?? Array.Empty<AnimationClip>();
             CaptureBasePose();
+        }
+
+        public void ConfigureAnimationBackend(
+            UnityPlayablesAnimationBackend backend,
+            MxAnimationBlend2DDefinition blendDefinition,
+            bool ownsBackend = true)
+        {
+            ReleaseAnimationBackend();
+            _animationBackend = backend;
+            _ownsAnimationBackend = ownsBackend;
+            _lastAnimationResult = default;
+            _lastQuantizedBlendX = 0;
+            _lastQuantizedBlendY = 0;
+
+            if (blendDefinition == null)
+                return;
+
+            _blend2DId = blendDefinition.BlendId;
+            _blendXParameter = blendDefinition.ParameterXId;
+            _blendYParameter = blendDefinition.ParameterYId;
+            _blendParameterScale = Mathf.Max(1, Math.Max(blendDefinition.ParameterXScale, blendDefinition.ParameterYScale));
+        }
+
+        public MxAnimationDiagnosticSnapshot CreateAnimationSnapshot()
+        {
+            return _animationBackend != null ? _animationBackend.CreateSnapshot() : null;
         }
 
         private void ResolveReferences()
@@ -92,9 +138,27 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             SetAnimatorFloat(_speedParameter, _speed01);
         }
 
+        private void ApplyAnimationBackend()
+        {
+            if (_animationBackend == null || string.IsNullOrWhiteSpace(_blend2DId))
+                return;
+
+            int scale = Math.Max(1, _blendParameterScale);
+            _lastQuantizedBlendX = Mathf.RoundToInt(Mathf.Clamp(_blend.x, -1f, 1f) * scale);
+            _lastQuantizedBlendY = Mathf.RoundToInt(Mathf.Clamp(_blend.y, -1f, 1f) * scale);
+            _lastAnimationResult = _animationBackend.SetBlend2D(new MxAnimationBlend2DRequest
+            {
+                BlendId = _blend2DId,
+                ParameterX = new MxAnimationQuantizedParameter(_blendXParameter, _lastQuantizedBlendX, scale),
+                ParameterY = new MxAnimationQuantizedParameter(_blendYParameter, _lastQuantizedBlendY, scale),
+                CorrelationId = "character-runtime-locomotion:" + Time.frameCount.ToString()
+            });
+            _animationBackend.Tick(Time.deltaTime);
+        }
+
         private void ApplyFallbackPose()
         {
-            _usingFallback = _enableFallbackPose && !HasAnimationClips;
+            _usingFallback = _enableFallbackPose && _animationBackend == null && (_animator == null || !HasAnimationClips);
             if (!_usingFallback || _modelRoot == null || !_hasBasePose)
                 return;
 
@@ -128,6 +192,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     return;
                 }
             }
+        }
+
+        private void ReleaseAnimationBackend()
+        {
+            if (_animationBackend != null && _ownsAnimationBackend)
+                _animationBackend.Release();
+
+            _animationBackend = null;
+            _ownsAnimationBackend = false;
         }
     }
 }
