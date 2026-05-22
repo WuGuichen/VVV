@@ -183,6 +183,36 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
         }
 
         [Test]
+        public void LocomotionBlend_UsesCommandLocalMoveAfterRootRotates()
+        {
+            var go = new GameObject("character");
+            try
+            {
+                var modelRoot = new GameObject("ModelRoot").transform;
+                modelRoot.SetParent(go.transform, false);
+                CharacterRuntimeControllerBinding binding = go.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureBinding(binding);
+                CharacterRuntimeInputMotionController motion = go.AddComponent<CharacterRuntimeInputMotionController>();
+                CharacterRuntimeLocomotionBlendController locomotion = go.AddComponent<CharacterRuntimeLocomotionBlendController>();
+                locomotion.Configure(modelRoot, null, null);
+                var input = new FakeInputProvider();
+                input.SetContext(InputContext.Gameplay);
+                input.SetSnapshot(CreateMoveSnapshot(Vector2.left));
+                motion.ConfigureInputProvider(input);
+
+                Assert.IsTrue(motion.StepFrame());
+                InvokeLateUpdate(locomotion);
+
+                Assert.Less(locomotion.Blend.x, -0.5f);
+                Assert.AreEqual(0f, locomotion.Blend.y, 0.01f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
         public void LocomotionBlend_WithAnimationBackendSendsConfiguredBlend2DRequest()
         {
             var go = new GameObject("character");

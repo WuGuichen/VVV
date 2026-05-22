@@ -58,6 +58,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             set => _enableInputMotion = value;
         }
 
+        public bool RotateToMoveDirection
+        {
+            get => _rotateToMoveDirection;
+            set => _rotateToMoveDirection = value;
+        }
+
         public CharacterMotionResult LastMotionResult => _lastMotionResult;
         public long CurrentFrame => _frame;
         public Vector2 LastLocalMove => _lastLocalMove;
@@ -178,6 +184,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return true;
         }
 
+        public void WarpRootPosition(Vector3 rootPosition)
+        {
+            transform.position = rootPosition;
+            if (!EnsureInitialized())
+                return;
+
+            _motionState = new CombatMotionState(
+                _motionState.Frame,
+                ToFixVector3(RootToMotionCenter(rootPosition)),
+                _motionState.Velocity,
+                _motionState.Grounded,
+                _motionState.LastCollisionNormal,
+                _motionState.CollisionFlags);
+            EnsurePhysicsWorldBody();
+        }
+
         private void SyncBufferedInput()
         {
             if (_inputProvider == null || _motionInputProvider == null)
@@ -294,10 +316,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             FixVector3 move = command.GetWorldMoveDirection();
             Vector3 worldMove = new Vector3(ToFloat(move.X), 0f, ToFloat(move.Z));
             float speed = Mathf.Clamp01(worldMove.magnitude);
-            Vector3 localMove = transform.InverseTransformDirection(worldMove);
             _lastLocalMove = speed <= 0.0001f
                 ? Vector2.zero
-                : new Vector2(Mathf.Clamp(localMove.x, -1f, 1f), Mathf.Clamp(localMove.z, -1f, 1f));
+                : new Vector2(ToFloat(command.MoveDirection.X), ToFloat(command.MoveDirection.Z));
             _lastSpeed01 = speed;
         }
 

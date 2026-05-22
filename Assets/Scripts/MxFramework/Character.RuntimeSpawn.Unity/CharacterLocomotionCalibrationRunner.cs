@@ -26,6 +26,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const int TrailCapacity = 72;
         private const float PresetWarmupSeconds = 0.25f;
 
+        private enum CalibrationCameraMode
+        {
+            Rear = 0,
+            Side = 1,
+            Front = 2,
+            Top = 3
+        }
+
         [SerializeField] private CharacterRuntimeResourceBootstrap _bootstrap;
         [SerializeField] private bool _loadOnStart = true;
         [SerializeField] private bool _keepInputMotionEnabled = true;
@@ -36,6 +44,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private string _rightFootPath = string.Empty;
         [SerializeField] private float _footContactThreshold = 0.5f;
         [SerializeField] private bool _showSceneGizmos = true;
+        [SerializeField] private bool _lockFacingForBlendObservation = true;
+        [SerializeField] private bool _enableCameraFollow = true;
+        [SerializeField] private CalibrationCameraMode _cameraMode = CalibrationCameraMode.Rear;
+        [SerializeField] private float _cameraDistance = 6.5f;
+        [SerializeField] private float _cameraHeight = 3.2f;
+        [SerializeField] private bool _enableLoopingPlane = true;
+        [SerializeField] private float _loopHalfExtent = 6f;
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
@@ -61,6 +76,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _blendWeightsLabel;
         private Label _slipMetricsLabel;
         private Label _presetReportLabel;
+        private Button _cameraModeButton;
+        private Button _cameraFollowButton;
+        private Button _loopingPlaneButton;
+        private Button _lockFacingButton;
         private LineRenderer _actualVelocityLine;
         private LineRenderer _nativeVelocityLine;
         private LineRenderer _leftFootTrailLine;
@@ -81,6 +100,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private string _lastPresetReportJson = string.Empty;
         private string _lastPresetReportPath = string.Empty;
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
+        private readonly List<DirectionButtonBinding> _directionButtons = new List<DirectionButtonBinding>();
+        private Camera _followCamera;
+        private Quaternion _lockedFacingRotation = Quaternion.identity;
+        private bool _hasLockedFacingRotation;
 
         public CharacterRuntimeResourceBootstrap Bootstrap => _bootstrap;
         public GameObject CharacterInstance => _bootstrap != null ? _bootstrap.CharacterInstance : null;
@@ -139,6 +162,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             UpdatePresetProbeAfterSample();
             UpdatePresetReportHud();
             UpdateSceneGizmos();
+            UpdateObservationRig();
         }
 
         private void OnDisable()
@@ -157,6 +181,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendWeightsLabel = null;
             _slipMetricsLabel = null;
             _presetReportLabel = null;
+            _cameraModeButton = null;
+            _cameraFollowButton = null;
+            _loopingPlaneButton = null;
+            _lockFacingButton = null;
+            _directionButtons.Clear();
         }
 
         private void OnDestroy()
@@ -231,6 +260,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             _motionController = character.GetComponentInChildren<CharacterRuntimeInputMotionController>(includeInactive: true);
             _locomotionController = character.GetComponentInChildren<CharacterRuntimeLocomotionBlendController>(includeInactive: true);
+            if (_motionController != null)
+                _motionController.RotateToMoveDirection = !_lockFacingForBlendObservation;
+            if (!_hasLockedFacingRotation && character.transform != null)
+            {
+                _lockedFacingRotation = character.transform.rotation;
+                _hasLockedFacingRotation = true;
+            }
         }
 
         private static string EmptyAsDash(string value)
@@ -532,6 +568,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             actionRow.Add(saveJson);
             controls.Add(actionRow);
 
+            var observationRow = new VisualElement();
+            observationRow.style.flexDirection = FlexDirection.Row;
+            observationRow.style.flexWrap = Wrap.Wrap;
+            observationRow.style.marginBottom = 6f;
+            _cameraFollowButton = CreateWideButton(string.Empty, ToggleCameraFollow);
+            observationRow.Add(_cameraFollowButton);
+            _cameraModeButton = CreateWideButton(string.Empty, CycleCameraMode);
+            observationRow.Add(_cameraModeButton);
+            _loopingPlaneButton = CreateWideButton(string.Empty, ToggleLoopingPlane);
+            observationRow.Add(_loopingPlaneButton);
+            _lockFacingButton = CreateWideButton(string.Empty, ToggleFacingLock);
+            observationRow.Add(_lockFacingButton);
+            controls.Add(observationRow);
+
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
             row.style.alignItems = Align.Center;
@@ -589,26 +639,34 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             var pad = new VisualElement { name = "locomotion-calibration-direction-pad" };
             pad.style.width = 122f;
+            _directionButtons.Clear();
 
             var top = new VisualElement();
             top.style.flexDirection = FlexDirection.Row;
             top.Add(CreateSmallButton("", null));
-            top.Add(CreateSmallButton("↑", () => _manualDirection = Vector2.up));
+            top.Add(CreateDirectionButton("↑", Vector2.up));
             top.Add(CreateSmallButton("", null));
             var middle = new VisualElement();
             middle.style.flexDirection = FlexDirection.Row;
-            middle.Add(CreateSmallButton("←", () => _manualDirection = Vector2.left));
-            middle.Add(CreateSmallButton("•", () => _manualDirection = Vector2.zero));
-            middle.Add(CreateSmallButton("→", () => _manualDirection = Vector2.right));
+            middle.Add(CreateDirectionButton("←", Vector2.left));
+            middle.Add(CreateDirectionButton("•", Vector2.zero));
+            middle.Add(CreateDirectionButton("→", Vector2.right));
             var bottom = new VisualElement();
             bottom.style.flexDirection = FlexDirection.Row;
             bottom.Add(CreateSmallButton("", null));
-            bottom.Add(CreateSmallButton("↓", () => _manualDirection = Vector2.down));
+            bottom.Add(CreateDirectionButton("↓", Vector2.down));
             bottom.Add(CreateSmallButton("", null));
             pad.Add(top);
             pad.Add(middle);
             pad.Add(bottom);
             return pad;
+        }
+
+        private Button CreateDirectionButton(string text, Vector2 direction)
+        {
+            Button button = CreateSmallButton(text, () => SetManualDirection(direction));
+            _directionButtons.Add(new DirectionButtonBinding(button, direction));
+            return button;
         }
 
         private static Button CreateSmallButton(string text, System.Action action)
@@ -678,6 +736,41 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _motionController.StepFrame();
                 _stepRequested = false;
             }
+        }
+
+        private void SetManualDirection(Vector2 direction)
+        {
+            _manualDirection = direction;
+            _manualControlEnabled = true;
+            UpdateDirectionButtonStyles();
+        }
+
+        private void ToggleCameraFollow()
+        {
+            _enableCameraFollow = !_enableCameraFollow;
+            UpdateObservationButtons();
+        }
+
+        private void CycleCameraMode()
+        {
+            _cameraMode = (CalibrationCameraMode)(((int)_cameraMode + 1) % 4);
+            UpdateObservationButtons();
+        }
+
+        private void ToggleLoopingPlane()
+        {
+            _enableLoopingPlane = !_enableLoopingPlane;
+            UpdateObservationButtons();
+        }
+
+        private void ToggleFacingLock()
+        {
+            _lockFacingForBlendObservation = !_lockFacingForBlendObservation;
+            if (_motionController != null)
+                _motionController.RotateToMoveDirection = !_lockFacingForBlendObservation;
+            if (!_lockFacingForBlendObservation)
+                _hasLockedFacingRotation = false;
+            UpdateObservationButtons();
         }
 
         private void ReleaseManualInputProvider()
@@ -1062,7 +1155,158 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 + " speed=" + FormatFloat(_manualSpeed)
                 + " run=" + (_manualRun ? "on" : "off")
                 + " paused=" + (_labPaused ? "yes" : "no")
-                + " timeScale=" + FormatFloat(_timeScale);
+                + " timeScale=" + FormatFloat(_timeScale)
+                + "\nview=" + _cameraMode
+                + " follow=" + (_enableCameraFollow ? "on" : "off")
+                + " loop=" + (_enableLoopingPlane ? "on" : "off")
+                + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off");
+            UpdateDirectionButtonStyles();
+            UpdateObservationButtons();
+        }
+
+        private void UpdateDirectionButtonStyles()
+        {
+            for (int i = 0; i < _directionButtons.Count; i++)
+            {
+                DirectionButtonBinding binding = _directionButtons[i];
+                if (binding.Button == null)
+                    continue;
+
+                bool active = _manualControlEnabled && ApproximatelySameDirection(_manualDirection, binding.Direction);
+                binding.Button.style.backgroundColor = active
+                    ? new Color(0.02f, 0.55f, 0.62f, 0.98f)
+                    : new Color(0.11f, 0.17f, 0.23f, 0.95f);
+                binding.Button.style.borderLeftWidth = active ? 1f : 0f;
+                binding.Button.style.borderRightWidth = active ? 1f : 0f;
+                binding.Button.style.borderTopWidth = active ? 1f : 0f;
+                binding.Button.style.borderBottomWidth = active ? 1f : 0f;
+                binding.Button.style.borderLeftColor = new Color(0.22f, 0.95f, 1f, 1f);
+                binding.Button.style.borderRightColor = new Color(0.22f, 0.95f, 1f, 1f);
+                binding.Button.style.borderTopColor = new Color(0.22f, 0.95f, 1f, 1f);
+                binding.Button.style.borderBottomColor = new Color(0.22f, 0.95f, 1f, 1f);
+            }
+        }
+
+        private void UpdateObservationButtons()
+        {
+            if (_cameraFollowButton != null)
+                _cameraFollowButton.text = _enableCameraFollow ? "Follow On" : "Follow Off";
+            if (_cameraModeButton != null)
+                _cameraModeButton.text = "View " + _cameraMode;
+            if (_loopingPlaneButton != null)
+                _loopingPlaneButton.text = _enableLoopingPlane ? "Loop On" : "Loop Off";
+            if (_lockFacingButton != null)
+                _lockFacingButton.text = _lockFacingForBlendObservation ? "Facing Lock" : "Facing Free";
+        }
+
+        private void UpdateObservationRig()
+        {
+            GameObject character = CharacterInstance;
+            if (character == null)
+                return;
+
+            if (_lockFacingForBlendObservation)
+            {
+                if (!_hasLockedFacingRotation)
+                {
+                    _lockedFacingRotation = character.transform.rotation;
+                    _hasLockedFacingRotation = true;
+                }
+
+                character.transform.rotation = _lockedFacingRotation;
+                if (_motionController != null)
+                    _motionController.RotateToMoveDirection = false;
+            }
+            else if (_motionController != null)
+            {
+                _motionController.RotateToMoveDirection = true;
+            }
+
+            ApplyLoopingPlane(character.transform);
+            UpdateFollowCamera(character.transform);
+        }
+
+        private void ApplyLoopingPlane(Transform target)
+        {
+            if (!_enableLoopingPlane || target == null)
+                return;
+
+            float halfExtent = Mathf.Max(1f, _loopHalfExtent);
+            float size = halfExtent * 2f;
+            Vector3 position = target.position;
+            Vector3 wrapped = position;
+            wrapped.x = WrapAxis(position.x, halfExtent, size);
+            wrapped.z = WrapAxis(position.z, halfExtent, size);
+            if ((wrapped - position).sqrMagnitude <= 0.0001f)
+                return;
+
+            if (_motionController != null)
+                _motionController.WarpRootPosition(wrapped);
+            else
+                target.position = wrapped;
+            ResetTrails();
+        }
+
+        private void UpdateFollowCamera(Transform target)
+        {
+            if (!_enableCameraFollow || target == null)
+                return;
+
+            if (_followCamera == null)
+                _followCamera = Camera.main;
+            if (_followCamera == null)
+                return;
+
+            Vector3 focus = target.position + Vector3.up * 1.15f;
+            float distance = Mathf.Max(1f, _cameraDistance);
+            float height = Mathf.Max(0.5f, _cameraHeight);
+            Vector3 offset;
+            switch (_cameraMode)
+            {
+                case CalibrationCameraMode.Side:
+                    offset = new Vector3(distance, height * 0.72f, 0f);
+                    break;
+                case CalibrationCameraMode.Front:
+                    offset = new Vector3(0f, height, distance);
+                    break;
+                case CalibrationCameraMode.Top:
+                    offset = new Vector3(0f, distance + height, -0.1f);
+                    break;
+                default:
+                    offset = new Vector3(0f, height, -distance);
+                    break;
+            }
+
+            Vector3 desired = focus + offset;
+            _followCamera.transform.position = Vector3.Lerp(
+                _followCamera.transform.position,
+                desired,
+                1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
+            _followCamera.transform.rotation = Quaternion.LookRotation((focus - _followCamera.transform.position).normalized, Vector3.up);
+        }
+
+        private void ResetTrails()
+        {
+            _leftTrailCount = 0;
+            _rightTrailCount = 0;
+            if (_leftFootTrailLine != null)
+                _leftFootTrailLine.positionCount = 0;
+            if (_rightFootTrailLine != null)
+                _rightFootTrailLine.positionCount = 0;
+        }
+
+        private static float WrapAxis(float value, float halfExtent, float size)
+        {
+            if (value > halfExtent)
+                return value - size;
+            if (value < -halfExtent)
+                return value + size;
+            return value;
+        }
+
+        private static bool ApproximatelySameDirection(Vector2 left, Vector2 right)
+        {
+            return (left - right).sqrMagnitude <= 0.0001f;
         }
 
         private void UpdateTelemetryHud()
@@ -1547,6 +1791,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             public float EndSpeed { get; }
             public bool Run { get; }
             public float DurationSeconds { get; }
+        }
+
+        private readonly struct DirectionButtonBinding
+        {
+            public DirectionButtonBinding(Button button, Vector2 direction)
+            {
+                Button = button;
+                Direction = direction;
+            }
+
+            public Button Button { get; }
+            public Vector2 Direction { get; }
         }
 
         private sealed class PresetAccumulator
