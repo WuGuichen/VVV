@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MxFramework.Animation;
 using MxFramework.Animation.Unity;
 using UnityEngine;
@@ -33,6 +34,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private bool _usingFallback;
         private UnityPlayablesAnimationBackend _animationBackend;
         private bool _ownsAnimationBackend;
+        private MxAnimationBlend2DDefinition _blend2DDefinition;
+        private MxAnimationBlendReachabilityReport _blendReachabilityReport;
         private MxAnimationBackendResult _lastAnimationResult;
         private int _lastQuantizedBlendX;
         private int _lastQuantizedBlendY;
@@ -46,6 +49,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public MxAnimationBackendResult LastAnimationResult => _lastAnimationResult;
         public int LastQuantizedBlendX => _lastQuantizedBlendX;
         public int LastQuantizedBlendY => _lastQuantizedBlendY;
+        public MxAnimationBlend2DControllerDomain ActiveBlend2DControllerDomain =>
+            new MxAnimationBlend2DControllerDomain(-_blendParameterScale, _blendParameterScale, -_blendParameterScale, _blendParameterScale);
+        public MxAnimationBlendReachabilityReport ActiveBlendReachabilityReport =>
+            _blendReachabilityReport ?? CreateReachabilityReport();
 
         private void Awake()
         {
@@ -93,6 +100,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _lastAnimationResult = default;
             _lastQuantizedBlendX = 0;
             _lastQuantizedBlendY = 0;
+            _blend2DDefinition = blendDefinition;
+            _blendReachabilityReport = null;
 
             if (blendDefinition == null)
                 return;
@@ -101,11 +110,39 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendXParameter = blendDefinition.ParameterXId;
             _blendYParameter = blendDefinition.ParameterYId;
             _blendParameterScale = Mathf.Max(1, Math.Max(blendDefinition.ParameterXScale, blendDefinition.ParameterYScale));
+            _blendReachabilityReport = CreateReachabilityReport();
         }
 
         public MxAnimationDiagnosticSnapshot CreateAnimationSnapshot()
         {
             return _animationBackend != null ? _animationBackend.CreateSnapshot() : null;
+        }
+
+        public MxAnimationLocomotionBlendProbeSnapshot CreateLocomotionBlendProbeSnapshot()
+        {
+            if (_blend2DDefinition == null)
+                return null;
+
+            MxAnimationBlendReachabilityReport reachability = ActiveBlendReachabilityReport;
+            IReadOnlyList<MxAnimationBlend2DWeight> weights = TryGetBackendBlend2DWeights(out bool fromBackend);
+            if (weights == null || weights.Count == 0)
+            {
+                MxAnimationBlend2DWeights evaluated = MxAnimationBlend2DCalculator.Evaluate(
+                    _blend2DDefinition,
+                    new MxAnimationQuantizedParameter(_blendXParameter, _lastQuantizedBlendX, _blendParameterScale),
+                    new MxAnimationQuantizedParameter(_blendYParameter, _lastQuantizedBlendY, _blendParameterScale));
+                weights = evaluated.Weights;
+                fromBackend = false;
+            }
+
+            return new MxAnimationLocomotionBlendProbeSnapshot(
+                _blend2DDefinition.BlendId,
+                ActiveBlend2DControllerDomain,
+                _lastQuantizedBlendX,
+                _lastQuantizedBlendY,
+                reachability,
+                weights,
+                fromBackend);
         }
 
         private void ResolveReferences()
@@ -201,6 +238,37 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             _animationBackend = null;
             _ownsAnimationBackend = false;
+            _blend2DDefinition = null;
+            _blendReachabilityReport = null;
+        }
+
+        private MxAnimationBlendReachabilityReport CreateReachabilityReport()
+        {
+            if (_blend2DDefinition == null)
+                return null;
+
+            return MxAnimationBlendReachabilityAnalyzer.Analyze(_blend2DDefinition, ActiveBlend2DControllerDomain);
+        }
+
+        private IReadOnlyList<MxAnimationBlend2DWeight> TryGetBackendBlend2DWeights(out bool fromBackend)
+        {
+            fromBackend = false;
+            MxAnimationDiagnosticSnapshot snapshot = CreateAnimationSnapshot();
+            if (snapshot == null)
+                return Array.Empty<MxAnimationBlend2DWeight>();
+
+            for (int i = 0; i < snapshot.LayerStates.Count; i++)
+            {
+                MxAnimationLayerDiagnostic layer = snapshot.LayerStates[i];
+                if (layer.BlendKind == MxAnimationBlendKind.Blend2D
+                    && string.Equals(layer.Blend2DId, _blend2DDefinition.BlendId, StringComparison.Ordinal))
+                {
+                    fromBackend = true;
+                    return layer.Blend2DWeights;
+                }
+            }
+
+            return Array.Empty<MxAnimationBlend2DWeight>();
         }
     }
 }
