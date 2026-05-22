@@ -278,10 +278,11 @@ namespace MxFramework.Animation.Unity
 
             var clipWeights = new List<BlendClipWeight>(weights.Weights.Count);
             var diagnosticWeights = new List<MxAnimationBlend2DWeight>(weights.Weights.Count);
+            float playbackSpeedMultiplier = NormalizePlaybackSpeedMultiplier(request.PlaybackSpeedMultiplier);
             for (int i = 0; i < weights.Weights.Count; i++)
             {
                 MxAnimationBlend2DWeight weight = weights.Weights[i];
-                float playbackSpeed = ResolvePlaybackSpeed(weight.ClipKey, weight.PlaybackSpeed);
+                float playbackSpeed = NormalizeSpeed(ResolvePlaybackSpeed(weight.ClipKey, weight.PlaybackSpeed) * playbackSpeedMultiplier);
                 clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, weight.Loop));
                 diagnosticWeights.Add(new MxAnimationBlend2DWeight(
                     weight.ClipKey,
@@ -1267,6 +1268,13 @@ namespace MxFramework.Animation.Unity
         private static float NormalizeSpeed(float speed)
         {
             return Math.Abs(speed) < 0.0001f ? 1f : speed;
+        }
+
+        private static float NormalizePlaybackSpeedMultiplier(float speed)
+        {
+            if (float.IsNaN(speed) || float.IsInfinity(speed))
+                return 1f;
+            return Math.Max(0f, speed);
         }
 
         private float ResolvePlaybackSpeed(ResourceKey clipKey, float fallback)

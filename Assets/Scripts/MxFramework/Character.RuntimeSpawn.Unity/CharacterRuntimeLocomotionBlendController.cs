@@ -25,6 +25,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _fallbackBobAmplitude = 0.035f;
         [SerializeField] private float _fallbackBobRate = 7f;
         [SerializeField] private float _fallbackLeanDegrees = 4f;
+        [SerializeField] private bool _enablePlaybackSpeedCompensation = true;
+        [SerializeField] private float _minPlaybackSpeedCompensation = 0.1f;
+        [SerializeField] private float _maxPlaybackSpeedCompensation = 2.5f;
 
         private Vector3 _modelRootBaseLocalPosition;
         private Quaternion _modelRootBaseLocalRotation;
@@ -44,6 +47,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private int _blendDomainMaxX = 1000;
         private int _blendDomainMinY = -1000;
         private int _blendDomainMaxY = 1000;
+        private readonly List<BlendPointPlaybackCalibration> _blendPointPlaybackCalibrations =
+            new List<BlendPointPlaybackCalibration>();
+        private int _lastPlaybackCompensationX = int.MinValue;
+        private int _lastPlaybackCompensationY = int.MinValue;
+        private float _playbackSpeedCompensation = 1f;
 
         public Vector2 Blend => _blend;
         public float Speed01 => _speed01;
@@ -54,6 +62,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public MxAnimationBackendResult LastAnimationResult => _lastAnimationResult;
         public int LastQuantizedBlendX => _lastQuantizedBlendX;
         public int LastQuantizedBlendY => _lastQuantizedBlendY;
+        public float PlaybackSpeedCompensation => _playbackSpeedCompensation;
         public MxAnimationBlend2DControllerDomain ActiveBlend2DControllerDomain =>
             new MxAnimationBlend2DControllerDomain(_blendDomainMinX, _blendDomainMaxX, _blendDomainMinY, _blendDomainMaxY);
         public MxAnimationBlendReachabilityReport ActiveBlendReachabilityReport =>
@@ -105,8 +114,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _lastAnimationResult = default;
             _lastQuantizedBlendX = 0;
             _lastQuantizedBlendY = 0;
+            _lastPlaybackCompensationX = int.MinValue;
+            _lastPlaybackCompensationY = int.MinValue;
+            _playbackSpeedCompensation = 1f;
             _blend2DDefinition = blendDefinition;
             _blendReachabilityReport = null;
+            _blendPointPlaybackCalibrations.Clear();
 
             if (blendDefinition == null)
             {
@@ -119,6 +132,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendYParameter = blendDefinition.ParameterYId;
             _blendParameterScale = Mathf.Max(1, Math.Max(blendDefinition.ParameterXScale, blendDefinition.ParameterYScale));
             RebuildBlendDomain(blendDefinition);
+            RebuildBlendPointPlaybackCalibrations(blendDefinition);
             _blendReachabilityReport = CreateReachabilityReport();
         }
 
@@ -206,11 +220,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             int scale = Math.Max(1, _blendParameterScale);
             _lastQuantizedBlendX = QuantizeBlendAxis(_blend.x, scale, _blendDomainMinX, _blendDomainMaxX);
             _lastQuantizedBlendY = QuantizeBlendAxis(_blend.y, scale, _blendDomainMinY, _blendDomainMaxY);
+            _playbackSpeedCompensation = CalculatePlaybackSpeedCompensation(_lastQuantizedBlendX, _lastQuantizedBlendY, scale);
             _lastAnimationResult = _animationBackend.SetBlend2D(new MxAnimationBlend2DRequest
             {
                 BlendId = _blend2DId,
                 ParameterX = new MxAnimationQuantizedParameter(_blendXParameter, _lastQuantizedBlendX, scale),
                 ParameterY = new MxAnimationQuantizedParameter(_blendYParameter, _lastQuantizedBlendY, scale),
+                PlaybackSpeedMultiplier = _playbackSpeedCompensation,
                 CorrelationId = "character-runtime-locomotion:" + Time.frameCount.ToString()
             });
             _animationBackend.Tick(Time.deltaTime);
@@ -317,6 +333,89 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
         }
 
+        private void RebuildBlendPointPlaybackCalibrations(MxAnimationBlend2DDefinition blendDefinition)
+        {
+            _blendPointPlaybackCalibrations.Clear();
+            if (blendDefinition == null)
+                return;
+
+            for (int i = 0; i < blendDefinition.Points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = blendDefinition.Points[i];
+                if (point == null || !point.ClipKey.IsValid)
+                    continue;
+
+                float x = point.X;
+                float y = point.Y;
+                float magnitude = Mathf.Sqrt((x * x) + (y * y));
+                if (magnitude <= 0.0001f)
+                    continue;
+
+                float inverseMagnitude = 1f / magnitude;
+                _blendPointPlaybackCalibrations.Add(new BlendPointPlaybackCalibration(
+                    point.ClipKey,
+                    x * inverseMagnitude,
+                    y * inverseMagnitude,
+                    inverseMagnitude));
+            }
+        }
+
+        private float CalculatePlaybackSpeedCompensation(int quantizedX, int quantizedY, int scale)
+        {
+            if (!_enablePlaybackSpeedCompensation || _blend2DDefinition == null || _blendPointPlaybackCalibrations.Count == 0)
+                return 1f;
+
+            if (quantizedX == _lastPlaybackCompensationX && quantizedY == _lastPlaybackCompensationY)
+                return _playbackSpeedCompensation;
+
+            _lastPlaybackCompensationX = quantizedX;
+            _lastPlaybackCompensationY = quantizedY;
+
+            MxAnimationBlend2DWeights weights = MxAnimationBlend2DCalculator.Evaluate(
+                _blend2DDefinition,
+                new MxAnimationQuantizedParameter(_blendXParameter, quantizedX, scale),
+                new MxAnimationQuantizedParameter(_blendYParameter, quantizedY, scale));
+            BlendPointPlaybackCalibration calibration = FindDominantPlaybackCalibration(weights);
+            if (!calibration.IsValid)
+                return 1f;
+
+            float projected = Mathf.Max(0f, (quantizedX * calibration.DirectionX) + (quantizedY * calibration.DirectionY));
+            if (projected <= 0.0001f)
+                return 1f;
+
+            return Mathf.Clamp(
+                projected * calibration.InverseMagnitude,
+                Mathf.Max(0f, _minPlaybackSpeedCompensation),
+                Mathf.Max(_minPlaybackSpeedCompensation, _maxPlaybackSpeedCompensation));
+        }
+
+        private BlendPointPlaybackCalibration FindDominantPlaybackCalibration(MxAnimationBlend2DWeights weights)
+        {
+            if (weights == null || weights.Weights.Count == 0)
+                return default;
+
+            float bestWeight = 0f;
+            BlendPointPlaybackCalibration best = default;
+            for (int weightIndex = 0; weightIndex < weights.Weights.Count; weightIndex++)
+            {
+                MxAnimationBlend2DWeight weight = weights.Weights[weightIndex];
+                if (weight.Weight <= 0f)
+                    continue;
+
+                for (int calibrationIndex = 0; calibrationIndex < _blendPointPlaybackCalibrations.Count; calibrationIndex++)
+                {
+                    BlendPointPlaybackCalibration calibration = _blendPointPlaybackCalibrations[calibrationIndex];
+                    if (calibration.ClipKey == weight.ClipKey && weight.Weight > bestWeight)
+                    {
+                        bestWeight = weight.Weight;
+                        best = calibration;
+                    }
+                }
+            }
+
+            return best;
+        }
+
         private static int QuantizeBlendAxis(float value, int scale, int min, int max)
         {
             if (min > max)
@@ -348,6 +447,27 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             return Array.Empty<MxAnimationBlend2DWeight>();
+        }
+
+        private readonly struct BlendPointPlaybackCalibration
+        {
+            public BlendPointPlaybackCalibration(
+                ResourceKey clipKey,
+                float directionX,
+                float directionY,
+                float inverseMagnitude)
+            {
+                ClipKey = clipKey;
+                DirectionX = directionX;
+                DirectionY = directionY;
+                InverseMagnitude = inverseMagnitude;
+            }
+
+            public ResourceKey ClipKey { get; }
+            public float DirectionX { get; }
+            public float DirectionY { get; }
+            public float InverseMagnitude { get; }
+            public bool IsValid => ClipKey.IsValid;
         }
     }
 }
