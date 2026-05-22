@@ -4339,8 +4339,12 @@ function getUnityPreviewReportForClip(result = state.preview3d.result, authoring
 
 function getUnityPreviewAuthoritySummary(report, result = state.preview3d.result) {
   if (!report && result) {
+    const hasUnityPreviewReport = Boolean(result?.unityPreviewReport);
     const reportCount = getUnityPreviewClipReports(result).length;
     const clipCount = getPreviewAnimationClips(result).length;
+    if (!hasUnityPreviewReport && clipCount > 0) {
+      return { key: "ServerReportMissing", tone: "unavailable", label: "服务需重启", description: "Authoring server 没有返回 unityPreviewReport，通常是服务进程版本过旧。" };
+    }
     if (reportCount === 0 && clipCount === 0) {
       return { key: "NoClip", tone: "idle", label: "没有 Clip", description: "当前预览结果没有可编译的 Animation Clip。" };
     }
@@ -4365,9 +4369,17 @@ function getUnityPreviewDiagnostics(report) {
 function getUnityPreviewPanelDiagnostics(report, result = state.preview3d.result) {
   if (report) return getUnityPreviewDiagnostics(report);
   const diagnostics = [];
+  const hasUnityPreviewReport = Boolean(result?.unityPreviewReport);
   const reportCount = getUnityPreviewClipReports(result).length;
   const clipCount = getPreviewAnimationClips(result).length;
-  if (reportCount === 0 && clipCount === 0) {
+  if (!hasUnityPreviewReport && clipCount > 0) {
+    diagnostics.push({
+      tone: "error",
+      code: "ANIM_UNITY_PREVIEW_REPORT_ENDPOINT_MISSING",
+      message: "Authoring server 返回了 animation clip，但没有返回 unityPreviewReport；当前服务进程可能还停留在旧代码。",
+      suggestedFix: "重启 Authoring server，然后刷新 AnimationEditor 再运行编译预览。"
+    });
+  } else if (reportCount === 0 && clipCount === 0) {
     diagnostics.push({
       tone: "warning",
       code: "ANIM_PREVIEW_CLIPS_EMPTY",
@@ -4387,6 +4399,7 @@ function getUnityPreviewPanelDiagnostics(report, result = state.preview3d.result
 
 function getUnityPreviewReportBadge(report, result = state.preview3d.result) {
   if (report) return "unityPreviewReport";
+  if (!result?.unityPreviewReport && getPreviewAnimationClips(result).length > 0) return "服务未返回 unityPreviewReport";
   const reportCount = getUnityPreviewClipReports(result).length;
   const clipCount = getPreviewAnimationClips(result).length;
   if (reportCount === 0 && clipCount === 0) return "没有 Clip 报告";
