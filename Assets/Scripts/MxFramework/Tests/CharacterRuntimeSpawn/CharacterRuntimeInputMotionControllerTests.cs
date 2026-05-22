@@ -286,6 +286,85 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             }
         }
 
+        [Test]
+        public void LocomotionBlend_UsesConfiguredBlendPointDomain()
+        {
+            var go = new GameObject("character");
+            var idleClip = new AnimationClip { name = "Idle" };
+            var walkClip = new AnimationClip { name = "Walk" };
+            var runClip = new AnimationClip { name = "Run" };
+            try
+            {
+                var modelRoot = new GameObject("ModelRoot").transform;
+                modelRoot.SetParent(go.transform, false);
+                Animator animator = go.AddComponent<Animator>();
+                CharacterRuntimeControllerBinding binding = go.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureBinding(binding);
+                CharacterRuntimeInputMotionController motion = go.AddComponent<CharacterRuntimeInputMotionController>();
+                motion.MoveSpeedScale = 2f;
+                CharacterRuntimeLocomotionBlendController locomotion = go.AddComponent<CharacterRuntimeLocomotionBlendController>();
+                locomotion.Configure(modelRoot, animator, new[] { idleClip, walkClip, runClip });
+
+                var idleKey = new ResourceKey("test.anim.idle", ResourceTypeIds.AnimationClip);
+                var walkKey = new ResourceKey("test.anim.walk", ResourceTypeIds.AnimationClip);
+                var runKey = new ResourceKey("test.anim.run", ResourceTypeIds.AnimationClip);
+                var provider = new MemoryResourceProvider()
+                    .Register("test/idle", idleClip)
+                    .Register("test/walk", walkClip)
+                    .Register("test/run", runClip);
+                var manager = new ResourceManager();
+                manager.RegisterProvider(provider);
+                manager.AddCatalog(new ResourceCatalog(
+                        "test.animations",
+                        string.Empty,
+                        new[]
+                        {
+                            new ResourceCatalogEntry(idleKey.Id, idleKey.TypeId, "memory", "test/idle"),
+                            new ResourceCatalogEntry(walkKey.Id, walkKey.TypeId, "memory", "test/walk"),
+                            new ResourceCatalogEntry(runKey.Id, runKey.TypeId, "memory", "test/run")
+                        }));
+                var blend = new MxAnimationBlend2DDefinition(
+                    "blend.move2d",
+                    "moveX",
+                    "moveY",
+                    MxAnimationLayerId.Base,
+                    new[]
+                    {
+                        new MxAnimationBlend2DPoint(0, 0, idleKey),
+                        new MxAnimationBlend2DPoint(0, 1000, walkKey),
+                        new MxAnimationBlend2DPoint(0, 2000, runKey)
+                    });
+                var definition = new MxAnimationSetDefinition(
+                    "set.base",
+                    1,
+                    idleKey,
+                    idleKey,
+                    blend2DDefinitions: new[] { blend });
+                locomotion.ConfigureAnimationBackend(
+                    new UnityPlayablesAnimationBackend(animator, manager, definition, "actor.test"),
+                    blend);
+
+                var input = new FakeInputProvider();
+                input.SetContext(InputContext.Gameplay);
+                input.SetSnapshot(CreateMoveSnapshot(Vector2.up));
+                motion.ConfigureInputProvider(input);
+
+                Assert.IsTrue(motion.StepFrame());
+                InvokeLateUpdate(locomotion);
+
+                Assert.AreEqual(2000, locomotion.LastQuantizedBlendY);
+                Assert.AreEqual(2000, locomotion.ActiveBlend2DControllerDomain.MaxY);
+                Assert.IsTrue(locomotion.LastAnimationResult.Success, locomotion.LastAnimationResult.Message);
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(walkClip);
+                Object.DestroyImmediate(runClip);
+            }
+        }
+
         private static void InvokeLateUpdate(CharacterRuntimeLocomotionBlendController locomotion)
         {
             typeof(CharacterRuntimeLocomotionBlendController)

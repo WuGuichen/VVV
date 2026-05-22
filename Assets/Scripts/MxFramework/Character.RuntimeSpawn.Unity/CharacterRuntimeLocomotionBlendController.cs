@@ -40,6 +40,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private MxAnimationBackendResult _lastAnimationResult;
         private int _lastQuantizedBlendX;
         private int _lastQuantizedBlendY;
+        private int _blendDomainMinX = -1000;
+        private int _blendDomainMaxX = 1000;
+        private int _blendDomainMinY = -1000;
+        private int _blendDomainMaxY = 1000;
 
         public Vector2 Blend => _blend;
         public float Speed01 => _speed01;
@@ -51,7 +55,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public int LastQuantizedBlendX => _lastQuantizedBlendX;
         public int LastQuantizedBlendY => _lastQuantizedBlendY;
         public MxAnimationBlend2DControllerDomain ActiveBlend2DControllerDomain =>
-            new MxAnimationBlend2DControllerDomain(-_blendParameterScale, _blendParameterScale, -_blendParameterScale, _blendParameterScale);
+            new MxAnimationBlend2DControllerDomain(_blendDomainMinX, _blendDomainMaxX, _blendDomainMinY, _blendDomainMaxY);
         public MxAnimationBlendReachabilityReport ActiveBlendReachabilityReport =>
             _blendReachabilityReport ?? CreateReachabilityReport();
 
@@ -105,12 +109,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendReachabilityReport = null;
 
             if (blendDefinition == null)
+            {
+                ResetBlendDomain();
                 return;
+            }
 
             _blend2DId = blendDefinition.BlendId;
             _blendXParameter = blendDefinition.ParameterXId;
             _blendYParameter = blendDefinition.ParameterYId;
             _blendParameterScale = Mathf.Max(1, Math.Max(blendDefinition.ParameterXScale, blendDefinition.ParameterYScale));
+            RebuildBlendDomain(blendDefinition);
             _blendReachabilityReport = CreateReachabilityReport();
         }
 
@@ -196,8 +204,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return;
 
             int scale = Math.Max(1, _blendParameterScale);
-            _lastQuantizedBlendX = Mathf.RoundToInt(Mathf.Clamp(_blend.x, -1f, 1f) * scale);
-            _lastQuantizedBlendY = Mathf.RoundToInt(Mathf.Clamp(_blend.y, -1f, 1f) * scale);
+            _lastQuantizedBlendX = QuantizeBlendAxis(_blend.x, scale, _blendDomainMinX, _blendDomainMaxX);
+            _lastQuantizedBlendY = QuantizeBlendAxis(_blend.y, scale, _blendDomainMinY, _blendDomainMaxY);
             _lastAnimationResult = _animationBackend.SetBlend2D(new MxAnimationBlend2DRequest
             {
                 BlendId = _blend2DId,
@@ -263,6 +271,62 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return null;
 
             return MxAnimationBlendReachabilityAnalyzer.Analyze(_blend2DDefinition, ActiveBlend2DControllerDomain);
+        }
+
+        private void ResetBlendDomain()
+        {
+            int scale = Mathf.Max(1, _blendParameterScale);
+            _blendDomainMinX = -scale;
+            _blendDomainMaxX = scale;
+            _blendDomainMinY = -scale;
+            _blendDomainMaxY = scale;
+        }
+
+        private void RebuildBlendDomain(MxAnimationBlend2DDefinition blendDefinition)
+        {
+            ResetBlendDomain();
+            if (blendDefinition == null || blendDefinition.Points.Count == 0)
+                return;
+
+            int minX = int.MaxValue;
+            int maxX = int.MinValue;
+            int minY = int.MaxValue;
+            int maxY = int.MinValue;
+            for (int i = 0; i < blendDefinition.Points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = blendDefinition.Points[i];
+                if (point == null)
+                    continue;
+
+                minX = Math.Min(minX, point.X);
+                maxX = Math.Max(maxX, point.X);
+                minY = Math.Min(minY, point.Y);
+                maxY = Math.Max(maxY, point.Y);
+            }
+
+            if (minX <= maxX)
+            {
+                _blendDomainMinX = minX;
+                _blendDomainMaxX = maxX;
+            }
+
+            if (minY <= maxY)
+            {
+                _blendDomainMinY = minY;
+                _blendDomainMaxY = maxY;
+            }
+        }
+
+        private static int QuantizeBlendAxis(float value, int scale, int min, int max)
+        {
+            if (min > max)
+            {
+                int swap = min;
+                min = max;
+                max = swap;
+            }
+
+            return Mathf.Clamp(Mathf.RoundToInt(value * Mathf.Max(1, scale)), min, max);
         }
 
         private IReadOnlyList<MxAnimationBlend2DWeight> TryGetBackendBlend2DWeights(out bool fromBackend)
