@@ -1030,7 +1030,7 @@ function findAnimationSlotResource(slot) {
   return getResourceLibraryItems().find(item => values.some(value => getResourceIdentityValues(item).includes(value))) || null;
 }
 
-function renderResourceBindingBar() {
+function renderResourceBindingBarLegacy() {
   if (!el.resourceBindingTarget) return;
   const targetRole = el.modelImportRole?.value || "preview";
   const roleInfo = getModelImportRole();
@@ -1267,6 +1267,81 @@ function resetResourcePickerFilters() {
   state.resourcePickerSearchQuery = "";
   state.resourcePickerUsageFilter = "";
   state.resourcePickerProviderFilter = "";
+}
+
+function collectBodyBindingKeys(pkg) {
+  const keys = [];
+  const pushKey = value => {
+    const key = String(value || "").trim();
+    if (!key || keys.includes(key)) return;
+    keys.push(key);
+  };
+  pushKey(pkg?.geometry?.bodyProfile?.modelRootStableId || "");
+  for (const resource of getModelResources(pkg)) {
+    if (!resource) continue;
+    if (resource.usage === "characterModel" || hasTag(resource, "body")) {
+      pushKey(resource.resourceKey);
+      pushKey(resource.stableId);
+    }
+  }
+  for (const key of pkg?.applicationConfig?.resourceKeys || []) {
+    pushKey(key);
+  }
+  return keys;
+}
+
+function resolveBodyModelBindingStatus(pkg) {
+  const packageValue = pkg || state.package;
+  if (!packageValue) return null;
+  const boundBody = getBoundBodyModelResource(packageValue);
+  if (boundBody) {
+    const key = boundBody.resourceKey || boundBody.stableId || "";
+    return {
+      key,
+      summary: `${getResourceDisplayName(boundBody)} (${key || "unknown"})`
+    };
+  }
+  const fallbackKeys = collectBodyBindingKeys(packageValue);
+  for (const key of fallbackKeys) {
+    const item = findResourceLibraryItemByKey(key);
+    if (!item) continue;
+    const resolvedKey = firstNonEmpty(item.resourceKey, item.runtimeResourceKey, item.packageResourceKey, item.stableId, key);
+    return {
+      key: resolvedKey,
+      summary: `${item.displayName || resolvedKey} (${resolvedKey})`
+    };
+  }
+  if (fallbackKeys.length > 0) {
+    return {
+      key: fallbackKeys[0],
+      summary: `${fallbackKeys[0]} (binding key only)`
+    };
+  }
+  return null;
+}
+
+function renderResourceBindingBar() {
+  if (!el.resourceBindingTarget) return;
+  const targetRole = el.modelImportRole?.value || "preview";
+  const roleInfo = getModelImportRole();
+  const fieldSpec = getActiveResourceFieldSpec();
+  const currentTarget = findTarget(state.selectedPath);
+  const currentTargetText = currentTarget?.kind
+    ? `${KIND_LABELS[currentTarget.kind] || currentTarget.kind} / ${currentTarget.label || state.selectedPath}`
+    : (state.selectedPath || "unselected");
+  const bodyBinding = resolveBodyModelBindingStatus(state.package);
+  const boundBodyText = bodyBinding ? bodyBinding.summary : "未选择模型资源";
+  const fieldText = targetRole === "preview"
+    ? "请先切换到角色主体、主手或副手字段，再进行资源绑定。"
+    : `${fieldSpec.fieldKey} / ${roleInfo.label}`;
+  const flowText = "推荐流程：在 Resource Manager 准备与诊断资源，在 CharacterStudio 仅做字段绑定。Legacy 导入仅用于旧流程兼容。";
+
+  el.resourceBindingTarget.innerHTML = [
+    renderBindingStatusLine("当前对象", currentTargetText),
+    renderBindingStatusLine("当前绑定主体模型", boundBodyText),
+    renderBindingStatusLine("当前编辑字段", fieldText),
+    renderBindingStatusLine("推荐流程", flowText, "flow")
+  ].join("");
 }
 
 function getActiveResourcePickerRequest() {
@@ -4195,6 +4270,28 @@ function renderInspector() {
       openResourcePickerForField(button.dataset.pickerField);
     });
   });
+  el.inspector.querySelectorAll("[data-copy-path-field]").forEach(button => {
+    button.addEventListener("click", async event => {
+      event.stopPropagation();
+      const fieldPath = button.dataset.copyPathField || "";
+      if (!fieldPath) return;
+      const sourceInput = Array.from(el.inspector.querySelectorAll("[data-field]"))
+        .find(input => input.dataset.field === fieldPath);
+      const value = sourceInput ? String(sourceInput.value || "") : "";
+      if (!value) {
+        state.message = `${fieldPath} 当前为空，无可复制内容。`;
+        renderShellStatus();
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(value);
+        state.message = `${fieldPath} 已复制完整值。`;
+      } catch {
+        state.message = `${fieldPath} 复制失败，请手动复制。`;
+      }
+      renderShellStatus();
+    });
+  });
   wireBonePicker(el.inspector);
   el.inspector.querySelectorAll("[data-inspector-action]").forEach(button => {
     button.addEventListener("click", () => {
@@ -4223,10 +4320,13 @@ function renderInspectorContext(target) {
   if (target.kind === "animationBlendSpace") return renderAnimationBlendSpaceContext(target);
   if (target.kind === "animationBlendPoint") return renderAnimationBlendPointContext(target);
   if (target.kind === "animationSlot") return renderAnimationSlotReferenceContext(target.value);
-  if (target.kind === "weapon") return renderWeaponReferenceContext(target.value);
+  if (target.kind === "weapon") return `${renderWeaponReferenceContext(target.value)}${renderTransformPathGuidanceContext(target.kind)}`;
   if (target.kind === "resource" && target.value) {
     const modelContext = target.value?.typeId === "model" ? renderModelResourceContext(target.value) : "";
     return `${modelContext}${renderResourceSyncContext(target.value)}`;
+  }
+  if (["part", "socket", "collider", "trace"].includes(target.kind)) {
+    return renderTransformPathGuidanceContext(target.kind);
   }
   return "";
 }
@@ -4348,6 +4448,18 @@ function renderResourceSyncContext(resource) {
 
 function renderReferenceRow(label, value, jumpPath, actionLabel) {
   return `<div class="reference-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>${jumpPath ? `<button type="button" data-jump="${escapeHtml(jumpPath)}">${escapeHtml(actionLabel || "打开")}</button>` : ""}</div>`;
+}
+
+function renderTransformPathGuidanceContext(kind) {
+  const title = kind === "trace" ? "Trace Path Guidance" : "Path Guidance";
+  return `<section class="reference-card">
+    <div class="reference-card-head"><strong>${escapeHtml(title)}</strong><span>How parent part, bone path, locator path, and local parent path work together.</span></div>
+    <div class="meta">Parent Part: hierarchy anchor for body/geometry relationships.</div>
+    <div class="meta">Bone Path: bind to skeleton bones; preferred for stable rig following.</div>
+    <div class="meta">Locator Path: bind to imported model locator markers when no bone path is suitable.</div>
+    <div class="meta">Local Parent Path: interpreted by Parent Kind (Bone / Locator / BodyPart / Socket).</div>
+    <div class="meta">Precedence: if both Bone Path and Locator Path exist, Bone Path is used first.</div>
+  </section>`;
 }
 
 function findResourceByKey(resourceKey) {
@@ -4766,17 +4878,17 @@ function datalistField(path, label, suggestions, help, group = "base") {
   });
 }
 
-function bonePathField(path, label, help) {
+function bonePathFieldLegacy(path, label, help) {
   const spec = datalistField(path, label, bonePathOptions(), help, "binding");
   spec.picker = "bone";
   return spec;
 }
 
-function locatorField(path, label, help) {
+function locatorFieldLegacy(path, label, help) {
   return datalistField(path, label, locatorPathOptions(), help, "binding");
 }
 
-function field(path, options = {}) {
+function fieldLegacy(path, options = {}) {
   return {
     path,
     type: options.type || "text",
@@ -4831,7 +4943,7 @@ function poseParentKindField(path, label = "父空间类型") {
   });
 }
 
-function poseParentPathField(path, label = "父空间路径", parentKind = "") {
+function poseParentPathFieldLegacy(path, label = "父空间路径", parentKind = "") {
   if (parentKind === "BodyPart") {
     return field(path, { label, type: "select", options: bodyPartOptions("无"), group: "poseParent", help: "选择该局部姿态相对的身体部位。" });
   }
@@ -4845,6 +4957,98 @@ function poseParentPathField(path, label = "父空间路径", parentKind = "") {
     return field(path, { label, group: "poseParent", suggestions: locatorPathOptions(), help: "选择该局部姿态相对的 locator 路径。" });
   }
   return field(path, { label, group: "poseParent", help: "ModelRoot / SkeletonRoot / WorldPreview 通常不需要填写路径。" });
+}
+
+function mergeFieldHelp(primary, guidance) {
+  const text = String(primary || "").trim();
+  if (!text) return guidance;
+  return `${text} ${guidance}`;
+}
+
+function field(path, options = {}) {
+  return {
+    path,
+    type: options.type || "text",
+    dataType: options.dataType || options.type || "text",
+    resourceFieldRole: options.resourceFieldRole || "",
+    label: options.label || path,
+    options: options.options || null,
+    suggestions: options.suggestions || null,
+    group: options.group || "base",
+    min: options.min,
+    max: options.max,
+    step: options.step,
+    unit: options.unit || "",
+    fallback: options.fallback,
+    placeholder: options.placeholder || "",
+    help: options.help || "",
+    picker: options.picker || "",
+    pathFieldRole: options.pathFieldRole || ""
+  };
+}
+
+function bonePathField(path, label, help) {
+  const guidance = "Bone Path binds to a skeleton bone. If both Bone Path and Locator Path exist, Bone Path takes precedence.";
+  const spec = datalistField(path, label, bonePathOptions(), mergeFieldHelp(help, guidance), "binding");
+  spec.picker = "bone";
+  spec.pathFieldRole = "bone";
+  return spec;
+}
+
+function locatorField(path, label, help) {
+  const guidance = "Locator Path binds to imported locator markers. Use it when no stable bone path is available.";
+  const spec = datalistField(path, label, locatorPathOptions(), mergeFieldHelp(help, guidance), "binding");
+  spec.pathFieldRole = "locator";
+  return spec;
+}
+
+function poseParentPathField(path, label = "Parent Path", parentKind = "") {
+  const baseHelp = "Local-space parent path depends on Parent Kind: Bone=bone path, Locator=locator path, BodyPart=part id, Socket=socket id.";
+  if (parentKind === "BodyPart") {
+    return field(path, {
+      label,
+      type: "select",
+      options: bodyPartOptions("None"),
+      group: "poseParent",
+      help: mergeFieldHelp("Parent Path uses BodyPart ID when parent kind is BodyPart.", baseHelp),
+      pathFieldRole: "poseParent"
+    });
+  }
+  if (parentKind === "Socket") {
+    return field(path, {
+      label,
+      type: "select",
+      options: socketOptions("None"),
+      group: "poseParent",
+      help: mergeFieldHelp("Parent Path uses Socket ID when parent kind is Socket.", baseHelp),
+      pathFieldRole: "poseParent"
+    });
+  }
+  if (parentKind === "Bone") {
+    return field(path, {
+      label,
+      group: "poseParent",
+      suggestions: bonePathOptions(),
+      help: mergeFieldHelp("Parent Path is a bone path when parent kind is Bone.", baseHelp),
+      picker: "bone",
+      pathFieldRole: "poseParent"
+    });
+  }
+  if (parentKind === "Locator") {
+    return field(path, {
+      label,
+      group: "poseParent",
+      suggestions: locatorPathOptions(),
+      help: mergeFieldHelp("Parent Path is a locator path when parent kind is Locator.", baseHelp),
+      pathFieldRole: "poseParent"
+    });
+  }
+  return field(path, {
+    label,
+    group: "poseParent",
+    help: mergeFieldHelp("Usually empty for ModelRoot / SkeletonRoot / WorldPreview.", baseHelp),
+    pathFieldRole: "poseParent"
+  });
 }
 
 function tagsField(path, label, options = tagOptions(), help = "", group = "base") {
@@ -4907,7 +5111,7 @@ function renderFieldSectionHeading(target, groupKey) {
   return `<div class="field-section-head"><h3>${escapeHtml(label)}</h3>${action}</div>`;
 }
 
-function renderField(target, fieldSpec) {
+function renderFieldLegacy(target, fieldSpec) {
   const spec = normalizeFieldSpec(fieldSpec);
   const value = getNested(target.value, spec.path);
   const label = spec.unit ? `${spec.label} (${spec.unit})` : spec.label;
@@ -5005,6 +5209,81 @@ function normalizeOptions(options) {
 
 function safeDomId(value) {
   return String(value || "field").replace(/[^a-zA-Z0-9_-]+/g, "-");
+}
+
+function isPathFieldSpec(spec) {
+  if (!spec) return false;
+  if (spec.pathFieldRole) return true;
+  return /(bonePath|locatorPath|startLocatorPath|endLocatorPath|\.parentPath)$/i.test(String(spec.path || ""));
+}
+
+function getPathFieldGuidance(spec) {
+  const role = String(spec.pathFieldRole || "");
+  if (role === "bone") return "Bone Path: use skeleton bone paths for stable rig-follow behavior.";
+  if (role === "locator") return "Locator Path: use model-imported locator markers when bone binding is unavailable.";
+  if (role === "poseParent") return "Parent Path follows Parent Kind: Bone=bone path, Locator=locator path, BodyPart=part id, Socket=socket id.";
+  return "Long reference path. Verify the full value before saving.";
+}
+
+function renderPathFieldViewer(spec, value) {
+  if (!isPathFieldSpec(spec)) return "";
+  const raw = String(value ?? "").trim();
+  const display = raw || "(empty)";
+  const guidance = getPathFieldGuidance(spec);
+  return `<div class="path-value-view" data-path-view="${escapeHtml(spec.path)}">
+    <code title="${escapeHtml(display)}">${escapeHtml(display)}</code>
+    <button type="button" class="path-copy-button" data-copy-path-field="${escapeHtml(spec.path)}">复制完整值</button>
+  </div>
+  <span class="path-field-guidance">${escapeHtml(guidance)}</span>`;
+}
+
+function renderField(target, fieldSpec) {
+  const spec = normalizeFieldSpec(fieldSpec);
+  const value = getNested(target.value, spec.path);
+  const label = spec.unit ? `${spec.label} (${spec.unit})` : spec.label;
+  if (spec.type === "select") {
+    const normalized = typeof value === "boolean" ? String(value) : (value || "");
+    const options = spec.options || [];
+    const select = `<select data-field="${escapeHtml(spec.path)}" data-type="${escapeHtml(spec.dataType)}"${renderPickerAttribute(spec)}${renderTitleAttribute(spec)}>${options.map(option => renderSelectOption(option, normalized)).join("")}</select>`;
+    const pathViewer = renderPathFieldViewer(spec, normalized);
+    if (spec.picker === "resource") {
+      const picker = `<button type="button" class="picker-button" data-picker-action="openResourcePicker" data-picker-field="${escapeHtml(spec.path)}">选择</button>`;
+      return `<div class="field field-wide"><label>${escapeHtml(label)}</label><div class="field-control">${select}${picker}</div>${renderFieldHint(spec)}${pathViewer}</div>`;
+    }
+    return `<div class="field"><label>${escapeHtml(label)}</label>${select}${renderFieldHint(spec)}${pathViewer}</div>`;
+  }
+  if (spec.type === "multiSelect") {
+    const selected = new Set(Array.isArray(value) ? value.map(item => String(item)) : String(value || "").split(",").map(item => item.trim()).filter(Boolean));
+    const options = normalizeOptions(spec.options || []);
+    return `<div class="field field-wide"><label>${escapeHtml(label)}</label><div class="choice-list">${options.map(option => renderCheckboxOption(spec, option, selected)).join("")}</div>${renderFieldHint(spec)}</div>`;
+  }
+  const inputType = spec.type === "number" ? "number" : "text";
+  const datalistId = spec.suggestions ? `list-${safeDomId(spec.path)}` : "";
+  const attrs = [
+    `type="${escapeHtml(inputType)}"`,
+    `data-field="${escapeHtml(spec.path)}"`,
+    `data-type="${escapeHtml(spec.dataType)}"`,
+    `data-fallback="${escapeHtml(String(spec.fallback ?? (spec.type === "number" ? 0 : "")))}"`
+  ];
+  const picker = renderPickerAttribute(spec);
+  if (picker) attrs.push(picker);
+  const title = renderTitleAttribute(spec);
+  if (title) attrs.push(title);
+  if (spec.placeholder) attrs.push(`placeholder="${escapeHtml(spec.placeholder)}"`);
+  if (datalistId) attrs.push(`list="${escapeHtml(datalistId)}"`);
+  if (spec.min !== undefined) attrs.push(`min="${escapeHtml(String(spec.min))}"`, `data-min="${escapeHtml(String(spec.min))}"`);
+  if (spec.max !== undefined) attrs.push(`max="${escapeHtml(String(spec.max))}"`, `data-max="${escapeHtml(String(spec.max))}"`);
+  if (spec.step !== undefined) attrs.push(`step="${escapeHtml(String(spec.step))}"`);
+  if (spec.type === "number") attrs.push(`inputmode="decimal"`);
+  const displayValue = formatFieldValue(value, spec.dataType);
+  const pathViewer = renderPathFieldViewer(spec, displayValue);
+  if (spec.picker === "bone") {
+    const isOpen = state.bonePickerOpen && state.activeBoneFieldPath === spec.path;
+    const className = isOpen ? "field field-wide" : "field";
+    const pickerButton = `<button type="button" class="picker-button" data-picker-action="openBonePicker" data-picker-field="${escapeHtml(spec.path)}">选择</button>`;
+    return `<div class="${className}"><label>${escapeHtml(label)}</label><div class="field-control"><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}">${pickerButton}</div>${renderDatalist(datalistId, spec.suggestions)}${renderFieldHint(spec)}${pathViewer}${isOpen ? renderBonePicker() : ""}</div>`;
+  }
+  return `<div class="field"><label>${escapeHtml(label)}</label><input ${attrs.join(" ")} value="${escapeHtml(displayValue)}">${renderDatalist(datalistId, spec.suggestions)}${renderFieldHint(spec)}${pathViewer}</div>`;
 }
 
 function commitInspectorField(target, input) {
