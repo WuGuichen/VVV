@@ -21,7 +21,10 @@ document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
     "serverStatus", "packageSelect", "refreshButton", "statusStrip", "toolGrid",
     "resourceSummary", "copyDiagnosticsButton", "resourceList", "planSummary", "planGrid",
-    "diagnosticsSummary", "diagnosticsSearch", "diagnosticsFilter", "diagnosticsConsole"
+    "diagnosticsSummary", "diagnosticsSearch", "diagnosticsFilter", "diagnosticsConsole",
+    "restartServiceButton",
+    "createPackageButton", "createDialog", "createForm", "createCancelButton", "createCancelFooterButton",
+    "createTemplate", "createPackageId", "createDisplayName", "createDirectoryName", "createError", "createSubmitButton"
   ]) {
     el[id] = document.getElementById(id);
   }
@@ -30,10 +33,16 @@ document.addEventListener("DOMContentLoaded", () => {
   if (queryPackage) state.packageRelative = queryPackage;
 
   el.refreshButton.addEventListener("click", refresh);
+  el.restartServiceButton.addEventListener("click", restartEditorService);
+  el.createPackageButton.addEventListener("click", openCreateDialog);
+  el.createCancelButton.addEventListener("click", closeCreateDialog);
+  el.createCancelFooterButton.addEventListener("click", closeCreateDialog);
+  el.createForm.addEventListener("submit", submitCreatePackage);
   el.packageSelect.addEventListener("change", event => {
     state.packageRelative = event.target.value;
     refresh({ keepPackages: true });
   });
+  el.createPackageId.addEventListener("input", syncCreateDefaults);
   el.copyDiagnosticsButton.addEventListener("click", copyDiagnostics);
   el.diagnosticsSearch.addEventListener("input", event => {
     state.diagnosticsSearch = event.target.value;
@@ -46,6 +55,197 @@ document.addEventListener("DOMContentLoaded", () => {
 
   refresh();
 });
+
+function openCreateDialog() {
+  clearCreateError();
+  el.createTemplate.value = "humanoid";
+  el.createPackageId.value = "";
+  el.createDisplayName.value = "";
+  el.createDirectoryName.value = "";
+  if (typeof el.createDialog.showModal === "function") {
+    el.createDialog.showModal();
+  } else {
+    el.createDialog.setAttribute("open", "open");
+  }
+  el.createPackageId.focus();
+}
+
+function closeCreateDialog() {
+  clearCreateError();
+  if (typeof el.createDialog.close === "function") {
+    el.createDialog.close();
+  } else {
+    el.createDialog.removeAttribute("open");
+  }
+}
+
+function clearCreateError() {
+  el.createError.hidden = true;
+  el.createError.textContent = "";
+}
+
+function showCreateError(message) {
+  el.createError.hidden = false;
+  el.createError.textContent = message;
+}
+
+function syncCreateDefaults() {
+  const packageId = normalizeCreatePackageId(el.createPackageId.value);
+  if (!el.createDisplayName.value.trim()) {
+    el.createDisplayName.value = buildDisplayName(packageId);
+  }
+  if (!el.createDirectoryName.value.trim()) {
+    el.createDirectoryName.value = buildDirectoryName(packageId);
+  }
+}
+
+async function submitCreatePackage(event) {
+  event.preventDefault();
+  clearCreateError();
+
+  const payload = {
+    packageId: el.createPackageId.value.trim(),
+    displayName: el.createDisplayName.value.trim(),
+    directoryName: el.createDirectoryName.value.trim(),
+    template: el.createTemplate.value
+  };
+
+  if (!payload.packageId) {
+    showCreateError("Package ID is required.");
+    el.createPackageId.focus();
+    return;
+  }
+
+  setCreatePending(true);
+  try {
+    const response = await fetch("/api/character/create", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      let message = `${response.status} ${response.statusText}`;
+      const errorText = await response.text();
+      if (errorText) {
+        try {
+          const errorBody = JSON.parse(errorText);
+          message = errorBody?.error || errorBody?.message || JSON.stringify(errorBody);
+        } catch {
+          message = errorText;
+        }
+      }
+      throw new Error(message);
+    }
+
+    const result = await response.json();
+    const packageRelative = result?.packageRelative;
+    if (!packageRelative) throw new Error("Create API did not return packageRelative.");
+
+    state.packageRelative = packageRelative;
+    closeCreateDialog();
+    window.location.assign(`/Tools/MxFramework.CharacterStudio/web/?package=${encodeURIComponent(packageRelative)}`);
+  } catch (error) {
+    showCreateError(error.message || "Failed to create character package.");
+  } finally {
+    setCreatePending(false);
+  }
+}
+
+function setCreatePending(isPending) {
+  el.createSubmitButton.disabled = isPending;
+  el.createCancelButton.disabled = isPending;
+  el.createCancelFooterButton.disabled = isPending;
+  el.createPackageButton.disabled = isPending;
+  el.createSubmitButton.textContent = isPending ? "Creating..." : "Create And Open";
+}
+
+async function restartEditorService() {
+  el.restartServiceButton.disabled = true;
+  el.refreshButton.disabled = true;
+  el.createPackageButton.disabled = true;
+  el.serverStatus.textContent = "Restarting local Authoring service...";
+
+  try {
+    const response = await fetch("/api/editor/restart", {
+      method: "POST",
+      headers: { Accept: "application/json" }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `${response.status} ${response.statusText}`);
+    }
+
+    await waitForServiceRecovery();
+    window.location.reload();
+  } catch (error) {
+    el.serverStatus.textContent = `Restart failed: ${error.message || error}`;
+    el.restartServiceButton.disabled = false;
+    el.refreshButton.disabled = false;
+    el.createPackageButton.disabled = false;
+  }
+}
+
+async function waitForServiceRecovery(timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let sawDisconnect = false;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch("/api/character/packages", {
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+
+      if (response.ok) {
+        if (!sawDisconnect) {
+          sawDisconnect = true;
+        } else {
+          return;
+        }
+      }
+    } catch {
+      sawDisconnect = true;
+    }
+
+    await delay(750);
+  }
+
+  throw new Error("Timed out waiting for the Authoring service to come back.");
+}
+
+function delay(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+function normalizeCreatePackageId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "_")
+    .replace(/[.-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function buildDisplayName(packageId) {
+  if (!packageId) return "";
+  return packageId
+    .split(/[_\-.]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildDirectoryName(packageId) {
+  const normalized = normalizeCreatePackageId(packageId).replace(/_/g, "-");
+  if (!normalized) return "";
+  return normalized.startsWith("character-") ? normalized : `character-${normalized}`;
+}
 
 async function refresh(options = {}) {
   state.errors = [];

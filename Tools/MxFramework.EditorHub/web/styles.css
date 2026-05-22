@@ -316,12 +316,124 @@ button:disabled {
   transform: rotate(180deg);
 }
 
+.btn-create {
+  background: linear-gradient(135deg, #d6f36b, #7ddf64);
+  border-color: rgba(214, 243, 107, 0.45);
+  color: #10210f;
+  box-shadow: 0 10px 24px rgba(125, 223, 100, 0.18);
+}
+
+.btn-create:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 14px 28px rgba(125, 223, 100, 0.28);
+}
+
+.btn-secondary {
+  background: var(--bg-input);
+  border-color: var(--line-light);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-info);
+}
+
 .refresh-spin {
   animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
   100% { transform: rotate(360deg); }
+}
+
+.modal-dialog {
+  width: min(720px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line-light);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.modal-dialog::backdrop {
+  background: rgba(3, 7, 18, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  margin: 0;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(214, 243, 107, 0.08), transparent 35%),
+    linear-gradient(180deg, rgba(17, 22, 37, 0.98), rgba(10, 13, 22, 0.98));
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modal-header h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.modal-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.modal-close {
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.modal-field span {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-field input,
+.modal-field select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.modal-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: #fecaca;
+  font-size: 13px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 /* --- 状态状态芯片条 --- */
@@ -1004,6 +1116,10 @@ button:disabled {
   .console-search input {
     width: 100% !important;
   }
+
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1013,5 +1129,13 @@ button:disabled {
 
   .col-type, .col-code {
     display: none;
+  }
+
+  .modal-card {
+    padding: 18px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
   }
 }
