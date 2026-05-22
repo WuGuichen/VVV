@@ -526,6 +526,144 @@ namespace MxFramework.Animation
         public bool IsEmpty => _changes.Count == 0;
     }
 
+    public sealed class MxAnimationLocomotionPresetReport
+    {
+        private readonly List<string> _diagnostics;
+        private readonly List<string> _suggestedFields;
+
+        public MxAnimationLocomotionPresetReport(
+            string presetId,
+            string displayName,
+            float durationSeconds,
+            int sampleCount,
+            float averageVelocityErrorRatio,
+            float maxSlipDistanceCm,
+            float maxFootSlipCmPerSecond,
+            MxAnimationFootSlipGrade grade,
+            string dominantClipId,
+            int unreachablePointCount,
+            int resourceErrorCount,
+            int backendErrorCount,
+            float suggestedPlaybackSpeed,
+            IEnumerable<string> diagnostics = null,
+            IEnumerable<string> suggestedFields = null)
+        {
+            PresetId = presetId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+            DurationSeconds = durationSeconds <= 0f || float.IsNaN(durationSeconds) ? 0f : durationSeconds;
+            SampleCount = Math.Max(0, sampleCount);
+            AverageVelocityErrorRatio = Math.Max(0f, Sanitize(averageVelocityErrorRatio));
+            MaxSlipDistanceCm = Math.Max(0f, Sanitize(maxSlipDistanceCm));
+            MaxFootSlipCmPerSecond = Math.Max(0f, Sanitize(maxFootSlipCmPerSecond));
+            Grade = grade;
+            DominantClipId = dominantClipId ?? string.Empty;
+            UnreachablePointCount = Math.Max(0, unreachablePointCount);
+            ResourceErrorCount = Math.Max(0, resourceErrorCount);
+            BackendErrorCount = Math.Max(0, backendErrorCount);
+            SuggestedPlaybackSpeed = Math.Max(0f, Sanitize(suggestedPlaybackSpeed));
+            _diagnostics = diagnostics != null ? new List<string>(diagnostics) : new List<string>();
+            _suggestedFields = suggestedFields != null ? new List<string>(suggestedFields) : new List<string>();
+        }
+
+        public string PresetId { get; }
+        public string DisplayName { get; }
+        public float DurationSeconds { get; }
+        public int SampleCount { get; }
+        public float AverageVelocityErrorRatio { get; }
+        public float MaxSlipDistanceCm { get; }
+        public float MaxFootSlipCmPerSecond { get; }
+        public MxAnimationFootSlipGrade Grade { get; }
+        public string DominantClipId { get; }
+        public int UnreachablePointCount { get; }
+        public int ResourceErrorCount { get; }
+        public int BackendErrorCount { get; }
+        public float SuggestedPlaybackSpeed { get; }
+        public IReadOnlyList<string> Diagnostics => _diagnostics;
+        public IReadOnlyList<string> SuggestedFields => _suggestedFields;
+        public bool HasBlockingIssue => Grade == MxAnimationFootSlipGrade.Bad
+            || UnreachablePointCount > 0
+            || ResourceErrorCount > 0
+            || BackendErrorCount > 0;
+
+        private static float Sanitize(float value)
+        {
+            return float.IsNaN(value) || float.IsInfinity(value) ? 0f : value;
+        }
+    }
+
+    public sealed class MxAnimationLocomotionPresetSequenceReport
+    {
+        private readonly List<MxAnimationLocomotionPresetReport> _presets;
+        private readonly List<string> _diagnostics;
+
+        public MxAnimationLocomotionPresetSequenceReport(
+            string packageId,
+            string characterResourceId,
+            string animationSetId,
+            string blendId,
+            string generatedAtUtc,
+            IEnumerable<MxAnimationLocomotionPresetReport> presets,
+            IEnumerable<string> diagnostics = null)
+        {
+            PackageId = packageId ?? string.Empty;
+            CharacterResourceId = characterResourceId ?? string.Empty;
+            AnimationSetId = animationSetId ?? string.Empty;
+            BlendId = blendId ?? string.Empty;
+            GeneratedAtUtc = generatedAtUtc ?? string.Empty;
+            _presets = presets != null
+                ? new List<MxAnimationLocomotionPresetReport>(presets)
+                : new List<MxAnimationLocomotionPresetReport>();
+            _diagnostics = diagnostics != null ? new List<string>(diagnostics) : new List<string>();
+            OverallGrade = CalculateOverallGrade(_presets);
+        }
+
+        public string PackageId { get; }
+        public string CharacterResourceId { get; }
+        public string AnimationSetId { get; }
+        public string BlendId { get; }
+        public string GeneratedAtUtc { get; }
+        public IReadOnlyList<MxAnimationLocomotionPresetReport> Presets => _presets;
+        public IReadOnlyList<string> Diagnostics => _diagnostics;
+        public MxAnimationFootSlipGrade OverallGrade { get; }
+        public bool HasBlockingIssue => OverallGrade == MxAnimationFootSlipGrade.Bad
+            || _diagnostics.Count > 0
+            || HasPresetBlockingIssue(_presets);
+
+        private static MxAnimationFootSlipGrade CalculateOverallGrade(IReadOnlyList<MxAnimationLocomotionPresetReport> presets)
+        {
+            var grade = MxAnimationFootSlipGrade.Ok;
+            if (presets == null)
+                return grade;
+
+            for (int i = 0; i < presets.Count; i++)
+            {
+                MxAnimationLocomotionPresetReport preset = presets[i];
+                if (preset == null)
+                    continue;
+                if (preset.Grade == MxAnimationFootSlipGrade.Bad || preset.HasBlockingIssue)
+                    return MxAnimationFootSlipGrade.Bad;
+                if (preset.Grade == MxAnimationFootSlipGrade.Warning)
+                    grade = MxAnimationFootSlipGrade.Warning;
+            }
+
+            return grade;
+        }
+
+        private static bool HasPresetBlockingIssue(IReadOnlyList<MxAnimationLocomotionPresetReport> presets)
+        {
+            if (presets == null)
+                return false;
+
+            for (int i = 0; i < presets.Count; i++)
+            {
+                if (presets[i] != null && presets[i].HasBlockingIssue)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
     public static class MxAnimationLocomotionCalibrationCalculator
     {
         private const float Epsilon = 0.0001f;
@@ -712,6 +850,98 @@ namespace MxFramework.Animation
 
     public static class MxAnimationLocomotionCalibrationReportFormatter
     {
+        public static string CreateSummary(MxAnimationLocomotionPresetSequenceReport report)
+        {
+            if (report == null)
+                return "Locomotion Calibration Preset Report\nNo report.";
+
+            var builder = new StringBuilder();
+            builder.Append("Locomotion Calibration Preset Report").Append('\n');
+            builder.Append("packageId: ").Append(report.PackageId).Append('\n');
+            builder.Append("characterResourceId: ").Append(report.CharacterResourceId).Append('\n');
+            builder.Append("animationSetId: ").Append(report.AnimationSetId).Append('\n');
+            builder.Append("blendId: ").Append(report.BlendId).Append('\n');
+            builder.Append("generatedAtUtc: ").Append(report.GeneratedAtUtc).Append('\n');
+            builder.Append("overallGrade: ").Append(report.OverallGrade).Append('\n');
+            builder.Append("presetCount: ").Append(report.Presets.Count).Append('\n');
+
+            for (int i = 0; i < report.Presets.Count; i++)
+            {
+                MxAnimationLocomotionPresetReport preset = report.Presets[i];
+                if (preset == null)
+                    continue;
+
+                builder.Append('\n')
+                    .Append("- ").Append(preset.DisplayName)
+                    .Append(" [").Append(preset.Grade).Append(']')
+                    .Append(" samples=").Append(preset.SampleCount)
+                    .Append(" avgVelocityError=").Append(FormatFloat(preset.AverageVelocityErrorRatio))
+                    .Append(" maxSlipCm=").Append(FormatFloat(preset.MaxSlipDistanceCm))
+                    .Append(" maxSlipCmPerSecond=").Append(FormatFloat(preset.MaxFootSlipCmPerSecond))
+                    .Append(" dominant=").Append(string.IsNullOrWhiteSpace(preset.DominantClipId) ? "-" : preset.DominantClipId)
+                    .Append(" suggestedPlaybackSpeed=").Append(FormatFloat(preset.SuggestedPlaybackSpeed));
+
+                if (preset.UnreachablePointCount > 0 || preset.ResourceErrorCount > 0 || preset.BackendErrorCount > 0)
+                {
+                    builder.Append('\n')
+                        .Append("  issues: unreachable=").Append(preset.UnreachablePointCount)
+                        .Append(" resourceErrors=").Append(preset.ResourceErrorCount)
+                        .Append(" backendErrors=").Append(preset.BackendErrorCount);
+                }
+
+                if (preset.SuggestedFields.Count > 0)
+                {
+                    builder.Append('\n').Append("  suggestedFields:");
+                    for (int j = 0; j < preset.SuggestedFields.Count; j++)
+                        builder.Append(' ').Append(preset.SuggestedFields[j]);
+                }
+
+                if (preset.Diagnostics.Count > 0)
+                {
+                    builder.Append('\n').Append("  diagnostics:");
+                    for (int j = 0; j < preset.Diagnostics.Count; j++)
+                        builder.Append('\n').Append("    - ").Append(preset.Diagnostics[j]);
+                }
+            }
+
+            if (report.Diagnostics.Count > 0)
+            {
+                builder.Append('\n').Append('\n').Append("Report diagnostics:");
+                for (int i = 0; i < report.Diagnostics.Count; i++)
+                    builder.Append('\n').Append("- ").Append(report.Diagnostics[i]);
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        public static string CreateJson(MxAnimationLocomotionPresetSequenceReport report)
+        {
+            if (report == null)
+                return "{}";
+
+            var builder = new StringBuilder();
+            builder.Append('{');
+            AppendJsonProperty(builder, "format", "mx.locomotionCalibrationPresetReport.v1", trailingComma: true);
+            AppendJsonProperty(builder, "packageId", report.PackageId, trailingComma: true);
+            AppendJsonProperty(builder, "characterResourceId", report.CharacterResourceId, trailingComma: true);
+            AppendJsonProperty(builder, "animationSetId", report.AnimationSetId, trailingComma: true);
+            AppendJsonProperty(builder, "blendId", report.BlendId, trailingComma: true);
+            AppendJsonProperty(builder, "generatedAtUtc", report.GeneratedAtUtc, trailingComma: true);
+            AppendJsonProperty(builder, "overallGrade", report.OverallGrade.ToString(), trailingComma: true);
+            builder.Append("\"presets\":[");
+            for (int i = 0; i < report.Presets.Count; i++)
+            {
+                if (i > 0)
+                    builder.Append(',');
+                AppendPresetJson(builder, report.Presets[i]);
+            }
+            builder.Append("],");
+            builder.Append("\"diagnostics\":");
+            AppendStringArray(builder, report.Diagnostics);
+            builder.Append('}');
+            return builder.ToString();
+        }
+
         public static string CreateSummary(
             MxAnimationBlendReachabilityReport reachabilityReport,
             MxAnimationLocomotionCalibrationDraft draft = null)
@@ -751,6 +981,117 @@ namespace MxFramework.Animation
             }
 
             return builder.ToString().TrimEnd();
+        }
+
+        private static void AppendPresetJson(StringBuilder builder, MxAnimationLocomotionPresetReport preset)
+        {
+            if (preset == null)
+            {
+                builder.Append("{}");
+                return;
+            }
+
+            builder.Append('{');
+            AppendJsonProperty(builder, "presetId", preset.PresetId, trailingComma: true);
+            AppendJsonProperty(builder, "displayName", preset.DisplayName, trailingComma: true);
+            AppendJsonNumber(builder, "durationSeconds", preset.DurationSeconds, trailingComma: true);
+            AppendJsonNumber(builder, "sampleCount", preset.SampleCount, trailingComma: true);
+            AppendJsonNumber(builder, "averageVelocityErrorRatio", preset.AverageVelocityErrorRatio, trailingComma: true);
+            AppendJsonNumber(builder, "maxSlipDistanceCm", preset.MaxSlipDistanceCm, trailingComma: true);
+            AppendJsonNumber(builder, "maxFootSlipCmPerSecond", preset.MaxFootSlipCmPerSecond, trailingComma: true);
+            AppendJsonProperty(builder, "grade", preset.Grade.ToString(), trailingComma: true);
+            AppendJsonProperty(builder, "dominantClipId", preset.DominantClipId, trailingComma: true);
+            AppendJsonNumber(builder, "unreachablePointCount", preset.UnreachablePointCount, trailingComma: true);
+            AppendJsonNumber(builder, "resourceErrorCount", preset.ResourceErrorCount, trailingComma: true);
+            AppendJsonNumber(builder, "backendErrorCount", preset.BackendErrorCount, trailingComma: true);
+            AppendJsonNumber(builder, "suggestedPlaybackSpeed", preset.SuggestedPlaybackSpeed, trailingComma: true);
+            builder.Append("\"diagnostics\":");
+            AppendStringArray(builder, preset.Diagnostics);
+            builder.Append(',');
+            builder.Append("\"suggestedFields\":");
+            AppendStringArray(builder, preset.SuggestedFields);
+            builder.Append('}');
+        }
+
+        private static void AppendJsonProperty(StringBuilder builder, string name, string value, bool trailingComma)
+        {
+            builder.Append('"').Append(EscapeJson(name)).Append("\":\"")
+                .Append(EscapeJson(value)).Append('"');
+            if (trailingComma)
+                builder.Append(',');
+        }
+
+        private static void AppendJsonNumber(StringBuilder builder, string name, float value, bool trailingComma)
+        {
+            builder.Append('"').Append(EscapeJson(name)).Append("\":")
+                .Append(FormatFloat(value));
+            if (trailingComma)
+                builder.Append(',');
+        }
+
+        private static void AppendJsonNumber(StringBuilder builder, string name, int value, bool trailingComma)
+        {
+            builder.Append('"').Append(EscapeJson(name)).Append("\":")
+                .Append(value.ToString(CultureInfo.InvariantCulture));
+            if (trailingComma)
+                builder.Append(',');
+        }
+
+        private static void AppendStringArray(StringBuilder builder, IReadOnlyList<string> values)
+        {
+            builder.Append('[');
+            if (values != null)
+            {
+                for (int i = 0; i < values.Count; i++)
+                {
+                    if (i > 0)
+                        builder.Append(',');
+                    builder.Append('"').Append(EscapeJson(values[i])).Append('"');
+                }
+            }
+            builder.Append(']');
+        }
+
+        private static string FormatFloat(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                value = 0f;
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string EscapeJson(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+
+            var builder = new StringBuilder(value.Length + 8);
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                switch (c)
+                {
+                    case '\\':
+                        builder.Append("\\\\");
+                        break;
+                    case '"':
+                        builder.Append("\\\"");
+                        break;
+                    case '\n':
+                        builder.Append("\\n");
+                        break;
+                    case '\r':
+                        builder.Append("\\r");
+                        break;
+                    case '\t':
+                        builder.Append("\\t");
+                        break;
+                    default:
+                        builder.Append(c);
+                        break;
+                }
+            }
+
+            return builder.ToString();
         }
     }
 }

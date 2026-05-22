@@ -255,6 +255,44 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void PresetReportFormatter_ExportsSummaryAndJson()
+        {
+            var preset = new MxAnimationLocomotionPresetReport(
+                "walk_forward",
+                "Walk Forward",
+                1.5f,
+                90,
+                0.18f,
+                4.5f,
+                6.5f,
+                MxAnimationFootSlipGrade.Warning,
+                "runtime.demo.animation.walk_f",
+                1,
+                0,
+                0,
+                1.12f,
+                new[] { MxAnimationLocomotionCalibrationIssueCodes.BlendUnreachablePoint + ": run_f" },
+                new[] { "clip.nativeVelocity", "clip.playbackSpeed" });
+            var report = new MxAnimationLocomotionPresetSequenceReport(
+                "iron_vanguard",
+                "char.iron_vanguard",
+                "set.base",
+                "blend.move2d",
+                "2026-05-22T00:00:00Z",
+                new[] { preset });
+
+            string summary = MxAnimationLocomotionCalibrationReportFormatter.CreateSummary(report);
+            string json = MxAnimationLocomotionCalibrationReportFormatter.CreateJson(report);
+
+            Assert.AreEqual(MxAnimationFootSlipGrade.Bad, report.OverallGrade);
+            Assert.That(summary, Does.Contain("Walk Forward [Warning]"));
+            Assert.That(summary, Does.Contain("suggestedFields: clip.nativeVelocity clip.playbackSpeed"));
+            Assert.That(json, Does.Contain("\"format\":\"mx.locomotionCalibrationPresetReport.v1\""));
+            Assert.That(json, Does.Contain("\"presetId\":\"walk_forward\""));
+            Assert.That(json, Does.Contain("\"unreachablePointCount\":1"));
+        }
+
+        [Test]
         public void BlendProbeSnapshot_ReportsDominantClipAndReachability()
         {
             ResourceKey idle = ClipKey("demo.animation.idle");
