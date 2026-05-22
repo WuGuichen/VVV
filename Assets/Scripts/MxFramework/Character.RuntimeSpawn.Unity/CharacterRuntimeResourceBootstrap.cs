@@ -148,6 +148,30 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return true;
         }
 
+        public bool TryFindSerializedResourceAsset(ResourceKey key, out UnityEngine.Object asset)
+        {
+            asset = null;
+            if (!key.IsValid)
+                return false;
+
+            for (int i = 0; i < _resources.Length; i++)
+            {
+                CharacterRuntimeSerializedResource resource = _resources[i];
+                if (resource == null || resource.Asset == null)
+                    continue;
+
+                string packageId = string.IsNullOrWhiteSpace(resource.PackageId) ? _packageId : resource.PackageId;
+                var candidate = new ResourceKey(resource.Id, resource.TypeId, resource.Variant, packageId);
+                if (candidate != key)
+                    continue;
+
+                asset = resource.Asset;
+                return true;
+            }
+
+            return false;
+        }
+
         private void ConfigureRuntimeAnimationPlayback(GameObject characterInstance)
         {
             if (characterInstance == null || !_warmupAnimationOnLoad || _animationSetDefinitionJson == null)
@@ -183,7 +207,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _resourceManager,
                 definition,
                 characterInstance.name);
-            locomotion.ConfigureAnimationBackend(backend, blend, ownsBackend: true);
+            locomotion.ConfigureAnimationBackend(backend, blend, definition, ownsBackend: true);
         }
 
         public void EnsureResourceManager()

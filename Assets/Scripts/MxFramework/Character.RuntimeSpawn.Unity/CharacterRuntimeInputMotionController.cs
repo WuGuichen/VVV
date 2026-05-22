@@ -25,6 +25,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _stepRate = 60f;
         [SerializeField] private int _maxStepsPerUpdate = 4;
         [SerializeField] private float _moveSpeed = 4f;
+        [SerializeField] private float _moveSpeedScale = 1f;
         [SerializeField] private bool _enableGravity = true;
         [SerializeField] private bool _enablePreviewGround = true;
         [SerializeField] private float _gravityPerSecond = -30f;
@@ -35,11 +36,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private Vector3 _previewGroundHalfExtents = new Vector3(24f, 1f, 24f);
         [SerializeField] private int _previewGroundLayer = 1;
         [SerializeField] private bool _rotateToMoveDirection = true;
+        [SerializeField] private bool _interpolateVisualMotion = true;
 
         private CharacterRuntimeControllerBinding _binding;
         private IInputProvider _inputProvider;
         private FakeInputProvider _motionInputProvider;
         private InputCharacterCommandSource _commandSource;
+        private InputCharacterCommandSourceOptions _commandSourceOptions;
         private CharacterMotionResolver _motionResolver;
         private CombatPhysicsWorld _physicsWorld;
         private CombatMotionState _motionState;
@@ -49,7 +52,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private CharacterMotionResult _lastMotionResult;
         private Vector2 _lastLocalMove;
         private float _lastSpeed01;
+        private float _lastPlanarSpeed;
         private bool _lastSourceJumpPressed;
+        private Vector3 _previousRootPosition;
+        private Vector3 _currentRootPosition;
+        private Quaternion _previousRootRotation = Quaternion.identity;
+        private Quaternion _currentRootRotation = Quaternion.identity;
+        private bool _hasVisualMotionState;
 
         public bool IsInitialized => _initialized;
         public bool EnableInputMotion
@@ -58,10 +67,28 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             set => _enableInputMotion = value;
         }
 
+        public bool RotateToMoveDirection
+        {
+            get => _rotateToMoveDirection;
+            set => _rotateToMoveDirection = value;
+        }
+
+        public float MoveSpeedScale
+        {
+            get => _moveSpeedScale;
+            set
+            {
+                _moveSpeedScale = Mathf.Max(0f, value);
+                if (_commandSourceOptions != null)
+                    _commandSourceOptions.MoveSpeedScale = ToFix64(_moveSpeedScale);
+            }
+        }
+
         public CharacterMotionResult LastMotionResult => _lastMotionResult;
         public long CurrentFrame => _frame;
         public Vector2 LastLocalMove => _lastLocalMove;
         public float LastSpeed01 => _lastSpeed01;
+        public float LastPlanarSpeed => _lastPlanarSpeed;
         public bool UsesPhysicsWorld => _physicsWorld != null;
 
         private void Awake()
@@ -100,6 +127,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             if (steps == maxSteps && _accumulator >= fixedDelta)
                 _accumulator = 0f;
+
+            ApplyVisualMotionInterpolation(fixedDelta);
         }
 
         public void ConfigureInputProvider(IInputProvider inputProvider)
@@ -127,12 +156,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             CombatMotionConfig motionConfig = CreateMotionConfig();
             _motionResolver = new CharacterMotionResolver(new CombatKinematicMotor(motionConfig));
             _physicsWorld = _enableGravity || _enablePreviewGround ? new CombatPhysicsWorld() : null;
-            _commandSource = new InputCharacterCommandSource(_motionInputProvider, new InputCharacterCommandSourceOptions
+            _commandSourceOptions = new InputCharacterCommandSourceOptions
             {
                 SourceId = 1,
-                MoveSpeedScale = Fix64.One,
+                MoveSpeedScale = ToFix64(Mathf.Max(0f, _moveSpeedScale)),
                 TracePrefix = "characterstudio-runtime-input"
-            });
+            };
+            _commandSource = new InputCharacterCommandSource(_motionInputProvider, _commandSourceOptions);
             FixVector3 motionPosition = ToFixVector3(RootToMotionCenter(transform.position));
             _motionState = new CombatMotionState(
                 CombatFrame.Zero,
@@ -146,7 +176,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _accumulator = 0f;
             _lastLocalMove = Vector2.zero;
             _lastSpeed01 = 0f;
+            _lastPlanarSpeed = 0f;
             _lastSourceJumpPressed = false;
+            ResetVisualMotionState(transform.position, transform.rotation);
             SyncBufferedInput();
             _initialized = true;
             return true;
@@ -176,6 +208,23 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             ApplyMotion(command);
             _frame = frameValue + 1L;
             return true;
+        }
+
+        public void WarpRootPosition(Vector3 rootPosition)
+        {
+            transform.position = rootPosition;
+            ResetVisualMotionState(rootPosition, transform.rotation);
+            if (!EnsureInitialized())
+                return;
+
+            _motionState = new CombatMotionState(
+                _motionState.Frame,
+                ToFixVector3(RootToMotionCenter(rootPosition)),
+                _motionState.Velocity,
+                _motionState.Grounded,
+                _motionState.LastCollisionNormal,
+                _motionState.CollisionFlags);
+            EnsurePhysicsWorldBody();
         }
 
         private void SyncBufferedInput()
@@ -244,7 +293,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void ApplyMotion(CharacterCommand command)
         {
-            transform.position = MotionCenterToRoot(ToVector3(_motionState.Position));
+            Vector3 rootPosition = MotionCenterToRoot(ToVector3(_motionState.Position));
+            Quaternion rootRotation = transform.rotation;
 
             if (_rotateToMoveDirection)
             {
@@ -253,11 +303,49 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 {
                     var forward = new Vector3(ToFloat(move.X), 0f, ToFloat(move.Z));
                     if (forward.sqrMagnitude > 0.0001f)
-                        transform.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+                        rootRotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
                 }
             }
 
+            SetVisualMotionTarget(rootPosition, rootRotation);
             UpdateBlendPreview(command);
+        }
+
+        private void ResetVisualMotionState(Vector3 rootPosition, Quaternion rootRotation)
+        {
+            _previousRootPosition = rootPosition;
+            _currentRootPosition = rootPosition;
+            _previousRootRotation = rootRotation;
+            _currentRootRotation = rootRotation;
+            _hasVisualMotionState = true;
+        }
+
+        private void SetVisualMotionTarget(Vector3 rootPosition, Quaternion rootRotation)
+        {
+            if (!_hasVisualMotionState)
+                ResetVisualMotionState(transform.position, transform.rotation);
+
+            _previousRootPosition = _currentRootPosition;
+            _previousRootRotation = _currentRootRotation;
+            _currentRootPosition = rootPosition;
+            _currentRootRotation = rootRotation;
+            if (!_interpolateVisualMotion)
+            {
+                transform.SetPositionAndRotation(rootPosition, rootRotation);
+            }
+        }
+
+        private void ApplyVisualMotionInterpolation(float fixedDelta)
+        {
+            if (!_interpolateVisualMotion || !_hasVisualMotionState)
+                return;
+
+            float alpha = fixedDelta <= FixedStepEpsilon
+                ? 1f
+                : Mathf.Clamp01(_accumulator / fixedDelta);
+            transform.SetPositionAndRotation(
+                Vector3.Lerp(_previousRootPosition, _currentRootPosition, alpha),
+                Quaternion.Slerp(_previousRootRotation, _currentRootRotation, alpha));
         }
 
         private void EnsurePhysicsWorldBody()
@@ -293,12 +381,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             FixVector3 move = command.GetWorldMoveDirection();
             Vector3 worldMove = new Vector3(ToFloat(move.X), 0f, ToFloat(move.Z));
-            float speed = Mathf.Clamp01(worldMove.magnitude);
-            Vector3 localMove = transform.InverseTransformDirection(worldMove);
+            float moveScale = Mathf.Max(0f, ToFloat(command.MoveSpeedScale));
+            float speed = worldMove.magnitude * moveScale;
             _lastLocalMove = speed <= 0.0001f
                 ? Vector2.zero
-                : new Vector2(Mathf.Clamp(localMove.x, -1f, 1f), Mathf.Clamp(localMove.z, -1f, 1f));
+                : new Vector2(ToFloat(command.MoveDirection.X), ToFloat(command.MoveDirection.Z)) * moveScale;
             _lastSpeed01 = speed;
+            FixVector3 velocity = _lastMotionResult.Velocity;
+            float velocityX = ToFloat(velocity.X);
+            float velocityZ = ToFloat(velocity.Z);
+            _lastPlanarSpeed = Mathf.Sqrt((velocityX * velocityX) + (velocityZ * velocityZ));
         }
 
         private CombatMotionConfig CreateMotionConfig()

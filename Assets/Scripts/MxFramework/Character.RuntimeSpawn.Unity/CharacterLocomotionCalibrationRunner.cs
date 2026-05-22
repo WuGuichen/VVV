@@ -25,6 +25,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const float BlendMarkerInset = 6f;
         private const int TrailCapacity = 72;
         private const float PresetWarmupSeconds = 0.25f;
+        private const float SpeedFineStep = 0.05f;
+        private const float MaxManualSpeed = 5f;
+        private const float CameraDistanceStep = 0.5f;
+        private const float CameraHeightStep = 0.25f;
+        private const float PlaybackSpeedStep = 0.05f;
+        private const float BlendPointStep = 0.05f;
+        private const float MinPlaybackSpeed = 0.05f;
+        private const float MaxPlaybackSpeed = 3f;
+
+        private enum CalibrationCameraMode
+        {
+            Rear = 0,
+            Side = 1,
+            Front = 2,
+            Top = 3
+        }
 
         [SerializeField] private CharacterRuntimeResourceBootstrap _bootstrap;
         [SerializeField] private bool _loadOnStart = true;
@@ -36,6 +52,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private string _rightFootPath = string.Empty;
         [SerializeField] private float _footContactThreshold = 0.5f;
         [SerializeField] private bool _showSceneGizmos = true;
+        [SerializeField] private bool _lockFacingForBlendObservation = true;
+        [SerializeField] private bool _enableCameraFollow = true;
+        [SerializeField] private CalibrationCameraMode _cameraMode = CalibrationCameraMode.Rear;
+        [SerializeField] private float _cameraDistance = 6.5f;
+        [SerializeField] private float _cameraHeight = 3.2f;
+        [SerializeField] private float _cameraSmoothSeconds = 0.22f;
+        [SerializeField] private float _cameraRotationSharpness = 8f;
+        [SerializeField] private bool _enableLoopingPlane = true;
+        [SerializeField] private float _loopHalfExtent = 6f;
+        [SerializeField] private bool _showGridGround = true;
+        [SerializeField] private float _gridCellSize = 0.2f;
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
@@ -61,6 +88,21 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _blendWeightsLabel;
         private Label _slipMetricsLabel;
         private Label _presetReportLabel;
+        private Label _manualSpeedValueLabel;
+        private Label _cameraDistanceValueLabel;
+        private Label _cameraHeightValueLabel;
+        private Label _playbackSpeedValueLabel;
+        private Label _blendPointValueLabel;
+        private Label _clipEditStatusLabel;
+        private Slider _manualSpeedSlider;
+        private Slider _cameraDistanceSlider;
+        private Slider _cameraHeightSlider;
+        private DropdownField _clipEditDropdown;
+        private Button _cameraModeButton;
+        private Button _cameraFollowButton;
+        private Button _loopingPlaneButton;
+        private Button _lockFacingButton;
+        private Button _gridGroundButton;
         private LineRenderer _actualVelocityLine;
         private LineRenderer _nativeVelocityLine;
         private LineRenderer _leftFootTrailLine;
@@ -80,7 +122,25 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private string _lastPresetReportText = string.Empty;
         private string _lastPresetReportJson = string.Empty;
         private string _lastPresetReportPath = string.Empty;
+        private string _lastCalibrationDraftPath = string.Empty;
+        private readonly Dictionary<ResourceKey, float> _playbackSpeedDrafts = new Dictionary<ResourceKey, float>();
+        private readonly Dictionary<ResourceKey, Vector2> _blendPointDrafts = new Dictionary<ResourceKey, Vector2>();
+        private readonly List<ClipEditBinding> _clipEditBindings = new List<ClipEditBinding>();
+        private readonly List<string> _clipEditChoices = new List<string>();
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
+        private readonly List<DirectionButtonBinding> _directionButtons = new List<DirectionButtonBinding>();
+        private Camera _followCamera;
+        private Vector3 _cameraSmoothVelocity;
+        private Quaternion _lockedFacingRotation = Quaternion.identity;
+        private bool _hasLockedFacingRotation;
+        private ResourceKey _selectedClipEditKey;
+        private string _clipEditStatus = string.Empty;
+        private bool _suppressClipEditCallbacks;
+        private GameObject _gridGroundObject;
+        private MeshFilter _gridGroundFilter;
+        private MeshRenderer _gridGroundRenderer;
+        private Mesh _gridGroundMesh;
+        private Material _gridGroundMaterial;
 
         public CharacterRuntimeResourceBootstrap Bootstrap => _bootstrap;
         public GameObject CharacterInstance => _bootstrap != null ? _bootstrap.CharacterInstance : null;
@@ -97,6 +157,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public bool AnimationBackendReady => _locomotionController != null && _locomotionController.HasAnimationBackend;
         public bool PresetSequenceRunning => _presetSequenceRunning;
         public MxAnimationLocomotionPresetSequenceReport LastPresetSequenceReport => _lastPresetSequenceReport;
+
+        public static event Action<UnityEngine.Object> LocateProjectObjectRequested;
+        public static event Action<string> ApplyCalibrationDraftRequested;
+        public static event Action<string> CalibrationDraftApplyResultReported;
+
+        public static void ReportCalibrationDraftApplyResult(string message)
+        {
+            CalibrationDraftApplyResultReported?.Invoke(message ?? string.Empty);
+        }
 
         private static readonly LocomotionPresetDefinition[] PresetDefinitions =
         {
@@ -117,6 +186,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void OnEnable()
         {
+            CalibrationDraftApplyResultReported -= OnCalibrationDraftApplyResultReported;
+            CalibrationDraftApplyResultReported += OnCalibrationDraftApplyResultReported;
             EnsureHud();
         }
 
@@ -139,10 +210,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             UpdatePresetProbeAfterSample();
             UpdatePresetReportHud();
             UpdateSceneGizmos();
+            UpdateObservationRig();
         }
 
         private void OnDisable()
         {
+            CalibrationDraftApplyResultReported -= OnCalibrationDraftApplyResultReported;
             ReleaseManualInputProvider();
             RestoreTimeScale();
             HideSceneGizmos();
@@ -157,6 +230,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendWeightsLabel = null;
             _slipMetricsLabel = null;
             _presetReportLabel = null;
+            _manualSpeedValueLabel = null;
+            _cameraDistanceValueLabel = null;
+            _cameraHeightValueLabel = null;
+            _playbackSpeedValueLabel = null;
+            _clipEditStatusLabel = null;
+            _manualSpeedSlider = null;
+            _cameraDistanceSlider = null;
+            _cameraHeightSlider = null;
+            _clipEditDropdown = null;
+            _cameraModeButton = null;
+            _cameraFollowButton = null;
+            _loopingPlaneButton = null;
+            _lockFacingButton = null;
+            _directionButtons.Clear();
         }
 
         private void OnDestroy()
@@ -169,6 +256,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             DestroyRuntimeObject(_rightFootTrailLine != null ? _rightFootTrailLine.gameObject : null);
             DestroyRuntimeObject(_leftAnchorMarker != null ? _leftAnchorMarker.gameObject : null);
             DestroyRuntimeObject(_rightAnchorMarker != null ? _rightAnchorMarker.gameObject : null);
+            DestroyRuntimeObject(_gridGroundObject);
+            DestroyRuntimeObject(_gridGroundMesh);
+            DestroyRuntimeObject(_gridGroundMaterial);
             DestroyRuntimeObject(_gizmoMaterial);
         }
 
@@ -231,6 +321,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             _motionController = character.GetComponentInChildren<CharacterRuntimeInputMotionController>(includeInactive: true);
             _locomotionController = character.GetComponentInChildren<CharacterRuntimeLocomotionBlendController>(includeInactive: true);
+            if (_motionController != null)
+                _motionController.RotateToMoveDirection = !_lockFacingForBlendObservation;
+            if (!_hasLockedFacingRotation && character.transform != null)
+            {
+                _lockedFacingRotation = character.transform.rotation;
+                _hasLockedFacingRotation = true;
+            }
         }
 
         private static string EmptyAsDash(string value)
@@ -528,9 +625,29 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             actionRow.Add(runPresets);
             Button copySummary = CreateWideButton("Copy Summary", CopyPresetReportSummary);
             actionRow.Add(copySummary);
-            Button saveJson = CreateWideButton("Save JSON", SavePresetReportJson);
+            Button saveJson = CreateWideButton("Save Report", SavePresetReportJson);
             actionRow.Add(saveJson);
+            Button saveDraft = CreateWideButton("Save Draft", SaveCalibrationDraftJson);
+            actionRow.Add(saveDraft);
+            Button applyConfig = CreateWideButton("Apply To Config", ApplyCalibrationDraftToConfig);
+            actionRow.Add(applyConfig);
             controls.Add(actionRow);
+
+            var observationRow = new VisualElement();
+            observationRow.style.flexDirection = FlexDirection.Row;
+            observationRow.style.flexWrap = Wrap.Wrap;
+            observationRow.style.marginBottom = 6f;
+            _cameraFollowButton = CreateWideButton(string.Empty, ToggleCameraFollow);
+            observationRow.Add(_cameraFollowButton);
+            _cameraModeButton = CreateWideButton(string.Empty, CycleCameraMode);
+            observationRow.Add(_cameraModeButton);
+            _loopingPlaneButton = CreateWideButton(string.Empty, ToggleLoopingPlane);
+            observationRow.Add(_loopingPlaneButton);
+            _lockFacingButton = CreateWideButton(string.Empty, ToggleFacingLock);
+            observationRow.Add(_lockFacingButton);
+            _gridGroundButton = CreateWideButton(string.Empty, ToggleGridGround);
+            observationRow.Add(_gridGroundButton);
+            controls.Add(observationRow);
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -542,13 +659,131 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             var sliderColumn = new VisualElement();
             sliderColumn.style.flexGrow = 1f;
             sliderColumn.style.marginLeft = 12f;
-            var speed = new Slider("Speed", 0f, 1f)
+            var speedRow = new VisualElement();
+            speedRow.style.flexDirection = FlexDirection.Row;
+            speedRow.style.alignItems = Align.Center;
+            var speedLabel = CreateInlineLabel("Speed");
+            speedRow.Add(speedLabel);
+            Button speedDown = CreateSmallButton("-", () => AdjustManualSpeed(-SpeedFineStep));
+            speedRow.Add(speedDown);
+            _manualSpeedValueLabel = CreateValueLabel();
+            speedRow.Add(_manualSpeedValueLabel);
+            _manualSpeedSlider = new Slider(string.Empty, 0f, MaxManualSpeed)
             {
                 value = _manualSpeed
             };
-            StyleSlider(speed);
-            speed.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
-            sliderColumn.Add(speed);
+            StyleSlider(_manualSpeedSlider);
+            _manualSpeedSlider.style.flexGrow = 1f;
+            _manualSpeedSlider.style.minWidth = 96f;
+            _manualSpeedSlider.RegisterValueChangedCallback(evt => _manualSpeed = ClampManualSpeed(evt.newValue));
+            speedRow.Add(_manualSpeedSlider);
+            Button speedUp = CreateSmallButton("+", () => AdjustManualSpeed(SpeedFineStep));
+            speedRow.Add(speedUp);
+            sliderColumn.Add(speedRow);
+
+            var cameraDistanceRow = new VisualElement();
+            cameraDistanceRow.style.flexDirection = FlexDirection.Row;
+            cameraDistanceRow.style.alignItems = Align.Center;
+            var cameraLabel = CreateInlineLabel("Camera");
+            cameraDistanceRow.Add(cameraLabel);
+            Button cameraNear = CreateSmallButton("-", () => AdjustCameraDistance(-CameraDistanceStep));
+            cameraDistanceRow.Add(cameraNear);
+            _cameraDistanceValueLabel = CreateValueLabel();
+            cameraDistanceRow.Add(_cameraDistanceValueLabel);
+            _cameraDistanceSlider = new Slider(string.Empty, 2f, 12f)
+            {
+                value = _cameraDistance
+            };
+            StyleSlider(_cameraDistanceSlider);
+            _cameraDistanceSlider.style.flexGrow = 1f;
+            _cameraDistanceSlider.style.minWidth = 96f;
+            _cameraDistanceSlider.RegisterValueChangedCallback(evt => _cameraDistance = Mathf.Clamp(evt.newValue, 2f, 12f));
+            cameraDistanceRow.Add(_cameraDistanceSlider);
+            Button cameraFar = CreateSmallButton("+", () => AdjustCameraDistance(CameraDistanceStep));
+            cameraDistanceRow.Add(cameraFar);
+            sliderColumn.Add(cameraDistanceRow);
+
+            var cameraHeightRow = new VisualElement();
+            cameraHeightRow.style.flexDirection = FlexDirection.Row;
+            cameraHeightRow.style.alignItems = Align.Center;
+            cameraHeightRow.Add(CreateInlineLabel("Height"));
+            Button cameraLower = CreateSmallButton("-", () => AdjustCameraHeight(-CameraHeightStep));
+            cameraHeightRow.Add(cameraLower);
+            _cameraHeightValueLabel = CreateValueLabel();
+            cameraHeightRow.Add(_cameraHeightValueLabel);
+            _cameraHeightSlider = new Slider(string.Empty, 0.5f, 8f)
+            {
+                value = _cameraHeight
+            };
+            StyleSlider(_cameraHeightSlider);
+            _cameraHeightSlider.style.flexGrow = 1f;
+            _cameraHeightSlider.style.minWidth = 96f;
+            _cameraHeightSlider.RegisterValueChangedCallback(evt => _cameraHeight = Mathf.Clamp(evt.newValue, 0.5f, 8f));
+            cameraHeightRow.Add(_cameraHeightSlider);
+            Button cameraHigher = CreateSmallButton("+", () => AdjustCameraHeight(CameraHeightStep));
+            cameraHeightRow.Add(cameraHigher);
+            sliderColumn.Add(cameraHeightRow);
+
+            var playbackSpeedRow = new VisualElement();
+            playbackSpeedRow.style.flexDirection = FlexDirection.Row;
+            playbackSpeedRow.style.alignItems = Align.Center;
+            playbackSpeedRow.Add(CreateInlineLabel("Clip"));
+            Button playbackDown = CreateSmallButton("-", () => AdjustDominantPlaybackSpeed(-PlaybackSpeedStep));
+            playbackSpeedRow.Add(playbackDown);
+            _playbackSpeedValueLabel = CreateValueLabel();
+            _playbackSpeedValueLabel.style.width = 88f;
+            playbackSpeedRow.Add(_playbackSpeedValueLabel);
+            Button playbackUp = CreateSmallButton("+", () => AdjustDominantPlaybackSpeed(PlaybackSpeedStep));
+            playbackSpeedRow.Add(playbackUp);
+            Button applySuggested = CreateWideButton("Use Suggested", ApplySuggestedPlaybackSpeedToDominant);
+            applySuggested.style.width = 104f;
+            playbackSpeedRow.Add(applySuggested);
+            sliderColumn.Add(playbackSpeedRow);
+
+            var blendPointRow = new VisualElement();
+            blendPointRow.style.flexDirection = FlexDirection.Row;
+            blendPointRow.style.alignItems = Align.Center;
+            blendPointRow.Add(CreateInlineLabel("Point"));
+            Button pointXDown = CreateSmallButton("X-", () => AdjustSelectedBlendPoint(-BlendPointStep, 0f));
+            blendPointRow.Add(pointXDown);
+            Button pointXUp = CreateSmallButton("X+", () => AdjustSelectedBlendPoint(BlendPointStep, 0f));
+            blendPointRow.Add(pointXUp);
+            Button pointYDown = CreateSmallButton("Y-", () => AdjustSelectedBlendPoint(0f, -BlendPointStep));
+            blendPointRow.Add(pointYDown);
+            Button pointYUp = CreateSmallButton("Y+", () => AdjustSelectedBlendPoint(0f, BlendPointStep));
+            blendPointRow.Add(pointYUp);
+            _blendPointValueLabel = CreateValueLabel();
+            _blendPointValueLabel.style.width = 116f;
+            blendPointRow.Add(_blendPointValueLabel);
+            sliderColumn.Add(blendPointRow);
+
+            var clipEditRow = new VisualElement();
+            clipEditRow.style.flexDirection = FlexDirection.Row;
+            clipEditRow.style.alignItems = Align.Center;
+            clipEditRow.style.flexWrap = Wrap.Wrap;
+            clipEditRow.style.marginTop = 4f;
+            RefreshClipEditBindings();
+            _clipEditDropdown = new DropdownField("Edit", _clipEditChoices, 0);
+            _clipEditDropdown.style.minWidth = 220f;
+            _clipEditDropdown.style.flexGrow = 1f;
+            StyleControl(_clipEditDropdown);
+            _clipEditDropdown.RegisterValueChangedCallback(evt =>
+            {
+                if (_suppressClipEditCallbacks)
+                    return;
+                SelectClipEditChoice(evt.newValue);
+            });
+            clipEditRow.Add(_clipEditDropdown);
+            Button locateClip = CreateWideButton("Locate Clip", LocateSelectedClipInProject);
+            locateClip.style.width = 112f;
+            clipEditRow.Add(locateClip);
+            sliderColumn.Add(clipEditRow);
+
+            _clipEditStatusLabel = new Label();
+            _clipEditStatusLabel.style.fontSize = 11f;
+            _clipEditStatusLabel.style.color = new Color(0.74f, 0.84f, 0.94f, 1f);
+            _clipEditStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            sliderColumn.Add(_clipEditStatusLabel);
 
             var timeScale = new Slider("Time scale", 0.1f, 1f)
             {
@@ -574,6 +809,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 text = text
             };
+            button.focusable = false;
             button.style.height = 28f;
             button.style.width = 116f;
             button.style.marginRight = 5f;
@@ -585,30 +821,58 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return button;
         }
 
+        private static Label CreateInlineLabel(string text)
+        {
+            var label = new Label(text);
+            label.style.width = 48f;
+            label.style.fontSize = 11f;
+            label.style.color = new Color(0.82f, 0.9f, 0.96f, 1f);
+            label.style.unityTextAlign = TextAnchor.MiddleLeft;
+            return label;
+        }
+
+        private static Label CreateValueLabel()
+        {
+            var label = new Label("0.00");
+            label.style.width = 36f;
+            label.style.fontSize = 11f;
+            label.style.color = new Color(0.92f, 0.97f, 1f, 1f);
+            label.style.unityTextAlign = TextAnchor.MiddleCenter;
+            return label;
+        }
+
         private VisualElement CreateDirectionPad()
         {
             var pad = new VisualElement { name = "locomotion-calibration-direction-pad" };
             pad.style.width = 122f;
+            _directionButtons.Clear();
 
             var top = new VisualElement();
             top.style.flexDirection = FlexDirection.Row;
-            top.Add(CreateSmallButton("", null));
-            top.Add(CreateSmallButton("↑", () => _manualDirection = Vector2.up));
-            top.Add(CreateSmallButton("", null));
+            top.Add(CreateDirectionButton("↖", new Vector2(-1f, 1f)));
+            top.Add(CreateDirectionButton("↑", Vector2.up));
+            top.Add(CreateDirectionButton("↗", new Vector2(1f, 1f)));
             var middle = new VisualElement();
             middle.style.flexDirection = FlexDirection.Row;
-            middle.Add(CreateSmallButton("←", () => _manualDirection = Vector2.left));
-            middle.Add(CreateSmallButton("•", () => _manualDirection = Vector2.zero));
-            middle.Add(CreateSmallButton("→", () => _manualDirection = Vector2.right));
+            middle.Add(CreateDirectionButton("←", Vector2.left));
+            middle.Add(CreateDirectionButton("•", Vector2.zero));
+            middle.Add(CreateDirectionButton("→", Vector2.right));
             var bottom = new VisualElement();
             bottom.style.flexDirection = FlexDirection.Row;
-            bottom.Add(CreateSmallButton("", null));
-            bottom.Add(CreateSmallButton("↓", () => _manualDirection = Vector2.down));
-            bottom.Add(CreateSmallButton("", null));
+            bottom.Add(CreateDirectionButton("↙", new Vector2(-1f, -1f)));
+            bottom.Add(CreateDirectionButton("↓", Vector2.down));
+            bottom.Add(CreateDirectionButton("↘", new Vector2(1f, -1f)));
             pad.Add(top);
             pad.Add(middle);
             pad.Add(bottom);
             return pad;
+        }
+
+        private Button CreateDirectionButton(string text, Vector2 direction)
+        {
+            Button button = CreateSmallButton(text, () => SetManualDirection(direction));
+            _directionButtons.Add(new DirectionButtonBinding(button, direction));
+            return button;
         }
 
         private static Button CreateSmallButton(string text, System.Action action)
@@ -617,6 +881,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 text = text
             };
+            button.focusable = false;
             button.style.width = 38f;
             button.style.height = 28f;
             button.style.marginRight = 3f;
@@ -650,14 +915,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     _motionController.ConfigureInputProvider(_manualInputProvider);
                 }
 
+                _motionController.MoveSpeedScale = ClampManualSpeed(_manualSpeed);
                 Vector2 move = _manualDirection.sqrMagnitude > 0.0001f
-                    ? _manualDirection.normalized * Mathf.Clamp01(_manualSpeed)
+                    ? _manualDirection.normalized
                     : Vector2.zero;
                 _manualInputProvider.SetContext(InputContext.Gameplay);
                 _manualInputProvider.SetSnapshot(CreateManualInputSnapshot(move, _manualRun));
             }
             else
             {
+                _motionController.MoveSpeedScale = 1f;
                 ReleaseManualInputProvider();
             }
 
@@ -678,6 +945,297 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _motionController.StepFrame();
                 _stepRequested = false;
             }
+        }
+
+        private void SetManualDirection(Vector2 direction)
+        {
+            _manualDirection = direction;
+            _manualControlEnabled = true;
+            UpdateDirectionButtonStyles();
+        }
+
+        private void ToggleCameraFollow()
+        {
+            _enableCameraFollow = !_enableCameraFollow;
+            _cameraSmoothVelocity = Vector3.zero;
+            UpdateObservationButtons();
+        }
+
+        private void CycleCameraMode()
+        {
+            _cameraMode = (CalibrationCameraMode)(((int)_cameraMode + 1) % 4);
+            _cameraSmoothVelocity = Vector3.zero;
+            UpdateObservationButtons();
+        }
+
+        private void ToggleLoopingPlane()
+        {
+            _enableLoopingPlane = !_enableLoopingPlane;
+            UpdateObservationButtons();
+        }
+
+        private void ToggleGridGround()
+        {
+            _showGridGround = !_showGridGround;
+            if (!_showGridGround && _gridGroundObject != null)
+                _gridGroundObject.SetActive(false);
+            UpdateObservationButtons();
+        }
+
+        private void ToggleFacingLock()
+        {
+            _lockFacingForBlendObservation = !_lockFacingForBlendObservation;
+            if (_motionController != null)
+                _motionController.RotateToMoveDirection = !_lockFacingForBlendObservation;
+            if (!_lockFacingForBlendObservation)
+                _hasLockedFacingRotation = false;
+            UpdateObservationButtons();
+        }
+
+        private void AdjustManualSpeed(float delta)
+        {
+            _manualSpeed = ClampManualSpeed(_manualSpeed + delta);
+            if (_manualSpeedSlider != null)
+                _manualSpeedSlider.SetValueWithoutNotify(_manualSpeed);
+        }
+
+        private void AdjustCameraDistance(float delta)
+        {
+            _cameraDistance = Mathf.Clamp(_cameraDistance + delta, 2f, 12f);
+            _cameraSmoothVelocity = Vector3.zero;
+            if (_cameraDistanceSlider != null)
+                _cameraDistanceSlider.SetValueWithoutNotify(_cameraDistance);
+        }
+
+        private void AdjustCameraHeight(float delta)
+        {
+            _cameraHeight = Mathf.Clamp(_cameraHeight + delta, 0.5f, 8f);
+            _cameraSmoothVelocity = Vector3.zero;
+            if (_cameraHeightSlider != null)
+                _cameraHeightSlider.SetValueWithoutNotify(_cameraHeight);
+        }
+
+        private void AdjustDominantPlaybackSpeed(float delta)
+        {
+            if (TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding))
+            {
+                SetDominantPlaybackSpeed(
+                    selectedBinding.ClipKey,
+                    GetClipPlaybackSpeed(selectedBinding.ClipKey, selectedBinding.PlaybackSpeed) + delta);
+                return;
+            }
+
+            if (!TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _))
+                return;
+
+            SetDominantPlaybackSpeed(clipKey, playbackSpeed + delta);
+        }
+
+        private void ApplySuggestedPlaybackSpeedToDominant()
+        {
+            if (_footSlipSnapshot == null || _footSlipSnapshot.Frame == null)
+                return;
+            ResourceKey clipKey = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
+                ? selectedBinding.ClipKey
+                : default;
+            if (!clipKey.IsValid && !TryGetDominantPlaybackSpeed(out clipKey, out _, out _))
+                return;
+
+            SetDominantPlaybackSpeed(clipKey, CalculateSuggestedPlaybackSpeed(_footSlipSnapshot.Frame));
+        }
+
+        private void SetDominantPlaybackSpeed(ResourceKey clipKey, float playbackSpeed)
+        {
+            float value = ClampPlaybackSpeed(playbackSpeed);
+            if (_locomotionController == null || !_locomotionController.SetClipPlaybackSpeedOverride(clipKey, value))
+                return;
+
+            _playbackSpeedDrafts[clipKey] = value;
+            if (!_selectedClipEditKey.IsValid)
+                _selectedClipEditKey = clipKey;
+            UpdateObservationButtons();
+        }
+
+        private void AdjustSelectedBlendPoint(float deltaX, float deltaY)
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding) || _locomotionController == null)
+                return;
+
+            if (!_locomotionController.TryGetBlendPointCoordinate(binding.ClipKey, out Vector2 coordinate))
+            {
+                _clipEditStatus = "Selected clip has no editable blend point.";
+                UpdateClipEditControls();
+                return;
+            }
+
+            SetSelectedBlendPoint(binding.ClipKey, coordinate + new Vector2(deltaX, deltaY));
+        }
+
+        private void SetSelectedBlendPoint(ResourceKey clipKey, Vector2 coordinate)
+        {
+            if (_locomotionController == null || !clipKey.IsValid)
+                return;
+
+            Vector2 value = new Vector2(
+                Mathf.Clamp(coordinate.x, -MaxManualSpeed, MaxManualSpeed),
+                Mathf.Clamp(coordinate.y, -MaxManualSpeed, MaxManualSpeed));
+            if (!_locomotionController.SetBlendPointCoordinateOverride(clipKey, value.x, value.y))
+            {
+                _clipEditStatus = "Blend point override failed for " + clipKey.Id;
+                UpdateClipEditControls();
+                return;
+            }
+
+            _blendPointDrafts[clipKey] = value;
+            _clipEditStatus = "Blend point " + ShortClipName(clipKey) + " = (" + FormatFloat(value.x) + ", " + FormatFloat(value.y) + ")";
+            UpdateObservationButtons();
+        }
+
+        private void SelectClipEditChoice(string choice)
+        {
+            for (int i = 0; i < _clipEditBindings.Count; i++)
+            {
+                if (!string.Equals(_clipEditBindings[i].Choice, choice, StringComparison.Ordinal))
+                    continue;
+
+                _selectedClipEditKey = _clipEditBindings[i].ClipKey;
+                UpdateClipEditControls();
+                return;
+            }
+        }
+
+        private static float ClampManualSpeed(float value)
+        {
+            return Mathf.Clamp(value, 0f, MaxManualSpeed);
+        }
+
+        private void RefreshClipEditBindings()
+        {
+            _clipEditBindings.Clear();
+            _clipEditChoices.Clear();
+            var seen = new HashSet<ResourceKey>();
+            MxAnimationSetDefinition definition = _bootstrap != null ? _bootstrap.RuntimeAnimationSetDefinition : null;
+            if (definition != null)
+            {
+                for (int i = 0; i < definition.LocomotionClipCalibrations.Count; i++)
+                {
+                    MxAnimationLocomotionClipCalibration calibration = definition.LocomotionClipCalibrations[i];
+                    if (calibration == null || !calibration.ClipKey.IsValid || !seen.Add(calibration.ClipKey))
+                        continue;
+
+                    AddClipEditBinding(new ClipEditBinding(
+                        calibration.ClipId,
+                        calibration.ClipKey,
+                        calibration.PlaybackSpeed));
+                }
+
+                for (int blendIndex = 0; blendIndex < definition.Blend2DDefinitions.Count; blendIndex++)
+                {
+                    MxAnimationBlend2DDefinition blend = definition.Blend2DDefinitions[blendIndex];
+                    for (int pointIndex = 0; blend != null && pointIndex < blend.Points.Count; pointIndex++)
+                    {
+                        MxAnimationBlend2DPoint point = blend.Points[pointIndex];
+                        if (point == null || !point.ClipKey.IsValid || !seen.Add(point.ClipKey))
+                            continue;
+
+                        AddClipEditBinding(new ClipEditBinding(
+                            point.ClipKey.Id,
+                            point.ClipKey,
+                            point.PlaybackSpeed));
+                    }
+                }
+            }
+
+            MxAnimationLocomotionBlendProbeSnapshot probe = _locomotionController != null
+                ? _locomotionController.CreateLocomotionBlendProbeSnapshot()
+                : null;
+            for (int i = 0; probe != null && i < probe.Weights.Count; i++)
+            {
+                MxAnimationBlend2DWeight weight = probe.Weights[i];
+                if (!weight.ClipKey.IsValid || !seen.Add(weight.ClipKey))
+                    continue;
+
+                AddClipEditBinding(new ClipEditBinding(
+                    weight.ClipKey.Id,
+                    weight.ClipKey,
+                    weight.PlaybackSpeed));
+            }
+
+            if (_clipEditBindings.Count == 0)
+            {
+                _clipEditChoices.Add("No editable clips");
+                _selectedClipEditKey = default;
+                return;
+            }
+
+            if (!_selectedClipEditKey.IsValid || !_clipEditBindings.Exists(item => item.ClipKey == _selectedClipEditKey))
+                _selectedClipEditKey = probe != null && probe.HasDominantClip ? probe.DominantClipKey : _clipEditBindings[0].ClipKey;
+
+        }
+
+        private void AddClipEditBinding(ClipEditBinding binding)
+        {
+            string label = ShortClipName(binding.ClipKey);
+            if (!string.IsNullOrWhiteSpace(binding.ClipId) && !string.Equals(binding.ClipId, binding.ClipKey.Id, StringComparison.Ordinal))
+                label = binding.ClipId + " / " + label;
+            string choice = label;
+            int duplicateIndex = 2;
+            while (_clipEditChoices.Contains(choice))
+                choice = label + " #" + duplicateIndex++;
+
+            binding.Choice = choice;
+            _clipEditBindings.Add(binding);
+            _clipEditChoices.Add(choice);
+        }
+
+        private float GetClipPlaybackSpeed(ResourceKey clipKey, float fallback)
+        {
+            return _playbackSpeedDrafts.TryGetValue(clipKey, out float value)
+                ? value
+                : fallback;
+        }
+
+        private bool TryGetSelectedClipEditBinding(out ClipEditBinding binding)
+        {
+            for (int i = 0; i < _clipEditBindings.Count; i++)
+            {
+                if (_clipEditBindings[i].ClipKey == _selectedClipEditKey)
+                {
+                    binding = _clipEditBindings[i];
+                    return true;
+                }
+            }
+
+            binding = default;
+            return false;
+        }
+
+        private void LocateSelectedClipInProject()
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+            {
+                _clipEditStatus = "No clip selected.";
+                UpdateClipEditControls();
+                return;
+            }
+
+            if (_bootstrap == null || !_bootstrap.TryFindSerializedResourceAsset(binding.ClipKey, out UnityEngine.Object asset) || asset == null)
+            {
+                _clipEditStatus = "Clip asset not found for " + binding.ClipKey.Id;
+                UpdateClipEditControls();
+                return;
+            }
+
+            LocateProjectObjectRequested?.Invoke(asset);
+            _clipEditStatus = "Located " + asset.name + ". Stop Play Mode before editing; .anim changes save with Assets > Save Project, model subclips save after Apply.";
+            UpdateClipEditControls();
+        }
+
+        private static float ClampPlaybackSpeed(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                return 1f;
+            return Mathf.Clamp(value, MinPlaybackSpeed, MaxPlaybackSpeed);
         }
 
         private void ReleaseManualInputProvider()
@@ -801,7 +1359,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             Vector2 direction = preset.Direction.sqrMagnitude > 0.0001f ? preset.Direction.normalized : Vector2.zero;
             _manualControlEnabled = true;
             _manualDirection = direction;
-            _manualSpeed = Mathf.Clamp01(Mathf.Lerp(preset.StartSpeed, preset.EndSpeed, Mathf.Clamp01(progress)));
+            _manualSpeed = ClampManualSpeed(Mathf.Lerp(preset.StartSpeed, preset.EndSpeed, Mathf.Clamp01(progress)));
             _manualRun = preset.Run;
         }
 
@@ -919,6 +1477,110 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
         }
 
+        private void SaveCalibrationDraftJson()
+        {
+            string fileName = "locomotion_calibration_draft_"
+                + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture)
+                + ".json";
+            string path = Path.Combine(Application.persistentDataPath, fileName);
+            try
+            {
+                File.WriteAllText(path, CreateCalibrationDraftJson(), Encoding.UTF8);
+                _lastCalibrationDraftPath = path;
+                _lastPresetReportPath = path;
+                _clipEditStatus = "Draft saved only. Use Apply To Config to write animation_authoring.json.";
+                UpdateClipEditControls();
+            }
+            catch (Exception ex)
+            {
+                _lastCalibrationDraftPath = "draft save failed: " + ex.Message;
+                _lastPresetReportPath = _lastCalibrationDraftPath;
+                _clipEditStatus = _lastCalibrationDraftPath;
+                UpdateClipEditControls();
+            }
+        }
+
+        private void ApplyCalibrationDraftToConfig()
+        {
+            string draft = CreateCalibrationDraftJson();
+            ApplyCalibrationDraftRequested?.Invoke(draft);
+            _lastCalibrationDraftPath = "apply requested";
+            _lastPresetReportPath = _lastCalibrationDraftPath;
+            _clipEditStatus = "Apply To Config requested.";
+            UpdateClipEditControls();
+        }
+
+        private void OnCalibrationDraftApplyResultReported(string message)
+        {
+            _lastCalibrationDraftPath = string.IsNullOrWhiteSpace(message) ? "apply finished" : message;
+            _lastPresetReportPath = _lastCalibrationDraftPath;
+            _clipEditStatus = _lastCalibrationDraftPath;
+            UpdateClipEditControls();
+        }
+
+        private string CreateCalibrationDraftJson()
+        {
+            var builder = new StringBuilder();
+            builder.Append("{\n");
+            AppendJsonString(builder, "kind", "locomotionCalibrationDraft", trailingComma: true, indent: 2);
+            AppendJsonString(builder, "packageId", _bootstrap != null ? _bootstrap.PackageId : string.Empty, trailingComma: true, indent: 2);
+            AppendJsonString(builder, "characterResourceId", _bootstrap != null ? _bootstrap.CharacterResourceId : string.Empty, trailingComma: true, indent: 2);
+            AppendJsonString(
+                builder,
+                "animationSetId",
+                _bootstrap != null && _bootstrap.RuntimeAnimationSetDefinition != null ? _bootstrap.RuntimeAnimationSetDefinition.SetId : string.Empty,
+                trailingComma: true,
+                indent: 2);
+            AppendJsonString(builder, "blendId", _locomotionController != null ? _locomotionController.ActiveBlend2DId : string.Empty, trailingComma: true, indent: 2);
+            AppendJsonString(builder, "createdUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture), trailingComma: true, indent: 2);
+            builder.Append("  \"clipOverrides\": [\n");
+            int index = 0;
+            foreach (KeyValuePair<ResourceKey, float> pair in _playbackSpeedDrafts)
+            {
+                ResourceKey key = pair.Key;
+                if (!key.IsValid)
+                    continue;
+
+                if (index > 0)
+                    builder.Append(",\n");
+                builder.Append("    {\n");
+                AppendJsonString(builder, "field", "clipPlaybackAndBakeCalibration", trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceKey", key.ToString(), trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceId", key.Id, trailingComma: true, indent: 6);
+                AppendJsonString(builder, "resourceTypeId", key.TypeId, trailingComma: true, indent: 6);
+                AppendJsonString(builder, "variant", key.Variant, trailingComma: true, indent: 6);
+                AppendJsonString(builder, "packageId", key.PackageId, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "playbackSpeed", pair.Value, trailingComma: false, indent: 6);
+                builder.Append('\n').Append("    }");
+                index++;
+            }
+
+            builder.Append('\n').Append("  ],\n");
+            builder.Append("  \"blendPointOverrides\": [\n");
+            index = 0;
+            foreach (KeyValuePair<ResourceKey, Vector2> pair in _blendPointDrafts)
+            {
+                ResourceKey key = pair.Key;
+                if (!key.IsValid)
+                    continue;
+
+                if (index > 0)
+                    builder.Append(",\n");
+                builder.Append("    {\n");
+                AppendJsonString(builder, "field", "blend2d.pointCoordinate", trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceKey", key.ToString(), trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceId", key.Id, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "x", pair.Value.x, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "y", pair.Value.y, trailingComma: false, indent: 6);
+                builder.Append('\n').Append("    }");
+                index++;
+            }
+
+            builder.Append('\n').Append("  ]\n");
+            builder.Append("}\n");
+            return builder.ToString();
+        }
+
         private void UpdatePresetReportHud()
         {
             if (_presetReportLabel == null)
@@ -988,6 +1650,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private static void StyleControl(VisualElement element)
         {
+            element.focusable = false;
             element.style.color = new Color(0.88f, 0.94f, 1f, 1f);
             element.style.fontSize = 11f;
             element.style.marginRight = 8f;
@@ -996,6 +1659,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private static void StyleSlider(Slider slider)
         {
+            slider.focusable = false;
             slider.style.color = new Color(0.88f, 0.94f, 1f, 1f);
             slider.style.fontSize = 11f;
             slider.style.height = 28f;
@@ -1062,7 +1726,362 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 + " speed=" + FormatFloat(_manualSpeed)
                 + " run=" + (_manualRun ? "on" : "off")
                 + " paused=" + (_labPaused ? "yes" : "no")
-                + " timeScale=" + FormatFloat(_timeScale);
+                + " timeScale=" + FormatFloat(_timeScale)
+                + "\nview=" + _cameraMode
+                + " follow=" + (_enableCameraFollow ? "on" : "off")
+                + " cameraDist=" + FormatFloat(_cameraDistance)
+                + " cameraHeight=" + FormatFloat(_cameraHeight)
+                + " loop=" + (_enableLoopingPlane ? "on" : "off")
+                + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off")
+                + "\nsampleSpeed=" + FormatFloat(_locomotionController != null ? _locomotionController.LastBlendSampleSpeed : 0f)
+                + " nodeSpeed=" + FormatFloat(_locomotionController != null ? _locomotionController.LastBlendNodeSpeed : 0f)
+                + " animComp=" + FormatFloat(_locomotionController != null ? _locomotionController.PlaybackSpeedCompensation : 1f) + "x"
+                + "\nSpeed is move-speed scale: it drives logical velocity and blend sample radius.";
+            UpdateDirectionButtonStyles();
+            UpdateObservationButtons();
+        }
+
+        private void UpdateDirectionButtonStyles()
+        {
+            for (int i = 0; i < _directionButtons.Count; i++)
+            {
+                DirectionButtonBinding binding = _directionButtons[i];
+                if (binding.Button == null)
+                    continue;
+
+                bool active = _manualControlEnabled && ApproximatelySameDirection(_manualDirection, binding.Direction);
+                binding.Button.style.backgroundColor = active
+                    ? new Color(0.02f, 0.55f, 0.62f, 0.98f)
+                    : new Color(0.11f, 0.17f, 0.23f, 0.95f);
+                binding.Button.style.borderLeftWidth = active ? 1f : 0f;
+                binding.Button.style.borderRightWidth = active ? 1f : 0f;
+                binding.Button.style.borderTopWidth = active ? 1f : 0f;
+                binding.Button.style.borderBottomWidth = active ? 1f : 0f;
+                binding.Button.style.borderLeftColor = new Color(0.22f, 0.95f, 1f, 1f);
+                binding.Button.style.borderRightColor = new Color(0.22f, 0.95f, 1f, 1f);
+                binding.Button.style.borderTopColor = new Color(0.22f, 0.95f, 1f, 1f);
+                binding.Button.style.borderBottomColor = new Color(0.22f, 0.95f, 1f, 1f);
+            }
+        }
+
+        private void UpdateObservationButtons()
+        {
+            RefreshClipEditBindings();
+            if (_cameraFollowButton != null)
+                _cameraFollowButton.text = _enableCameraFollow ? "Follow On" : "Follow Off";
+            if (_cameraModeButton != null)
+                _cameraModeButton.text = "View " + _cameraMode;
+            if (_loopingPlaneButton != null)
+                _loopingPlaneButton.text = _enableLoopingPlane ? "Loop On" : "Loop Off";
+            if (_lockFacingButton != null)
+                _lockFacingButton.text = _lockFacingForBlendObservation ? "Facing Lock" : "Facing Free";
+            if (_gridGroundButton != null)
+                _gridGroundButton.text = _showGridGround ? "Grid On" : "Grid Off";
+            if (_manualSpeedValueLabel != null)
+                _manualSpeedValueLabel.text = FormatFloat(_manualSpeed);
+            if (_cameraDistanceValueLabel != null)
+                _cameraDistanceValueLabel.text = FormatFloat(_cameraDistance);
+            if (_cameraHeightValueLabel != null)
+                _cameraHeightValueLabel.text = FormatFloat(_cameraHeight);
+            if (_playbackSpeedValueLabel != null)
+            {
+                _playbackSpeedValueLabel.text = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
+                    ? ShortClipName(selectedBinding.ClipKey) + " " + FormatFloat(GetClipPlaybackSpeed(selectedBinding.ClipKey, selectedBinding.PlaybackSpeed)) + "x"
+                    : TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _)
+                    ? ShortClipName(clipKey) + " " + FormatFloat(playbackSpeed) + "x"
+                    : "-";
+            }
+            if (_blendPointValueLabel != null)
+            {
+                _blendPointValueLabel.text = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
+                    && _locomotionController != null
+                    && _locomotionController.TryGetBlendPointCoordinate(selectedBinding.ClipKey, out Vector2 coordinate)
+                    ? "(" + FormatFloat(coordinate.x) + ", " + FormatFloat(coordinate.y) + ")"
+                    : "point -";
+            }
+            UpdateClipEditControls();
+        }
+
+        private void UpdateClipEditControls()
+        {
+            _suppressClipEditCallbacks = true;
+            try
+            {
+                if (_clipEditDropdown != null)
+                {
+                    _clipEditDropdown.choices = _clipEditChoices;
+                    if (TryGetSelectedClipEditBinding(out ClipEditBinding selected))
+                        _clipEditDropdown.SetValueWithoutNotify(selected.Choice);
+                    else if (_clipEditChoices.Count > 0)
+                        _clipEditDropdown.SetValueWithoutNotify(_clipEditChoices[0]);
+                }
+
+                if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+                {
+                    if (_clipEditStatusLabel != null)
+                        _clipEditStatusLabel.text = _clipEditStatus;
+                    return;
+                }
+
+                if (_clipEditStatusLabel != null)
+                    _clipEditStatusLabel.text = string.IsNullOrWhiteSpace(_clipEditStatus)
+                        ? "Clip source: Locate Clip for Inspector. Use Point X/Y to tune BlendTree coordinates; Clip +/- keeps per-clip speed support."
+                        : _clipEditStatus;
+            }
+            finally
+            {
+                _suppressClipEditCallbacks = false;
+            }
+        }
+
+        private bool TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out string clipName)
+        {
+            clipKey = default;
+            playbackSpeed = 1f;
+            clipName = string.Empty;
+            if (_locomotionController == null)
+                return false;
+
+            MxAnimationLocomotionBlendProbeSnapshot probe = _locomotionController.CreateLocomotionBlendProbeSnapshot();
+            if (probe == null || !probe.HasDominantClip)
+                return false;
+
+            clipKey = probe.DominantClipKey;
+            clipName = clipKey.Id;
+            if (!clipKey.IsValid)
+                return false;
+
+            if (_locomotionController.TryGetClipPlaybackSpeedOverride(clipKey, out float overrideSpeed))
+            {
+                playbackSpeed = overrideSpeed;
+                return true;
+            }
+
+            for (int i = 0; i < probe.Weights.Count; i++)
+            {
+                MxAnimationBlend2DWeight weight = probe.Weights[i];
+                if (weight.ClipKey == clipKey)
+                {
+                    playbackSpeed = weight.PlaybackSpeed;
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+        private void UpdateObservationRig()
+        {
+            GameObject character = CharacterInstance;
+            if (character == null)
+                return;
+
+            if (_lockFacingForBlendObservation)
+            {
+                if (!_hasLockedFacingRotation)
+                {
+                    _lockedFacingRotation = character.transform.rotation;
+                    _hasLockedFacingRotation = true;
+                }
+
+                character.transform.rotation = _lockedFacingRotation;
+                if (_motionController != null)
+                    _motionController.RotateToMoveDirection = false;
+            }
+            else if (_motionController != null)
+            {
+                _motionController.RotateToMoveDirection = true;
+            }
+
+            ApplyLoopingPlane(character.transform);
+            UpdateGridGround(character.transform);
+            UpdateFollowCamera(character.transform);
+        }
+
+        private void ApplyLoopingPlane(Transform target)
+        {
+            if (!_enableLoopingPlane || target == null)
+                return;
+
+            float halfExtent = Mathf.Max(1f, _loopHalfExtent);
+            float size = halfExtent * 2f;
+            Vector3 position = target.position;
+            Vector3 wrapped = position;
+            wrapped.x = WrapAxis(position.x, halfExtent, size);
+            wrapped.z = WrapAxis(position.z, halfExtent, size);
+            if ((wrapped - position).sqrMagnitude <= 0.0001f)
+                return;
+
+            if (_motionController != null)
+                _motionController.WarpRootPosition(wrapped);
+            else
+                target.position = wrapped;
+            ResetTrails();
+        }
+
+        private void UpdateFollowCamera(Transform target)
+        {
+            if (!_enableCameraFollow || target == null)
+                return;
+
+            if (_followCamera == null)
+                _followCamera = Camera.main;
+            if (_followCamera == null)
+                return;
+
+            Vector3 focus = target.position + Vector3.up * 1.15f;
+            float distance = Mathf.Max(1f, _cameraDistance);
+            float height = Mathf.Max(0.5f, _cameraHeight);
+            Vector3 offset;
+            switch (_cameraMode)
+            {
+                case CalibrationCameraMode.Side:
+                    offset = new Vector3(distance, height * 0.72f, 0f);
+                    break;
+                case CalibrationCameraMode.Front:
+                    offset = new Vector3(0f, height, distance);
+                    break;
+                case CalibrationCameraMode.Top:
+                    offset = new Vector3(0f, distance + height, -0.1f);
+                    break;
+                default:
+                    offset = new Vector3(0f, height, -distance);
+                    break;
+            }
+
+            Vector3 desired = focus + offset;
+            float deltaTime = Mathf.Max(0.0001f, Time.unscaledDeltaTime);
+            if ((_followCamera.transform.position - desired).sqrMagnitude > 144f)
+            {
+                _followCamera.transform.position = desired;
+                _cameraSmoothVelocity = Vector3.zero;
+            }
+            else
+            {
+                _followCamera.transform.position = Vector3.SmoothDamp(
+                    _followCamera.transform.position,
+                    desired,
+                    ref _cameraSmoothVelocity,
+                    Mathf.Max(0.02f, _cameraSmoothSeconds),
+                    Mathf.Infinity,
+                    deltaTime);
+            }
+
+            Vector3 lookDirection = focus - _followCamera.transform.position;
+            if (lookDirection.sqrMagnitude <= 0.0001f)
+                return;
+
+            Quaternion desiredRotation = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
+            float rotationT = 1f - Mathf.Exp(-Mathf.Max(0.1f, _cameraRotationSharpness) * deltaTime);
+            _followCamera.transform.rotation = Quaternion.Slerp(_followCamera.transform.rotation, desiredRotation, rotationT);
+        }
+
+        private void UpdateGridGround(Transform target)
+        {
+            if (!_showGridGround || target == null)
+            {
+                if (_gridGroundObject != null)
+                    _gridGroundObject.SetActive(false);
+                return;
+            }
+
+            EnsureGridGround();
+            if (_gridGroundObject == null)
+                return;
+
+            _gridGroundObject.SetActive(true);
+            _gridGroundObject.transform.position = Vector3.zero;
+        }
+
+        private void EnsureGridGround()
+        {
+            if (_gridGroundObject != null)
+                return;
+
+            _gridGroundObject = new GameObject("LocomotionCalibration_GridGround")
+            {
+                hideFlags = HideFlags.DontSave
+            };
+            _gridGroundObject.transform.SetParent(transform, worldPositionStays: false);
+            _gridGroundFilter = _gridGroundObject.AddComponent<MeshFilter>();
+            _gridGroundRenderer = _gridGroundObject.AddComponent<MeshRenderer>();
+            _gridGroundRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _gridGroundRenderer.receiveShadows = false;
+
+            Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader != null)
+            {
+                _gridGroundMaterial = new Material(shader)
+                {
+                    name = "MxFramework Locomotion Calibration Grid"
+                };
+                _gridGroundMaterial.color = new Color(0.12f, 0.5f, 0.58f, 0.42f);
+                _gridGroundRenderer.sharedMaterial = _gridGroundMaterial;
+            }
+
+            _gridGroundMesh = CreateGridGroundMesh();
+            _gridGroundFilter.sharedMesh = _gridGroundMesh;
+        }
+
+        private Mesh CreateGridGroundMesh()
+        {
+            float halfExtent = Mathf.Max(4f, _loopHalfExtent);
+            float cellSize = Mathf.Max(0.05f, _gridCellSize);
+            int cells = Mathf.CeilToInt((halfExtent * 2f) / cellSize);
+            float start = -cells * cellSize * 0.5f;
+            int lineCount = (cells + 1) * 2;
+            var vertices = new Vector3[lineCount * 2];
+            var indices = new int[vertices.Length];
+            int v = 0;
+            for (int i = 0; i <= cells; i++)
+            {
+                float offset = start + i * cellSize;
+                vertices[v] = new Vector3(start, 0.018f, offset);
+                indices[v] = v;
+                v++;
+                vertices[v] = new Vector3(-start, 0.018f, offset);
+                indices[v] = v;
+                v++;
+                vertices[v] = new Vector3(offset, 0.018f, start);
+                indices[v] = v;
+                v++;
+                vertices[v] = new Vector3(offset, 0.018f, -start);
+                indices[v] = v;
+                v++;
+            }
+
+            var mesh = new Mesh
+            {
+                name = "MxFramework Locomotion Calibration Grid"
+            };
+            mesh.vertices = vertices;
+            mesh.SetIndices(indices, MeshTopology.Lines, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private void ResetTrails()
+        {
+            _leftTrailCount = 0;
+            _rightTrailCount = 0;
+            if (_leftFootTrailLine != null)
+                _leftFootTrailLine.positionCount = 0;
+            if (_rightFootTrailLine != null)
+                _rightFootTrailLine.positionCount = 0;
+        }
+
+        private static float WrapAxis(float value, float halfExtent, float size)
+        {
+            if (value > halfExtent)
+                return value - size;
+            if (value < -halfExtent)
+                return value + size;
+            return value;
+        }
+
+        private static bool ApproximatelySameDirection(Vector2 left, Vector2 right)
+        {
+            return (left - right).sqrMagnitude <= 0.0001f;
         }
 
         private void UpdateTelemetryHud()
@@ -1534,8 +2553,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 Id = id ?? string.Empty;
                 DisplayName = displayName ?? string.Empty;
                 Direction = direction;
-                StartSpeed = Mathf.Clamp01(startSpeed);
-                EndSpeed = Mathf.Clamp01(endSpeed);
+                StartSpeed = ClampManualSpeed(startSpeed);
+                EndSpeed = ClampManualSpeed(endSpeed);
                 Run = run;
                 DurationSeconds = Mathf.Max(0.1f, durationSeconds);
             }
@@ -1547,6 +2566,37 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             public float EndSpeed { get; }
             public bool Run { get; }
             public float DurationSeconds { get; }
+        }
+
+        private readonly struct DirectionButtonBinding
+        {
+            public DirectionButtonBinding(Button button, Vector2 direction)
+            {
+                Button = button;
+                Direction = direction;
+            }
+
+            public Button Button { get; }
+            public Vector2 Direction { get; }
+        }
+
+        private struct ClipEditBinding
+        {
+            public ClipEditBinding(
+                string clipId,
+                ResourceKey clipKey,
+                float playbackSpeed)
+            {
+                ClipId = clipId ?? string.Empty;
+                ClipKey = clipKey;
+                PlaybackSpeed = playbackSpeed;
+                Choice = string.Empty;
+            }
+
+            public string ClipId { get; }
+            public ResourceKey ClipKey { get; }
+            public float PlaybackSpeed { get; }
+            public string Choice { get; set; }
         }
 
         private sealed class PresetAccumulator
@@ -1755,6 +2805,39 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private static string FormatFloat(float value)
         {
             return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static void AppendJsonString(StringBuilder builder, string name, string value, bool trailingComma, int indent)
+        {
+            builder.Append(' ', indent)
+                .Append('"').Append(EscapeJson(name)).Append("\": \"")
+                .Append(EscapeJson(value)).Append('"');
+            if (trailingComma)
+                builder.Append(',');
+            builder.Append('\n');
+        }
+
+        private static void AppendJsonNumber(StringBuilder builder, string name, float value, bool trailingComma, int indent)
+        {
+            builder.Append(' ', indent)
+                .Append('"').Append(EscapeJson(name)).Append("\": ")
+                .Append(FormatFloat(value));
+            if (trailingComma)
+                builder.Append(',');
+            builder.Append('\n');
+        }
+
+        private static string EscapeJson(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
         }
     }
 }

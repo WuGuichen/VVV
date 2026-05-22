@@ -2104,6 +2104,7 @@ namespace MxFramework.Animation
         public string BlendId { get; set; } = string.Empty;
         public MxAnimationQuantizedParameter ParameterX { get; set; }
         public MxAnimationQuantizedParameter ParameterY { get; set; }
+        public float PlaybackSpeedMultiplier { get; set; } = 1f;
         public float FadeDurationSeconds { get; set; } = -1f;
         public string CorrelationId { get; set; } = string.Empty;
     }
