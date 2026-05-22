@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MxFramework.CharacterRuntimeSpawn;
-using MxFramework.CharacterRuntimeSpawn.DebugUI.Unity;
 using MxFramework.CharacterRuntimeSpawn.Unity;
 using MxFramework.Resources;
 using MxFramework.Resources.Unity;
@@ -19,6 +18,7 @@ namespace MxFramework.Editor.CharacterImport
     {
         private const string DefaultImportedPackageRoot = "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard";
         private const string PreviewScenePath = "Assets/Scenes/MxFramework/CharacterImportedPreview.unity";
+        private const string CalibrationScenePath = "Assets/Scenes/MxFramework/CharacterLocomotionCalibration.unity";
         private const string RuntimeResourcesRootName = "runtime_resources";
         private const string UnityResourcesFolderName = "Resources";
         private const string RuntimeResourcesAddressRoot = "MxFrameworkGenerated/CharacterPackages";
@@ -74,6 +74,38 @@ namespace MxFramework.Editor.CharacterImport
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("MxFramework Character preview scene created: " + PreviewScenePath);
+        }
+
+        [MenuItem("MxFramework/Character/Create Locomotion Calibration Scene For Iron Vanguard", priority = 223)]
+        public static void CreateDefaultLocomotionCalibrationScene()
+        {
+            string prefabPath = BuildPrefab(DefaultImportedPackageRoot, selectPrefab: false);
+            if (string.IsNullOrWhiteSpace(prefabPath))
+                return;
+
+            EnsureFolder("Assets", "Scenes");
+            EnsureFolder("Assets/Scenes", "MxFramework");
+
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            RenderSettings.ambientLight = new Color(0.58f, 0.6f, 0.64f);
+            CreatePreviewCamera();
+            CreatePreviewLight();
+            CreatePreviewFloor();
+
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (prefab != null)
+            {
+                GameObject loader = CreateRuntimeResourceBootstrap(prefab, prefabPath);
+                loader.name = "CharacterLocomotionCalibrationRunner";
+                CharacterLocomotionCalibrationRunner runner = loader.AddComponent<CharacterLocomotionCalibrationRunner>();
+                ConfigureLocomotionCalibrationRunner(runner, loader.GetComponent<CharacterRuntimeResourceBootstrap>());
+                Selection.activeGameObject = loader;
+            }
+
+            EditorSceneManager.SaveScene(scene, CalibrationScenePath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("MxFramework Character locomotion calibration scene created: " + CalibrationScenePath);
         }
 
         public static string BuildPrefab(string importedPackageRoot, bool selectPrefab)
@@ -540,8 +572,8 @@ namespace MxFramework.Editor.CharacterImport
         {
             var loader = new GameObject("CharacterRuntimeResourceBootstrap");
             var bootstrap = loader.AddComponent<CharacterRuntimeResourceBootstrap>();
-            Component debugOverlay = AddDebugUiOverlayController(loader);
-            CharacterRuntimeAnimationDebugPanel debugPanel = loader.AddComponent<CharacterRuntimeAnimationDebugPanel>();
+            Component debugPanel = AddRuntimeAnimationDebugPanel(loader);
+            Component debugOverlay = debugPanel != null ? AddDebugUiOverlayController(loader) : null;
             CharacterImportedPackage package = CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(DefaultImportedPackageRoot));
             ConfigureRuntimeAnimationDebugPanel(debugPanel, debugOverlay);
             var serialized = new SerializedObject(bootstrap);
@@ -621,7 +653,7 @@ namespace MxFramework.Editor.CharacterImport
         }
 
         private static void ConfigureRuntimeAnimationDebugPanel(
-            CharacterRuntimeAnimationDebugPanel debugPanel,
+            Component debugPanel,
             Component debugOverlay)
         {
             if (debugPanel == null)
@@ -645,6 +677,23 @@ namespace MxFramework.Editor.CharacterImport
             overlaySerialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        private static void ConfigureLocomotionCalibrationRunner(
+            CharacterLocomotionCalibrationRunner runner,
+            CharacterRuntimeResourceBootstrap bootstrap)
+        {
+            if (runner == null)
+                return;
+
+            var serialized = new SerializedObject(runner);
+            serialized.FindProperty("_bootstrap").objectReferenceValue = bootstrap;
+            serialized.FindProperty("_loadOnStart").boolValue = true;
+            serialized.FindProperty("_keepInputMotionEnabled").boolValue = true;
+            SerializedProperty panelSettingsProperty = serialized.FindProperty("_panelSettings");
+            if (panelSettingsProperty != null)
+                panelSettingsProperty.objectReferenceValue = AssetDatabase.LoadAssetAtPath<PanelSettings>(RuntimeDebugPanelSettingsPath);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static Component AddDebugUiOverlayController(GameObject owner)
         {
             if (owner == null)
@@ -652,6 +701,16 @@ namespace MxFramework.Editor.CharacterImport
 
             Type overlayType = Type.GetType("MxFramework.DebugUI.Toolkit.DebugUiOverlayController, MxFramework.DebugUI.Toolkit");
             return overlayType != null ? owner.AddComponent(overlayType) : null;
+        }
+
+        private static Component AddRuntimeAnimationDebugPanel(GameObject owner)
+        {
+            if (owner == null)
+                return null;
+
+            Type panelType = Type.GetType(
+                "MxFramework.CharacterRuntimeSpawn.DebugUI.Unity.CharacterRuntimeAnimationDebugPanel, MxFramework.Character.RuntimeSpawn.DebugUI.Unity");
+            return panelType != null ? owner.AddComponent(panelType) : null;
         }
 
         private static void AddAnimationRuntimeResources(
