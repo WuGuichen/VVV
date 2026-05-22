@@ -342,6 +342,7 @@ const el = {};
 let threeRuntimePromise = null;
 let viewportRenderId = 0;
 let viewportCleanup = null;
+let viewportSelectionSync = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   for (const id of [
@@ -3100,6 +3101,7 @@ function renderPreviewControls() {
 
 function renderViewport() {
   if (!state.package) {
+    viewportSelectionSync = null;
     el.viewport.innerHTML = `<div class="empty">未加载资源包。</div>`;
     return;
   }
@@ -3108,6 +3110,8 @@ function renderViewport() {
     viewportCleanup();
     viewportCleanup = null;
   }
+
+  viewportSelectionSync = null;
 
   const renderId = ++viewportRenderId;
   el.viewport.innerHTML = `<div class="viewport3d" aria-label="3D 角色预览"><div class="viewport-status">正在加载 3D 预览...</div></div>`;
@@ -3128,13 +3132,15 @@ async function renderThreeViewport(renderId) {
   host.innerHTML = "";
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf8fafb);
+  const viewportBackground = 0x0b1220;
+  scene.background = new THREE.Color(viewportBackground);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
   camera.position.set(2.35, 1.55, 3.15);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(viewportBackground, 1);
   host.append(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -3143,15 +3149,38 @@ async function renderThreeViewport(renderId) {
   controls.minDistance = 0.75;
   controls.maxDistance = 8;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8c2c9, 1.8));
-  const key = new THREE.DirectionalLight(0xffffff, 1.7);
+  scene.add(new THREE.HemisphereLight(0xaab9c8, 0x050a12, 0.95));
+  const key = new THREE.DirectionalLight(0xd4e2f5, 1.15);
   key.position.set(2.5, 3.5, 2.5);
   scene.add(key);
-  scene.add(new THREE.GridHelper(3.2, 16, 0xd6dde2, 0xe6ecef));
+  const fill = new THREE.DirectionalLight(0x7bb1d5, 0.45);
+  fill.position.set(-2.1, 1.8, -1.4);
+  scene.add(fill);
+  scene.add(new THREE.GridHelper(3.2, 16, 0x314458, 0x1f2d3f));
 
   const content = new THREE.Group();
   const pickables = [];
+  const selectionVisuals = new Map();
   scene.add(content);
+
+  const registerSelectionVisual = (objectPath, applySelection) => {
+    if (!objectPath || typeof applySelection !== "function") return;
+    const visualList = selectionVisuals.get(objectPath);
+    if (visualList) {
+      visualList.push(applySelection);
+    } else {
+      selectionVisuals.set(objectPath, [applySelection]);
+    }
+  };
+
+  const syncSelectionVisuals = selectedPath => {
+    for (const [objectPath, visualList] of selectionVisuals.entries()) {
+      const selected = objectPath === selectedPath;
+      for (const applySelection of visualList) {
+        applySelection(selected);
+      }
+    }
+  };
 
   const loader = new GLTFLoader();
   const packageUrl = relative => encodeURI(`/${state.packageRelative}/${relative}`);
@@ -3178,13 +3207,13 @@ async function renderThreeViewport(renderId) {
       boneSink: records => { bodyBoneRecords = records; }
     });
   }
-  if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile);
+  if (!loadedBody) addFallbackBody(THREE, content, pickables, geometry.bodyProfile, registerSelectionVisual);
   applyPreviewPose(THREE, bodyBoneRecords, state.previewPose);
   content.updateMatrixWorld(true);
 
-  if (state.layers.colliders) addColliderMeshes(THREE, content, pickables, geometry.colliders || [], bodyBoneRecords);
-  if (state.layers.sockets) addSocketMeshes(THREE, content, pickables, geometry.sockets || [], bodyBoneRecords);
-  if (state.layers.traces) addTraceMeshes(THREE, content, pickables, (geometry.traces || []).filter(trace => activeSlots.has(trace.equipSlot)));
+  if (state.layers.colliders) addColliderMeshes(THREE, content, pickables, geometry.colliders || [], bodyBoneRecords, registerSelectionVisual);
+  if (state.layers.sockets) addSocketMeshes(THREE, content, pickables, geometry.sockets || [], bodyBoneRecords, registerSelectionVisual);
+  if (state.layers.traces) addTraceMeshes(THREE, content, pickables, (geometry.traces || []).filter(trace => activeSlots.has(trace.equipSlot)), registerSelectionVisual);
   if (state.layers.weapons) {
     await addWeaponMeshes({
       THREE,
@@ -3195,7 +3224,8 @@ async function renderThreeViewport(renderId) {
       packageUrl,
       socketsById,
       bodyBoneRecords,
-      attachments: (geometry.weaponAttachments || []).filter(attachment => activeSlots.has(attachment.equipSlot))
+      attachments: (geometry.weaponAttachments || []).filter(attachment => activeSlots.has(attachment.equipSlot)),
+      registerSelectionVisual
     });
   }
 
@@ -3206,6 +3236,10 @@ async function renderThreeViewport(renderId) {
   }
   frameContent(THREE, camera, controls, content, geometry.bodyProfile);
   restoreViewportCamera(THREE, camera, controls);
+  syncSelectionVisuals(state.selectedPath || "");
+  viewportSelectionSync = selectedPath => {
+    syncSelectionVisuals(selectedPath || "");
+  };
 
   const raycaster = new THREE.Raycaster();
   raycaster.params.Line = { threshold: 0.08 };
@@ -3225,7 +3259,7 @@ async function renderThreeViewport(renderId) {
     if (state.bonePickerOpen) return;
     const hit = hits.find(item => findObjectPath(item.object));
     const objectPath = hit ? findObjectPath(hit.object) : "";
-    if (objectPath) selectPath(objectPath);
+    if (objectPath) selectPath(objectPath, { preserveViewport: true });
   };
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
 
@@ -3252,6 +3286,7 @@ async function renderThreeViewport(renderId) {
   animate();
 
   viewportCleanup = () => {
+    viewportSelectionSync = null;
     if (state.skipNextCameraRemember) {
       state.skipNextCameraRemember = false;
     } else {
@@ -3265,6 +3300,7 @@ async function renderThreeViewport(renderId) {
 }
 
 function renderSvgViewport(message = "") {
+  viewportSelectionSync = null;
   const g = state.package.geometry || {};
   const selected = state.selectedPath;
   const activeSlots = new Set((LOADOUTS.find(l => l.id === state.activeLoadout) || LOADOUTS[0]).slots);
@@ -3764,10 +3800,16 @@ function numberOrDefault(value, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function addFallbackBody(THREE, content, pickables, body = {}) {
+function addFallbackBody(THREE, content, pickables, body = {}, registerSelectionVisual = null) {
   const height = Number(body.heightMeters || body.defaultCapsule?.height || 1.8);
   const radius = Number(body.radiusMeters || body.defaultCapsule?.radius || 0.34);
-  const material = new THREE.MeshStandardMaterial({ color: 0xcddde0, roughness: 0.72, metalness: 0.05 });
+  const material = new THREE.MeshStandardMaterial({ color: 0xcddde0, roughness: 0.72, metalness: 0.05, emissive: 0x000000 });
+  const applySelection = selected => {
+    material.color.setHex(selected ? 0xd9a05a : 0xcddde0);
+    material.emissive.setHex(selected ? 0x2e1c08 : 0x000000);
+  };
+  applySelection(state.selectedPath === "geometry/body");
+  registerSelectionVisual?.("geometry/body", applySelection);
   const geometry = THREE.CapsuleGeometry
     ? new THREE.CapsuleGeometry(radius, Math.max(0.01, height - radius * 2), 8, 18)
     : new THREE.CylinderGeometry(radius, radius, height, 18);
@@ -3777,17 +3819,24 @@ function addFallbackBody(THREE, content, pickables, body = {}) {
   content.add(mesh);
 }
 
-function addColliderMeshes(THREE, content, pickables, colliders, bodyBoneRecords = []) {
+function addColliderMeshes(THREE, content, pickables, colliders, bodyBoneRecords = [], registerSelectionVisual = null) {
   for (const collider of colliders) {
     const objectPath = `geometry/colliders/${collider.colliderId}`;
-    const selected = state.selectedPath === objectPath;
     const material = new THREE.MeshBasicMaterial({
-      color: selected ? 0xffa11f : 0x1f7a7a,
+      color: 0x1f7a7a,
       transparent: true,
-      opacity: selected ? 0.42 : 0.24,
-      wireframe: !selected,
+      opacity: 0.24,
+      wireframe: true,
       depthWrite: false
     });
+    const applySelection = selected => {
+      material.color.setHex(selected ? 0xffa11f : 0x1f7a7a);
+      material.opacity = selected ? 0.42 : 0.24;
+      material.wireframe = !selected;
+      material.needsUpdate = true;
+    };
+    applySelection(state.selectedPath === objectPath);
+    registerSelectionVisual?.(objectPath, applySelection);
     let geometry;
     if (collider.shape === "Box") {
       const size = collider.size || {};
@@ -3807,11 +3856,16 @@ function addColliderMeshes(THREE, content, pickables, colliders, bodyBoneRecords
   }
 }
 
-function addSocketMeshes(THREE, content, pickables, sockets, bodyBoneRecords = []) {
+function addSocketMeshes(THREE, content, pickables, sockets, bodyBoneRecords = [], registerSelectionVisual = null) {
   for (const socket of sockets) {
     const objectPath = `geometry/sockets/${socket.socketId}`;
-    const selected = state.selectedPath === objectPath;
-    const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, emissive: selected ? 0x442000 : 0x000000 });
+    const material = new THREE.MeshStandardMaterial({ color: 0xb46a1f, emissive: 0x000000 });
+    const applySelection = selected => {
+      material.color.setHex(selected ? 0xffa11f : 0xb46a1f);
+      material.emissive.setHex(selected ? 0x442000 : 0x000000);
+    };
+    applySelection(state.selectedPath === objectPath);
+    registerSelectionVisual?.(objectPath, applySelection);
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), material);
     const pose = getEffectiveSocketPose(socket);
     const parent = resolvePoseParentContent(THREE, content, pose, bodyBoneRecords, `socket_${socket.socketId}_parent`);
@@ -3821,24 +3875,29 @@ function addSocketMeshes(THREE, content, pickables, sockets, bodyBoneRecords = [
   }
 }
 
-function addTraceMeshes(THREE, content, pickables, traces) {
+function addTraceMeshes(THREE, content, pickables, traces, registerSelectionVisual = null) {
   for (const trace of traces) {
     const objectPath = `geometry/traces/${trace.traceId}`;
-    const selected = state.selectedPath === objectPath;
     const points = [
       toVector3(THREE, trace.startPose?.position),
       toVector3(THREE, trace.endPose?.position)
     ];
+    const material = new THREE.LineBasicMaterial({ color: 0xc24141, linewidth: 2 });
+    const applySelection = selected => {
+      material.color.setHex(selected ? 0xffa11f : 0xc24141);
+    };
+    applySelection(state.selectedPath === objectPath);
+    registerSelectionVisual?.(objectPath, applySelection);
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({ color: selected ? 0xffa11f : 0xc24141, linewidth: 2 })
+      material
     );
     makeSelectable(line, objectPath, pickables);
     content.add(line);
   }
 }
 
-async function addWeaponMeshes({ THREE, loader, content, pickables, resources, packageUrl, socketsById, bodyBoneRecords = [], attachments }) {
+async function addWeaponMeshes({ THREE, loader, content, pickables, resources, packageUrl, socketsById, bodyBoneRecords = [], attachments, registerSelectionVisual = null }) {
   for (const attachment of attachments) {
     const objectPath = `geometry/weapon_attachments/${attachment.weaponId}`;
     const socket = socketsById[attachment.attachSocketId];
@@ -3866,8 +3925,13 @@ async function addWeaponMeshes({ THREE, loader, content, pickables, resources, p
       });
     }
     if (!loaded) {
-      const selected = state.selectedPath === objectPath;
-      const material = new THREE.MeshStandardMaterial({ color: selected ? 0xffa11f : 0xb46a1f, transparent: true, opacity: 0.74 });
+      const material = new THREE.MeshStandardMaterial({ color: 0xb46a1f, transparent: true, opacity: 0.74, emissive: 0x000000 });
+      const applySelection = selected => {
+        material.color.setHex(selected ? 0xffa11f : 0xb46a1f);
+        material.emissive.setHex(selected ? 0x2f1a08 : 0x000000);
+      };
+      applySelection(state.selectedPath === objectPath);
+      registerSelectionVisual?.(objectPath, applySelection);
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.08), material);
       applyLocalPose(THREE, mesh, bindingPose);
       applyLocalPose(THREE, mesh, attachmentPose);
@@ -5725,8 +5789,9 @@ async function copyReport() {
   renderShellStatus();
 }
 
-function selectPath(path) {
+function selectPath(path, options = {}) {
   if (!path) return;
+  const { preserveViewport = false } = options || {};
   state.selectedPath = path;
   const target = findTarget(path);
   state.activeBoneFieldPath = getDefaultBoneFieldPath(target);
@@ -5737,7 +5802,11 @@ function selectPath(path) {
   renderTree();
   renderResourceBindingBar();
   renderResourcePicker();
-  renderViewport();
+  if (preserveViewport && typeof viewportSelectionSync === "function") {
+    viewportSelectionSync(state.selectedPath);
+  } else {
+    renderViewport();
+  }
   renderInspector();
 }
 
