@@ -28,6 +28,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const float SpeedFineStep = 0.05f;
         private const float MaxManualSpeed = 5f;
         private const float CameraDistanceStep = 0.5f;
+        private const float PlaybackSpeedStep = 0.05f;
+        private const float MinPlaybackSpeed = 0.05f;
+        private const float MaxPlaybackSpeed = 3f;
 
         private enum CalibrationCameraMode
         {
@@ -85,6 +88,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _presetReportLabel;
         private Label _manualSpeedValueLabel;
         private Label _cameraDistanceValueLabel;
+        private Label _playbackSpeedValueLabel;
         private Slider _manualSpeedSlider;
         private Slider _cameraDistanceSlider;
         private Button _cameraModeButton;
@@ -111,6 +115,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private string _lastPresetReportText = string.Empty;
         private string _lastPresetReportJson = string.Empty;
         private string _lastPresetReportPath = string.Empty;
+        private string _lastCalibrationDraftPath = string.Empty;
+        private readonly Dictionary<ResourceKey, float> _playbackSpeedDrafts = new Dictionary<ResourceKey, float>();
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
         private readonly List<DirectionButtonBinding> _directionButtons = new List<DirectionButtonBinding>();
         private Camera _followCamera;
@@ -201,6 +207,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _presetReportLabel = null;
             _manualSpeedValueLabel = null;
             _cameraDistanceValueLabel = null;
+            _playbackSpeedValueLabel = null;
             _manualSpeedSlider = null;
             _cameraDistanceSlider = null;
             _cameraModeButton = null;
@@ -591,6 +598,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             actionRow.Add(copySummary);
             Button saveJson = CreateWideButton("Save JSON", SavePresetReportJson);
             actionRow.Add(saveJson);
+            Button saveDraft = CreateWideButton("Save Draft", SaveCalibrationDraftJson);
+            actionRow.Add(saveDraft);
             controls.Add(actionRow);
 
             var observationRow = new VisualElement();
@@ -662,6 +671,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             Button cameraFar = CreateSmallButton("+", () => AdjustCameraDistance(CameraDistanceStep));
             cameraDistanceRow.Add(cameraFar);
             sliderColumn.Add(cameraDistanceRow);
+
+            var playbackSpeedRow = new VisualElement();
+            playbackSpeedRow.style.flexDirection = FlexDirection.Row;
+            playbackSpeedRow.style.alignItems = Align.Center;
+            playbackSpeedRow.Add(CreateInlineLabel("Clip"));
+            Button playbackDown = CreateSmallButton("-", () => AdjustDominantPlaybackSpeed(-PlaybackSpeedStep));
+            playbackSpeedRow.Add(playbackDown);
+            _playbackSpeedValueLabel = CreateValueLabel();
+            _playbackSpeedValueLabel.style.width = 88f;
+            playbackSpeedRow.Add(_playbackSpeedValueLabel);
+            Button playbackUp = CreateSmallButton("+", () => AdjustDominantPlaybackSpeed(PlaybackSpeedStep));
+            playbackSpeedRow.Add(playbackUp);
+            Button applySuggested = CreateWideButton("Use Suggested", ApplySuggestedPlaybackSpeedToDominant);
+            applySuggested.style.width = 104f;
+            playbackSpeedRow.Add(applySuggested);
+            sliderColumn.Add(playbackSpeedRow);
 
             var timeScale = new Slider("Time scale", 0.1f, 1f)
             {
@@ -885,9 +910,44 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _cameraDistanceSlider.SetValueWithoutNotify(_cameraDistance);
         }
 
+        private void AdjustDominantPlaybackSpeed(float delta)
+        {
+            if (!TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _))
+                return;
+
+            SetDominantPlaybackSpeed(clipKey, playbackSpeed + delta);
+        }
+
+        private void ApplySuggestedPlaybackSpeedToDominant()
+        {
+            if (_footSlipSnapshot == null || _footSlipSnapshot.Frame == null)
+                return;
+            if (!TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out _, out _))
+                return;
+
+            SetDominantPlaybackSpeed(clipKey, CalculateSuggestedPlaybackSpeed(_footSlipSnapshot.Frame));
+        }
+
+        private void SetDominantPlaybackSpeed(ResourceKey clipKey, float playbackSpeed)
+        {
+            float value = ClampPlaybackSpeed(playbackSpeed);
+            if (_locomotionController == null || !_locomotionController.SetClipPlaybackSpeedOverride(clipKey, value))
+                return;
+
+            _playbackSpeedDrafts[clipKey] = value;
+            UpdateObservationButtons();
+        }
+
         private static float ClampManualSpeed(float value)
         {
             return Mathf.Clamp(value, 0f, MaxManualSpeed);
+        }
+
+        private static float ClampPlaybackSpeed(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                return 1f;
+            return Mathf.Clamp(value, MinPlaybackSpeed, MaxPlaybackSpeed);
         }
 
         private void ReleaseManualInputProvider()
@@ -1129,6 +1189,67 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
         }
 
+        private void SaveCalibrationDraftJson()
+        {
+            string fileName = "locomotion_calibration_draft_"
+                + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture)
+                + ".json";
+            string path = Path.Combine(Application.persistentDataPath, fileName);
+            try
+            {
+                File.WriteAllText(path, CreateCalibrationDraftJson(), Encoding.UTF8);
+                _lastCalibrationDraftPath = path;
+                _lastPresetReportPath = path;
+            }
+            catch (Exception ex)
+            {
+                _lastCalibrationDraftPath = "draft save failed: " + ex.Message;
+                _lastPresetReportPath = _lastCalibrationDraftPath;
+            }
+        }
+
+        private string CreateCalibrationDraftJson()
+        {
+            var builder = new StringBuilder();
+            builder.Append("{\n");
+            AppendJsonString(builder, "kind", "locomotionCalibrationDraft", trailingComma: true, indent: 2);
+            AppendJsonString(builder, "packageId", _bootstrap != null ? _bootstrap.PackageId : string.Empty, trailingComma: true, indent: 2);
+            AppendJsonString(builder, "characterResourceId", _bootstrap != null ? _bootstrap.CharacterResourceId : string.Empty, trailingComma: true, indent: 2);
+            AppendJsonString(
+                builder,
+                "animationSetId",
+                _bootstrap != null && _bootstrap.RuntimeAnimationSetDefinition != null ? _bootstrap.RuntimeAnimationSetDefinition.SetId : string.Empty,
+                trailingComma: true,
+                indent: 2);
+            AppendJsonString(builder, "blendId", _locomotionController != null ? _locomotionController.ActiveBlend2DId : string.Empty, trailingComma: true, indent: 2);
+            AppendJsonString(builder, "createdUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture), trailingComma: true, indent: 2);
+            builder.Append("  \"clipOverrides\": [\n");
+            int index = 0;
+            foreach (KeyValuePair<ResourceKey, float> pair in _playbackSpeedDrafts)
+            {
+                ResourceKey key = pair.Key;
+                if (!key.IsValid)
+                    continue;
+
+                if (index > 0)
+                    builder.Append(",\n");
+                builder.Append("    {\n");
+                AppendJsonString(builder, "field", "playbackSpeed", trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceKey", key.ToString(), trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceId", key.Id, trailingComma: true, indent: 6);
+                AppendJsonString(builder, "resourceTypeId", key.TypeId, trailingComma: true, indent: 6);
+                AppendJsonString(builder, "variant", key.Variant, trailingComma: true, indent: 6);
+                AppendJsonString(builder, "packageId", key.PackageId, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "playbackSpeed", pair.Value, trailingComma: false, indent: 6);
+                builder.Append('\n').Append("    }");
+                index++;
+            }
+
+            builder.Append('\n').Append("  ]\n");
+            builder.Append("}\n");
+            return builder.ToString();
+        }
+
         private void UpdatePresetReportHud()
         {
             if (_presetReportLabel == null)
@@ -1324,6 +1445,48 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _manualSpeedValueLabel.text = FormatFloat(_manualSpeed);
             if (_cameraDistanceValueLabel != null)
                 _cameraDistanceValueLabel.text = FormatFloat(_cameraDistance);
+            if (_playbackSpeedValueLabel != null)
+            {
+                _playbackSpeedValueLabel.text = TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _)
+                    ? ShortClipName(clipKey) + " " + FormatFloat(playbackSpeed) + "x"
+                    : "-";
+            }
+        }
+
+        private bool TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out string clipName)
+        {
+            clipKey = default;
+            playbackSpeed = 1f;
+            clipName = string.Empty;
+            if (_locomotionController == null)
+                return false;
+
+            MxAnimationLocomotionBlendProbeSnapshot probe = _locomotionController.CreateLocomotionBlendProbeSnapshot();
+            if (probe == null || !probe.HasDominantClip)
+                return false;
+
+            clipKey = probe.DominantClipKey;
+            clipName = clipKey.Id;
+            if (!clipKey.IsValid)
+                return false;
+
+            if (_locomotionController.TryGetClipPlaybackSpeedOverride(clipKey, out float overrideSpeed))
+            {
+                playbackSpeed = overrideSpeed;
+                return true;
+            }
+
+            for (int i = 0; i < probe.Weights.Count; i++)
+            {
+                MxAnimationBlend2DWeight weight = probe.Weights[i];
+                if (weight.ClipKey == clipKey)
+                {
+                    playbackSpeed = weight.PlaybackSpeed;
+                    return true;
+                }
+            }
+
+            return true;
         }
 
         private void UpdateObservationRig()
@@ -2242,6 +2405,38 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private static string FormatFloat(float value)
         {
             return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static void AppendJsonString(StringBuilder builder, string name, string value, bool trailingComma, int indent)
+        {
+            builder.Append(' ', indent)
+                .Append('"').Append(EscapeJson(name)).Append("\": \"")
+                .Append(EscapeJson(value)).Append('"');
+            if (trailingComma)
+                builder.Append(',');
+            builder.Append('\n');
+        }
+
+        private static void AppendJsonNumber(StringBuilder builder, string name, float value, bool trailingComma, int indent)
+        {
+            builder.Append(' ', indent)
+                .Append('"').Append(EscapeJson(name)).Append("\": ")
+                .Append(FormatFloat(value));
+            if (trailingComma)
+                builder.Append(',');
+        }
+
+        private static string EscapeJson(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
         }
     }
 }

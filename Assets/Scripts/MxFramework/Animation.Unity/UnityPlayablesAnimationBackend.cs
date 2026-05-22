@@ -19,6 +19,7 @@ namespace MxFramework.Animation.Unity
         private readonly Dictionary<MxAnimationLayerId, LayerRuntime> _layers = new Dictionary<MxAnimationLayerId, LayerRuntime>();
         private readonly List<PendingLoad> _pendingLoads = new List<PendingLoad>();
         private readonly List<PendingMaskLoad> _pendingMaskLoads = new List<PendingMaskLoad>();
+        private readonly Dictionary<ResourceKey, float> _playbackSpeedOverrides = new Dictionary<ResourceKey, float>();
         private readonly IMxAnimationPlayableDiagnostics _diagnostics;
         private readonly MxAnimationPlayableGraphRuntime _playables;
         private readonly MxAnimationPlayableStateCache _stateCache;
@@ -49,6 +50,25 @@ namespace MxFramework.Animation.Unity
         }
 
         public string BackendName => "UnityPlayables";
+
+        public bool SetClipPlaybackSpeedOverride(ResourceKey clipKey, float playbackSpeed)
+        {
+            if (!clipKey.IsValid)
+                return false;
+
+            _playbackSpeedOverrides[clipKey] = NormalizeSpeed(playbackSpeed);
+            return true;
+        }
+
+        public bool TryGetClipPlaybackSpeedOverride(ResourceKey clipKey, out float playbackSpeed)
+        {
+            return _playbackSpeedOverrides.TryGetValue(clipKey, out playbackSpeed);
+        }
+
+        public bool ClearClipPlaybackSpeedOverride(ResourceKey clipKey)
+        {
+            return clipKey.IsValid && _playbackSpeedOverrides.Remove(clipKey);
+        }
 
         public static UnityPlayablesAnimationBackend Create(
             Animator animator,
@@ -209,10 +229,18 @@ namespace MxFramework.Animation.Unity
                 return InvalidRequest(MxAnimationRequestKind.SetBlend1D, blend.LayerId, default, "1D blend definition has no valid points.");
 
             var clipWeights = new List<BlendClipWeight>(weights.Weights.Count);
+            var diagnosticWeights = new List<MxAnimationBlend1DWeight>(weights.Weights.Count);
             for (int i = 0; i < weights.Weights.Count; i++)
             {
                 MxAnimationBlend1DWeight weight = weights.Weights[i];
-                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, weight.PlaybackSpeed, weight.Loop));
+                float playbackSpeed = ResolvePlaybackSpeed(weight.ClipKey, weight.PlaybackSpeed);
+                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, weight.Loop));
+                diagnosticWeights.Add(new MxAnimationBlend1DWeight(
+                    weight.ClipKey,
+                    weight.Threshold,
+                    weight.Weight,
+                    playbackSpeed,
+                    weight.Loop));
             }
 
             return ApplyBlendWeights(
@@ -226,7 +254,7 @@ namespace MxFramework.Animation.Unity
                 {
                     layer.BlendParameter = request.Parameter;
                     layer.BlendWeights.Clear();
-                    layer.BlendWeights.AddRange(weights.Weights);
+                    layer.BlendWeights.AddRange(diagnosticWeights);
                     layer.Blend2DWeights.Clear();
                     layer.Blend2DParameterX = default;
                     layer.Blend2DParameterY = default;
@@ -249,10 +277,19 @@ namespace MxFramework.Animation.Unity
                 return InvalidRequest(MxAnimationRequestKind.SetBlend2D, blend.LayerId, default, "2D blend definition has no valid points.");
 
             var clipWeights = new List<BlendClipWeight>(weights.Weights.Count);
+            var diagnosticWeights = new List<MxAnimationBlend2DWeight>(weights.Weights.Count);
             for (int i = 0; i < weights.Weights.Count; i++)
             {
                 MxAnimationBlend2DWeight weight = weights.Weights[i];
-                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, weight.PlaybackSpeed, weight.Loop));
+                float playbackSpeed = ResolvePlaybackSpeed(weight.ClipKey, weight.PlaybackSpeed);
+                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, weight.Loop));
+                diagnosticWeights.Add(new MxAnimationBlend2DWeight(
+                    weight.ClipKey,
+                    weight.X,
+                    weight.Y,
+                    weight.Weight,
+                    playbackSpeed,
+                    weight.Loop));
             }
 
             return ApplyBlendWeights(
@@ -269,7 +306,7 @@ namespace MxFramework.Animation.Unity
                     layer.Blend2DParameterX = request.ParameterX;
                     layer.Blend2DParameterY = request.ParameterY;
                     layer.Blend2DWeights.Clear();
-                    layer.Blend2DWeights.AddRange(weights.Weights);
+                    layer.Blend2DWeights.AddRange(diagnosticWeights);
                 });
         }
 
@@ -1230,6 +1267,13 @@ namespace MxFramework.Animation.Unity
         private static float NormalizeSpeed(float speed)
         {
             return Math.Abs(speed) < 0.0001f ? 1f : speed;
+        }
+
+        private float ResolvePlaybackSpeed(ResourceKey clipKey, float fallback)
+        {
+            return _playbackSpeedOverrides.TryGetValue(clipKey, out float playbackSpeed)
+                ? playbackSpeed
+                : fallback;
         }
 
         private static int CountActiveSlots(LayerRuntime layer)

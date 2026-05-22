@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using MxFramework.Animation;
 using MxFramework.Animation.Unity;
+using MxFramework.Resources;
 using UnityEngine;
 
 namespace MxFramework.CharacterRuntimeSpawn.Unity
@@ -116,6 +117,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public MxAnimationDiagnosticSnapshot CreateAnimationSnapshot()
         {
             return _animationBackend != null ? _animationBackend.CreateSnapshot() : null;
+        }
+
+        public bool SetClipPlaybackSpeedOverride(ResourceKey clipKey, float playbackSpeed)
+        {
+            return _animationBackend != null && _animationBackend.SetClipPlaybackSpeedOverride(clipKey, playbackSpeed);
+        }
+
+        public bool TryGetClipPlaybackSpeedOverride(ResourceKey clipKey, out float playbackSpeed)
+        {
+            if (_animationBackend != null)
+                return _animationBackend.TryGetClipPlaybackSpeedOverride(clipKey, out playbackSpeed);
+
+            playbackSpeed = 0f;
+            return false;
         }
 
         public MxAnimationLocomotionBlendProbeSnapshot CreateLocomotionBlendProbeSnapshot()
