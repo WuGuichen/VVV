@@ -16,8 +16,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
     [AddComponentMenu("MxFramework/Character/Locomotion Calibration Runner")]
     public sealed class CharacterLocomotionCalibrationRunner : MonoBehaviour
     {
-        private const float BlendMapWidth = 300f;
-        private const float BlendMapHeight = 220f;
+        private const float BlendMapWidth = 360f;
+        private const float BlendMapHeight = 190f;
         private const float BlendMapPadding = 34f;
         private const float BlendPointWidth = 64f;
         private const float BlendPointHeight = 22f;
@@ -317,8 +317,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _hudRoot.style.position = Position.Absolute;
             _hudRoot.style.left = 16f;
             _hudRoot.style.top = 16f;
-            _hudRoot.style.width = 560f;
-            _hudRoot.style.maxHeight = 720f;
+            _hudRoot.style.width = 420f;
+            _hudRoot.style.maxHeight = Length.Percent(94f);
             _hudRoot.style.paddingLeft = 14f;
             _hudRoot.style.paddingRight = 14f;
             _hudRoot.style.paddingTop = 12f;
@@ -348,6 +348,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             title.style.color = accent;
             title.style.marginBottom = 8f;
 
+            var content = new ScrollView(ScrollViewMode.Vertical)
+            {
+                name = "locomotion-calibration-content"
+            };
+            content.style.flexGrow = 1f;
+            content.style.flexShrink = 1f;
+            content.style.minHeight = 0f;
+            content.style.color = new Color(0.9f, 0.96f, 1f, 1f);
+
             _statusRow = new VisualElement
             {
                 name = "locomotion-calibration-status-row"
@@ -361,8 +370,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 name = "locomotion-calibration-summary"
             };
             _hudSummaryLabel.style.whiteSpace = WhiteSpace.Normal;
-            _hudSummaryLabel.style.fontSize = 13f;
+            _hudSummaryLabel.style.fontSize = 11f;
             _hudSummaryLabel.style.color = new Color(0.92f, 0.96f, 1f, 1f);
+            StylePanel(_hudSummaryLabel);
+            _hudSummaryLabel.style.marginBottom = 8f;
 
             VisualElement controls = CreateControlPanel();
 
@@ -380,12 +391,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 name = "locomotion-calibration-blend-map"
             };
             _blendMap.style.position = Position.Relative;
-            _blendMap.style.width = 300f;
-            _blendMap.style.height = 220f;
+            _blendMap.style.width = 360f;
+            _blendMap.style.height = 190f;
             _blendMap.style.flexShrink = 0f;
             _blendMap.style.marginTop = 8f;
-            _blendMap.style.marginBottom = 16f;
-            _blendMap.style.marginRight = 12f;
+            _blendMap.style.marginBottom = 8f;
             _blendMap.style.backgroundColor = new Color(0.02f, 0.035f, 0.05f, 0.92f);
             _blendMap.style.overflow = Overflow.Hidden;
             _blendMap.style.borderLeftWidth = 1f;
@@ -406,13 +416,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendWeightsLabel.style.color = new Color(0.84f, 0.9f, 0.96f, 1f);
             _blendWeightsLabel.style.flexGrow = 1f;
             _blendWeightsLabel.style.flexShrink = 1f;
-            _blendWeightsLabel.style.marginTop = 8f;
+            _blendWeightsLabel.style.marginTop = 0f;
+            StylePanel(_blendWeightsLabel);
 
             var blendProbeRow = new VisualElement
             {
                 name = "locomotion-calibration-blend-probe"
             };
-            blendProbeRow.style.flexDirection = FlexDirection.Row;
+            blendProbeRow.style.flexDirection = FlexDirection.Column;
             blendProbeRow.style.alignItems = Align.FlexStart;
             blendProbeRow.style.flexShrink = 0f;
 
@@ -425,13 +436,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             help.style.color = new Color(0.75f, 0.83f, 0.9f, 1f);
 
             _hudRoot.Add(title);
-            _hudRoot.Add(_statusRow);
-            _hudRoot.Add(controls);
-            _hudRoot.Add(_telemetryLabel);
-            _hudRoot.Add(_hudSummaryLabel);
+            _hudRoot.Add(content);
+            content.Add(_statusRow);
+            content.Add(controls);
+            content.Add(_telemetryLabel);
+            content.Add(_hudSummaryLabel);
             blendProbeRow.Add(_blendMap);
             blendProbeRow.Add(_blendWeightsLabel);
-            _hudRoot.Add(blendProbeRow);
+            content.Add(blendProbeRow);
 
             _slipMetricsLabel = new Label("Slip metrics: waiting for character")
             {
@@ -442,7 +454,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _slipMetricsLabel.style.color = new Color(0.9f, 0.94f, 0.98f, 1f);
             _slipMetricsLabel.style.marginTop = 2f;
             _slipMetricsLabel.style.marginBottom = 6f;
-            _hudRoot.Add(_slipMetricsLabel);
+            content.Add(_slipMetricsLabel);
 
             _presetReportLabel = new Label("Preset report: not run")
             {
@@ -454,8 +466,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _presetReportLabel.style.color = new Color(0.9f, 0.94f, 0.98f, 1f);
             _presetReportLabel.style.maxHeight = 160f;
             _presetReportLabel.style.marginBottom = 6f;
-            _hudRoot.Add(_presetReportLabel);
-            _hudRoot.Add(help);
+            content.Add(_presetReportLabel);
+            content.Add(help);
             _hudDocument.rootVisualElement.Add(_hudRoot);
         }
 
@@ -464,12 +476,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             var controls = new VisualElement { name = "locomotion-calibration-controls" };
             StylePanel(controls);
             controls.style.marginBottom = 8f;
+            controls.style.color = new Color(0.9f, 0.96f, 1f, 1f);
 
-            var header = new VisualElement();
-            header.style.flexDirection = FlexDirection.Row;
-            header.style.flexWrap = Wrap.Wrap;
-            header.style.alignItems = Align.Center;
-            header.style.marginBottom = 6f;
+            var toggleRow = new VisualElement();
+            toggleRow.style.flexDirection = FlexDirection.Row;
+            toggleRow.style.flexWrap = Wrap.Wrap;
+            toggleRow.style.alignItems = Align.Center;
+            toggleRow.style.marginBottom = 6f;
 
             var toggle = new Toggle("Manual")
             {
@@ -482,7 +495,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     ReleaseManualInputProvider();
             });
             toggle.style.minWidth = 92f;
-            header.Add(toggle);
+            StyleControl(toggle);
+            toggleRow.Add(toggle);
 
             var run = new Toggle("Run")
             {
@@ -490,7 +504,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             };
             run.RegisterValueChangedCallback(evt => _manualRun = evt.newValue);
             run.style.minWidth = 76f;
-            header.Add(run);
+            StyleControl(run);
+            toggleRow.Add(run);
 
             var pause = new Toggle("Pause")
             {
@@ -498,18 +513,24 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             };
             pause.RegisterValueChangedCallback(evt => _labPaused = evt.newValue);
             pause.style.minWidth = 88f;
-            header.Add(pause);
+            StyleControl(pause);
+            toggleRow.Add(pause);
 
             Button step = CreateSmallButton("Step", () => _stepRequested = true);
-            header.Add(step);
+            toggleRow.Add(step);
+            controls.Add(toggleRow);
 
+            var actionRow = new VisualElement();
+            actionRow.style.flexDirection = FlexDirection.Row;
+            actionRow.style.flexWrap = Wrap.Wrap;
+            actionRow.style.marginBottom = 6f;
             Button runPresets = CreateWideButton("Run Presets", StartPresetSequence);
-            header.Add(runPresets);
+            actionRow.Add(runPresets);
             Button copySummary = CreateWideButton("Copy Summary", CopyPresetReportSummary);
-            header.Add(copySummary);
+            actionRow.Add(copySummary);
             Button saveJson = CreateWideButton("Save JSON", SavePresetReportJson);
-            header.Add(saveJson);
-            controls.Add(header);
+            actionRow.Add(saveJson);
+            controls.Add(actionRow);
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -525,6 +546,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 value = _manualSpeed
             };
+            StyleSlider(speed);
             speed.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
             sliderColumn.Add(speed);
 
@@ -532,6 +554,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 value = _timeScale
             };
+            StyleSlider(timeScale);
             timeScale.RegisterValueChangedCallback(evt => _timeScale = Mathf.Clamp(evt.newValue, 0.1f, 1f));
             sliderColumn.Add(timeScale);
 
@@ -552,10 +575,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 text = text
             };
             button.style.height = 28f;
-            button.style.minWidth = 92f;
-            button.style.marginLeft = 5f;
+            button.style.width = 116f;
+            button.style.marginRight = 5f;
             button.style.marginBottom = 3f;
             button.style.unityFontStyleAndWeight = FontStyle.Bold;
+            button.style.fontSize = 11f;
+            button.style.color = new Color(0.92f, 0.97f, 1f, 1f);
+            button.style.backgroundColor = new Color(0.11f, 0.17f, 0.23f, 0.95f);
             return button;
         }
 
@@ -596,6 +622,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             button.style.marginRight = 3f;
             button.style.marginBottom = 3f;
             button.style.unityFontStyleAndWeight = FontStyle.Bold;
+            button.style.color = new Color(0.92f, 0.97f, 1f, 1f);
+            button.style.backgroundColor = new Color(0.11f, 0.17f, 0.23f, 0.95f);
             if (action == null)
             {
                 button.SetEnabled(false);
@@ -956,6 +984,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             element.style.borderRightColor = border;
             element.style.borderTopColor = border;
             element.style.borderBottomColor = border;
+        }
+
+        private static void StyleControl(VisualElement element)
+        {
+            element.style.color = new Color(0.88f, 0.94f, 1f, 1f);
+            element.style.fontSize = 11f;
+            element.style.marginRight = 8f;
+            element.style.marginBottom = 4f;
+        }
+
+        private static void StyleSlider(Slider slider)
+        {
+            slider.style.color = new Color(0.88f, 0.94f, 1f, 1f);
+            slider.style.fontSize = 11f;
+            slider.style.height = 28f;
+            slider.style.marginBottom = 4f;
         }
 
         private void UpdateHud()
