@@ -112,12 +112,12 @@
               "sourceClipName": "standing_run_forward",
               "sourceSubClipId": "standing_run_forward",
               "loop": true,
-              "speed": 1,
+              "speed": 0.65,
               "rootMotionPolicy": "Ignore",
               "calibration": {
                 "nativeVelocityX": 0,
                 "nativeVelocityY": 2.35,
-                "playbackSpeed": 1,
+                "playbackSpeed": 0.65,
                 "cycleDurationSeconds": 0.7,
                 "leftFootContactWindows": [
                   {
@@ -244,13 +244,13 @@
                 {
                   "clipId": "walk_f",
                   "x": 0,
-                  "y": 1,
+                  "y": 0.45,
                   "weight": 1
                 },
                 {
                   "clipId": "run_f",
                   "x": 0,
-                  "y": 2,
+                  "y": 0.65,
                   "weight": 1
                 },
                 {
