@@ -1030,8 +1030,17 @@ async function openAnimationSlotPicker(profileId, slotId) {
 function clearAnimationSlotSelection(profileId, slotId) {
   const { slot } = findAnimationSlot(profileId, slotId);
   if (!slot) return;
+  const previousResourceKey = firstNonEmpty(
+    slot.resourceKey,
+    slot.resourceSelection?.runtimeResourceKey,
+    slot.resourceSelection?.packageResourceKey,
+    slot.resourceSelection?.providerResourceKey,
+    slot.resourceSelection?.resourceStableId);
   slot.resourceKey = "";
   slot.resourceSelection = {};
+  if (previousResourceKey) {
+    cleanupUnusedAnimationResourceKey(previousResourceKey);
+  }
   state.selectedPath = getAnimationSlotPath(profileId, slotId);
   state.dirty = true;
   state.message = `${slot.displayName || slot.slotId} 已清空引用；资源本体不会被删除。`;
@@ -1573,14 +1582,23 @@ function applyResourceSelectionToField(item, selectionRef) {
 function applyResourceSelectionToAnimationSlot(item, selectionRef, picker) {
   const { profile, slot } = findAnimationSlot(picker.profileId, picker.slotId);
   if (!profile || !slot) return;
+  const previousResourceKey = firstNonEmpty(
+    slot.resourceKey,
+    slot.resourceSelection?.runtimeResourceKey,
+    slot.resourceSelection?.packageResourceKey,
+    slot.resourceSelection?.providerResourceKey,
+    slot.resourceSelection?.resourceStableId);
   const value = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || selectionRef.providerResourceKey || item.resourceKey || "";
-  slot.resourceKey = selectionRef.runtimeResourceKey || selectionRef.packageResourceKey || item.resourceKey || "";
+  slot.resourceKey = value;
   slot.resourceSelection = selectionRef;
   const group = findAnimationGroupByResource(state.package, slot.resourceKey);
   if (group) slot.animationGroupId = group.groupId;
   slot.preloadPolicy = picker.fieldSpec?.preloadPolicy || "AnimationWarmup";
   if ((selectionRef.runtimeResourceKey || selectionRef.packageResourceKey) && slot.resourceKey) {
     ensureApplicationResourceKey(slot.resourceKey);
+  }
+  if (previousResourceKey && previousResourceKey !== slot.resourceKey) {
+    cleanupUnusedAnimationResourceKey(previousResourceKey);
   }
   state.selectedPath = getAnimationSlotPath(profile.profileId, slot.slotId);
   state.dirty = true;
@@ -1821,6 +1839,19 @@ function collectAnimationSlotResourceKeys(pkg) {
     }
   }
   return keys;
+}
+
+function cleanupUnusedAnimationResourceKey(resourceKey) {
+  if (!resourceKey) return;
+  const appConfig = state.package?.applicationConfig;
+  if (!Array.isArray(appConfig?.resourceKeys) || appConfig.resourceKeys.length === 0) return;
+  if (!appConfig.resourceKeys.includes(resourceKey)) return;
+  const references = collectResourceReferences({ resourceKey }) || [];
+  const hasExplicitReference = references.some(reference => !(reference.sourceConfigKind === "character" && reference.sourceField === "resourceKeys"));
+  const resource = findPackageResourceByKey(state.package, resourceKey);
+  if (!hasExplicitReference && !isBodyModelBinding(resource, state.package)) {
+    removeApplicationResourceKey(resourceKey);
+  }
 }
 
 function getModelResources(pkg) {
@@ -4447,6 +4478,17 @@ function safeDomId(value) {
 }
 
 function commitInspectorField(target, input) {
+  const path = input.dataset.field;
+  const previousValue = getNested(target.value, path);
+  const previousSlotResourceKey = (target.kind === "animationSlot" && (path === "resourceKey" || path === "animationGroupId"))
+    ? firstNonEmpty(
+      target.value?.resourceSelection?.runtimeResourceKey,
+      target.value?.resourceSelection?.packageResourceKey,
+      target.value?.resourceSelection?.providerResourceKey,
+      target.value?.resourceSelection?.resourceStableId,
+      previousValue,
+      "")
+    : "";
   const value = readInspectorInputValue(input);
   if (value === undefined) return undefined;
   const rawNumber = input.dataset.type === "number" ? Number(input.value) : NaN;
@@ -4454,7 +4496,9 @@ function commitInspectorField(target, input) {
     input.value = formatFieldValue(value, "number");
   }
   setNested(target.value, input.dataset.field, value);
-  afterInspectorFieldEdited(target, input.dataset.field);
+  afterInspectorFieldEdited(target, input.dataset.field, {
+    previousSlotResourceKey
+  });
   if (input.dataset.picker === "bone") {
     state.activeBoneFieldPath = input.dataset.field;
     state.highlightedBoneValue = value;
@@ -4519,28 +4563,44 @@ function formatFieldValue(value, type) {
   return String(value);
 }
 
-function afterInspectorFieldEdited(target, path) {
+function afterInspectorFieldEdited(target, path, context = {}) {
   const posePath = getPosePathFromEulerField(path);
   if (posePath) syncPoseRotationFromEuler(target.value, posePath);
   if (path.endsWith(".parentKind")) applyPoseParentDefault(target, path.slice(0, -".parentKind".length));
   if (target.kind === "animationSlot" && path === "resourceKey") {
+    const previousResourceKey = context.previousSlotResourceKey;
     const item = findResourceLibraryItemByKey(target.value.resourceKey);
     if (item) {
       target.value.resourceSelection = createResourceSelectionRef(item, RESOURCE_FIELD_SPECS.animationClip);
+      const nextResourceKey = firstNonEmpty(
+        target.value.resourceSelection.runtimeResourceKey,
+        target.value.resourceSelection.packageResourceKey,
+        target.value.resourceSelection.providerResourceKey,
+        target.value.resourceKey);
       if (target.value.resourceSelection.runtimeResourceKey || target.value.resourceSelection.packageResourceKey) {
         ensureApplicationResourceKey(target.value.resourceKey);
       }
+      if (previousResourceKey && previousResourceKey !== nextResourceKey) {
+        cleanupUnusedAnimationResourceKey(previousResourceKey);
+      }
     } else if (!target.value.resourceKey) {
+      if (previousResourceKey && previousResourceKey !== target.value.resourceKey) {
+        cleanupUnusedAnimationResourceKey(previousResourceKey);
+      }
       target.value.resourceSelection = {};
     }
   }
   if (target.kind === "animationSlot" && path === "animationGroupId") {
+    const previousResourceKey = context.previousSlotResourceKey;
     const group = findAnimationGroupById(target.value.animationGroupId);
     if (group?.sourceResourceKey) {
       target.value.resourceKey = group.sourceResourceKey;
       const item = findResourceLibraryItemByKey(group.sourceResourceKey);
       target.value.resourceSelection = item ? createResourceSelectionRef(item, RESOURCE_FIELD_SPECS.animationClip) : {};
       ensureApplicationResourceKey(group.sourceResourceKey);
+      if (previousResourceKey && previousResourceKey !== target.value.resourceKey) {
+        cleanupUnusedAnimationResourceKey(previousResourceKey);
+      }
     }
   }
 }
