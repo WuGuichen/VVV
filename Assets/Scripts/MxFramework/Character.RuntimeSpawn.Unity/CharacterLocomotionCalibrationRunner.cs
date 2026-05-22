@@ -12,6 +12,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
     [AddComponentMenu("MxFramework/Character/Locomotion Calibration Runner")]
     public sealed class CharacterLocomotionCalibrationRunner : MonoBehaviour
     {
+        private const float BlendMapWidth = 360f;
+        private const float BlendMapHeight = 240f;
+        private const float BlendMapPadding = 34f;
+        private const float BlendPointWidth = 64f;
+        private const float BlendPointHeight = 22f;
+        private const float BlendSampleSize = 18f;
+        private const float BlendMarkerInset = 6f;
+
         [SerializeField] private CharacterRuntimeResourceBootstrap _bootstrap;
         [SerializeField] private bool _loadOnStart = true;
         [SerializeField] private bool _keepInputMotionEnabled = true;
@@ -261,11 +269,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 name = "locomotion-calibration-blend-map"
             };
             _blendMap.style.position = Position.Relative;
-            _blendMap.style.width = 280f;
-            _blendMap.style.height = 210f;
+            _blendMap.style.width = BlendMapWidth;
+            _blendMap.style.height = BlendMapHeight;
+            _blendMap.style.flexShrink = 0f;
             _blendMap.style.marginTop = 8f;
-            _blendMap.style.marginBottom = 8f;
+            _blendMap.style.marginBottom = 16f;
+            _blendMap.style.marginRight = 12f;
             _blendMap.style.backgroundColor = new Color(0.02f, 0.035f, 0.05f, 0.92f);
+            _blendMap.style.overflow = Overflow.Hidden;
             _blendMap.style.borderLeftWidth = 1f;
             _blendMap.style.borderRightWidth = 1f;
             _blendMap.style.borderTopWidth = 1f;
@@ -282,6 +293,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendWeightsLabel.style.whiteSpace = WhiteSpace.Normal;
             _blendWeightsLabel.style.fontSize = 12f;
             _blendWeightsLabel.style.color = new Color(0.84f, 0.9f, 0.96f, 1f);
+            _blendWeightsLabel.style.flexGrow = 1f;
+            _blendWeightsLabel.style.flexShrink = 1f;
+            _blendWeightsLabel.style.marginTop = 8f;
+
+            var blendProbeRow = new VisualElement
+            {
+                name = "locomotion-calibration-blend-probe"
+            };
+            blendProbeRow.style.flexDirection = FlexDirection.Row;
+            blendProbeRow.style.alignItems = Align.FlexStart;
+            blendProbeRow.style.flexShrink = 0f;
 
             var help = new Label("WASD: move  |  Shift: run")
             {
@@ -293,8 +315,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             _hudRoot.Add(title);
             _hudRoot.Add(_hudSummaryLabel);
-            _hudRoot.Add(_blendMap);
-            _hudRoot.Add(_blendWeightsLabel);
+            blendProbeRow.Add(_blendMap);
+            blendProbeRow.Add(_blendWeightsLabel);
+            _hudRoot.Add(blendProbeRow);
             _hudRoot.Add(help);
             _hudDocument.rootVisualElement.Add(_hudRoot);
         }
@@ -322,15 +345,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return;
             }
 
-            DrawAxis(_blendMap, horizontal: true);
-            DrawAxis(_blendMap, horizontal: false);
+            DrawAxis(_blendMap, probe, horizontal: true);
+            DrawAxis(_blendMap, probe, horizontal: false);
             DrawBlendPoints(_blendMap, probe);
             DrawSample(_blendMap, probe);
             _blendWeightsLabel.text = CreateBlendProbeSummary(probe);
         }
 
-        private static void DrawAxis(VisualElement map, bool horizontal)
+        private static void DrawAxis(VisualElement map, MxAnimationLocomotionBlendProbeSnapshot probe, bool horizontal)
         {
+            Vector2 origin = MapPoint(probe.Domain, 0, 0);
             var axis = new VisualElement
             {
                 name = horizontal ? "blend-map-axis-x" : "blend-map-axis-y"
@@ -341,12 +365,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 axis.style.left = 0f;
                 axis.style.right = 0f;
-                axis.style.top = 104f;
+                axis.style.top = origin.y;
                 axis.style.height = 1f;
             }
             else
             {
-                axis.style.left = 139f;
+                axis.style.left = origin.x;
                 axis.style.top = 0f;
                 axis.style.bottom = 0f;
                 axis.style.width = 1f;
@@ -373,18 +397,19 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             MxAnimationBlendReachabilityPoint point,
             bool unreachable)
         {
-            Vector2 position = MapPoint(probe.Domain, point.X, point.Y, 280f, 210f);
+            Vector2 position = MapPoint(probe.Domain, point.X, point.Y);
             var marker = new Label(ShortClipName(point.ClipKey))
             {
                 name = unreachable ? "blend-point-unreachable" : "blend-point"
             };
             marker.style.position = Position.Absolute;
-            marker.style.left = position.x - 15f;
-            marker.style.top = position.y - 10f;
-            marker.style.width = 30f;
-            marker.style.height = 20f;
+            marker.style.left = Clamp(position.x - (BlendPointWidth * 0.5f), BlendMarkerInset, BlendMapWidth - BlendPointWidth - BlendMarkerInset);
+            marker.style.top = Clamp(position.y - (BlendPointHeight * 0.5f), BlendMarkerInset, BlendMapHeight - BlendPointHeight - BlendMarkerInset);
+            marker.style.width = BlendPointWidth;
+            marker.style.height = BlendPointHeight;
             marker.style.unityTextAlign = TextAnchor.MiddleCenter;
-            marker.style.fontSize = 9f;
+            marker.style.whiteSpace = WhiteSpace.NoWrap;
+            marker.style.fontSize = 8f;
             marker.style.color = Color.white;
             marker.style.backgroundColor = unreachable
                 ? new Color(0.9f, 0.34f, 0.08f, 0.88f)
@@ -396,16 +421,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private static void DrawSample(VisualElement map, MxAnimationLocomotionBlendProbeSnapshot probe)
         {
-            Vector2 position = MapPoint(probe.Domain, probe.SampleX, probe.SampleY, 280f, 210f);
+            Vector2 position = MapPoint(probe.Domain, probe.SampleX, probe.SampleY);
             var marker = new Label("+")
             {
                 name = "blend-current-sample"
             };
             marker.style.position = Position.Absolute;
-            marker.style.left = position.x - 8f;
-            marker.style.top = position.y - 8f;
-            marker.style.width = 16f;
-            marker.style.height = 16f;
+            marker.style.left = Clamp(position.x - (BlendSampleSize * 0.5f), BlendMarkerInset, BlendMapWidth - BlendSampleSize - BlendMarkerInset);
+            marker.style.top = Clamp(position.y - (BlendSampleSize * 0.5f), BlendMarkerInset, BlendMapHeight - BlendSampleSize - BlendMarkerInset);
+            marker.style.width = BlendSampleSize;
+            marker.style.height = BlendSampleSize;
             marker.style.unityTextAlign = TextAnchor.MiddleCenter;
             marker.style.fontSize = 16f;
             marker.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -418,10 +443,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             var builder = new StringBuilder();
             builder.Append("Blend probe: ").Append(probe.BlendId)
-                .Append(" domain x=[").Append(probe.Domain.MinX).Append(',').Append(probe.Domain.MaxX)
-                .Append("] y=[").Append(probe.Domain.MinY).Append(',').Append(probe.Domain.MaxY)
-                .Append("] sample=(").Append(probe.SampleX).Append(',').Append(probe.SampleY).Append(')')
                 .Append(" weights=").Append(probe.WeightsFromBackend ? "backend" : "calculated")
+                .Append('\n');
+            builder.Append("domain: x=[").Append(probe.Domain.MinX).Append(',').Append(probe.Domain.MaxX)
+                .Append("] y=[").Append(probe.Domain.MinY).Append(',').Append(probe.Domain.MaxY)
+                .Append("]  sample=(").Append(probe.SampleX).Append(',').Append(probe.SampleY).Append(')')
                 .Append('\n');
 
             MxAnimationBlendReachabilityReport report = probe.ReachabilityReport;
@@ -466,13 +492,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private static Vector2 MapPoint(
             MxAnimationBlend2DControllerDomain domain,
             int x,
-            int y,
-            float width,
-            float height)
+            int y)
         {
             float nx = InverseLerp(domain.MinX, domain.MaxX, x);
             float ny = InverseLerp(domain.MinY, domain.MaxY, y);
-            return new Vector2(Mathf.Clamp01(nx) * width, (1f - Mathf.Clamp01(ny)) * height);
+            float plotWidth = BlendMapWidth - (BlendMapPadding * 2f);
+            float plotHeight = BlendMapHeight - (BlendMapPadding * 2f);
+            return new Vector2(
+                BlendMapPadding + (Mathf.Clamp01(nx) * plotWidth),
+                BlendMapPadding + ((1f - Mathf.Clamp01(ny)) * plotHeight));
         }
 
         private static float InverseLerp(int min, int max, int value)
@@ -494,6 +522,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             int lastDot = id.LastIndexOf('.');
             string name = lastDot >= 0 && lastDot < id.Length - 1 ? id.Substring(lastDot + 1) : id;
             return name.Length <= 10 ? name : name.Substring(0, 10);
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            if (value < min)
+                return min;
+            return value > max ? max : value;
         }
 
         private static string FormatFloat(float value)
