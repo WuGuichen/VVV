@@ -36,6 +36,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private Vector3 _previewGroundHalfExtents = new Vector3(24f, 1f, 24f);
         [SerializeField] private int _previewGroundLayer = 1;
         [SerializeField] private bool _rotateToMoveDirection = true;
+        [SerializeField] private bool _interpolateVisualMotion = true;
 
         private CharacterRuntimeControllerBinding _binding;
         private IInputProvider _inputProvider;
@@ -52,6 +53,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Vector2 _lastLocalMove;
         private float _lastSpeed01;
         private bool _lastSourceJumpPressed;
+        private Vector3 _previousRootPosition;
+        private Vector3 _currentRootPosition;
+        private Quaternion _previousRootRotation = Quaternion.identity;
+        private Quaternion _currentRootRotation = Quaternion.identity;
+        private bool _hasVisualMotionState;
 
         public bool IsInitialized => _initialized;
         public bool EnableInputMotion
@@ -119,6 +125,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             if (steps == maxSteps && _accumulator >= fixedDelta)
                 _accumulator = 0f;
+
+            ApplyVisualMotionInterpolation(fixedDelta);
         }
 
         public void ConfigureInputProvider(IInputProvider inputProvider)
@@ -167,6 +175,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _lastLocalMove = Vector2.zero;
             _lastSpeed01 = 0f;
             _lastSourceJumpPressed = false;
+            ResetVisualMotionState(transform.position, transform.rotation);
             SyncBufferedInput();
             _initialized = true;
             return true;
@@ -201,6 +210,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public void WarpRootPosition(Vector3 rootPosition)
         {
             transform.position = rootPosition;
+            ResetVisualMotionState(rootPosition, transform.rotation);
             if (!EnsureInitialized())
                 return;
 
@@ -280,7 +290,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void ApplyMotion(CharacterCommand command)
         {
-            transform.position = MotionCenterToRoot(ToVector3(_motionState.Position));
+            Vector3 rootPosition = MotionCenterToRoot(ToVector3(_motionState.Position));
+            Quaternion rootRotation = transform.rotation;
 
             if (_rotateToMoveDirection)
             {
@@ -289,11 +300,49 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 {
                     var forward = new Vector3(ToFloat(move.X), 0f, ToFloat(move.Z));
                     if (forward.sqrMagnitude > 0.0001f)
-                        transform.rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+                        rootRotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
                 }
             }
 
+            SetVisualMotionTarget(rootPosition, rootRotation);
             UpdateBlendPreview(command);
+        }
+
+        private void ResetVisualMotionState(Vector3 rootPosition, Quaternion rootRotation)
+        {
+            _previousRootPosition = rootPosition;
+            _currentRootPosition = rootPosition;
+            _previousRootRotation = rootRotation;
+            _currentRootRotation = rootRotation;
+            _hasVisualMotionState = true;
+        }
+
+        private void SetVisualMotionTarget(Vector3 rootPosition, Quaternion rootRotation)
+        {
+            if (!_hasVisualMotionState)
+                ResetVisualMotionState(transform.position, transform.rotation);
+
+            _previousRootPosition = _currentRootPosition;
+            _previousRootRotation = _currentRootRotation;
+            _currentRootPosition = rootPosition;
+            _currentRootRotation = rootRotation;
+            if (!_interpolateVisualMotion)
+            {
+                transform.SetPositionAndRotation(rootPosition, rootRotation);
+            }
+        }
+
+        private void ApplyVisualMotionInterpolation(float fixedDelta)
+        {
+            if (!_interpolateVisualMotion || !_hasVisualMotionState)
+                return;
+
+            float alpha = fixedDelta <= FixedStepEpsilon
+                ? 1f
+                : Mathf.Clamp01(_accumulator / fixedDelta);
+            transform.SetPositionAndRotation(
+                Vector3.Lerp(_previousRootPosition, _currentRootPosition, alpha),
+                Quaternion.Slerp(_previousRootRotation, _currentRootRotation, alpha));
         }
 
         private void EnsurePhysicsWorldBody()

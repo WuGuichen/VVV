@@ -6,6 +6,8 @@ using System.Globalization;
 using MxFramework.Animation;
 using MxFramework.Input;
 using MxFramework.Resources;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -28,9 +30,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const float SpeedFineStep = 0.05f;
         private const float MaxManualSpeed = 5f;
         private const float CameraDistanceStep = 0.5f;
+        private const float CameraHeightStep = 0.25f;
         private const float PlaybackSpeedStep = 0.05f;
         private const float MinPlaybackSpeed = 0.05f;
         private const float MaxPlaybackSpeed = 3f;
+        private const float NativeVelocityStep = 0.05f;
+        private const float CycleDurationStep = 0.05f;
 
         private enum CalibrationCameraMode
         {
@@ -61,6 +66,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _loopHalfExtent = 6f;
         [SerializeField] private bool _showGridGround = true;
         [SerializeField] private float _gridCellSize = 0.2f;
+        [SerializeField] private string _authoringAnimationConfigPath = "Tools/MxFramework.Authoring/samples/character-iron-vanguard/config/animation_authoring.json";
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
@@ -88,9 +94,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _presetReportLabel;
         private Label _manualSpeedValueLabel;
         private Label _cameraDistanceValueLabel;
+        private Label _cameraHeightValueLabel;
         private Label _playbackSpeedValueLabel;
+        private Label _clipLoopValueLabel;
+        private Label _nativeVelocityXValueLabel;
+        private Label _nativeVelocityYValueLabel;
+        private Label _cycleDurationValueLabel;
+        private Label _sourceSaveStatusLabel;
         private Slider _manualSpeedSlider;
         private Slider _cameraDistanceSlider;
+        private Slider _cameraHeightSlider;
+        private DropdownField _clipEditDropdown;
+        private Toggle _clipLoopToggle;
         private Button _cameraModeButton;
         private Button _cameraFollowButton;
         private Button _loopingPlaneButton;
@@ -117,12 +132,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private string _lastPresetReportPath = string.Empty;
         private string _lastCalibrationDraftPath = string.Empty;
         private readonly Dictionary<ResourceKey, float> _playbackSpeedDrafts = new Dictionary<ResourceKey, float>();
+        private readonly Dictionary<ResourceKey, ClipEditDraft> _clipEditDrafts = new Dictionary<ResourceKey, ClipEditDraft>();
+        private readonly List<ClipEditBinding> _clipEditBindings = new List<ClipEditBinding>();
+        private readonly List<string> _clipEditChoices = new List<string>();
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
         private readonly List<DirectionButtonBinding> _directionButtons = new List<DirectionButtonBinding>();
         private Camera _followCamera;
         private Vector3 _cameraSmoothVelocity;
         private Quaternion _lockedFacingRotation = Quaternion.identity;
         private bool _hasLockedFacingRotation;
+        private ResourceKey _selectedClipEditKey;
+        private string _sourceSaveStatus = string.Empty;
+        private bool _suppressClipEditCallbacks;
         private GameObject _gridGroundObject;
         private MeshFilter _gridGroundFilter;
         private MeshRenderer _gridGroundRenderer;
@@ -207,9 +228,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _presetReportLabel = null;
             _manualSpeedValueLabel = null;
             _cameraDistanceValueLabel = null;
+            _cameraHeightValueLabel = null;
             _playbackSpeedValueLabel = null;
+            _clipLoopValueLabel = null;
+            _nativeVelocityXValueLabel = null;
+            _nativeVelocityYValueLabel = null;
+            _cycleDurationValueLabel = null;
+            _sourceSaveStatusLabel = null;
             _manualSpeedSlider = null;
             _cameraDistanceSlider = null;
+            _cameraHeightSlider = null;
+            _clipEditDropdown = null;
+            _clipLoopToggle = null;
             _cameraModeButton = null;
             _cameraFollowButton = null;
             _loopingPlaneButton = null;
@@ -672,6 +702,27 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             cameraDistanceRow.Add(cameraFar);
             sliderColumn.Add(cameraDistanceRow);
 
+            var cameraHeightRow = new VisualElement();
+            cameraHeightRow.style.flexDirection = FlexDirection.Row;
+            cameraHeightRow.style.alignItems = Align.Center;
+            cameraHeightRow.Add(CreateInlineLabel("Height"));
+            Button cameraLower = CreateSmallButton("-", () => AdjustCameraHeight(-CameraHeightStep));
+            cameraHeightRow.Add(cameraLower);
+            _cameraHeightValueLabel = CreateValueLabel();
+            cameraHeightRow.Add(_cameraHeightValueLabel);
+            _cameraHeightSlider = new Slider(string.Empty, 0.5f, 8f)
+            {
+                value = _cameraHeight
+            };
+            StyleSlider(_cameraHeightSlider);
+            _cameraHeightSlider.style.flexGrow = 1f;
+            _cameraHeightSlider.style.minWidth = 96f;
+            _cameraHeightSlider.RegisterValueChangedCallback(evt => _cameraHeight = Mathf.Clamp(evt.newValue, 0.5f, 8f));
+            cameraHeightRow.Add(_cameraHeightSlider);
+            Button cameraHigher = CreateSmallButton("+", () => AdjustCameraHeight(CameraHeightStep));
+            cameraHeightRow.Add(cameraHigher);
+            sliderColumn.Add(cameraHeightRow);
+
             var playbackSpeedRow = new VisualElement();
             playbackSpeedRow.style.flexDirection = FlexDirection.Row;
             playbackSpeedRow.style.alignItems = Align.Center;
@@ -687,6 +738,69 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             applySuggested.style.width = 104f;
             playbackSpeedRow.Add(applySuggested);
             sliderColumn.Add(playbackSpeedRow);
+
+            var clipEditRow = new VisualElement();
+            clipEditRow.style.flexDirection = FlexDirection.Row;
+            clipEditRow.style.alignItems = Align.Center;
+            clipEditRow.style.flexWrap = Wrap.Wrap;
+            clipEditRow.style.marginTop = 4f;
+            RefreshClipEditBindings();
+            _clipEditDropdown = new DropdownField("Edit", _clipEditChoices, 0);
+            _clipEditDropdown.style.minWidth = 220f;
+            _clipEditDropdown.style.flexGrow = 1f;
+            StyleControl(_clipEditDropdown);
+            _clipEditDropdown.RegisterValueChangedCallback(evt =>
+            {
+                if (_suppressClipEditCallbacks)
+                    return;
+                SelectClipEditChoice(evt.newValue);
+            });
+            clipEditRow.Add(_clipEditDropdown);
+            _clipLoopToggle = new Toggle("Loop");
+            _clipLoopToggle.style.minWidth = 76f;
+            StyleControl(_clipLoopToggle);
+            _clipLoopToggle.RegisterValueChangedCallback(evt =>
+            {
+                if (_suppressClipEditCallbacks)
+                    return;
+                SetSelectedClipLoop(evt.newValue);
+            });
+            clipEditRow.Add(_clipLoopToggle);
+            _clipLoopValueLabel = CreateValueLabel();
+            _clipLoopValueLabel.style.width = 52f;
+            clipEditRow.Add(_clipLoopValueLabel);
+            Button saveSource = CreateWideButton("Save Source", SaveSelectedClipEditToSource);
+            saveSource.style.width = 112f;
+            clipEditRow.Add(saveSource);
+            sliderColumn.Add(clipEditRow);
+
+            var bakeRow = new VisualElement();
+            bakeRow.style.flexDirection = FlexDirection.Row;
+            bakeRow.style.alignItems = Align.Center;
+            bakeRow.style.flexWrap = Wrap.Wrap;
+            bakeRow.style.marginTop = 4f;
+            bakeRow.Add(CreateInlineLabel("Bake X"));
+            bakeRow.Add(CreateSmallButton("-", () => AdjustSelectedNativeVelocityX(-NativeVelocityStep)));
+            _nativeVelocityXValueLabel = CreateValueLabel();
+            bakeRow.Add(_nativeVelocityXValueLabel);
+            bakeRow.Add(CreateSmallButton("+", () => AdjustSelectedNativeVelocityX(NativeVelocityStep)));
+            bakeRow.Add(CreateInlineLabel("Y"));
+            bakeRow.Add(CreateSmallButton("-", () => AdjustSelectedNativeVelocityY(-NativeVelocityStep)));
+            _nativeVelocityYValueLabel = CreateValueLabel();
+            bakeRow.Add(_nativeVelocityYValueLabel);
+            bakeRow.Add(CreateSmallButton("+", () => AdjustSelectedNativeVelocityY(NativeVelocityStep)));
+            bakeRow.Add(CreateInlineLabel("Cycle"));
+            bakeRow.Add(CreateSmallButton("-", () => AdjustSelectedCycleDuration(-CycleDurationStep)));
+            _cycleDurationValueLabel = CreateValueLabel();
+            bakeRow.Add(_cycleDurationValueLabel);
+            bakeRow.Add(CreateSmallButton("+", () => AdjustSelectedCycleDuration(CycleDurationStep)));
+            sliderColumn.Add(bakeRow);
+
+            _sourceSaveStatusLabel = new Label();
+            _sourceSaveStatusLabel.style.fontSize = 11f;
+            _sourceSaveStatusLabel.style.color = new Color(0.74f, 0.84f, 0.94f, 1f);
+            _sourceSaveStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            sliderColumn.Add(_sourceSaveStatusLabel);
 
             var timeScale = new Slider("Time scale", 0.1f, 1f)
             {
@@ -910,8 +1024,23 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _cameraDistanceSlider.SetValueWithoutNotify(_cameraDistance);
         }
 
+        private void AdjustCameraHeight(float delta)
+        {
+            _cameraHeight = Mathf.Clamp(_cameraHeight + delta, 0.5f, 8f);
+            _cameraSmoothVelocity = Vector3.zero;
+            if (_cameraHeightSlider != null)
+                _cameraHeightSlider.SetValueWithoutNotify(_cameraHeight);
+        }
+
         private void AdjustDominantPlaybackSpeed(float delta)
         {
+            if (TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding))
+            {
+                ClipEditDraft selectedDraft = GetOrCreateClipEditDraft(selectedBinding.ClipKey);
+                SetDominantPlaybackSpeed(selectedBinding.ClipKey, selectedDraft.PlaybackSpeed + delta);
+                return;
+            }
+
             if (!TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _))
                 return;
 
@@ -922,7 +1051,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             if (_footSlipSnapshot == null || _footSlipSnapshot.Frame == null)
                 return;
-            if (!TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out _, out _))
+            ResourceKey clipKey = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
+                ? selectedBinding.ClipKey
+                : default;
+            if (!clipKey.IsValid && !TryGetDominantPlaybackSpeed(out clipKey, out _, out _))
                 return;
 
             SetDominantPlaybackSpeed(clipKey, CalculateSuggestedPlaybackSpeed(_footSlipSnapshot.Frame));
@@ -935,12 +1067,317 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return;
 
             _playbackSpeedDrafts[clipKey] = value;
+            ClipEditDraft draft = GetOrCreateClipEditDraft(clipKey);
+            draft.PlaybackSpeed = value;
+            _clipEditDrafts[clipKey] = draft;
+            if (!_selectedClipEditKey.IsValid)
+                _selectedClipEditKey = clipKey;
             UpdateObservationButtons();
+        }
+
+        private void SelectClipEditChoice(string choice)
+        {
+            for (int i = 0; i < _clipEditBindings.Count; i++)
+            {
+                if (!string.Equals(_clipEditBindings[i].Choice, choice, StringComparison.Ordinal))
+                    continue;
+
+                _selectedClipEditKey = _clipEditBindings[i].ClipKey;
+                PrimeClipEditDraft(_clipEditBindings[i]);
+                UpdateClipEditControls();
+                return;
+            }
+        }
+
+        private void SetSelectedClipLoop(bool loop)
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+                return;
+
+            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
+            draft.Loop = loop;
+            _clipEditDrafts[binding.ClipKey] = draft;
+            _locomotionController?.SetClipLoopOverride(binding.ClipKey, loop);
+            _sourceSaveStatus = "Loop override pending source save.";
+            UpdateClipEditControls();
+        }
+
+        private void AdjustSelectedNativeVelocityX(float delta)
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+                return;
+
+            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
+            draft.NativeVelocityX = Mathf.Clamp(draft.NativeVelocityX + delta, -MaxManualSpeed, MaxManualSpeed);
+            _clipEditDrafts[binding.ClipKey] = draft;
+            _sourceSaveStatus = "Bake calibration pending source save.";
+            UpdateClipEditControls();
+        }
+
+        private void AdjustSelectedNativeVelocityY(float delta)
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+                return;
+
+            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
+            draft.NativeVelocityY = Mathf.Clamp(draft.NativeVelocityY + delta, -MaxManualSpeed, MaxManualSpeed);
+            _clipEditDrafts[binding.ClipKey] = draft;
+            _sourceSaveStatus = "Bake calibration pending source save.";
+            UpdateClipEditControls();
+        }
+
+        private void AdjustSelectedCycleDuration(float delta)
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+                return;
+
+            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
+            draft.CycleDurationSeconds = Mathf.Clamp(draft.CycleDurationSeconds + delta, 0f, 10f);
+            _clipEditDrafts[binding.ClipKey] = draft;
+            _sourceSaveStatus = "Bake calibration pending source save.";
+            UpdateClipEditControls();
+        }
+
+        private void SaveSelectedClipEditToSource()
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+            {
+                _sourceSaveStatus = "No editable clip selected.";
+                UpdateClipEditControls();
+                return;
+            }
+
+            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
+            string path = ResolveAuthoringAnimationConfigPath();
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                _sourceSaveStatus = "Source config not found: " + path;
+                UpdateClipEditControls();
+                return;
+            }
+
+            try
+            {
+                JObject root = JObject.Parse(File.ReadAllText(path, Encoding.UTF8));
+                JObject clip = FindAuthoringClip(root, binding);
+                if (clip == null)
+                {
+                    _sourceSaveStatus = "Source clip not found: " + binding.ClipId;
+                    UpdateClipEditControls();
+                    return;
+                }
+
+                clip["speed"] = draft.PlaybackSpeed;
+                clip["loop"] = draft.Loop;
+                if (!string.IsNullOrWhiteSpace(binding.RootMotionPolicy))
+                    clip["rootMotionPolicy"] = binding.RootMotionPolicy;
+
+                JObject calibration = clip["calibration"] as JObject;
+                if (calibration == null)
+                {
+                    calibration = new JObject();
+                    clip["calibration"] = calibration;
+                }
+
+                calibration["nativeVelocityX"] = draft.NativeVelocityX;
+                calibration["nativeVelocityY"] = draft.NativeVelocityY;
+                calibration["playbackSpeed"] = draft.PlaybackSpeed;
+                calibration["cycleDurationSeconds"] = draft.CycleDurationSeconds;
+
+                File.WriteAllText(path, root.ToString(Formatting.Indented) + Environment.NewLine, Encoding.UTF8);
+                _sourceSaveStatus = "Saved source: " + Path.GetFileName(path);
+            }
+            catch (Exception ex)
+            {
+                _sourceSaveStatus = "Source save failed: " + ex.Message;
+            }
+
+            UpdateClipEditControls();
         }
 
         private static float ClampManualSpeed(float value)
         {
             return Mathf.Clamp(value, 0f, MaxManualSpeed);
+        }
+
+        private void RefreshClipEditBindings()
+        {
+            _clipEditBindings.Clear();
+            _clipEditChoices.Clear();
+            var seen = new HashSet<ResourceKey>();
+            MxAnimationSetDefinition definition = _bootstrap != null ? _bootstrap.RuntimeAnimationSetDefinition : null;
+            if (definition != null)
+            {
+                for (int i = 0; i < definition.LocomotionClipCalibrations.Count; i++)
+                {
+                    MxAnimationLocomotionClipCalibration calibration = definition.LocomotionClipCalibrations[i];
+                    if (calibration == null || !calibration.ClipKey.IsValid || !seen.Add(calibration.ClipKey))
+                        continue;
+
+                    AddClipEditBinding(new ClipEditBinding(
+                        calibration.ClipId,
+                        calibration.ClipKey,
+                        calibration.PlaybackSpeed,
+                        loop: true,
+                        calibration.NativeVelocityX,
+                        calibration.NativeVelocityY,
+                        calibration.CycleDurationSeconds,
+                        "Ignore"));
+                }
+
+                for (int blendIndex = 0; blendIndex < definition.Blend2DDefinitions.Count; blendIndex++)
+                {
+                    MxAnimationBlend2DDefinition blend = definition.Blend2DDefinitions[blendIndex];
+                    for (int pointIndex = 0; blend != null && pointIndex < blend.Points.Count; pointIndex++)
+                    {
+                        MxAnimationBlend2DPoint point = blend.Points[pointIndex];
+                        if (point == null || !point.ClipKey.IsValid || !seen.Add(point.ClipKey))
+                            continue;
+
+                        AddClipEditBinding(new ClipEditBinding(
+                            point.ClipKey.Id,
+                            point.ClipKey,
+                            point.PlaybackSpeed,
+                            point.Loop,
+                            0f,
+                            0f,
+                            0f,
+                            "Ignore"));
+                    }
+                }
+            }
+
+            MxAnimationLocomotionBlendProbeSnapshot probe = _locomotionController != null
+                ? _locomotionController.CreateLocomotionBlendProbeSnapshot()
+                : null;
+            for (int i = 0; probe != null && i < probe.Weights.Count; i++)
+            {
+                MxAnimationBlend2DWeight weight = probe.Weights[i];
+                if (!weight.ClipKey.IsValid || !seen.Add(weight.ClipKey))
+                    continue;
+
+                AddClipEditBinding(new ClipEditBinding(
+                    weight.ClipKey.Id,
+                    weight.ClipKey,
+                    weight.PlaybackSpeed,
+                    weight.Loop,
+                    0f,
+                    0f,
+                    0f,
+                    "Ignore"));
+            }
+
+            if (_clipEditBindings.Count == 0)
+            {
+                _clipEditChoices.Add("No editable clips");
+                _selectedClipEditKey = default;
+                return;
+            }
+
+            if (!_selectedClipEditKey.IsValid || !_clipEditBindings.Exists(item => item.ClipKey == _selectedClipEditKey))
+                _selectedClipEditKey = probe != null && probe.HasDominantClip ? probe.DominantClipKey : _clipEditBindings[0].ClipKey;
+
+            for (int i = 0; i < _clipEditBindings.Count; i++)
+                PrimeClipEditDraft(_clipEditBindings[i]);
+        }
+
+        private void AddClipEditBinding(ClipEditBinding binding)
+        {
+            string label = ShortClipName(binding.ClipKey);
+            if (!string.IsNullOrWhiteSpace(binding.ClipId) && !string.Equals(binding.ClipId, binding.ClipKey.Id, StringComparison.Ordinal))
+                label = binding.ClipId + " / " + label;
+            string choice = label;
+            int duplicateIndex = 2;
+            while (_clipEditChoices.Contains(choice))
+                choice = label + " #" + duplicateIndex++;
+
+            binding.Choice = choice;
+            _clipEditBindings.Add(binding);
+            _clipEditChoices.Add(choice);
+        }
+
+        private void PrimeClipEditDraft(ClipEditBinding binding)
+        {
+            if (_clipEditDrafts.ContainsKey(binding.ClipKey))
+                return;
+
+            _clipEditDrafts[binding.ClipKey] = new ClipEditDraft(
+                ClampPlaybackSpeed(binding.PlaybackSpeed),
+                binding.Loop,
+                binding.NativeVelocityX,
+                binding.NativeVelocityY,
+                binding.CycleDurationSeconds);
+        }
+
+        private ClipEditDraft GetOrCreateClipEditDraft(ResourceKey clipKey)
+        {
+            if (_clipEditDrafts.TryGetValue(clipKey, out ClipEditDraft draft))
+                return draft;
+
+            for (int i = 0; i < _clipEditBindings.Count; i++)
+            {
+                if (_clipEditBindings[i].ClipKey == clipKey)
+                {
+                    PrimeClipEditDraft(_clipEditBindings[i]);
+                    return _clipEditDrafts[clipKey];
+                }
+            }
+
+            return new ClipEditDraft(1f, true, 0f, 0f, 0f);
+        }
+
+        private bool TryGetSelectedClipEditBinding(out ClipEditBinding binding)
+        {
+            for (int i = 0; i < _clipEditBindings.Count; i++)
+            {
+                if (_clipEditBindings[i].ClipKey == _selectedClipEditKey)
+                {
+                    binding = _clipEditBindings[i];
+                    return true;
+                }
+            }
+
+            binding = default;
+            return false;
+        }
+
+        private string ResolveAuthoringAnimationConfigPath()
+        {
+            if (string.IsNullOrWhiteSpace(_authoringAnimationConfigPath))
+                return string.Empty;
+            return Path.IsPathRooted(_authoringAnimationConfigPath)
+                ? _authoringAnimationConfigPath
+                : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), _authoringAnimationConfigPath));
+        }
+
+        private static JObject FindAuthoringClip(JObject root, ClipEditBinding binding)
+        {
+            JArray sets = root["sets"] as JArray;
+            for (int setIndex = 0; sets != null && setIndex < sets.Count; setIndex++)
+            {
+                JObject set = sets[setIndex] as JObject;
+                JArray groups = set?["groups"] as JArray;
+                for (int groupIndex = 0; groups != null && groupIndex < groups.Count; groupIndex++)
+                {
+                    JObject group = groups[groupIndex] as JObject;
+                    JArray clips = group?["clips"] as JArray;
+                    for (int clipIndex = 0; clips != null && clipIndex < clips.Count; clipIndex++)
+                    {
+                        JObject clip = clips[clipIndex] as JObject;
+                        if (clip == null)
+                            continue;
+
+                        string clipId = (string)clip["clipId"];
+                        string runtimeResourceKey = (string)clip["runtimeResourceKey"];
+                        if (string.Equals(clipId, binding.ClipId, StringComparison.Ordinal)
+                            || string.Equals(runtimeResourceKey, binding.ClipKey.ToString(), StringComparison.Ordinal)
+                            || string.Equals(runtimeResourceKey, binding.ClipKey.Id, StringComparison.Ordinal))
+                            return clip;
+                    }
+                }
+            }
+
+            return null;
         }
 
         private static float ClampPlaybackSpeed(float value)
@@ -1225,7 +1662,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             AppendJsonString(builder, "createdUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture), trailingComma: true, indent: 2);
             builder.Append("  \"clipOverrides\": [\n");
             int index = 0;
-            foreach (KeyValuePair<ResourceKey, float> pair in _playbackSpeedDrafts)
+            foreach (KeyValuePair<ResourceKey, ClipEditDraft> pair in _clipEditDrafts)
             {
                 ResourceKey key = pair.Key;
                 if (!key.IsValid)
@@ -1234,13 +1671,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 if (index > 0)
                     builder.Append(",\n");
                 builder.Append("    {\n");
-                AppendJsonString(builder, "field", "playbackSpeed", trailingComma: true, indent: 6);
+                AppendJsonString(builder, "field", "clipPlaybackAndBakeCalibration", trailingComma: true, indent: 6);
                 AppendJsonString(builder, "clipResourceKey", key.ToString(), trailingComma: true, indent: 6);
                 AppendJsonString(builder, "clipResourceId", key.Id, trailingComma: true, indent: 6);
                 AppendJsonString(builder, "resourceTypeId", key.TypeId, trailingComma: true, indent: 6);
                 AppendJsonString(builder, "variant", key.Variant, trailingComma: true, indent: 6);
                 AppendJsonString(builder, "packageId", key.PackageId, trailingComma: true, indent: 6);
-                AppendJsonNumber(builder, "playbackSpeed", pair.Value, trailingComma: false, indent: 6);
+                AppendJsonNumber(builder, "playbackSpeed", pair.Value.PlaybackSpeed, trailingComma: true, indent: 6);
+                AppendJsonBool(builder, "loop", pair.Value.Loop, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "nativeVelocityX", pair.Value.NativeVelocityX, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "nativeVelocityY", pair.Value.NativeVelocityY, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "cycleDurationSeconds", pair.Value.CycleDurationSeconds, trailingComma: false, indent: 6);
                 builder.Append('\n').Append("    }");
                 index++;
             }
@@ -1399,6 +1840,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 + "\nview=" + _cameraMode
                 + " follow=" + (_enableCameraFollow ? "on" : "off")
                 + " cameraDist=" + FormatFloat(_cameraDistance)
+                + " cameraHeight=" + FormatFloat(_cameraHeight)
                 + " loop=" + (_enableLoopingPlane ? "on" : "off")
                 + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off")
                 + "\nSpeed is move-speed scale: it drives logical velocity and blend sample radius.";
@@ -1431,6 +1873,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void UpdateObservationButtons()
         {
+            RefreshClipEditBindings();
             if (_cameraFollowButton != null)
                 _cameraFollowButton.text = _enableCameraFollow ? "Follow On" : "Follow Off";
             if (_cameraModeButton != null)
@@ -1445,11 +1888,67 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _manualSpeedValueLabel.text = FormatFloat(_manualSpeed);
             if (_cameraDistanceValueLabel != null)
                 _cameraDistanceValueLabel.text = FormatFloat(_cameraDistance);
+            if (_cameraHeightValueLabel != null)
+                _cameraHeightValueLabel.text = FormatFloat(_cameraHeight);
             if (_playbackSpeedValueLabel != null)
             {
-                _playbackSpeedValueLabel.text = TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _)
+                _playbackSpeedValueLabel.text = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
+                    ? ShortClipName(selectedBinding.ClipKey) + " " + FormatFloat(GetOrCreateClipEditDraft(selectedBinding.ClipKey).PlaybackSpeed) + "x"
+                    : TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _)
                     ? ShortClipName(clipKey) + " " + FormatFloat(playbackSpeed) + "x"
                     : "-";
+            }
+            UpdateClipEditControls();
+        }
+
+        private void UpdateClipEditControls()
+        {
+            _suppressClipEditCallbacks = true;
+            try
+            {
+                if (_clipEditDropdown != null)
+                {
+                    _clipEditDropdown.choices = _clipEditChoices;
+                    if (TryGetSelectedClipEditBinding(out ClipEditBinding selected))
+                        _clipEditDropdown.SetValueWithoutNotify(selected.Choice);
+                    else if (_clipEditChoices.Count > 0)
+                        _clipEditDropdown.SetValueWithoutNotify(_clipEditChoices[0]);
+                }
+
+                if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
+                {
+                    if (_clipLoopValueLabel != null)
+                        _clipLoopValueLabel.text = "-";
+                    if (_nativeVelocityXValueLabel != null)
+                        _nativeVelocityXValueLabel.text = "-";
+                    if (_nativeVelocityYValueLabel != null)
+                        _nativeVelocityYValueLabel.text = "-";
+                    if (_cycleDurationValueLabel != null)
+                        _cycleDurationValueLabel.text = "-";
+                    if (_sourceSaveStatusLabel != null)
+                        _sourceSaveStatusLabel.text = _sourceSaveStatus;
+                    return;
+                }
+
+                ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
+                if (_clipLoopToggle != null)
+                    _clipLoopToggle.SetValueWithoutNotify(draft.Loop);
+                if (_clipLoopValueLabel != null)
+                    _clipLoopValueLabel.text = draft.Loop ? "loop" : "once";
+                if (_nativeVelocityXValueLabel != null)
+                    _nativeVelocityXValueLabel.text = FormatFloat(draft.NativeVelocityX);
+                if (_nativeVelocityYValueLabel != null)
+                    _nativeVelocityYValueLabel.text = FormatFloat(draft.NativeVelocityY);
+                if (_cycleDurationValueLabel != null)
+                    _cycleDurationValueLabel.text = FormatFloat(draft.CycleDurationSeconds);
+                if (_sourceSaveStatusLabel != null)
+                    _sourceSaveStatusLabel.text = string.IsNullOrWhiteSpace(_sourceSaveStatus)
+                        ? "Source: " + _authoringAnimationConfigPath
+                        : _sourceSaveStatus;
+            }
+            finally
+            {
+                _suppressClipEditCallbacks = false;
             }
         }
 
@@ -2199,6 +2698,63 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             public Vector2 Direction { get; }
         }
 
+        private struct ClipEditBinding
+        {
+            public ClipEditBinding(
+                string clipId,
+                ResourceKey clipKey,
+                float playbackSpeed,
+                bool loop,
+                float nativeVelocityX,
+                float nativeVelocityY,
+                float cycleDurationSeconds,
+                string rootMotionPolicy)
+            {
+                ClipId = clipId ?? string.Empty;
+                ClipKey = clipKey;
+                PlaybackSpeed = playbackSpeed;
+                Loop = loop;
+                NativeVelocityX = nativeVelocityX;
+                NativeVelocityY = nativeVelocityY;
+                CycleDurationSeconds = cycleDurationSeconds;
+                RootMotionPolicy = rootMotionPolicy ?? string.Empty;
+                Choice = string.Empty;
+            }
+
+            public string ClipId { get; }
+            public ResourceKey ClipKey { get; }
+            public float PlaybackSpeed { get; }
+            public bool Loop { get; }
+            public float NativeVelocityX { get; }
+            public float NativeVelocityY { get; }
+            public float CycleDurationSeconds { get; }
+            public string RootMotionPolicy { get; }
+            public string Choice { get; set; }
+        }
+
+        private struct ClipEditDraft
+        {
+            public ClipEditDraft(
+                float playbackSpeed,
+                bool loop,
+                float nativeVelocityX,
+                float nativeVelocityY,
+                float cycleDurationSeconds)
+            {
+                PlaybackSpeed = playbackSpeed;
+                Loop = loop;
+                NativeVelocityX = nativeVelocityX;
+                NativeVelocityY = nativeVelocityY;
+                CycleDurationSeconds = cycleDurationSeconds;
+            }
+
+            public float PlaybackSpeed;
+            public bool Loop;
+            public float NativeVelocityX;
+            public float NativeVelocityY;
+            public float CycleDurationSeconds;
+        }
+
         private sealed class PresetAccumulator
         {
             private readonly LocomotionPresetDefinition _definition;
@@ -2424,6 +2980,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 .Append(FormatFloat(value));
             if (trailingComma)
                 builder.Append(',');
+            builder.Append('\n');
+        }
+
+        private static void AppendJsonBool(StringBuilder builder, string name, bool value, bool trailingComma, int indent)
+        {
+            builder.Append(' ', indent)
+                .Append('"').Append(EscapeJson(name)).Append("\": ")
+                .Append(value ? "true" : "false");
+            if (trailingComma)
+                builder.Append(',');
+            builder.Append('\n');
         }
 
         private static string EscapeJson(string value)

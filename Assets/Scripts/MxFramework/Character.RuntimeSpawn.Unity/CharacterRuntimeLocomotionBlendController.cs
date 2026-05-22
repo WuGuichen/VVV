@@ -133,6 +133,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return false;
         }
 
+        public bool SetClipLoopOverride(ResourceKey clipKey, bool loop)
+        {
+            return _animationBackend != null && _animationBackend.SetClipLoopOverride(clipKey, loop);
+        }
+
+        public bool TryGetClipLoopOverride(ResourceKey clipKey, out bool loop)
+        {
+            if (_animationBackend != null)
+                return _animationBackend.TryGetClipLoopOverride(clipKey, out loop);
+
+            loop = false;
+            return false;
+        }
+
         public MxAnimationLocomotionBlendProbeSnapshot CreateLocomotionBlendProbeSnapshot()
         {
             if (_blend2DDefinition == null)
