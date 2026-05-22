@@ -268,9 +268,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return;
 
             int scale = Math.Max(1, _blendParameterScale);
+            int rawQuantizedBlendX = QuantizeBlendAxisUnclamped(_blend.x, scale);
+            int rawQuantizedBlendY = QuantizeBlendAxisUnclamped(_blend.y, scale);
             _lastQuantizedBlendX = QuantizeBlendAxis(_blend.x, scale, _blendDomainMinX, _blendDomainMaxX);
             _lastQuantizedBlendY = QuantizeBlendAxis(_blend.y, scale, _blendDomainMinY, _blendDomainMaxY);
-            _playbackSpeedCompensation = CalculatePlaybackSpeedCompensation(_lastQuantizedBlendX, _lastQuantizedBlendY, scale);
+            _playbackSpeedCompensation = CalculatePlaybackSpeedCompensation(
+                rawQuantizedBlendX,
+                rawQuantizedBlendY,
+                _lastQuantizedBlendX,
+                _lastQuantizedBlendY,
+                scale);
             _lastAnimationResult = _animationBackend.SetBlend2D(new MxAnimationBlend2DRequest
             {
                 BlendId = _blend2DId,
@@ -455,7 +462,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
         }
 
-        private float CalculatePlaybackSpeedCompensation(int quantizedX, int quantizedY, int scale)
+        private float CalculatePlaybackSpeedCompensation(
+            int rawQuantizedX,
+            int rawQuantizedY,
+            int clampedQuantizedX,
+            int clampedQuantizedY,
+            int scale)
         {
             if (!_enablePlaybackSpeedCompensation || _blend2DDefinition == null)
             {
@@ -464,7 +476,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return 1f;
             }
 
-            float sampleSpeed = Mathf.Sqrt((quantizedX * quantizedX) + (quantizedY * quantizedY)) / Mathf.Max(1, scale);
+            float sampleSpeed = Mathf.Sqrt((rawQuantizedX * rawQuantizedX) + (rawQuantizedY * rawQuantizedY)) / Mathf.Max(1, scale);
             if (sampleSpeed <= 0.0001f)
             {
                 _lastBlendSampleSpeed = 0f;
@@ -472,22 +484,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return 1f;
             }
 
-            if (quantizedX == _lastPlaybackCompensationX
-                && quantizedY == _lastPlaybackCompensationY
+            if (clampedQuantizedX == _lastPlaybackCompensationX
+                && clampedQuantizedY == _lastPlaybackCompensationY
                 && Mathf.Abs(sampleSpeed - _lastPlaybackCompensationActualSpeed) <= 0.0001f)
             {
                 return _playbackSpeedCompensation;
             }
 
-            _lastPlaybackCompensationX = quantizedX;
-            _lastPlaybackCompensationY = quantizedY;
+            _lastPlaybackCompensationX = clampedQuantizedX;
+            _lastPlaybackCompensationY = clampedQuantizedY;
             _lastPlaybackCompensationActualSpeed = sampleSpeed;
             _lastBlendSampleSpeed = sampleSpeed;
 
             MxAnimationBlend2DWeights weights = MxAnimationBlend2DCalculator.Evaluate(
                 _blend2DDefinition,
-                new MxAnimationQuantizedParameter(_blendXParameter, quantizedX, scale),
-                new MxAnimationQuantizedParameter(_blendYParameter, quantizedY, scale));
+                new MxAnimationQuantizedParameter(_blendXParameter, clampedQuantizedX, scale),
+                new MxAnimationQuantizedParameter(_blendYParameter, clampedQuantizedY, scale));
             float nodeSpeed = CalculateBlendedMovingNodeSpeed(weights, scale);
             if (nodeSpeed <= 0.0001f)
             {
@@ -526,6 +538,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             return movingWeight <= 0.0001f ? 0f : weightedMagnitude * (1f / movingWeight);
+        }
+
+        private static int QuantizeBlendAxisUnclamped(float value, int scale)
+        {
+            return Mathf.RoundToInt(value * Mathf.Max(1, scale));
         }
 
         private static int QuantizeBlendAxis(float value, int scale, int min, int max)
