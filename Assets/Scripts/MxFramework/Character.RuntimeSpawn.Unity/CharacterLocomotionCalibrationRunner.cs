@@ -6,8 +6,6 @@ using System.Globalization;
 using MxFramework.Animation;
 using MxFramework.Input;
 using MxFramework.Resources;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -34,8 +32,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const float PlaybackSpeedStep = 0.05f;
         private const float MinPlaybackSpeed = 0.05f;
         private const float MaxPlaybackSpeed = 3f;
-        private const float NativeVelocityStep = 0.05f;
-        private const float CycleDurationStep = 0.05f;
 
         private enum CalibrationCameraMode
         {
@@ -66,7 +62,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _loopHalfExtent = 6f;
         [SerializeField] private bool _showGridGround = true;
         [SerializeField] private float _gridCellSize = 0.2f;
-        [SerializeField] private string _authoringAnimationConfigPath = "Tools/MxFramework.Authoring/samples/character-iron-vanguard/config/animation_authoring.json";
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
@@ -96,16 +91,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _cameraDistanceValueLabel;
         private Label _cameraHeightValueLabel;
         private Label _playbackSpeedValueLabel;
-        private Label _clipLoopValueLabel;
-        private Label _nativeVelocityXValueLabel;
-        private Label _nativeVelocityYValueLabel;
-        private Label _cycleDurationValueLabel;
-        private Label _sourceSaveStatusLabel;
+        private Label _clipEditStatusLabel;
         private Slider _manualSpeedSlider;
         private Slider _cameraDistanceSlider;
         private Slider _cameraHeightSlider;
         private DropdownField _clipEditDropdown;
-        private Toggle _clipLoopToggle;
         private Button _cameraModeButton;
         private Button _cameraFollowButton;
         private Button _loopingPlaneButton;
@@ -132,7 +122,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private string _lastPresetReportPath = string.Empty;
         private string _lastCalibrationDraftPath = string.Empty;
         private readonly Dictionary<ResourceKey, float> _playbackSpeedDrafts = new Dictionary<ResourceKey, float>();
-        private readonly Dictionary<ResourceKey, ClipEditDraft> _clipEditDrafts = new Dictionary<ResourceKey, ClipEditDraft>();
         private readonly List<ClipEditBinding> _clipEditBindings = new List<ClipEditBinding>();
         private readonly List<string> _clipEditChoices = new List<string>();
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
@@ -142,7 +131,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Quaternion _lockedFacingRotation = Quaternion.identity;
         private bool _hasLockedFacingRotation;
         private ResourceKey _selectedClipEditKey;
-        private string _sourceSaveStatus = string.Empty;
+        private string _clipEditStatus = string.Empty;
         private bool _suppressClipEditCallbacks;
         private GameObject _gridGroundObject;
         private MeshFilter _gridGroundFilter;
@@ -165,6 +154,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public bool AnimationBackendReady => _locomotionController != null && _locomotionController.HasAnimationBackend;
         public bool PresetSequenceRunning => _presetSequenceRunning;
         public MxAnimationLocomotionPresetSequenceReport LastPresetSequenceReport => _lastPresetSequenceReport;
+
+        public static event Action<UnityEngine.Object> LocateProjectObjectRequested;
 
         private static readonly LocomotionPresetDefinition[] PresetDefinitions =
         {
@@ -230,16 +221,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _cameraDistanceValueLabel = null;
             _cameraHeightValueLabel = null;
             _playbackSpeedValueLabel = null;
-            _clipLoopValueLabel = null;
-            _nativeVelocityXValueLabel = null;
-            _nativeVelocityYValueLabel = null;
-            _cycleDurationValueLabel = null;
-            _sourceSaveStatusLabel = null;
+            _clipEditStatusLabel = null;
             _manualSpeedSlider = null;
             _cameraDistanceSlider = null;
             _cameraHeightSlider = null;
             _clipEditDropdown = null;
-            _clipLoopToggle = null;
             _cameraModeButton = null;
             _cameraFollowButton = null;
             _loopingPlaneButton = null;
@@ -756,51 +742,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 SelectClipEditChoice(evt.newValue);
             });
             clipEditRow.Add(_clipEditDropdown);
-            _clipLoopToggle = new Toggle("Loop");
-            _clipLoopToggle.style.minWidth = 76f;
-            StyleControl(_clipLoopToggle);
-            _clipLoopToggle.RegisterValueChangedCallback(evt =>
-            {
-                if (_suppressClipEditCallbacks)
-                    return;
-                SetSelectedClipLoop(evt.newValue);
-            });
-            clipEditRow.Add(_clipLoopToggle);
-            _clipLoopValueLabel = CreateValueLabel();
-            _clipLoopValueLabel.style.width = 52f;
-            clipEditRow.Add(_clipLoopValueLabel);
-            Button saveSource = CreateWideButton("Save Source", SaveSelectedClipEditToSource);
-            saveSource.style.width = 112f;
-            clipEditRow.Add(saveSource);
+            Button locateClip = CreateWideButton("Locate Clip", LocateSelectedClipInProject);
+            locateClip.style.width = 112f;
+            clipEditRow.Add(locateClip);
             sliderColumn.Add(clipEditRow);
 
-            var bakeRow = new VisualElement();
-            bakeRow.style.flexDirection = FlexDirection.Row;
-            bakeRow.style.alignItems = Align.Center;
-            bakeRow.style.flexWrap = Wrap.Wrap;
-            bakeRow.style.marginTop = 4f;
-            bakeRow.Add(CreateInlineLabel("Bake X"));
-            bakeRow.Add(CreateSmallButton("-", () => AdjustSelectedNativeVelocityX(-NativeVelocityStep)));
-            _nativeVelocityXValueLabel = CreateValueLabel();
-            bakeRow.Add(_nativeVelocityXValueLabel);
-            bakeRow.Add(CreateSmallButton("+", () => AdjustSelectedNativeVelocityX(NativeVelocityStep)));
-            bakeRow.Add(CreateInlineLabel("Y"));
-            bakeRow.Add(CreateSmallButton("-", () => AdjustSelectedNativeVelocityY(-NativeVelocityStep)));
-            _nativeVelocityYValueLabel = CreateValueLabel();
-            bakeRow.Add(_nativeVelocityYValueLabel);
-            bakeRow.Add(CreateSmallButton("+", () => AdjustSelectedNativeVelocityY(NativeVelocityStep)));
-            bakeRow.Add(CreateInlineLabel("Cycle"));
-            bakeRow.Add(CreateSmallButton("-", () => AdjustSelectedCycleDuration(-CycleDurationStep)));
-            _cycleDurationValueLabel = CreateValueLabel();
-            bakeRow.Add(_cycleDurationValueLabel);
-            bakeRow.Add(CreateSmallButton("+", () => AdjustSelectedCycleDuration(CycleDurationStep)));
-            sliderColumn.Add(bakeRow);
-
-            _sourceSaveStatusLabel = new Label();
-            _sourceSaveStatusLabel.style.fontSize = 11f;
-            _sourceSaveStatusLabel.style.color = new Color(0.74f, 0.84f, 0.94f, 1f);
-            _sourceSaveStatusLabel.style.whiteSpace = WhiteSpace.Normal;
-            sliderColumn.Add(_sourceSaveStatusLabel);
+            _clipEditStatusLabel = new Label();
+            _clipEditStatusLabel.style.fontSize = 11f;
+            _clipEditStatusLabel.style.color = new Color(0.74f, 0.84f, 0.94f, 1f);
+            _clipEditStatusLabel.style.whiteSpace = WhiteSpace.Normal;
+            sliderColumn.Add(_clipEditStatusLabel);
 
             var timeScale = new Slider("Time scale", 0.1f, 1f)
             {
@@ -1036,8 +987,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             if (TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding))
             {
-                ClipEditDraft selectedDraft = GetOrCreateClipEditDraft(selectedBinding.ClipKey);
-                SetDominantPlaybackSpeed(selectedBinding.ClipKey, selectedDraft.PlaybackSpeed + delta);
+                SetDominantPlaybackSpeed(
+                    selectedBinding.ClipKey,
+                    GetClipPlaybackSpeed(selectedBinding.ClipKey, selectedBinding.PlaybackSpeed) + delta);
                 return;
             }
 
@@ -1067,9 +1019,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return;
 
             _playbackSpeedDrafts[clipKey] = value;
-            ClipEditDraft draft = GetOrCreateClipEditDraft(clipKey);
-            draft.PlaybackSpeed = value;
-            _clipEditDrafts[clipKey] = draft;
             if (!_selectedClipEditKey.IsValid)
                 _selectedClipEditKey = clipKey;
             UpdateObservationButtons();
@@ -1083,116 +1032,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     continue;
 
                 _selectedClipEditKey = _clipEditBindings[i].ClipKey;
-                PrimeClipEditDraft(_clipEditBindings[i]);
                 UpdateClipEditControls();
                 return;
             }
-        }
-
-        private void SetSelectedClipLoop(bool loop)
-        {
-            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
-                return;
-
-            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
-            draft.Loop = loop;
-            _clipEditDrafts[binding.ClipKey] = draft;
-            _locomotionController?.SetClipLoopOverride(binding.ClipKey, loop);
-            _sourceSaveStatus = "Loop override pending source save.";
-            UpdateClipEditControls();
-        }
-
-        private void AdjustSelectedNativeVelocityX(float delta)
-        {
-            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
-                return;
-
-            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
-            draft.NativeVelocityX = Mathf.Clamp(draft.NativeVelocityX + delta, -MaxManualSpeed, MaxManualSpeed);
-            _clipEditDrafts[binding.ClipKey] = draft;
-            _sourceSaveStatus = "Bake calibration pending source save.";
-            UpdateClipEditControls();
-        }
-
-        private void AdjustSelectedNativeVelocityY(float delta)
-        {
-            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
-                return;
-
-            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
-            draft.NativeVelocityY = Mathf.Clamp(draft.NativeVelocityY + delta, -MaxManualSpeed, MaxManualSpeed);
-            _clipEditDrafts[binding.ClipKey] = draft;
-            _sourceSaveStatus = "Bake calibration pending source save.";
-            UpdateClipEditControls();
-        }
-
-        private void AdjustSelectedCycleDuration(float delta)
-        {
-            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
-                return;
-
-            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
-            draft.CycleDurationSeconds = Mathf.Clamp(draft.CycleDurationSeconds + delta, 0f, 10f);
-            _clipEditDrafts[binding.ClipKey] = draft;
-            _sourceSaveStatus = "Bake calibration pending source save.";
-            UpdateClipEditControls();
-        }
-
-        private void SaveSelectedClipEditToSource()
-        {
-            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
-            {
-                _sourceSaveStatus = "No editable clip selected.";
-                UpdateClipEditControls();
-                return;
-            }
-
-            ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
-            string path = ResolveAuthoringAnimationConfigPath();
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                _sourceSaveStatus = "Source config not found: " + path;
-                UpdateClipEditControls();
-                return;
-            }
-
-            try
-            {
-                JObject root = JObject.Parse(File.ReadAllText(path, Encoding.UTF8));
-                JObject clip = FindAuthoringClip(root, binding);
-                if (clip == null)
-                {
-                    _sourceSaveStatus = "Source clip not found: " + binding.ClipId;
-                    UpdateClipEditControls();
-                    return;
-                }
-
-                clip["speed"] = draft.PlaybackSpeed;
-                clip["loop"] = draft.Loop;
-                if (!string.IsNullOrWhiteSpace(binding.RootMotionPolicy))
-                    clip["rootMotionPolicy"] = binding.RootMotionPolicy;
-
-                JObject calibration = clip["calibration"] as JObject;
-                if (calibration == null)
-                {
-                    calibration = new JObject();
-                    clip["calibration"] = calibration;
-                }
-
-                calibration["nativeVelocityX"] = draft.NativeVelocityX;
-                calibration["nativeVelocityY"] = draft.NativeVelocityY;
-                calibration["playbackSpeed"] = draft.PlaybackSpeed;
-                calibration["cycleDurationSeconds"] = draft.CycleDurationSeconds;
-
-                File.WriteAllText(path, root.ToString(Formatting.Indented) + Environment.NewLine, Encoding.UTF8);
-                _sourceSaveStatus = "Saved source: " + Path.GetFileName(path);
-            }
-            catch (Exception ex)
-            {
-                _sourceSaveStatus = "Source save failed: " + ex.Message;
-            }
-
-            UpdateClipEditControls();
         }
 
         private static float ClampManualSpeed(float value)
@@ -1217,12 +1059,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     AddClipEditBinding(new ClipEditBinding(
                         calibration.ClipId,
                         calibration.ClipKey,
-                        calibration.PlaybackSpeed,
-                        loop: true,
-                        calibration.NativeVelocityX,
-                        calibration.NativeVelocityY,
-                        calibration.CycleDurationSeconds,
-                        "Ignore"));
+                        calibration.PlaybackSpeed));
                 }
 
                 for (int blendIndex = 0; blendIndex < definition.Blend2DDefinitions.Count; blendIndex++)
@@ -1237,12 +1074,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                         AddClipEditBinding(new ClipEditBinding(
                             point.ClipKey.Id,
                             point.ClipKey,
-                            point.PlaybackSpeed,
-                            point.Loop,
-                            0f,
-                            0f,
-                            0f,
-                            "Ignore"));
+                            point.PlaybackSpeed));
                     }
                 }
             }
@@ -1259,12 +1091,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 AddClipEditBinding(new ClipEditBinding(
                     weight.ClipKey.Id,
                     weight.ClipKey,
-                    weight.PlaybackSpeed,
-                    weight.Loop,
-                    0f,
-                    0f,
-                    0f,
-                    "Ignore"));
+                    weight.PlaybackSpeed));
             }
 
             if (_clipEditBindings.Count == 0)
@@ -1277,8 +1104,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (!_selectedClipEditKey.IsValid || !_clipEditBindings.Exists(item => item.ClipKey == _selectedClipEditKey))
                 _selectedClipEditKey = probe != null && probe.HasDominantClip ? probe.DominantClipKey : _clipEditBindings[0].ClipKey;
 
-            for (int i = 0; i < _clipEditBindings.Count; i++)
-                PrimeClipEditDraft(_clipEditBindings[i]);
         }
 
         private void AddClipEditBinding(ClipEditBinding binding)
@@ -1296,34 +1121,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _clipEditChoices.Add(choice);
         }
 
-        private void PrimeClipEditDraft(ClipEditBinding binding)
+        private float GetClipPlaybackSpeed(ResourceKey clipKey, float fallback)
         {
-            if (_clipEditDrafts.ContainsKey(binding.ClipKey))
-                return;
-
-            _clipEditDrafts[binding.ClipKey] = new ClipEditDraft(
-                ClampPlaybackSpeed(binding.PlaybackSpeed),
-                binding.Loop,
-                binding.NativeVelocityX,
-                binding.NativeVelocityY,
-                binding.CycleDurationSeconds);
-        }
-
-        private ClipEditDraft GetOrCreateClipEditDraft(ResourceKey clipKey)
-        {
-            if (_clipEditDrafts.TryGetValue(clipKey, out ClipEditDraft draft))
-                return draft;
-
-            for (int i = 0; i < _clipEditBindings.Count; i++)
-            {
-                if (_clipEditBindings[i].ClipKey == clipKey)
-                {
-                    PrimeClipEditDraft(_clipEditBindings[i]);
-                    return _clipEditDrafts[clipKey];
-                }
-            }
-
-            return new ClipEditDraft(1f, true, 0f, 0f, 0f);
+            return _playbackSpeedDrafts.TryGetValue(clipKey, out float value)
+                ? value
+                : fallback;
         }
 
         private bool TryGetSelectedClipEditBinding(out ClipEditBinding binding)
@@ -1341,43 +1143,25 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return false;
         }
 
-        private string ResolveAuthoringAnimationConfigPath()
+        private void LocateSelectedClipInProject()
         {
-            if (string.IsNullOrWhiteSpace(_authoringAnimationConfigPath))
-                return string.Empty;
-            return Path.IsPathRooted(_authoringAnimationConfigPath)
-                ? _authoringAnimationConfigPath
-                : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), _authoringAnimationConfigPath));
-        }
-
-        private static JObject FindAuthoringClip(JObject root, ClipEditBinding binding)
-        {
-            JArray sets = root["sets"] as JArray;
-            for (int setIndex = 0; sets != null && setIndex < sets.Count; setIndex++)
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
             {
-                JObject set = sets[setIndex] as JObject;
-                JArray groups = set?["groups"] as JArray;
-                for (int groupIndex = 0; groups != null && groupIndex < groups.Count; groupIndex++)
-                {
-                    JObject group = groups[groupIndex] as JObject;
-                    JArray clips = group?["clips"] as JArray;
-                    for (int clipIndex = 0; clips != null && clipIndex < clips.Count; clipIndex++)
-                    {
-                        JObject clip = clips[clipIndex] as JObject;
-                        if (clip == null)
-                            continue;
-
-                        string clipId = (string)clip["clipId"];
-                        string runtimeResourceKey = (string)clip["runtimeResourceKey"];
-                        if (string.Equals(clipId, binding.ClipId, StringComparison.Ordinal)
-                            || string.Equals(runtimeResourceKey, binding.ClipKey.ToString(), StringComparison.Ordinal)
-                            || string.Equals(runtimeResourceKey, binding.ClipKey.Id, StringComparison.Ordinal))
-                            return clip;
-                    }
-                }
+                _clipEditStatus = "No clip selected.";
+                UpdateClipEditControls();
+                return;
             }
 
-            return null;
+            if (_bootstrap == null || !_bootstrap.TryFindSerializedResourceAsset(binding.ClipKey, out UnityEngine.Object asset) || asset == null)
+            {
+                _clipEditStatus = "Clip asset not found for " + binding.ClipKey.Id;
+                UpdateClipEditControls();
+                return;
+            }
+
+            LocateProjectObjectRequested?.Invoke(asset);
+            _clipEditStatus = "Located " + asset.name + " in Project.";
+            UpdateClipEditControls();
         }
 
         private static float ClampPlaybackSpeed(float value)
@@ -1662,7 +1446,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             AppendJsonString(builder, "createdUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture), trailingComma: true, indent: 2);
             builder.Append("  \"clipOverrides\": [\n");
             int index = 0;
-            foreach (KeyValuePair<ResourceKey, ClipEditDraft> pair in _clipEditDrafts)
+            foreach (KeyValuePair<ResourceKey, float> pair in _playbackSpeedDrafts)
             {
                 ResourceKey key = pair.Key;
                 if (!key.IsValid)
@@ -1677,11 +1461,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 AppendJsonString(builder, "resourceTypeId", key.TypeId, trailingComma: true, indent: 6);
                 AppendJsonString(builder, "variant", key.Variant, trailingComma: true, indent: 6);
                 AppendJsonString(builder, "packageId", key.PackageId, trailingComma: true, indent: 6);
-                AppendJsonNumber(builder, "playbackSpeed", pair.Value.PlaybackSpeed, trailingComma: true, indent: 6);
-                AppendJsonBool(builder, "loop", pair.Value.Loop, trailingComma: true, indent: 6);
-                AppendJsonNumber(builder, "nativeVelocityX", pair.Value.NativeVelocityX, trailingComma: true, indent: 6);
-                AppendJsonNumber(builder, "nativeVelocityY", pair.Value.NativeVelocityY, trailingComma: true, indent: 6);
-                AppendJsonNumber(builder, "cycleDurationSeconds", pair.Value.CycleDurationSeconds, trailingComma: false, indent: 6);
+                AppendJsonNumber(builder, "playbackSpeed", pair.Value, trailingComma: false, indent: 6);
                 builder.Append('\n').Append("    }");
                 index++;
             }
@@ -1893,7 +1673,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (_playbackSpeedValueLabel != null)
             {
                 _playbackSpeedValueLabel.text = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
-                    ? ShortClipName(selectedBinding.ClipKey) + " " + FormatFloat(GetOrCreateClipEditDraft(selectedBinding.ClipKey).PlaybackSpeed) + "x"
+                    ? ShortClipName(selectedBinding.ClipKey) + " " + FormatFloat(GetClipPlaybackSpeed(selectedBinding.ClipKey, selectedBinding.PlaybackSpeed)) + "x"
                     : TryGetDominantPlaybackSpeed(out ResourceKey clipKey, out float playbackSpeed, out _)
                     ? ShortClipName(clipKey) + " " + FormatFloat(playbackSpeed) + "x"
                     : "-";
@@ -1917,34 +1697,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
                 if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding))
                 {
-                    if (_clipLoopValueLabel != null)
-                        _clipLoopValueLabel.text = "-";
-                    if (_nativeVelocityXValueLabel != null)
-                        _nativeVelocityXValueLabel.text = "-";
-                    if (_nativeVelocityYValueLabel != null)
-                        _nativeVelocityYValueLabel.text = "-";
-                    if (_cycleDurationValueLabel != null)
-                        _cycleDurationValueLabel.text = "-";
-                    if (_sourceSaveStatusLabel != null)
-                        _sourceSaveStatusLabel.text = _sourceSaveStatus;
+                    if (_clipEditStatusLabel != null)
+                        _clipEditStatusLabel.text = _clipEditStatus;
                     return;
                 }
 
-                ClipEditDraft draft = GetOrCreateClipEditDraft(binding.ClipKey);
-                if (_clipLoopToggle != null)
-                    _clipLoopToggle.SetValueWithoutNotify(draft.Loop);
-                if (_clipLoopValueLabel != null)
-                    _clipLoopValueLabel.text = draft.Loop ? "loop" : "once";
-                if (_nativeVelocityXValueLabel != null)
-                    _nativeVelocityXValueLabel.text = FormatFloat(draft.NativeVelocityX);
-                if (_nativeVelocityYValueLabel != null)
-                    _nativeVelocityYValueLabel.text = FormatFloat(draft.NativeVelocityY);
-                if (_cycleDurationValueLabel != null)
-                    _cycleDurationValueLabel.text = FormatFloat(draft.CycleDurationSeconds);
-                if (_sourceSaveStatusLabel != null)
-                    _sourceSaveStatusLabel.text = string.IsNullOrWhiteSpace(_sourceSaveStatus)
-                        ? "Source: " + _authoringAnimationConfigPath
-                        : _sourceSaveStatus;
+                if (_clipEditStatusLabel != null)
+                    _clipEditStatusLabel.text = string.IsNullOrWhiteSpace(_clipEditStatus)
+                        ? "Clip source: use Locate Clip to edit Loop Time / Bake Into Pose in Unity Inspector."
+                        : _clipEditStatus;
             }
             finally
             {
@@ -2703,56 +2464,18 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             public ClipEditBinding(
                 string clipId,
                 ResourceKey clipKey,
-                float playbackSpeed,
-                bool loop,
-                float nativeVelocityX,
-                float nativeVelocityY,
-                float cycleDurationSeconds,
-                string rootMotionPolicy)
+                float playbackSpeed)
             {
                 ClipId = clipId ?? string.Empty;
                 ClipKey = clipKey;
                 PlaybackSpeed = playbackSpeed;
-                Loop = loop;
-                NativeVelocityX = nativeVelocityX;
-                NativeVelocityY = nativeVelocityY;
-                CycleDurationSeconds = cycleDurationSeconds;
-                RootMotionPolicy = rootMotionPolicy ?? string.Empty;
                 Choice = string.Empty;
             }
 
             public string ClipId { get; }
             public ResourceKey ClipKey { get; }
             public float PlaybackSpeed { get; }
-            public bool Loop { get; }
-            public float NativeVelocityX { get; }
-            public float NativeVelocityY { get; }
-            public float CycleDurationSeconds { get; }
-            public string RootMotionPolicy { get; }
             public string Choice { get; set; }
-        }
-
-        private struct ClipEditDraft
-        {
-            public ClipEditDraft(
-                float playbackSpeed,
-                bool loop,
-                float nativeVelocityX,
-                float nativeVelocityY,
-                float cycleDurationSeconds)
-            {
-                PlaybackSpeed = playbackSpeed;
-                Loop = loop;
-                NativeVelocityX = nativeVelocityX;
-                NativeVelocityY = nativeVelocityY;
-                CycleDurationSeconds = cycleDurationSeconds;
-            }
-
-            public float PlaybackSpeed;
-            public bool Loop;
-            public float NativeVelocityX;
-            public float NativeVelocityY;
-            public float CycleDurationSeconds;
         }
 
         private sealed class PresetAccumulator
@@ -2978,16 +2701,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             builder.Append(' ', indent)
                 .Append('"').Append(EscapeJson(name)).Append("\": ")
                 .Append(FormatFloat(value));
-            if (trailingComma)
-                builder.Append(',');
-            builder.Append('\n');
-        }
-
-        private static void AppendJsonBool(StringBuilder builder, string name, bool value, bool trailingComma, int indent)
-        {
-            builder.Append(' ', indent)
-                .Append('"').Append(EscapeJson(name)).Append("\": ")
-                .Append(value ? "true" : "false");
             if (trailingComma)
                 builder.Append(',');
             builder.Append('\n');

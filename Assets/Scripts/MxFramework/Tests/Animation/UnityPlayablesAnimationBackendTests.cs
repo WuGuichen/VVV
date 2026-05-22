@@ -714,52 +714,6 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
-        public void SetBlend2D_UsesLoopOverrideInDiagnostics()
-        {
-            ResourceKey idleKey = ClipKey("demo.animation.idle");
-            AnimationClip idle = CreateClip("idle");
-            var provider = new MemoryResourceProvider().Register("clips/idle", idle);
-            ResourceManager manager = CreateManager(provider, Entry(idleKey, "clips/idle"));
-            var definition = new MxAnimationSetDefinition(
-                "demo.set",
-                1,
-                default,
-                default,
-                blend2DDefinitions: new[]
-                {
-                    new MxAnimationBlend2DDefinition(
-                        "locomotion2d",
-                        "move.x",
-                        "move.y",
-                        MxAnimationLayerId.Base,
-                        new[]
-                        {
-                            new MxAnimationBlend2DPoint(0, 1000, idleKey, loop: true)
-                        })
-                });
-
-            using (BackendFixture fixture = BackendFixture.Create(manager, definition))
-            {
-                Assert.IsTrue(fixture.Backend.SetClipLoopOverride(idleKey, false));
-
-                MxAnimationBackendResult blendResult = fixture.Backend.SetBlend2D(new MxAnimationBlend2DRequest
-                {
-                    BlendId = "locomotion2d",
-                    ParameterX = new MxAnimationQuantizedParameter("move.x", 0),
-                    ParameterY = new MxAnimationQuantizedParameter("move.y", 1000),
-                    CorrelationId = "move:0,1000"
-                });
-
-                Assert.IsTrue(blendResult.Success, blendResult.Message);
-                MxAnimationLayerDiagnostic layer = FindLayer(fixture.Backend.CreateSnapshot(), MxAnimationLayerId.Base);
-                Assert.AreEqual(1, layer.Blend2DWeights.Count);
-                Assert.IsFalse(layer.Blend2DWeights[0].Loop);
-            }
-
-            Object.DestroyImmediate(idle);
-        }
-
-        [Test]
         public void UpperBodyAttack_WhenFadeOutCompletes_ReleasesHandleBeforeReplay()
         {
             ResourceKey attackKey = ClipKey("demo.animation.attack");

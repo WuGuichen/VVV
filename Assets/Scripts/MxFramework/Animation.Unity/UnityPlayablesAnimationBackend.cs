@@ -20,7 +20,6 @@ namespace MxFramework.Animation.Unity
         private readonly List<PendingLoad> _pendingLoads = new List<PendingLoad>();
         private readonly List<PendingMaskLoad> _pendingMaskLoads = new List<PendingMaskLoad>();
         private readonly Dictionary<ResourceKey, float> _playbackSpeedOverrides = new Dictionary<ResourceKey, float>();
-        private readonly Dictionary<ResourceKey, bool> _loopOverrides = new Dictionary<ResourceKey, bool>();
         private readonly IMxAnimationPlayableDiagnostics _diagnostics;
         private readonly MxAnimationPlayableGraphRuntime _playables;
         private readonly MxAnimationPlayableStateCache _stateCache;
@@ -69,25 +68,6 @@ namespace MxFramework.Animation.Unity
         public bool ClearClipPlaybackSpeedOverride(ResourceKey clipKey)
         {
             return clipKey.IsValid && _playbackSpeedOverrides.Remove(clipKey);
-        }
-
-        public bool SetClipLoopOverride(ResourceKey clipKey, bool loop)
-        {
-            if (!clipKey.IsValid)
-                return false;
-
-            _loopOverrides[clipKey] = loop;
-            return true;
-        }
-
-        public bool TryGetClipLoopOverride(ResourceKey clipKey, out bool loop)
-        {
-            return _loopOverrides.TryGetValue(clipKey, out loop);
-        }
-
-        public bool ClearClipLoopOverride(ResourceKey clipKey)
-        {
-            return clipKey.IsValid && _loopOverrides.Remove(clipKey);
         }
 
         public static UnityPlayablesAnimationBackend Create(
@@ -254,14 +234,13 @@ namespace MxFramework.Animation.Unity
             {
                 MxAnimationBlend1DWeight weight = weights.Weights[i];
                 float playbackSpeed = ResolvePlaybackSpeed(weight.ClipKey, weight.PlaybackSpeed);
-                bool loop = ResolveLoop(weight.ClipKey, weight.Loop);
-                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, loop));
+                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, weight.Loop));
                 diagnosticWeights.Add(new MxAnimationBlend1DWeight(
                     weight.ClipKey,
                     weight.Threshold,
                     weight.Weight,
                     playbackSpeed,
-                    loop));
+                    weight.Loop));
             }
 
             return ApplyBlendWeights(
@@ -303,15 +282,14 @@ namespace MxFramework.Animation.Unity
             {
                 MxAnimationBlend2DWeight weight = weights.Weights[i];
                 float playbackSpeed = ResolvePlaybackSpeed(weight.ClipKey, weight.PlaybackSpeed);
-                bool loop = ResolveLoop(weight.ClipKey, weight.Loop);
-                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, loop));
+                clipWeights.Add(new BlendClipWeight(weight.ClipKey, weight.Weight, playbackSpeed, weight.Loop));
                 diagnosticWeights.Add(new MxAnimationBlend2DWeight(
                     weight.ClipKey,
                     weight.X,
                     weight.Y,
                     weight.Weight,
                     playbackSpeed,
-                    loop));
+                    weight.Loop));
             }
 
             return ApplyBlendWeights(
@@ -1177,7 +1155,7 @@ namespace MxFramework.Animation.Unity
                 return false;
             }
 
-            resolved = new ClipRequest(layerId, clipKey, clipKey, 0f, speed, ResolveLoop(clipKey, loop), request.StartOffsetSeconds, request.CorrelationId);
+            resolved = new ClipRequest(layerId, clipKey, clipKey, 0f, speed, loop, request.StartOffsetSeconds, request.CorrelationId);
             error = string.Empty;
             return true;
         }
@@ -1212,7 +1190,7 @@ namespace MxFramework.Animation.Unity
                 return false;
             }
 
-            resolved = new ClipRequest(layerId, clipKey, clipKey, Math.Max(0f, request.FadeDurationSeconds), speed, ResolveLoop(clipKey, loop), request.TargetStartOffsetSeconds, request.CorrelationId);
+            resolved = new ClipRequest(layerId, clipKey, clipKey, Math.Max(0f, request.FadeDurationSeconds), speed, loop, request.TargetStartOffsetSeconds, request.CorrelationId);
             error = string.Empty;
             return true;
         }
@@ -1296,11 +1274,6 @@ namespace MxFramework.Animation.Unity
             return _playbackSpeedOverrides.TryGetValue(clipKey, out float playbackSpeed)
                 ? playbackSpeed
                 : fallback;
-        }
-
-        private bool ResolveLoop(ResourceKey clipKey, bool fallback)
-        {
-            return _loopOverrides.TryGetValue(clipKey, out bool loop) ? loop : fallback;
         }
 
         private static int CountActiveSlots(LayerRuntime layer)
