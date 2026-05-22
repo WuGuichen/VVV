@@ -159,6 +159,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public MxAnimationLocomotionPresetSequenceReport LastPresetSequenceReport => _lastPresetSequenceReport;
 
         public static event Action<UnityEngine.Object> LocateProjectObjectRequested;
+        public static event Action<string> ApplyCalibrationDraftRequested;
+        public static event Action<string> CalibrationDraftApplyResultReported;
+
+        public static void ReportCalibrationDraftApplyResult(string message)
+        {
+            CalibrationDraftApplyResultReported?.Invoke(message ?? string.Empty);
+        }
 
         private static readonly LocomotionPresetDefinition[] PresetDefinitions =
         {
@@ -179,6 +186,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void OnEnable()
         {
+            CalibrationDraftApplyResultReported -= OnCalibrationDraftApplyResultReported;
+            CalibrationDraftApplyResultReported += OnCalibrationDraftApplyResultReported;
             EnsureHud();
         }
 
@@ -206,6 +215,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void OnDisable()
         {
+            CalibrationDraftApplyResultReported -= OnCalibrationDraftApplyResultReported;
             ReleaseManualInputProvider();
             RestoreTimeScale();
             HideSceneGizmos();
@@ -615,10 +625,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             actionRow.Add(runPresets);
             Button copySummary = CreateWideButton("Copy Summary", CopyPresetReportSummary);
             actionRow.Add(copySummary);
-            Button saveJson = CreateWideButton("Save JSON", SavePresetReportJson);
+            Button saveJson = CreateWideButton("Save Report", SavePresetReportJson);
             actionRow.Add(saveJson);
             Button saveDraft = CreateWideButton("Save Draft", SaveCalibrationDraftJson);
             actionRow.Add(saveDraft);
+            Button applyConfig = CreateWideButton("Apply To Config", ApplyCalibrationDraftToConfig);
+            actionRow.Add(applyConfig);
             controls.Add(actionRow);
 
             var observationRow = new VisualElement();
@@ -1476,12 +1488,34 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 File.WriteAllText(path, CreateCalibrationDraftJson(), Encoding.UTF8);
                 _lastCalibrationDraftPath = path;
                 _lastPresetReportPath = path;
+                _clipEditStatus = "Draft saved only. Use Apply To Config to write animation_authoring.json.";
+                UpdateClipEditControls();
             }
             catch (Exception ex)
             {
                 _lastCalibrationDraftPath = "draft save failed: " + ex.Message;
                 _lastPresetReportPath = _lastCalibrationDraftPath;
+                _clipEditStatus = _lastCalibrationDraftPath;
+                UpdateClipEditControls();
             }
+        }
+
+        private void ApplyCalibrationDraftToConfig()
+        {
+            string draft = CreateCalibrationDraftJson();
+            ApplyCalibrationDraftRequested?.Invoke(draft);
+            _lastCalibrationDraftPath = "apply requested";
+            _lastPresetReportPath = _lastCalibrationDraftPath;
+            _clipEditStatus = "Apply To Config requested.";
+            UpdateClipEditControls();
+        }
+
+        private void OnCalibrationDraftApplyResultReported(string message)
+        {
+            _lastCalibrationDraftPath = string.IsNullOrWhiteSpace(message) ? "apply finished" : message;
+            _lastPresetReportPath = _lastCalibrationDraftPath;
+            _clipEditStatus = _lastCalibrationDraftPath;
+            UpdateClipEditControls();
         }
 
         private string CreateCalibrationDraftJson()
