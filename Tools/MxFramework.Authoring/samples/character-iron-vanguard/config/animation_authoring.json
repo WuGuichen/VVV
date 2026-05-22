@@ -73,6 +73,26 @@
               "loop": true,
               "speed": 1,
               "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": 0,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 1.2,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0,
+                    "endNormalized": 1,
+                    "confidence": 1
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0,
+                    "endNormalized": 1,
+                    "confidence": 1
+                  }
+                ]
+              },
               "tags": [
                 "idle",
                 "loop"
@@ -109,6 +129,26 @@
               "loop": true,
               "speed": 1,
               "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": 1.15,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.9,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.08,
+                    "endNormalized": 0.34,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.58,
+                    "endNormalized": 0.84,
+                    "confidence": 0.9
+                  }
+                ]
+              },
               "tags": [
                 "move",
                 "loop"
@@ -145,6 +185,26 @@
               "loop": true,
               "speed": 1,
               "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": 2.35,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.7,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.06,
+                    "endNormalized": 0.28,
+                    "confidence": 0.85
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.56,
+                    "endNormalized": 0.78,
+                    "confidence": 0.85
+                  }
+                ]
+              },
               "tags": [
                 "move",
                 "loop"
@@ -181,6 +241,26 @@
               "loop": true,
               "speed": 1,
               "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 1.05,
+                "nativeVelocityY": 0,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.9,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.08,
+                    "endNormalized": 0.34,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.58,
+                    "endNormalized": 0.84,
+                    "confidence": 0.9
+                  }
+                ]
+              },
               "tags": [
                 "move",
                 "loop"
@@ -217,6 +297,26 @@
               "loop": true,
               "speed": 1,
               "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": -1.05,
+                "nativeVelocityY": 0,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.9,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.08,
+                    "endNormalized": 0.34,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.58,
+                    "endNormalized": 0.84,
+                    "confidence": 0.9
+                  }
+                ]
+              },
               "tags": [
                 "move",
                 "loop"
@@ -253,6 +353,26 @@
               "loop": true,
               "speed": 1,
               "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": -0.9,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.95,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.1,
+                    "endNormalized": 0.36,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.6,
+                    "endNormalized": 0.86,
+                    "confidence": 0.9
+                  }
+                ]
+              },
               "tags": [
                 "move",
                 "loop"

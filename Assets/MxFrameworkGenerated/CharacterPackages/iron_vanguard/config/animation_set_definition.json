@@ -53,7 +53,27 @@
               "sourceSubClipId": "standing_idle",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": 0,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 1.2,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0,
+                    "endNormalized": 1,
+                    "confidence": 1
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0,
+                    "endNormalized": 1,
+                    "confidence": 1
+                  }
+                ]
+              }
             },
             {
               "clipId": "walk_f",
@@ -63,7 +83,27 @@
               "sourceSubClipId": "standing_walk_forward",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": 1.15,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.9,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.08,
+                    "endNormalized": 0.34,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.58,
+                    "endNormalized": 0.84,
+                    "confidence": 0.9
+                  }
+                ]
+              }
             },
             {
               "clipId": "run_f",
@@ -73,7 +113,27 @@
               "sourceSubClipId": "standing_run_forward",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": 2.35,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.7,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.06,
+                    "endNormalized": 0.28,
+                    "confidence": 0.85
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.56,
+                    "endNormalized": 0.78,
+                    "confidence": 0.85
+                  }
+                ]
+              }
             },
             {
               "clipId": "walk_r",
@@ -83,7 +143,27 @@
               "sourceSubClipId": "standing_walk_right",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 1.05,
+                "nativeVelocityY": 0,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.9,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.08,
+                    "endNormalized": 0.34,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.58,
+                    "endNormalized": 0.84,
+                    "confidence": 0.9
+                  }
+                ]
+              }
             },
             {
               "clipId": "walk_l",
@@ -93,7 +173,27 @@
               "sourceSubClipId": "standing_walk_left",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": -1.05,
+                "nativeVelocityY": 0,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.9,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.08,
+                    "endNormalized": 0.34,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.58,
+                    "endNormalized": 0.84,
+                    "confidence": 0.9
+                  }
+                ]
+              }
             },
             {
               "clipId": "walk_b",
@@ -103,7 +203,27 @@
               "sourceSubClipId": "standing_walk_back",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": {
+                "nativeVelocityX": 0,
+                "nativeVelocityY": -0.9,
+                "playbackSpeed": 1,
+                "cycleDurationSeconds": 0.95,
+                "leftFootContactWindows": [
+                  {
+                    "startNormalized": 0.1,
+                    "endNormalized": 0.36,
+                    "confidence": 0.9
+                  }
+                ],
+                "rightFootContactWindows": [
+                  {
+                    "startNormalized": 0.6,
+                    "endNormalized": 0.86,
+                    "confidence": 0.9
+                  }
+                ]
+              }
             }
           ],
           "blend1D": [],
@@ -226,7 +346,8 @@
               "sourceSubClipId": "standing_jump",
               "loop": false,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": null
             },
             {
               "clipId": "shield_guard",
@@ -236,7 +357,8 @@
               "sourceSubClipId": "standing_idle",
               "loop": true,
               "speed": 1,
-              "rootMotionPolicy": "Ignore"
+              "rootMotionPolicy": "Ignore",
+              "calibration": null
             }
           ],
           "blend1D": [],

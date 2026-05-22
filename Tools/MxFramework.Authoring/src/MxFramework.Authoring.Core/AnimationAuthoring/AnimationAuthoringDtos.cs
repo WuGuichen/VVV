@@ -112,10 +112,28 @@ namespace MxFramework.Authoring
         public bool Loop { get; set; }
         public float Speed { get; set; } = 1f;
         public string RootMotionPolicy { get; set; } = "Ignore";
+        public AnimationClipCalibrationAuthoring Calibration { get; set; } = new AnimationClipCalibrationAuthoring();
         public List<string> Tags { get; set; } = new List<string>();
         public List<AuthoringResourceSelectionRef> GeneratedArtifactSelections { get; set; } = new List<AuthoringResourceSelectionRef>();
         public List<AnimationAuthoringDiagnostic> Diagnostics { get; set; } = new List<AnimationAuthoringDiagnostic>();
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
+    }
+
+    public sealed class AnimationClipCalibrationAuthoring
+    {
+        public float NativeVelocityX { get; set; }
+        public float NativeVelocityY { get; set; }
+        public float PlaybackSpeed { get; set; } = 1f;
+        public float CycleDurationSeconds { get; set; }
+        public List<AnimationFootContactWindowAuthoring> LeftFootContactWindows { get; set; } = new List<AnimationFootContactWindowAuthoring>();
+        public List<AnimationFootContactWindowAuthoring> RightFootContactWindows { get; set; } = new List<AnimationFootContactWindowAuthoring>();
+    }
+
+    public sealed class AnimationFootContactWindowAuthoring
+    {
+        public float StartNormalized { get; set; }
+        public float EndNormalized { get; set; }
+        public float Confidence { get; set; } = 1f;
     }
 
     public sealed class AnimationBlend1DAuthoring

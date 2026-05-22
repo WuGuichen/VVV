@@ -211,6 +211,11 @@ namespace MxFramework.Animation
             for (int i = 0; i < blends2D.Count; i++)
                 AppendBlend2D(builder, blends2D[i], i);
 
+            var calibrations = new List<MxAnimationLocomotionClipCalibration>(definition.LocomotionClipCalibrations);
+            calibrations.Sort(CompareLocomotionCalibration);
+            for (int i = 0; i < calibrations.Count; i++)
+                AppendLocomotionCalibration(builder, calibrations[i], i);
+
             var actions = new List<MxAnimationActionBinding>(definition.Actions);
             actions.Sort(CompareActionBinding);
             for (int i = 0; i < actions.Count; i++)
@@ -404,6 +409,45 @@ namespace MxFramework.Animation
                 AppendEvent(builder, "bindingEvent", events[i], i);
         }
 
+        private static void AppendLocomotionCalibration(
+            StringBuilder builder,
+            MxAnimationLocomotionClipCalibration calibration,
+            int index)
+        {
+            builder.Append("locomotionCalibration[").Append(index.ToString(CultureInfo.InvariantCulture)).Append("]").Append('\n');
+            if (calibration == null)
+            {
+                builder.Append("null").Append('\n');
+                return;
+            }
+
+            builder.Append("clipId=").Append(calibration.ClipId ?? string.Empty).Append('\n');
+            AppendResourceKey(builder, "clip", calibration.ClipKey);
+            builder.Append("nativeVelocityX=").Append(calibration.NativeVelocityX.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            builder.Append("nativeVelocityY=").Append(calibration.NativeVelocityY.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            builder.Append("playbackSpeed=").Append(calibration.PlaybackSpeed.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            builder.Append("cycleDurationSeconds=").Append(calibration.CycleDurationSeconds.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            AppendFootContactWindows(builder, "left", calibration.LeftFootContacts);
+            AppendFootContactWindows(builder, "right", calibration.RightFootContacts);
+        }
+
+        private static void AppendFootContactWindows(
+            StringBuilder builder,
+            string prefix,
+            IReadOnlyList<MxAnimationFootContactWindow> windows)
+        {
+            for (int i = 0; windows != null && i < windows.Count; i++)
+            {
+                MxAnimationFootContactWindow window = windows[i];
+                builder.Append(prefix).Append("Contact[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].start=")
+                    .Append(window.StartNormalized.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+                builder.Append(prefix).Append("Contact[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].end=")
+                    .Append(window.EndNormalized.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+                builder.Append(prefix).Append("Contact[").Append(i.ToString(CultureInfo.InvariantCulture)).Append("].confidence=")
+                    .Append(window.Confidence.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            }
+        }
+
         private static void AppendEvent(StringBuilder builder, string prefix, MxAnimationPresentationEvent animationEvent, int index)
         {
             builder.Append(prefix).Append('[').Append(index.ToString(CultureInfo.InvariantCulture)).Append("]").Append('\n');
@@ -449,6 +493,24 @@ namespace MxFramework.Animation
                 return result;
 
             return string.CompareOrdinal(left.Clip.ToString(), right.Clip.ToString());
+        }
+
+        private static int CompareLocomotionCalibration(
+            MxAnimationLocomotionClipCalibration left,
+            MxAnimationLocomotionClipCalibration right)
+        {
+            if (ReferenceEquals(left, right))
+                return 0;
+            if (left == null)
+                return -1;
+            if (right == null)
+                return 1;
+
+            int result = string.CompareOrdinal(left.ClipId, right.ClipId);
+            if (result != 0)
+                return result;
+
+            return string.CompareOrdinal(left.ClipKey.ToString(), right.ClipKey.ToString());
         }
 
         private static int CompareLayerDefinition(MxAnimationLayerDefinition left, MxAnimationLayerDefinition right)

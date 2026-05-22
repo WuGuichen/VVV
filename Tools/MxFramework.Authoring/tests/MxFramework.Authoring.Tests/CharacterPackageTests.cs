@@ -1302,6 +1302,21 @@ internal static class CharacterPackageTests
                             Loop = true,
                             Speed = 1f,
                             RootMotionPolicy = "Ignore",
+                            Calibration = new AnimationClipCalibrationAuthoring
+                            {
+                                NativeVelocityX = 0f,
+                                NativeVelocityY = 0f,
+                                PlaybackSpeed = 1f,
+                                CycleDurationSeconds = 1.2f,
+                                LeftFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0f, EndNormalized = 1f, Confidence = 1f }
+                                },
+                                RightFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0f, EndNormalized = 1f, Confidence = 1f }
+                                }
+                            },
                             Tags = new List<string> { "locomotion", "idle" },
                             GeneratedArtifactSelections = new List<AuthoringResourceSelectionRef>
                             {
@@ -1335,7 +1350,22 @@ internal static class CharacterPackageTests
                             RuntimeResourceKey = "char.iron_vanguard.anim.run",
                             Loop = true,
                             Speed = 1.1f,
-                            RootMotionPolicy = "MotionDelta"
+                            RootMotionPolicy = "MotionDelta",
+                            Calibration = new AnimationClipCalibrationAuthoring
+                            {
+                                NativeVelocityX = 0f,
+                                NativeVelocityY = 2.2f,
+                                PlaybackSpeed = 1.1f,
+                                CycleDurationSeconds = 0.75f,
+                                LeftFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0.1f, EndNormalized = 0.35f, Confidence = 0.8f }
+                                },
+                                RightFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0.6f, EndNormalized = 0.85f, Confidence = 0.8f }
+                                }
+                            }
                         }
                     },
                     Blend1D = new List<AnimationBlend1DAuthoring>
@@ -1526,6 +1556,9 @@ internal static class CharacterPackageTests
         Require(group.Clips[0].SourceSelection.ResourceStableId == "anim.source.iron_vanguard.locomotion", "source selection should be the primary clip identity.");
         Require(group.Clips[0].SourceSubClipId == "Take 001/Idle", "source sub clip id should roundtrip.");
         Require(group.Clips[0].SourceClipName == "Idle", "source clip name should roundtrip as metadata.");
+        Require(group.Clips[0].Calibration.CycleDurationSeconds == 1.2f, "clip calibration cycle duration should roundtrip.");
+        Require(group.Clips[0].Calibration.LeftFootContactWindows.Count == 1, "left foot contact windows should roundtrip.");
+        Require(group.Clips[1].Calibration.NativeVelocityY == 2.2f, "clip native velocity should roundtrip.");
         Require(group.Blend1D[0].Points[1].ClipId == "run", "1D blend points should reference local clip ids.");
         Require(group.Blend2D[0].Points[1].ClipId == "run", "2D blend points should reference local clip ids.");
         Require(group.Timelines[0].Events[0].ResourceSelection.BindingKind == AuthoringResourceBindingKind.AudioCue, "timeline audio event should use AudioCue ResourceSelectionRef.");
@@ -1623,8 +1656,54 @@ internal static class CharacterPackageTests
                     Usage = "locomotion",
                     Clips = new List<AnimationClipMappingAuthoring>
                     {
-                        new AnimationClipMappingAuthoring { ClipId = "idle", DisplayName = "Idle", SourceSubClipId = "Idle", SourceClipName = "Idle", SourceSelection = idleSelection, Loop = true },
-                        new AnimationClipMappingAuthoring { ClipId = "run", DisplayName = "Run", SourceSubClipId = "Run", SourceClipName = "Run", SourceSelection = runSelection, Loop = true }
+                        new AnimationClipMappingAuthoring
+                        {
+                            ClipId = "idle",
+                            DisplayName = "Idle",
+                            SourceSubClipId = "Idle",
+                            SourceClipName = "Idle",
+                            SourceSelection = idleSelection,
+                            Loop = true,
+                            Calibration = new AnimationClipCalibrationAuthoring
+                            {
+                                NativeVelocityX = 0f,
+                                NativeVelocityY = 0f,
+                                PlaybackSpeed = 1f,
+                                CycleDurationSeconds = 1.2f,
+                                LeftFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0f, EndNormalized = 1f, Confidence = 1f }
+                                },
+                                RightFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0f, EndNormalized = 1f, Confidence = 1f }
+                                }
+                            }
+                        },
+                        new AnimationClipMappingAuthoring
+                        {
+                            ClipId = "run",
+                            DisplayName = "Run",
+                            SourceSubClipId = "Run",
+                            SourceClipName = "Run",
+                            SourceSelection = runSelection,
+                            Loop = true,
+                            Calibration = new AnimationClipCalibrationAuthoring
+                            {
+                                NativeVelocityX = 0f,
+                                NativeVelocityY = 2.3f,
+                                PlaybackSpeed = 1f,
+                                CycleDurationSeconds = 0.7f,
+                                LeftFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0.08f, EndNormalized = 0.3f, Confidence = 0.85f }
+                                },
+                                RightFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+                                {
+                                    new AnimationFootContactWindowAuthoring { StartNormalized = 0.58f, EndNormalized = 0.8f, Confidence = 0.85f }
+                                }
+                            }
+                        }
                     },
                     Blend2D = new List<AnimationBlend2DAuthoring>
                     {
@@ -1702,6 +1781,8 @@ internal static class CharacterPackageTests
         Require(result.AnimationSetDefinition.Format == AnimationAuthoringCompileFormats.AnimationSetDefinition, "animation set definition should declare format.");
         Require(result.AnimationSetDefinition.Sets.Count == 1, "animation set definition should contain the authored set.");
         Require(result.AnimationSetDefinition.Sets[0].Groups[0].Clips[0].RuntimeResourceKey == "runtime.anim.idle", "animation set definition should use resolved runtime clip keys.");
+        Require(result.AnimationSetDefinition.Sets[0].Groups[0].Clips[1].Calibration.NativeVelocityY == 2.3f, "animation set definition should include clip calibration native velocity.");
+        Require(result.AnimationSetDefinition.Sets[0].Groups[0].Clips[1].Calibration.LeftFootContactWindows.Count == 1, "animation set definition should include left foot contact windows.");
         Require(result.AnimationClipRegistry.Clips.Count == 2, "animation clip registry should contain authored clips.");
         Require(result.AnimationClipRegistry.Clips[0].SourceSelection.ResourceStableId == "stable.anim.idle", "clip registry should retain source selection.");
         Require(result.AnimationClipRegistry.Clips[0].SourceSubClipId == "Idle", "clip registry should retain source sub-clip.");
@@ -1721,6 +1802,26 @@ internal static class CharacterPackageTests
         Require(result.AnimationResourcePlan.AudioCueManifest.Cues.Exists(cue => cue.CueId == "cue.test.footstep"), "AudioCue manifest should include FMOD cue references.");
         Require(!string.IsNullOrWhiteSpace(result.AnimationResourcePlan.PlanHash), "animation resource plan should have a deterministic hash.");
         Require(!result.AnimationValidationReport.HasBlockingIssues, "valid animation authoring package should compile without blocking issues.");
+        Require(!result.AnimationValidationReport.Issues.Exists(issue => issue.Code == "LOCO_CAL_CLIP_METADATA_MISSING"), "complete locomotion calibration should not warn.");
+
+        package.Sets[0].Groups[0].Clips[1].Calibration = new AnimationClipCalibrationAuthoring();
+        AnimationAuthoringCompileResult missingCalibration = AnimationAuthoringCompiler.Compile(new AnimationAuthoringCompileRequest { Package = package, ResourceCatalog = catalog });
+        Require(missingCalibration.AnimationValidationReport.Issues.Exists(issue => issue.Code == "LOCO_CAL_CLIP_METADATA_MISSING"), "locomotion clips missing calibration metadata should emit warning diagnostics.");
+        package.Sets[0].Groups[0].Clips[1].Calibration = new AnimationClipCalibrationAuthoring
+        {
+            NativeVelocityX = 0f,
+            NativeVelocityY = 2.3f,
+            PlaybackSpeed = 1f,
+            CycleDurationSeconds = 0.7f,
+            LeftFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+            {
+                new AnimationFootContactWindowAuthoring { StartNormalized = 0.08f, EndNormalized = 0.3f, Confidence = 0.85f }
+            },
+            RightFootContactWindows = new List<AnimationFootContactWindowAuthoring>
+            {
+                new AnimationFootContactWindowAuthoring { StartNormalized = 0.58f, EndNormalized = 0.8f, Confidence = 0.85f }
+            }
+        };
 
         var groupCatalog = new CharacterPackageResourceCatalog
         {

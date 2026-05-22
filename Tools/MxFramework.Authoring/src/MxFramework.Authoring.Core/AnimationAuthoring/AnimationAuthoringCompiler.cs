@@ -89,6 +89,24 @@ namespace MxFramework.Authoring
         public bool Loop { get; set; }
         public float Speed { get; set; } = 1f;
         public string RootMotionPolicy { get; set; } = string.Empty;
+        public AnimationClipCalibrationDocument Calibration { get; set; }
+    }
+
+    public sealed class AnimationClipCalibrationDocument
+    {
+        public float NativeVelocityX { get; set; }
+        public float NativeVelocityY { get; set; }
+        public float PlaybackSpeed { get; set; } = 1f;
+        public float CycleDurationSeconds { get; set; }
+        public List<AnimationFootContactWindowDocument> LeftFootContactWindows { get; set; } = new List<AnimationFootContactWindowDocument>();
+        public List<AnimationFootContactWindowDocument> RightFootContactWindows { get; set; } = new List<AnimationFootContactWindowDocument>();
+    }
+
+    public sealed class AnimationFootContactWindowDocument
+    {
+        public float StartNormalized { get; set; }
+        public float EndNormalized { get; set; }
+        public float Confidence { get; set; } = 1f;
     }
 
     public sealed class AnimationSetDefinitionBlend1D
@@ -221,6 +239,7 @@ namespace MxFramework.Authoring
         private const string RuntimeTypeMismatchCode = "ANIM_RUNTIME_TYPE_MISMATCH";
         private const string SourceSubClipMissingCode = "ANIM_SOURCE_SUBCLIP_MISSING";
         private const string WarmupRequiredClipMissingCode = "ANIM_WARMUP_REQUIRED_CLIP_MISSING";
+        private const string LocomotionClipMetadataMissingCode = "LOCO_CAL_CLIP_METADATA_MISSING";
 
         public static AnimationAuthoringCompileResult Compile(AnimationAuthoringCompileRequest request)
         {
@@ -300,6 +319,7 @@ namespace MxFramework.Authoring
 
                         if (IsSelectionEmpty(clip.SourceSelection) && string.IsNullOrWhiteSpace(clip.RuntimeResourceKey))
                             AddValidation(validation, "ANIM_MISSING_SOURCE_SELECTION", clipPath, "sourceSelection", "Animation clip mapping has no source selection or runtime resource key.", CharacterAuthoringValidationSeverity.Error);
+                        ValidateLocomotionClipCalibration(group, clip, clipPath, validation);
 
                         AddAnimationClipBinding(clipBinding, AuthoringResourcePreloadPolicies.AnimationWarmup, packageId, runtimeCatalog, characterPlan, diagnostics, resourceLookup, clipPath, "runtimeResourceKey");
                         for (int artifactIndex = 0; clip.GeneratedArtifactSelections != null && artifactIndex < clip.GeneratedArtifactSelections.Count; artifactIndex++)
@@ -444,7 +464,8 @@ namespace MxFramework.Authoring
                             SourceSubClipId = clip.SourceSubClipId ?? string.Empty,
                             Loop = clip.Loop,
                             Speed = clip.Speed,
-                            RootMotionPolicy = clip.RootMotionPolicy ?? string.Empty
+                            RootMotionPolicy = clip.RootMotionPolicy ?? string.Empty,
+                            Calibration = CreateCalibrationDocument(clip.Calibration)
                         });
                     }
 
@@ -557,6 +578,99 @@ namespace MxFramework.Authoring
                 RequiredClipIds = warmup.RequiredClipIds ?? new List<string>(),
                 RequiredBlendIds = warmup.RequiredBlendIds ?? new List<string>()
             });
+        }
+
+        private static void ValidateLocomotionClipCalibration(
+            AnimationGroupAuthoring group,
+            AnimationClipMappingAuthoring clip,
+            string clipPath,
+            CharacterAuthoringValidationReport validation)
+        {
+            if (group == null || clip == null || !IsLocomotionGroup(group))
+                return;
+
+            AnimationClipCalibrationAuthoring calibration = clip.Calibration;
+            if (HasCompleteCalibration(calibration))
+                return;
+
+            AddValidation(
+                validation,
+                LocomotionClipMetadataMissingCode,
+                clipPath,
+                "calibration",
+                "Locomotion clip '" + (clip.ClipId ?? string.Empty) + "' is missing native velocity, cycle duration, playback speed, or foot contact calibration metadata.",
+                CharacterAuthoringValidationSeverity.Warning);
+        }
+
+        private static bool IsLocomotionGroup(AnimationGroupAuthoring group)
+        {
+            return string.Equals(group.Usage, "locomotion", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool HasCompleteCalibration(AnimationClipCalibrationAuthoring calibration)
+        {
+            if (calibration == null)
+                return false;
+
+            if (calibration.CycleDurationSeconds <= 0f || float.IsNaN(calibration.CycleDurationSeconds) || float.IsInfinity(calibration.CycleDurationSeconds))
+                return false;
+            if (calibration.PlaybackSpeed <= 0f || float.IsNaN(calibration.PlaybackSpeed) || float.IsInfinity(calibration.PlaybackSpeed))
+                return false;
+
+            return calibration.LeftFootContactWindows != null
+                && calibration.LeftFootContactWindows.Count > 0
+                && calibration.RightFootContactWindows != null
+                && calibration.RightFootContactWindows.Count > 0;
+        }
+
+        private static AnimationClipCalibrationDocument CreateCalibrationDocument(AnimationClipCalibrationAuthoring calibration)
+        {
+            if (!HasAnyCalibration(calibration))
+                return null;
+
+            var document = new AnimationClipCalibrationDocument
+            {
+                NativeVelocityX = calibration.NativeVelocityX,
+                NativeVelocityY = calibration.NativeVelocityY,
+                PlaybackSpeed = calibration.PlaybackSpeed,
+                CycleDurationSeconds = calibration.CycleDurationSeconds
+            };
+            CopyFootContactWindows(calibration.LeftFootContactWindows, document.LeftFootContactWindows);
+            CopyFootContactWindows(calibration.RightFootContactWindows, document.RightFootContactWindows);
+            return document;
+        }
+
+        private static bool HasAnyCalibration(AnimationClipCalibrationAuthoring calibration)
+        {
+            if (calibration == null)
+                return false;
+            if (Math.Abs(calibration.NativeVelocityX) > 0.0001f || Math.Abs(calibration.NativeVelocityY) > 0.0001f)
+                return true;
+            if (Math.Abs(calibration.PlaybackSpeed - 1f) > 0.0001f)
+                return true;
+            if (calibration.CycleDurationSeconds > 0f)
+                return true;
+            return calibration.LeftFootContactWindows != null && calibration.LeftFootContactWindows.Count > 0
+                || calibration.RightFootContactWindows != null && calibration.RightFootContactWindows.Count > 0;
+        }
+
+        private static void CopyFootContactWindows(
+            List<AnimationFootContactWindowAuthoring> source,
+            List<AnimationFootContactWindowDocument> target)
+        {
+            for (int i = 0; source != null && i < source.Count; i++)
+            {
+                AnimationFootContactWindowAuthoring window = source[i];
+                if (window == null)
+                    continue;
+
+                target.Add(new AnimationFootContactWindowDocument
+                {
+                    StartNormalized = window.StartNormalized,
+                    EndNormalized = window.EndNormalized,
+                    Confidence = window.Confidence
+                });
+            }
         }
 
         private static Dictionary<string, CharacterPackageResourceEntry> BuildResourceLookup(CharacterPackageResourceCatalog catalog, RuntimeResourceCatalogDocument runtimeCatalog)

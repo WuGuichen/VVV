@@ -4,18 +4,7 @@
   "catalogId": "character.package.iron_vanguard",
   "packageId": "iron_vanguard",
   "generatedAtUtc": "",
-  "orphanedUnityAssets": [
-    {
-      "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_sword.glb",
-      "importStatus": "OrphanedUnityAsset",
-      "message": "Unity asset exists under the generated package root but is no longer referenced by the source resource catalog."
-    },
-    {
-      "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/iron_vanguard.glb",
-      "importStatus": "OrphanedUnityAsset",
-      "message": "Unity asset exists under the generated package root but is no longer referenced by the source resource catalog."
-    }
-  ],
+  "orphanedUnityAssets": [],
   "entries": [
     {
       "id": "char.iron_vanguard.model.body",
@@ -34,11 +23,19 @@
       "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
       "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
-      "unityAssetGuid": "e4d8223991e9b482eabead18975735fe",
-      "unityMainObjectType": "GameObject",
+      "unityAssetGuid": "",
+      "unityMainObjectType": "",
       "importerKind": "unity-gltf",
-      "importStatus": "Imported",
-      "diagnostics": [],
+      "importStatus": "PendingUnityImport",
+      "diagnostics": [
+        {
+          "severity": "Warning",
+          "code": "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+          "message": "Resource hash entry was not available when generating Unity resource catalog.",
+          "sourcePath": "resources/models/skeleton.glb",
+          "field": "contentHash"
+        }
+      ],
       "labels": [
         "character.model",
         "character.resourcePackage",
@@ -59,10 +56,10 @@
       "providerData": {
         "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
         "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
-        "unityAssetGuid": "e4d8223991e9b482eabead18975735fe",
-        "unityMainObjectType": "GameObject",
+        "unityAssetGuid": "",
+        "unityMainObjectType": "",
         "importerKind": "unity-gltf",
-        "importStatus": "Imported",
+        "importStatus": "PendingUnityImport",
         "packageResourceKey": "char.iron_vanguard.model.body",
         "stableId": "charpkg.iron_vanguard.resource.model.body",
         "sourceRelativePath": "resources/models/skeleton.glb",
@@ -73,7 +70,7 @@
         "requestedProviderId": "unityAsset",
         "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "diagnosticCount": "0",
+        "diagnosticCount": "1",
         "generatedBy": "CharacterUnityImportBridge",
         "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082"
       }
@@ -95,11 +92,19 @@
       "importHash": "sha256:15eb3f7d25f9e92ab57c9c50da25ece992f7f46311845ead6988e89786df48d5",
       "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
-      "unityAssetGuid": "3a5c74bd686094ae282c4b4f2dd4d194",
-      "unityMainObjectType": "GameObject",
+      "unityAssetGuid": "",
+      "unityMainObjectType": "",
       "importerKind": "unity-gltf",
-      "importStatus": "Imported",
-      "diagnostics": [],
+      "importStatus": "PendingUnityImport",
+      "diagnostics": [
+        {
+          "severity": "Warning",
+          "code": "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+          "message": "Resource hash entry was not available when generating Unity resource catalog.",
+          "sourcePath": "resources/models/katana.glb",
+          "field": "contentHash"
+        }
+      ],
       "labels": [
         "character.resourcePackage",
         "character.type.model",
@@ -120,10 +125,10 @@
       "providerData": {
         "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
         "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
-        "unityAssetGuid": "3a5c74bd686094ae282c4b4f2dd4d194",
-        "unityMainObjectType": "GameObject",
+        "unityAssetGuid": "",
+        "unityMainObjectType": "",
         "importerKind": "unity-gltf",
-        "importStatus": "Imported",
+        "importStatus": "PendingUnityImport",
         "packageResourceKey": "char.iron_vanguard.weapon.sword.model",
         "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
         "sourceRelativePath": "resources/models/katana.glb",
@@ -134,7 +139,7 @@
         "requestedProviderId": "unityAsset",
         "importHash": "sha256:15eb3f7d25f9e92ab57c9c50da25ece992f7f46311845ead6988e89786df48d5",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "diagnosticCount": "0",
+        "diagnosticCount": "1",
         "generatedBy": "CharacterUnityImportBridge",
         "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082"
       }
@@ -156,11 +161,19 @@
       "importHash": "sha256:9a9aaa9bfd63607296789ef5e339802c8846fd85e11ffe0515ae5a56c66e5f10",
       "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
-      "unityAssetGuid": "0b06ac3ce00024e528d49d8e66ba2d0c",
-      "unityMainObjectType": "GameObject",
+      "unityAssetGuid": "",
+      "unityMainObjectType": "",
       "importerKind": "unity-gltf",
-      "importStatus": "Imported",
-      "diagnostics": [],
+      "importStatus": "PendingUnityImport",
+      "diagnostics": [
+        {
+          "severity": "Warning",
+          "code": "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+          "message": "Resource hash entry was not available when generating Unity resource catalog.",
+          "sourcePath": "resources/models/kite_shield.glb",
+          "field": "contentHash"
+        }
+      ],
       "labels": [
         "character.resourcePackage",
         "character.type.model",
@@ -178,10 +191,10 @@
       "providerData": {
         "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
         "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
-        "unityAssetGuid": "0b06ac3ce00024e528d49d8e66ba2d0c",
-        "unityMainObjectType": "GameObject",
+        "unityAssetGuid": "",
+        "unityMainObjectType": "",
         "importerKind": "unity-gltf",
-        "importStatus": "Imported",
+        "importStatus": "PendingUnityImport",
         "packageResourceKey": "char.iron_vanguard.weapon.shield.model",
         "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
         "sourceRelativePath": "resources/models/kite_shield.glb",
@@ -192,7 +205,7 @@
         "requestedProviderId": "unityAsset",
         "importHash": "sha256:9a9aaa9bfd63607296789ef5e339802c8846fd85e11ffe0515ae5a56c66e5f10",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "diagnosticCount": "0",
+        "diagnosticCount": "1",
         "generatedBy": "CharacterUnityImportBridge",
         "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082"
       }
@@ -214,11 +227,19 @@
       "importHash": "sha256:6e8ebb6bd5643c417ba738d33bf96b70fe7612f1a0f2979fbd41e4aba669fd66",
       "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
       "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
-      "unityAssetGuid": "6b98e2c15c1af45869e01cf3d3d3dcaf",
-      "unityMainObjectType": "GameObject",
+      "unityAssetGuid": "",
+      "unityMainObjectType": "",
       "importerKind": "unity-gltf",
-      "importStatus": "Imported",
-      "diagnostics": [],
+      "importStatus": "PendingUnityImport",
+      "diagnostics": [
+        {
+          "severity": "Warning",
+          "code": "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+          "message": "Resource hash entry was not available when generating Unity resource catalog.",
+          "sourcePath": "resources/animations/locomotion.glb",
+          "field": "contentHash"
+        }
+      ],
       "labels": [
         "character.animation",
         "character.resourcePackage",
@@ -241,10 +262,10 @@
       "providerData": {
         "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
         "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
-        "unityAssetGuid": "6b98e2c15c1af45869e01cf3d3d3dcaf",
-        "unityMainObjectType": "GameObject",
+        "unityAssetGuid": "",
+        "unityMainObjectType": "",
         "importerKind": "unity-gltf",
-        "importStatus": "Imported",
+        "importStatus": "PendingUnityImport",
         "packageResourceKey": "char.iron_vanguard.anim.locomotion",
         "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
         "sourceRelativePath": "resources/animations/locomotion.glb",
@@ -255,7 +276,7 @@
         "requestedProviderId": "unityAsset",
         "importHash": "sha256:6e8ebb6bd5643c417ba738d33bf96b70fe7612f1a0f2979fbd41e4aba669fd66",
         "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
-        "diagnosticCount": "0",
+        "diagnosticCount": "1",
         "generatedBy": "CharacterUnityImportBridge",
         "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082"
       }
@@ -277,11 +298,19 @@
       "importHash": "sha256:758a8f74116327ad820713f505cb361e935b204222a3e30f4a00e79d295e30f5",
       "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
       "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
-      "unityAssetGuid": "4b1f5cf59e93448d2a3668eef0ca9dc0",
-      "unityMainObjectType": "GameObject",
+      "unityAssetGuid": "",
+      "unityMainObjectType": "",
       "importerKind": "unity-gltf",
-      "importStatus": "Imported",
-      "diagnostics": [],
+      "importStatus": "PendingUnityImport",
+      "diagnostics": [
+        {
+          "severity": "Warning",
+          "code": "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+          "message": "Resource hash entry was not available when generating Unity resource catalog.",
+          "sourcePath": "resources/animations/combat.glb",
+          "field": "contentHash"
+        }
+      ],
       "labels": [
         "character.animation",
         "character.resourcePackage",
@@ -305,10 +334,10 @@
       "providerData": {
         "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
         "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
-        "unityAssetGuid": "4b1f5cf59e93448d2a3668eef0ca9dc0",
-        "unityMainObjectType": "GameObject",
+        "unityAssetGuid": "",
+        "unityMainObjectType": "",
         "importerKind": "unity-gltf",
-        "importStatus": "Imported",
+        "importStatus": "PendingUnityImport",
         "packageResourceKey": "char.iron_vanguard.anim.combat",
         "stableId": "charpkg.iron_vanguard.resource.anim.combat",
         "sourceRelativePath": "resources/animations/combat.glb",
@@ -319,7 +348,7 @@
         "requestedProviderId": "unityAsset",
         "importHash": "sha256:758a8f74116327ad820713f505cb361e935b204222a3e30f4a00e79d295e30f5",
         "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
-        "diagnosticCount": "0",
+        "diagnosticCount": "1",
         "generatedBy": "CharacterUnityImportBridge",
         "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082"
       }
@@ -341,11 +370,19 @@
       "importHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
       "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
-      "unityAssetGuid": "8b768ac2d89664ba586b127da23619db",
-      "unityMainObjectType": "Texture2D",
+      "unityAssetGuid": "",
+      "unityMainObjectType": "",
       "importerKind": "unity-texture",
-      "importStatus": "Imported",
-      "diagnostics": [],
+      "importStatus": "PendingUnityImport",
+      "diagnostics": [
+        {
+          "severity": "Warning",
+          "code": "CHARPKG_UNITY_HASH_ENTRY_MISSING",
+          "message": "Resource hash entry was not available when generating Unity resource catalog.",
+          "sourcePath": "previews/thumbnail.png",
+          "field": "contentHash"
+        }
+      ],
       "labels": [
         "character.preview",
         "character.resourcePackage",
@@ -361,10 +398,10 @@
       "providerData": {
         "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
         "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
-        "unityAssetGuid": "8b768ac2d89664ba586b127da23619db",
-        "unityMainObjectType": "Texture2D",
+        "unityAssetGuid": "",
+        "unityMainObjectType": "",
         "importerKind": "unity-texture",
-        "importStatus": "Imported",
+        "importStatus": "PendingUnityImport",
         "packageResourceKey": "char.iron_vanguard.preview.thumbnail",
         "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
         "sourceRelativePath": "previews/thumbnail.png",
@@ -375,7 +412,7 @@
         "requestedProviderId": "unityAsset",
         "importHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
         "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "diagnosticCount": "0",
+        "diagnosticCount": "1",
         "generatedBy": "CharacterUnityImportBridge",
         "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082"
       }
