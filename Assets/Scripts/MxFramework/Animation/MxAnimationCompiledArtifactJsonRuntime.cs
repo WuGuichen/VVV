@@ -78,6 +78,7 @@ namespace MxFramework.Animation
             var layers = new List<MxAnimationLayerDefinition>();
             var blend1D = new List<MxAnimationBlend1DDefinition>();
             var blend2D = new List<MxAnimationBlend2DDefinition>();
+            var locomotionCalibrations = new List<MxAnimationLocomotionClipCalibration>();
 
             JArray layerDocs = set["layers"] as JArray;
             for (int i = 0; layerDocs != null && i < layerDocs.Count; i++)
@@ -102,6 +103,7 @@ namespace MxFramework.Animation
                     continue;
 
                 ReadClips(group["clips"] as JArray, packageId, clipsById);
+                ReadLocomotionCalibrations(group["clips"] as JArray, packageId, clipsById, locomotionCalibrations);
             }
 
             for (int groupIndex = 0; groups != null && groupIndex < groups.Count; groupIndex++)
@@ -159,7 +161,9 @@ namespace MxFramework.Animation
                 layers,
                 BuildWarmup(defaultClip, fallbackClip, actions, layers),
                 blend1D,
-                blend2D);
+                blend2D,
+                null,
+                locomotionCalibrations);
         }
 
         private static void ReadClips(JArray clips, string packageId, Dictionary<string, ClipRuntimeInfo> clipsById)
@@ -179,6 +183,54 @@ namespace MxFramework.Animation
                     ReadFloat(clip, "speed", 1f),
                     ReadBool(clip, "loop"));
             }
+        }
+
+        private static void ReadLocomotionCalibrations(
+            JArray clips,
+            string packageId,
+            Dictionary<string, ClipRuntimeInfo> clipsById,
+            List<MxAnimationLocomotionClipCalibration> results)
+        {
+            for (int clipIndex = 0; clips != null && clipIndex < clips.Count; clipIndex++)
+            {
+                JObject clip = clips[clipIndex] as JObject;
+                JObject calibration = clip != null ? clip["calibration"] as JObject : null;
+                if (calibration == null)
+                    continue;
+
+                string clipId = ReadString(clip, "clipId");
+                ClipRuntimeInfo info = ResolveClip(clipId, clipsById);
+                if (!info.Key.IsValid)
+                    continue;
+
+                results.Add(new MxAnimationLocomotionClipCalibration(
+                    clipId,
+                    info.Key,
+                    ReadFloat(calibration, "nativeVelocityX", 0f),
+                    ReadFloat(calibration, "nativeVelocityY", 0f),
+                    ReadFloat(calibration, "playbackSpeed", info.Speed),
+                    ReadFloat(calibration, "cycleDurationSeconds", 0f),
+                    ReadFootContactWindows(calibration["leftFootContactWindows"] as JArray),
+                    ReadFootContactWindows(calibration["rightFootContactWindows"] as JArray)));
+            }
+        }
+
+        private static List<MxAnimationFootContactWindow> ReadFootContactWindows(JArray windows)
+        {
+            var results = new List<MxAnimationFootContactWindow>();
+            for (int i = 0; windows != null && i < windows.Count; i++)
+            {
+                JObject window = windows[i] as JObject;
+                if (window == null)
+                    continue;
+
+                results.Add(new MxAnimationFootContactWindow(
+                    ReadFloat(window, "startNormalized", 0f),
+                    ReadFloat(window, "endNormalized", 0f),
+                    ReadFloat(window, "confidence", 1f)));
+            }
+
+            return results;
         }
 
         private static void ReadBlend1D(

@@ -1819,6 +1819,7 @@ namespace MxFramework.Animation
         private readonly List<MxAnimationLayerDefinition> _layers;
         private readonly List<MxAnimationBlend1DDefinition> _blend1DDefinitions;
         private readonly List<MxAnimationBlend2DDefinition> _blend2DDefinitions;
+        private readonly List<MxAnimationLocomotionClipCalibration> _locomotionClipCalibrations;
 
         public MxAnimationSetDefinition(
             string setId,
@@ -1832,7 +1833,8 @@ namespace MxFramework.Animation
             MxAnimationWarmupDefinition warmup = null,
             IEnumerable<MxAnimationBlend1DDefinition> blend1DDefinitions = null,
             IEnumerable<MxAnimationBlend2DDefinition> blend2DDefinitions = null,
-            MxAnimationCompatibilityExpectation compatibilityExpectation = null)
+            MxAnimationCompatibilityExpectation compatibilityExpectation = null,
+            IEnumerable<MxAnimationLocomotionClipCalibration> locomotionClipCalibrations = null)
         {
             SetId = setId ?? string.Empty;
             Version = version;
@@ -1853,6 +1855,9 @@ namespace MxFramework.Animation
             _blend2DDefinitions = blend2DDefinitions != null
                 ? new List<MxAnimationBlend2DDefinition>(blend2DDefinitions)
                 : new List<MxAnimationBlend2DDefinition>();
+            _locomotionClipCalibrations = locomotionClipCalibrations != null
+                ? new List<MxAnimationLocomotionClipCalibration>(locomotionClipCalibrations)
+                : new List<MxAnimationLocomotionClipCalibration>();
             Warmup = warmup ?? MxAnimationWarmupDefinition.Default;
             CompatibilityExpectation = compatibilityExpectation ?? new MxAnimationCompatibilityExpectation();
             DefinitionHash = string.IsNullOrWhiteSpace(definitionHash)
@@ -1870,8 +1875,25 @@ namespace MxFramework.Animation
         public IReadOnlyList<MxAnimationLayerDefinition> Layers => _layers;
         public IReadOnlyList<MxAnimationBlend1DDefinition> Blend1DDefinitions => _blend1DDefinitions;
         public IReadOnlyList<MxAnimationBlend2DDefinition> Blend2DDefinitions => _blend2DDefinitions;
+        public IReadOnlyList<MxAnimationLocomotionClipCalibration> LocomotionClipCalibrations => _locomotionClipCalibrations;
         public MxAnimationWarmupDefinition Warmup { get; }
         public MxAnimationCompatibilityExpectation CompatibilityExpectation { get; }
+
+        public bool TryFindLocomotionClipCalibration(ResourceKey clipKey, out MxAnimationLocomotionClipCalibration calibration)
+        {
+            for (int i = 0; i < _locomotionClipCalibrations.Count; i++)
+            {
+                MxAnimationLocomotionClipCalibration candidate = _locomotionClipCalibrations[i];
+                if (candidate == null || candidate.ClipKey != clipKey)
+                    continue;
+
+                calibration = candidate;
+                return true;
+            }
+
+            calibration = null;
+            return false;
+        }
 
         public bool TryFindLayerDefinition(MxAnimationLayerId layerId, out MxAnimationLayerDefinition layer)
         {

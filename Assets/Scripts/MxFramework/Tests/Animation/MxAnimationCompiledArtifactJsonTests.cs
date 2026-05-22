@@ -38,6 +38,14 @@ namespace MxFramework.Tests.Animation
             Assert.AreEqual("trace.begin", definition.Actions[0].PresentationEvents[0].EventKind);
             Assert.AreEqual(MxAnimationEventTimeDomain.CombatFrame, definition.Actions[0].PresentationEvents[0].TimeDomain);
             Assert.AreEqual(new ResourceKey("char.test.vfx.slash", ResourceTypeIds.Object, string.Empty, "test_package"), definition.Actions[0].PresentationEvents[0].PayloadKey);
+            Assert.AreEqual(1, definition.LocomotionClipCalibrations.Count);
+            Assert.AreEqual(new ResourceKey("char.test.anim.idle", ResourceTypeIds.AnimationClip, string.Empty, "test_package"), definition.LocomotionClipCalibrations[0].ClipKey);
+            Assert.AreEqual(1.2f, definition.LocomotionClipCalibrations[0].CycleDurationSeconds, 0.0001f);
+            Assert.AreEqual(1f, definition.LocomotionClipCalibrations[0].GetContactConfidence(MxAnimationLocomotionFoot.Left, 0.5f), 0.0001f);
+            Assert.IsTrue(definition.TryFindLocomotionClipCalibration(
+                new ResourceKey("char.test.anim.idle", ResourceTypeIds.AnimationClip, string.Empty, "test_package"),
+                out MxAnimationLocomotionClipCalibration idleCalibration));
+            Assert.AreEqual(0f, idleCalibration.NativeVelocityY, 0.0001f);
 
             CollectionAssert.Contains(definition.Warmup.RequiredKeys, definition.DefaultClip);
             CollectionAssert.Contains(definition.Warmup.RequiredKeys, definition.Actions[0].Clip);
@@ -185,7 +193,19 @@ namespace MxFramework.Tests.Animation
               ""clipId"": ""idle"",
               ""runtimeResourceKey"": ""char.test.anim.idle"",
               ""loop"": true,
-              ""speed"": 1
+              ""speed"": 1,
+              ""calibration"": {
+                ""nativeVelocityX"": 0,
+                ""nativeVelocityY"": 0,
+                ""playbackSpeed"": 1,
+                ""cycleDurationSeconds"": 1.2,
+                ""leftFootContactWindows"": [
+                  { ""startNormalized"": 0, ""endNormalized"": 1, ""confidence"": 1 }
+                ],
+                ""rightFootContactWindows"": [
+                  { ""startNormalized"": 0, ""endNormalized"": 1, ""confidence"": 1 }
+                ]
+              }
             },
             {
               ""clipId"": ""attack"",

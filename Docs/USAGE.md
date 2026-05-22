@@ -1530,6 +1530,8 @@ MxFramework/Samples/Build Player Resource Catalog
 
 Animation 模块把业务侧 presentation 意图转换为动画播放请求。noEngine 层只保存 `ResourceKey`、layer id、request DTO 和 diagnostics；Unity 播放由 `MxFramework.Animation.Unity` 的 Playables backend 负责。
 
+Locomotion clip 可以在 `animation_authoring.json` 的 clip `calibration` 中声明 `nativeVelocityX` / `nativeVelocityY`、`playbackSpeed`、`cycleDurationSeconds` 以及左右脚 `footContactWindows`。Authoring Compiler 会把这些数据写入 `animation_set_definition.json`，运行时通过 `MxAnimationSetDefinition.LocomotionClipCalibrations` 或 `TryFindLocomotionClipCalibration` 读取；缺失 locomotion 校准数据会产生 `LOCO_CAL_CLIP_METADATA_MISSING` warning，并且校准数据参与 `DefinitionHash`。
+
 ```csharp
 using MxFramework.Animation;
 using MxFramework.Animation.Unity;

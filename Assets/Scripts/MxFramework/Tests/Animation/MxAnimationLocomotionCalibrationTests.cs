@@ -36,6 +36,46 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void SetDefinitionHash_ChangesWhenLocomotionCalibrationChanges()
+        {
+            ResourceKey walk = ClipKey("demo.animation.walk_f");
+            var first = new MxAnimationSetDefinition(
+                "set.base",
+                1,
+                walk,
+                walk,
+                locomotionClipCalibrations: new[]
+                {
+                    new MxAnimationLocomotionClipCalibration(
+                        "walk_f",
+                        walk,
+                        0f,
+                        1.2f,
+                        cycleDurationSeconds: 0.9f,
+                        leftFootContacts: new[] { new MxAnimationFootContactWindow(0.1f, 0.3f) },
+                        rightFootContacts: new[] { new MxAnimationFootContactWindow(0.6f, 0.8f) })
+                });
+            var changed = new MxAnimationSetDefinition(
+                "set.base",
+                1,
+                walk,
+                walk,
+                locomotionClipCalibrations: new[]
+                {
+                    new MxAnimationLocomotionClipCalibration(
+                        "walk_f",
+                        walk,
+                        0f,
+                        1.8f,
+                        cycleDurationSeconds: 0.9f,
+                        leftFootContacts: new[] { new MxAnimationFootContactWindow(0.1f, 0.3f) },
+                        rightFootContacts: new[] { new MxAnimationFootContactWindow(0.6f, 0.8f) })
+                });
+
+            Assert.AreNotEqual(first.DefinitionHash, changed.DefinitionHash);
+        }
+
+        [Test]
         public void BlendNativeVelocity_CombinesWeightedClipVelocitiesAndPlaybackSpeed()
         {
             ResourceKey walk = ClipKey("demo.animation.walk_f");
