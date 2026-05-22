@@ -138,6 +138,26 @@
         </div>
         <button id="closeResourcePickerButton" class="icon-button" type="button" title="关闭资源选择器" aria-label="关闭资源选择器">×</button>
       </div>
+      <div id="resourcePickerContext" class="resource-picker-context"></div>
+      <div class="resource-picker-toolbar">
+        <label>
+          搜索
+          <input id="resourcePickerSearch" type="search" placeholder="按名称、resource key、路径过滤">
+        </label>
+        <label>
+          Usage
+          <select id="resourcePickerUsageFilter">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          Provider
+          <select id="resourcePickerProviderFilter">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <button id="resourcePickerClearFilters" type="button">清空过滤</button>
+      </div>
       <div id="resourcePickerList" class="model-resource-list" aria-label="Field resource picker"></div>
     </section>
   </div>

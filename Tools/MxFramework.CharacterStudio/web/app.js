@@ -57,13 +57,83 @@ const RESOURCE_KIND_LABELS = {
   Generated: "生成资源"
 };
 
+const PROVIDER_LABELS = {
+  runtimeCatalog: "Runtime Catalog",
+  characterPackage: "Character Package",
+  unityAssetDatabase: "Unity Asset Database",
+  unityProjectAssets: "Unity Project Assets",
+  generatedAssets: "Generated Assets",
+  fmod: "FMOD"
+};
+
 const PLAN_GROUPS = [
-  { key: "spawnCritical", label: "SpawnCritical", failurePolicy: "FailSpawn" },
-  { key: "equipmentInitial", label: "EquipmentInitial", failurePolicy: "UseFallbackEquipment" },
-  { key: "animationWarmup", label: "AnimationWarmup", failurePolicy: "UseFallbackPose" },
-  { key: "vfxWarmup", label: "VfxWarmup", failurePolicy: "SkipEffect" },
-  { key: "uiDeferred", label: "UiDeferred", failurePolicy: "ShowPlaceholder" },
-  { key: "audio", label: "Audio", failurePolicy: "MuteMissingCue" }
+  {
+    key: "spawnCritical",
+    internalLabel: "SpawnCritical",
+    defaultFailurePolicy: "FailSpawn",
+    categoryKey: "required",
+    categoryLabel: "Required",
+    authorLabel: "Spawn Core Assets",
+    authorSummary: "Required before spawn starts.",
+    consequence: "Missing assets block spawn."
+  },
+  {
+    key: "equipmentInitial",
+    internalLabel: "EquipmentInitial",
+    defaultFailurePolicy: "UseFallbackEquipment",
+    categoryKey: "required",
+    categoryLabel: "Required",
+    authorLabel: "Initial Equipment",
+    authorSummary: "Needed for first-frame weapon presentation.",
+    consequence: "Missing assets use fallback equipment visuals."
+  },
+  {
+    key: "animationWarmup",
+    internalLabel: "AnimationWarmup",
+    defaultFailurePolicy: "UseFallbackPose",
+    categoryKey: "warmup",
+    categoryLabel: "Recommended Warmup",
+    authorLabel: "Animation Warmup",
+    authorSummary: "Recommended to avoid first-play hitching.",
+    consequence: "Missing assets can fall back to a default pose."
+  },
+  {
+    key: "vfxWarmup",
+    internalLabel: "VfxWarmup",
+    defaultFailurePolicy: "SkipEffect",
+    categoryKey: "warmup",
+    categoryLabel: "Recommended Warmup",
+    authorLabel: "VFX Warmup",
+    authorSummary: "Recommended for smooth effect playback.",
+    consequence: "Missing assets skip the effect."
+  },
+  {
+    key: "audio",
+    internalLabel: "Audio",
+    defaultFailurePolicy: "MuteMissingCue",
+    categoryKey: "optional",
+    categoryLabel: "Optional",
+    authorLabel: "Audio Cues",
+    authorSummary: "Optional for spawn; may load later.",
+    consequence: "Missing assets mute the cue."
+  },
+  {
+    key: "uiDeferred",
+    internalLabel: "UiDeferred",
+    defaultFailurePolicy: "ShowPlaceholder",
+    categoryKey: "deferred",
+    categoryLabel: "Deferred",
+    authorLabel: "UI Deferred Assets",
+    authorSummary: "Loaded after spawn or when the UI requests them.",
+    consequence: "Missing assets show placeholders."
+  }
+];
+
+const PLAN_CATEGORIES = [
+  { key: "required", label: "Required", description: "Needed for spawn correctness." },
+  { key: "warmup", label: "Recommended Warmup", description: "Recommended to reduce hitch and pop-in." },
+  { key: "optional", label: "Optional", description: "Can be missing without blocking spawn." },
+  { key: "deferred", label: "Deferred", description: "Loaded later, usually by demand." }
 ];
 
 const RESOURCE_FIELD_SPECS = {
@@ -262,7 +332,10 @@ const state = {
   resourcePickerOpen: false,
   resourcePickerField: null,
   resourcePickerQuery: null,
-  resourcePickerLoading: false
+  resourcePickerLoading: false,
+  resourcePickerSearchQuery: "",
+  resourcePickerUsageFilter: "",
+  resourcePickerProviderFilter: ""
 };
 
 const el = {};
@@ -279,7 +352,9 @@ document.addEventListener("DOMContentLoaded", () => {
     "configCreateSelect", "configCreateButton",
     "resourceBindingTarget", "openResourcePickerButton", "clearModelBindingButton",
     "animationConfigPanel",
-    "resourcePickerOverlay", "resourcePickerTitle", "resourcePickerSummary", "resourcePickerList", "closeResourcePickerButton",
+    "resourcePickerOverlay", "resourcePickerTitle", "resourcePickerSummary", "resourcePickerContext",
+    "resourcePickerSearch", "resourcePickerUsageFilter", "resourcePickerProviderFilter", "resourcePickerClearFilters",
+    "resourcePickerList", "closeResourcePickerButton",
     "resourcePlanPreview",
     "inspector", "diagnostics", "importStatus", "selectionBadge", "copyReportButton",
     "subtitle"
@@ -329,6 +404,22 @@ document.addEventListener("DOMContentLoaded", () => {
   el.closeResourcePickerButton.addEventListener("click", closeResourcePicker);
   el.resourcePickerOverlay.addEventListener("click", event => {
     if (event.target === el.resourcePickerOverlay) closeResourcePicker();
+  });
+  el.resourcePickerSearch?.addEventListener("input", event => {
+    state.resourcePickerSearchQuery = String(event.target.value || "").trim();
+    renderResourcePicker();
+  });
+  el.resourcePickerUsageFilter?.addEventListener("change", event => {
+    state.resourcePickerUsageFilter = String(event.target.value || "");
+    renderResourcePicker();
+  });
+  el.resourcePickerProviderFilter?.addEventListener("change", event => {
+    state.resourcePickerProviderFilter = String(event.target.value || "");
+    renderResourcePicker();
+  });
+  el.resourcePickerClearFilters?.addEventListener("click", () => {
+    resetResourcePickerFilters();
+    renderResourcePicker();
   });
   el.resourcePickerList.addEventListener("click", event => {
     const button = event.target.closest("button[data-library-id]");
@@ -993,6 +1084,7 @@ async function openResourcePicker() {
   state.resourcePickerField = null;
   state.resourcePickerOpen = true;
   state.resourcePickerQuery = null;
+  resetResourcePickerFilters();
   await loadResourcePickerQuery(getActiveResourceFieldSpec());
 }
 
@@ -1002,6 +1094,7 @@ async function openResourcePickerForField(fieldPath) {
   if (!target?.value) return;
   const fieldSpec = getResourceFieldSpecForInspectorField(target, fieldPath);
   if (!fieldSpec) return;
+  const slotDefinition = getAnimationSlotDefinition(target.value?.slotId || "");
   state.resourcePickerField = {
     kind: target.kind === "animationSlot" ? "animationSlot" : "",
     profileId: target.profileId || "",
@@ -1009,10 +1102,18 @@ async function openResourcePickerForField(fieldPath) {
     targetPath: state.selectedPath,
     fieldPath,
     fieldSpec,
-    title: `${target.label || target.kind}.${fieldPath}`
+    title: `${target.label || target.kind}.${fieldPath}`,
+    slotIntent: target.kind === "animationSlot" ? {
+      slotId: target.value?.slotId || "",
+      displayName: target.value?.displayName || slotDefinition?.displayName || target.value?.slotId || "slot",
+      purpose: target.value?.purpose || slotDefinition?.purpose || "",
+      resourceHint: target.value?.resourceHint || slotDefinition?.resourceHint || "",
+      required: target.value?.required ?? slotDefinition?.required ?? false
+    } : null
   };
   state.resourcePickerOpen = true;
   state.resourcePickerQuery = null;
+  resetResourcePickerFilters();
   await loadResourcePickerQuery(fieldSpec);
 }
 
@@ -1034,10 +1135,18 @@ async function openAnimationSlotPicker(profileId, slotId) {
     targetPath: getAnimationSlotPath(profile.profileId, slot.slotId),
     fieldPath: "resourceKey",
     fieldSpec,
-    title: `${profile.displayName || profile.profileId}.${slot.displayName || slot.slotId}`
+    title: `${profile.displayName || profile.profileId}.${slot.displayName || slot.slotId}`,
+    slotIntent: {
+      slotId: slot.slotId,
+      displayName: slot.displayName || definition.displayName || slot.slotId,
+      purpose: slot.purpose || definition.purpose || "",
+      resourceHint: slot.resourceHint || definition.resourceHint || "",
+      required: slot.required ?? definition.required ?? false
+    }
   };
   state.resourcePickerOpen = true;
   state.resourcePickerQuery = null;
+  resetResourcePickerFilters();
   state.selectedPath = getAnimationSlotPath(profile.profileId, slot.slotId);
   renderTree();
   renderInspector();
@@ -1069,6 +1178,7 @@ function closeResourcePicker() {
   state.resourcePickerField = null;
   state.resourcePickerQuery = null;
   state.resourcePickerLoading = false;
+  resetResourcePickerFilters();
   renderResourcePicker();
 }
 
@@ -1086,7 +1196,7 @@ async function loadResourcePickerQuery(fieldSpec) {
   renderResourcePicker();
 }
 
-function renderResourcePicker() {
+function renderResourcePickerLegacy() {
   if (!el.resourcePickerOverlay || !el.resourcePickerList) return;
   el.resourcePickerOverlay.hidden = !state.resourcePickerOpen;
   if (!state.resourcePickerOpen) {
@@ -1133,7 +1243,7 @@ function renderResourcePicker() {
   }).join("");
 }
 
-function getActiveResourcePickerRequest() {
+function getActiveResourcePickerRequestLegacy() {
   if (state.resourcePickerField?.fieldSpec) {
     return {
       fieldSpec: state.resourcePickerField.fieldSpec,
@@ -1147,6 +1257,279 @@ function getActiveResourcePickerRequest() {
 function getActiveResourceFieldSpec() {
   const role = el.modelImportRole?.value || "preview";
   return RESOURCE_FIELD_SPECS[role] || RESOURCE_FIELD_SPECS.preview;
+}
+
+function getAnimationSlotDefinition(slotId) {
+  return ANIMATION_PROFILE_SLOTS.find(item => item.slotId === slotId) || null;
+}
+
+function resetResourcePickerFilters() {
+  state.resourcePickerSearchQuery = "";
+  state.resourcePickerUsageFilter = "";
+  state.resourcePickerProviderFilter = "";
+}
+
+function getActiveResourcePickerRequest() {
+  if (state.resourcePickerField?.fieldSpec) {
+    return {
+      fieldSpec: state.resourcePickerField.fieldSpec,
+      title: state.resourcePickerField.title || state.resourcePickerField.fieldSpec.displayName || "resource",
+      kind: state.resourcePickerField.kind || "",
+      slotIntent: state.resourcePickerField.slotIntent || null
+    };
+  }
+  const roleInfo = getModelImportRole();
+  return {
+    fieldSpec: getActiveResourceFieldSpec(),
+    title: roleInfo.label,
+    kind: "",
+    slotIntent: null
+  };
+}
+
+function renderResourcePicker() {
+  if (!el.resourcePickerOverlay || !el.resourcePickerList) return;
+  el.resourcePickerOverlay.hidden = !state.resourcePickerOpen;
+  if (!state.resourcePickerOpen) {
+    el.resourcePickerList.innerHTML = "";
+    if (el.resourcePickerContext) el.resourcePickerContext.innerHTML = "";
+    return;
+  }
+
+  const request = getActiveResourcePickerRequest();
+  const fieldSpec = request.fieldSpec;
+  el.resourcePickerTitle.textContent = `Select ${request.title}`;
+  el.resourcePickerSummary.textContent = `${fieldSpec.fieldKey} | output ${fieldSpec.outputKind} | preload ${fieldSpec.preloadPolicy}. CharacterStudio only binds existing references.`;
+  renderResourcePickerContext(request, fieldSpec);
+
+  if (state.resourcePickerLoading) {
+    renderResourcePickerFilters([], request);
+    el.resourcePickerList.innerHTML = `<div class="empty">Loading resource candidates...</div>`;
+    return;
+  }
+
+  const rows = getResourcePickerRows(fieldSpec);
+  renderResourcePickerFilters(rows, request);
+  if (!rows.length) {
+    el.resourcePickerList.innerHTML = `<div class="empty">No compatible resources found for this field. Import or sync resources in Resource Manager first.</div>`;
+    return;
+  }
+
+  const filteredRows = applyResourcePickerFilters(rows);
+  if (!filteredRows.length) {
+    el.resourcePickerList.innerHTML = `<div class="empty">No results match current filters. Clear filters or add more resources.</div>`;
+    return;
+  }
+
+  const grouped = groupResourcePickerRows(filteredRows, request);
+  el.resourcePickerList.innerHTML = grouped
+    .filter(group => group.rows.length > 0)
+    .map(group => {
+      const cards = group.rows.map(row => renderResourcePickerCard(row, fieldSpec)).join("");
+      return `<section class="resource-picker-group">
+        <header>
+          <strong>${escapeHtml(group.label)}</strong>
+          <span>${escapeHtml(group.description)}</span>
+          <span class="resource-group-count">${escapeHtml(String(group.rows.length))}</span>
+        </header>
+        <div class="resource-picker-group-grid">${cards}</div>
+      </section>`;
+    }).join("");
+}
+
+function renderResourcePickerContext(request, fieldSpec) {
+  if (!el.resourcePickerContext) return;
+  const chips = [];
+  if (request.slotIntent) {
+    chips.push(`<span class="picker-chip">${escapeHtml(request.slotIntent.slotId || "slot")}</span>`);
+    if (request.slotIntent.resourceHint) chips.push(`<span class="picker-chip">${escapeHtml(request.slotIntent.resourceHint)}</span>`);
+    chips.push(`<span class="picker-chip ${request.slotIntent.required ? "required" : ""}">${request.slotIntent.required ? "required" : "optional"}</span>`);
+  } else {
+    chips.push(`<span class="picker-chip">field binding</span>`);
+  }
+  if (Array.isArray(fieldSpec.acceptedKinds) && fieldSpec.acceptedKinds.length) {
+    chips.push(`<span class="picker-chip">kind: ${escapeHtml(fieldSpec.acceptedKinds.join(", "))}</span>`);
+  }
+  if (Array.isArray(fieldSpec.acceptedUsages) && fieldSpec.acceptedUsages.length) {
+    chips.push(`<span class="picker-chip">usage: ${escapeHtml(fieldSpec.acceptedUsages.join(", "))}</span>`);
+  }
+  const purpose = request.slotIntent?.purpose
+    ? `<span class="picker-help">${escapeHtml(request.slotIntent.purpose)}</span>`
+    : "";
+  el.resourcePickerContext.innerHTML = `
+    <div class="resource-picker-chip-row">${chips.join("")}</div>
+    ${purpose}
+    <span class="picker-help">Recommended path: bind authored animation references from Animation Editor, then select them here.</span>`;
+}
+
+function renderResourcePickerFilters(rows, request) {
+  if (!el.resourcePickerSearch || !el.resourcePickerUsageFilter || !el.resourcePickerProviderFilter || !el.resourcePickerClearFilters) return;
+  const usageValues = Array.from(new Set(rows.map(row => row.item.usage || "").filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const providerValues = Array.from(new Set(rows.map(row => row.item.sourceProviderId || "").filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+  if (el.resourcePickerSearch.value !== state.resourcePickerSearchQuery) {
+    el.resourcePickerSearch.value = state.resourcePickerSearchQuery;
+  }
+  el.resourcePickerSearch.placeholder = request.kind === "animationSlot"
+    ? "Search by clip/group name, resource key, tags"
+    : "Search by name, resource key, or source path";
+
+  populateResourcePickerSelect(el.resourcePickerUsageFilter, usageValues, state.resourcePickerUsageFilter, value => value);
+  if (!usageValues.includes(state.resourcePickerUsageFilter)) {
+    state.resourcePickerUsageFilter = "";
+    el.resourcePickerUsageFilter.value = "";
+  }
+
+  populateResourcePickerSelect(el.resourcePickerProviderFilter, providerValues, state.resourcePickerProviderFilter, value => formatResourcePickerProviderLabel(value));
+  if (!providerValues.includes(state.resourcePickerProviderFilter)) {
+    state.resourcePickerProviderFilter = "";
+    el.resourcePickerProviderFilter.value = "";
+  }
+
+  const hasActiveFilters = Boolean(state.resourcePickerSearchQuery || state.resourcePickerUsageFilter || state.resourcePickerProviderFilter);
+  el.resourcePickerClearFilters.disabled = !hasActiveFilters;
+}
+
+function populateResourcePickerSelect(select, values, selectedValue, labelResolver) {
+  const options = [`<option value="">全部</option>`];
+  for (const value of values) {
+    const selected = value === selectedValue ? " selected" : "";
+    options.push(`<option value="${escapeHtml(value)}"${selected}>${escapeHtml(labelResolver(value))}</option>`);
+  }
+  select.innerHTML = options.join("");
+}
+
+function formatResourcePickerProviderLabel(providerId) {
+  return PROVIDER_LABELS[providerId] || providerId;
+}
+
+function applyResourcePickerFilters(rows) {
+  const searchQuery = String(state.resourcePickerSearchQuery || "").trim().toLowerCase();
+  const usageFilter = String(state.resourcePickerUsageFilter || "");
+  const providerFilter = String(state.resourcePickerProviderFilter || "");
+  return rows.filter(row => {
+    const item = row.item;
+    if (usageFilter && item.usage !== usageFilter) return false;
+    if (providerFilter && item.sourceProviderId !== providerFilter) return false;
+    if (searchQuery && !getResourcePickerSearchText(item).includes(searchQuery)) return false;
+    return true;
+  });
+}
+
+function getResourcePickerSearchText(item) {
+  return [
+    item.displayName,
+    item.resourceKey,
+    item.runtimeResourceKey,
+    item.packageResourceKey,
+    item.providerResourceKey,
+    item.stableId,
+    item.usage,
+    item.kind,
+    item.kindLabel,
+    item.sourceProviderSummary,
+    item.sourceProviderId,
+    item.sourceName,
+    item.unityAssetPath,
+    ...(item.diagnostics || [])
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function groupResourcePickerRows(rows, request) {
+  const groups = {
+    recommended: {
+      key: "recommended",
+      label: "Recommended",
+      description: "Best fit for this slot and preferred binding flow.",
+      rows: []
+    },
+    matching: {
+      key: "matching",
+      label: "Matching Usage",
+      description: "Compatible with the current field contract.",
+      rows: []
+    },
+    other: {
+      key: "other",
+      label: "Other Compatible",
+      description: "Compatible but lower confidence or weaker source metadata.",
+      rows: []
+    }
+  };
+  for (const row of rows) {
+    const key = getResourcePickerGroupKey(row, request);
+    groups[key]?.rows.push(row);
+  }
+  return [groups.recommended, groups.matching, groups.other];
+}
+
+function getResourcePickerGroupKey(row, request) {
+  const tone = row.selection?.tone || "warn";
+  const item = row.item;
+  const usageMatched = !request.fieldSpec?.acceptedUsages?.length || containsIgnoreCase(request.fieldSpec.acceptedUsages, item.usage);
+  const runtimeReady = item.runtimeAvailability === "RuntimeReady";
+  const preferredBinding = item.bindingKind === "ResourceManagerAsset" || Boolean(item.runtimeResourceKey);
+  const intentMatched = matchResourcePickerIntent(item, request.slotIntent);
+  if (tone === "match" && usageMatched && runtimeReady && preferredBinding && intentMatched) return "recommended";
+  if (tone === "match" && usageMatched) return "matching";
+  return "other";
+}
+
+function matchResourcePickerIntent(item, slotIntent) {
+  if (!slotIntent) return true;
+  const hint = String(slotIntent.resourceHint || "").toLowerCase();
+  if (!hint) return true;
+  const text = [
+    item.usage,
+    item.displayName,
+    item.resourceKey,
+    item.runtimeResourceKey,
+    item.sourceName,
+    item.unityAssetPath
+  ].filter(Boolean).join(" ").toLowerCase();
+  if (text.includes(hint)) return true;
+  if (hint === "locomotion") return /(locomotion|move|idle|walk|run|strafe|turn)/i.test(text);
+  if (hint === "combat") return /(combat|attack|hit|guard|slash|skill|reaction)/i.test(text);
+  return false;
+}
+
+function renderResourcePickerCard(row, fieldSpec) {
+  const item = row.item;
+  const selection = row.selection;
+  const selected = item.path === state.selectedPath || getResourceIdentityValues(item).includes(getCurrentResourceFieldValue());
+  const thumb = item.thumbnailUrl
+    ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="${escapeHtml(item.displayName)}">`
+    : `<span>${escapeHtml(getResourceInitial(item))}</span>`;
+  const providerText = formatResourcePickerProviderLabel(item.sourceProviderSummary || item.sourceProviderId || "");
+  const advancedDetails = [
+    `<div><span>Binding</span><strong>${escapeHtml(item.bindingKind)}</strong></div>`,
+    `<div><span>Runtime</span><strong>${escapeHtml(item.runtimeAvailability)}</strong></div>`,
+    `<div><span>Provider</span><strong>${escapeHtml(providerText || "-")}</strong></div>`,
+    `<div><span>Refs</span><strong>${escapeHtml(String(item.referenceCount || 0))}</strong></div>`,
+    `<div><span>Output</span><strong>${escapeHtml(fieldSpec.outputKind || "-")}</strong></div>`
+  ];
+  if (item.sourceName || item.unityAssetPath) {
+    advancedDetails.push(`<div><span>Source</span><code title="${escapeHtml(item.unityAssetPath || item.sourceName)}">${escapeHtml(item.unityAssetPath || item.sourceName)}</code></div>`);
+  }
+  const diagnosticsList = Array.isArray(item.diagnostics) && item.diagnostics.length
+    ? `<ul>${item.diagnostics.slice(0, 6).map(diag => `<li>${escapeHtml(diag)}</li>`).join("")}</ul>`
+    : `<span class="resource-empty-note">No diagnostics.</span>`;
+  return `
+    <article class="resource-card ${selected ? "active" : ""} ${escapeHtml(selection.tone)}">
+      <button type="button" class="resource-card-select" data-library-id="${escapeHtml(item.resourceId || item.libraryItemId || "")}" title="${escapeHtml(item.sourceName || item.stableId || item.displayName)}">
+        <span class="resource-thumb">${thumb}</span>
+        <span class="resource-info">
+          <span class="resource-title"><strong>${escapeHtml(item.displayName)}</strong>${renderSyncBadge({ label: item.importStatusLabel, tone: item.importTone })}</span>
+          <span>${escapeHtml(item.kindLabel)} / ${escapeHtml(item.usage || "usage?")} / ${escapeHtml(item.runtimeAvailability)}</span>
+          <span>${renderSelectionBadge(selection)} ${escapeHtml(selection.reason)}</span>
+        </span>
+      </button>
+      <details class="resource-card-details">
+        <summary>Advanced details</summary>
+        <div class="resource-card-meta">${advancedDetails.join("")}</div>
+        ${diagnosticsList}
+      </details>
+    </article>`;
 }
 
 function getResourceFieldSpecForInspectorField(target, fieldPath) {
@@ -1738,7 +2121,7 @@ function findResourceLibraryItemByKey(key) {
   return getResourceLibraryItems().find(item => getResourceIdentityValues(item).includes(String(key))) || null;
 }
 
-function renderResourcePlanPreview() {
+function renderResourcePlanPreviewLegacy() {
   if (!el.resourcePlanPreview) return;
   const plan = getCharacterResourcePlan();
   if (!plan) {
@@ -1809,11 +2192,100 @@ function normalizePlanEntry(value, kind) {
   return { id: String(value || ""), kind, status: "", sizeBytes: null, policy: "" };
 }
 
-function renderPlanEntry(entry) {
+function renderPlanEntryLegacy(entry) {
   const item = findResourceLibraryItemByKey(entry.id);
   const status = entry.status || item?.runtimeAvailability || (entry.kind === "resource" ? "PendingCompile" : "External");
   return `<div class="plan-entry">
     <span>${escapeHtml(entry.kind)}</span>
+    <code title="${escapeHtml(entry.id)}">${escapeHtml(entry.id)}</code>
+    <strong>${escapeHtml(status)}</strong>
+  </div>`;
+}
+
+function renderResourcePlanPreview() {
+  if (!el.resourcePlanPreview) return;
+  const plan = getCharacterResourcePlan();
+  if (!plan) {
+    el.resourcePlanPreview.innerHTML = `<div class="empty">No resource plan available yet. Compile preview or Unity import to get full runtime diagnostics.</div>`;
+    return;
+  }
+
+  const groups = PLAN_GROUPS.map(definition => {
+    const groupPlan = getPlanGroup(plan, definition.key);
+    const entries = normalizePlanEntries(groupPlan);
+    const failurePolicy = groupPlan?.failurePolicy || definition.defaultFailurePolicy;
+    const runtimeRequired = groupPlan?.required === true || definition.categoryKey === "required";
+    return {
+      definition,
+      entries,
+      failurePolicy,
+      runtimeRequired
+    };
+  });
+
+  const categoryHtml = PLAN_CATEGORIES.map(category => {
+    const categoryGroups = groups.filter(group => group.definition.categoryKey === category.key);
+    if (!categoryGroups.length) return "";
+    const totalEntries = categoryGroups.reduce((sum, group) => sum + group.entries.length, 0);
+    const cards = categoryGroups.map(group => renderPlanGroupCard(group)).join("");
+    return `<section class="resource-plan-category ${escapeHtml(category.key)}">
+      <header class="resource-plan-category-head">
+        <strong>${escapeHtml(category.label)}</strong>
+        <span>${escapeHtml(category.description)}</span>
+        <span class="resource-plan-count">${escapeHtml(String(totalEntries))}</span>
+      </header>
+      <div class="resource-plan-category-grid">${cards}</div>
+    </section>`;
+  }).join("");
+
+  const explanation = `<p class="resource-plan-note">This panel is diagnostic. Manage actual imports and source data in Resource Manager / Animation Editor.</p>`;
+  el.resourcePlanPreview.innerHTML = `${explanation}${categoryHtml || `<div class="empty">No resource groups available.</div>`}`;
+}
+
+function renderPlanGroupCard(groupView) {
+  const { definition, entries, failurePolicy, runtimeRequired } = groupView;
+  const previewEntries = entries.length
+    ? entries.slice(0, 4).map(entry => renderPlanEntry(entry)).join("")
+    : `<div class="plan-entry empty">No resources.</div>`;
+  const more = entries.length > 4 ? `<div class="plan-entry meta">+${entries.length - 4} more</div>` : "";
+  const consequence = describePlanConsequence(definition.consequence, failurePolicy);
+  return `<article class="plan-group-card">
+    <div class="plan-group-head">
+      <strong>${escapeHtml(definition.authorLabel)}</strong>
+      <span class="plan-importance ${escapeHtml(definition.categoryKey)}">${escapeHtml(definition.categoryLabel)}</span>
+    </div>
+    <p class="plan-group-summary">${escapeHtml(definition.authorSummary)}</p>
+    <p class="plan-group-consequence"><span>If missing:</span> ${escapeHtml(consequence)}</p>
+    <div class="plan-entry-list">${previewEntries}${more}</div>
+    <details class="plan-advanced">
+      <summary>Advanced diagnostics</summary>
+      <div class="plan-advanced-grid">
+        <div><span>Internal group</span><strong>${escapeHtml(definition.internalLabel)}</strong></div>
+        <div><span>Failure policy</span><strong>${escapeHtml(failurePolicy)}</strong></div>
+        <div><span>Runtime required</span><strong>${runtimeRequired ? "true" : "false"}</strong></div>
+        <div><span>Entry count</span><strong>${escapeHtml(String(entries.length))}</strong></div>
+      </div>
+    </details>
+  </article>`;
+}
+
+function describePlanConsequence(defaultText, failurePolicy) {
+  const policy = String(failurePolicy || "").toLowerCase();
+  if (policy === "failspawn") return "Spawn is blocked until assets are valid.";
+  if (policy === "usefallbackequipment") return "Fallback equipment visuals are used.";
+  if (policy === "usefallbackpose") return "Fallback animation pose is used.";
+  if (policy === "skipeffect") return "Effect playback is skipped.";
+  if (policy === "showplaceholder") return "Placeholder UI assets are shown.";
+  if (policy === "mutemissingcue") return "Audio cue is muted.";
+  return defaultText || "Runtime uses fallback behavior.";
+}
+
+function renderPlanEntry(entry) {
+  const item = findResourceLibraryItemByKey(entry.id);
+  const status = entry.status || item?.runtimeAvailability || (entry.kind === "resource" ? "PendingCompile" : "External");
+  const kind = entry.kind || "resource";
+  return `<div class="plan-entry">
+    <span>${escapeHtml(kind)}</span>
     <code title="${escapeHtml(entry.id)}">${escapeHtml(entry.id)}</code>
     <strong>${escapeHtml(status)}</strong>
   </div>`;
