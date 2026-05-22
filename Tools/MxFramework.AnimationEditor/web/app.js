@@ -1651,35 +1651,84 @@ function renderGroupInspector(group) {
 
 function renderClipInspector(clip) {
   return `
-    ${textField("clipId", "Clip ID", clip.clipId || "")}
-    ${textField("displayName", "显示名", clip.displayName || "")}
-    <label class="inspector-field">
-      <span>SourceSelection</span>
-      <div class="selection-line">
-        <code>${escapeHtml(getSelectionTitle(clip.sourceSelection) || "未选择")}</code>
-        <button type="button" data-open-source-picker="1">选择源动画</button>
+    <section class="clip-inspector-section">
+      <h4>基础属性</h4>
+      ${renderClipIdField(clip)}
+      ${textFieldWithHint("displayName", "显示名", clip.displayName || "", "", "给主创看的名称，可自由修改，不影响运行时资源引用。")}
+      ${renderSourceSelectionBlock(clip)}
+    </section>
+
+    <section class="clip-inspector-section">
+      <h4>播放设置</h4>
+      <label class="inspector-field">
+        <span>Loop</span>
+        <select data-field="loop" data-type="boolean">
+          <option value="false"${clip.loop ? "" : " selected"}>否</option>
+          <option value="true"${clip.loop ? " selected" : ""}>是</option>
+        </select>
+        <small class="field-hint">待机/移动通常循环；攻击、受击、死亡通常不循环。</small>
+      </label>
+      <label class="inspector-field">
+        <span>Speed</span>
+        <input type="number" data-type="number" data-field="speed" min="0.01" max="4" step="0.01" value="${escapeHtml(String(clip.speed ?? 1))}">
+        <small class="field-hint">播放倍率，常用 1；这里只调整映射层速度，不修改源 AnimationClip。</small>
+      </label>
+      <label class="inspector-field">
+        <span>RootMotionPolicy</span>
+        <select data-field="rootMotionPolicy">
+          ${ROOT_MOTION_OPTIONS.map(option => `<option value="${option}"${(clip.rootMotionPolicy || "Ignore") === option ? " selected" : ""}>${option}</option>`).join("")}
+        </select>
+        <small class="field-hint">当前角色移动主要由控制器/LocalMotion 管理；不确定时选 Ignore。</small>
+      </label>
+      ${textFieldWithHint("tagsText", "Tags", (clip.tags || []).join(", "), "move, loop", "逗号分隔，用于筛选和组织；不要用它表达强运行时逻辑。")}
+    </section>
+
+    <details class="clip-advanced-binding">
+      <summary>
+        <span>高级绑定信息</span>
+        <small>只读资源绑定和生成产物，通常不需要手填。</small>
+      </summary>
+      ${renderReadOnlyBindingField("SourceSubClipId", clip.sourceSubClipId || "未派生", "资源选择器从 sub clip / Unity sub-asset 元数据派生。")}
+      ${renderDerivedSourceClipName(clip)}
+      ${renderReadOnlyBindingField("RuntimeResourceKey", getClipRuntimeResourceKey(clip) || "未解析", "运行时 ResourceManager 加载 key，只能通过选择源动画或重新导入资源更新。")}
+      ${renderReadOnlyBindingField("Unity Asset", clip.sourceSelection?.unityAssetPath || "未链接", "Unity 原生预览路径；由资源库同步结果提供。")}
+      ${renderSelectionListEditor("clip", "generatedArtifactSelections", clip.generatedArtifactSelections || [], "bakeArtifact", "Generated Artifact Selections")}
+      ${textFieldWithHint("metadataText", "Metadata", metadataToText(clip.metadata), "key=value, key2=value2", "编辑辅助数据，格式为 key=value；不要在这里写资源引用。")}
+    </details>`;
+}
+
+function renderClipIdField(clip) {
+  const references = getClipReferenceSummary(clip);
+  const hint = references.count > 0
+    ? `已被 ${references.count} 处引用；改名会自动同步：${references.labels.slice(0, 4).join("、")}${references.labels.length > 4 ? "..." : ""}。`
+    : "当前 Group 内稳定 ID；Blend、Timeline 和 ActionBinding 都引用它。";
+  return textFieldWithHint("clipId", "Clip ID", clip.clipId || "", "run.forward", hint, references.count > 0 ? "warning" : "");
+}
+
+function renderSourceSelectionBlock(clip) {
+  const selected = getSelectionTitle(clip.sourceSelection);
+  const runtimeKey = getClipRuntimeResourceKey(clip);
+  const unityPath = clip.sourceSelection?.unityAssetPath || "";
+  const hasSource = Boolean(selected || runtimeKey);
+  return `
+    <section class="clip-source-card ${hasSource ? "" : "missing"}">
+      <div class="clip-source-head">
+        <div>
+          <strong>源动画</strong>
+          <span>${escapeHtml(hasSource ? "由资源库选择并锁定绑定字段" : "尚未选择源动画")}</span>
+        </div>
+        <button type="button" data-open-source-picker="1">${hasSource ? "更换源动画" : "选择源动画"}</button>
       </div>
-    </label>
-    ${textField("sourceSubClipId", "SourceSubClipId", clip.sourceSubClipId || "")}
-    ${renderDerivedSourceClipName(clip)}
-    ${textField("runtimeResourceKey", "RuntimeResourceKey", clip.runtimeResourceKey || "")}
-    <label class="inspector-field">
-      <span>Loop</span>
-      <select data-field="loop" data-type="boolean">
-        <option value="false"${clip.loop ? "" : " selected"}>否</option>
-        <option value="true"${clip.loop ? " selected" : ""}>是</option>
-      </select>
-    </label>
-    ${numberField("speed", "Speed", clip.speed ?? 1, 0.01, 4, 0.01)}
-    <label class="inspector-field">
-      <span>RootMotionPolicy</span>
-      <select data-field="rootMotionPolicy">
-        ${ROOT_MOTION_OPTIONS.map(option => `<option value="${option}"${(clip.rootMotionPolicy || "Ignore") === option ? " selected" : ""}>${option}</option>`).join("")}
-      </select>
-    </label>
-    ${textField("tagsText", "Tags", (clip.tags || []).join(", "))}
-    ${renderSelectionListEditor("clip", "generatedArtifactSelections", clip.generatedArtifactSelections || [], "bakeArtifact", "Generated Artifact Selections")}
-    ${textField("metadataText", "Metadata", metadataToText(clip.metadata), "key=value, key2=value2")}`;
+      <dl class="clip-source-summary">
+        <dt>SourceSelection</dt>
+        <dd><code>${escapeHtml(selected || "未选择")}</code></dd>
+        <dt>RuntimeResourceKey</dt>
+        <dd><code>${escapeHtml(runtimeKey || "未解析")}</code></dd>
+        <dt>Unity Asset</dt>
+        <dd><code>${escapeHtml(unityPath || "未链接")}</code></dd>
+      </dl>
+      <p>${escapeHtml(hasSource ? "SourceSubClipId、SourceClipName 和 RuntimeResourceKey 会由选择结果自动回填，当前界面已禁止手填。" : "请先从资源库选择 RuntimeReady AnimationClip；不要手动输入资源 key。")}</p>
+    </section>`;
 }
 
 function renderDerivedSourceClipName(clip) {
@@ -1695,6 +1744,76 @@ function renderDerivedSourceClipName(clip) {
         <small>${escapeHtml(note)}</small>
       </div>
     </label>`;
+}
+
+function renderReadOnlyBindingField(label, value, hint) {
+  return `
+    <label class="inspector-field read-only-binding">
+      <span>${escapeHtml(label)}</span>
+      <div class="derived-field" aria-readonly="true">
+        <code>${escapeHtml(value || "未设置")}</code>
+        <small>${escapeHtml(hint || "由资源选择器或编译器派生。")}</small>
+      </div>
+    </label>`;
+}
+
+function getClipRuntimeResourceKey(clip) {
+  return firstNonEmpty(
+    clip?.runtimeResourceKey,
+    clip?.sourceSelection?.runtimeResourceKey,
+    clip?.sourceSelection?.providerResourceKey,
+    clip?.sourceSelection?.packageResourceKey
+  );
+}
+
+function getClipReferenceSummary(clip) {
+  if (!clip?.clipId) return { count: 0, labels: [] };
+  const labels = collectClipReferenceLabels(clip.clipId, state.selected.setId, state.selected.groupId);
+  return { count: labels.length, labels };
+}
+
+function collectClipReferenceLabels(clipId, setId, groupId) {
+  const labels = [];
+  const set = findSet(setId);
+  const group = findGroup(setId, groupId);
+  if (!clipId || !set || !group) return labels;
+  if (set.defaultClipId === clipId) labels.push("Set 默认 Clip");
+  if (set.fallbackClipId === clipId) labels.push("Set Fallback Clip");
+  for (const blend of group.blend1D || []) {
+    if (blend.defaultClipId === clipId) labels.push(`1D Blend ${blend.blendId || ""} 默认`);
+    for (const point of blend.points || []) {
+      if (point.clipId === clipId) labels.push(`1D Blend ${blend.blendId || ""} 点`);
+    }
+  }
+  for (const blend of group.blend2D || []) {
+    if (blend.defaultClipId === clipId) labels.push(`2D Blend ${blend.blendId || ""} 默认`);
+    for (const point of blend.points || []) {
+      if (point.clipId === clipId) labels.push(`2D Blend ${blend.blendId || ""} 点`);
+    }
+  }
+  for (const timeline of group.timelines || []) {
+    if (timeline.clipId === clipId) labels.push(`Timeline ${timeline.timelineId || ""}`);
+    for (const eventItem of timeline.events || []) {
+      if (eventItem.clipId === clipId) labels.push(`Timeline ${timeline.timelineId || ""} 事件`);
+    }
+  }
+  for (const binding of set.actionBindings || []) {
+    if (binding.groupId === groupId && binding.clipId === clipId) labels.push(`ActionBinding ${binding.bindingId || ""}`);
+  }
+  addWarmupReferenceLabels(labels, set.warmup, clipId, "Set Warmup");
+  for (const profile of state.animation?.profiles || []) {
+    for (const slot of profile.slots || []) {
+      if ((slot.setId || profile.defaultSetId) === setId && (slot.groupId || profile.defaultGroupId) === groupId && slot.defaultClipId === clipId) {
+        labels.push(`Profile ${profile.profileId || ""} Slot ${slot.slotId || ""}`);
+      }
+    }
+    addWarmupReferenceLabels(labels, profile.warmup, clipId, `Profile ${profile.profileId || ""} Warmup`);
+  }
+  return labels.filter(Boolean);
+}
+
+function addWarmupReferenceLabels(labels, warmup, clipId, label) {
+  if ((warmup?.requiredClipIds || []).includes(clipId)) labels.push(label);
 }
 
 function renderPackageRuntimeSections() {
@@ -2047,6 +2166,12 @@ function handleInspectorInput(event) {
   if (event.target.dataset.type === "boolean") value = value === "true";
   if (event.target.dataset.type === "number") value = Number(value);
 
+  if (target.kind === "clip" && field === "clipId") {
+    if (event.type === "input") return;
+    handleClipIdRename(target.value, value);
+    return;
+  }
+
   if (field === "tagsText") {
     target.value.tags = String(value).split(",").map(item => item.trim()).filter(Boolean);
   } else if (field === "metadataText") {
@@ -2061,6 +2186,87 @@ function handleInspectorInput(event) {
   renderSetSelect();
   renderTree();
   renderWorkspace();
+}
+
+function handleClipIdRename(clip, rawValue) {
+  const oldClipId = clip.clipId || "";
+  const nextClipId = normalizeClipId(rawValue);
+  const group = findGroup(state.selected.setId, state.selected.groupId);
+  if (!nextClipId) {
+    state.lastMessage = "Clip ID 不能为空。";
+    renderStatus();
+    renderInspector();
+    return;
+  }
+  if (oldClipId === nextClipId) {
+    clip.clipId = nextClipId;
+    renderInspector();
+    return;
+  }
+  if ((group?.clips || []).some(item => item !== clip && item.clipId === nextClipId)) {
+    state.lastMessage = `Clip ID ${nextClipId} 已存在，未改名。`;
+    renderStatus();
+    renderInspector();
+    return;
+  }
+
+  clip.clipId = nextClipId;
+  renameClipReferences(oldClipId, nextClipId, state.selected.setId, state.selected.groupId);
+  state.selected.clipId = nextClipId;
+  syncPreviewClipToCurrentSelection();
+  state.lastMessage = `Clip ID 已从 ${oldClipId || "(empty)"} 改为 ${nextClipId}，相关引用已同步。`;
+  renderStatus();
+  renderSetSelect();
+  renderTree();
+  renderWorkspace();
+  renderInspector();
+  renderDiagnostics();
+}
+
+function renameClipReferences(oldClipId, nextClipId, setId, groupId) {
+  if (!oldClipId || !nextClipId || oldClipId === nextClipId) return;
+  const set = findSet(setId);
+  const group = findGroup(setId, groupId);
+  if (!set || !group) return;
+  if (set.defaultClipId === oldClipId) set.defaultClipId = nextClipId;
+  if (set.fallbackClipId === oldClipId) set.fallbackClipId = nextClipId;
+  for (const blend of group.blend1D || []) {
+    if (blend.defaultClipId === oldClipId) blend.defaultClipId = nextClipId;
+    renameClipIdInPoints(blend.points, oldClipId, nextClipId);
+  }
+  for (const blend of group.blend2D || []) {
+    if (blend.defaultClipId === oldClipId) blend.defaultClipId = nextClipId;
+    renameClipIdInPoints(blend.points, oldClipId, nextClipId);
+  }
+  for (const timeline of group.timelines || []) {
+    if (timeline.clipId === oldClipId) timeline.clipId = nextClipId;
+    for (const eventItem of timeline.events || []) {
+      if (eventItem.clipId === oldClipId) eventItem.clipId = nextClipId;
+    }
+  }
+  for (const binding of set.actionBindings || []) {
+    if (binding.groupId === groupId && binding.clipId === oldClipId) binding.clipId = nextClipId;
+  }
+  renameClipIdInWarmup(set.warmup, oldClipId, nextClipId);
+  for (const profile of state.animation?.profiles || []) {
+    for (const slot of profile.slots || []) {
+      if ((slot.setId || profile.defaultSetId) === setId && (slot.groupId || profile.defaultGroupId) === groupId && slot.defaultClipId === oldClipId) {
+        slot.defaultClipId = nextClipId;
+      }
+    }
+    renameClipIdInWarmup(profile.warmup, oldClipId, nextClipId);
+  }
+}
+
+function renameClipIdInPoints(points, oldClipId, nextClipId) {
+  for (const point of points || []) {
+    if (point.clipId === oldClipId) point.clipId = nextClipId;
+  }
+}
+
+function renameClipIdInWarmup(warmup, oldClipId, nextClipId) {
+  if (!Array.isArray(warmup?.requiredClipIds)) return;
+  warmup.requiredClipIds = warmup.requiredClipIds.map(clipId => clipId === oldClipId ? nextClipId : clipId);
 }
 
 function handleStructureButtonClick(button) {
@@ -4951,6 +5157,15 @@ function treeButtonClass(kind, setId, groupId, clipId) {
 
 function textField(field, label, value, placeholder = "") {
   return `<label class="inspector-field"><span>${escapeHtml(label)}</span><input data-field="${escapeHtml(field)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"></label>`;
+}
+
+function textFieldWithHint(field, label, value, placeholder = "", hint = "", tone = "") {
+  return `
+    <label class="inspector-field ${tone ? `field-${escapeHtml(tone)}` : ""}">
+      <span>${escapeHtml(label)}</span>
+      <input data-field="${escapeHtml(field)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}">
+      ${hint ? `<small class="field-hint">${escapeHtml(hint)}</small>` : ""}
+    </label>`;
 }
 
 function numberField(field, label, value, min, max, step) {

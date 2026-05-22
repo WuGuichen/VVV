@@ -1518,9 +1518,112 @@ code {
   gap: 12px;
 }
 
+.clip-inspector-section,
+.clip-advanced-binding {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.clip-inspector-section h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
 .inspector-field {
   display: grid;
   gap: 6px;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.inspector-field.field-warning input {
+  border-color: rgba(229, 155, 53, 0.52);
+}
+
+.clip-source-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(32, 185, 129, 0.34);
+  border-radius: 6px;
+  background: rgba(32, 185, 129, 0.06);
+}
+
+.clip-source-card.missing {
+  border-color: rgba(229, 155, 53, 0.42);
+  background: rgba(229, 155, 53, 0.05);
+}
+
+.clip-source-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+
+.clip-source-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.clip-source-head strong {
+  font-size: 13px;
+}
+
+.clip-source-head span,
+.clip-source-card p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.clip-source-card p {
+  margin: 0;
+}
+
+.clip-source-summary {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+  gap: 6px 10px;
+  font-size: 12px;
+}
+
+.clip-source-summary dt {
+  color: var(--muted);
+}
+
+.clip-source-summary dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.clip-source-summary code {
+  overflow-wrap: anywhere;
+}
+
+.clip-advanced-binding summary {
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+}
+
+.clip-advanced-binding summary span {
+  font-weight: 700;
+}
+
+.clip-advanced-binding summary small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .selection-line {
