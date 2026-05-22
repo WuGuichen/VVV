@@ -517,10 +517,7 @@ async function previewAnimation() {
   state.lastMessage = "正在请求编译预览";
   render();
 
-  const result = await postJson(API.preview, {
-    package: state.packageRelative,
-    animation: state.animation
-  }, "编译预览");
+  const result = await postJson(API.preview, buildPreviewRequestBody(), "编译预览");
 
   state.preview3d.loading = false;
   if (!result) {
@@ -543,6 +540,19 @@ async function previewAnimation() {
   applyPreviewClipPlaybackDefaults(getSelectedPreviewClip());
   state.lastMessage = `编译预览完成：${getPreviewResources(result).length} 个资源，${clips.length} 个 Clip`;
   render();
+}
+
+function buildPreviewRequestBody() {
+  const body = { package: state.packageRelative };
+  if (shouldSendEditorAnimationForPreview()) {
+    body.animation = state.animation;
+  }
+  return body;
+}
+
+function shouldSendEditorAnimationForPreview() {
+  if (getAllClips().length > 0) return true;
+  return Boolean(state.documentRelative);
 }
 
 async function readJson(url, fallback, label) {
@@ -1143,7 +1153,7 @@ function renderCompilerBackedPreviewPanel(set, group, clip) {
   const clips = getPreviewAnimationClips(result);
   const selectedClip = getSelectedPreviewClip();
   const unityPreview = getUnityPreviewReportForClip(result, clip, selectedClip);
-  const authority = getUnityPreviewAuthoritySummary(unityPreview);
+  const authority = getUnityPreviewAuthoritySummary(unityPreview, result);
   const selectedResource = getPreviewDisplayResource(selectedClip, resources) || getPreviewResourceForClip(clip, resources);
   const diagnostics = getPreviewDiagnostics(result);
   const glbResources = resources.filter(resource => isPreviewModelResource(resource));
@@ -1221,6 +1231,12 @@ function renderPreviewViewportFallback(resource, preview, authority = getUnityPr
   if (authority.key === "UnityPreview" && !resource) {
     return `<div class="preview-viewport-fallback"><strong>Unity Preview 可用</strong><span>当前 Clip 可在 Unity 侧权威预览；浏览器没有 Web Preview Artifact 可显示。</span></div>`;
   }
+  if (authority.key === "NoClip") {
+    return `<div class="preview-viewport-fallback warning"><strong>没有可预览 Clip</strong><span>当前预览结果没有 animation clip；请先确认动画包已加载，或在资源映射中新增 Clip。</span></div>`;
+  }
+  if (authority.key === "ReportMissing") {
+    return `<div class="preview-viewport-fallback warning"><strong>缺少 Unity Preview 报告</strong><span>编译器返回了 Clip，但没有对应的 unityPreviewReport；请刷新后重新运行编译预览。</span></div>`;
+  }
   if (authority.key === "Unavailable") {
     return `<div class="preview-viewport-fallback error"><strong>Preview Unavailable</strong><span>Unity Preview 和 Web Preview Artifact 都不可用，请查看 canPreviewInUnity / canPreviewInWeb 与诊断。</span></div>`;
   }
@@ -1244,12 +1260,12 @@ function renderUnityPreviewAuthorityPanel(report, authority) {
 
   const unity = report?.unity || {};
   const web = report?.web || {};
-  const diagnostics = getUnityPreviewDiagnostics(report).slice(0, 4);
+  const diagnostics = getUnityPreviewPanelDiagnostics(report).slice(0, 4);
   return `
     <section class="unity-preview-authority status-${escapeHtml(authority.tone)}" aria-label="Unity preview authority">
       <div class="unity-preview-head">
         <strong>${escapeHtml(authority.label)}</strong>
-        <span>${escapeHtml(report ? "unityPreviewReport" : "未匹配 Clip 报告")}</span>
+        <span>${escapeHtml(getUnityPreviewReportBadge(report))}</span>
       </div>
       <div class="unity-preview-flags">
         ${renderPreviewCapabilityFlag("canPreviewInUnity", Boolean(report?.canPreviewInUnity), "Unity 原生 AnimationClip 权威预览")}
@@ -1268,7 +1284,7 @@ function renderUnityPreviewAuthorityPanel(report, authority) {
       ${diagnostics.length ? `
         <div class="unity-preview-diagnostics">
           ${diagnostics.map(item => `<p class="${escapeHtml(item.tone)}"><code>${escapeHtml(item.code)}</code> ${escapeHtml(item.message)}${item.suggestedFix ? ` <span>${escapeHtml(item.suggestedFix)}</span>` : ""}</p>`).join("")}
-        </div>` : `<p class="unity-preview-diagnostics ok">当前 unityPreviewReport 没有报告阻塞诊断。</p>`}
+        </div>` : `<p class="unity-preview-diagnostics ok">${escapeHtml(report ? "当前 Clip 的 unityPreviewReport 没有报告阻塞诊断。" : "当前预览结果没有 Clip 级 unityPreviewReport。")}</p>`}
     </section>`;
 }
 
@@ -4305,14 +4321,31 @@ function getUnityPreviewReportForClip(result = state.preview3d.result, authoring
   const setId = compiledClip?.setId || authoringClip?.setId || state.selected.setId || "";
   const groupId = compiledClip?.groupId || authoringClip?.groupId || state.selected.groupId || "";
   const clipId = compiledClip?.clipId || authoringClip?.clipId || state.preview3d.selectedClipId || state.selected.clipId || "";
+  const runtimeResourceKey = compiledClip?.runtimeResourceKey || authoringClip?.runtimeResourceKey || authoringClip?.sourceSelection?.runtimeResourceKey || "";
+  const sourceClipName = compiledClip?.sourceClipName || authoringClip?.sourceClipName || "";
+  const sourceSubClipId = compiledClip?.sourceSubClipId || authoringClip?.sourceSubClipId || "";
   return reports.find(report =>
     report.clipId === clipId &&
     (!setId || !report.setId || report.setId === setId) &&
     (!groupId || !report.groupId || report.groupId === groupId)
-  ) || reports.find(report => report.clipId === clipId) || reports[0] || null;
+  )
+    || reports.find(report => report.clipId === clipId)
+    || reports.find(report => runtimeResourceKey && report.runtimeResourceKey === runtimeResourceKey)
+    || reports.find(report => sourceSubClipId && report.sourceSubClipId === sourceSubClipId)
+    || reports.find(report => sourceClipName && report.sourceClipName === sourceClipName)
+    || reports[0]
+    || null;
 }
 
-function getUnityPreviewAuthoritySummary(report) {
+function getUnityPreviewAuthoritySummary(report, result = state.preview3d.result) {
+  if (!report && result) {
+    const reportCount = getUnityPreviewClipReports(result).length;
+    const clipCount = getPreviewAnimationClips(result).length;
+    if (reportCount === 0 && clipCount === 0) {
+      return { key: "NoClip", tone: "idle", label: "没有 Clip", description: "当前预览结果没有可编译的 Animation Clip。" };
+    }
+    return { key: "ReportMissing", tone: "unavailable", label: "报告缺失", description: "编译器返回了 Clip，但没有对应的 Unity Preview 报告。" };
+  }
   const key = report?.previewAuthority || (report?.canPreviewInUnity ? "UnityPreview" : report?.canPreviewInWeb ? "WebPreviewArtifact" : "Unavailable");
   if (key === "UnityPreview") {
     return { key, tone: "unity", label: "Unity Preview", description: "Unity 原生 AnimationClip 权威预览可用。" };
@@ -4329,6 +4362,37 @@ function getUnityPreviewDiagnostics(report) {
     : [];
 }
 
+function getUnityPreviewPanelDiagnostics(report, result = state.preview3d.result) {
+  if (report) return getUnityPreviewDiagnostics(report);
+  const diagnostics = [];
+  const reportCount = getUnityPreviewClipReports(result).length;
+  const clipCount = getPreviewAnimationClips(result).length;
+  if (reportCount === 0 && clipCount === 0) {
+    diagnostics.push({
+      tone: "warning",
+      code: "ANIM_PREVIEW_CLIPS_EMPTY",
+      message: "编译预览没有返回 animation clip；如果页面刚从离线状态恢复，请刷新动画包后重试。",
+      suggestedFix: "确认动画包已加载，或在资源映射中新增 Clip。"
+    });
+  } else {
+    diagnostics.push({
+      tone: "warning",
+      code: "ANIM_UNITY_PREVIEW_REPORT_CLIP_MISSING",
+      message: "编译器返回了 animation clip，但 unityPreviewReport 没有匹配当前 Clip 的报告。",
+      suggestedFix: "刷新后重新运行编译预览；如果仍然出现，请检查后端 preview report 生成。"
+    });
+  }
+  return diagnostics;
+}
+
+function getUnityPreviewReportBadge(report, result = state.preview3d.result) {
+  if (report) return "unityPreviewReport";
+  const reportCount = getUnityPreviewClipReports(result).length;
+  const clipCount = getPreviewAnimationClips(result).length;
+  if (reportCount === 0 && clipCount === 0) return "没有 Clip 报告";
+  return "未匹配当前 Clip 报告";
+}
+
 function getPreviewDiagnostics(result = state.preview3d.result) {
   const diagnostics = [];
   if (Array.isArray(result?.diagnostics)) diagnostics.push(...result.diagnostics.map(normalizePreviewDiagnostic));
@@ -4336,7 +4400,7 @@ function getPreviewDiagnostics(result = state.preview3d.result) {
   const unityPreview = getUnityPreviewReportForClip(result);
   diagnostics.push(...getUnityPreviewDiagnostics(unityPreview));
   if (result?.unityPreviewReport && !unityPreview) {
-    diagnostics.push({ tone: "warning", code: "ANIM_UNITY_PREVIEW_REPORT_CLIP_MISSING", message: "unityPreviewReport 未包含当前选中 Clip 的报告。" });
+    diagnostics.push(...getUnityPreviewPanelDiagnostics(unityPreview, result));
   }
   if (state.preview3d.error) diagnostics.push({ tone: "error", code: "ANIM_PREVIEW_ENDPOINT_FAILED", message: state.preview3d.error });
   if (state.preview3d.matchStatus === "empty") {
