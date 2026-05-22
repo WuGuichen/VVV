@@ -1,6 +1,7 @@
 using System.Text;
 using System.Globalization;
 using MxFramework.Animation;
+using MxFramework.Input;
 using MxFramework.Resources;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -12,13 +13,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
     [AddComponentMenu("MxFramework/Character/Locomotion Calibration Runner")]
     public sealed class CharacterLocomotionCalibrationRunner : MonoBehaviour
     {
-        private const float BlendMapWidth = 360f;
-        private const float BlendMapHeight = 240f;
+        private const float BlendMapWidth = 300f;
+        private const float BlendMapHeight = 220f;
         private const float BlendMapPadding = 34f;
         private const float BlendPointWidth = 64f;
         private const float BlendPointHeight = 22f;
         private const float BlendSampleSize = 18f;
         private const float BlendMarkerInset = 6f;
+        private const int TrailCapacity = 72;
 
         [SerializeField] private CharacterRuntimeResourceBootstrap _bootstrap;
         [SerializeField] private bool _loadOnStart = true;
@@ -29,17 +31,42 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private string _leftFootPath = string.Empty;
         [SerializeField] private string _rightFootPath = string.Empty;
         [SerializeField] private float _footContactThreshold = 0.5f;
+        [SerializeField] private bool _showSceneGizmos = true;
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
         private CharacterLocomotionFootSlipSampler _footSlipSampler;
         private CharacterLocomotionFootSlipSnapshot _footSlipSnapshot;
+        private FakeInputProvider _manualInputProvider;
+        private bool _manualControlEnabled;
+        private Vector2 _manualDirection = Vector2.up;
+        private float _manualSpeed = 1f;
+        private bool _manualRun;
+        private bool _labPaused;
+        private bool _stepRequested;
+        private float _timeScale = 1f;
+        private float _previousTimeScale = 1f;
+        private bool _timeScaleApplied;
         private UIDocument _hudDocument;
         private VisualElement _hudRoot;
+        private VisualElement _statusRow;
+        private Label _controlStateLabel;
+        private Label _telemetryLabel;
         private VisualElement _blendMap;
         private Label _hudSummaryLabel;
         private Label _blendWeightsLabel;
         private Label _slipMetricsLabel;
+        private LineRenderer _actualVelocityLine;
+        private LineRenderer _nativeVelocityLine;
+        private LineRenderer _leftFootTrailLine;
+        private LineRenderer _rightFootTrailLine;
+        private Transform _leftAnchorMarker;
+        private Transform _rightAnchorMarker;
+        private Material _gizmoMaterial;
+        private readonly Vector3[] _leftTrail = new Vector3[TrailCapacity];
+        private readonly Vector3[] _rightTrail = new Vector3[TrailCapacity];
+        private int _leftTrailCount;
+        private int _rightTrailCount;
 
         public CharacterRuntimeResourceBootstrap Bootstrap => _bootstrap;
         public GameObject CharacterInstance => _bootstrap != null ? _bootstrap.CharacterInstance : null;
@@ -71,26 +98,46 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (_loadOnStart && _bootstrap != null)
                 _bootstrap.LoadCharacter();
             RefreshRuntimeControllers();
+            UpdateManualControl();
             UpdateHud();
         }
 
         private void Update()
         {
             RefreshRuntimeControllers();
-            if (_keepInputMotionEnabled && _motionController != null)
-                _motionController.EnableInputMotion = true;
+            UpdateManualControl();
             UpdateHud();
+            UpdateSceneGizmos();
         }
 
         private void OnDisable()
         {
+            ReleaseManualInputProvider();
+            RestoreTimeScale();
+            HideSceneGizmos();
             if (_hudRoot != null)
                 _hudRoot.RemoveFromHierarchy();
             _hudRoot = null;
             _blendMap = null;
+            _statusRow = null;
+            _controlStateLabel = null;
+            _telemetryLabel = null;
             _hudSummaryLabel = null;
             _blendWeightsLabel = null;
             _slipMetricsLabel = null;
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseManualInputProvider();
+            RestoreTimeScale();
+            DestroyRuntimeObject(_actualVelocityLine != null ? _actualVelocityLine.gameObject : null);
+            DestroyRuntimeObject(_nativeVelocityLine != null ? _nativeVelocityLine.gameObject : null);
+            DestroyRuntimeObject(_leftFootTrailLine != null ? _leftFootTrailLine.gameObject : null);
+            DestroyRuntimeObject(_rightFootTrailLine != null ? _rightFootTrailLine.gameObject : null);
+            DestroyRuntimeObject(_leftAnchorMarker != null ? _leftAnchorMarker.gameObject : null);
+            DestroyRuntimeObject(_rightAnchorMarker != null ? _rightAnchorMarker.gameObject : null);
+            DestroyRuntimeObject(_gizmoMaterial);
         }
 
         public void Configure(CharacterRuntimeResourceBootstrap bootstrap, bool loadOnStart = true)
@@ -238,13 +285,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _hudRoot.style.position = Position.Absolute;
             _hudRoot.style.left = 16f;
             _hudRoot.style.top = 16f;
-            _hudRoot.style.width = 680f;
-            _hudRoot.style.maxHeight = 560f;
+            _hudRoot.style.width = 560f;
+            _hudRoot.style.maxHeight = 720f;
             _hudRoot.style.paddingLeft = 14f;
             _hudRoot.style.paddingRight = 14f;
             _hudRoot.style.paddingTop = 12f;
             _hudRoot.style.paddingBottom = 12f;
-            _hudRoot.style.backgroundColor = new Color(0.035f, 0.055f, 0.075f, 0.82f);
+            _hudRoot.style.backgroundColor = new Color(0.03f, 0.045f, 0.06f, 0.78f);
             _hudRoot.style.borderTopLeftRadius = 6f;
             _hudRoot.style.borderTopRightRadius = 6f;
             _hudRoot.style.borderBottomLeftRadius = 6f;
@@ -269,6 +316,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             title.style.color = accent;
             title.style.marginBottom = 8f;
 
+            _statusRow = new VisualElement
+            {
+                name = "locomotion-calibration-status-row"
+            };
+            _statusRow.style.flexDirection = FlexDirection.Row;
+            _statusRow.style.flexWrap = Wrap.Wrap;
+            _statusRow.style.marginBottom = 8f;
+
             _hudSummaryLabel = new Label(CreateHeaderSummary())
             {
                 name = "locomotion-calibration-summary"
@@ -277,13 +332,24 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _hudSummaryLabel.style.fontSize = 13f;
             _hudSummaryLabel.style.color = new Color(0.92f, 0.96f, 1f, 1f);
 
+            VisualElement controls = CreateControlPanel();
+
+            _telemetryLabel = new Label("Telemetry: waiting for sample")
+            {
+                name = "locomotion-calibration-telemetry"
+            };
+            StylePanel(_telemetryLabel);
+            _telemetryLabel.style.fontSize = 12f;
+            _telemetryLabel.style.whiteSpace = WhiteSpace.Normal;
+            _telemetryLabel.style.color = new Color(0.9f, 0.96f, 1f, 1f);
+
             _blendMap = new VisualElement
             {
                 name = "locomotion-calibration-blend-map"
             };
             _blendMap.style.position = Position.Relative;
-            _blendMap.style.width = BlendMapWidth;
-            _blendMap.style.height = BlendMapHeight;
+            _blendMap.style.width = 300f;
+            _blendMap.style.height = 220f;
             _blendMap.style.flexShrink = 0f;
             _blendMap.style.marginTop = 8f;
             _blendMap.style.marginBottom = 16f;
@@ -318,7 +384,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             blendProbeRow.style.alignItems = Align.FlexStart;
             blendProbeRow.style.flexShrink = 0f;
 
-            var help = new Label("WASD: move  |  Shift: run")
+            var help = new Label("WASD/Shift: live input  |  Manual: use controls  |  Scene lines: cyan=actual, yellow=animation, red=bad foot trail")
             {
                 name = "locomotion-calibration-help"
             };
@@ -327,6 +393,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             help.style.color = new Color(0.75f, 0.83f, 0.9f, 1f);
 
             _hudRoot.Add(title);
+            _hudRoot.Add(_statusRow);
+            _hudRoot.Add(controls);
+            _hudRoot.Add(_telemetryLabel);
             _hudRoot.Add(_hudSummaryLabel);
             blendProbeRow.Add(_blendMap);
             blendProbeRow.Add(_blendWeightsLabel);
@@ -346,15 +415,357 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _hudDocument.rootVisualElement.Add(_hudRoot);
         }
 
+        private VisualElement CreateControlPanel()
+        {
+            var controls = new VisualElement { name = "locomotion-calibration-controls" };
+            StylePanel(controls);
+            controls.style.marginBottom = 8f;
+
+            var header = new VisualElement();
+            header.style.flexDirection = FlexDirection.Row;
+            header.style.alignItems = Align.Center;
+            header.style.marginBottom = 6f;
+
+            var toggle = new Toggle("Manual")
+            {
+                value = _manualControlEnabled
+            };
+            toggle.RegisterValueChangedCallback(evt =>
+            {
+                _manualControlEnabled = evt.newValue;
+                if (!_manualControlEnabled)
+                    ReleaseManualInputProvider();
+            });
+            toggle.style.minWidth = 92f;
+            header.Add(toggle);
+
+            var run = new Toggle("Run")
+            {
+                value = _manualRun
+            };
+            run.RegisterValueChangedCallback(evt => _manualRun = evt.newValue);
+            run.style.minWidth = 76f;
+            header.Add(run);
+
+            var pause = new Toggle("Pause")
+            {
+                value = _labPaused
+            };
+            pause.RegisterValueChangedCallback(evt => _labPaused = evt.newValue);
+            pause.style.minWidth = 88f;
+            header.Add(pause);
+
+            Button step = CreateSmallButton("Step", () => _stepRequested = true);
+            header.Add(step);
+            controls.Add(header);
+
+            var row = new VisualElement();
+            row.style.flexDirection = FlexDirection.Row;
+            row.style.alignItems = Align.Center;
+
+            VisualElement pad = CreateDirectionPad();
+            row.Add(pad);
+
+            var sliderColumn = new VisualElement();
+            sliderColumn.style.flexGrow = 1f;
+            sliderColumn.style.marginLeft = 12f;
+            var speed = new Slider("Speed", 0f, 1f)
+            {
+                value = _manualSpeed
+            };
+            speed.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
+            sliderColumn.Add(speed);
+
+            var timeScale = new Slider("Time scale", 0.1f, 1f)
+            {
+                value = _timeScale
+            };
+            timeScale.RegisterValueChangedCallback(evt => _timeScale = Mathf.Clamp(evt.newValue, 0.1f, 1f));
+            sliderColumn.Add(timeScale);
+
+            _controlStateLabel = new Label();
+            _controlStateLabel.style.fontSize = 12f;
+            _controlStateLabel.style.color = new Color(0.76f, 0.84f, 0.92f, 1f);
+            _controlStateLabel.style.whiteSpace = WhiteSpace.Normal;
+            sliderColumn.Add(_controlStateLabel);
+            row.Add(sliderColumn);
+            controls.Add(row);
+            return controls;
+        }
+
+        private VisualElement CreateDirectionPad()
+        {
+            var pad = new VisualElement { name = "locomotion-calibration-direction-pad" };
+            pad.style.width = 122f;
+
+            var top = new VisualElement();
+            top.style.flexDirection = FlexDirection.Row;
+            top.Add(CreateSmallButton("", null));
+            top.Add(CreateSmallButton("↑", () => _manualDirection = Vector2.up));
+            top.Add(CreateSmallButton("", null));
+            var middle = new VisualElement();
+            middle.style.flexDirection = FlexDirection.Row;
+            middle.Add(CreateSmallButton("←", () => _manualDirection = Vector2.left));
+            middle.Add(CreateSmallButton("•", () => _manualDirection = Vector2.zero));
+            middle.Add(CreateSmallButton("→", () => _manualDirection = Vector2.right));
+            var bottom = new VisualElement();
+            bottom.style.flexDirection = FlexDirection.Row;
+            bottom.Add(CreateSmallButton("", null));
+            bottom.Add(CreateSmallButton("↓", () => _manualDirection = Vector2.down));
+            bottom.Add(CreateSmallButton("", null));
+            pad.Add(top);
+            pad.Add(middle);
+            pad.Add(bottom);
+            return pad;
+        }
+
+        private static Button CreateSmallButton(string text, System.Action action)
+        {
+            var button = new Button(action)
+            {
+                text = text
+            };
+            button.style.width = 38f;
+            button.style.height = 28f;
+            button.style.marginRight = 3f;
+            button.style.marginBottom = 3f;
+            button.style.unityFontStyleAndWeight = FontStyle.Bold;
+            if (action == null)
+            {
+                button.SetEnabled(false);
+                button.style.opacity = 0f;
+            }
+            return button;
+        }
+
+        private void UpdateManualControl()
+        {
+            ApplyTimeScale();
+            if (_motionController == null)
+            {
+                ReleaseManualInputProvider();
+                return;
+            }
+
+            if (_manualControlEnabled)
+            {
+                if (_manualInputProvider == null)
+                {
+                    _manualInputProvider = new FakeInputProvider();
+                    _manualInputProvider.SetContext(InputContext.Gameplay);
+                    _motionController.ConfigureInputProvider(_manualInputProvider);
+                }
+
+                Vector2 move = _manualDirection.sqrMagnitude > 0.0001f
+                    ? _manualDirection.normalized * Mathf.Clamp01(_manualSpeed)
+                    : Vector2.zero;
+                _manualInputProvider.SetContext(InputContext.Gameplay);
+                _manualInputProvider.SetSnapshot(CreateManualInputSnapshot(move, _manualRun));
+            }
+            else
+            {
+                ReleaseManualInputProvider();
+            }
+
+            if (_labPaused)
+            {
+                _motionController.EnableInputMotion = false;
+                if (_stepRequested)
+                {
+                    _motionController.StepFrame();
+                    _stepRequested = false;
+                }
+                return;
+            }
+
+            _motionController.EnableInputMotion = _keepInputMotionEnabled;
+            if (_stepRequested)
+            {
+                _motionController.StepFrame();
+                _stepRequested = false;
+            }
+        }
+
+        private void ReleaseManualInputProvider()
+        {
+            if (_manualInputProvider == null)
+                return;
+
+            if (_motionController != null)
+                _motionController.ConfigureInputProvider(null);
+            _manualInputProvider = null;
+        }
+
+        private void ApplyTimeScale()
+        {
+            float next = Mathf.Clamp(_timeScale, 0.1f, 1f);
+            if (Mathf.Abs(next - 1f) <= 0.001f)
+            {
+                RestoreTimeScale();
+                return;
+            }
+
+            if (!_timeScaleApplied)
+            {
+                _previousTimeScale = Time.timeScale;
+                _timeScaleApplied = true;
+            }
+
+            Time.timeScale = next;
+        }
+
+        private void RestoreTimeScale()
+        {
+            if (!_timeScaleApplied)
+                return;
+
+            Time.timeScale = _previousTimeScale;
+            _timeScaleApplied = false;
+        }
+
+        private static InputSnapshot CreateManualInputSnapshot(Vector2 move, bool sprintHeld)
+        {
+            return new InputSnapshot(
+                move,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.zero,
+                throttle: move.magnitude,
+                jumpPressed: false,
+                jumpHeld: false,
+                jumpReleased: false,
+                attackPrimaryPressed: false,
+                attackPrimaryHeld: false,
+                attackSecondaryPressed: false,
+                interactPressed: false,
+                dodgePressed: false,
+                sprintHeld: sprintHeld,
+                submitPressed: false,
+                cancelPressed: false,
+                pausePressed: false,
+                debugTogglePressed: false);
+        }
+
+        private static void StylePanel(VisualElement element)
+        {
+            element.style.paddingLeft = 10f;
+            element.style.paddingRight = 10f;
+            element.style.paddingTop = 8f;
+            element.style.paddingBottom = 8f;
+            element.style.borderTopLeftRadius = 4f;
+            element.style.borderTopRightRadius = 4f;
+            element.style.borderBottomLeftRadius = 4f;
+            element.style.borderBottomRightRadius = 4f;
+            element.style.backgroundColor = new Color(0.02f, 0.032f, 0.045f, 0.72f);
+            element.style.borderLeftWidth = 1f;
+            element.style.borderRightWidth = 1f;
+            element.style.borderTopWidth = 1f;
+            element.style.borderBottomWidth = 1f;
+            Color border = new Color(0.15f, 0.24f, 0.31f, 0.92f);
+            element.style.borderLeftColor = border;
+            element.style.borderRightColor = border;
+            element.style.borderTopColor = border;
+            element.style.borderBottomColor = border;
+        }
+
         private void UpdateHud()
         {
             EnsureHud();
             UpdateFootSlipSnapshot();
+            UpdateStatusBadges();
+            UpdateTelemetryHud();
+            UpdateControlStateHud();
             if (_hudSummaryLabel != null)
                 _hudSummaryLabel.text = CreateHeaderSummary();
             UpdateBlendProbeHud();
             if (_slipMetricsLabel != null)
                 _slipMetricsLabel.text = CreateSlipMetricsSummary(_footSlipSnapshot);
+        }
+
+        private void UpdateStatusBadges()
+        {
+            if (_statusRow == null)
+                return;
+
+            _statusRow.Clear();
+            AddBadge(_statusRow, "Package", EmptyAsDash(_bootstrap != null ? _bootstrap.PackageId : string.Empty), _bootstrap != null);
+            AddBadge(_statusRow, "Character", CharacterLoaded ? "loaded" : "missing", CharacterLoaded);
+            AddBadge(_statusRow, "Warmup", AnimationWarmupSucceeded ? "ready" : "waiting", AnimationWarmupSucceeded);
+            AddBadge(_statusRow, "Backend", AnimationBackendReady ? "ready" : "missing", AnimationBackendReady);
+            bool slipOk = _footSlipSnapshot == null || _footSlipSnapshot.Grade == MxAnimationFootSlipGrade.Ok;
+            AddBadge(_statusRow, "Slip", _footSlipSnapshot != null ? _footSlipSnapshot.Grade.ToString() : "waiting", slipOk, _footSlipSnapshot != null && _footSlipSnapshot.Grade == MxAnimationFootSlipGrade.Warning);
+        }
+
+        private static void AddBadge(VisualElement row, string label, string value, bool ok, bool warning = false)
+        {
+            var badge = new Label(label + ": " + value);
+            badge.style.fontSize = 11f;
+            badge.style.unityFontStyleAndWeight = FontStyle.Bold;
+            badge.style.color = Color.white;
+            badge.style.paddingLeft = 8f;
+            badge.style.paddingRight = 8f;
+            badge.style.paddingTop = 4f;
+            badge.style.paddingBottom = 4f;
+            badge.style.marginRight = 5f;
+            badge.style.marginBottom = 5f;
+            badge.style.borderTopLeftRadius = 10f;
+            badge.style.borderTopRightRadius = 10f;
+            badge.style.borderBottomLeftRadius = 10f;
+            badge.style.borderBottomRightRadius = 10f;
+            badge.style.backgroundColor = warning
+                ? new Color(0.78f, 0.48f, 0.08f, 0.92f)
+                : ok ? new Color(0.06f, 0.46f, 0.38f, 0.92f) : new Color(0.62f, 0.16f, 0.14f, 0.92f);
+            row.Add(badge);
+        }
+
+        private void UpdateControlStateHud()
+        {
+            if (_controlStateLabel == null)
+                return;
+
+            _controlStateLabel.text = "manual=" + (_manualControlEnabled ? "on" : "off")
+                + " dir=(" + FormatFloat(_manualDirection.x) + "," + FormatFloat(_manualDirection.y) + ")"
+                + " speed=" + FormatFloat(_manualSpeed)
+                + " run=" + (_manualRun ? "on" : "off")
+                + " paused=" + (_labPaused ? "yes" : "no")
+                + " timeScale=" + FormatFloat(_timeScale);
+        }
+
+        private void UpdateTelemetryHud()
+        {
+            if (_telemetryLabel == null)
+                return;
+
+            if (_footSlipSnapshot == null || _footSlipSnapshot.Frame == null)
+            {
+                _telemetryLabel.text = "Telemetry: waiting for sample";
+                return;
+            }
+
+            MxAnimationLocomotionCalibrationFrame frame = _footSlipSnapshot.Frame;
+            _telemetryLabel.text =
+                "Velocity  actual=(" + FormatFloat(frame.ActualLocalVelocityX) + ", " + FormatFloat(frame.ActualLocalVelocityY) + ")"
+                + "  blended=(" + FormatFloat(frame.BlendedNativeVelocityX) + ", " + FormatFloat(frame.BlendedNativeVelocityY) + ")"
+                + "  error=" + FormatFloat(frame.VelocityErrorRatio)
+                + "  dirErr=" + FormatFloat(frame.DirectionErrorDegrees) + " deg"
+                + "\nDominant  " + EmptyAsDash(frame.DominantClipId)
+                + "  suggestedSpeed=" + FormatFloat(CalculateSuggestedPlaybackSpeed(frame));
+        }
+
+        private static float CalculateSuggestedPlaybackSpeed(MxAnimationLocomotionCalibrationFrame frame)
+        {
+            float actual = Mathf.Sqrt(
+                (frame.ActualLocalVelocityX * frame.ActualLocalVelocityX)
+                + (frame.ActualLocalVelocityY * frame.ActualLocalVelocityY));
+            float native = Mathf.Sqrt(
+                (frame.BlendedNativeVelocityX * frame.BlendedNativeVelocityX)
+                + (frame.BlendedNativeVelocityY * frame.BlendedNativeVelocityY));
+            if (actual <= 0.0001f && native <= 0.0001f)
+                return 1f;
+            if (native <= 0.0001f)
+                return 0f;
+            return Mathf.Clamp(actual / native, 0f, 3f);
         }
 
         private void UpdateFootSlipSnapshot()
@@ -580,6 +991,211 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             return builder.ToString();
+        }
+
+        private void UpdateSceneGizmos()
+        {
+            if (!_showSceneGizmos || CharacterInstance == null || _footSlipSnapshot == null || _footSlipSnapshot.Frame == null)
+            {
+                HideSceneGizmos();
+                return;
+            }
+
+            EnsureSceneGizmoObjects();
+            if (_actualVelocityLine == null || _nativeVelocityLine == null)
+                return;
+
+            Transform root = CharacterInstance.transform;
+            MxAnimationLocomotionCalibrationFrame frame = _footSlipSnapshot.Frame;
+            Vector3 origin = root.position + Vector3.up * 0.08f;
+            Vector3 actual = root.TransformDirection(new Vector3(frame.ActualLocalVelocityX, 0f, frame.ActualLocalVelocityY));
+            Vector3 native = root.TransformDirection(new Vector3(frame.BlendedNativeVelocityX, 0f, frame.BlendedNativeVelocityY));
+
+            SetLine(_actualVelocityLine, origin, origin + actual, new Color(0.1f, 0.9f, 1f, 0.94f), 0.035f);
+            SetLine(_nativeVelocityLine, origin + Vector3.up * 0.08f, origin + Vector3.up * 0.08f + native, new Color(1f, 0.82f, 0.15f, 0.94f), 0.028f);
+
+            Color slipColor = GetSlipColor(_footSlipSnapshot.Grade);
+            if (_footSlipSnapshot.LeftFootResolved)
+            {
+                AddTrailPoint(_leftTrail, ref _leftTrailCount, _footSlipSnapshot.LeftFootPosition + Vector3.up * 0.025f);
+                UpdateTrailLine(_leftFootTrailLine, _leftTrail, _leftTrailCount, slipColor);
+                SetMarker(_leftAnchorMarker, _footSlipSnapshot.LeftFootPlanted, _footSlipSnapshot.LeftFootAnchor, slipColor);
+            }
+            else
+            {
+                SetLineVisible(_leftFootTrailLine, false);
+                SetMarker(_leftAnchorMarker, false, default, slipColor);
+            }
+
+            if (_footSlipSnapshot.RightFootResolved)
+            {
+                AddTrailPoint(_rightTrail, ref _rightTrailCount, _footSlipSnapshot.RightFootPosition + Vector3.up * 0.025f);
+                UpdateTrailLine(_rightFootTrailLine, _rightTrail, _rightTrailCount, slipColor);
+                SetMarker(_rightAnchorMarker, _footSlipSnapshot.RightFootPlanted, _footSlipSnapshot.RightFootAnchor, slipColor);
+            }
+            else
+            {
+                SetLineVisible(_rightFootTrailLine, false);
+                SetMarker(_rightAnchorMarker, false, default, slipColor);
+            }
+        }
+
+        private void EnsureSceneGizmoObjects()
+        {
+            if (_gizmoMaterial == null)
+            {
+                Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader != null)
+                    _gizmoMaterial = new Material(shader) { name = "MxFramework Locomotion Calibration Gizmo" };
+            }
+
+            _actualVelocityLine = EnsureLine(_actualVelocityLine, "LocomotionCalibration_ActualVelocity");
+            _nativeVelocityLine = EnsureLine(_nativeVelocityLine, "LocomotionCalibration_AnimationVelocity");
+            _leftFootTrailLine = EnsureLine(_leftFootTrailLine, "LocomotionCalibration_LeftFootTrail");
+            _rightFootTrailLine = EnsureLine(_rightFootTrailLine, "LocomotionCalibration_RightFootTrail");
+            _leftAnchorMarker = EnsureMarker(_leftAnchorMarker, "LocomotionCalibration_LeftFootAnchor");
+            _rightAnchorMarker = EnsureMarker(_rightAnchorMarker, "LocomotionCalibration_RightFootAnchor");
+        }
+
+        private LineRenderer EnsureLine(LineRenderer line, string name)
+        {
+            if (line != null)
+                return line;
+
+            var go = new GameObject(name)
+            {
+                hideFlags = HideFlags.DontSave
+            };
+            go.transform.SetParent(transform, worldPositionStays: false);
+            line = go.AddComponent<LineRenderer>();
+            line.useWorldSpace = true;
+            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            line.receiveShadows = false;
+            line.textureMode = LineTextureMode.Stretch;
+            line.alignment = LineAlignment.View;
+            line.positionCount = 0;
+            if (_gizmoMaterial != null)
+                line.sharedMaterial = _gizmoMaterial;
+            return line;
+        }
+
+        private Transform EnsureMarker(Transform marker, string name)
+        {
+            if (marker != null)
+                return marker;
+
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = name;
+            go.hideFlags = HideFlags.DontSave;
+            go.transform.SetParent(transform, worldPositionStays: false);
+            go.transform.localScale = Vector3.one * 0.09f;
+            Collider collider = go.GetComponent<Collider>();
+            if (collider != null)
+                Destroy(collider);
+            return go.transform;
+        }
+
+        private static void SetLine(LineRenderer line, Vector3 start, Vector3 end, Color color, float width)
+        {
+            if (line == null)
+                return;
+
+            line.gameObject.SetActive(true);
+            line.positionCount = 2;
+            line.startWidth = width;
+            line.endWidth = width * 0.45f;
+            line.startColor = color;
+            line.endColor = new Color(color.r, color.g, color.b, 0.18f);
+            line.SetPosition(0, start);
+            line.SetPosition(1, end);
+        }
+
+        private static void SetLineVisible(LineRenderer line, bool visible)
+        {
+            if (line != null)
+                line.gameObject.SetActive(visible);
+        }
+
+        private static void AddTrailPoint(Vector3[] trail, ref int count, Vector3 point)
+        {
+            if (count > 0 && (trail[count - 1] - point).sqrMagnitude < 0.0004f)
+                return;
+
+            if (count < trail.Length)
+            {
+                trail[count] = point;
+                count++;
+                return;
+            }
+
+            for (int i = 1; i < trail.Length; i++)
+                trail[i - 1] = trail[i];
+            trail[trail.Length - 1] = point;
+        }
+
+        private static void UpdateTrailLine(LineRenderer line, Vector3[] trail, int count, Color color)
+        {
+            if (line == null)
+                return;
+
+            line.gameObject.SetActive(count > 1);
+            line.positionCount = count;
+            line.startWidth = 0.018f;
+            line.endWidth = 0.018f;
+            line.startColor = new Color(color.r, color.g, color.b, 0.18f);
+            line.endColor = color;
+            for (int i = 0; i < count; i++)
+                line.SetPosition(i, trail[i]);
+        }
+
+        private static void SetMarker(Transform marker, bool visible, Vector3 position, Color color)
+        {
+            if (marker == null)
+                return;
+
+            marker.gameObject.SetActive(visible);
+            if (!visible)
+                return;
+
+            marker.position = position + Vector3.up * 0.055f;
+            Renderer renderer = marker.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = color;
+                renderer.enabled = true;
+            }
+        }
+
+        private void HideSceneGizmos()
+        {
+            SetLineVisible(_actualVelocityLine, false);
+            SetLineVisible(_nativeVelocityLine, false);
+            SetLineVisible(_leftFootTrailLine, false);
+            SetLineVisible(_rightFootTrailLine, false);
+            if (_leftAnchorMarker != null)
+                _leftAnchorMarker.gameObject.SetActive(false);
+            if (_rightAnchorMarker != null)
+                _rightAnchorMarker.gameObject.SetActive(false);
+        }
+
+        private static Color GetSlipColor(MxAnimationFootSlipGrade grade)
+        {
+            if (grade == MxAnimationFootSlipGrade.Bad)
+                return new Color(1f, 0.18f, 0.12f, 0.95f);
+            if (grade == MxAnimationFootSlipGrade.Warning)
+                return new Color(1f, 0.75f, 0.12f, 0.95f);
+            return new Color(0.1f, 0.92f, 0.72f, 0.95f);
+        }
+
+        private static void DestroyRuntimeObject(Object obj)
+        {
+            if (obj == null)
+                return;
+
+            if (Application.isPlaying)
+                Destroy(obj);
+            else
+                DestroyImmediate(obj);
         }
 
         private static Vector2 MapPoint(

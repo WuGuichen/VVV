@@ -14,6 +14,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             bool grounded,
             bool leftFootResolved,
             bool rightFootResolved,
+            bool leftFootPlanted,
+            bool rightFootPlanted,
+            Vector3 leftFootPosition,
+            Vector3 rightFootPosition,
+            Vector3 leftFootAnchor,
+            Vector3 rightFootAnchor,
             IReadOnlyList<string> diagnostics)
         {
             Frame = frame;
@@ -21,6 +27,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             Grounded = grounded;
             LeftFootResolved = leftFootResolved;
             RightFootResolved = rightFootResolved;
+            LeftFootPlanted = leftFootPlanted;
+            RightFootPlanted = rightFootPlanted;
+            LeftFootPosition = leftFootPosition;
+            RightFootPosition = rightFootPosition;
+            LeftFootAnchor = leftFootAnchor;
+            RightFootAnchor = rightFootAnchor;
             _diagnostics = diagnostics != null ? new List<string>(diagnostics) : new List<string>();
         }
 
@@ -29,6 +41,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public bool Grounded { get; }
         public bool LeftFootResolved { get; }
         public bool RightFootResolved { get; }
+        public bool LeftFootPlanted { get; }
+        public bool RightFootPlanted { get; }
+        public Vector3 LeftFootPosition { get; }
+        public Vector3 RightFootPosition { get; }
+        public Vector3 LeftFootAnchor { get; }
+        public Vector3 RightFootAnchor { get; }
         public IReadOnlyList<string> Diagnostics => _diagnostics;
     }
 
@@ -132,6 +150,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 grounded,
                 leftFoot != null,
                 rightFoot != null,
+                _left.Planted,
+                _right.Planted,
+                leftFoot != null ? ProjectHorizontal(leftFoot.position) : default,
+                rightFoot != null ? ProjectHorizontal(rightFoot.position) : default,
+                _left.Anchor,
+                _right.Anchor,
                 diagnostics);
         }
 
