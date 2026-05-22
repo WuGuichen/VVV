@@ -21,6 +21,7 @@ internal static class CharacterPackageTests
         UnityAssetDatabaseProvider_ProjectsSnapshotAndUnavailableState();
         UnityProjectAssetProvider_DiscoversAnimationAssets();
         RuntimeCatalogProvider_ProjectsRuntimeReadyEntries();
+        AuthoringResourceCollectionMerger_EnrichesRuntimeAnimationWithUnityAssetLink();
         FmodAudioLibraryProvider_ProjectsEventsAndUnavailableState();
         ExternalImportStagingProvider_FiltersFolderEntriesAndDetectsDuplicates();
         AuthoringResourceSelectionContracts_JsonRoundTrip();
@@ -820,6 +821,78 @@ internal static class CharacterPackageTests
         AuthoringResourceCollection unavailable = new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(new AuthoringResourceProviderContext());
         Require(unavailable.Providers.Count == 1 && !unavailable.Providers[0].Available, "runtime provider should expose unavailable state without a catalog.");
         Require(unavailable.Diagnostics.Exists(diagnostic => diagnostic.Code == AuthoringResourceDiagnosticCodes.ProviderUnavailable), "unavailable runtime provider should emit a diagnostic.");
+    }
+
+    private static void AuthoringResourceCollectionMerger_EnrichesRuntimeAnimationWithUnityAssetLink()
+    {
+        var runtime = new AuthoringResourceCollection();
+        var runtimeItem = new AuthoringResourceItem
+        {
+            ResourceId = "runtime:standing_run_left",
+            StableId = "runtime.art.character.skeleton.animation.standing_run_left",
+            DisplayName = "standing_run_left",
+            Kind = CharacterPackageResourceTypeIds.Animation,
+            Usage = AnimationAuthoringResourceUsages.AnimationClip,
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.RuntimeReady
+        };
+        runtimeItem.Metadata["runtimeResourceKey"] = "art.character.skeleton.animation.standing_run_left";
+        runtimeItem.Metadata["clipName"] = "standing_run_left";
+        runtimeItem.Metadata["subClipName"] = "standing_run_left";
+        runtimeItem.Metadata["subClipId"] = "standing_run_left";
+        runtimeItem.ProviderBindings.Add(new AuthoringResourceProviderBinding
+        {
+            ProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            BindingKeyKind = AuthoringResourceBindingKeyKinds.RuntimeResourceKey,
+            IsPrimary = true,
+            ProviderResourceKey = "art.character.skeleton.animation.standing_run_left",
+            RuntimeResourceKey = "art.character.skeleton.animation.standing_run_left",
+            ProviderData = new Dictionary<string, string>()
+        });
+        runtime.Items.Add(runtimeItem);
+
+        var unity = new AuthoringResourceCollection();
+        var unityItem = new AuthoringResourceItem
+        {
+            ResourceId = "unity:standing_run_left",
+            StableId = "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_run_left.anim",
+            DisplayName = "standing_run_left",
+            Kind = CharacterPackageResourceTypeIds.Animation,
+            Usage = AnimationAuthoringResourceUsages.AnimationClip,
+            SourceProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+            SourceKind = AuthoringResourceSourceKind.UnityAsset,
+            BindingKind = AuthoringResourceBindingKind.UnityEditorOnlyAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.EditorOnly
+        };
+        unityItem.Metadata["clipName"] = "standing_run_left";
+        unityItem.ProviderBindings.Add(new AuthoringResourceProviderBinding
+        {
+            ProviderId = AuthoringResourceProviderIds.UnityProjectAssets,
+            BindingKind = AuthoringResourceBindingKind.UnityEditorOnlyAsset,
+            BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityAssetPath,
+            IsPrimary = true,
+            ProviderResourceKey = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+            UnityAssetPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim"
+        });
+        unity.Items.Add(unityItem);
+
+        AuthoringResourceCollection merged = AuthoringResourceCollectionMerger.Merge(runtime, unity);
+        AuthoringResourceItem mergedRuntime = merged.Items.Find(item => item.ResourceId == "runtime:standing_run_left");
+
+        Require(mergedRuntime != null, "merged collection should preserve runtime item.");
+        Require(mergedRuntime.ProviderBindings.Count > 0, "merged runtime item should still have bindings.");
+        Require(
+            mergedRuntime.ProviderBindings[0].UnityAssetPath == "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+            "runtime animation binding should be enriched with matching Unity asset path.");
+        Require(
+            mergedRuntime.Metadata.TryGetValue("unityAssetPath", out string linkedPath) &&
+            linkedPath == "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+            "runtime animation metadata should expose the enriched Unity asset path.");
     }
 
     private static void FmodAudioLibraryProvider_ProjectsEventsAndUnavailableState()

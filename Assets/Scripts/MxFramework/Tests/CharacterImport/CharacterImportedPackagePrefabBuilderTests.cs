@@ -134,6 +134,63 @@ namespace MxFramework.Tests.CharacterImport
             }
         }
 
+        [Test]
+        public void AddAnimationRuntimeResources_IncludesDirectionalRunClipsFromRegistry()
+        {
+            EnsureTempRoot();
+            EnsureFolderPath(ConfigRoot);
+            File.WriteAllText(
+                ConfigRoot + "/animation_clip_registry.json",
+                "{\n"
+                + "  \"format\": \"mx.animationClipRegistry.v1\",\n"
+                + "  \"schemaVersion\": \"1.0\",\n"
+                + "  \"packageId\": \"animation.iron_vanguard\",\n"
+                + "  \"clips\": [\n"
+                + "    {\n"
+                + "      \"setId\": \"set.base\",\n"
+                + "      \"groupId\": \"group.locomotion\",\n"
+                + "      \"clipId\": \"run.r\",\n"
+                + "      \"sourceClipName\": \"standing_run_right\",\n"
+                + "      \"runtimeResourceKey\": \"art.character.skeleton.animation.standing_run_right\"\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"setId\": \"set.base\",\n"
+                + "      \"groupId\": \"group.locomotion\",\n"
+                + "      \"clipId\": \"run.l\",\n"
+                + "      \"sourceClipName\": \"standing_run_left\",\n"
+                + "      \"runtimeResourceKey\": \"art.character.skeleton.animation.standing_run_left\"\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"setId\": \"set.base\",\n"
+                + "      \"groupId\": \"group.locomotion\",\n"
+                + "      \"clipId\": \"run.b\",\n"
+                + "      \"sourceClipName\": \"standing_run_back\",\n"
+                + "      \"runtimeResourceKey\": \"art.character.skeleton.animation.standing_run_back\"\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}\n");
+            AssetDatabase.ImportAsset(ConfigRoot + "/animation_clip_registry.json", ImportAssetOptions.ForceUpdate);
+
+            MethodInfo method = BuilderType.GetMethod("AddAnimationRuntimeResources", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method);
+
+            Type entryType = BuilderType.GetNestedType("RuntimeResourceBootstrapEntry", BindingFlags.NonPublic);
+            Assert.IsNotNull(entryType);
+            IList runtimeResources = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(entryType));
+            var runtimeResourceIds = new HashSet<string>(StringComparer.Ordinal);
+
+            method.Invoke(null, new object[] { TempRoot, "iron_vanguard", runtimeResources, runtimeResourceIds });
+
+            CollectionAssert.AreEquivalent(
+                new[]
+                {
+                    "art.character.skeleton.animation.standing_run_right",
+                    "art.character.skeleton.animation.standing_run_left",
+                    "art.character.skeleton.animation.standing_run_back"
+                },
+                ReadEntryIds(runtimeResources));
+        }
+
         private static IDictionary InvokeReadResourcePreviewInfos(CharacterImportedPackage package)
         {
             MethodInfo method = BuilderType.GetMethod("ReadResourcePreviewInfos", BindingFlags.NonPublic | BindingFlags.Static);
@@ -162,6 +219,14 @@ namespace MxFramework.Tests.CharacterImport
             PropertyInfo info = obj.GetType().GetProperty(property, BindingFlags.Public | BindingFlags.Instance);
             Assert.IsNotNull(info);
             return (T)info.GetValue(obj);
+        }
+
+        private static string[] ReadEntryIds(IList entries)
+        {
+            var ids = new List<string>();
+            foreach (object entry in entries)
+                ids.Add(ReadProperty<string>(entry, "Id"));
+            return ids.ToArray();
         }
 
         private static CharacterImportedPackage CreatePackage(params ResourceCatalogEntry[] entries)

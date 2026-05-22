@@ -155,6 +155,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return false;
             }
 
+            ReportMissingRuntimeClipResources(registry);
+
             _animationWarmupService = new MxAnimationWarmupService(new ResourcePreloadService(_resourceManager));
             _animationWarmupResult = _animationWarmupService.Warmup(new MxAnimationWarmupRequest(
                 definition,
@@ -278,6 +280,43 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _resourceManager.RegisterProvider(new ResourcesProvider());
             _resourceManager.AddCatalog(_resourceCatalog);
             _resourceManager.ValidateCatalogs();
+        }
+
+        private void ReportMissingRuntimeClipResources(MxAnimationClipRegistry registry)
+        {
+            if (registry == null || registry.Entries == null || registry.Entries.Count == 0 || _resourceCatalog == null)
+                return;
+
+            var missing = new List<string>();
+            for (int i = 0; i < registry.Entries.Count; i++)
+            {
+                ResourceKey key = registry.Entries[i].ClipKey;
+                if (!key.IsValid || ContainsCatalogEntry(key))
+                    continue;
+
+                missing.Add(key.ToString());
+            }
+
+            if (missing.Count == 0)
+                return;
+
+            Debug.LogWarning(
+                "MxFramework Character: runtime animation bootstrap snapshot is stale. "
+                + "The clip registry references animation resources that are missing from CharacterRuntimeResourceBootstrap._resources. "
+                + "Recreate the preview prefab or locomotion calibration scene. Missing="
+                + string.Join(", ", missing),
+                this);
+        }
+
+        private bool ContainsCatalogEntry(ResourceKey key)
+        {
+            for (int i = 0; i < _resourceCatalog.Entries.Count; i++)
+            {
+                if (_resourceCatalog.Entries[i].CreateKey(_resourceCatalog.PackageId) == key)
+                    return true;
+            }
+
+            return false;
         }
 
         private void ReleaseAnimationWarmup()

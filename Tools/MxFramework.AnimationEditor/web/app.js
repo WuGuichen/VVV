@@ -455,6 +455,7 @@ async function loadAnimation() {
   state.validation = payload.validation || null;
   clearPreview3d("动画包已重新读取");
   ensureAnimationShape();
+  await refreshMissingSourceClipLinks();
   ensureSelection();
   render();
 }
@@ -548,6 +549,63 @@ function buildPreviewRequestBody() {
     body.animation = state.animation;
   }
   return body;
+}
+
+async function refreshMissingSourceClipLinks() {
+  const clips = getAllClips().filter(clip => shouldRefreshSourceClipLink(clip));
+  if (clips.length === 0) return;
+
+  const fieldSpec = state.fieldSpecs?.sourceClip || FALLBACK_SOURCE_CLIP_SPEC;
+  for (const clip of clips) {
+    const result = await postJson(API.resolveSelection, {
+      package: state.packageRelative,
+      fieldSpec,
+      context: {
+        consumerKind: "AnimationEditor",
+        consumerStableId: state.animation?.stableId || "",
+        scopeId: state.animation?.stableId || state.packageRelative,
+        packageId: state.animation?.packageId || "",
+        packagePath: state.packageRelative
+      },
+      selection: buildSourceClipRefreshSelection(clip)
+    }, "refresh source clip link");
+
+    if (!result?.accepted || !result.selection) continue;
+    mergeResolvedSourceClipSelection(clip, result.selection);
+  }
+}
+
+function shouldRefreshSourceClipLink(clip) {
+  return Boolean(
+    getClipRuntimeResourceKey(clip) &&
+    !firstUnityAssetPath(clip?.sourceSelection?.unityAssetPath || "")
+  );
+}
+
+function buildSourceClipRefreshSelection(clip) {
+  const selection = { ...(clip?.sourceSelection || {}) };
+  selection.runtimeResourceKey = firstNonEmpty(
+    selection.runtimeResourceKey,
+    clip?.runtimeResourceKey
+  );
+  return selection;
+}
+
+function mergeResolvedSourceClipSelection(clip, selection) {
+  if (!clip || !selection) return;
+
+  clip.sourceSelection = {
+    ...(clip.sourceSelection || {}),
+    ...selection
+  };
+  clip.sourceSelection.unityAssetPath = firstUnityAssetPath(
+    selection.unityAssetPath,
+    clip.sourceSelection?.unityAssetPath
+  );
+  clip.runtimeResourceKey = firstNonEmpty(
+    selection.runtimeResourceKey,
+    clip.runtimeResourceKey
+  );
 }
 
 function shouldSendEditorAnimationForPreview() {

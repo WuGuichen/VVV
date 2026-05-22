@@ -16,8 +16,8 @@
   "resourceMappingHash": "sha256:38977dfe453770a606468de6cbde39730239533004386cc61efdc2adca348c28",
   "writePlanHash": "sha256:9b6ab05537772392dfabd272d490ac8557b61a40e307e5560492cd81c2e5b271",
   "addedCount": 0,
-  "updatedCount": 3,
-  "skippedCount": 28,
+  "updatedCount": 2,
+  "skippedCount": 29,
   "conflictCount": 0,
   "errorCount": 0,
   "operations": [
@@ -204,8 +204,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/package_cache/animation_compile_result.json",
       "writePolicy": "Recreate",
       "action": "Updated",
-      "contentHash": "sha256:3f87819d27386f8a9b8b55053974c28b0fc57151894bf82db3de343310949264",
-      "existingHash": "sha256:ce57bb27ee99a434d780c6789ae966a7a2c9a7d6f334c92f717784d99a8c085e",
+      "contentHash": "sha256:fb7aef1dc2e493682a2a3da910947548f1e740c69c27d563c2c0054725e74bee",
+      "existingHash": "sha256:3f87819d27386f8a9b8b55053974c28b0fc57151894bf82db3de343310949264",
       "message": "written."
     },
     {
@@ -291,10 +291,10 @@
       "sourcePath": "animation/animation_set_definition.json",
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/config/animation_set_definition.json",
       "writePolicy": "Recreate",
-      "action": "Updated",
+      "action": "Skipped",
       "contentHash": "sha256:340a43c301f5d4ac5eacac3b8cab67ca3ccc56125e8a8ac5237a2b6bf7ac238e",
-      "existingHash": "sha256:458f64a14c4bfd9d5b98b9f81ee505ac962b6427fa975f86923abe16da0b77f5",
-      "message": "written."
+      "existingHash": "sha256:340a43c301f5d4ac5eacac3b8cab67ca3ccc56125e8a8ac5237a2b6bf7ac238e",
+      "message": "hash unchanged."
     },
     {
       "kind": "animationClipRegistry",
@@ -303,8 +303,8 @@
       "targetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/config/animation_clip_registry.json",
       "writePolicy": "Recreate",
       "action": "Updated",
-      "contentHash": "sha256:d2ce6e2ef67126e83614deb0dc48490b791844c2a7a21397fda5fdb8777917a7",
-      "existingHash": "sha256:b9d13e1953a7d0b60f7df7c1378d1f62ea3af679b83198a40f08cb6eb7e25420",
+      "contentHash": "sha256:db96884ef1ba393a7233fcae0f38e2c148caaea77d3d479e0dad20c3cc2f7919",
+      "existingHash": "sha256:d2ce6e2ef67126e83614deb0dc48490b791844c2a7a21397fda5fdb8777917a7",
       "message": "written."
     },
     {

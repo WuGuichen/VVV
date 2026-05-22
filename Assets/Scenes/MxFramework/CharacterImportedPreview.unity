@@ -337,6 +337,27 @@ MonoBehaviour:
     _packageId: iron_vanguard
     _address: art.character.skeleton.animation.standing_walk_back
     _asset: {fileID: 7400000, guid: 2d9cd00c988ae48dc81e4dedf0ff1e51, type: 2}
+  - _id: art.character.skeleton.animation.standing_run_right
+    _typeId: AnimationClip
+    _providerId: memory
+    _variant:
+    _packageId: iron_vanguard
+    _address: art.character.skeleton.animation.standing_run_right
+    _asset: {fileID: 7400000, guid: f20f990226df149a2af73d37d808735c, type: 2}
+  - _id: art.character.skeleton.animation.standing_run_left
+    _typeId: AnimationClip
+    _providerId: memory
+    _variant:
+    _packageId: iron_vanguard
+    _address: art.character.skeleton.animation.standing_run_left
+    _asset: {fileID: 7400000, guid: 5881f053b086f4b76a2e595bc5aaf759, type: 2}
+  - _id: art.character.skeleton.animation.standing_run_back
+    _typeId: AnimationClip
+    _providerId: memory
+    _variant:
+    _packageId: iron_vanguard
+    _address: art.character.skeleton.animation.standing_run_back
+    _asset: {fileID: 7400000, guid: a4f18b388aca04d2294554cbc5e4f72d, type: 2}
   - _id: art.character.skeleton.animation.standing_jump
     _typeId: AnimationClip
     _providerId: memory
