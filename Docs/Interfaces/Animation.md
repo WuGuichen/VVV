@@ -53,6 +53,11 @@ Combat 不引用 Animation.Unity。Character Control core 不引用 Animation.Un
 | `MxAnimationBlend1DCalculator` | 不依赖 Unity 的 1D 权重计算；输入 `MxAnimationQuantizedParameter`，输出每个 point 的稳定权重 |
 | `MxAnimationBlend2DDefinition` / `MxAnimationBlend2DPoint` | noEngine 2D blend 定义，使用两个量化参数和二维 point 坐标映射 clip key |
 | `MxAnimationBlend2DCalculator` | 不依赖 Unity 的 2D 权重计算；覆盖单点、双点、三角形、矩形、共线和外部 clamp / nearest segment fallback |
+| `MxAnimationLocomotionClipCalibration` | locomotion clip 校准元数据；声明 native velocity、playback speed、cycle duration 和左右脚接地窗口 |
+| `MxAnimationLocomotionCalibrationFrame` | 每帧校准采样 DTO；记录目标/实际本地速度、混合原生速度、误差、dominant clip、接地置信度和脚滑指标，不依赖 Unity 类型 |
+| `MxAnimationBlendReachabilityAnalyzer` / `MxAnimationBlendReachabilityReport` | noEngine BlendTree 可达性检查；根据 controller 输出域报告配置点是否可达，例如 `run_f (0, 2)` 超出 `[-1, 1]` |
+| `MxAnimationLocomotionCalibrationDraft` / `MxAnimationLocomotionCalibrationChange` | 后续 Authoring 写回链路使用的校准草案和变更 DTO；只表达建议改动，不直接写 authoring 文件或 compiled artifact |
+| `MxAnimationLocomotionCalibrationReportFormatter` | 生成稳定、可复制的校准摘要，用于 Runtime HUD、Issue 和 PR 诊断文本 |
 | `MxAnimationClipRegistry` | 从 `ResourceCatalog` 发现的 animation clip registry，只保存 `ResourceKey` 和 catalog entry hash |
 | `MxAnimationClipRegistryBuilder` | 从正式 `ResourceCatalog` 过滤 `ResourceTypeIds.AnimationClip` 并生成 registry |
 | `IMxAnimationMappingProvider` | 按 animation set id 提供 `MxAnimationSetDefinition` 的最小 provider surface |
