@@ -1709,25 +1709,37 @@ function renderSourceSelectionBlock(clip) {
   const selected = getSelectionTitle(clip.sourceSelection);
   const runtimeKey = getClipRuntimeResourceKey(clip);
   const unityPath = clip.sourceSelection?.unityAssetPath || "";
-  const hasSource = Boolean(runtimeKey);
+  const hasRuntime = Boolean(runtimeKey);
+  const hasUnity = Boolean(unityPath);
+  const linkState = hasRuntime ? (hasUnity ? "linked" : "partial") : "unlinked";
+  const linkStateText = hasRuntime
+    ? (hasUnity ? "Linked" : "Partial")
+    : "Unlinked";
+  const linkHint = hasRuntime
+    ? (hasUnity
+      ? "Runtime + Unity asset path are available for Unity preview/validation."
+      : "RuntimeResourceKey is available but Unity Asset is missing. Unity-only preview may fail.")
+    : "Please select a RuntimeReady AnimationClip first.";
   return `
-    <section class="clip-source-card ${hasSource ? "" : "missing"}">
+    <section class="clip-source-card ${linkState}">
       <div class="clip-source-head">
         <div>
-          <strong>源动画</strong>
-          <span>${escapeHtml(hasSource ? "由资源库选择并锁定绑定字段" : "尚未选择源动画")}</span>
+          <strong>Source Clip</strong>
+          <span>${escapeHtml(hasRuntime ? "Source clip selected from library (locked fields)." : "No source clip selected.")}</span>
         </div>
-        <button type="button" data-open-source-picker="1">${hasSource ? "更换源动画" : "选择源动画"}</button>
+        <button type="button" data-open-source-picker="1">${hasRuntime ? "Replace Source Clip" : "Select Source Clip"}</button>
       </div>
       <dl class="clip-source-summary">
         <dt>SourceSelection</dt>
-        <dd><code>${escapeHtml(selected || "未选择")}</code></dd>
+        <dd><code>${escapeHtml(selected || "Not selected")}</code></dd>
         <dt>RuntimeResourceKey</dt>
-        <dd><code>${escapeHtml(runtimeKey || "未解析")}</code></dd>
+        <dd><code>${escapeHtml(runtimeKey || "Not resolved")}</code></dd>
         <dt>Unity Asset</dt>
-        <dd><code>${escapeHtml(unityPath || "未链接")}</code></dd>
+        <dd><code>${escapeHtml(unityPath || "Not linked")}</code></dd>
+        <dt>SourceLink</dt>
+        <dd><code>${escapeHtml(linkStateText)}</code></dd>
       </dl>
-      <p>${escapeHtml(hasSource ? "SourceSubClipId、SourceClipName 和 RuntimeResourceKey 会由选择结果自动回填，当前界面已禁止手填。" : "请先从资源库选择 RuntimeReady AnimationClip；不要手动输入资源 key。")}</p>
+      <p>${escapeHtml(linkHint)}</p>
     </section>`;
 }
 
@@ -2843,14 +2855,27 @@ function createClipFromResourceSelection(row, result, selectedSubClip) {
 function applySourceClipSelection(clip, row, result, selectedSubClip) {
   if (!clip) return;
   const defaults = deriveSourceClipDefaults(row.item, selectedSubClip);
-  clip.sourceSelection = result.selection || {};
-  clip.sourceSubClipId = defaults.sourceSubClipId;
-  clip.sourceClipName = defaults.sourceClipName;
-  clip.runtimeResourceKey = firstNonEmpty(
-    result.selection?.runtimeResourceKey,
-    getProviderData(row.item, "runtimeResourceKey"),
+  const item = row?.item || {};
+  const sourceSelection = result.selection ? { ...result.selection } : {};
+  sourceSelection.runtimeResourceKey = firstNonEmpty(
+    sourceSelection.runtimeResourceKey,
+    getProviderData(item, "runtimeResourceKey"),
     clip.runtimeResourceKey
   );
+  sourceSelection.unityAssetPath = firstNonEmpty(
+    sourceSelection.unityAssetPath,
+    getProviderData(item, "unityAssetPath"),
+    getProviderData(item, "parentUnityAssetPath"),
+    getProviderData(item, "sourceRelativePath"),
+    getProviderData(item, "relativePath"),
+    getProviderData(item, "address"),
+    item.resourceId,
+    item.stableId
+  );
+  clip.sourceSelection = sourceSelection;
+  clip.sourceSubClipId = defaults.sourceSubClipId;
+  clip.sourceClipName = defaults.sourceClipName;
+  clip.runtimeResourceKey = sourceSelection.runtimeResourceKey;
   if (!clip.displayName || clip.displayName === "Idle" || clip.displayName === "Source Clip") {
     clip.displayName = defaults.displayName || clip.displayName || "Source Clip";
   }
