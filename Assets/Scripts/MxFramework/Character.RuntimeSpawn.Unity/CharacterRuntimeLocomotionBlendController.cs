@@ -71,8 +71,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (_motionController == null)
                 return;
 
-            _blend = Vector2.ClampMagnitude(_motionController.LastLocalMove, 1f);
-            _speed01 = Mathf.Clamp01(_motionController.LastSpeed01);
+            _blend = _motionController.LastLocalMove;
+            _speed01 = Mathf.Max(0f, _motionController.LastSpeed01);
             ApplyAnimatorParameters();
             ApplyAnimationBackend();
             ApplyFallbackPose();

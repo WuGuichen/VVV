@@ -25,6 +25,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _stepRate = 60f;
         [SerializeField] private int _maxStepsPerUpdate = 4;
         [SerializeField] private float _moveSpeed = 4f;
+        [SerializeField] private float _moveSpeedScale = 1f;
         [SerializeField] private bool _enableGravity = true;
         [SerializeField] private bool _enablePreviewGround = true;
         [SerializeField] private float _gravityPerSecond = -30f;
@@ -40,6 +41,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private IInputProvider _inputProvider;
         private FakeInputProvider _motionInputProvider;
         private InputCharacterCommandSource _commandSource;
+        private InputCharacterCommandSourceOptions _commandSourceOptions;
         private CharacterMotionResolver _motionResolver;
         private CombatPhysicsWorld _physicsWorld;
         private CombatMotionState _motionState;
@@ -62,6 +64,17 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             get => _rotateToMoveDirection;
             set => _rotateToMoveDirection = value;
+        }
+
+        public float MoveSpeedScale
+        {
+            get => _moveSpeedScale;
+            set
+            {
+                _moveSpeedScale = Mathf.Max(0f, value);
+                if (_commandSourceOptions != null)
+                    _commandSourceOptions.MoveSpeedScale = ToFix64(_moveSpeedScale);
+            }
         }
 
         public CharacterMotionResult LastMotionResult => _lastMotionResult;
@@ -133,12 +146,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             CombatMotionConfig motionConfig = CreateMotionConfig();
             _motionResolver = new CharacterMotionResolver(new CombatKinematicMotor(motionConfig));
             _physicsWorld = _enableGravity || _enablePreviewGround ? new CombatPhysicsWorld() : null;
-            _commandSource = new InputCharacterCommandSource(_motionInputProvider, new InputCharacterCommandSourceOptions
+            _commandSourceOptions = new InputCharacterCommandSourceOptions
             {
                 SourceId = 1,
-                MoveSpeedScale = Fix64.One,
+                MoveSpeedScale = ToFix64(Mathf.Max(0f, _moveSpeedScale)),
                 TracePrefix = "characterstudio-runtime-input"
-            });
+            };
+            _commandSource = new InputCharacterCommandSource(_motionInputProvider, _commandSourceOptions);
             FixVector3 motionPosition = ToFixVector3(RootToMotionCenter(transform.position));
             _motionState = new CombatMotionState(
                 CombatFrame.Zero,
@@ -315,10 +329,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         {
             FixVector3 move = command.GetWorldMoveDirection();
             Vector3 worldMove = new Vector3(ToFloat(move.X), 0f, ToFloat(move.Z));
-            float speed = Mathf.Clamp01(worldMove.magnitude);
+            float moveScale = Mathf.Max(0f, ToFloat(command.MoveSpeedScale));
+            float speed = worldMove.magnitude * moveScale;
             _lastLocalMove = speed <= 0.0001f
                 ? Vector2.zero
-                : new Vector2(ToFloat(command.MoveDirection.X), ToFloat(command.MoveDirection.Z));
+                : new Vector2(ToFloat(command.MoveDirection.X), ToFloat(command.MoveDirection.Z)) * moveScale;
             _lastSpeed01 = speed;
         }
 

@@ -26,6 +26,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const int TrailCapacity = 72;
         private const float PresetWarmupSeconds = 0.25f;
         private const float SpeedFineStep = 0.05f;
+        private const float MaxManualSpeed = 5f;
         private const float CameraDistanceStep = 0.5f;
 
         private enum CalibrationCameraMode
@@ -51,10 +52,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private CalibrationCameraMode _cameraMode = CalibrationCameraMode.Rear;
         [SerializeField] private float _cameraDistance = 6.5f;
         [SerializeField] private float _cameraHeight = 3.2f;
+        [SerializeField] private float _cameraSmoothSeconds = 0.22f;
+        [SerializeField] private float _cameraRotationSharpness = 8f;
         [SerializeField] private bool _enableLoopingPlane = true;
         [SerializeField] private float _loopHalfExtent = 6f;
         [SerializeField] private bool _showGridGround = true;
-        [SerializeField] private float _gridCellSize = 1f;
+        [SerializeField] private float _gridCellSize = 0.2f;
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
@@ -111,6 +114,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
         private readonly List<DirectionButtonBinding> _directionButtons = new List<DirectionButtonBinding>();
         private Camera _followCamera;
+        private Vector3 _cameraSmoothVelocity;
         private Quaternion _lockedFacingRotation = Quaternion.identity;
         private bool _hasLockedFacingRotation;
         private GameObject _gridGroundObject;
@@ -624,14 +628,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             speedRow.Add(speedDown);
             _manualSpeedValueLabel = CreateValueLabel();
             speedRow.Add(_manualSpeedValueLabel);
-            _manualSpeedSlider = new Slider(string.Empty, 0f, 1f)
+            _manualSpeedSlider = new Slider(string.Empty, 0f, MaxManualSpeed)
             {
                 value = _manualSpeed
             };
             StyleSlider(_manualSpeedSlider);
             _manualSpeedSlider.style.flexGrow = 1f;
             _manualSpeedSlider.style.minWidth = 96f;
-            _manualSpeedSlider.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
+            _manualSpeedSlider.RegisterValueChangedCallback(evt => _manualSpeed = ClampManualSpeed(evt.newValue));
             speedRow.Add(_manualSpeedSlider);
             Button speedUp = CreateSmallButton("+", () => AdjustManualSpeed(SpeedFineStep));
             speedRow.Add(speedUp);
@@ -722,9 +726,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             var top = new VisualElement();
             top.style.flexDirection = FlexDirection.Row;
-            top.Add(CreateSmallButton("", null));
+            top.Add(CreateDirectionButton("↖", new Vector2(-1f, 1f)));
             top.Add(CreateDirectionButton("↑", Vector2.up));
-            top.Add(CreateSmallButton("", null));
+            top.Add(CreateDirectionButton("↗", new Vector2(1f, 1f)));
             var middle = new VisualElement();
             middle.style.flexDirection = FlexDirection.Row;
             middle.Add(CreateDirectionButton("←", Vector2.left));
@@ -732,9 +736,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             middle.Add(CreateDirectionButton("→", Vector2.right));
             var bottom = new VisualElement();
             bottom.style.flexDirection = FlexDirection.Row;
-            bottom.Add(CreateSmallButton("", null));
+            bottom.Add(CreateDirectionButton("↙", new Vector2(-1f, -1f)));
             bottom.Add(CreateDirectionButton("↓", Vector2.down));
-            bottom.Add(CreateSmallButton("", null));
+            bottom.Add(CreateDirectionButton("↘", new Vector2(1f, -1f)));
             pad.Add(top);
             pad.Add(middle);
             pad.Add(bottom);
@@ -787,14 +791,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     _motionController.ConfigureInputProvider(_manualInputProvider);
                 }
 
+                _motionController.MoveSpeedScale = ClampManualSpeed(_manualSpeed);
                 Vector2 move = _manualDirection.sqrMagnitude > 0.0001f
-                    ? _manualDirection.normalized * Mathf.Clamp01(_manualSpeed)
+                    ? _manualDirection.normalized
                     : Vector2.zero;
                 _manualInputProvider.SetContext(InputContext.Gameplay);
                 _manualInputProvider.SetSnapshot(CreateManualInputSnapshot(move, _manualRun));
             }
             else
             {
+                _motionController.MoveSpeedScale = 1f;
                 ReleaseManualInputProvider();
             }
 
@@ -827,12 +833,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private void ToggleCameraFollow()
         {
             _enableCameraFollow = !_enableCameraFollow;
+            _cameraSmoothVelocity = Vector3.zero;
             UpdateObservationButtons();
         }
 
         private void CycleCameraMode()
         {
             _cameraMode = (CalibrationCameraMode)(((int)_cameraMode + 1) % 4);
+            _cameraSmoothVelocity = Vector3.zero;
             UpdateObservationButtons();
         }
 
@@ -862,7 +870,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void AdjustManualSpeed(float delta)
         {
-            _manualSpeed = Mathf.Clamp01(_manualSpeed + delta);
+            _manualSpeed = ClampManualSpeed(_manualSpeed + delta);
             if (_manualSpeedSlider != null)
                 _manualSpeedSlider.SetValueWithoutNotify(_manualSpeed);
         }
@@ -870,8 +878,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private void AdjustCameraDistance(float delta)
         {
             _cameraDistance = Mathf.Clamp(_cameraDistance + delta, 2f, 12f);
+            _cameraSmoothVelocity = Vector3.zero;
             if (_cameraDistanceSlider != null)
                 _cameraDistanceSlider.SetValueWithoutNotify(_cameraDistance);
+        }
+
+        private static float ClampManualSpeed(float value)
+        {
+            return Mathf.Clamp(value, 0f, MaxManualSpeed);
         }
 
         private void ReleaseManualInputProvider()
@@ -995,7 +1009,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             Vector2 direction = preset.Direction.sqrMagnitude > 0.0001f ? preset.Direction.normalized : Vector2.zero;
             _manualControlEnabled = true;
             _manualDirection = direction;
-            _manualSpeed = Mathf.Clamp01(Mathf.Lerp(preset.StartSpeed, preset.EndSpeed, Mathf.Clamp01(progress)));
+            _manualSpeed = ClampManualSpeed(Mathf.Lerp(preset.StartSpeed, preset.EndSpeed, Mathf.Clamp01(progress)));
             _manualRun = preset.Run;
         }
 
@@ -1262,7 +1276,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 + " cameraDist=" + FormatFloat(_cameraDistance)
                 + " loop=" + (_enableLoopingPlane ? "on" : "off")
                 + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off")
-                + "\nSpeed drives input magnitude: blend sample radius and logical move velocity.";
+                + "\nSpeed is move-speed scale: it drives logical velocity and blend sample radius.";
             UpdateDirectionButtonStyles();
             UpdateObservationButtons();
         }
@@ -1388,11 +1402,30 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             Vector3 desired = focus + offset;
-            _followCamera.transform.position = Vector3.Lerp(
-                _followCamera.transform.position,
-                desired,
-                1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
-            _followCamera.transform.rotation = Quaternion.LookRotation((focus - _followCamera.transform.position).normalized, Vector3.up);
+            float deltaTime = Mathf.Max(0.0001f, Time.unscaledDeltaTime);
+            if ((_followCamera.transform.position - desired).sqrMagnitude > 144f)
+            {
+                _followCamera.transform.position = desired;
+                _cameraSmoothVelocity = Vector3.zero;
+            }
+            else
+            {
+                _followCamera.transform.position = Vector3.SmoothDamp(
+                    _followCamera.transform.position,
+                    desired,
+                    ref _cameraSmoothVelocity,
+                    Mathf.Max(0.02f, _cameraSmoothSeconds),
+                    Mathf.Infinity,
+                    deltaTime);
+            }
+
+            Vector3 lookDirection = focus - _followCamera.transform.position;
+            if (lookDirection.sqrMagnitude <= 0.0001f)
+                return;
+
+            Quaternion desiredRotation = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
+            float rotationT = 1f - Mathf.Exp(-Mathf.Max(0.1f, _cameraRotationSharpness) * deltaTime);
+            _followCamera.transform.rotation = Quaternion.Slerp(_followCamera.transform.rotation, desiredRotation, rotationT);
         }
 
         private void UpdateGridGround(Transform target)
@@ -1445,7 +1478,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Mesh CreateGridGroundMesh()
         {
             float halfExtent = Mathf.Max(4f, _loopHalfExtent);
-            float cellSize = Mathf.Max(0.25f, _gridCellSize);
+            float cellSize = Mathf.Max(0.05f, _gridCellSize);
             int cells = Mathf.CeilToInt((halfExtent * 2f) / cellSize);
             float start = -cells * cellSize * 0.5f;
             int lineCount = (cells + 1) * 2;
@@ -1972,8 +2005,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 Id = id ?? string.Empty;
                 DisplayName = displayName ?? string.Empty;
                 Direction = direction;
-                StartSpeed = Mathf.Clamp01(startSpeed);
-                EndSpeed = Mathf.Clamp01(endSpeed);
+                StartSpeed = ClampManualSpeed(startSpeed);
+                EndSpeed = ClampManualSpeed(endSpeed);
                 Run = run;
                 DurationSeconds = Mathf.Max(0.1f, durationSeconds);
             }
