@@ -48,6 +48,12 @@
           </svg>
           <span>刷新服务</span>
         </button>
+        <button id="restartServiceButton" type="button" class="btn-secondary">
+          <span>Restart Service</span>
+        </button>
+        <button id="createPackageButton" type="button" class="btn-create">
+          <span>Create Character Package</span>
+        </button>
       </div>
     </header>
 
@@ -157,6 +163,43 @@
       </div>
     </section>
   </main>
+  <dialog id="createDialog" class="modal-dialog">
+    <form id="createForm" class="modal-card" method="dialog">
+      <div class="modal-header">
+        <div>
+          <h2>Create Character Package</h2>
+          <p>Clone a built-in template and continue in CharacterStudio.</p>
+        </div>
+        <button id="createCancelButton" type="button" class="modal-close" aria-label="Close">x</button>
+      </div>
+      <div class="modal-grid">
+        <label class="modal-field">
+          <span>Template</span>
+          <select id="createTemplate">
+            <option value="humanoid">Humanoid</option>
+            <option value="creature">Creature</option>
+          </select>
+        </label>
+        <label class="modal-field">
+          <span>Package ID</span>
+          <input id="createPackageId" type="text" placeholder="knight_01" autocomplete="off" required>
+        </label>
+        <label class="modal-field">
+          <span>Display Name</span>
+          <input id="createDisplayName" type="text" placeholder="Knight 01" autocomplete="off">
+        </label>
+        <label class="modal-field">
+          <span>Directory Name</span>
+          <input id="createDirectoryName" type="text" placeholder="character-knight-01" autocomplete="off">
+        </label>
+      </div>
+      <p id="createError" class="modal-error" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="createCancelFooterButton">Cancel</button>
+        <button type="submit" class="btn-create" id="createSubmitButton">Create And Open</button>
+      </div>
+    </form>
+  </dialog>
   <script src="./app.js"></script>
 </body>
 </html>

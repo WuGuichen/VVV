@@ -17,11 +17,18 @@ internal static class EditorServer
     private const string AnimationAuthoringDocumentRelativePath = "config/animation_authoring.json";
     private const string ManifestRelativePath = "Tools/MxFramework.Authoring/samples/project-manifest/project-authoring-manifest.json";
     private const string SamplesRelativePath = "Tools/MxFramework.Authoring/samples";
+    private static string s_rootPath = string.Empty;
+    private static string s_defaultPackage = string.Empty;
+    private static int s_port;
+    private static int s_restartScheduled;
 
     public static int Serve(string root, int port, JsonSerializerOptions jsonOptions, string defaultPackageRelativePath = DefaultPackageRelativePath)
     {
         string rootPath = Path.GetFullPath(root);
         string defaultPackage = string.IsNullOrEmpty(defaultPackageRelativePath) ? DefaultPackageRelativePath : defaultPackageRelativePath;
+        s_rootPath = rootPath;
+        s_defaultPackage = defaultPackage;
+        s_port = port;
         using var listener = new HttpListener();
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
@@ -67,6 +74,18 @@ internal static class EditorServer
         if (path == "/api/packages" && context.Request.HttpMethod == "GET")
         {
             WriteJson(context.Response, ListPackages(rootPath), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/editor/restart" && context.Request.HttpMethod == "POST")
+        {
+            ScheduleEditorRestart(rootPath, port: s_port, defaultPackage);
+            WriteJson(context.Response, new
+            {
+                restarting = true,
+                port = s_port,
+                package = defaultPackage
+            }, jsonOptions, 202);
             return;
         }
 
@@ -305,6 +324,15 @@ internal static class EditorServer
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
             bool checkHashes = string.Equals(context.Request.QueryString["checkHashes"], "true", StringComparison.OrdinalIgnoreCase);
             WriteJson(context.Response, ReadCharacterResourcePlan(rootPath, characterPackage, checkFiles: true, checkHashes: checkHashes, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/character/create" && context.Request.HttpMethod == "POST")
+        {
+            string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            CharacterStudioCreateRequest request = JsonSerializer.Deserialize<CharacterStudioCreateRequest>(body, jsonOptions) ?? new CharacterStudioCreateRequest();
+            object created = CreateCharacterPackage(rootPath, request, jsonOptions);
+            WriteJson(context.Response, created, jsonOptions, 201);
             return;
         }
 
@@ -1563,6 +1591,65 @@ internal static class EditorServer
             importReport = File.Exists(importReportPath) ? ReadOptionalJson(rootPath, importReportPath) : null,
             unityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
             unityResourceCatalog = File.Exists(unityResourceCatalogPath) ? ReadOptionalJson(rootPath, unityResourceCatalogPath) : null
+        };
+    }
+
+    private static object CreateCharacterPackage(string rootPath, CharacterStudioCreateRequest request, JsonSerializerOptions jsonOptions)
+    {
+        if (request == null)
+            throw new ArgumentException("create request is required.");
+
+        string packageId = NormalizeCharacterPackageId(request.packageId);
+        if (string.IsNullOrWhiteSpace(packageId))
+            throw new ArgumentException("packageId is required.");
+
+        string displayName = string.IsNullOrWhiteSpace(request.displayName)
+            ? BuildDefaultCharacterDisplayName(packageId)
+            : request.displayName.Trim();
+        string templateRelative = ResolveCharacterTemplateRelative(request.template);
+        string directoryName = NormalizeCharacterPackageDirectoryName(request.directoryName, packageId);
+        string packageRelative = SamplesRelativePath + "/" + directoryName;
+        string templatePath = ResolveSafePath(rootPath, templateRelative);
+        string packagePath = ResolveSafePath(rootPath, packageRelative);
+
+        if (!Directory.Exists(templatePath))
+            throw new DirectoryNotFoundException("Character template directory was not found: " + templateRelative);
+        if (Directory.Exists(packagePath))
+            throw new IOException("Character package directory already exists: " + packageRelative);
+
+        CopyDirectoryRecursive(templatePath, packagePath);
+
+        try
+        {
+            CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, jsonOptions);
+            RewriteCharacterTemplatePackage(package, packageId, displayName, jsonOptions);
+            SaveCharacterPackage(rootPath, packageRelative, package, jsonOptions);
+
+            string animationDocumentPath = Path.Combine(packagePath, AnimationAuthoringDocumentRelativePath);
+            if (File.Exists(animationDocumentPath))
+            {
+                AnimationAuthoringPackage animation = ReadAnimationPackage(rootPath, animationDocumentPath, jsonOptions);
+                animation = RewriteAnimationTemplatePackage(animation, oldPackageId: GetTemplatePackageId(templatePath, jsonOptions), oldDisplayName: GetTemplateDisplayName(templatePath, jsonOptions), newPackageId: packageId, newDisplayName: displayName, package, jsonOptions);
+                WriteJsonFileAtomic(animationDocumentPath, animation, jsonOptions);
+            }
+        }
+        catch
+        {
+            try
+            {
+                Directory.Delete(packagePath, recursive: true);
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
+
+        return new
+        {
+            packageRelative,
+            state = ReadCharacterState(rootPath, packageRelative, jsonOptions)
         };
     }
 
@@ -3299,6 +3386,283 @@ internal static class EditorServer
         WriteJsonFileAtomic(Path.Combine(packagePath, "validation", "last_report.json"), validation, jsonOptions);
     }
 
+    private static void RewriteCharacterTemplatePackage(
+        CharacterResourcePackage package,
+        string packageId,
+        string displayName,
+        JsonSerializerOptions jsonOptions)
+    {
+        if (package == null)
+            throw new ArgumentException("character package template is required.");
+
+        package.Manifest ??= new CharacterPackageManifest();
+        package.ResourceCatalog ??= new CharacterPackageResourceCatalog();
+        package.Geometry ??= new CharacterAuthoringGeometry();
+        package.ApplicationConfig ??= new CharacterApplicationAuthoringSummary();
+
+        string oldPackageId = package.Manifest.PackageId ?? string.Empty;
+        string oldDisplayName = package.Manifest.DisplayName ?? string.Empty;
+
+        var resourceKeyMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        var stableIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (CharacterPackageResourceEntry entry in package.ResourceCatalog.Entries)
+        {
+            if (entry == null)
+                continue;
+
+            string oldResourceKey = entry.ResourceKey ?? string.Empty;
+            string oldStableId = entry.StableId ?? string.Empty;
+            string newResourceKey = BuildCharacterResourceKey(oldResourceKey, oldPackageId, packageId, entry.TypeId, entry.LocalId, entry.Variant);
+            string newStableId = BuildCharacterResourceStableId(packageId, entry.LocalId);
+            if (!string.IsNullOrWhiteSpace(oldResourceKey))
+                resourceKeyMap[oldResourceKey] = newResourceKey;
+            if (!string.IsNullOrWhiteSpace(oldStableId))
+                stableIdMap[oldStableId] = newStableId;
+
+            entry.PackageId = packageId;
+            entry.ResourceKey = newResourceKey;
+            entry.StableId = newStableId;
+        }
+
+        foreach (CharacterPackageResourceEntry entry in package.ResourceCatalog.Entries)
+        {
+            if (entry == null)
+                continue;
+
+            for (int dependencyIndex = 0; dependencyIndex < entry.Dependencies.Count; dependencyIndex++)
+            {
+                CharacterPackageResourceDependency dependency = entry.Dependencies[dependencyIndex];
+                if (dependency == null)
+                    continue;
+                dependency.ResourceKey = ReplaceMappedValue(dependency.ResourceKey, resourceKeyMap);
+            }
+
+            entry.ImportHints ??= new CharacterPackageImportHint();
+            for (int labelIndex = 0; labelIndex < entry.ImportHints.Labels.Count; labelIndex++)
+            {
+                string label = entry.ImportHints.Labels[labelIndex] ?? string.Empty;
+                if (string.Equals(label, "package." + oldPackageId, StringComparison.Ordinal))
+                    entry.ImportHints.Labels[labelIndex] = "package." + packageId;
+            }
+
+            entry.Preview ??= new CharacterPackagePreviewMetadata();
+            entry.Preview.ThumbnailResourceKey = ReplaceMappedValue(entry.Preview.ThumbnailResourceKey, resourceKeyMap);
+            entry.Preview.PreviewMeshResourceKey = ReplaceMappedValue(entry.Preview.PreviewMeshResourceKey, resourceKeyMap);
+            entry.Preview.PlaceholderResourceKey = ReplaceMappedValue(entry.Preview.PlaceholderResourceKey, resourceKeyMap);
+
+            entry.ResourceSelection = RewriteSelection(entry.ResourceSelection, resourceKeyMap, stableIdMap);
+        }
+
+        package.Manifest.PackageId = packageId;
+        package.Manifest.StableId = "charpkg." + packageId;
+        package.Manifest.DisplayName = displayName;
+        package.Manifest.Kind = CharacterResourcePackageKind.Character;
+
+        var replacementMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddReplacement(replacementMap, oldPackageId, packageId);
+        AddReplacement(replacementMap, oldDisplayName, displayName);
+        AddReplacement(replacementMap, "charpkg." + oldPackageId, "charpkg." + packageId);
+        AddReplacement(replacementMap, "char." + oldPackageId, "char." + packageId);
+        AddReplacement(replacementMap, "body." + oldPackageId, "body." + packageId);
+        AddReplacement(replacementMap, "attr." + oldPackageId, "attr." + packageId);
+        AddReplacement(replacementMap, "equip_loadout." + oldPackageId, "equip_loadout." + packageId);
+        AddReplacement(replacementMap, "geometry." + oldPackageId, "geometry." + packageId);
+        AddReplacement(replacementMap, "animation." + oldPackageId, "animation." + packageId);
+        AddReplacement(replacementMap, "skeleton." + oldPackageId, "skeleton." + packageId);
+        AddReplacement(replacementMap, "avatar." + oldPackageId, "avatar." + packageId);
+
+        foreach (KeyValuePair<string, string> pair in resourceKeyMap)
+            AddReplacement(replacementMap, pair.Key, pair.Value);
+        foreach (KeyValuePair<string, string> pair in stableIdMap)
+            AddReplacement(replacementMap, pair.Key, pair.Value);
+
+        package.ApplicationConfig = RewriteJsonObject(package.ApplicationConfig, jsonOptions, replacementMap);
+        package.Geometry = RewriteJsonObject(package.Geometry, jsonOptions, replacementMap);
+        package.ApplicationConfig.ResourceKeys = package.ResourceCatalog.Entries
+            .Where(static entry => entry != null && !string.IsNullOrWhiteSpace(entry.ResourceKey))
+            .Select(static entry => entry.ResourceKey)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        foreach (WeaponAttachmentProfile attachment in package.Geometry.WeaponAttachments)
+        {
+            if (attachment == null)
+                continue;
+            attachment.PreviewResourceKey = ReplaceMappedValue(attachment.PreviewResourceKey, resourceKeyMap);
+            attachment.PreviewResourceSelection = RewriteSelection(attachment.PreviewResourceSelection, resourceKeyMap, stableIdMap);
+        }
+    }
+
+    private static AnimationAuthoringPackage RewriteAnimationTemplatePackage(
+        AnimationAuthoringPackage animation,
+        string oldPackageId,
+        string oldDisplayName,
+        string newPackageId,
+        string newDisplayName,
+        CharacterResourcePackage package,
+        JsonSerializerOptions jsonOptions)
+    {
+        if (animation == null)
+            return new AnimationAuthoringPackage();
+
+        var replacementMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddReplacement(replacementMap, oldPackageId, newPackageId);
+        AddReplacement(replacementMap, oldDisplayName, newDisplayName);
+        AddReplacement(replacementMap, "charpkg." + oldPackageId, "charpkg." + newPackageId);
+        AddReplacement(replacementMap, "animation." + oldPackageId, "animation." + newPackageId);
+        AddReplacement(replacementMap, "skeleton." + oldPackageId, "skeleton." + newPackageId);
+        AddReplacement(replacementMap, "avatar." + oldPackageId, "avatar." + newPackageId);
+
+        if (package?.ResourceCatalog?.Entries != null)
+        {
+            foreach (CharacterPackageResourceEntry entry in package.ResourceCatalog.Entries)
+            {
+                if (entry == null)
+                    continue;
+                AddReplacement(replacementMap, "charpkg." + oldPackageId + ".resource." + CharacterPackageResourceKeyGenerator.NormalizeSegment(entry.LocalId), entry.StableId);
+                AddReplacement(replacementMap, "char." + oldPackageId, "char." + newPackageId);
+            }
+        }
+
+        animation = RewriteJsonObject(animation, jsonOptions, replacementMap);
+        animation.PackageId = "animation." + newPackageId;
+        animation.StableId = "charpkg." + newPackageId + ".animation";
+        animation.DisplayName = newDisplayName + " Animation";
+        if (!string.IsNullOrWhiteSpace(animation.SkeletonProfileId))
+            animation.SkeletonProfileId = animation.SkeletonProfileId.Replace(oldPackageId, newPackageId, StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(animation.AvatarProfileId))
+            animation.AvatarProfileId = animation.AvatarProfileId.Replace(oldPackageId, newPackageId, StringComparison.Ordinal);
+        return animation;
+    }
+
+    private static T RewriteJsonObject<T>(T value, JsonSerializerOptions jsonOptions, IReadOnlyDictionary<string, string> replacements)
+    {
+        if (value == null || replacements == null || replacements.Count == 0)
+            return value;
+
+        string json = JsonSerializer.Serialize(value, jsonOptions);
+        foreach (KeyValuePair<string, string> pair in replacements.OrderByDescending(static item => item.Key.Length))
+        {
+            if (string.IsNullOrWhiteSpace(pair.Key) || string.Equals(pair.Key, pair.Value, StringComparison.Ordinal))
+                continue;
+            json = json.Replace(pair.Key, pair.Value, StringComparison.Ordinal);
+        }
+
+        return JsonSerializer.Deserialize<T>(json, jsonOptions) ?? value;
+    }
+
+    private static AuthoringResourceSelectionRef RewriteSelection(
+        AuthoringResourceSelectionRef selection,
+        IReadOnlyDictionary<string, string> resourceKeyMap,
+        IReadOnlyDictionary<string, string> stableIdMap)
+    {
+        selection ??= new AuthoringResourceSelectionRef();
+        selection.PackageResourceKey = ReplaceMappedValue(selection.PackageResourceKey, resourceKeyMap);
+        selection.ResourceStableId = ReplaceMappedValue(selection.ResourceStableId, stableIdMap);
+        return selection;
+    }
+
+    private static string ReplaceMappedValue(string value, IReadOnlyDictionary<string, string> map)
+    {
+        if (string.IsNullOrWhiteSpace(value) || map == null)
+            return value ?? string.Empty;
+        return map.TryGetValue(value, out string replacement) ? replacement : value;
+    }
+
+    private static void AddReplacement(IDictionary<string, string> replacements, string from, string to)
+    {
+        if (string.IsNullOrWhiteSpace(from) || string.Equals(from, to, StringComparison.Ordinal))
+            return;
+        replacements[from] = to ?? string.Empty;
+    }
+
+    private static string BuildCharacterResourceStableId(string packageId, string localId)
+    {
+        return "charpkg." + packageId + ".resource." + CharacterPackageResourceKeyGenerator.NormalizeSegment(localId);
+    }
+
+    private static string BuildCharacterResourceKey(string oldResourceKey, string oldPackageId, string newPackageId, string typeId, string localId, string variant)
+    {
+        string oldPrefix = "char." + oldPackageId + ".";
+        if (!string.IsNullOrWhiteSpace(oldPackageId)
+            && !string.IsNullOrWhiteSpace(oldResourceKey)
+            && oldResourceKey.StartsWith(oldPrefix, StringComparison.Ordinal))
+        {
+            return "char." + newPackageId + "." + oldResourceKey.Substring(oldPrefix.Length);
+        }
+
+        return CharacterPackageResourceKeyGenerator.Generate(newPackageId, typeId, localId, variant);
+    }
+
+    private static string NormalizeCharacterPackageId(string packageId)
+    {
+        string normalized = CharacterPackageResourceKeyGenerator.NormalizeSegment(packageId).Replace('.', '_');
+        return string.Equals(normalized, "unknown", StringComparison.Ordinal) ? string.Empty : normalized;
+    }
+
+    private static string NormalizeCharacterPackageDirectoryName(string directoryName, string packageId)
+    {
+        string slug = CharacterPackageResourceKeyGenerator.NormalizeSegment(directoryName);
+        if (string.IsNullOrWhiteSpace(slug) || string.Equals(slug, "unknown", StringComparison.Ordinal))
+            slug = CharacterPackageResourceKeyGenerator.NormalizeSegment(packageId).Replace('.', '-').Replace('_', '-');
+        if (!slug.StartsWith("character-", StringComparison.Ordinal))
+            slug = "character-" + slug;
+        return slug;
+    }
+
+    private static string BuildDefaultCharacterDisplayName(string packageId)
+    {
+        TextInfo textInfo = CultureInfo.InvariantCulture.TextInfo;
+        string[] parts = packageId.Split(new[] { '_', '-', '.' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+            return "New Character";
+        return string.Join(" ", parts.Select(part => textInfo.ToTitleCase(part)));
+    }
+
+    private static string ResolveCharacterTemplateRelative(string template)
+    {
+        return string.Equals(template, "creature", StringComparison.OrdinalIgnoreCase)
+            ? "Tools/MxFramework.Authoring/samples/character-slime"
+            : "Tools/MxFramework.Authoring/samples/character-iron-vanguard";
+    }
+
+    private static void CopyDirectoryRecursive(string sourcePath, string destinationPath)
+    {
+        Directory.CreateDirectory(destinationPath);
+        foreach (string directory in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetRelativePath(sourcePath, directory);
+            Directory.CreateDirectory(Path.Combine(destinationPath, relative));
+        }
+
+        foreach (string file in Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetRelativePath(sourcePath, file);
+            string targetFile = Path.Combine(destinationPath, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
+            File.Copy(file, targetFile, overwrite: false);
+        }
+    }
+
+    private static string GetTemplatePackageId(string templatePath, JsonSerializerOptions jsonOptions)
+    {
+        string manifestPath = Path.Combine(templatePath, "manifest.json");
+        if (!File.Exists(manifestPath))
+            return string.Empty;
+        CharacterPackageManifest manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(manifestPath), jsonOptions) ?? new CharacterPackageManifest();
+        return manifest.PackageId ?? string.Empty;
+    }
+
+    private static string GetTemplateDisplayName(string templatePath, JsonSerializerOptions jsonOptions)
+    {
+        string manifestPath = Path.Combine(templatePath, "manifest.json");
+        if (!File.Exists(manifestPath))
+            return string.Empty;
+        CharacterPackageManifest manifest = JsonSerializer.Deserialize<CharacterPackageManifest>(File.ReadAllText(manifestPath), jsonOptions) ?? new CharacterPackageManifest();
+        return manifest.DisplayName ?? string.Empty;
+    }
+
     private static void RefreshCharacterResourceHashes(string packagePath, CharacterResourcePackage package)
     {
         CharacterPackageResourceCatalog catalog = package.ResourceCatalog ?? new CharacterPackageResourceCatalog();
@@ -4102,6 +4466,56 @@ internal static class EditorServer
         WriteText(response, text, "application/json; charset=utf-8", statusCode);
     }
 
+    private static void ScheduleEditorRestart(string rootPath, int port, string defaultPackage)
+    {
+        if (Interlocked.Exchange(ref s_restartScheduled, 1) != 0)
+            return;
+
+        ProcessStartInfo restart = BuildEditorRestartProcessStartInfo(rootPath, port, defaultPackage);
+        Process.Start(restart);
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            Environment.Exit(0);
+        });
+    }
+
+    private static ProcessStartInfo BuildEditorRestartProcessStartInfo(string rootPath, int port, string defaultPackage)
+    {
+        string restartScriptPath = Path.Combine(rootPath, "Tools", "MxFramework.EditorHub", "start-editor-hub.bat");
+        if (File.Exists(restartScriptPath))
+        {
+            string command = "set MXFRAMEWORK_EDITOR_HUB_OPEN_BROWSER=0"
+                + " && ping 127.0.0.1 -n 3 >nul"
+                + " && start \"\" \"" + restartScriptPath + "\" " + port.ToString(CultureInfo.InvariantCulture) + " \"" + defaultPackage.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+            return new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c " + command,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+        }
+
+        string processPath = Environment.ProcessPath ?? string.Empty;
+        string entryAssemblyPath = System.Reflection.Assembly.GetEntryAssembly()?.Location ?? string.Empty;
+        string executablePath = !string.IsNullOrWhiteSpace(processPath) ? processPath : entryAssemblyPath;
+        if (string.IsNullOrWhiteSpace(executablePath))
+            throw new InvalidOperationException("Unable to determine authoring executable path for restart.");
+
+        string fallbackCommand = "ping 127.0.0.1 -n 3 >nul && start \"\" \"" + executablePath + "\" editor serve --root \"" + rootPath.Replace("\"", "\"\"", StringComparison.Ordinal) + "\" --port " + port.ToString(CultureInfo.InvariantCulture) + " --package \"" + defaultPackage.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+        return new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = "/c " + fallbackCommand,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+    }
+
     private static void WriteText(HttpListenerResponse response, string text, string contentType, int statusCode)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(text);
@@ -4231,6 +4645,14 @@ internal static class EditorServer
     private sealed class CharacterStudioSaveRequest
     {
         public CharacterResourcePackage package { get; set; }
+    }
+
+    private sealed class CharacterStudioCreateRequest
+    {
+        public string packageId { get; set; } = string.Empty;
+        public string displayName { get; set; } = string.Empty;
+        public string directoryName { get; set; } = string.Empty;
+        public string template { get; set; } = "humanoid";
     }
 
     private sealed class CharacterStudioImportRequest

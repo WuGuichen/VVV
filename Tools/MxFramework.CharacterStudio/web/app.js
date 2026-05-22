@@ -930,13 +930,39 @@ function renderResourceBindingBar() {
   const targetRole = el.modelImportRole?.value || "preview";
   const roleInfo = getModelImportRole();
   const fieldSpec = getActiveResourceFieldSpec();
-  const selectedResource = getSelectedModelResource();
-  const selectedText = selectedResource
-    ? `当前选择：${getResourceDisplayName(selectedResource)}`
-    : "未选择模型资源";
-  el.resourceBindingTarget.textContent = targetRole === "preview"
-    ? "选择角色主体或武器字段后再打开资源选择器"
-    : `${fieldSpec.fieldKey} / ${roleInfo.label}：${selectedText}`;
+  const currentTarget = findTarget(state.selectedPath);
+  const currentTargetText = currentTarget?.kind
+    ? `${KIND_LABELS[currentTarget.kind] || currentTarget.kind} / ${currentTarget.label || state.selectedPath}`
+    : (state.selectedPath || "未选择");
+  const boundBody = getBoundBodyModelResource(state.package);
+  const boundBodyText = boundBody
+    ? `${getResourceDisplayName(boundBody)} (${boundBody.resourceKey || boundBody.stableId || "unknown"})`
+    : "未绑定";
+  const fieldText = targetRole === "preview"
+    ? "请先切换到角色主体/主手/副手模型字段"
+    : `${fieldSpec.fieldKey} / ${roleInfo.label}`;
+
+  el.resourceBindingTarget.innerHTML = [
+    renderBindingStatusLine("当前对象", currentTargetText),
+    renderBindingStatusLine("主体模型", boundBodyText),
+    renderBindingStatusLine("编辑字段", fieldText)
+  ].join("");
+}
+
+function renderBindingStatusLine(label, value) {
+  return `<span class="binding-line"><span class="binding-key">${escapeHtml(label)}</span><strong title="${escapeHtml(value)}">${escapeHtml(value)}</strong></span>`;
+}
+
+function getBoundBodyModelResource(pkg) {
+  const packageValue = pkg || state.package;
+  if (!packageValue) return null;
+  const resources = getModelResources(packageValue);
+  const boundByRole = resources.find(resource => isBodyModelBinding(resource, packageValue));
+  if (boundByRole) return boundByRole;
+
+  const profileKey = packageValue.geometry?.bodyProfile?.modelRootStableId || "";
+  if (!profileKey) return null;
+  return resources.find(resource => resource.resourceKey === profileKey || resource.stableId === profileKey) || null;
 }
 
 async function openResourcePicker() {
