@@ -1160,7 +1160,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             LocateProjectObjectRequested?.Invoke(asset);
-            _clipEditStatus = "Located " + asset.name + " in Project.";
+            _clipEditStatus = "Located " + asset.name + ". Stop Play Mode before editing; .anim changes save with Assets > Save Project, model subclips save after Apply.";
             UpdateClipEditControls();
         }
 
@@ -1704,7 +1704,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
                 if (_clipEditStatusLabel != null)
                     _clipEditStatusLabel.text = string.IsNullOrWhiteSpace(_clipEditStatus)
-                        ? "Clip source: use Locate Clip to edit Loop Time / Bake Into Pose in Unity Inspector."
+                        ? "Clip source: Locate Clip, stop Play Mode, then edit Loop Time / Bake Into Pose in Unity Inspector."
                         : _clipEditStatus;
             }
             finally
