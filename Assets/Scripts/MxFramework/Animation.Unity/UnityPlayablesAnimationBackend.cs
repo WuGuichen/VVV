@@ -20,6 +20,8 @@ namespace MxFramework.Animation.Unity
         private readonly List<PendingLoad> _pendingLoads = new List<PendingLoad>();
         private readonly List<PendingMaskLoad> _pendingMaskLoads = new List<PendingMaskLoad>();
         private readonly Dictionary<ResourceKey, float> _playbackSpeedOverrides = new Dictionary<ResourceKey, float>();
+        private readonly Dictionary<string, Blend2DPointCoordinateOverride> _blend2DPointCoordinateOverrides =
+            new Dictionary<string, Blend2DPointCoordinateOverride>();
         private readonly IMxAnimationPlayableDiagnostics _diagnostics;
         private readonly MxAnimationPlayableGraphRuntime _playables;
         private readonly MxAnimationPlayableStateCache _stateCache;
@@ -68,6 +70,20 @@ namespace MxFramework.Animation.Unity
         public bool ClearClipPlaybackSpeedOverride(ResourceKey clipKey)
         {
             return clipKey.IsValid && _playbackSpeedOverrides.Remove(clipKey);
+        }
+
+        public bool SetBlend2DPointCoordinateOverride(
+            string blendId,
+            ResourceKey clipKey,
+            int x,
+            int y)
+        {
+            if (string.IsNullOrWhiteSpace(blendId) || !clipKey.IsValid)
+                return false;
+
+            _blend2DPointCoordinateOverrides[CreateBlend2DPointOverrideKey(blendId, clipKey)] =
+                new Blend2DPointCoordinateOverride(x, y);
+            return true;
         }
 
         public static UnityPlayablesAnimationBackend Create(
@@ -272,9 +288,10 @@ namespace MxFramework.Animation.Unity
             if (!_definition.TryFindBlend2DDefinition(request.BlendId, request.ParameterX.ParameterId, request.ParameterY.ParameterId, out MxAnimationBlend2DDefinition blend))
                 return InvalidRequest(MxAnimationRequestKind.SetBlend2D, MxAnimationLayerId.Base, default, "2D blend definition was not found.");
 
-            MxAnimationBlend2DWeights weights = MxAnimationBlend2DCalculator.Evaluate(blend, request.ParameterX, request.ParameterY);
+            MxAnimationBlend2DDefinition resolvedBlend = ApplyBlend2DPointCoordinateOverrides(blend);
+            MxAnimationBlend2DWeights weights = MxAnimationBlend2DCalculator.Evaluate(resolvedBlend, request.ParameterX, request.ParameterY);
             if (weights.Weights.Count == 0)
-                return InvalidRequest(MxAnimationRequestKind.SetBlend2D, blend.LayerId, default, "2D blend definition has no valid points.");
+                return InvalidRequest(MxAnimationRequestKind.SetBlend2D, resolvedBlend.LayerId, default, "2D blend definition has no valid points.");
 
             var clipWeights = new List<BlendClipWeight>(weights.Weights.Count);
             var diagnosticWeights = new List<MxAnimationBlend2DWeight>(weights.Weights.Count);
@@ -296,7 +313,7 @@ namespace MxFramework.Animation.Unity
             return ApplyBlendWeights(
                 MxAnimationBlendRequest.From2D(request),
                 MxAnimationRequestKind.SetBlend2D,
-                blend.LayerId,
+                resolvedBlend.LayerId,
                 clipWeights,
                 "2D blend clip failed to load.",
                 "2D blend weights applied.",
@@ -1284,6 +1301,54 @@ namespace MxFramework.Animation.Unity
                 : fallback;
         }
 
+        private MxAnimationBlend2DDefinition ApplyBlend2DPointCoordinateOverrides(MxAnimationBlend2DDefinition blend)
+        {
+            if (blend == null || _blend2DPointCoordinateOverrides.Count == 0)
+                return blend;
+
+            var points = new List<MxAnimationBlend2DPoint>(blend.Points.Count);
+            bool changed = false;
+            for (int i = 0; i < blend.Points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = blend.Points[i];
+                if (point == null)
+                    continue;
+
+                if (_blend2DPointCoordinateOverrides.TryGetValue(
+                    CreateBlend2DPointOverrideKey(blend.BlendId, point.ClipKey),
+                    out Blend2DPointCoordinateOverride coordinate))
+                {
+                    points.Add(new MxAnimationBlend2DPoint(
+                        coordinate.X,
+                        coordinate.Y,
+                        point.ClipKey,
+                        point.PlaybackSpeed,
+                        point.Loop));
+                    changed = true;
+                    continue;
+                }
+
+                points.Add(point);
+            }
+
+            return changed
+                ? new MxAnimationBlend2DDefinition(
+                    blend.BlendId,
+                    blend.ParameterXId,
+                    blend.ParameterYId,
+                    blend.LayerId,
+                    points,
+                    blend.ParameterXScale,
+                    blend.ParameterYScale,
+                    blend.FadeDurationSeconds)
+                : blend;
+        }
+
+        private static string CreateBlend2DPointOverrideKey(string blendId, ResourceKey clipKey)
+        {
+            return (blendId ?? string.Empty) + "|" + clipKey.ToString();
+        }
+
         private static int CountActiveSlots(LayerRuntime layer)
         {
             int count = layer.Current != null ? 1 : 0;
@@ -1715,6 +1780,18 @@ namespace MxFramework.Animation.Unity
             public float Weight { get; set; }
             public float FadeElapsedSeconds { get; set; }
             public float FadeDurationSeconds { get; set; }
+        }
+
+        private readonly struct Blend2DPointCoordinateOverride
+        {
+            public Blend2DPointCoordinateOverride(int x, int y)
+            {
+                X = x;
+                Y = y;
+            }
+
+            public int X { get; }
+            public int Y { get; }
         }
     }
 }

@@ -38,6 +38,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private UnityPlayablesAnimationBackend _animationBackend;
         private bool _ownsAnimationBackend;
         private MxAnimationBlend2DDefinition _blend2DDefinition;
+        private MxAnimationBlend2DDefinition _sourceBlend2DDefinition;
         private MxAnimationBlendReachabilityReport _blendReachabilityReport;
         private MxAnimationBackendResult _lastAnimationResult;
         private int _lastQuantizedBlendX;
@@ -51,6 +52,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private int _lastPlaybackCompensationX = int.MinValue;
         private int _lastPlaybackCompensationY = int.MinValue;
         private float _playbackSpeedCompensation = 1f;
+        private readonly Dictionary<ResourceKey, Vector2Int> _blendPointCoordinateOverrides =
+            new Dictionary<ResourceKey, Vector2Int>();
 
         public Vector2 Blend => _blend;
         public float Speed01 => _speed01;
@@ -116,9 +119,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _lastPlaybackCompensationX = int.MinValue;
             _lastPlaybackCompensationY = int.MinValue;
             _playbackSpeedCompensation = 1f;
+            _sourceBlend2DDefinition = blendDefinition;
             _blend2DDefinition = blendDefinition;
             _blendReachabilityReport = null;
             _blendPointPlaybackCalibrations.Clear();
+            _blendPointCoordinateOverrides.Clear();
 
             if (blendDefinition == null)
             {
@@ -151,6 +156,42 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 return _animationBackend.TryGetClipPlaybackSpeedOverride(clipKey, out playbackSpeed);
 
             playbackSpeed = 0f;
+            return false;
+        }
+
+        public bool SetBlendPointCoordinateOverride(ResourceKey clipKey, float x, float y)
+        {
+            if (!clipKey.IsValid || _sourceBlend2DDefinition == null || _animationBackend == null)
+                return false;
+
+            int scale = Math.Max(1, _blendParameterScale);
+            int quantizedX = Mathf.RoundToInt(x * scale);
+            int quantizedY = Mathf.RoundToInt(y * scale);
+            if (!_animationBackend.SetBlend2DPointCoordinateOverride(_blend2DId, clipKey, quantizedX, quantizedY))
+                return false;
+
+            _blendPointCoordinateOverrides[clipKey] = new Vector2Int(quantizedX, quantizedY);
+            RebuildRuntimeBlendDefinition();
+            return true;
+        }
+
+        public bool TryGetBlendPointCoordinate(ResourceKey clipKey, out Vector2 coordinate)
+        {
+            coordinate = default;
+            if (!clipKey.IsValid || _blend2DDefinition == null)
+                return false;
+
+            for (int i = 0; i < _blend2DDefinition.Points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = _blend2DDefinition.Points[i];
+                if (point != null && point.ClipKey == clipKey)
+                {
+                    float scale = Math.Max(1, _blendParameterScale);
+                    coordinate = new Vector2(point.X / scale, point.Y / scale);
+                    return true;
+                }
+            }
+
             return false;
         }
 
@@ -277,7 +318,51 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _animationBackend = null;
             _ownsAnimationBackend = false;
             _blend2DDefinition = null;
+            _sourceBlend2DDefinition = null;
             _blendReachabilityReport = null;
+            _blendPointCoordinateOverrides.Clear();
+        }
+
+        private void RebuildRuntimeBlendDefinition()
+        {
+            if (_sourceBlend2DDefinition == null)
+                return;
+
+            var points = new List<MxAnimationBlend2DPoint>(_sourceBlend2DDefinition.Points.Count);
+            for (int i = 0; i < _sourceBlend2DDefinition.Points.Count; i++)
+            {
+                MxAnimationBlend2DPoint point = _sourceBlend2DDefinition.Points[i];
+                if (point == null)
+                    continue;
+
+                if (_blendPointCoordinateOverrides.TryGetValue(point.ClipKey, out Vector2Int coordinate))
+                {
+                    points.Add(new MxAnimationBlend2DPoint(
+                        coordinate.x,
+                        coordinate.y,
+                        point.ClipKey,
+                        point.PlaybackSpeed,
+                        point.Loop));
+                    continue;
+                }
+
+                points.Add(point);
+            }
+
+            _blend2DDefinition = new MxAnimationBlend2DDefinition(
+                _sourceBlend2DDefinition.BlendId,
+                _sourceBlend2DDefinition.ParameterXId,
+                _sourceBlend2DDefinition.ParameterYId,
+                _sourceBlend2DDefinition.LayerId,
+                points,
+                _sourceBlend2DDefinition.ParameterXScale,
+                _sourceBlend2DDefinition.ParameterYScale,
+                _sourceBlend2DDefinition.FadeDurationSeconds);
+            RebuildBlendDomain(_blend2DDefinition);
+            RebuildBlendPointPlaybackCalibrations(_blend2DDefinition);
+            _blendReachabilityReport = CreateReachabilityReport();
+            _lastPlaybackCompensationX = int.MinValue;
+            _lastPlaybackCompensationY = int.MinValue;
         }
 
         private MxAnimationBlendReachabilityReport CreateReachabilityReport()

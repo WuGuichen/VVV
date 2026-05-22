@@ -30,6 +30,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const float CameraDistanceStep = 0.5f;
         private const float CameraHeightStep = 0.25f;
         private const float PlaybackSpeedStep = 0.05f;
+        private const float BlendPointStep = 0.05f;
         private const float MinPlaybackSpeed = 0.05f;
         private const float MaxPlaybackSpeed = 3f;
 
@@ -91,6 +92,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _cameraDistanceValueLabel;
         private Label _cameraHeightValueLabel;
         private Label _playbackSpeedValueLabel;
+        private Label _blendPointValueLabel;
         private Label _clipEditStatusLabel;
         private Slider _manualSpeedSlider;
         private Slider _cameraDistanceSlider;
@@ -122,6 +124,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private string _lastPresetReportPath = string.Empty;
         private string _lastCalibrationDraftPath = string.Empty;
         private readonly Dictionary<ResourceKey, float> _playbackSpeedDrafts = new Dictionary<ResourceKey, float>();
+        private readonly Dictionary<ResourceKey, Vector2> _blendPointDrafts = new Dictionary<ResourceKey, Vector2>();
         private readonly List<ClipEditBinding> _clipEditBindings = new List<ClipEditBinding>();
         private readonly List<string> _clipEditChoices = new List<string>();
         private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
@@ -725,6 +728,23 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             playbackSpeedRow.Add(applySuggested);
             sliderColumn.Add(playbackSpeedRow);
 
+            var blendPointRow = new VisualElement();
+            blendPointRow.style.flexDirection = FlexDirection.Row;
+            blendPointRow.style.alignItems = Align.Center;
+            blendPointRow.Add(CreateInlineLabel("Point"));
+            Button pointXDown = CreateSmallButton("X-", () => AdjustSelectedBlendPoint(-BlendPointStep, 0f));
+            blendPointRow.Add(pointXDown);
+            Button pointXUp = CreateSmallButton("X+", () => AdjustSelectedBlendPoint(BlendPointStep, 0f));
+            blendPointRow.Add(pointXUp);
+            Button pointYDown = CreateSmallButton("Y-", () => AdjustSelectedBlendPoint(0f, -BlendPointStep));
+            blendPointRow.Add(pointYDown);
+            Button pointYUp = CreateSmallButton("Y+", () => AdjustSelectedBlendPoint(0f, BlendPointStep));
+            blendPointRow.Add(pointYUp);
+            _blendPointValueLabel = CreateValueLabel();
+            _blendPointValueLabel.style.width = 116f;
+            blendPointRow.Add(_blendPointValueLabel);
+            sliderColumn.Add(blendPointRow);
+
             var clipEditRow = new VisualElement();
             clipEditRow.style.flexDirection = FlexDirection.Row;
             clipEditRow.style.alignItems = Align.Center;
@@ -1021,6 +1041,41 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _playbackSpeedDrafts[clipKey] = value;
             if (!_selectedClipEditKey.IsValid)
                 _selectedClipEditKey = clipKey;
+            UpdateObservationButtons();
+        }
+
+        private void AdjustSelectedBlendPoint(float deltaX, float deltaY)
+        {
+            if (!TryGetSelectedClipEditBinding(out ClipEditBinding binding) || _locomotionController == null)
+                return;
+
+            if (!_locomotionController.TryGetBlendPointCoordinate(binding.ClipKey, out Vector2 coordinate))
+            {
+                _clipEditStatus = "Selected clip has no editable blend point.";
+                UpdateClipEditControls();
+                return;
+            }
+
+            SetSelectedBlendPoint(binding.ClipKey, coordinate + new Vector2(deltaX, deltaY));
+        }
+
+        private void SetSelectedBlendPoint(ResourceKey clipKey, Vector2 coordinate)
+        {
+            if (_locomotionController == null || !clipKey.IsValid)
+                return;
+
+            Vector2 value = new Vector2(
+                Mathf.Clamp(coordinate.x, -MaxManualSpeed, MaxManualSpeed),
+                Mathf.Clamp(coordinate.y, -MaxManualSpeed, MaxManualSpeed));
+            if (!_locomotionController.SetBlendPointCoordinateOverride(clipKey, value.x, value.y))
+            {
+                _clipEditStatus = "Blend point override failed for " + clipKey.Id;
+                UpdateClipEditControls();
+                return;
+            }
+
+            _blendPointDrafts[clipKey] = value;
+            _clipEditStatus = "Blend point " + ShortClipName(clipKey) + " = (" + FormatFloat(value.x) + ", " + FormatFloat(value.y) + ")";
             UpdateObservationButtons();
         }
 
@@ -1466,6 +1521,27 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 index++;
             }
 
+            builder.Append('\n').Append("  ],\n");
+            builder.Append("  \"blendPointOverrides\": [\n");
+            index = 0;
+            foreach (KeyValuePair<ResourceKey, Vector2> pair in _blendPointDrafts)
+            {
+                ResourceKey key = pair.Key;
+                if (!key.IsValid)
+                    continue;
+
+                if (index > 0)
+                    builder.Append(",\n");
+                builder.Append("    {\n");
+                AppendJsonString(builder, "field", "blend2d.pointCoordinate", trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceKey", key.ToString(), trailingComma: true, indent: 6);
+                AppendJsonString(builder, "clipResourceId", key.Id, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "x", pair.Value.x, trailingComma: true, indent: 6);
+                AppendJsonNumber(builder, "y", pair.Value.y, trailingComma: false, indent: 6);
+                builder.Append('\n').Append("    }");
+                index++;
+            }
+
             builder.Append('\n').Append("  ]\n");
             builder.Append("}\n");
             return builder.ToString();
@@ -1678,6 +1754,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     ? ShortClipName(clipKey) + " " + FormatFloat(playbackSpeed) + "x"
                     : "-";
             }
+            if (_blendPointValueLabel != null)
+            {
+                _blendPointValueLabel.text = TryGetSelectedClipEditBinding(out ClipEditBinding selectedBinding)
+                    && _locomotionController != null
+                    && _locomotionController.TryGetBlendPointCoordinate(selectedBinding.ClipKey, out Vector2 coordinate)
+                    ? "(" + FormatFloat(coordinate.x) + ", " + FormatFloat(coordinate.y) + ")"
+                    : "point -";
+            }
             UpdateClipEditControls();
         }
 
@@ -1704,7 +1788,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
                 if (_clipEditStatusLabel != null)
                     _clipEditStatusLabel.text = string.IsNullOrWhiteSpace(_clipEditStatus)
-                        ? "Clip source: Locate Clip, stop Play Mode, then edit Loop Time / Bake Into Pose in Unity Inspector."
+                        ? "Clip source: Locate Clip for Inspector. Use Point X/Y to tune BlendTree coordinates; Clip +/- keeps per-clip speed support."
                         : _clipEditStatus;
             }
             finally

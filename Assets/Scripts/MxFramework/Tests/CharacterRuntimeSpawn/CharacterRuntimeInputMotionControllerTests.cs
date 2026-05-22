@@ -440,6 +440,85 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
             }
         }
 
+        [Test]
+        public void LocomotionBlend_UpdatesRuntimeBlendPointCoordinate()
+        {
+            var go = new GameObject("character");
+            var idleClip = new AnimationClip { name = "Idle" };
+            var walkClip = new AnimationClip { name = "Walk" };
+            try
+            {
+                var modelRoot = new GameObject("ModelRoot").transform;
+                modelRoot.SetParent(go.transform, false);
+                Animator animator = go.AddComponent<Animator>();
+                CharacterRuntimeControllerBinding binding = go.AddComponent<CharacterRuntimeControllerBinding>();
+                ConfigureBinding(binding);
+                CharacterRuntimeInputMotionController motion = go.AddComponent<CharacterRuntimeInputMotionController>();
+                motion.MoveSpeedScale = 1.5f;
+                CharacterRuntimeLocomotionBlendController locomotion = go.AddComponent<CharacterRuntimeLocomotionBlendController>();
+                locomotion.Configure(modelRoot, animator, new[] { idleClip, walkClip });
+
+                var idleKey = new ResourceKey("test.anim.idle", ResourceTypeIds.AnimationClip);
+                var walkKey = new ResourceKey("test.anim.walk", ResourceTypeIds.AnimationClip);
+                var provider = new MemoryResourceProvider()
+                    .Register("test/idle", idleClip)
+                    .Register("test/walk", walkClip);
+                var manager = new ResourceManager();
+                manager.RegisterProvider(provider);
+                manager.AddCatalog(new ResourceCatalog(
+                        "test.animations",
+                        string.Empty,
+                        new[]
+                        {
+                            new ResourceCatalogEntry(idleKey.Id, idleKey.TypeId, "memory", "test/idle"),
+                            new ResourceCatalogEntry(walkKey.Id, walkKey.TypeId, "memory", "test/walk")
+                        }));
+                var blend = new MxAnimationBlend2DDefinition(
+                    "blend.move2d",
+                    "moveX",
+                    "moveY",
+                    MxAnimationLayerId.Base,
+                    new[]
+                    {
+                        new MxAnimationBlend2DPoint(0, 0, idleKey),
+                        new MxAnimationBlend2DPoint(0, 1000, walkKey)
+                    });
+                var definition = new MxAnimationSetDefinition(
+                    "set.base",
+                    1,
+                    idleKey,
+                    idleKey,
+                    blend2DDefinitions: new[] { blend });
+                locomotion.ConfigureAnimationBackend(
+                    new UnityPlayablesAnimationBackend(animator, manager, definition, "actor.test"),
+                    blend);
+
+                Assert.IsTrue(locomotion.SetBlendPointCoordinateOverride(walkKey, 0f, 1.5f));
+                Assert.IsTrue(locomotion.TryGetBlendPointCoordinate(walkKey, out Vector2 coordinate));
+                Assert.AreEqual(1.5f, coordinate.y, 0.001f);
+
+                var input = new FakeInputProvider();
+                input.SetContext(InputContext.Gameplay);
+                input.SetSnapshot(CreateMoveSnapshot(Vector2.up));
+                motion.ConfigureInputProvider(input);
+
+                Assert.IsTrue(motion.StepFrame());
+                InvokeLateUpdate(locomotion);
+
+                Assert.AreEqual(1500, locomotion.LastQuantizedBlendY);
+                MxAnimationDiagnosticSnapshot snapshot = locomotion.CreateAnimationSnapshot();
+                MxAnimationBlend2DWeight walkWeight = FindBlendWeight(snapshot, walkKey);
+                Assert.AreEqual(1500, walkWeight.Y);
+                Assert.AreEqual(1f, walkWeight.Weight, 0.001f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(idleClip);
+                Object.DestroyImmediate(walkClip);
+            }
+        }
+
         private static void InvokeLateUpdate(CharacterRuntimeLocomotionBlendController locomotion)
         {
             typeof(CharacterRuntimeLocomotionBlendController)
