@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Globalization;
 using MxFramework.Animation;
@@ -13,14 +16,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
     [AddComponentMenu("MxFramework/Character/Locomotion Calibration Runner")]
     public sealed class CharacterLocomotionCalibrationRunner : MonoBehaviour
     {
-        private const float BlendMapWidth = 300f;
-        private const float BlendMapHeight = 220f;
+        private const float BlendMapWidth = 360f;
+        private const float BlendMapHeight = 190f;
         private const float BlendMapPadding = 34f;
         private const float BlendPointWidth = 64f;
         private const float BlendPointHeight = 22f;
         private const float BlendSampleSize = 18f;
         private const float BlendMarkerInset = 6f;
         private const int TrailCapacity = 72;
+        private const float PresetWarmupSeconds = 0.25f;
 
         [SerializeField] private CharacterRuntimeResourceBootstrap _bootstrap;
         [SerializeField] private bool _loadOnStart = true;
@@ -56,6 +60,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _hudSummaryLabel;
         private Label _blendWeightsLabel;
         private Label _slipMetricsLabel;
+        private Label _presetReportLabel;
         private LineRenderer _actualVelocityLine;
         private LineRenderer _nativeVelocityLine;
         private LineRenderer _leftFootTrailLine;
@@ -67,6 +72,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private readonly Vector3[] _rightTrail = new Vector3[TrailCapacity];
         private int _leftTrailCount;
         private int _rightTrailCount;
+        private bool _presetSequenceRunning;
+        private int _presetIndex;
+        private float _presetElapsedSeconds;
+        private PresetAccumulator _presetAccumulator;
+        private MxAnimationLocomotionPresetSequenceReport _lastPresetSequenceReport;
+        private string _lastPresetReportText = string.Empty;
+        private string _lastPresetReportJson = string.Empty;
+        private string _lastPresetReportPath = string.Empty;
+        private readonly List<MxAnimationLocomotionPresetReport> _presetReports = new List<MxAnimationLocomotionPresetReport>();
 
         public CharacterRuntimeResourceBootstrap Bootstrap => _bootstrap;
         public GameObject CharacterInstance => _bootstrap != null ? _bootstrap.CharacterInstance : null;
@@ -81,6 +95,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             ? _bootstrap.AnimationWarmupResult.IssueCount
             : 0;
         public bool AnimationBackendReady => _locomotionController != null && _locomotionController.HasAnimationBackend;
+        public bool PresetSequenceRunning => _presetSequenceRunning;
+        public MxAnimationLocomotionPresetSequenceReport LastPresetSequenceReport => _lastPresetSequenceReport;
+
+        private static readonly LocomotionPresetDefinition[] PresetDefinitions =
+        {
+            new LocomotionPresetDefinition("idle", "Idle", Vector2.zero, 0f, 0f, false, 1.4f),
+            new LocomotionPresetDefinition("walk_forward", "Walk Forward", Vector2.up, 0.65f, 0.65f, false, 1.8f),
+            new LocomotionPresetDefinition("run_forward", "Run Forward", Vector2.up, 1f, 1f, true, 1.8f),
+            new LocomotionPresetDefinition("walk_back", "Walk Back", Vector2.down, 0.65f, 0.65f, false, 1.8f),
+            new LocomotionPresetDefinition("strafe_left", "Strafe Left", Vector2.left, 0.65f, 0.65f, false, 1.8f),
+            new LocomotionPresetDefinition("strafe_right", "Strafe Right", Vector2.right, 0.65f, 0.65f, false, 1.8f),
+            new LocomotionPresetDefinition("diagonal", "Diagonal Forward Right", new Vector2(0.7f, 0.7f), 0.75f, 0.75f, false, 1.8f),
+            new LocomotionPresetDefinition("speed_ramp", "Speed Ramp", Vector2.up, 0.1f, 1f, false, 2.4f)
+        };
 
         private void Awake()
         {
@@ -105,8 +133,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private void Update()
         {
             RefreshRuntimeControllers();
+            UpdatePresetDriverBeforeMotion();
             UpdateManualControl();
             UpdateHud();
+            UpdatePresetProbeAfterSample();
+            UpdatePresetReportHud();
             UpdateSceneGizmos();
         }
 
@@ -125,6 +156,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _hudSummaryLabel = null;
             _blendWeightsLabel = null;
             _slipMetricsLabel = null;
+            _presetReportLabel = null;
         }
 
         private void OnDestroy()
@@ -285,8 +317,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _hudRoot.style.position = Position.Absolute;
             _hudRoot.style.left = 16f;
             _hudRoot.style.top = 16f;
-            _hudRoot.style.width = 560f;
-            _hudRoot.style.maxHeight = 720f;
+            _hudRoot.style.width = 420f;
+            _hudRoot.style.maxHeight = Length.Percent(94f);
             _hudRoot.style.paddingLeft = 14f;
             _hudRoot.style.paddingRight = 14f;
             _hudRoot.style.paddingTop = 12f;
@@ -316,6 +348,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             title.style.color = accent;
             title.style.marginBottom = 8f;
 
+            var content = new ScrollView(ScrollViewMode.Vertical)
+            {
+                name = "locomotion-calibration-content"
+            };
+            content.style.flexGrow = 1f;
+            content.style.flexShrink = 1f;
+            content.style.minHeight = 0f;
+            content.style.color = new Color(0.9f, 0.96f, 1f, 1f);
+
             _statusRow = new VisualElement
             {
                 name = "locomotion-calibration-status-row"
@@ -329,8 +370,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 name = "locomotion-calibration-summary"
             };
             _hudSummaryLabel.style.whiteSpace = WhiteSpace.Normal;
-            _hudSummaryLabel.style.fontSize = 13f;
+            _hudSummaryLabel.style.fontSize = 11f;
             _hudSummaryLabel.style.color = new Color(0.92f, 0.96f, 1f, 1f);
+            StylePanel(_hudSummaryLabel);
+            _hudSummaryLabel.style.marginBottom = 8f;
 
             VisualElement controls = CreateControlPanel();
 
@@ -348,12 +391,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 name = "locomotion-calibration-blend-map"
             };
             _blendMap.style.position = Position.Relative;
-            _blendMap.style.width = 300f;
-            _blendMap.style.height = 220f;
+            _blendMap.style.width = 360f;
+            _blendMap.style.height = 190f;
             _blendMap.style.flexShrink = 0f;
             _blendMap.style.marginTop = 8f;
-            _blendMap.style.marginBottom = 16f;
-            _blendMap.style.marginRight = 12f;
+            _blendMap.style.marginBottom = 8f;
             _blendMap.style.backgroundColor = new Color(0.02f, 0.035f, 0.05f, 0.92f);
             _blendMap.style.overflow = Overflow.Hidden;
             _blendMap.style.borderLeftWidth = 1f;
@@ -374,13 +416,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendWeightsLabel.style.color = new Color(0.84f, 0.9f, 0.96f, 1f);
             _blendWeightsLabel.style.flexGrow = 1f;
             _blendWeightsLabel.style.flexShrink = 1f;
-            _blendWeightsLabel.style.marginTop = 8f;
+            _blendWeightsLabel.style.marginTop = 0f;
+            StylePanel(_blendWeightsLabel);
 
             var blendProbeRow = new VisualElement
             {
                 name = "locomotion-calibration-blend-probe"
             };
-            blendProbeRow.style.flexDirection = FlexDirection.Row;
+            blendProbeRow.style.flexDirection = FlexDirection.Column;
             blendProbeRow.style.alignItems = Align.FlexStart;
             blendProbeRow.style.flexShrink = 0f;
 
@@ -393,13 +436,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             help.style.color = new Color(0.75f, 0.83f, 0.9f, 1f);
 
             _hudRoot.Add(title);
-            _hudRoot.Add(_statusRow);
-            _hudRoot.Add(controls);
-            _hudRoot.Add(_telemetryLabel);
-            _hudRoot.Add(_hudSummaryLabel);
+            _hudRoot.Add(content);
+            content.Add(_statusRow);
+            content.Add(controls);
+            content.Add(_telemetryLabel);
+            content.Add(_hudSummaryLabel);
             blendProbeRow.Add(_blendMap);
             blendProbeRow.Add(_blendWeightsLabel);
-            _hudRoot.Add(blendProbeRow);
+            content.Add(blendProbeRow);
 
             _slipMetricsLabel = new Label("Slip metrics: waiting for character")
             {
@@ -410,8 +454,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _slipMetricsLabel.style.color = new Color(0.9f, 0.94f, 0.98f, 1f);
             _slipMetricsLabel.style.marginTop = 2f;
             _slipMetricsLabel.style.marginBottom = 6f;
-            _hudRoot.Add(_slipMetricsLabel);
-            _hudRoot.Add(help);
+            content.Add(_slipMetricsLabel);
+
+            _presetReportLabel = new Label("Preset report: not run")
+            {
+                name = "locomotion-calibration-preset-report"
+            };
+            StylePanel(_presetReportLabel);
+            _presetReportLabel.style.whiteSpace = WhiteSpace.Normal;
+            _presetReportLabel.style.fontSize = 12f;
+            _presetReportLabel.style.color = new Color(0.9f, 0.94f, 0.98f, 1f);
+            _presetReportLabel.style.maxHeight = 160f;
+            _presetReportLabel.style.marginBottom = 6f;
+            content.Add(_presetReportLabel);
+            content.Add(help);
             _hudDocument.rootVisualElement.Add(_hudRoot);
         }
 
@@ -420,11 +476,13 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             var controls = new VisualElement { name = "locomotion-calibration-controls" };
             StylePanel(controls);
             controls.style.marginBottom = 8f;
+            controls.style.color = new Color(0.9f, 0.96f, 1f, 1f);
 
-            var header = new VisualElement();
-            header.style.flexDirection = FlexDirection.Row;
-            header.style.alignItems = Align.Center;
-            header.style.marginBottom = 6f;
+            var toggleRow = new VisualElement();
+            toggleRow.style.flexDirection = FlexDirection.Row;
+            toggleRow.style.flexWrap = Wrap.Wrap;
+            toggleRow.style.alignItems = Align.Center;
+            toggleRow.style.marginBottom = 6f;
 
             var toggle = new Toggle("Manual")
             {
@@ -437,7 +495,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                     ReleaseManualInputProvider();
             });
             toggle.style.minWidth = 92f;
-            header.Add(toggle);
+            StyleControl(toggle);
+            toggleRow.Add(toggle);
 
             var run = new Toggle("Run")
             {
@@ -445,7 +504,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             };
             run.RegisterValueChangedCallback(evt => _manualRun = evt.newValue);
             run.style.minWidth = 76f;
-            header.Add(run);
+            StyleControl(run);
+            toggleRow.Add(run);
 
             var pause = new Toggle("Pause")
             {
@@ -453,11 +513,24 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             };
             pause.RegisterValueChangedCallback(evt => _labPaused = evt.newValue);
             pause.style.minWidth = 88f;
-            header.Add(pause);
+            StyleControl(pause);
+            toggleRow.Add(pause);
 
             Button step = CreateSmallButton("Step", () => _stepRequested = true);
-            header.Add(step);
-            controls.Add(header);
+            toggleRow.Add(step);
+            controls.Add(toggleRow);
+
+            var actionRow = new VisualElement();
+            actionRow.style.flexDirection = FlexDirection.Row;
+            actionRow.style.flexWrap = Wrap.Wrap;
+            actionRow.style.marginBottom = 6f;
+            Button runPresets = CreateWideButton("Run Presets", StartPresetSequence);
+            actionRow.Add(runPresets);
+            Button copySummary = CreateWideButton("Copy Summary", CopyPresetReportSummary);
+            actionRow.Add(copySummary);
+            Button saveJson = CreateWideButton("Save JSON", SavePresetReportJson);
+            actionRow.Add(saveJson);
+            controls.Add(actionRow);
 
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
@@ -473,6 +546,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 value = _manualSpeed
             };
+            StyleSlider(speed);
             speed.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
             sliderColumn.Add(speed);
 
@@ -480,6 +554,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 value = _timeScale
             };
+            StyleSlider(timeScale);
             timeScale.RegisterValueChangedCallback(evt => _timeScale = Mathf.Clamp(evt.newValue, 0.1f, 1f));
             sliderColumn.Add(timeScale);
 
@@ -491,6 +566,23 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             row.Add(sliderColumn);
             controls.Add(row);
             return controls;
+        }
+
+        private static Button CreateWideButton(string text, System.Action action)
+        {
+            var button = new Button(action)
+            {
+                text = text
+            };
+            button.style.height = 28f;
+            button.style.width = 116f;
+            button.style.marginRight = 5f;
+            button.style.marginBottom = 3f;
+            button.style.unityFontStyleAndWeight = FontStyle.Bold;
+            button.style.fontSize = 11f;
+            button.style.color = new Color(0.92f, 0.97f, 1f, 1f);
+            button.style.backgroundColor = new Color(0.11f, 0.17f, 0.23f, 0.95f);
+            return button;
         }
 
         private VisualElement CreateDirectionPad()
@@ -530,6 +622,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             button.style.marginRight = 3f;
             button.style.marginBottom = 3f;
             button.style.unityFontStyleAndWeight = FontStyle.Bold;
+            button.style.color = new Color(0.92f, 0.97f, 1f, 1f);
+            button.style.backgroundColor = new Color(0.11f, 0.17f, 0.23f, 0.95f);
             if (action == null)
             {
                 button.SetEnabled(false);
@@ -647,6 +741,229 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 debugTogglePressed: false);
         }
 
+        public void StartPresetSequence()
+        {
+            _presetReports.Clear();
+            _presetSequenceRunning = true;
+            _presetIndex = 0;
+            _presetElapsedSeconds = 0f;
+            _presetAccumulator = null;
+            _lastPresetSequenceReport = null;
+            _lastPresetReportText = string.Empty;
+            _lastPresetReportJson = string.Empty;
+            _lastPresetReportPath = string.Empty;
+            _labPaused = false;
+            _manualControlEnabled = true;
+            BeginCurrentPreset();
+            UpdatePresetReportHud();
+        }
+
+        private void StopPresetSequence()
+        {
+            _presetSequenceRunning = false;
+            _presetAccumulator = null;
+        }
+
+        private void BeginCurrentPreset()
+        {
+            if (_presetIndex < 0 || _presetIndex >= PresetDefinitions.Length)
+            {
+                CompletePresetSequence();
+                return;
+            }
+
+            LocomotionPresetDefinition preset = PresetDefinitions[_presetIndex];
+            _presetElapsedSeconds = 0f;
+            _presetAccumulator = new PresetAccumulator(preset);
+            ApplyPresetControl(preset, 0f);
+        }
+
+        private void UpdatePresetDriverBeforeMotion()
+        {
+            if (!_presetSequenceRunning)
+                return;
+
+            if (_presetIndex < 0 || _presetIndex >= PresetDefinitions.Length)
+            {
+                CompletePresetSequence();
+                return;
+            }
+
+            LocomotionPresetDefinition preset = PresetDefinitions[_presetIndex];
+            float progress = preset.DurationSeconds <= 0f
+                ? 1f
+                : Mathf.Clamp01(Mathf.Max(0f, _presetElapsedSeconds - PresetWarmupSeconds) / preset.DurationSeconds);
+            ApplyPresetControl(preset, progress);
+        }
+
+        private void ApplyPresetControl(LocomotionPresetDefinition preset, float progress)
+        {
+            Vector2 direction = preset.Direction.sqrMagnitude > 0.0001f ? preset.Direction.normalized : Vector2.zero;
+            _manualControlEnabled = true;
+            _manualDirection = direction;
+            _manualSpeed = Mathf.Clamp01(Mathf.Lerp(preset.StartSpeed, preset.EndSpeed, Mathf.Clamp01(progress)));
+            _manualRun = preset.Run;
+        }
+
+        private void UpdatePresetProbeAfterSample()
+        {
+            if (!_presetSequenceRunning)
+                return;
+
+            if (_presetIndex < 0 || _presetIndex >= PresetDefinitions.Length)
+            {
+                CompletePresetSequence();
+                return;
+            }
+
+            LocomotionPresetDefinition preset = PresetDefinitions[_presetIndex];
+            _presetElapsedSeconds += Mathf.Max(0f, Time.deltaTime);
+
+            bool ready = CharacterLoaded && AnimationWarmupSucceeded && AnimationBackendReady;
+            if (ready && _presetElapsedSeconds >= PresetWarmupSeconds && _footSlipSnapshot != null)
+            {
+                MxAnimationLocomotionBlendProbeSnapshot probe = _locomotionController != null
+                    ? _locomotionController.CreateLocomotionBlendProbeSnapshot()
+                    : null;
+                _presetAccumulator?.AddSample(
+                    _footSlipSnapshot,
+                    probe,
+                    GetResourceErrorCount(),
+                    AnimationBackendReady ? 0 : 1,
+                    CalculateSuggestedPlaybackSpeed(_footSlipSnapshot.Frame));
+            }
+            else if (!ready)
+            {
+                _presetAccumulator?.AddDiagnostic("Waiting for character, warmup, or animation backend.");
+            }
+
+            if (_presetElapsedSeconds < preset.DurationSeconds + PresetWarmupSeconds)
+                return;
+
+            _presetReports.Add(_presetAccumulator != null
+                ? _presetAccumulator.CreateReport()
+                : CreateEmptyPresetReport(preset, "Preset did not initialize."));
+            _presetIndex++;
+            BeginCurrentPreset();
+        }
+
+        private void CompletePresetSequence()
+        {
+            _presetSequenceRunning = false;
+            _presetAccumulator = null;
+            _lastPresetSequenceReport = new MxAnimationLocomotionPresetSequenceReport(
+                _bootstrap != null ? _bootstrap.PackageId : string.Empty,
+                _bootstrap != null ? _bootstrap.CharacterResourceId : string.Empty,
+                _bootstrap != null && _bootstrap.RuntimeAnimationSetDefinition != null
+                    ? _bootstrap.RuntimeAnimationSetDefinition.SetId
+                    : string.Empty,
+                _locomotionController != null ? _locomotionController.ActiveBlend2DId : string.Empty,
+                DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                _presetReports);
+            _lastPresetReportText = MxAnimationLocomotionCalibrationReportFormatter.CreateSummary(_lastPresetSequenceReport);
+            _lastPresetReportJson = MxAnimationLocomotionCalibrationReportFormatter.CreateJson(_lastPresetSequenceReport);
+            _manualControlEnabled = false;
+            ReleaseManualInputProvider();
+        }
+
+        private static MxAnimationLocomotionPresetReport CreateEmptyPresetReport(
+            LocomotionPresetDefinition preset,
+            string diagnostic)
+        {
+            return new MxAnimationLocomotionPresetReport(
+                preset.Id,
+                preset.DisplayName,
+                0f,
+                0,
+                0f,
+                0f,
+                0f,
+                MxAnimationFootSlipGrade.Bad,
+                string.Empty,
+                0,
+                0,
+                1,
+                0f,
+                new[] { diagnostic },
+                new[] { "runtime.backend" });
+        }
+
+        private void CopyPresetReportSummary()
+        {
+            if (string.IsNullOrEmpty(_lastPresetReportText))
+                _lastPresetReportText = _lastPresetSequenceReport != null
+                    ? MxAnimationLocomotionCalibrationReportFormatter.CreateSummary(_lastPresetSequenceReport)
+                    : "Preset report has not run.";
+            GUIUtility.systemCopyBuffer = _lastPresetReportText;
+        }
+
+        private void SavePresetReportJson()
+        {
+            if (string.IsNullOrEmpty(_lastPresetReportJson))
+                _lastPresetReportJson = _lastPresetSequenceReport != null
+                    ? MxAnimationLocomotionCalibrationReportFormatter.CreateJson(_lastPresetSequenceReport)
+                    : "{}";
+
+            string fileName = "locomotion_calibration_"
+                + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture)
+                + ".json";
+            string path = Path.Combine(Application.persistentDataPath, fileName);
+            try
+            {
+                File.WriteAllText(path, _lastPresetReportJson, Encoding.UTF8);
+                _lastPresetReportPath = path;
+            }
+            catch (Exception ex)
+            {
+                _lastPresetReportPath = "save failed: " + ex.Message;
+            }
+        }
+
+        private void UpdatePresetReportHud()
+        {
+            if (_presetReportLabel == null)
+                return;
+
+            if (_presetSequenceRunning)
+            {
+                string presetName = _presetIndex >= 0 && _presetIndex < PresetDefinitions.Length
+                    ? PresetDefinitions[_presetIndex].DisplayName
+                    : "Complete";
+                _presetReportLabel.text = "Preset report: running "
+                    + (_presetIndex + 1).ToString(CultureInfo.InvariantCulture)
+                    + "/" + PresetDefinitions.Length.ToString(CultureInfo.InvariantCulture)
+                    + " " + presetName
+                    + " t=" + FormatFloat(_presetElapsedSeconds)
+                    + " samples=" + (_presetAccumulator != null ? _presetAccumulator.SampleCount : 0);
+                return;
+            }
+
+            if (_lastPresetSequenceReport == null)
+            {
+                _presetReportLabel.text = "Preset report: not run";
+                return;
+            }
+
+            var builder = new StringBuilder();
+            builder.Append("Preset report: ").Append(_lastPresetSequenceReport.OverallGrade)
+                .Append(" presets=").Append(_lastPresetSequenceReport.Presets.Count);
+            if (!string.IsNullOrWhiteSpace(_lastPresetReportPath))
+                builder.Append('\n').Append(_lastPresetReportPath);
+            int count = Mathf.Min(_lastPresetSequenceReport.Presets.Count, 4);
+            for (int i = 0; i < count; i++)
+            {
+                MxAnimationLocomotionPresetReport preset = _lastPresetSequenceReport.Presets[i];
+                builder.Append('\n')
+                    .Append(preset.DisplayName)
+                    .Append(" ").Append(preset.Grade)
+                    .Append(" err=").Append(FormatFloat(preset.AverageVelocityErrorRatio))
+                    .Append(" slip=").Append(FormatFloat(preset.MaxSlipDistanceCm))
+                    .Append(" dom=").Append(EmptyAsDash(preset.DominantClipId));
+            }
+
+            _presetReportLabel.text = builder.ToString();
+        }
+
         private static void StylePanel(VisualElement element)
         {
             element.style.paddingLeft = 10f;
@@ -667,6 +984,22 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             element.style.borderRightColor = border;
             element.style.borderTopColor = border;
             element.style.borderBottomColor = border;
+        }
+
+        private static void StyleControl(VisualElement element)
+        {
+            element.style.color = new Color(0.88f, 0.94f, 1f, 1f);
+            element.style.fontSize = 11f;
+            element.style.marginRight = 8f;
+            element.style.marginBottom = 4f;
+        }
+
+        private static void StyleSlider(Slider slider)
+        {
+            slider.style.color = new Color(0.88f, 0.94f, 1f, 1f);
+            slider.style.fontSize = 11f;
+            slider.style.height = 28f;
+            slider.style.marginBottom = 4f;
         }
 
         private void UpdateHud()
@@ -1187,7 +1520,186 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             return new Color(0.1f, 0.92f, 0.72f, 0.95f);
         }
 
-        private static void DestroyRuntimeObject(Object obj)
+        private readonly struct LocomotionPresetDefinition
+        {
+            public LocomotionPresetDefinition(
+                string id,
+                string displayName,
+                Vector2 direction,
+                float startSpeed,
+                float endSpeed,
+                bool run,
+                float durationSeconds)
+            {
+                Id = id ?? string.Empty;
+                DisplayName = displayName ?? string.Empty;
+                Direction = direction;
+                StartSpeed = Mathf.Clamp01(startSpeed);
+                EndSpeed = Mathf.Clamp01(endSpeed);
+                Run = run;
+                DurationSeconds = Mathf.Max(0.1f, durationSeconds);
+            }
+
+            public string Id { get; }
+            public string DisplayName { get; }
+            public Vector2 Direction { get; }
+            public float StartSpeed { get; }
+            public float EndSpeed { get; }
+            public bool Run { get; }
+            public float DurationSeconds { get; }
+        }
+
+        private sealed class PresetAccumulator
+        {
+            private readonly LocomotionPresetDefinition _definition;
+            private readonly Dictionary<string, int> _dominantClipCounts = new Dictionary<string, int>();
+            private readonly List<string> _diagnostics = new List<string>();
+            private float _durationSeconds;
+            private float _velocityErrorSum;
+            private float _suggestedPlaybackSpeedSum;
+            private float _maxSlipDistanceCm;
+            private float _maxFootSlipCmPerSecond;
+            private int _sampleCount;
+            private int _unreachablePointCount;
+            private int _resourceErrorCount;
+            private int _backendErrorCount;
+            private MxAnimationFootSlipGrade _grade = MxAnimationFootSlipGrade.Ok;
+
+            public PresetAccumulator(LocomotionPresetDefinition definition)
+            {
+                _definition = definition;
+            }
+
+            public int SampleCount => _sampleCount;
+
+            public void AddSample(
+                CharacterLocomotionFootSlipSnapshot snapshot,
+                MxAnimationLocomotionBlendProbeSnapshot probe,
+                int resourceErrorCount,
+                int backendErrorCount,
+                float suggestedPlaybackSpeed)
+            {
+                if (snapshot == null || snapshot.Frame == null)
+                    return;
+
+                MxAnimationLocomotionCalibrationFrame frame = snapshot.Frame;
+                _sampleCount++;
+                _durationSeconds += Mathf.Max(0f, frame.DeltaTime);
+                _velocityErrorSum += frame.VelocityErrorRatio;
+                _suggestedPlaybackSpeedSum += Mathf.Max(0f, suggestedPlaybackSpeed);
+                _maxSlipDistanceCm = Mathf.Max(_maxSlipDistanceCm, frame.MaxSlipDistanceCm);
+                _maxFootSlipCmPerSecond = Mathf.Max(
+                    _maxFootSlipCmPerSecond,
+                    Mathf.Max(frame.LeftFootSlipCmPerSecond, frame.RightFootSlipCmPerSecond));
+                _grade = WorseGrade(_grade, snapshot.Grade);
+                _resourceErrorCount = Mathf.Max(_resourceErrorCount, resourceErrorCount);
+                _backendErrorCount = Mathf.Max(_backendErrorCount, backendErrorCount);
+
+                if (!string.IsNullOrWhiteSpace(frame.DominantClipId))
+                {
+                    if (!_dominantClipCounts.ContainsKey(frame.DominantClipId))
+                        _dominantClipCounts.Add(frame.DominantClipId, 0);
+                    _dominantClipCounts[frame.DominantClipId]++;
+                }
+
+                if (probe != null && probe.ReachabilityReport != null)
+                {
+                    _unreachablePointCount = Mathf.Max(
+                        _unreachablePointCount,
+                        probe.ReachabilityReport.UnreachablePoints.Count);
+                    for (int i = 0; i < probe.ReachabilityReport.Issues.Count; i++)
+                        AddDiagnosticOnce(probe.ReachabilityReport.Issues[i].Code + ": " + probe.ReachabilityReport.Issues[i].Message);
+                }
+
+                for (int i = 0; i < snapshot.Diagnostics.Count; i++)
+                    AddDiagnosticOnce(snapshot.Diagnostics[i]);
+            }
+
+            public void AddDiagnostic(string diagnostic)
+            {
+                AddDiagnosticOnce(diagnostic);
+            }
+
+            public MxAnimationLocomotionPresetReport CreateReport()
+            {
+                var suggestedFields = new List<string>();
+                float averageVelocityError = _sampleCount == 0 ? 0f : _velocityErrorSum / _sampleCount;
+                float averageSuggestedPlaybackSpeed = _sampleCount == 0 ? 0f : _suggestedPlaybackSpeedSum / _sampleCount;
+                if (averageVelocityError > 0.15f)
+                {
+                    suggestedFields.Add("clip.nativeVelocity");
+                    suggestedFields.Add("clip.playbackSpeed");
+                }
+
+                if (_maxSlipDistanceCm > MxAnimationFootSlipThresholds.Default.OkMaxSlipDistanceCm
+                    || _maxFootSlipCmPerSecond > MxAnimationFootSlipThresholds.Default.OkAverageSlipCmPerSecond)
+                {
+                    suggestedFields.Add("clip.footContactWindows");
+                    suggestedFields.Add("clip.playbackSpeed");
+                }
+
+                if (_unreachablePointCount > 0)
+                    suggestedFields.Add("blend2d.points");
+
+                if (_sampleCount == 0)
+                {
+                    _grade = MxAnimationFootSlipGrade.Bad;
+                    AddDiagnosticOnce("Preset produced no valid calibration samples.");
+                }
+
+                return new MxAnimationLocomotionPresetReport(
+                    _definition.Id,
+                    _definition.DisplayName,
+                    _durationSeconds,
+                    _sampleCount,
+                    averageVelocityError,
+                    _maxSlipDistanceCm,
+                    _maxFootSlipCmPerSecond,
+                    _grade,
+                    GetDominantClipId(),
+                    _unreachablePointCount,
+                    _resourceErrorCount,
+                    _backendErrorCount,
+                    averageSuggestedPlaybackSpeed,
+                    _diagnostics,
+                    suggestedFields);
+            }
+
+            private void AddDiagnosticOnce(string diagnostic)
+            {
+                if (string.IsNullOrWhiteSpace(diagnostic) || _diagnostics.Contains(diagnostic))
+                    return;
+                _diagnostics.Add(diagnostic);
+            }
+
+            private string GetDominantClipId()
+            {
+                string best = string.Empty;
+                int bestCount = 0;
+                foreach (KeyValuePair<string, int> pair in _dominantClipCounts)
+                {
+                    if (pair.Value <= bestCount)
+                        continue;
+                    best = pair.Key;
+                    bestCount = pair.Value;
+                }
+
+                return best;
+            }
+
+            private static MxAnimationFootSlipGrade WorseGrade(
+                MxAnimationFootSlipGrade current,
+                MxAnimationFootSlipGrade next)
+            {
+                if (current == MxAnimationFootSlipGrade.Bad || next == MxAnimationFootSlipGrade.Bad)
+                    return MxAnimationFootSlipGrade.Bad;
+                if (current == MxAnimationFootSlipGrade.Warning || next == MxAnimationFootSlipGrade.Warning)
+                    return MxAnimationFootSlipGrade.Warning;
+                return MxAnimationFootSlipGrade.Ok;
+            }
+        }
+
+        private static void DestroyRuntimeObject(UnityEngine.Object obj)
         {
             if (obj == null)
                 return;
