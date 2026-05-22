@@ -118,6 +118,73 @@ namespace MxFramework.Tests.Animation
         }
 
         [Test]
+        public void WeightedFootContactConfidence_UsesClipNormalizedPlaybackTimes()
+        {
+            ResourceKey walk = ClipKey("demo.animation.walk_f");
+            ResourceKey run = ClipKey("demo.animation.run_f");
+            var weights = new[]
+            {
+                new MxAnimationBlend2DWeight(walk, 0, 1000, 0.25f, 1f, true),
+                new MxAnimationBlend2DWeight(run, 0, 2000, 0.75f, 1f, true)
+            };
+            var playbacks = new[]
+            {
+                new MxAnimationClipPlaybackDiagnostic(walk, 0.25f, 0.2f, 1f, true, true, false),
+                new MxAnimationClipPlaybackDiagnostic(run, 0.75f, 0.7f, 1f, true, true, false)
+            };
+            var calibrations = new[]
+            {
+                new MxAnimationLocomotionClipCalibration(
+                    "walk_f",
+                    walk,
+                    0f,
+                    1f,
+                    leftFootContacts: new[] { new MxAnimationFootContactWindow(0.1f, 0.3f, 0.8f) },
+                    rightFootContacts: new[] { new MxAnimationFootContactWindow(0.6f, 0.8f, 0.5f) }),
+                new MxAnimationLocomotionClipCalibration(
+                    "run_f",
+                    run,
+                    0f,
+                    2f,
+                    leftFootContacts: new[] { new MxAnimationFootContactWindow(0.1f, 0.3f, 0.6f) },
+                    rightFootContacts: new[] { new MxAnimationFootContactWindow(0.6f, 0.8f, 1f) })
+            };
+
+            float left = MxAnimationLocomotionCalibrationCalculator.CalculateWeightedFootContactConfidence(
+                MxAnimationLocomotionFoot.Left,
+                weights,
+                playbacks,
+                calibrations);
+            float right = MxAnimationLocomotionCalibrationCalculator.CalculateWeightedFootContactConfidence(
+                MxAnimationLocomotionFoot.Right,
+                weights,
+                playbacks,
+                calibrations);
+
+            Assert.AreEqual(0.2f, left, 0.0001f);
+            Assert.AreEqual(0.75f, right, 0.0001f);
+        }
+
+        [Test]
+        public void SlipCalculator_ReportsHorizontalSlipSpeedAndDistanceInCentimeters()
+        {
+            float slip = MxAnimationLocomotionCalibrationCalculator.CalculateSlipCmPerSecond(
+                previousX: 1f,
+                previousY: 2f,
+                currentX: 1.03f,
+                currentY: 2.04f,
+                deltaTime: 0.1f);
+            float distance = MxAnimationLocomotionCalibrationCalculator.CalculateSlipDistanceCm(
+                anchorX: 1f,
+                anchorY: 2f,
+                currentX: 1.03f,
+                currentY: 2.04f);
+
+            Assert.AreEqual(50f, slip, 0.001f);
+            Assert.AreEqual(5f, distance, 0.001f);
+        }
+
+        [Test]
         public void ReachabilityReport_FlagsBlendPointsOutsideControllerDomain()
         {
             ResourceKey idle = ClipKey("demo.animation.idle");

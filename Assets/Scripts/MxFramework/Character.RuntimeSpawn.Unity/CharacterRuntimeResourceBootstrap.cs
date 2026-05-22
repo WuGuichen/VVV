@@ -40,6 +40,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         public string CharacterResourceId => _characterResourceId;
         public string CharacterResourceVariant => _characterResourceVariant;
         public string AnimationSetId => _animationSetId;
+        public MxAnimationSetDefinition RuntimeAnimationSetDefinition => _runtimeAnimationSetDefinition;
 
         private void Start()
         {

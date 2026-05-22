@@ -2164,7 +2164,8 @@ namespace MxFramework.Animation
             string blend2DId = "",
             MxAnimationQuantizedParameter blend2DParameterX = default,
             MxAnimationQuantizedParameter blend2DParameterY = default,
-            IEnumerable<MxAnimationBlend2DWeight> blend2DWeights = null)
+            IEnumerable<MxAnimationBlend2DWeight> blend2DWeights = null,
+            IEnumerable<MxAnimationClipPlaybackDiagnostic> activeClipPlaybacks = null)
         {
             LayerId = layerId;
             Status = status;
@@ -2195,10 +2196,14 @@ namespace MxFramework.Animation
             _blend2DWeights = blend2DWeights != null
                 ? new List<MxAnimationBlend2DWeight>(blend2DWeights)
                 : new List<MxAnimationBlend2DWeight>();
+            _activeClipPlaybacks = activeClipPlaybacks != null
+                ? new List<MxAnimationClipPlaybackDiagnostic>(activeClipPlaybacks)
+                : new List<MxAnimationClipPlaybackDiagnostic>();
         }
 
         private readonly List<MxAnimationBlend1DWeight> _blend1DWeights;
         private readonly List<MxAnimationBlend2DWeight> _blend2DWeights;
+        private readonly List<MxAnimationClipPlaybackDiagnostic> _activeClipPlaybacks;
 
         public MxAnimationLayerId LayerId { get; }
         public MxAnimationLayerStatus Status { get; }
@@ -2225,12 +2230,59 @@ namespace MxFramework.Animation
         public MxAnimationQuantizedParameter Blend2DParameterX { get; }
         public MxAnimationQuantizedParameter Blend2DParameterY { get; }
         public IReadOnlyList<MxAnimationBlend2DWeight> Blend2DWeights => _blend2DWeights;
+        public IReadOnlyList<MxAnimationClipPlaybackDiagnostic> ActiveClipPlaybacks => _activeClipPlaybacks;
 
         private static float Clamp01(float value)
         {
             if (float.IsNaN(value) || value <= 0f)
                 return 0f;
             return value >= 1f ? 1f : value;
+        }
+    }
+
+    public sealed class MxAnimationClipPlaybackDiagnostic
+    {
+        public MxAnimationClipPlaybackDiagnostic(
+            ResourceKey clipKey,
+            float weight,
+            float normalizedTime,
+            float playbackSpeed,
+            bool loop,
+            bool blendSlot,
+            bool fallback)
+        {
+            ClipKey = clipKey;
+            Weight = Clamp01(weight);
+            NormalizedTime = Normalize01(normalizedTime);
+            PlaybackSpeed = float.IsNaN(playbackSpeed) || float.IsInfinity(playbackSpeed) ? 1f : playbackSpeed;
+            Loop = loop;
+            BlendSlot = blendSlot;
+            Fallback = fallback;
+        }
+
+        public ResourceKey ClipKey { get; }
+        public float Weight { get; }
+        public float NormalizedTime { get; }
+        public float PlaybackSpeed { get; }
+        public bool Loop { get; }
+        public bool BlendSlot { get; }
+        public bool Fallback { get; }
+
+        private static float Clamp01(float value)
+        {
+            if (float.IsNaN(value) || value <= 0f)
+                return 0f;
+            return value >= 1f ? 1f : value;
+        }
+
+        private static float Normalize01(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                return 0f;
+            float normalized = value % 1f;
+            if (normalized < 0f)
+                normalized += 1f;
+            return normalized;
         }
     }
 

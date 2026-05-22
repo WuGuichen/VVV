@@ -409,7 +409,8 @@ namespace MxFramework.Animation.Unity
                     layer.ActiveBlendKind == MxAnimationBlendKind.Blend2D ? layer.ActiveBlendId : string.Empty,
                     layer.Blend2DParameterX,
                     layer.Blend2DParameterY,
-                    layer.Blend2DWeights));
+                    layer.Blend2DWeights,
+                    CreateActiveClipPlaybackDiagnostics(layer)));
             }
 
             return new MxAnimationDiagnosticSnapshot(
@@ -1242,6 +1243,42 @@ namespace MxFramework.Animation.Unity
             }
 
             return count;
+        }
+
+        private static List<MxAnimationClipPlaybackDiagnostic> CreateActiveClipPlaybackDiagnostics(LayerRuntime layer)
+        {
+            var diagnostics = new List<MxAnimationClipPlaybackDiagnostic>();
+            if (layer == null)
+                return diagnostics;
+
+            if (layer.Current != null)
+                AddClipPlaybackDiagnostic(diagnostics, layer.Current, blendSlot: false);
+            for (int i = 0; i < layer.Outgoing.Count; i++)
+                AddClipPlaybackDiagnostic(diagnostics, layer.Outgoing[i], blendSlot: false);
+            for (int i = 0; i < layer.BlendSlots.Count; i++)
+                AddClipPlaybackDiagnostic(diagnostics, layer.BlendSlots[i], blendSlot: true);
+            return diagnostics;
+        }
+
+        private static void AddClipPlaybackDiagnostic(List<MxAnimationClipPlaybackDiagnostic> diagnostics, ClipSlot slot, bool blendSlot)
+        {
+            if (slot == null || !slot.Key.IsValid)
+                return;
+
+            float normalizedTime = 0f;
+            AnimationClip clip = slot.Handle != null ? slot.Handle.Value : null;
+            double duration = clip != null ? clip.length : slot.Playable.GetDuration();
+            if (duration > 0.0001d && !double.IsNaN(duration) && !double.IsInfinity(duration))
+                normalizedTime = (float)(slot.Playable.GetTime() / duration);
+
+            diagnostics.Add(new MxAnimationClipPlaybackDiagnostic(
+                slot.Key,
+                slot.Weight,
+                normalizedTime,
+                slot.PlaybackSpeed,
+                slot.Loop,
+                blendSlot,
+                slot.IsFallback));
         }
 
         private int CountResidentClips()
