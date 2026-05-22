@@ -167,7 +167,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private void ApplyAnimatorParameters()
         {
-            if (_animator == null)
+            if (_animator == null || _animator.runtimeAnimatorController == null)
                 return;
 
             SetAnimatorFloat(_blendXParameter, _blend.x);

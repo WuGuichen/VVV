@@ -25,6 +25,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private const float BlendMarkerInset = 6f;
         private const int TrailCapacity = 72;
         private const float PresetWarmupSeconds = 0.25f;
+        private const float SpeedFineStep = 0.05f;
+        private const float CameraDistanceStep = 0.5f;
 
         private enum CalibrationCameraMode
         {
@@ -51,6 +53,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _cameraHeight = 3.2f;
         [SerializeField] private bool _enableLoopingPlane = true;
         [SerializeField] private float _loopHalfExtent = 6f;
+        [SerializeField] private bool _showGridGround = true;
+        [SerializeField] private float _gridCellSize = 1f;
 
         private CharacterRuntimeInputMotionController _motionController;
         private CharacterRuntimeLocomotionBlendController _locomotionController;
@@ -76,10 +80,15 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Label _blendWeightsLabel;
         private Label _slipMetricsLabel;
         private Label _presetReportLabel;
+        private Label _manualSpeedValueLabel;
+        private Label _cameraDistanceValueLabel;
+        private Slider _manualSpeedSlider;
+        private Slider _cameraDistanceSlider;
         private Button _cameraModeButton;
         private Button _cameraFollowButton;
         private Button _loopingPlaneButton;
         private Button _lockFacingButton;
+        private Button _gridGroundButton;
         private LineRenderer _actualVelocityLine;
         private LineRenderer _nativeVelocityLine;
         private LineRenderer _leftFootTrailLine;
@@ -104,6 +113,11 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Camera _followCamera;
         private Quaternion _lockedFacingRotation = Quaternion.identity;
         private bool _hasLockedFacingRotation;
+        private GameObject _gridGroundObject;
+        private MeshFilter _gridGroundFilter;
+        private MeshRenderer _gridGroundRenderer;
+        private Mesh _gridGroundMesh;
+        private Material _gridGroundMaterial;
 
         public CharacterRuntimeResourceBootstrap Bootstrap => _bootstrap;
         public GameObject CharacterInstance => _bootstrap != null ? _bootstrap.CharacterInstance : null;
@@ -181,6 +195,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendWeightsLabel = null;
             _slipMetricsLabel = null;
             _presetReportLabel = null;
+            _manualSpeedValueLabel = null;
+            _cameraDistanceValueLabel = null;
+            _manualSpeedSlider = null;
+            _cameraDistanceSlider = null;
             _cameraModeButton = null;
             _cameraFollowButton = null;
             _loopingPlaneButton = null;
@@ -198,6 +216,9 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             DestroyRuntimeObject(_rightFootTrailLine != null ? _rightFootTrailLine.gameObject : null);
             DestroyRuntimeObject(_leftAnchorMarker != null ? _leftAnchorMarker.gameObject : null);
             DestroyRuntimeObject(_rightAnchorMarker != null ? _rightAnchorMarker.gameObject : null);
+            DestroyRuntimeObject(_gridGroundObject);
+            DestroyRuntimeObject(_gridGroundMesh);
+            DestroyRuntimeObject(_gridGroundMaterial);
             DestroyRuntimeObject(_gizmoMaterial);
         }
 
@@ -580,6 +601,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             observationRow.Add(_loopingPlaneButton);
             _lockFacingButton = CreateWideButton(string.Empty, ToggleFacingLock);
             observationRow.Add(_lockFacingButton);
+            _gridGroundButton = CreateWideButton(string.Empty, ToggleGridGround);
+            observationRow.Add(_gridGroundButton);
             controls.Add(observationRow);
 
             var row = new VisualElement();
@@ -592,13 +615,49 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             var sliderColumn = new VisualElement();
             sliderColumn.style.flexGrow = 1f;
             sliderColumn.style.marginLeft = 12f;
-            var speed = new Slider("Speed", 0f, 1f)
+            var speedRow = new VisualElement();
+            speedRow.style.flexDirection = FlexDirection.Row;
+            speedRow.style.alignItems = Align.Center;
+            var speedLabel = CreateInlineLabel("Speed");
+            speedRow.Add(speedLabel);
+            Button speedDown = CreateSmallButton("-", () => AdjustManualSpeed(-SpeedFineStep));
+            speedRow.Add(speedDown);
+            _manualSpeedValueLabel = CreateValueLabel();
+            speedRow.Add(_manualSpeedValueLabel);
+            _manualSpeedSlider = new Slider(string.Empty, 0f, 1f)
             {
                 value = _manualSpeed
             };
-            StyleSlider(speed);
-            speed.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
-            sliderColumn.Add(speed);
+            StyleSlider(_manualSpeedSlider);
+            _manualSpeedSlider.style.flexGrow = 1f;
+            _manualSpeedSlider.style.minWidth = 96f;
+            _manualSpeedSlider.RegisterValueChangedCallback(evt => _manualSpeed = Mathf.Clamp01(evt.newValue));
+            speedRow.Add(_manualSpeedSlider);
+            Button speedUp = CreateSmallButton("+", () => AdjustManualSpeed(SpeedFineStep));
+            speedRow.Add(speedUp);
+            sliderColumn.Add(speedRow);
+
+            var cameraDistanceRow = new VisualElement();
+            cameraDistanceRow.style.flexDirection = FlexDirection.Row;
+            cameraDistanceRow.style.alignItems = Align.Center;
+            var cameraLabel = CreateInlineLabel("Camera");
+            cameraDistanceRow.Add(cameraLabel);
+            Button cameraNear = CreateSmallButton("-", () => AdjustCameraDistance(-CameraDistanceStep));
+            cameraDistanceRow.Add(cameraNear);
+            _cameraDistanceValueLabel = CreateValueLabel();
+            cameraDistanceRow.Add(_cameraDistanceValueLabel);
+            _cameraDistanceSlider = new Slider(string.Empty, 2f, 12f)
+            {
+                value = _cameraDistance
+            };
+            StyleSlider(_cameraDistanceSlider);
+            _cameraDistanceSlider.style.flexGrow = 1f;
+            _cameraDistanceSlider.style.minWidth = 96f;
+            _cameraDistanceSlider.RegisterValueChangedCallback(evt => _cameraDistance = Mathf.Clamp(evt.newValue, 2f, 12f));
+            cameraDistanceRow.Add(_cameraDistanceSlider);
+            Button cameraFar = CreateSmallButton("+", () => AdjustCameraDistance(CameraDistanceStep));
+            cameraDistanceRow.Add(cameraFar);
+            sliderColumn.Add(cameraDistanceRow);
 
             var timeScale = new Slider("Time scale", 0.1f, 1f)
             {
@@ -633,6 +692,26 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             button.style.color = new Color(0.92f, 0.97f, 1f, 1f);
             button.style.backgroundColor = new Color(0.11f, 0.17f, 0.23f, 0.95f);
             return button;
+        }
+
+        private static Label CreateInlineLabel(string text)
+        {
+            var label = new Label(text);
+            label.style.width = 48f;
+            label.style.fontSize = 11f;
+            label.style.color = new Color(0.82f, 0.9f, 0.96f, 1f);
+            label.style.unityTextAlign = TextAnchor.MiddleLeft;
+            return label;
+        }
+
+        private static Label CreateValueLabel()
+        {
+            var label = new Label("0.00");
+            label.style.width = 36f;
+            label.style.fontSize = 11f;
+            label.style.color = new Color(0.92f, 0.97f, 1f, 1f);
+            label.style.unityTextAlign = TextAnchor.MiddleCenter;
+            return label;
         }
 
         private VisualElement CreateDirectionPad()
@@ -763,6 +842,14 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             UpdateObservationButtons();
         }
 
+        private void ToggleGridGround()
+        {
+            _showGridGround = !_showGridGround;
+            if (!_showGridGround && _gridGroundObject != null)
+                _gridGroundObject.SetActive(false);
+            UpdateObservationButtons();
+        }
+
         private void ToggleFacingLock()
         {
             _lockFacingForBlendObservation = !_lockFacingForBlendObservation;
@@ -771,6 +858,20 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             if (!_lockFacingForBlendObservation)
                 _hasLockedFacingRotation = false;
             UpdateObservationButtons();
+        }
+
+        private void AdjustManualSpeed(float delta)
+        {
+            _manualSpeed = Mathf.Clamp01(_manualSpeed + delta);
+            if (_manualSpeedSlider != null)
+                _manualSpeedSlider.SetValueWithoutNotify(_manualSpeed);
+        }
+
+        private void AdjustCameraDistance(float delta)
+        {
+            _cameraDistance = Mathf.Clamp(_cameraDistance + delta, 2f, 12f);
+            if (_cameraDistanceSlider != null)
+                _cameraDistanceSlider.SetValueWithoutNotify(_cameraDistance);
         }
 
         private void ReleaseManualInputProvider()
@@ -1158,8 +1259,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 + " timeScale=" + FormatFloat(_timeScale)
                 + "\nview=" + _cameraMode
                 + " follow=" + (_enableCameraFollow ? "on" : "off")
+                + " cameraDist=" + FormatFloat(_cameraDistance)
                 + " loop=" + (_enableLoopingPlane ? "on" : "off")
-                + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off");
+                + " facingLock=" + (_lockFacingForBlendObservation ? "on" : "off")
+                + "\nSpeed drives input magnitude: blend sample radius and logical move velocity.";
             UpdateDirectionButtonStyles();
             UpdateObservationButtons();
         }
@@ -1197,6 +1300,12 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 _loopingPlaneButton.text = _enableLoopingPlane ? "Loop On" : "Loop Off";
             if (_lockFacingButton != null)
                 _lockFacingButton.text = _lockFacingForBlendObservation ? "Facing Lock" : "Facing Free";
+            if (_gridGroundButton != null)
+                _gridGroundButton.text = _showGridGround ? "Grid On" : "Grid Off";
+            if (_manualSpeedValueLabel != null)
+                _manualSpeedValueLabel.text = FormatFloat(_manualSpeed);
+            if (_cameraDistanceValueLabel != null)
+                _cameraDistanceValueLabel.text = FormatFloat(_cameraDistance);
         }
 
         private void UpdateObservationRig()
@@ -1223,6 +1332,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             }
 
             ApplyLoopingPlane(character.transform);
+            UpdateGridGround(character.transform);
             UpdateFollowCamera(character.transform);
         }
 
@@ -1283,6 +1393,90 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
                 desired,
                 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
             _followCamera.transform.rotation = Quaternion.LookRotation((focus - _followCamera.transform.position).normalized, Vector3.up);
+        }
+
+        private void UpdateGridGround(Transform target)
+        {
+            if (!_showGridGround || target == null)
+            {
+                if (_gridGroundObject != null)
+                    _gridGroundObject.SetActive(false);
+                return;
+            }
+
+            EnsureGridGround();
+            if (_gridGroundObject == null)
+                return;
+
+            _gridGroundObject.SetActive(true);
+            _gridGroundObject.transform.position = Vector3.zero;
+        }
+
+        private void EnsureGridGround()
+        {
+            if (_gridGroundObject != null)
+                return;
+
+            _gridGroundObject = new GameObject("LocomotionCalibration_GridGround")
+            {
+                hideFlags = HideFlags.DontSave
+            };
+            _gridGroundObject.transform.SetParent(transform, worldPositionStays: false);
+            _gridGroundFilter = _gridGroundObject.AddComponent<MeshFilter>();
+            _gridGroundRenderer = _gridGroundObject.AddComponent<MeshRenderer>();
+            _gridGroundRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _gridGroundRenderer.receiveShadows = false;
+
+            Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader != null)
+            {
+                _gridGroundMaterial = new Material(shader)
+                {
+                    name = "MxFramework Locomotion Calibration Grid"
+                };
+                _gridGroundMaterial.color = new Color(0.12f, 0.5f, 0.58f, 0.42f);
+                _gridGroundRenderer.sharedMaterial = _gridGroundMaterial;
+            }
+
+            _gridGroundMesh = CreateGridGroundMesh();
+            _gridGroundFilter.sharedMesh = _gridGroundMesh;
+        }
+
+        private Mesh CreateGridGroundMesh()
+        {
+            float halfExtent = Mathf.Max(4f, _loopHalfExtent);
+            float cellSize = Mathf.Max(0.25f, _gridCellSize);
+            int cells = Mathf.CeilToInt((halfExtent * 2f) / cellSize);
+            float start = -cells * cellSize * 0.5f;
+            int lineCount = (cells + 1) * 2;
+            var vertices = new Vector3[lineCount * 2];
+            var indices = new int[vertices.Length];
+            int v = 0;
+            for (int i = 0; i <= cells; i++)
+            {
+                float offset = start + i * cellSize;
+                vertices[v] = new Vector3(start, 0.018f, offset);
+                indices[v] = v;
+                v++;
+                vertices[v] = new Vector3(-start, 0.018f, offset);
+                indices[v] = v;
+                v++;
+                vertices[v] = new Vector3(offset, 0.018f, start);
+                indices[v] = v;
+                v++;
+                vertices[v] = new Vector3(offset, 0.018f, -start);
+                indices[v] = v;
+                v++;
+            }
+
+            var mesh = new Mesh
+            {
+                name = "MxFramework Locomotion Calibration Grid"
+            };
+            mesh.vertices = vertices;
+            mesh.SetIndices(indices, MeshTopology.Lines, 0);
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         private void ResetTrails()
