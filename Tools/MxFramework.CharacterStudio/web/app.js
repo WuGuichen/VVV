@@ -161,6 +161,7 @@ const FIELD_GROUP_LABELS = {
 };
 
 const BODY_PART_KIND_OPTIONS = ["Unknown", "Bone", "Primitive", "Virtual"];
+const BODY_KIND_OPTIONS = ["Unknown", "Skeletal", "Primitive", "Compound"];
 const POSE_PARENT_KIND_OPTIONS = ["ModelRoot", "SkeletonRoot", "Bone", "Locator", "BodyPart", "Socket", "WorldPreview"];
 const SOCKET_USAGE_OPTIONS = ["Unknown", "Weapon", "Vfx", "Camera", "Ui", "Gameplay"];
 const SOCKET_HANDEDNESS_OPTIONS = [
@@ -409,6 +410,7 @@ async function loadPackageState() {
   if (apiState && apiState.package) {
     state.package = clone(apiState.package);
     ensureAnimationAuthoringConfig(state.package);
+    ensureGeometryCollections(state.package);
     state.validation = apiState.validation || apiState.package.validationReport || { issues: [] };
     state.importResult = apiState.importReport || null;
     state.unityResourceCatalog = apiState.unityResourceCatalog || null;
@@ -426,6 +428,7 @@ async function loadPackageState() {
 
   state.package = await readStaticPackage(state.packageRelative);
   ensureAnimationAuthoringConfig(state.package);
+  ensureGeometryCollections(state.package);
   state.validation = state.package.validationReport || { issues: [] };
   state.importResult = null;
   await loadUnityResourceCatalog();
@@ -538,7 +541,18 @@ function getModelImportRole() {
 
 function updateModelImportTitle() {
   if (!el.modelImportButton || !el.modelImportRole) return;
-  el.modelImportButton.title = `源资源导入：${getModelImportRole().title}。支持 GLB/GLTF；FBX 会先转换为 GLB。`;
+  const role = getModelImportRole();
+  const activeRole = el.modelImportRole?.value || "preview";
+  const isPreview = activeRole === "preview";
+  if (el.openResourcePickerButton) {
+    el.openResourcePickerButton.textContent = isPreview ? "选择已有资源（推荐）" : `绑定已有资源（推荐：${role.label}）`;
+    el.openResourcePickerButton.title = isPreview
+      ? "先切换到主体/主手/副手模型字段，再绑定已有资源。"
+      : `推荐流程：先在 Resource Manager 准备资源，再绑定到${role.label}。`;
+  }
+  el.modelImportButton.classList.add("legacy-action");
+  el.modelImportButton.textContent = `Legacy 导入（${role.label}）`;
+  el.modelImportButton.title = `Legacy 兼容入口：${role.title}。推荐先在 Resource Manager 导入并诊断资源，再使用“选择已有资源（推荐）”完成绑定。支持 GLB/GLTF；FBX 会先转换为 GLB。`;
 }
 
 function normalizeResourceLibraryPayload(payload) {
@@ -939,18 +953,21 @@ function renderResourceBindingBar() {
     ? `${getResourceDisplayName(boundBody)} (${boundBody.resourceKey || boundBody.stableId || "unknown"})`
     : "未绑定";
   const fieldText = targetRole === "preview"
-    ? "请先切换到角色主体/主手/副手模型字段"
+    ? "请先切换到角色主体/主手/副手模型字段，再绑定已有资源"
     : `${fieldSpec.fieldKey} / ${roleInfo.label}`;
+  const flowText = "推荐流程：Resource Manager 负责资源导入与诊断，CharacterStudio 只做字段绑定。Legacy 导入仅用于兼容旧流程。";
 
   el.resourceBindingTarget.innerHTML = [
     renderBindingStatusLine("当前对象", currentTargetText),
     renderBindingStatusLine("主体模型", boundBodyText),
-    renderBindingStatusLine("编辑字段", fieldText)
+    renderBindingStatusLine("编辑字段", fieldText),
+    renderBindingStatusLine("推荐流程", flowText, "flow")
   ].join("");
 }
 
-function renderBindingStatusLine(label, value) {
-  return `<span class="binding-line"><span class="binding-key">${escapeHtml(label)}</span><strong title="${escapeHtml(value)}">${escapeHtml(value)}</strong></span>`;
+function renderBindingStatusLine(label, value, mode = "") {
+  const modeClass = mode ? ` is-${escapeHtml(mode)}` : "";
+  return `<span class="binding-line${modeClass}"><span class="binding-key">${escapeHtml(label)}</span><strong title="${escapeHtml(value)}">${escapeHtml(value)}</strong></span>`;
 }
 
 function getBoundBodyModelResource(pkg) {
@@ -2152,15 +2169,39 @@ function createConfiguration(kind) {
   render();
 }
 
-function ensureGeometryCollections() {
-  state.package.geometry = state.package.geometry || {};
-  const geometry = state.package.geometry;
+function ensureGeometryCollections(pkg = state.package) {
+  if (!pkg) return;
+  pkg.geometry = pkg.geometry || {};
+  const geometry = pkg.geometry;
   geometry.schemaVersion = geometry.schemaVersion || "1.0";
+  geometry.bodyProfile = ensureBodyProfile(geometry.bodyProfile || {});
   geometry.bodyParts = Array.isArray(geometry.bodyParts) ? geometry.bodyParts : [];
   geometry.colliders = Array.isArray(geometry.colliders) ? geometry.colliders : [];
   geometry.sockets = Array.isArray(geometry.sockets) ? geometry.sockets : [];
   geometry.weaponAttachments = Array.isArray(geometry.weaponAttachments) ? geometry.weaponAttachments : [];
   geometry.traces = Array.isArray(geometry.traces) ? geometry.traces : [];
+}
+
+function ensureBodyProfile(profile = {}) {
+  const body = (profile && typeof profile === "object") ? profile : {};
+  body.profileId = String(body.profileId || "geometry.body");
+  body.bodyKind = String(body.bodyKind || "Skeletal");
+  body.bodyScale = numberOrDefault(body.bodyScale, 1);
+  body.heightMeters = numberOrDefault(body.heightMeters, 1.8);
+  body.radiusMeters = numberOrDefault(body.radiusMeters, 0.35);
+  body.massKg = numberOrDefault(body.massKg, 75);
+  body.defaultCapsule = (body.defaultCapsule && typeof body.defaultCapsule === "object") ? body.defaultCapsule : {};
+  body.defaultCapsule.height = numberOrDefault(body.defaultCapsule.height, body.heightMeters);
+  body.defaultCapsule.radius = numberOrDefault(body.defaultCapsule.radius, body.radiusMeters);
+  body.defaultCapsule.center = (body.defaultCapsule.center && typeof body.defaultCapsule.center === "object") ? body.defaultCapsule.center : {};
+  body.defaultCapsule.center.x = numberOrDefault(body.defaultCapsule.center.x, 0);
+  body.defaultCapsule.center.y = numberOrDefault(body.defaultCapsule.center.y, 0.9);
+  body.defaultCapsule.center.z = numberOrDefault(body.defaultCapsule.center.z, 0);
+  body.defaultPhysicsProfileId = String(body.defaultPhysicsProfileId || "");
+  body.modelRootStableId = String(body.modelRootStableId || "");
+  body.skeletonRootStableId = String(body.skeletonRootStableId || "");
+  body.locatorRootStableId = String(body.locatorRootStableId || "");
+  return body;
 }
 
 function createBodyPartConfig() {
@@ -3954,6 +3995,23 @@ function editableFields(kind, value = null) {
     modelScaleField("importHints.modelWrapperPose.scale.z", "缩放 Z")
   ];
   if (["animationProfile", "animationGroup", "animationClip", "animationBlendSpace", "animationBlendPoint"].includes(kind)) return [];
+  if (kind === "body") return [
+    identityField("profileId", "Body Profile ID", ["geometry.body"], "Body 几何配置的稳定 ID。"),
+    field("bodyKind", { label: "Body Kind", type: "select", options: BODY_KIND_OPTIONS, group: "base", help: "与 CharacterBodyGeometryProfile 对齐的体型类型。" }),
+    positiveField("bodyScale", "Body Scale", { min: 0.01, max: 10, step: 0.01, group: "base", fallback: 1 }),
+    positiveField("heightMeters", "Height", { min: 0.01, max: 5, step: 0.01, unit: "m", group: "base", fallback: 1.8 }),
+    positiveField("radiusMeters", "Radius", { min: 0.01, max: 2, step: 0.01, unit: "m", group: "base", fallback: 0.35 }),
+    positiveField("massKg", "Mass", { min: 0, max: 500, step: 0.1, unit: "kg", group: "base", fallback: 75 }),
+    positiveField("defaultCapsule.height", "Capsule Height", { min: 0.01, max: 5, step: 0.01, unit: "m", group: "shape", fallback: 1.8 }),
+    positiveField("defaultCapsule.radius", "Capsule Radius", { min: 0.01, max: 2, step: 0.01, unit: "m", group: "shape", fallback: 0.35 }),
+    field("defaultCapsule.center.x", { label: "Capsule Center X", type: "number", min: -10, max: 10, step: 0.01, unit: "m", group: "shape", fallback: 0 }),
+    field("defaultCapsule.center.y", { label: "Capsule Center Y", type: "number", min: -10, max: 10, step: 0.01, unit: "m", group: "shape", fallback: 0.9 }),
+    field("defaultCapsule.center.z", { label: "Capsule Center Z", type: "number", min: -10, max: 10, step: 0.01, unit: "m", group: "shape", fallback: 0 }),
+    field("defaultPhysicsProfileId", { label: "Default Physics Profile", group: "binding", help: "可选：默认物理配置 ID。" }),
+    field("modelRootStableId", { label: "Model Root Stable ID", group: "binding", help: "主体模型的稳定标识；预览加载主体模型时优先使用。" }),
+    field("skeletonRootStableId", { label: "Skeleton Root Stable ID", group: "binding", help: "可选：骨架根稳定标识。" }),
+    field("locatorRootStableId", { label: "Locator Root Stable ID", group: "binding", help: "可选：Locator 根稳定标识。" })
+  ];
   if (kind === "animationSlot") return [
     field("animationGroupId", { label: "动画 Group", type: "select", options: animationGroupOptions("未选择"), group: "selection", help: "选择已编辑的动画组；资源字段保留为运行时预热引用。" }),
     field("resourceKey", { label: "动画资源", type: "select", options: animationResourceOptions("未选择"), group: "selection", picker: "resource", help: "通过资源选择器选择动画资源；不要手填未知 ResourceKey。" })
@@ -4510,6 +4568,9 @@ function commitInspectorField(target, input) {
   if (input.dataset.field === "usage") {
     renderResourceBindingBar();
     renderResourcePicker();
+  }
+  if (target.kind === "body" && input.dataset.field === "modelRootStableId") {
+    renderResourceBindingBar();
   }
   if (["animationSlot", "animationGroup", "animationClip", "animationBlendSpace", "animationBlendPoint"].includes(target.kind)) {
     renderAnimationConfigPanel();
