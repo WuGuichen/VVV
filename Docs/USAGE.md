@@ -2145,6 +2145,17 @@ var plannerSource = new RuntimeAiPlannerCharacterCommandSource(
 
 `combatActionId` / `gameplayAbilityId` 这类 action request 只在 action selection edge 或 reaction-delay 生效帧输出一次；后续最小决策间隔或 smoothing 复用同一 profile 时只输出 movement command。`moveSpeedScale` 不传时默认 `1`，显式传 `Fix64.Zero` 可以表达站定施法、原地防御或停步等待。
 
+Character Control Playable vertical slice 把上述模块收进一个 Unity 可操作入口：
+
+- 场景：`Assets/Scenes/CharacterControlPlayable.unity`
+- 场景生成菜单：`MxFramework/Character Control/Create Playable Scene`
+- Demo runtime：`Assets/Scripts/MxFramework/Demo/CharacterControl/CharacterControlPlayableDemo.cs`
+- Runtime slice：`Assets/Scripts/MxFramework/Demo/CharacterControl/CharacterControlPlayableSlice.cs`
+- UI Toolkit：`Assets/UI/MxFramework/CharacterControl/CharacterControlPlayableDemo.uxml` / `.uss`
+- 测试：`Assets/Scripts/MxFramework/Tests/Demo/CharacterControl/CharacterControlPlayableSliceTests.cs`
+
+操作入口同时覆盖本地输入和 Runtime AI Planner command source：WASD / arrow 移动，Space 跳跃，J / F 攻击，K / H 触发 posture break reaction，I / L 请求 Runtime AI Planner 指令，P 暂停，R 重置。UI 按钮走同一个 `RuntimeCommandBuffer`，不会直接改 Character Control 状态。
+
 移动 modifier / traction 通过 provider 注入，第一版只影响 `CombatMotionInput.MoveSpeedScale`：
 
 ```csharp
@@ -2177,8 +2188,9 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 - MxAnimation presentation adapter 只输出 `MxAnimationBlend1DRequest` / `MxAnimationBlend2DRequest` / `Play` / `CrossFade` 请求和 diagnostics；1D speed 使用水平输入幅度乘移动倍率，默认 airborne 时 locomotion 参数归零，缺失 reaction binding、fallback binding 或 backend reject 会记录 diagnostics 但不影响 Character Control authority。
 - Combat action started / finished / canceled 的动画表现仍由 `CombatMxAnimationUnityBridge` 负责；accepted、queued、rejected 和 gameplay-only action events 在 Character Control animation adapter 中只记录 skipped diagnostics。
 - Debug UI source 只读公开事件和组合根传入的 last command / motion result；不暴露可写命令，不进入 SaveState、Replay 或 Runtime hash。`FrameworkDebugSourceRegistry` 不拥有 source 生命周期，组合根必须释放 event-backed source。
+- Playable vertical slice 中 Unity `MonoBehaviour` 只做输入、UI Toolkit 和 Transform view 适配；权威 loop 仍由 `RuntimeHost`、`RuntimeCommandBuffer`、`CharacterMotionResolver`、`CharacterActionController`、`CharacterPressureReactionController`、`CharacterAnimationPresentationController` 和 `CharacterControlDebugSource` 推进。
 
-详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/`。
+详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/` 和 `Assets/Scripts/MxFramework/Tests/Demo/CharacterControl/`。
 
 ## 16. Audio 音频系统
 
