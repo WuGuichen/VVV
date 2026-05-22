@@ -366,7 +366,7 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
         }
 
         [Test]
-        public void LocomotionBlend_ScalesPlaybackSpeedBelowFirstMovePoint()
+        public void LocomotionBlend_DoesNotSlowPlaybackBelowFirstMovePoint()
         {
             var go = new GameObject("character");
             var idleClip = new AnimationClip { name = "Idle" };
@@ -427,10 +427,10 @@ namespace MxFramework.Tests.CharacterRuntimeSpawn
                 InvokeLateUpdate(locomotion);
 
                 Assert.AreEqual(400, locomotion.LastQuantizedBlendY);
-                Assert.AreEqual(0.4f, locomotion.PlaybackSpeedCompensation, 0.001f);
+                Assert.AreEqual(1f, locomotion.PlaybackSpeedCompensation, 0.001f);
                 MxAnimationDiagnosticSnapshot snapshot = locomotion.CreateAnimationSnapshot();
                 MxAnimationBlend2DWeight walkWeight = FindBlendWeight(snapshot, walkKey);
-                Assert.AreEqual(0.4f, walkWeight.PlaybackSpeed, 0.001f);
+                Assert.AreEqual(1f, walkWeight.PlaybackSpeed, 0.001f);
             }
             finally
             {

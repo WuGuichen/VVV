@@ -26,7 +26,6 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         [SerializeField] private float _fallbackBobRate = 7f;
         [SerializeField] private float _fallbackLeanDegrees = 4f;
         [SerializeField] private bool _enablePlaybackSpeedCompensation = true;
-        [SerializeField] private float _minPlaybackSpeedCompensation = 0.1f;
         [SerializeField] private float _maxPlaybackSpeedCompensation = 2.5f;
 
         private Vector3 _modelRootBaseLocalPosition;
@@ -385,8 +384,8 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             return Mathf.Clamp(
                 projected * calibration.InverseMagnitude,
-                Mathf.Max(0f, _minPlaybackSpeedCompensation),
-                Mathf.Max(_minPlaybackSpeedCompensation, _maxPlaybackSpeedCompensation));
+                1f,
+                Mathf.Max(1f, _maxPlaybackSpeedCompensation));
         }
 
         private BlendPointPlaybackCalibration FindDominantPlaybackCalibration(MxAnimationBlend2DWeights weights)
