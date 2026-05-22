@@ -340,6 +340,66 @@ namespace MxFramework.Animation
         public bool HasUnreachablePoints => _unreachablePoints.Count > 0;
     }
 
+    public sealed class MxAnimationLocomotionBlendProbeSnapshot
+    {
+        private readonly List<MxAnimationBlend2DWeight> _weights;
+
+        public MxAnimationLocomotionBlendProbeSnapshot(
+            string blendId,
+            MxAnimationBlend2DControllerDomain domain,
+            int sampleX,
+            int sampleY,
+            MxAnimationBlendReachabilityReport reachabilityReport,
+            IEnumerable<MxAnimationBlend2DWeight> weights,
+            bool weightsFromBackend)
+        {
+            BlendId = blendId ?? string.Empty;
+            Domain = domain;
+            SampleX = sampleX;
+            SampleY = sampleY;
+            ReachabilityReport = reachabilityReport;
+            WeightsFromBackend = weightsFromBackend;
+            _weights = weights != null
+                ? new List<MxAnimationBlend2DWeight>(weights)
+                : new List<MxAnimationBlend2DWeight>();
+            DominantClipKey = FindDominantClipKey(_weights, out float dominantWeight);
+            DominantWeight = dominantWeight;
+        }
+
+        public string BlendId { get; }
+        public MxAnimationBlend2DControllerDomain Domain { get; }
+        public int SampleX { get; }
+        public int SampleY { get; }
+        public MxAnimationBlendReachabilityReport ReachabilityReport { get; }
+        public IReadOnlyList<MxAnimationBlend2DWeight> Weights => _weights;
+        public bool WeightsFromBackend { get; }
+        public ResourceKey DominantClipKey { get; }
+        public float DominantWeight { get; }
+        public bool HasDominantClip => DominantWeight > 0f && DominantClipKey.IsValid;
+
+        private static ResourceKey FindDominantClipKey(
+            IReadOnlyList<MxAnimationBlend2DWeight> weights,
+            out float dominantWeight)
+        {
+            ResourceKey dominant = default;
+            dominantWeight = 0f;
+            if (weights == null)
+                return dominant;
+
+            for (int i = 0; i < weights.Count; i++)
+            {
+                MxAnimationBlend2DWeight weight = weights[i];
+                if (weight.Weight <= dominantWeight)
+                    continue;
+
+                dominantWeight = weight.Weight;
+                dominant = weight.ClipKey;
+            }
+
+            return dominant;
+        }
+    }
+
     public sealed class MxAnimationLocomotionCalibrationFrame
     {
         public MxAnimationLocomotionCalibrationFrame(

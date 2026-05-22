@@ -38,6 +38,7 @@ namespace MxFramework.CharacterRuntimeSpawn.DebugUI.Unity
             CharacterRuntimeLocomotionBlendController locomotion = ResolveLocomotion();
             sections.Add(new FrameworkDebugSection("Warmup", CreateWarmupSection(_bootstrap != null ? _bootstrap.AnimationWarmupResult : null)));
             sections.Add(new FrameworkDebugSection("Playback", CreatePlaybackSection(locomotion)));
+            sections.Add(new FrameworkDebugSection("Locomotion Blend Probe", CreateLocomotionBlendProbeSection(locomotion)));
 
             MxAnimationDiagnosticSnapshot animation = locomotion != null ? locomotion.CreateAnimationSnapshot() : null;
             sections.Add(new FrameworkDebugSection("Backend", CreateBackendSection(animation)));
@@ -125,6 +126,64 @@ namespace MxFramework.CharacterRuntimeSpawn.DebugUI.Unity
             builder.Append("lastResult: ").Append(result.Code).Append(" success=").Append(FormatBool(result.Success)).Append('\n');
             builder.Append("lastResultClip: ").Append(FormatKey(result.ClipKey)).Append('\n');
             builder.Append("lastResultMessage: ").Append(EmptyAsDash(result.Message));
+            return builder.ToString();
+        }
+
+        private static string CreateLocomotionBlendProbeSection(CharacterRuntimeLocomotionBlendController locomotion)
+        {
+            if (locomotion == null)
+                return "locomotionController: missing";
+
+            MxAnimationLocomotionBlendProbeSnapshot probe = locomotion.CreateLocomotionBlendProbeSnapshot();
+            if (probe == null)
+                return "probe: unavailable";
+
+            var builder = new StringBuilder();
+            builder.Append("blendId: ").Append(EmptyAsDash(probe.BlendId)).Append('\n');
+            builder.Append("domain: x=[").Append(probe.Domain.MinX).Append(',').Append(probe.Domain.MaxX)
+                .Append("] y=[").Append(probe.Domain.MinY).Append(',').Append(probe.Domain.MaxY).Append("]\n");
+            builder.Append("sample: ").Append(probe.SampleX).Append(", ").Append(probe.SampleY).Append('\n');
+            builder.Append("weightsFromBackend: ").Append(FormatBool(probe.WeightsFromBackend)).Append('\n');
+            builder.Append("dominant: ").Append(probe.HasDominantClip ? FormatKey(probe.DominantClipKey) : "-")
+                .Append(" weight=").Append(FormatFloat(probe.DominantWeight)).Append('\n');
+
+            MxAnimationBlendReachabilityReport reachability = probe.ReachabilityReport;
+            if (reachability == null)
+            {
+                builder.Append("reachability: unavailable");
+            }
+            else
+            {
+                builder.Append("reachablePoints: ").Append(reachability.ReachablePoints.Count).Append('\n');
+                builder.Append("unreachablePoints: ").Append(reachability.UnreachablePoints.Count);
+                for (int i = 0; i < reachability.Issues.Count; i++)
+                {
+                    MxAnimationBlendReachabilityIssue issue = reachability.Issues[i];
+                    builder.Append('\n')
+                        .Append("- ").Append(issue.Code)
+                        .Append(" key=").Append(FormatKey(issue.ClipKey))
+                        .Append(" point=(").Append(issue.X).Append(',').Append(issue.Y).Append(')')
+                        .Append(" message=").Append(EmptyAsDash(issue.Message));
+                }
+            }
+
+            builder.Append('\n').Append("weights:");
+            if (probe.Weights.Count == 0)
+            {
+                builder.Append(" none");
+            }
+            else
+            {
+                for (int i = 0; i < probe.Weights.Count; i++)
+                {
+                    MxAnimationBlend2DWeight weight = probe.Weights[i];
+                    builder.Append('\n')
+                        .Append("- ").Append(FormatKey(weight.ClipKey))
+                        .Append(" point=(").Append(weight.X).Append(',').Append(weight.Y).Append(')')
+                        .Append(" weight=").Append(FormatFloat(weight.Weight));
+                }
+            }
+
             return builder.ToString();
         }
 

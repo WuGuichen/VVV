@@ -147,6 +147,49 @@ namespace MxFramework.Tests.Animation
             Assert.That(summary, Does.Contain("playbackSpeed 1 -> 1.18"));
         }
 
+        [Test]
+        public void BlendProbeSnapshot_ReportsDominantClipAndReachability()
+        {
+            ResourceKey idle = ClipKey("demo.animation.idle");
+            ResourceKey run = ClipKey("demo.animation.run_f");
+            var report = new MxAnimationBlendReachabilityReport(
+                "blend.move2d",
+                new MxAnimationBlend2DControllerDomain(-1000, 1000, -1000, 1000),
+                new[] { new MxAnimationBlendReachabilityPoint(idle, 0, 0) },
+                new[] { new MxAnimationBlendReachabilityPoint(run, 0, 2000) },
+                new[]
+                {
+                    new MxAnimationBlendReachabilityIssue(
+                        MxAnimationLocomotionCalibrationIssueCodes.BlendUnreachablePoint,
+                        run,
+                        0,
+                        2000,
+                        "outside")
+                });
+
+            var probe = new MxAnimationLocomotionBlendProbeSnapshot(
+                "blend.move2d",
+                report.Domain,
+                0,
+                500,
+                report,
+                new[]
+                {
+                    new MxAnimationBlend2DWeight(idle, 0, 0, 0.25f, 1f, true),
+                    new MxAnimationBlend2DWeight(run, 0, 2000, 0.75f, 1f, true)
+                },
+                weightsFromBackend: true);
+
+            Assert.AreEqual("blend.move2d", probe.BlendId);
+            Assert.AreEqual(0, probe.SampleX);
+            Assert.AreEqual(500, probe.SampleY);
+            Assert.IsTrue(probe.WeightsFromBackend);
+            Assert.IsTrue(probe.HasDominantClip);
+            Assert.AreEqual(run, probe.DominantClipKey);
+            Assert.AreEqual(0.75f, probe.DominantWeight, 0.0001f);
+            Assert.IsTrue(probe.ReachabilityReport.HasUnreachablePoints);
+        }
+
         private static ResourceKey ClipKey(string id)
         {
             return new ResourceKey(id, ResourceTypeIds.AnimationClip);
