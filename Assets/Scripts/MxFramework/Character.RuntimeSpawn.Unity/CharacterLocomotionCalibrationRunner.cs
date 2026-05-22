@@ -687,6 +687,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 text = text
             };
+            button.focusable = false;
             button.style.height = 28f;
             button.style.width = 116f;
             button.style.marginRight = 5f;
@@ -758,6 +759,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             {
                 text = text
             };
+            button.focusable = false;
             button.style.width = 38f;
             button.style.height = 28f;
             button.style.marginRight = 3f;
@@ -1196,6 +1198,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private static void StyleControl(VisualElement element)
         {
+            element.focusable = false;
             element.style.color = new Color(0.88f, 0.94f, 1f, 1f);
             element.style.fontSize = 11f;
             element.style.marginRight = 8f;
@@ -1204,6 +1207,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
         private static void StyleSlider(Slider slider)
         {
+            slider.focusable = false;
             slider.style.color = new Color(0.88f, 0.94f, 1f, 1f);
             slider.style.fontSize = 11f;
             slider.style.height = 28f;
