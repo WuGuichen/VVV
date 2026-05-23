@@ -1207,7 +1207,7 @@ Debug 是否能解释动作选择、拒绝、命中、打断和完成。
 
 ### Phase 1：Contract foundation（已完成）
 
-Issue #400-#403 已完成 Phase 1 noEngine 数据契约和测试：
+Issue #400-#404 已完成 Phase 1 noEngine 数据契约、测试和契约文档收口：
 
 - `CharacterReactionContext`、PressureOnly builders、reaction profile/rule selection，以及 incomplete hit context 的稳定 diagnostics。
 - `CharacterActionConfig`、`CharacterActionSetConfig`、movement profile、phase、cancel/interrupt、intent request、resolve result、plan 和 track DTO contracts。
