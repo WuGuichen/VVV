@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.51 | 2026-05-23
+> 版本 0.6.52 | 2026-05-23
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -235,6 +235,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.52 | 2026-05-23 | 新增 Character Gameplay Runtime foundation：角色包可生成 Gameplay component spawn definition，并通过 noEngine runtime bootstrap / live entity registry 创建真实 `GameplayEntityId` |
 | 0.6.51 | 2026-05-23 | 新增 ADR-003 角色 Gameplay Runtime Bootstrap 设计记录，明确 `GameplayComponentWorld` 作为角色权威状态、Unity prefab 作为 view、Combat / Character Control / Animation / Debug UI 的桥接边界 |
 | 0.6.50 | 2026-05-18 | 完成 Character Control playable vertical slice：在 `CombatAnimationPhysicsTest` 中串起 Local Input、Runtime AI Planner、state/motion/action、pressure reaction、MxAnimation 和 Debug UI，并补充 Showcase 回归测试 |
 | 0.6.49 | 2026-05-18 | 扩展 Character Control v0.5：新增 Phase 13 Debug UI source，输出状态、last command、motion、action、pressure band 和 recent events 只读快照 |
