@@ -286,9 +286,22 @@ namespace MxFramework.Editor.CharacterImport
             EnsureRuntimeSceneFolders();
 
             Scene previousActiveScene = SceneManager.GetActiveScene();
-            Scene scene = sceneAsset != null
-                ? EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive)
-                : EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            bool closeSceneAfterSync = false;
+            Scene scene;
+            if (sceneAsset != null)
+            {
+                scene = SceneManager.GetSceneByPath(scenePath);
+                if (!scene.IsValid() || !scene.isLoaded)
+                {
+                    scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+                    closeSceneAfterSync = true;
+                }
+            }
+            else
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                closeSceneAfterSync = true;
+            }
             try
             {
                 EditorSceneManager.SetActiveScene(scene);
@@ -338,7 +351,7 @@ namespace MxFramework.Editor.CharacterImport
             {
                 if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
                     EditorSceneManager.SetActiveScene(previousActiveScene);
-                if (scene.IsValid())
+                if (closeSceneAfterSync && scene.IsValid() && scene.isLoaded)
                     EditorSceneManager.CloseScene(scene, true);
             }
         }

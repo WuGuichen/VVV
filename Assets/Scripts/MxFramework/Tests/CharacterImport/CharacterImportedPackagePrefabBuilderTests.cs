@@ -9,7 +9,9 @@ using MxFramework.Editor.CharacterImport;
 using MxFramework.Resources;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace MxFramework.Tests.CharacterImport
 {
@@ -294,6 +296,52 @@ namespace MxFramework.Tests.CharacterImport
             }
         }
 
+        [Test]
+        public void SynchronizeRuntimeScene_KeepsAlreadyOpenSceneLoaded()
+        {
+            EnsureTempRoot();
+            string prefabPath = CreatePrefabAsset(TempRoot + "/prefabs/test_package_character_preview.prefab");
+            string clipPath = CreateAnimationClipAsset(AssetRoot + "/standing_run_right.anim", "standing_run_right");
+            WriteAnimationSetDefinition();
+            WriteAnimationClipRegistry(new AnimationRegistryEntry(
+                "set.base",
+                "group.locomotion",
+                "run.r",
+                "standing_run_right",
+                "art.character.skeleton.animation.standing_run_right",
+                clipPath));
+
+            CharacterImportedPackage package = CreatePackage();
+            string scenePath = TempRoot + "/runtime_entry_sync_test.unity";
+            Scene previousActiveScene = SceneManager.GetActiveScene();
+            Scene openScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            try
+            {
+                Assert.IsTrue(EditorSceneManager.SaveScene(openScene, scenePath));
+                if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
+                    EditorSceneManager.SetActiveScene(previousActiveScene);
+
+                Scene sceneBeforeSync = SceneManager.GetSceneByPath(scenePath);
+                Assert.IsTrue(sceneBeforeSync.IsValid());
+                Assert.IsTrue(sceneBeforeSync.isLoaded);
+
+                InvokeSynchronizeRuntimeScene(TempRoot, package, prefabPath, scenePath, ensureCalibrationRunner: false);
+
+                Scene sceneAfterSync = SceneManager.GetSceneByPath(scenePath);
+                Assert.IsTrue(sceneAfterSync.IsValid());
+                Assert.IsTrue(sceneAfterSync.isLoaded);
+            }
+            finally
+            {
+                if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
+                    EditorSceneManager.SetActiveScene(previousActiveScene);
+
+                Scene sceneToClose = SceneManager.GetSceneByPath(scenePath);
+                if (sceneToClose.IsValid() && sceneToClose.isLoaded)
+                    EditorSceneManager.CloseScene(sceneToClose, true);
+            }
+        }
+
         private static IDictionary InvokeReadResourcePreviewInfos(CharacterImportedPackage package)
         {
             MethodInfo method = BuilderType.GetMethod("ReadResourcePreviewInfos", BindingFlags.NonPublic | BindingFlags.Static);
@@ -326,6 +374,18 @@ namespace MxFramework.Tests.CharacterImport
             MethodInfo method = BuilderType.GetMethod("ConfigureRuntimeResourceBootstrap", BindingFlags.NonPublic | BindingFlags.Static);
             Assert.IsNotNull(method);
             method.Invoke(null, new object[] { bootstrap, importedPackageRoot, package, characterPrefabPath });
+        }
+
+        private static void InvokeSynchronizeRuntimeScene(
+            string importedPackageRoot,
+            CharacterImportedPackage package,
+            string prefabPath,
+            string scenePath,
+            bool ensureCalibrationRunner)
+        {
+            MethodInfo method = BuilderType.GetMethod("SynchronizeRuntimeScene", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method);
+            method.Invoke(null, new object[] { importedPackageRoot, package, prefabPath, scenePath, ensureCalibrationRunner });
         }
 
         private static T ReadProperty<T>(object obj, string property)
