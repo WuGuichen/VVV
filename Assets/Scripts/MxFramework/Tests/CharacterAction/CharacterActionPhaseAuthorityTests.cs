@@ -64,6 +64,43 @@ namespace MxFramework.Tests.CharacterAction
             Assert.AreEqual(0, issues.Length);
         }
 
+        [Test]
+        public void PhaseOverlapGapAndRangeOutsideDuration_ReturnStableDiagnosticCodes()
+        {
+            CharacterActionValidationIssue[] overlapIssues = CharacterActionPhaseValidator.Validate(
+                CharacterActionTimelineAuthority.CharacterAuthored,
+                new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 3),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 3, 6),
+                },
+                combatTimeline: null,
+                durationFrames: 10);
+            CharacterActionValidationIssue[] gapIssues = CharacterActionPhaseValidator.Validate(
+                CharacterActionTimelineAuthority.CharacterAuthored,
+                new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 2),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 4, 6),
+                },
+                combatTimeline: null,
+                durationFrames: 10);
+            CharacterActionValidationIssue[] rangeIssues = CharacterActionPhaseValidator.Validate(
+                CharacterActionTimelineAuthority.CharacterAuthored,
+                new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 3),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 4, 6),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Recovery, 7, 10),
+                },
+                combatTimeline: null,
+                durationFrames: 10);
+
+            Assert.AreEqual(CharacterActionDiagnostics.PhaseOverlap, overlapIssues[0].Code);
+            Assert.AreEqual(CharacterActionDiagnostics.PhaseGap, gapIssues[0].Code);
+            Assert.AreEqual(CharacterActionDiagnostics.PhaseRangeOutsideDuration, rangeIssues[0].Code);
+        }
+
         private static CombatActionTimeline CreateTimeline()
         {
             return new CombatActionTimeline(

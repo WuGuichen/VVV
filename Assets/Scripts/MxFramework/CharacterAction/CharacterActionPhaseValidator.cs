@@ -53,7 +53,8 @@ namespace MxFramework.CharacterAction
         public static CharacterActionValidationIssue[] Validate(
             CharacterActionTimelineAuthority authority,
             IReadOnlyList<CharacterActionPhase> phases,
-            CombatActionTimeline combatTimeline)
+            CombatActionTimeline combatTimeline,
+            int? durationFrames = null)
         {
             if (phases == null)
             {
@@ -61,6 +62,8 @@ namespace MxFramework.CharacterAction
             }
 
             var issues = new List<CharacterActionValidationIssue>();
+            ValidateTimelineShape(phases, durationFrames, issues);
+
             if (authority != CharacterActionTimelineAuthority.CombatAnchored)
             {
                 return issues.ToArray();
@@ -96,6 +99,67 @@ namespace MxFramework.CharacterAction
             return issues.ToArray();
         }
 
+        private static void ValidateTimelineShape(
+            IReadOnlyList<CharacterActionPhase> phases,
+            int? durationFrames,
+            List<CharacterActionValidationIssue> issues)
+        {
+            if (phases.Count == 0)
+                return;
+
+            var ordered = new List<IndexedPhase>(phases.Count);
+            for (int i = 0; i < phases.Count; i++)
+            {
+                CharacterActionPhase phase = phases[i];
+                ordered.Add(new IndexedPhase(i, phase));
+                if (durationFrames.HasValue && phase.EndFrame >= durationFrames.Value)
+                {
+                    issues.Add(new CharacterActionValidationIssue(
+                        CharacterActionDiagnosticCodes.PhaseRangeOutsideDuration,
+                        i,
+                        phase.Kind,
+                        "Character action phase range must be within action duration."));
+                }
+            }
+
+            ordered.Sort(CompareIndexedPhases);
+            int expectedStart = 0;
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                IndexedPhase current = ordered[i];
+                if (current.Phase.StartFrame < expectedStart)
+                {
+                    issues.Add(new CharacterActionValidationIssue(
+                        CharacterActionDiagnosticCodes.PhaseOverlap,
+                        current.Index,
+                        current.Phase.Kind,
+                        "Character action phases must not overlap."));
+                }
+                else if (current.Phase.StartFrame > expectedStart)
+                {
+                    issues.Add(new CharacterActionValidationIssue(
+                        CharacterActionDiagnosticCodes.PhaseGap,
+                        current.Index,
+                        current.Phase.Kind,
+                        "Character action phases must not leave frame gaps."));
+                }
+
+                if (current.Phase.EndFrame + 1 > expectedStart)
+                    expectedStart = current.Phase.EndFrame + 1;
+            }
+        }
+
+        private static int CompareIndexedPhases(IndexedPhase left, IndexedPhase right)
+        {
+            int compare = left.Phase.StartFrame.CompareTo(right.Phase.StartFrame);
+            if (compare != 0)
+                return compare;
+            compare = left.Phase.EndFrame.CompareTo(right.Phase.EndFrame);
+            if (compare != 0)
+                return compare;
+            return left.Index.CompareTo(right.Index);
+        }
+
         private static bool RequiresCombatAnchor(CharacterActionPhaseKind kind)
         {
             return kind != CharacterActionPhaseKind.None;
@@ -121,6 +185,18 @@ namespace MxFramework.CharacterAction
             return (kind == CharacterActionPhaseKind.Startup && anchor == CombatActionPhase.Startup)
                 || (kind == CharacterActionPhaseKind.Active && anchor == CombatActionPhase.Active)
                 || (kind == CharacterActionPhaseKind.Recovery && anchor == CombatActionPhase.Recovery);
+        }
+
+        private readonly struct IndexedPhase
+        {
+            public IndexedPhase(int index, CharacterActionPhase phase)
+            {
+                Index = index;
+                Phase = phase;
+            }
+
+            public int Index { get; }
+            public CharacterActionPhase Phase { get; }
         }
     }
 }

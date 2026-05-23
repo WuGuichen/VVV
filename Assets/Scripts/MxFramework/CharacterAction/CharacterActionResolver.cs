@@ -610,9 +610,24 @@ namespace MxFramework.CharacterAction
 
                 string code = diagnostics[i].Code;
                 if (code == CharacterActionDiagnosticCodes.PhaseCombatAnchorMissing
-                    || code == CharacterActionDiagnosticCodes.PhaseCombatRangeMismatch)
+                    || code == CharacterActionDiagnosticCodes.PhaseCombatRangeMismatch
+                    || code == CharacterActionDiagnosticCodes.PhaseOverlap
+                    || code == CharacterActionDiagnosticCodes.PhaseGap
+                    || code == CharacterActionDiagnosticCodes.PhaseRangeOutsideDuration
+                    || code == CharacterActionDiagnosticCodes.CombatTraceOutsideActivePhase
+                    || code == CharacterActionDiagnosticCodes.TrackEventOutsideDuration)
                 {
                     return CharacterActionRejectReason.PhaseAnchorInvalid;
+                }
+
+                if (code == CharacterActionDiagnosticCodes.InvalidCancelWindow
+                    || code == CharacterActionDiagnosticCodes.CancelTargetMissing
+                    || code == CharacterActionDiagnosticCodes.InterruptTargetMissing
+                    || code == CharacterActionDiagnosticCodes.CharacterCancelRejected
+                    || code == CharacterActionDiagnosticCodes.CombatCancelRejected
+                    || code == CharacterActionDiagnosticCodes.CharacterCombatCancelConflict)
+                {
+                    return CharacterActionRejectReason.CancelConflict;
                 }
 
                 if (code == CharacterActionDiagnosticCodes.CombatActionMissing)

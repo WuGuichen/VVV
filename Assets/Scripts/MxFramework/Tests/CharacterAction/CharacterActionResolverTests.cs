@@ -582,6 +582,57 @@ namespace MxFramework.Tests.CharacterAction
             AssertHasDiagnostic(diagnostics, CharacterActionDiagnosticCodes.PresentationResourceMissing);
         }
 
+        [Test]
+        public void ValidationHelpers_RejectCancelWindowInsideNonCancelablePhase()
+        {
+            CharacterActionConfig action = CreateTimelineValidationAction(
+                cancelRules: new[]
+                {
+                    new CharacterCancelRule(0, 2, targetActionId: 2002),
+                });
+
+            CharacterActionDiagnostic[] diagnostics = CharacterActionValidation.ValidateActionConfig(action);
+
+            AssertHasDiagnostic(diagnostics, CharacterActionDiagnosticCodes.InvalidCancelWindow);
+        }
+
+        [Test]
+        public void ValidationHelpers_RejectCombatTraceOutsideDurationOrActivePhase()
+        {
+            CharacterActionConfig action = CreateTimelineValidationAction(
+                combatTrack: new CombatTrackConfig("1001", new[]
+                {
+                    new CombatTrackEvent(2, CharacterActionTrackEventKind.StartHitTrace, traceProfileId: "trace.light"),
+                    new CombatTrackEvent(12, CharacterActionTrackEventKind.StopHitTrace, traceProfileId: "trace.light"),
+                }));
+
+            CharacterActionDiagnostic[] diagnostics = CharacterActionValidation.ValidateActionConfig(action);
+
+            AssertHasDiagnostic(diagnostics, CharacterActionDiagnosticCodes.CombatTraceOutsideActivePhase);
+            AssertHasDiagnostic(diagnostics, CharacterActionDiagnosticCodes.TrackEventOutsideDuration);
+        }
+
+        [Test]
+        public void ValidationHelpers_RejectMissingCancelAndInterruptTargets()
+        {
+            CharacterActionConfig action = CreateTimelineValidationAction(
+                cancelRules: new[]
+                {
+                    new CharacterCancelRule(4, 6, targetActionId: 2002),
+                },
+                interruptRules: new[]
+                {
+                    new CharacterInterruptRule(CharacterActionSourceKind.Command, targetActionId: 3003),
+                });
+
+            CharacterActionDiagnostic[] diagnostics = CharacterActionValidation.ValidateActionSet(
+                CreateActionSet(),
+                new[] { action });
+
+            AssertHasDiagnostic(diagnostics, CharacterActionDiagnosticCodes.CancelTargetMissing);
+            AssertHasDiagnostic(diagnostics, CharacterActionDiagnosticCodes.InterruptTargetMissing);
+        }
+
         private static CharacterActionResolverContext CreateContext(
             CharacterActionConfig[] actions,
             CharacterReactionProfile[] reactionProfiles = null,
@@ -729,6 +780,32 @@ namespace MxFramework.Tests.CharacterAction
                 combatTrack: new CombatTrackConfig("1001", null),
                 animationTrack: animationTrack,
                 presentationTrack: presentationTrack);
+        }
+
+        private static CharacterActionConfig CreateTimelineValidationAction(
+            CharacterCancelRule[] cancelRules = null,
+            CharacterInterruptRule[] interruptRules = null,
+            CombatTrackConfig combatTrack = null)
+        {
+            return new CharacterActionConfig(
+                id: 100,
+                stableId: "light_attack",
+                displayName: "Light Attack",
+                category: CharacterActionCategory.BasicAttack,
+                timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
+                tags: null,
+                priority: 10,
+                durationFrames: 12,
+                requirements: null,
+                phases: new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 3),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 4, 7),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Recovery, 8, 11),
+                },
+                cancelRules: cancelRules,
+                interruptRules: interruptRules,
+                combatTrack: combatTrack ?? new CombatTrackConfig("1001", null));
         }
 
         private static CombatActionTimeline CreateCombatTimeline(int actionId, int cancelTargetActionId)
