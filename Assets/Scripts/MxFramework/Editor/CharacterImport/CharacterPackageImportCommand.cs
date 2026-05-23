@@ -151,7 +151,12 @@ namespace MxFramework.Editor.CharacterImport
                 if (process.ExitCode == 0)
                 {
                     EditorPrefs.SetString(LastPackagePreferenceKey, packagePath);
-                    RefreshImportedAssets(packagePath, generatedRoot);
+                    if (!RefreshImportedAssets(packagePath, generatedRoot))
+                    {
+                        UnityEngine.Debug.LogError("MxFramework Character Import: runtime preview entry-point sync failed for " + packagePath);
+                        return 3;
+                    }
+
                     UnityEngine.Debug.Log("MxFramework Character Import: completed for " + packagePath);
                 }
                 else
@@ -215,16 +220,21 @@ namespace MxFramework.Editor.CharacterImport
             return string.IsNullOrWhiteSpace(parent) ? packagePath : parent;
         }
 
-        private static void RefreshImportedAssets(string packagePath, string generatedRoot)
+        private static bool RefreshImportedAssets(string packagePath, string generatedRoot)
         {
             string packageId = ReadPackageId(packagePath);
             if (string.IsNullOrWhiteSpace(packageId))
-                return;
+            {
+                UnityEngine.Debug.LogError("MxFramework Character Import: package manifest is missing packageId; runtime entry points were not synchronized.");
+                return false;
+            }
 
             string importedRoot = NormalizeProjectPath(generatedRoot.TrimEnd('/', '\\') + "/" + packageId);
             AssetDatabase.ImportAsset(importedRoot, ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
             CharacterUnityResourceCatalogUpdater.RefreshCatalog(importedRoot);
             AssetDatabase.Refresh();
+            string prefabPath = CharacterImportedPackagePrefabBuilder.SynchronizeRuntimeEntryPoints(importedRoot, selectPrefab: false);
+            return !string.IsNullOrWhiteSpace(prefabPath);
         }
 
         private static string ReadPackageId(string packagePath)

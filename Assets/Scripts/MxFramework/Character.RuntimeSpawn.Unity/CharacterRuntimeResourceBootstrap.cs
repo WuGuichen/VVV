@@ -303,7 +303,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             Debug.LogWarning(
                 "MxFramework Character: runtime animation bootstrap snapshot is stale. "
                 + "The clip registry references animation resources that are missing from CharacterRuntimeResourceBootstrap._resources. "
-                + "Recreate the preview prefab or locomotion calibration scene. Missing="
+                + "Reimport the character package or run the Sync Runtime Entry Points menu. Missing="
                 + string.Join(", ", missing),
                 this);
         }

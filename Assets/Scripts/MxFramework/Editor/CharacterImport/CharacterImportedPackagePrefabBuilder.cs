@@ -41,72 +41,69 @@ namespace MxFramework.Editor.CharacterImport
         [MenuItem("MxFramework/Character/Create Preview Prefab From Imported Package...", priority = 221)]
         public static void CreatePreviewPrefabFromFolder()
         {
-            string root = EditorUtility.OpenFolderPanel("选择已导入的 Character Package", Path.GetFullPath("Assets/MxFrameworkGenerated/CharacterPackages"), string.Empty);
+            string root = PromptForImportedPackageRoot();
             if (string.IsNullOrWhiteSpace(root))
                 return;
 
-            BuildPrefab(ToProjectRelativePath(root), selectPrefab: true);
+            BuildPrefab(root, selectPrefab: true);
         }
 
         [MenuItem("MxFramework/Character/Create Preview Scene For Iron Vanguard", priority = 222)]
         public static void CreateDefaultPreviewScene()
         {
-            string prefabPath = BuildPrefab(DefaultImportedPackageRoot, selectPrefab: false);
-            if (string.IsNullOrWhiteSpace(prefabPath))
-                return;
-
-            EnsureFolder("Assets", "Scenes");
-            EnsureFolder("Assets/Scenes", "MxFramework");
-
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            RenderSettings.ambientLight = new Color(0.58f, 0.6f, 0.64f);
-            CreatePreviewCamera();
-            CreatePreviewLight();
-            CreatePreviewFloor();
-
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-            if (prefab != null)
-            {
-                GameObject loader = CreateRuntimeResourceBootstrap(prefab, prefabPath);
-                Selection.activeGameObject = loader;
-            }
-
-            EditorSceneManager.SaveScene(scene, PreviewScenePath);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Debug.Log("MxFramework Character preview scene created: " + PreviewScenePath);
+            CreateOrOverwriteRuntimeScene(
+                DefaultImportedPackageRoot,
+                PreviewScenePath,
+                ensureCalibrationRunner: false,
+                newSceneMode: NewSceneMode.Single,
+                selectLoader: true);
         }
 
         [MenuItem("MxFramework/Character/Create Locomotion Calibration Scene For Iron Vanguard", priority = 223)]
         public static void CreateDefaultLocomotionCalibrationScene()
         {
-            string prefabPath = BuildPrefab(DefaultImportedPackageRoot, selectPrefab: false);
-            if (string.IsNullOrWhiteSpace(prefabPath))
+            CreateOrOverwriteRuntimeScene(
+                DefaultImportedPackageRoot,
+                CalibrationScenePath,
+                ensureCalibrationRunner: true,
+                newSceneMode: NewSceneMode.Single,
+                selectLoader: true);
+        }
+
+        [MenuItem("MxFramework/Character/Sync Runtime Entry Points For Iron Vanguard", priority = 224)]
+        public static void SyncDefaultRuntimeEntryPoints()
+        {
+            SynchronizeRuntimeEntryPoints(DefaultImportedPackageRoot, selectPrefab: true);
+        }
+
+        [MenuItem("MxFramework/Character/Sync Runtime Entry Points From Imported Package...", priority = 225)]
+        public static void SyncRuntimeEntryPointsFromFolder()
+        {
+            string root = PromptForImportedPackageRoot();
+            if (string.IsNullOrWhiteSpace(root))
                 return;
 
-            EnsureFolder("Assets", "Scenes");
-            EnsureFolder("Assets/Scenes", "MxFramework");
+            SynchronizeRuntimeEntryPoints(root, selectPrefab: true);
+        }
 
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            RenderSettings.ambientLight = new Color(0.58f, 0.6f, 0.64f);
-            CreatePreviewCamera();
-            CreatePreviewLight();
-            CreatePreviewFloor();
+        public static string SynchronizeRuntimeEntryPoints(string importedPackageRoot, bool selectPrefab)
+        {
+            string root = NormalizeProjectPath(importedPackageRoot);
+            string prefabPath = BuildPrefab(root, selectPrefab);
+            if (string.IsNullOrWhiteSpace(prefabPath))
+                return string.Empty;
 
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-            if (prefab != null)
-            {
-                GameObject loader = CreateRuntimeResourceBootstrap(prefab, prefabPath);
-                loader.name = "CharacterLocomotionCalibrationRunner";
-                CharacterLocomotionCalibrationRunner runner = loader.AddComponent<CharacterLocomotionCalibrationRunner>();
-                ConfigureLocomotionCalibrationRunner(runner, loader.GetComponent<CharacterRuntimeResourceBootstrap>());
-                Selection.activeGameObject = loader;
-            }
+            CharacterImportedPackage package = LoadImportedPackage(root, "runtime entry-point sync");
+            if (package == null)
+                return string.Empty;
 
-            EditorSceneManager.SaveScene(scene, CalibrationScenePath);
+            SynchronizeRuntimeScene(root, package, prefabPath, PreviewScenePath, ensureCalibrationRunner: false);
+            SynchronizeRuntimeScene(root, package, prefabPath, CalibrationScenePath, ensureCalibrationRunner: true);
+
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("MxFramework Character locomotion calibration scene created: " + CalibrationScenePath);
+            Debug.Log("MxFramework Character runtime entry points synchronized: " + root);
+            return prefabPath;
         }
 
         public static string BuildPrefab(string importedPackageRoot, bool selectPrefab)
@@ -198,6 +195,189 @@ namespace MxFramework.Editor.CharacterImport
             {
                 UnityEngine.Object.DestroyImmediate(rootObject);
             }
+        }
+
+        private static string PromptForImportedPackageRoot()
+        {
+            string root = EditorUtility.OpenFolderPanel(
+                "选择已导入的 Character Package",
+                Path.GetFullPath("Assets/MxFrameworkGenerated/CharacterPackages"),
+                string.Empty);
+            return string.IsNullOrWhiteSpace(root) ? string.Empty : ToProjectRelativePath(root);
+        }
+
+        private static CharacterImportedPackage LoadImportedPackage(string importedPackageRoot, string operation)
+        {
+            string root = NormalizeProjectPath(importedPackageRoot);
+            try
+            {
+                return CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(root));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("MxFramework Character Preview: failed to load imported package during " + operation + ". root="
+                    + root + " error=" + ex.Message);
+                return null;
+            }
+        }
+
+        private static void CreateOrOverwriteRuntimeScene(
+            string importedPackageRoot,
+            string scenePath,
+            bool ensureCalibrationRunner,
+            NewSceneMode newSceneMode,
+            bool selectLoader)
+        {
+            string root = NormalizeProjectPath(importedPackageRoot);
+            string prefabPath = BuildPrefab(root, selectPrefab: false);
+            if (string.IsNullOrWhiteSpace(prefabPath))
+                return;
+
+            CharacterImportedPackage package = LoadImportedPackage(root, "runtime scene creation");
+            if (package == null)
+                return;
+
+            EnsureRuntimeSceneFolders();
+
+            Scene previousActiveScene = SceneManager.GetActiveScene();
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, newSceneMode);
+            try
+            {
+                EditorSceneManager.SetActiveScene(scene);
+                InitializeRuntimeEntryScene();
+
+                GameObject loader = CreateRuntimeResourceBootstrap(root, package, prefabPath);
+                if (ensureCalibrationRunner)
+                {
+                    loader.name = "CharacterLocomotionCalibrationRunner";
+                    EnsureLocomotionCalibrationRunner(loader, loader.GetComponent<CharacterRuntimeResourceBootstrap>());
+                }
+
+                if (selectLoader)
+                    Selection.activeGameObject = loader;
+
+                EditorSceneManager.SaveScene(scene, scenePath);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                Debug.Log("MxFramework Character runtime scene created: " + scenePath);
+            }
+            finally
+            {
+                if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
+                    EditorSceneManager.SetActiveScene(previousActiveScene);
+            }
+        }
+
+        private static void SynchronizeRuntimeScene(
+            string importedPackageRoot,
+            CharacterImportedPackage package,
+            string prefabPath,
+            string scenePath,
+            bool ensureCalibrationRunner)
+        {
+            if (package == null)
+                return;
+
+            bool allowCreate = IsDefaultImportedPackageRoot(importedPackageRoot);
+            SceneAsset sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath);
+            if (sceneAsset == null && !allowCreate)
+                return;
+
+            EnsureRuntimeSceneFolders();
+
+            Scene previousActiveScene = SceneManager.GetActiveScene();
+            Scene scene = sceneAsset != null
+                ? EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive)
+                : EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            try
+            {
+                EditorSceneManager.SetActiveScene(scene);
+                if (sceneAsset == null)
+                    InitializeRuntimeEntryScene();
+
+                CharacterRuntimeResourceBootstrap bootstrap = FindRuntimeResourceBootstrap(scene);
+                if (bootstrap != null
+                    && !string.IsNullOrWhiteSpace(bootstrap.PackageId)
+                    && !string.Equals(bootstrap.PackageId, package.PackageId, StringComparison.Ordinal))
+                {
+                    Debug.Log("MxFramework Character runtime sync skipped for scene " + scenePath
+                        + " because it is bound to package " + bootstrap.PackageId + " instead of " + package.PackageId + ".");
+                    return;
+                }
+
+                if (bootstrap == null)
+                {
+                    GameObject loader = CreateRuntimeResourceBootstrap(importedPackageRoot, package, prefabPath);
+                    if (ensureCalibrationRunner)
+                    {
+                        loader.name = "CharacterLocomotionCalibrationRunner";
+                        EnsureLocomotionCalibrationRunner(loader, loader.GetComponent<CharacterRuntimeResourceBootstrap>());
+                    }
+
+                    bootstrap = loader.GetComponent<CharacterRuntimeResourceBootstrap>();
+                }
+                else
+                {
+                    ConfigureRuntimeResourceBootstrap(bootstrap, importedPackageRoot, package, prefabPath);
+                    if (ensureCalibrationRunner)
+                    {
+                        bootstrap.gameObject.name = "CharacterLocomotionCalibrationRunner";
+                        EnsureLocomotionCalibrationRunner(bootstrap.gameObject, bootstrap);
+                    }
+                    else if (string.Equals(bootstrap.gameObject.name, "CharacterLocomotionCalibrationRunner", StringComparison.Ordinal))
+                    {
+                        bootstrap.gameObject.name = "CharacterRuntimeResourceBootstrap";
+                    }
+                }
+
+                EditorUtility.SetDirty(bootstrap);
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene, scenePath);
+            }
+            finally
+            {
+                if (previousActiveScene.IsValid() && previousActiveScene.isLoaded)
+                    EditorSceneManager.SetActiveScene(previousActiveScene);
+                if (scene.IsValid())
+                    EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        private static void EnsureRuntimeSceneFolders()
+        {
+            EnsureFolder("Assets", "Scenes");
+            EnsureFolder("Assets/Scenes", "MxFramework");
+        }
+
+        private static void InitializeRuntimeEntryScene()
+        {
+            RenderSettings.ambientLight = new Color(0.58f, 0.6f, 0.64f);
+            CreatePreviewCamera();
+            CreatePreviewLight();
+            CreatePreviewFloor();
+        }
+
+        private static bool IsDefaultImportedPackageRoot(string importedPackageRoot)
+        {
+            string root = NormalizeProjectPath(importedPackageRoot).TrimEnd('/');
+            return string.Equals(root, DefaultImportedPackageRoot, StringComparison.Ordinal);
+        }
+
+        private static CharacterRuntimeResourceBootstrap FindRuntimeResourceBootstrap(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded)
+                return null;
+
+            GameObject[] rootObjects = scene.GetRootGameObjects();
+            for (int i = 0; i < rootObjects.Length; i++)
+            {
+                CharacterRuntimeResourceBootstrap bootstrap =
+                    rootObjects[i].GetComponentInChildren<CharacterRuntimeResourceBootstrap>(includeInactive: true);
+                if (bootstrap != null)
+                    return bootstrap;
+            }
+
+            return null;
         }
 
         private static Transform CreateBodyModel(CharacterImportedPackage package, Dictionary<string, ResourcePreviewInfo> resources, Transform parent)
@@ -569,14 +749,31 @@ namespace MxFramework.Editor.CharacterImport
                 : Path.GetFileName(normalized);
         }
 
-        private static GameObject CreateRuntimeResourceBootstrap(GameObject characterPrefab, string characterPrefabPath)
+        private static GameObject CreateRuntimeResourceBootstrap(
+            string importedPackageRoot,
+            CharacterImportedPackage package,
+            string characterPrefabPath)
         {
             var loader = new GameObject("CharacterRuntimeResourceBootstrap");
             var bootstrap = loader.AddComponent<CharacterRuntimeResourceBootstrap>();
-            Component debugPanel = AddRuntimeAnimationDebugPanel(loader);
-            Component debugOverlay = debugPanel != null ? AddDebugUiOverlayController(loader) : null;
-            CharacterImportedPackage package = CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(DefaultImportedPackageRoot));
+            ConfigureRuntimeResourceBootstrap(bootstrap, importedPackageRoot, package, characterPrefabPath);
+            return loader;
+        }
+
+        private static void ConfigureRuntimeResourceBootstrap(
+            CharacterRuntimeResourceBootstrap bootstrap,
+            string importedPackageRoot,
+            CharacterImportedPackage package,
+            string characterPrefabPath)
+        {
+            if (bootstrap == null || package == null)
+                return;
+
+            string root = NormalizeProjectPath(importedPackageRoot);
+            Component debugPanel = EnsureRuntimeAnimationDebugPanel(bootstrap.gameObject);
+            Component debugOverlay = debugPanel != null ? EnsureDebugUiOverlayController(bootstrap.gameObject) : null;
             ConfigureRuntimeAnimationDebugPanel(debugPanel, debugOverlay);
+
             var serialized = new SerializedObject(bootstrap);
             serialized.FindProperty("_catalogId").stringValue = "character.runtime." + package.PackageId;
             serialized.FindProperty("_packageId").stringValue = package.PackageId;
@@ -585,47 +782,7 @@ namespace MxFramework.Editor.CharacterImport
             serialized.FindProperty("_loadOnStart").boolValue = true;
 
             SerializedProperty resources = serialized.FindProperty("_resources");
-            var runtimeResources = new List<RuntimeResourceBootstrapEntry>
-            {
-                new RuntimeResourceBootstrapEntry(
-                    GetCharacterPrefabResourceId(package),
-                    ResourceTypeIds.GameObject,
-                    ResourcesProvider.Id,
-                    "default",
-                    package.PackageId,
-                    GetRuntimeResourcesAddress(DefaultImportedPackageRoot, package.PackageId, characterPrefabPath))
-            };
-            var runtimeResourceIds = new HashSet<string>(StringComparer.Ordinal)
-            {
-                GetCharacterPrefabResourceId(package)
-            };
-
-            for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
-            {
-                CharacterWeaponAttachmentRuntimeBinding attachment = package.Geometry.WeaponAttachments[i];
-                if (string.IsNullOrWhiteSpace(attachment.PreviewResourceKey))
-                    continue;
-
-                string weaponPrefabPath = DefaultImportedPackageRoot + "/prefabs/weapons/"
-                    + package.PackageId + "_" + SanitizeName(attachment.EquipSlot) + "_" + SanitizeName(attachment.WeaponId) + ".prefab";
-                if (!File.Exists(weaponPrefabPath))
-                    continue;
-
-                string weaponResourceId = GetWeaponPrefabResourceId(package, attachment);
-                if (!runtimeResourceIds.Add(weaponResourceId))
-                    continue;
-
-                runtimeResources.Add(new RuntimeResourceBootstrapEntry(
-                    weaponResourceId,
-                    ResourceTypeIds.GameObject,
-                    ResourcesProvider.Id,
-                    "default",
-                    package.PackageId,
-                    GetRuntimeResourcesAddress(DefaultImportedPackageRoot, package.PackageId, weaponPrefabPath)));
-            }
-
-            AddAnimationRuntimeResources(DefaultImportedPackageRoot, package.PackageId, runtimeResources, runtimeResourceIds);
-
+            List<RuntimeResourceBootstrapEntry> runtimeResources = BuildRuntimeResourceBootstrapEntries(root, package, characterPrefabPath);
             resources.arraySize = runtimeResources.Count;
             for (int i = 0; i < runtimeResources.Count; i++)
             {
@@ -641,9 +798,9 @@ namespace MxFramework.Editor.CharacterImport
                     entry.Asset);
             }
 
-            string animationSetPath = DefaultImportedPackageRoot + "/config/animation_set_definition.json";
-            string animationClipRegistryPath = DefaultImportedPackageRoot + "/config/animation_clip_registry.json";
-            string animationResourcePlanPath = DefaultImportedPackageRoot + "/config/animation_resource_plan.json";
+            string animationSetPath = root + "/config/animation_set_definition.json";
+            string animationClipRegistryPath = root + "/config/animation_clip_registry.json";
+            string animationResourcePlanPath = root + "/config/animation_resource_plan.json";
             TextAsset animationSet = AssetDatabase.LoadAssetAtPath<TextAsset>(animationSetPath);
             TextAsset animationClipRegistry = AssetDatabase.LoadAssetAtPath<TextAsset>(animationClipRegistryPath);
             serialized.FindProperty("_animationSetDefinitionJson").objectReferenceValue = animationSet;
@@ -664,7 +821,54 @@ namespace MxFramework.Editor.CharacterImport
             serialized.FindProperty("_animationSetId").stringValue = ReadFirstAnimationSetId(animationSetPath);
 
             serialized.ApplyModifiedPropertiesWithoutUndo();
-            return loader;
+        }
+
+        private static List<RuntimeResourceBootstrapEntry> BuildRuntimeResourceBootstrapEntries(
+            string importedPackageRoot,
+            CharacterImportedPackage package,
+            string characterPrefabPath)
+        {
+            var runtimeResources = new List<RuntimeResourceBootstrapEntry>
+            {
+                new RuntimeResourceBootstrapEntry(
+                    GetCharacterPrefabResourceId(package),
+                    ResourceTypeIds.GameObject,
+                    ResourcesProvider.Id,
+                    "default",
+                    package.PackageId,
+                    GetRuntimeResourcesAddress(importedPackageRoot, package.PackageId, characterPrefabPath))
+            };
+            var runtimeResourceIds = new HashSet<string>(StringComparer.Ordinal)
+            {
+                GetCharacterPrefabResourceId(package)
+            };
+
+            for (int i = 0; i < package.Geometry.WeaponAttachments.Length; i++)
+            {
+                CharacterWeaponAttachmentRuntimeBinding attachment = package.Geometry.WeaponAttachments[i];
+                if (string.IsNullOrWhiteSpace(attachment.PreviewResourceKey))
+                    continue;
+
+                string weaponPrefabPath = importedPackageRoot + "/prefabs/weapons/"
+                    + package.PackageId + "_" + SanitizeName(attachment.EquipSlot) + "_" + SanitizeName(attachment.WeaponId) + ".prefab";
+                if (!File.Exists(weaponPrefabPath))
+                    continue;
+
+                string weaponResourceId = GetWeaponPrefabResourceId(package, attachment);
+                if (!runtimeResourceIds.Add(weaponResourceId))
+                    continue;
+
+                runtimeResources.Add(new RuntimeResourceBootstrapEntry(
+                    weaponResourceId,
+                    ResourceTypeIds.GameObject,
+                    ResourcesProvider.Id,
+                    "default",
+                    package.PackageId,
+                    GetRuntimeResourcesAddress(importedPackageRoot, package.PackageId, weaponPrefabPath)));
+            }
+
+            AddAnimationRuntimeResources(importedPackageRoot, package.PackageId, runtimeResources, runtimeResourceIds);
+            return runtimeResources;
         }
 
         private static void ConfigureRuntimeAnimationDebugPanel(
@@ -709,23 +913,47 @@ namespace MxFramework.Editor.CharacterImport
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static Component AddDebugUiOverlayController(GameObject owner)
+        private static CharacterLocomotionCalibrationRunner EnsureLocomotionCalibrationRunner(
+            GameObject owner,
+            CharacterRuntimeResourceBootstrap bootstrap)
+        {
+            if (owner == null)
+                return null;
+
+            CharacterLocomotionCalibrationRunner runner = owner.GetComponent<CharacterLocomotionCalibrationRunner>();
+            if (runner == null)
+                runner = owner.AddComponent<CharacterLocomotionCalibrationRunner>();
+
+            ConfigureLocomotionCalibrationRunner(runner, bootstrap);
+            EditorUtility.SetDirty(runner);
+            return runner;
+        }
+
+        private static Component EnsureDebugUiOverlayController(GameObject owner)
         {
             if (owner == null)
                 return null;
 
             Type overlayType = Type.GetType("MxFramework.DebugUI.Toolkit.DebugUiOverlayController, MxFramework.DebugUI.Toolkit");
-            return overlayType != null ? owner.AddComponent(overlayType) : null;
+            if (overlayType == null)
+                return null;
+
+            Component existing = owner.GetComponent(overlayType);
+            return existing != null ? existing : owner.AddComponent(overlayType);
         }
 
-        private static Component AddRuntimeAnimationDebugPanel(GameObject owner)
+        private static Component EnsureRuntimeAnimationDebugPanel(GameObject owner)
         {
             if (owner == null)
                 return null;
 
             Type panelType = Type.GetType(
                 "MxFramework.CharacterRuntimeSpawn.DebugUI.Unity.CharacterRuntimeAnimationDebugPanel, MxFramework.Character.RuntimeSpawn.DebugUI.Unity");
-            return panelType != null ? owner.AddComponent(panelType) : null;
+            if (panelType == null)
+                return null;
+
+            Component existing = owner.GetComponent(panelType);
+            return existing != null ? existing : owner.AddComponent(panelType);
         }
 
         private static void AddAnimationRuntimeResources(
