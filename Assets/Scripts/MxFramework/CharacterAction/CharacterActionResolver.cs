@@ -419,10 +419,28 @@ namespace MxFramework.CharacterAction
             CharacterActionIntentRequest request)
         {
             var result = new CandidateBuildResult();
+            bool hasMatchingBinding = false;
+            int highestBindingPriority = int.MinValue;
             for (int i = 0; i < context.ActionSet.CommandBindings.Length; i++)
             {
                 CharacterActionBinding binding = context.ActionSet.CommandBindings[i];
                 if (binding == null || !string.Equals(binding.IntentId, request.IntentId, StringComparison.Ordinal))
+                    continue;
+
+                hasMatchingBinding = true;
+                if (binding.Priority > highestBindingPriority)
+                    highestBindingPriority = binding.Priority;
+            }
+
+            if (!hasMatchingBinding)
+                return result;
+
+            for (int i = 0; i < context.ActionSet.CommandBindings.Length; i++)
+            {
+                CharacterActionBinding binding = context.ActionSet.CommandBindings[i];
+                if (binding == null || !string.Equals(binding.IntentId, request.IntentId, StringComparison.Ordinal))
+                    continue;
+                if (binding.Priority != highestBindingPriority)
                     continue;
 
                 CharacterActionConfig action = FindAction(context.Actions, binding.ActionId);

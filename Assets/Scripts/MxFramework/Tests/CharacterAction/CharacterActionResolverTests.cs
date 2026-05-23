@@ -77,6 +77,28 @@ namespace MxFramework.Tests.CharacterAction
         }
 
         [Test]
+        public void CommandBindings_HighestPriorityMissingActionRejectsInsteadOfFallingBack()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig light = CreateAction(100, "light_attack", CharacterActionCategory.BasicAttack);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new[]
+                {
+                    new CharacterActionBinding("Attack", "missing_heavy_attack", priority: 20),
+                    new CharacterActionBinding("Attack", "light_attack", priority: 5),
+                });
+            CharacterActionResolverContext context = CreateContext(set, new[] { light });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "Attack"));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.MissingActionConfig, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.MissingActionConfig, result.Diagnostics[0].Code);
+        }
+
+        [Test]
         public void CommandBindings_UseStableIdTieBreakerAfterSourceOrder()
         {
             var resolver = new CharacterActionResolver();
