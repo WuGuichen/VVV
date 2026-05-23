@@ -422,6 +422,7 @@ namespace MxFramework.Tests.CharacterAction
                         "DirectionalHitReact",
                         CharacterReactionRuleTrigger.PressureBandChanged,
                         requiresBodyPart: true,
+                        requiresHitZone: true,
                         requiresDamageType: true,
                         requiresHitDirection: true,
                         requiresReactionGroup: true),

@@ -21,6 +21,7 @@ namespace MxFramework.CharacterAction
             string actionId,
             CharacterReactionRuleTrigger trigger,
             bool requiresBodyPart = false,
+            bool requiresHitZone = false,
             bool requiresHitDirection = false,
             bool requiresDamageType = false,
             bool requiresReactionGroup = false,
@@ -35,6 +36,7 @@ namespace MxFramework.CharacterAction
             ActionId = actionId ?? string.Empty;
             Trigger = trigger;
             RequiresBodyPart = requiresBodyPart;
+            RequiresHitZone = requiresHitZone;
             RequiresHitDirection = requiresHitDirection;
             RequiresDamageType = requiresDamageType;
             RequiresReactionGroup = requiresReactionGroup;
@@ -50,6 +52,7 @@ namespace MxFramework.CharacterAction
         public string ActionId { get; }
         public CharacterReactionRuleTrigger Trigger { get; }
         public bool RequiresBodyPart { get; }
+        public bool RequiresHitZone { get; }
         public bool RequiresHitDirection { get; }
         public bool RequiresDamageType { get; }
         public bool RequiresReactionGroup { get; }
@@ -60,7 +63,7 @@ namespace MxFramework.CharacterAction
         public bool? CurrentActionCommitted { get; }
         public bool? CurrentActionInterruptible { get; }
         public int Priority { get; }
-        public bool RequiresHitContext => RequiresBodyPart || RequiresHitDirection || RequiresDamageType || RequiresReactionGroup;
+        public bool RequiresHitContext => RequiresBodyPart || RequiresHitZone || RequiresHitDirection || RequiresDamageType || RequiresReactionGroup;
     }
 
     public sealed class CharacterReactionProfile
@@ -219,7 +222,7 @@ namespace MxFramework.CharacterAction
                         "Reaction rule requires full hit context but only " + context.Completeness + " context is available."),
                     CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.ReactionContextIncomplete,
-                        "Rule action '" + rule.ActionId + "' cannot be evaluated without body part, damage type, hit direction, or reaction group.")
+                        "Rule action '" + rule.ActionId + "' cannot be evaluated without body part, hit zone, damage type, hit direction, or reaction group.")
                 });
         }
 
@@ -343,7 +346,7 @@ namespace MxFramework.CharacterAction
                     {
                         CharacterActionDiagnostic.Error(
                             CharacterActionDiagnosticCodes.ReactionRuleRequiresHitContext,
-                            "PressureOnly reaction profile cannot use body part, damage type, hit direction, or reaction group dimensions.")
+                            "PressureOnly reaction profile cannot use body part, hit zone, damage type, hit direction, or reaction group dimensions.")
                     };
                 }
             }

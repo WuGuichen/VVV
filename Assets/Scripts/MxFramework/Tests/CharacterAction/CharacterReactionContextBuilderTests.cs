@@ -225,6 +225,7 @@ namespace MxFramework.Tests.CharacterAction
                         "FrontBodyHitReact",
                         CharacterReactionRuleTrigger.PostureBreak,
                         requiresBodyPart: true,
+                        requiresHitZone: true,
                         requiresHitDirection: true)
                 });
             CharacterReactionContext context = CharacterReactionContextBuilder.FromPostureBreak(
