@@ -1,4 +1,5 @@
 using System;
+using MxFramework.Gameplay;
 
 namespace MxFramework.CharacterAction
 {
@@ -21,7 +22,13 @@ namespace MxFramework.CharacterAction
             bool requiresBodyPart = false,
             bool requiresHitDirection = false,
             bool requiresDamageType = false,
-            bool requiresReactionGroup = false)
+            bool requiresReactionGroup = false,
+            PressureBand? currentPressureBand = null,
+            bool? isDeath = null,
+            bool? isAirborne = null,
+            CharacterActionPhaseKind? currentPhase = null,
+            bool? currentActionCommitted = null,
+            bool? currentActionInterruptible = null)
         {
             ActionId = actionId ?? string.Empty;
             Trigger = trigger;
@@ -29,6 +36,12 @@ namespace MxFramework.CharacterAction
             RequiresHitDirection = requiresHitDirection;
             RequiresDamageType = requiresDamageType;
             RequiresReactionGroup = requiresReactionGroup;
+            CurrentPressureBand = currentPressureBand;
+            IsDeath = isDeath;
+            IsAirborne = isAirborne;
+            CurrentPhase = currentPhase;
+            CurrentActionCommitted = currentActionCommitted;
+            CurrentActionInterruptible = currentActionInterruptible;
         }
 
         public string ActionId { get; }
@@ -37,6 +50,12 @@ namespace MxFramework.CharacterAction
         public bool RequiresHitDirection { get; }
         public bool RequiresDamageType { get; }
         public bool RequiresReactionGroup { get; }
+        public PressureBand? CurrentPressureBand { get; }
+        public bool? IsDeath { get; }
+        public bool? IsAirborne { get; }
+        public CharacterActionPhaseKind? CurrentPhase { get; }
+        public bool? CurrentActionCommitted { get; }
+        public bool? CurrentActionInterruptible { get; }
         public bool RequiresHitContext => RequiresBodyPart || RequiresHitDirection || RequiresDamageType || RequiresReactionGroup;
     }
 
@@ -95,6 +114,11 @@ namespace MxFramework.CharacterAction
                 if (rule.RequiresHitContext && !context.HasFullHitContext)
                 {
                     return HitContextRequired(rule, context);
+                }
+
+                if (!MatchesPressureOnlyDimensions(rule, context))
+                {
+                    continue;
                 }
 
                 if (string.IsNullOrEmpty(rule.ActionId))
@@ -163,6 +187,16 @@ namespace MxFramework.CharacterAction
             return ruleTrigger == CharacterReactionRuleTrigger.Any || ruleTrigger == contextTrigger;
         }
 
+        private static bool MatchesPressureOnlyDimensions(CharacterReactionRule rule, CharacterReactionContext context)
+        {
+            return (!rule.CurrentPressureBand.HasValue || rule.CurrentPressureBand.Value == context.CurrentPressureBand)
+                && (!rule.IsDeath.HasValue || rule.IsDeath.Value == context.IsDeath)
+                && (!rule.IsAirborne.HasValue || rule.IsAirborne.Value == context.IsAirborne)
+                && (!rule.CurrentPhase.HasValue || rule.CurrentPhase.Value == context.CurrentCharacterPhase)
+                && (!rule.CurrentActionCommitted.HasValue || rule.CurrentActionCommitted.Value == context.CurrentActionCommitted)
+                && (!rule.CurrentActionInterruptible.HasValue || rule.CurrentActionInterruptible.Value == context.CurrentActionInterruptible);
+        }
+
         private static CharacterReactionRuleTrigger ToTrigger(CharacterReactionContextSourceKind sourceKind)
         {
             switch (sourceKind)
@@ -187,6 +221,33 @@ namespace MxFramework.CharacterAction
 
     public static class CharacterReactionRuleValidator
     {
+        public static CharacterActionDiagnostic[] ValidatePressureOnlyProfile(CharacterReactionProfile profile)
+        {
+            if (profile == null)
+                throw new ArgumentNullException(nameof(profile));
+
+            for (int i = 0; i < profile.Rules.Length; i++)
+            {
+                CharacterReactionRule rule = profile.Rules[i];
+                if (rule == null)
+                {
+                    continue;
+                }
+
+                if (rule.RequiresHitContext)
+                {
+                    return new[]
+                    {
+                        CharacterActionDiagnostic.Error(
+                            CharacterActionDiagnosticCodes.ReactionRuleRequiresHitContext,
+                            "PressureOnly reaction profile cannot use body part, damage type, hit direction, or reaction group dimensions.")
+                    };
+                }
+            }
+
+            return Array.Empty<CharacterActionDiagnostic>();
+        }
+
         public static CharacterActionDiagnostic[] ValidateAgainstContext(
             CharacterReactionRule rule,
             CharacterReactionContext context)
