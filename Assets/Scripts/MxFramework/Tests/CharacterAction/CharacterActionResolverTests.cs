@@ -52,6 +52,187 @@ namespace MxFramework.Tests.CharacterAction
         }
 
         [Test]
+        public void CommandBindings_ResolveDeterministicCandidateOrder()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig light = CreateAction(100, "light_attack", CharacterActionCategory.BasicAttack, priority: 10);
+            CharacterActionConfig heavy = CreateAction(200, "heavy_attack", CharacterActionCategory.BasicAttack, priority: 20);
+            CharacterActionConfig jump = CreateAction(300, "basic_jump", CharacterActionCategory.Jump, priority: 15);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new[]
+                {
+                    new CharacterActionBinding("Attack", "light_attack", priority: 5),
+                    new CharacterActionBinding("Attack", "basic_jump", priority: 8),
+                    new CharacterActionBinding("Attack", "heavy_attack", priority: 8),
+                });
+            CharacterActionResolverContext context = CreateContext(set, new[] { light, heavy, jump });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "Attack"));
+
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreEqual("heavy_attack", result.Plan.ActionId);
+            Assert.AreEqual(20, result.Plan.Priority);
+        }
+
+        [Test]
+        public void CommandBindings_HighestPriorityMissingActionRejectsInsteadOfFallingBack()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig light = CreateAction(100, "light_attack", CharacterActionCategory.BasicAttack);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new[]
+                {
+                    new CharacterActionBinding("Attack", "missing_heavy_attack", priority: 20),
+                    new CharacterActionBinding("Attack", "light_attack", priority: 5),
+                });
+            CharacterActionResolverContext context = CreateContext(set, new[] { light });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "Attack"));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.MissingActionConfig, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.MissingActionConfig, result.Diagnostics[0].Code);
+        }
+
+        [Test]
+        public void CommandBindings_UseStableIdTieBreakerAfterSourceOrder()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig light = CreateAction(100, "light_attack", CharacterActionCategory.BasicAttack, priority: 10);
+            CharacterActionConfig heavy = CreateAction(200, "heavy_attack", CharacterActionCategory.BasicAttack, priority: 10);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new[]
+                {
+                    new CharacterActionBinding("Attack", "light_attack", priority: 5),
+                    new CharacterActionBinding("Attack", "heavy_attack", priority: 5),
+                });
+            CharacterActionResolverContext context = CreateContext(set, new[] { light, heavy });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "Attack"));
+
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreEqual("light_attack", result.Plan.ActionId);
+        }
+
+        [Test]
+        public void BasicJumpCommandBinding_ReturnsJumpPlan()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig jump = CreateAction(300, "basic_jump", CharacterActionCategory.Jump, priority: 15);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new[] { new CharacterActionBinding("Jump", "basic_jump", priority: 3) });
+            CharacterActionResolverContext context = CreateContext(set, new[] { jump });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "Jump"));
+
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreEqual("basic_jump", result.Plan.ActionId);
+            Assert.AreEqual(CharacterActionCategory.Jump, result.Plan.Category);
+        }
+
+        [Test]
+        public void AbilityBindingRequiredTags_AcceptsMatchingActionOrContextTags()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig action = CreateAction(
+                200,
+                "dash_strike",
+                CharacterActionCategory.Skill,
+                tags: new[] { "weapon.sword" });
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new CharacterActionBinding[0],
+                abilityBindings: new[]
+                {
+                    new CharacterAbilityActionBinding(
+                        9001,
+                        "dash_strike",
+                        requiredTags: new[] { "weapon.sword", "stance.ready" }),
+                });
+            CharacterActionResolverContext context = CreateContext(
+                set,
+                new[] { action },
+                contextTags: new[] { "stance.ready" });
+
+            CharacterActionResolveResult result = resolver.ResolveAbility(
+                context,
+                CreateRequest(
+                    intentId: string.Empty,
+                    abilityId: 9001,
+                    sourceKind: CharacterActionSourceKind.GameplayAbility));
+
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreEqual("dash_strike", result.Plan.ActionId);
+        }
+
+        [Test]
+        public void AbilityBindingRequiredTags_RejectsMissingTagWithStableDiagnostic()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig action = CreateAction(200, "dash_strike", CharacterActionCategory.Skill);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new CharacterActionBinding[0],
+                abilityBindings: new[]
+                {
+                    new CharacterAbilityActionBinding(
+                        9001,
+                        "dash_strike",
+                        requiredTags: new[] { "weapon.sword" }),
+                });
+            CharacterActionResolverContext context = CreateContext(set, new[] { action });
+
+            CharacterActionResolveResult result = resolver.ResolveAbility(
+                context,
+                CreateRequest(
+                    intentId: string.Empty,
+                    abilityId: 9001,
+                    sourceKind: CharacterActionSourceKind.GameplayAbility));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.EquipmentStateMismatch, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.AbilityRequiredTagMissing, result.Diagnostics[0].Code);
+        }
+
+        [Test]
+        public void AbilityBindingForbiddenTags_RejectsMatchedTagWithStableDiagnostic()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig action = CreateAction(
+                200,
+                "dash_strike",
+                CharacterActionCategory.Skill,
+                tags: new[] { "status.silenced" });
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new CharacterActionBinding[0],
+                abilityBindings: new[]
+                {
+                    new CharacterAbilityActionBinding(
+                        9001,
+                        "dash_strike",
+                        forbiddenTags: new[] { "status.silenced" }),
+                });
+            CharacterActionResolverContext context = CreateContext(set, new[] { action });
+
+            CharacterActionResolveResult result = resolver.ResolveAbility(
+                context,
+                CreateRequest(
+                    intentId: string.Empty,
+                    abilityId: 9001,
+                    sourceKind: CharacterActionSourceKind.GameplayAbility));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.EquipmentStateMismatch, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.AbilityForbiddenTagMatched, result.Diagnostics[0].Code);
+        }
+
+        [Test]
         public void PressureOnlyReactionContext_ResolvesToReactionAction()
         {
             var resolver = new CharacterActionResolver();
@@ -303,6 +484,30 @@ namespace MxFramework.Tests.CharacterAction
         }
 
         [Test]
+        public void QueueDisabledBinding_ReturnsLowerPriorityRejectedWhenActiveActionBlocksImmediateStart()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig action = CreateAction(100, "light_attack", CharacterActionCategory.BasicAttack);
+            CharacterActionSetConfig set = CreateActionSet(
+                commandBindings: new[] { new CharacterActionBinding("LightAttack", "light_attack", allowQueue: false) });
+            CharacterActionResolverContext context = CreateContext(
+                set,
+                new[] { action },
+                state: new CharacterActionResolverState(
+                    hasActiveAction: true,
+                    activeActionBlocksImmediateStart: true,
+                    activeActionId: "recovery_lock"));
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "LightAttack"));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.LowerPriorityRejected, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.ActionLowerPriorityRejected, result.Diagnostics[0].Code);
+        }
+
+        [Test]
         public void ValidationHelpers_ReportBindingReactionAndCancelDiagnostics()
         {
             CharacterActionConfig reaction = CreateAction(300, "hit_react", CharacterActionCategory.Reaction);
@@ -390,7 +595,8 @@ namespace MxFramework.Tests.CharacterAction
             CharacterActionConfig[] actions,
             CharacterReactionProfile[] reactionProfiles = null,
             CombatActionTimeline[] combatTimelines = null,
-            CharacterActionResolverState state = default)
+            CharacterActionResolverState state = default,
+            string[] contextTags = null)
         {
             return new CharacterActionResolverContext(
                 set,
@@ -398,7 +604,8 @@ namespace MxFramework.Tests.CharacterAction
                 reactionProfiles,
                 combatTimelines,
                 state,
-                new CharacterActionDurationPolicy(24));
+                new CharacterActionDurationPolicy(24),
+                contextTags: contextTags);
         }
 
         private static CharacterActionSetConfig CreateActionSet(
@@ -423,6 +630,7 @@ namespace MxFramework.Tests.CharacterAction
             string intentId,
             int? abilityId = null,
             CharacterActionSourceKind sourceKind = CharacterActionSourceKind.Command,
+            int priority = 10,
             string traceId = "trace-resolver")
         {
             return new CharacterActionIntentRequest(
@@ -432,7 +640,7 @@ namespace MxFramework.Tests.CharacterAction
                 abilityStableId: abilityId.HasValue ? "ability." + abilityId.Value : string.Empty,
                 requestedActionId: string.Empty,
                 sourceKind: sourceKind,
-                priority: 10,
+                priority: priority,
                 frame: new RuntimeFrame(7),
                 traceId: traceId);
         }
@@ -440,7 +648,9 @@ namespace MxFramework.Tests.CharacterAction
         private static CharacterActionConfig CreateAction(
             int id,
             string stableId,
-            CharacterActionCategory category)
+            CharacterActionCategory category,
+            string[] tags = null,
+            int priority = 10)
         {
             return new CharacterActionConfig(
                 id,
@@ -448,8 +658,8 @@ namespace MxFramework.Tests.CharacterAction
                 stableId,
                 category,
                 CharacterActionTimelineAuthority.CharacterAuthored,
-                tags: null,
-                priority: 10,
+                tags: tags,
+                priority: priority,
                 durationFrames: 24,
                 requirements: null,
                 phases: new[]

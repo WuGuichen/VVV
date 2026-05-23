@@ -162,6 +162,88 @@ namespace MxFramework.CharacterAction
         }
     }
 
+    public readonly struct CharacterActionCandidate : IEquatable<CharacterActionCandidate>
+    {
+        public CharacterActionCandidate(
+            string actionId,
+            CharacterActionSourceKind sourceKind,
+            int sourcePriority,
+            int requestPriority,
+            int bindingPriority,
+            int actionPriority,
+            int sourceOrder,
+            string stableTieBreaker,
+            bool allowQueue,
+            int queueWindowFrames)
+        {
+            if (!Enum.IsDefined(typeof(CharacterActionSourceKind), sourceKind))
+                throw new ArgumentOutOfRangeException(nameof(sourceKind), "Action source kind is not defined.");
+            if (sourceOrder < 0)
+                throw new ArgumentOutOfRangeException(nameof(sourceOrder), "Source order cannot be negative.");
+            if (queueWindowFrames < 0)
+                throw new ArgumentOutOfRangeException(nameof(queueWindowFrames), "Queue window frames cannot be negative.");
+
+            ActionId = actionId ?? string.Empty;
+            SourceKind = sourceKind;
+            SourcePriority = sourcePriority;
+            RequestPriority = requestPriority;
+            BindingPriority = bindingPriority;
+            ActionPriority = actionPriority;
+            SourceOrder = sourceOrder;
+            StableTieBreaker = stableTieBreaker ?? string.Empty;
+            AllowQueue = allowQueue;
+            QueueWindowFrames = queueWindowFrames;
+        }
+
+        public string ActionId { get; }
+        public CharacterActionSourceKind SourceKind { get; }
+        public int SourcePriority { get; }
+        public int RequestPriority { get; }
+        public int BindingPriority { get; }
+        public int ActionPriority { get; }
+        public int SourceOrder { get; }
+        public string StableTieBreaker { get; }
+        public bool AllowQueue { get; }
+        public int QueueWindowFrames { get; }
+
+        public bool Equals(CharacterActionCandidate other)
+        {
+            return string.Equals(ActionId, other.ActionId, StringComparison.Ordinal)
+                && SourceKind == other.SourceKind
+                && SourcePriority == other.SourcePriority
+                && RequestPriority == other.RequestPriority
+                && BindingPriority == other.BindingPriority
+                && ActionPriority == other.ActionPriority
+                && SourceOrder == other.SourceOrder
+                && string.Equals(StableTieBreaker, other.StableTieBreaker, StringComparison.Ordinal)
+                && AllowQueue == other.AllowQueue
+                && QueueWindowFrames == other.QueueWindowFrames;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionCandidate other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = ActionId == null ? 0 : ActionId.GetHashCode();
+                hash = (hash * 397) ^ (int)SourceKind;
+                hash = (hash * 397) ^ SourcePriority;
+                hash = (hash * 397) ^ RequestPriority;
+                hash = (hash * 397) ^ BindingPriority;
+                hash = (hash * 397) ^ ActionPriority;
+                hash = (hash * 397) ^ SourceOrder;
+                hash = (hash * 397) ^ (StableTieBreaker == null ? 0 : StableTieBreaker.GetHashCode());
+                hash = (hash * 397) ^ AllowQueue.GetHashCode();
+                hash = (hash * 397) ^ QueueWindowFrames;
+                return hash;
+            }
+        }
+    }
+
     public sealed class CharacterActionPlan
     {
         public CharacterActionPlan(
