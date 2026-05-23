@@ -1205,76 +1205,88 @@ Debug 是否能解释动作选择、拒绝、命中、打断和完成。
 
 ## 分阶段实施建议
 
-### Issue 0：ReactionContext + Phase Authority Spike
+### Phase 1：Contract foundation（已完成）
 
-这是进入 Spec Issue 前的硬前置。交付物是可评审的 noEngine 契约草案和小型测试，不进入 Unity 表现、不做 Workstation。
+Issue #400-#404 已完成 Phase 1 noEngine 数据契约、测试和契约文档收口：
 
-必须解决：
+- `CharacterReactionContext`、PressureOnly builders、reaction profile/rule selection，以及 incomplete hit context 的稳定 diagnostics。
+- `CharacterActionConfig`、`CharacterActionSetConfig`、movement profile、phase、cancel/interrupt、intent request、resolve result、plan 和 track DTO contracts。
+- `CharacterAuthored` / `CombatAnchored` phase authority 契约，以及缺失 Combat anchor、Character/Combat phase range mismatch 的稳定 diagnostics。
+- Character-level rejection 与 Combat-window rejection 的 cancel conflict 分类。
+- Plan duration resolution：Character-authored plan 来自 config 或显式 fallback policy；Combat-anchored plan 来自 Combat timeline total frames。
 
-```text
-ReactionContext DTO / completeness / diagnostics code
-PressureOnly context builder：PostureBreakEvent、GuardBreakEvent、ArmorBreakEvent、PressureBandChangedEvent -> ReactionContext
-CombatHitResult -> ReactionContext 所需字段清单和缺口记录
-CombatAnchored / CharacterAuthored phase authority 决策表
-Character phase -> CombatActionPhase anchor 校验样例
-Character cancel 与 Combat cancel 冲突时的 reject code
-```
+Phase 1 是 contract-only scope，不包含 resolver implementation、runner implementation、action track adapters、Unity integration、editor tooling 或 Character Action Workstation authoring。后续阶段必须消费这些契约，不能重新定义数据形状，除非测试证明存在明确不兼容。
 
-验收：
+Full hit reaction 仍然延后。当前只验证 `PressureOnly` reaction path：posture / guard / armor pressure events 和 explicit death。Body part、hit zone、damage type、hit direction、impact force 和 reaction group 维度必须等后续 `CombatHitResult -> ReactionContext` bridge 落地后才能成为 runtime selection rules。
 
-```text
-PressureOnly reaction 可以解析 PostureBreakReact / Death。
-填写 body part / damage type / hit direction 规则时，如果没有 hit context，validator 稳定报错。
-绑定 CombatActionId 的动作不能出现未锚定的 cancel/committed phase。
-Character 允许但 Combat 拒绝、Combat 允许但 Character 拒绝这两类冲突能被区分。
-```
+### Phase 2：Resolver / Validation completion（进行中）
 
-### Issue 1：Character Action Contract
+Phase 2 的目标是让 resolver / validator 输出足够稳定，使后续 Action Runner 可以直接消费 `CharacterActionPlan`、diagnostics 和 dependency data。Runner 不能重新做 binding、resource、phase 或 reaction selection 决策。
 
-只定义经过 Issue 0 验证的 noEngine MVP 数据契约：
+#### Phase 2.1：Resolver and Validation MVP（已完成，#416 / #417）
 
-```text
-CharacterActionSetConfig
-CharacterActionConfig
-CharacterMovementProfileConfig
-CharacterReactionProfile
-CharacterReactionContext
-CharacterActionPhase
-CharacterCancelRule
-CharacterInterruptRule
-MVP ActionTrack DTO
-CharacterActionIntentRequest / ResolveResult / Plan
-Diagnostics code
-```
+#416 / #417 已完成合并的 Resolver/Validation MVP：
 
-不接 Unity，不播放动画，不启动 Combat。完整多轨 schema、完整 hit reaction 维度和 Workstation authoring 都是后续扩展；Issue 1 不应一次性锁死未验证的数据结构。
+- `CharacterActionResolver` 可以从 command binding、ability binding 和 PressureOnly reaction profile 生成 `CharacterActionResolveResult` / `CharacterActionPlan`。
+- Resolver 保持 read-only，不消耗资源、不 enqueue Gameplay command、不启动 Combat action、不修改 CharacterControl、不派发 track event。
+- Validation 已覆盖 action set/config binding、基础 phase authority、cancel conflict、PressureOnly reaction rule 和基础 track dependency diagnostics。
+- 该 MVP 只是 Phase 2 的第一片，不代表 Phase 2 完成。
 
-### Issue 2：Resolver + Validation
+未完成项包括 candidate priority、tag requirements、deterministic PressureOnly reaction diagnostics、timeline/cancel validation completion、resource dependency collection、diagnostics formatting 和集成文档。
 
-实现：
+#### Phase 2.2：Phase 2 Plan Rebaseline（当前，#419）
 
-```text
-ActionBindingResolver
-AbilityActionResolver
-ReactionSelector
-CancelRuleValidator
-ActionTimelineValidator
-ResourceDependencyCollector
-Diagnostics formatter
-```
+更新本文档以反映 #416 / #417 的实际边界，并把剩余 Phase 2 work 拆为 2.3-2.7。该阶段不改代码，不更新 README / USAGE，除非那些入口已经公开宣传 Character Action runtime usage。
 
-验收：
+#### Phase 2.3：Resolver Candidate Priority and Tag Requirements（#420）
 
-```text
-普通攻击、技能、跳跃、受击反应都能解析。
-Reaction 第一版只要求 PressureOnly 映射；完整 hit context 依赖 Combat hit bridge。
-拒绝原因有稳定 code。
-不读取 Unity 场景对象。
-```
+实现 resolver candidate list 和稳定排序：
 
-### Issue 3：Action Runner noEngine MVP
+- command binding resolution 生成候选列表，而不是只取单个 binding。
+- ability binding 必须检查 `RequiredTags` / `ForbiddenTags`。
+- 排序使用 source priority、request priority、binding priority、action priority、source order 和 stable id tie-breaker。
+- active action 阻塞时明确 queue / lower-priority reject 语义。
 
-实现：
+#### Phase 2.4：ReactionSelector PressureOnly Determinism（#421）
+
+完善 PressureOnly reaction 的确定性选择和解释：
+
+- 定义 PressureOnly rule specificity scoring。
+- 使用 trigger specificity、pressure/break/death/airborne specificity、rule priority、rule order、stable id 的稳定 tie-breaker。
+- diagnostics 输出 matched rule id、skipped rule reason 和 fallback reason。
+- 继续禁止在 PressureOnly context 下启用 body part、hit zone、damage type、hit direction 或 reaction group 规则；这些维度依赖后续 `CombatHitResult -> ReactionContext` bridge。
+
+#### Phase 2.5：Timeline and Cancel Validation Completion（#422）
+
+补齐 Runner 依赖的时序和取消校验：
+
+- phase overlap、gap、range outside duration。
+- `CombatAnchored` Startup / Active / Recovery anchors 和 range alignment。
+- Combat trace event frame / phase legality。
+- cancel window range、known target、cancelable / interruptible phase policy。
+- 保留 `ACT_CHARACTER_CANCEL_REJECTED` 与 `ACT_COMBAT_CANCEL_REJECTED` 的可区分 diagnostics。
+
+#### Phase 2.6：Resource Dependency Collector and Diagnostics Formatter（#423）
+
+提取可复用的 dependency 和 diagnostics API：
+
+- `CharacterActionResourceDependencyCollector` 收集 CombatAction、TraceProfile、AnimationAction、AudioCue、VfxResource、GameplayRequest 及其 track/frame metadata。
+- validation 尽量复用 collector。
+- diagnostics formatter 输出 code、message、action id、phase、track、frame 和可用 suggested fix。
+- 不引用 Unity object、AnimationClip、Prefab、Material 或 Playables。
+
+#### Phase 2.7：Phase 2 Integration Tests and Docs（#424）
+
+用 noEngine 集成测试和文档关闭 Phase 2：
+
+- 建立包含 LightAttack、HeavyAttack、DashStrike、BasicJump、LightHitReact、PostureBreakReact 和 Death 的 fixture action set。
+- 覆盖 command -> plan、ability -> plan、reaction context -> reaction plan、cancel conflict -> stable reject、invalid config -> diagnostics 和 resource dependency collection。
+- 文档说明 resolver / validator API、输入、输出、限制和 Runner prerequisites。
+- 明确 Runner 消费 `CharacterActionPlan` 和 diagnostics，不重做 resolver decisions。
+
+### Phase 3：Action Runner noEngine MVP（Phase 2 完成后）
+
+Action Runner work 必须等待 Phase 2.3-2.7 完成后再开始。Runner 的职责是实例化和推进 resolver 输出的 plan：
 
 ```text
 ActionInstance
@@ -1285,9 +1297,9 @@ cancel / interrupt 判断
 debug event stream
 ```
 
-轨道先只输出事件，不接具体模块。
+Runner 不能重新选择 action、ability binding、reaction rule、resource dependency 或 phase authority。若 plan 不足以执行，Runner 应返回缺口 diagnostics，并把契约缺口回流到 Phase 2 文档 / 后续 Issue，而不是在 Runner 内部补一套隐式 resolver。
 
-### Issue 4：Motion + Combat + Gameplay Adapter
+### Phase 4：Motion + Combat + Gameplay Adapter
 
 接入：
 
@@ -1304,7 +1316,7 @@ LightAttack -> Combat action -> trace / hit -> Gameplay pressure or HP delta
 PostureBreak -> current action cancel -> reaction action
 ```
 
-### Issue 5：Animation / Presentation Adapter
+### Phase 5：Animation / Presentation Adapter
 
 接入：
 
@@ -1318,7 +1330,7 @@ UI feedback
 
 表现失败进入 diagnostics，不改变 authority。
 
-### Issue 6：Reaction System
+### Phase 6：Reaction System
 
 实现：
 
@@ -1329,9 +1341,9 @@ Full ReactionProfile dimensions
 HitReact / directional hit / body part hit / PostureBreak / GuardBreak / ArmorBreak / Death
 ```
 
-Issue 6 才启用 body part、damage type、hit direction、impact force、reaction group 等完整规则维度；在此之前只能使用 Issue 0/1 已验证的 `PressureOnly` 维度。
+Phase 6 才启用 body part、damage type、hit direction、impact force、reaction group 等完整规则维度；在此之前只能使用 Phase 1 / Phase 2 已验证的 `PressureOnly` 维度。
 
-### Issue 7：Character Action Workstation
+### Phase 7：Character Action Workstation
 
 第一版只读 + 轻编辑：
 
@@ -1346,22 +1358,6 @@ Preview data export
 ```
 
 不手写 Unity 序列化资产；需要 Unity 资产时走 Editor 菜单 / Unity MCP / 专用生成器。
-
-## Phase 1 implemented boundary / handoff to Issue 2
-
-Issue #400-#403 have landed the Phase 1 noEngine data contracts and tests needed by the next resolver slice:
-
-- `CharacterReactionContext`, pressure-only builders, reaction profile/rule selection, and stable diagnostics for incomplete hit context.
-- `CharacterActionConfig`, `CharacterActionSetConfig`, movement profile, phase, cancel/interrupt, intent request, resolve result, plan, and track DTO contracts.
-- Phase authority contracts for `CharacterAuthored` and `CombatAnchored`, including stable diagnostics for missing combat anchors and character/combat phase range mismatches.
-- Cancel conflict classification that distinguishes character-level rejection from combat-window rejection with separate stable codes.
-- Plan duration resolution rules: character-authored plans resolve from config or an explicit fallback policy, while combat-anchored plans resolve from the combat timeline total frames.
-
-This closes Phase 1 as contract-only scope. It intentionally does not include resolver implementation, runner implementation, action track adapters, Unity integration, editor tooling, or Character Action Workstation authoring. Those remain follow-up slices and must consume these contracts instead of redefining the data shape.
-
-Full hit reaction remains deferred. Phase 1 only validates the `PressureOnly` reaction path for posture/guard/armor pressure events and explicit death. Body part, hit zone, damage type, hit direction, impact force, and reaction group dimensions still depend on the later `CombatHitResult -> ReactionContext` bridge before they can be enabled as runtime selection rules.
-
-Issue 2 can start directly from these contracts: implement binding/ability/reaction resolution, phase/cancel validation, resource dependency collection, and diagnostics formatting over the existing DTOs and stable codes. Issue 2 should not revisit the Phase 1 contract shape unless a test exposes an explicit incompatibility.
 
 ## 验收标准
 
