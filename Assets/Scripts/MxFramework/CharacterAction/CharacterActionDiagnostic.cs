@@ -14,6 +14,9 @@ namespace MxFramework.CharacterAction
         public const string ActionDurationResolvedFromCombat = "ACT_ACTION_DURATION_RESOLVED_FROM_COMBAT";
         public const string ActionDurationFallbackUsed = "ACT_ACTION_DURATION_FALLBACK_USED";
         public const string ActionQueued = "ACT_ACTION_QUEUED";
+        public const string ActionLowerPriorityRejected = "ACT_ACTION_LOWER_PRIORITY_REJECTED";
+        public const string AbilityRequiredTagMissing = "ACT_ABILITY_REQUIRED_TAG_MISSING";
+        public const string AbilityForbiddenTagMatched = "ACT_ABILITY_FORBIDDEN_TAG_MATCHED";
         public const string InsufficientResource = "ACT_INSUFFICIENT_RESOURCE";
         public const string ResourceMissing = "ACT_RESOURCE_MISSING";
         public const string ResourceCostWithoutResourceId = "ACT_RESOURCE_COST_WITHOUT_RESOURCE_ID";

@@ -15,7 +15,8 @@ namespace MxFramework.CharacterAction
             CombatActionTimeline[] combatTimelines = null,
             CharacterActionResolverState state = default,
             CharacterActionDurationPolicy durationPolicy = default,
-            CharacterActionCombatTimelineBinding[] combatTimelineBindings = null)
+            CharacterActionCombatTimelineBinding[] combatTimelineBindings = null,
+            string[] contextTags = null)
         {
             ActionSet = actionSet;
             Actions = actions ?? Array.Empty<CharacterActionConfig>();
@@ -24,6 +25,7 @@ namespace MxFramework.CharacterAction
             CombatTimelineBindings = combatTimelineBindings ?? CreateTimelineBindings(CombatTimelines);
             State = state;
             DurationPolicy = durationPolicy;
+            ContextTags = contextTags ?? Array.Empty<string>();
         }
 
         public CharacterActionSetConfig ActionSet { get; }
@@ -33,6 +35,7 @@ namespace MxFramework.CharacterAction
         public CharacterActionCombatTimelineBinding[] CombatTimelineBindings { get; }
         public CharacterActionResolverState State { get; }
         public CharacterActionDurationPolicy DurationPolicy { get; }
+        public string[] ContextTags { get; }
 
         private static CharacterActionCombatTimelineBinding[] CreateTimelineBindings(CombatActionTimeline[] combatTimelines)
         {
@@ -144,9 +147,17 @@ namespace MxFramework.CharacterAction
                     request.TraceId);
             }
 
-            CharacterActionBinding binding = FindCommandBinding(context.ActionSet, request.IntentId);
-            if (binding == null)
+            CandidateBuildResult candidates = BuildCommandCandidates(context, request);
+            if (candidates.Candidates.Count == 0)
             {
+                if (HasErrors(candidates.Diagnostics))
+                {
+                    return CharacterActionResolveResult.Rejected(
+                        ResolveCandidateRejectReason(candidates.Diagnostics),
+                        candidates.Diagnostics.ToArray(),
+                        request.TraceId);
+                }
+
                 return Reject(
                     CharacterActionRejectReason.MissingActionBinding,
                     CharacterActionDiagnosticCodes.MissingActionBinding,
@@ -154,7 +165,8 @@ namespace MxFramework.CharacterAction
                     request.TraceId);
             }
 
-            return ResolveBoundAction(context, request, binding.ActionId, binding.AllowQueue);
+            ResolverCandidate candidate = candidates.Candidates[0];
+            return ResolveBoundAction(context, request, candidate.Action, candidate.Candidate.AllowQueue);
         }
 
         public CharacterActionResolveResult ResolveAbility(
@@ -182,9 +194,17 @@ namespace MxFramework.CharacterAction
                     request.TraceId);
             }
 
-            CharacterAbilityActionBinding binding = FindAbilityBinding(context.ActionSet, request.AbilityId.Value);
-            if (binding == null)
+            CandidateBuildResult candidates = BuildAbilityCandidates(context, request, request.AbilityId.Value);
+            if (candidates.Candidates.Count == 0)
             {
+                if (HasErrors(candidates.Diagnostics))
+                {
+                    return CharacterActionResolveResult.Rejected(
+                        ResolveCandidateRejectReason(candidates.Diagnostics),
+                        candidates.Diagnostics.ToArray(),
+                        request.TraceId);
+                }
+
                 return Reject(
                     CharacterActionRejectReason.MissingAbilityBinding,
                     CharacterActionDiagnosticCodes.MissingAbilityBinding,
@@ -192,7 +212,7 @@ namespace MxFramework.CharacterAction
                     request.TraceId);
             }
 
-            return ResolveBoundAction(context, request, binding.ActionId, allowQueue: false);
+            return ResolveBoundAction(context, request, candidates.Candidates[0].Action, candidates.Candidates[0].Candidate.AllowQueue);
         }
 
         public CharacterActionResolveResult ResolveReaction(
@@ -253,13 +273,14 @@ namespace MxFramework.CharacterAction
                 frame: reactionContext.Frame,
                 traceId: traceId);
 
-            return ResolveBoundAction(context, request, selection.SelectedActionId, allowQueue: false);
+            CharacterActionConfig action = FindAction(context.Actions, selection.SelectedActionId);
+            return ResolveBoundAction(context, request, action, allowQueue: false);
         }
 
         private CharacterActionResolveResult ResolveBoundAction(
             CharacterActionResolverContext context,
             CharacterActionIntentRequest request,
-            string actionId,
+            CharacterActionConfig action,
             bool allowQueue)
         {
             if (context.State.IsDisabled)
@@ -280,13 +301,12 @@ namespace MxFramework.CharacterAction
                     request.TraceId);
             }
 
-            CharacterActionConfig action = FindAction(context.Actions, actionId);
             if (action == null)
             {
                 return Reject(
                     CharacterActionRejectReason.MissingActionConfig,
                     CharacterActionDiagnosticCodes.MissingActionConfig,
-                    "Action config '" + actionId + "' is missing.",
+                    "Action config is missing.",
                     request.TraceId);
             }
 
@@ -338,9 +358,9 @@ namespace MxFramework.CharacterAction
                     }
 
                     return Reject(
-                        CharacterActionRejectReason.ActionCommitted,
-                        CharacterActionDiagnosticCodes.CharacterCancelRejected,
-                        "Active action blocks immediate start and binding does not allow queue.",
+                        CharacterActionRejectReason.LowerPriorityRejected,
+                        CharacterActionDiagnosticCodes.ActionLowerPriorityRejected,
+                        "Active action blocks immediate start and selected binding does not allow queue.",
                         request.TraceId);
                 }
 
@@ -394,31 +414,90 @@ namespace MxFramework.CharacterAction
                 traceId);
         }
 
-        private static CharacterActionBinding FindCommandBinding(CharacterActionSetConfig actionSet, string intentId)
+        private static CandidateBuildResult BuildCommandCandidates(
+            CharacterActionResolverContext context,
+            CharacterActionIntentRequest request)
         {
-            CharacterActionBinding best = null;
-            for (int i = 0; i < actionSet.CommandBindings.Length; i++)
+            var result = new CandidateBuildResult();
+            for (int i = 0; i < context.ActionSet.CommandBindings.Length; i++)
             {
-                CharacterActionBinding binding = actionSet.CommandBindings[i];
-                if (binding == null || !string.Equals(binding.IntentId, intentId, StringComparison.Ordinal))
+                CharacterActionBinding binding = context.ActionSet.CommandBindings[i];
+                if (binding == null || !string.Equals(binding.IntentId, request.IntentId, StringComparison.Ordinal))
                     continue;
-                if (best == null || binding.Priority > best.Priority)
-                    best = binding;
+
+                CharacterActionConfig action = FindAction(context.Actions, binding.ActionId);
+                if (action == null)
+                {
+                    result.Diagnostics.Add(CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.MissingActionConfig,
+                        "Command binding action '" + binding.ActionId + "' is missing."));
+                    continue;
+                }
+
+                result.Candidates.Add(new ResolverCandidate(
+                    action,
+                    new CharacterActionCandidate(
+                        action.StableId,
+                        request.SourceKind,
+                        GetSourcePriority(request.SourceKind),
+                        request.Priority,
+                        binding.Priority,
+                        action.Priority,
+                        i,
+                        action.StableId,
+                        binding.AllowQueue,
+                        binding.QueueWindowFrames)));
             }
 
-            return best;
+            SortCandidates(result.Candidates);
+            return result;
         }
 
-        private static CharacterAbilityActionBinding FindAbilityBinding(CharacterActionSetConfig actionSet, int abilityId)
+        private static CandidateBuildResult BuildAbilityCandidates(
+            CharacterActionResolverContext context,
+            CharacterActionIntentRequest request,
+            int abilityId)
         {
-            for (int i = 0; i < actionSet.AbilityBindings.Length; i++)
+            var result = new CandidateBuildResult();
+            for (int i = 0; i < context.ActionSet.AbilityBindings.Length; i++)
             {
-                CharacterAbilityActionBinding binding = actionSet.AbilityBindings[i];
-                if (binding != null && binding.AbilityId == abilityId)
-                    return binding;
+                CharacterAbilityActionBinding binding = context.ActionSet.AbilityBindings[i];
+                if (binding == null || binding.AbilityId != abilityId)
+                    continue;
+
+                CharacterActionConfig action = FindAction(context.Actions, binding.ActionId);
+                if (action == null)
+                {
+                    result.Diagnostics.Add(CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.MissingActionConfig,
+                        "Ability binding action '" + binding.ActionId + "' is missing."));
+                    continue;
+                }
+
+                CharacterActionDiagnostic tagDiagnostic;
+                if (!TagsMatch(binding.RequiredTags, binding.ForbiddenTags, action.Tags, context.ContextTags, out tagDiagnostic))
+                {
+                    result.Diagnostics.Add(tagDiagnostic);
+                    continue;
+                }
+
+                result.Candidates.Add(new ResolverCandidate(
+                    action,
+                    new CharacterActionCandidate(
+                        action.StableId,
+                        request.SourceKind,
+                        GetSourcePriority(request.SourceKind),
+                        request.Priority,
+                        0,
+                        action.Priority,
+                        i,
+                        action.StableId,
+                        allowQueue: false,
+                        queueWindowFrames: 0)));
             }
 
-            return null;
+            SortCandidates(result.Candidates);
+            return result;
         }
 
         private static CharacterActionConfig FindAction(CharacterActionConfig[] actions, string actionId)
@@ -477,6 +556,17 @@ namespace MxFramework.CharacterAction
             return false;
         }
 
+        private static bool HasErrors(List<CharacterActionDiagnostic> diagnostics)
+        {
+            for (int i = 0; i < diagnostics.Count; i++)
+            {
+                if (diagnostics[i].Severity == CharacterActionDiagnosticSeverity.Error)
+                    return true;
+            }
+
+            return false;
+        }
+
         private static CharacterActionRejectReason ResolveReactionProfileRejectReason(CharacterActionDiagnostic[] diagnostics)
         {
             for (int i = 0; i < diagnostics.Length; i++)
@@ -524,6 +614,161 @@ namespace MxFramework.CharacterAction
             }
 
             return CharacterActionRejectReason.MissingActionConfig;
+        }
+
+        private static CharacterActionRejectReason ResolveCandidateRejectReason(List<CharacterActionDiagnostic> diagnostics)
+        {
+            for (int i = 0; i < diagnostics.Count; i++)
+            {
+                if (diagnostics[i].Severity != CharacterActionDiagnosticSeverity.Error)
+                    continue;
+
+                string code = diagnostics[i].Code;
+                if (code == CharacterActionDiagnosticCodes.MissingActionConfig)
+                    return CharacterActionRejectReason.MissingActionConfig;
+                if (code == CharacterActionDiagnosticCodes.AbilityRequiredTagMissing
+                    || code == CharacterActionDiagnosticCodes.AbilityForbiddenTagMatched)
+                {
+                    return CharacterActionRejectReason.EquipmentStateMismatch;
+                }
+            }
+
+            return CharacterActionRejectReason.MissingActionBinding;
+        }
+
+        private static bool TagsMatch(
+            string[] requiredTags,
+            string[] forbiddenTags,
+            string[] actionTags,
+            string[] contextTags,
+            out CharacterActionDiagnostic diagnostic)
+        {
+            requiredTags = requiredTags ?? Array.Empty<string>();
+            forbiddenTags = forbiddenTags ?? Array.Empty<string>();
+            actionTags = actionTags ?? Array.Empty<string>();
+            contextTags = contextTags ?? Array.Empty<string>();
+
+            for (int i = 0; i < requiredTags.Length; i++)
+            {
+                string tag = requiredTags[i] ?? string.Empty;
+                if (tag.Length == 0)
+                    continue;
+                if (!ContainsTag(actionTags, tag) && !ContainsTag(contextTags, tag))
+                {
+                    diagnostic = CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.AbilityRequiredTagMissing,
+                        "Ability binding required tag '" + tag + "' is missing.");
+                    return false;
+                }
+            }
+
+            for (int i = 0; i < forbiddenTags.Length; i++)
+            {
+                string tag = forbiddenTags[i] ?? string.Empty;
+                if (tag.Length == 0)
+                    continue;
+                if (ContainsTag(actionTags, tag) || ContainsTag(contextTags, tag))
+                {
+                    diagnostic = CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.AbilityForbiddenTagMatched,
+                        "Ability binding forbidden tag '" + tag + "' matched.");
+                    return false;
+                }
+            }
+
+            diagnostic = default;
+            return true;
+        }
+
+        private static bool ContainsTag(string[] tags, string tag)
+        {
+            for (int i = 0; i < tags.Length; i++)
+            {
+                if (string.Equals(tags[i], tag, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static int GetSourcePriority(CharacterActionSourceKind sourceKind)
+        {
+            switch (sourceKind)
+            {
+                case CharacterActionSourceKind.PlayerIntervention:
+                    return 1000;
+                case CharacterActionSourceKind.Reaction:
+                case CharacterActionSourceKind.Death:
+                case CharacterActionSourceKind.PostureBreak:
+                case CharacterActionSourceKind.GuardBreak:
+                case CharacterActionSourceKind.ArmorBreak:
+                case CharacterActionSourceKind.Hit:
+                    return 900;
+                case CharacterActionSourceKind.Debug:
+                    return 800;
+                case CharacterActionSourceKind.LocalInput:
+                case CharacterActionSourceKind.Command:
+                    return 600;
+                case CharacterActionSourceKind.GameplayAbility:
+                    return 550;
+                case CharacterActionSourceKind.RuntimeAiPlanner:
+                    return 500;
+                case CharacterActionSourceKind.Scripted:
+                    return 450;
+                case CharacterActionSourceKind.Replay:
+                    return 400;
+                default:
+                    return 0;
+            }
+        }
+
+        private static void SortCandidates(List<ResolverCandidate> candidates)
+        {
+            candidates.Sort(CompareCandidates);
+        }
+
+        private static int CompareCandidates(ResolverCandidate left, ResolverCandidate right)
+        {
+            int compare = right.Candidate.SourcePriority.CompareTo(left.Candidate.SourcePriority);
+            if (compare != 0)
+                return compare;
+            compare = right.Candidate.RequestPriority.CompareTo(left.Candidate.RequestPriority);
+            if (compare != 0)
+                return compare;
+            compare = right.Candidate.BindingPriority.CompareTo(left.Candidate.BindingPriority);
+            if (compare != 0)
+                return compare;
+            compare = right.Candidate.ActionPriority.CompareTo(left.Candidate.ActionPriority);
+            if (compare != 0)
+                return compare;
+            compare = left.Candidate.SourceOrder.CompareTo(right.Candidate.SourceOrder);
+            if (compare != 0)
+                return compare;
+            return string.CompareOrdinal(left.Candidate.StableTieBreaker, right.Candidate.StableTieBreaker);
+        }
+
+        private sealed class CandidateBuildResult
+        {
+            public CandidateBuildResult()
+            {
+                Candidates = new List<ResolverCandidate>();
+                Diagnostics = new List<CharacterActionDiagnostic>();
+            }
+
+            public List<ResolverCandidate> Candidates { get; }
+            public List<CharacterActionDiagnostic> Diagnostics { get; }
+        }
+
+        private readonly struct ResolverCandidate
+        {
+            public ResolverCandidate(CharacterActionConfig action, CharacterActionCandidate candidate)
+            {
+                Action = action;
+                Candidate = candidate;
+            }
+
+            public CharacterActionConfig Action { get; }
+            public CharacterActionCandidate Candidate { get; }
         }
     }
 }
