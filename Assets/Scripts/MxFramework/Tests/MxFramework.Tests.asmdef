@@ -48,6 +48,7 @@
         "MxFramework.Character.RuntimeSpawn",
         "MxFramework.Character.RuntimeSpawn.Unity",
         "MxFramework.Character.RuntimeSpawn.DebugUI.Unity",
+        "MxFramework.CharacterAction",
         "MxFramework.CharacterControl",
         "MxFramework.CharacterControl.Animation",
         "MxFramework.CharacterControl.Input",
