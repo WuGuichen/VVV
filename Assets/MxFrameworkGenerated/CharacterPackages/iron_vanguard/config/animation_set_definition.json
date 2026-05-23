@@ -142,12 +142,12 @@
               "sourceClipName": "standing_walk_right",
               "sourceSubClipId": "standing_walk_right",
               "loop": true,
-              "speed": 1,
+              "speed": 1.05,
               "rootMotionPolicy": "Ignore",
               "calibration": {
                 "nativeVelocityX": 1.05,
                 "nativeVelocityY": 0,
-                "playbackSpeed": 1,
+                "playbackSpeed": 1.05,
                 "cycleDurationSeconds": 0.9,
                 "leftFootContactWindows": [
                   {
@@ -202,12 +202,12 @@
               "sourceClipName": "standing_walk_back",
               "sourceSubClipId": "standing_walk_back",
               "loop": true,
-              "speed": 1,
+              "speed": 1.05,
               "rootMotionPolicy": "Ignore",
               "calibration": {
                 "nativeVelocityX": 0,
                 "nativeVelocityY": -0.9,
-                "playbackSpeed": 1,
+                "playbackSpeed": 1.05,
                 "cycleDurationSeconds": 0.95,
                 "leftFootContactWindows": [
                   {
@@ -232,9 +232,11 @@
               "sourceClipName": "standing_run_right",
               "sourceSubClipId": "standing_run_right",
               "loop": true,
-              "speed": 1,
+              "speed": 0.7,
               "rootMotionPolicy": "Ignore",
-              "calibration": null
+              "calibration": {
+                "playbackSpeed": 0.7
+              }
             },
             {
               "clipId": "run.l",
@@ -243,9 +245,11 @@
               "sourceClipName": "standing_run_left",
               "sourceSubClipId": "standing_run_left",
               "loop": true,
-              "speed": 1,
+              "speed": 0.7,
               "rootMotionPolicy": "Ignore",
-              "calibration": null
+              "calibration": {
+                "playbackSpeed": 0.7
+              }
             },
             {
               "clipId": "run.b",
@@ -254,9 +258,11 @@
               "sourceClipName": "standing_run_back",
               "sourceSubClipId": "standing_run_back",
               "loop": true,
-              "speed": 1,
+              "speed": 0.55,
               "rootMotionPolicy": "Ignore",
-              "calibration": null
+              "calibration": {
+                "playbackSpeed": 0.55
+              }
             }
           ],
           "blend1D": [],
@@ -301,7 +307,7 @@
                 {
                   "clipId": "walk.b",
                   "x": 0,
-                  "y": -0.3,
+                  "y": -0.35,
                   "weight": 1
                 },
                 {
@@ -319,7 +325,7 @@
                 {
                   "clipId": "run.b",
                   "x": 0,
-                  "y": -0.45,
+                  "y": -0.4,
                   "weight": 1
                 }
               ]
