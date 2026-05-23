@@ -235,6 +235,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.51 | 2026-05-23 | 新增 ADR-003 角色 Gameplay Runtime Bootstrap 设计记录，明确 `GameplayComponentWorld` 作为角色权威状态、Unity prefab 作为 view、Combat / Character Control / Animation / Debug UI 的桥接边界 |
 | 0.6.50 | 2026-05-18 | 完成 Character Control playable vertical slice：在 `CombatAnimationPhysicsTest` 中串起 Local Input、Runtime AI Planner、state/motion/action、pressure reaction、MxAnimation 和 Debug UI，并补充 Showcase 回归测试 |
 | 0.6.49 | 2026-05-18 | 扩展 Character Control v0.5：新增 Phase 13 Debug UI source，输出状态、last command、motion、action、pressure band 和 recent events 只读快照 |
 | 0.6.48 | 2026-05-18 | 扩展 Character Control v0.4：新增 noEngine MxAnimation presentation adapter，支持 locomotion 1D/2D blend、reaction Play/CrossFade binding、backend result 和缺失绑定诊断 |
