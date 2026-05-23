@@ -1347,6 +1347,22 @@ Preview data export
 
 不手写 Unity 序列化资产；需要 Unity 资产时走 Editor 菜单 / Unity MCP / 专用生成器。
 
+## Phase 1 implemented boundary / handoff to Issue 2
+
+Issue #400-#403 have landed the Phase 1 noEngine data contracts and tests needed by the next resolver slice:
+
+- `CharacterReactionContext`, pressure-only builders, reaction profile/rule selection, and stable diagnostics for incomplete hit context.
+- `CharacterActionConfig`, `CharacterActionSetConfig`, movement profile, phase, cancel/interrupt, intent request, resolve result, plan, and track DTO contracts.
+- Phase authority contracts for `CharacterAuthored` and `CombatAnchored`, including stable diagnostics for missing combat anchors and character/combat phase range mismatches.
+- Cancel conflict classification that distinguishes character-level rejection from combat-window rejection with separate stable codes.
+- Plan duration resolution rules: character-authored plans resolve from config or an explicit fallback policy, while combat-anchored plans resolve from the combat timeline total frames.
+
+This closes Phase 1 as contract-only scope. It intentionally does not include resolver implementation, runner implementation, action track adapters, Unity integration, editor tooling, or Character Action Workstation authoring. Those remain follow-up slices and must consume these contracts instead of redefining the data shape.
+
+Full hit reaction remains deferred. Phase 1 only validates the `PressureOnly` reaction path for posture/guard/armor pressure events and explicit death. Body part, hit zone, damage type, hit direction, impact force, and reaction group dimensions still depend on the later `CombatHitResult -> ReactionContext` bridge before they can be enabled as runtime selection rules.
+
+Issue 2 can start directly from these contracts: implement binding/ability/reaction resolution, phase/cancel validation, resource dependency collection, and diagnostics formatting over the existing DTOs and stable codes. Issue 2 should not revisit the Phase 1 contract shape unless a test exposes an explicit incompatibility.
+
 ## 验收标准
 
 - 设计明确区分 Character Action Layer、Character Control、Combat、Gameplay、MxAnimation 的 source of truth。
