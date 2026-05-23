@@ -149,8 +149,69 @@ namespace MxFramework.Tests.CharacterAction
 
             Assert.IsTrue(postureResult.Accepted);
             Assert.AreEqual("PostureBreakReact", postureResult.SelectedActionId);
+            AssertDiagnostic(postureResult.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
             Assert.IsTrue(deathResult.Accepted);
             Assert.AreEqual("Death", deathResult.SelectedActionId);
+            AssertDiagnostic(deathResult.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            AssertDiagnostic(deathResult.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleSkipped);
+        }
+
+        [Test]
+        public void ReactionSelector_UsesSpecificityPriorityOrderAndStableDiagnostics()
+        {
+            var profile = new CharacterReactionProfile(
+                "pressure-only",
+                new[]
+                {
+                    new CharacterReactionRule("AnyCriticalReact", CharacterReactionRuleTrigger.Any, currentPressureBand: PressureBand.Broken, priority: 100),
+                    new CharacterReactionRule("PostureBreakReact", CharacterReactionRuleTrigger.PostureBreak, priority: 1),
+                    new CharacterReactionRule("PostureBreakHighPriority", CharacterReactionRuleTrigger.PostureBreak, priority: 10),
+                    new CharacterReactionRule("PostureBreakLaterTie", CharacterReactionRuleTrigger.PostureBreak, priority: 10),
+                });
+            CharacterReactionContext posture = CharacterReactionContextBuilder.FromPostureBreak(
+                new PostureBreakEvent(
+                    RuntimeFrame.Zero,
+                    Entity(),
+                    PressureBand.Critical,
+                    previousValue: 90,
+                    currentPressure: 100,
+                    maxPressure: 100,
+                    delta: 10)).Context;
+
+            CharacterReactionSelectionResult result = CharacterReactionSelector.Select(profile, posture);
+
+            Assert.IsTrue(result.Accepted);
+            Assert.AreEqual("PostureBreakHighPriority", result.SelectedActionId);
+            AssertDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            AssertDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleSkipped);
+        }
+
+        [Test]
+        public void ReactionSelector_FallsBackToDefaultWhenNoRuleMatches()
+        {
+            var profile = new CharacterReactionProfile(
+                "pressure-only",
+                new[]
+                {
+                    new CharacterReactionRule("PostureBreakReact", CharacterReactionRuleTrigger.PostureBreak),
+                },
+                defaultActionId: "LightHitReact");
+            CharacterReactionContext context = CharacterReactionContextBuilder.FromPressureBandChanged(
+                new PressureBandChangedEvent(
+                    RuntimeFrame.Zero,
+                    Entity(),
+                    PressureBand.Stable,
+                    PressureBand.Pressed,
+                    previousValue: 0,
+                    newValue: 25,
+                    delta: 25)).Context;
+
+            CharacterReactionSelectionResult result = CharacterReactionSelector.Select(profile, context);
+
+            Assert.IsTrue(result.Accepted);
+            Assert.AreEqual("LightHitReact", result.SelectedActionId);
+            AssertDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleSkipped);
+            AssertDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionFallbackUsed);
         }
 
         [Test]

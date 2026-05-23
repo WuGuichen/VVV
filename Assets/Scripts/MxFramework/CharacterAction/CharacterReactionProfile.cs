@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MxFramework.Gameplay;
 
 namespace MxFramework.CharacterAction
@@ -28,7 +29,8 @@ namespace MxFramework.CharacterAction
             bool? isAirborne = null,
             CharacterActionPhaseKind? currentPhase = null,
             bool? currentActionCommitted = null,
-            bool? currentActionInterruptible = null)
+            bool? currentActionInterruptible = null,
+            int priority = 0)
         {
             ActionId = actionId ?? string.Empty;
             Trigger = trigger;
@@ -42,6 +44,7 @@ namespace MxFramework.CharacterAction
             CurrentPhase = currentPhase;
             CurrentActionCommitted = currentActionCommitted;
             CurrentActionInterruptible = currentActionInterruptible;
+            Priority = priority;
         }
 
         public string ActionId { get; }
@@ -56,6 +59,7 @@ namespace MxFramework.CharacterAction
         public CharacterActionPhaseKind? CurrentPhase { get; }
         public bool? CurrentActionCommitted { get; }
         public bool? CurrentActionInterruptible { get; }
+        public int Priority { get; }
         public bool RequiresHitContext => RequiresBodyPart || RequiresHitDirection || RequiresDamageType || RequiresReactionGroup;
     }
 
@@ -103,11 +107,20 @@ namespace MxFramework.CharacterAction
                 throw new ArgumentNullException(nameof(profile));
 
             CharacterReactionRuleTrigger trigger = ToTrigger(context.SourceKind);
+            var diagnostics = new List<CharacterActionDiagnostic>();
+            var candidates = new List<CharacterReactionRuleCandidate>();
             for (int i = 0; i < profile.Rules.Length; i++)
             {
                 CharacterReactionRule rule = profile.Rules[i];
                 if (rule == null || !Matches(rule.Trigger, trigger))
                 {
+                    if (rule != null)
+                    {
+                        diagnostics.Add(CharacterActionDiagnostic.Info(
+                            CharacterActionDiagnosticCodes.ReactionRuleSkipped,
+                            "Skipped reaction rule '" + rule.ActionId + "' because trigger '" + rule.Trigger + "' does not match context trigger '" + trigger + "'."));
+                    }
+
                     continue;
                 }
 
@@ -118,6 +131,9 @@ namespace MxFramework.CharacterAction
 
                 if (!MatchesPressureOnlyDimensions(rule, context))
                 {
+                    diagnostics.Add(CharacterActionDiagnostic.Info(
+                        CharacterActionDiagnosticCodes.ReactionRuleSkipped,
+                        "Skipped reaction rule '" + rule.ActionId + "' because PressureOnly dimensions did not match."));
                     continue;
                 }
 
@@ -135,32 +151,57 @@ namespace MxFramework.CharacterAction
                         });
                 }
 
+                candidates.Add(new CharacterReactionRuleCandidate(
+                    rule,
+                    i,
+                    GetTriggerSpecificity(rule.Trigger, trigger),
+                    GetPressureOnlySpecificity(rule)));
+            }
+
+            if (candidates.Count > 0)
+            {
+                candidates.Sort(CompareCandidates);
+                CharacterReactionRuleCandidate selected = candidates[0];
+                for (int i = 1; i < candidates.Count; i++)
+                {
+                    diagnostics.Add(CharacterActionDiagnostic.Info(
+                        CharacterActionDiagnosticCodes.ReactionRuleSkipped,
+                        "Skipped reaction rule '" + candidates[i].Rule.ActionId + "' because rule '" + selected.Rule.ActionId + "' ranked higher."));
+                }
+
+                diagnostics.Add(CharacterActionDiagnostic.Info(
+                    CharacterActionDiagnosticCodes.ReactionRuleMatched,
+                    "Matched reaction rule '" + selected.Rule.ActionId + "'."));
+
                 return new CharacterReactionSelectionResult(
                     accepted: true,
-                    selectedActionId: rule.ActionId,
+                    selectedActionId: selected.Rule.ActionId,
                     rejectCode: string.Empty,
-                    diagnostics: Array.Empty<CharacterActionDiagnostic>());
+                    diagnostics: diagnostics.ToArray());
             }
 
             if (!string.IsNullOrEmpty(profile.DefaultActionId))
             {
+                diagnostics.Add(CharacterActionDiagnostic.Info(
+                    CharacterActionDiagnosticCodes.ReactionFallbackUsed,
+                    "Reaction profile used fallback action '" + profile.DefaultActionId + "'."));
+
                 return new CharacterReactionSelectionResult(
                     accepted: true,
                     selectedActionId: profile.DefaultActionId,
                     rejectCode: string.Empty,
-                    diagnostics: Array.Empty<CharacterActionDiagnostic>());
+                    diagnostics: diagnostics.ToArray());
             }
+
+            diagnostics.Add(CharacterActionDiagnostic.Error(
+                CharacterActionDiagnosticCodes.ReactionRuleNoTarget,
+                "Reaction profile has no matching rule and no default action id."));
 
             return new CharacterReactionSelectionResult(
                 accepted: false,
                 selectedActionId: string.Empty,
                 rejectCode: CharacterActionDiagnosticCodes.ReactionRuleNoTarget,
-                diagnostics: new[]
-                {
-                    CharacterActionDiagnostic.Error(
-                        CharacterActionDiagnosticCodes.ReactionRuleNoTarget,
-                        "Reaction profile has no matching rule and no default action id.")
-                });
+                diagnostics: diagnostics.ToArray());
         }
 
         private static CharacterReactionSelectionResult HitContextRequired(
@@ -197,6 +238,48 @@ namespace MxFramework.CharacterAction
                 && (!rule.CurrentActionInterruptible.HasValue || rule.CurrentActionInterruptible.Value == context.CurrentActionInterruptible);
         }
 
+        private static int GetTriggerSpecificity(CharacterReactionRuleTrigger ruleTrigger, CharacterReactionRuleTrigger contextTrigger)
+        {
+            if (ruleTrigger == CharacterReactionRuleTrigger.Any)
+                return 0;
+            return ruleTrigger == contextTrigger ? 1 : -1;
+        }
+
+        private static int GetPressureOnlySpecificity(CharacterReactionRule rule)
+        {
+            int score = 0;
+            if (rule.CurrentPressureBand.HasValue)
+                score++;
+            if (rule.IsDeath.HasValue)
+                score++;
+            if (rule.IsAirborne.HasValue)
+                score++;
+            if (rule.CurrentPhase.HasValue)
+                score++;
+            if (rule.CurrentActionCommitted.HasValue)
+                score++;
+            if (rule.CurrentActionInterruptible.HasValue)
+                score++;
+            return score;
+        }
+
+        private static int CompareCandidates(CharacterReactionRuleCandidate left, CharacterReactionRuleCandidate right)
+        {
+            int compare = right.TriggerSpecificity.CompareTo(left.TriggerSpecificity);
+            if (compare != 0)
+                return compare;
+            compare = right.PressureOnlySpecificity.CompareTo(left.PressureOnlySpecificity);
+            if (compare != 0)
+                return compare;
+            compare = right.Rule.Priority.CompareTo(left.Rule.Priority);
+            if (compare != 0)
+                return compare;
+            compare = left.RuleOrder.CompareTo(right.RuleOrder);
+            if (compare != 0)
+                return compare;
+            return string.CompareOrdinal(left.Rule.ActionId, right.Rule.ActionId);
+        }
+
         private static CharacterReactionRuleTrigger ToTrigger(CharacterReactionContextSourceKind sourceKind)
         {
             switch (sourceKind)
@@ -216,6 +299,26 @@ namespace MxFramework.CharacterAction
                 default:
                     return CharacterReactionRuleTrigger.Any;
             }
+        }
+
+        private readonly struct CharacterReactionRuleCandidate
+        {
+            public CharacterReactionRuleCandidate(
+                CharacterReactionRule rule,
+                int ruleOrder,
+                int triggerSpecificity,
+                int pressureOnlySpecificity)
+            {
+                Rule = rule;
+                RuleOrder = ruleOrder;
+                TriggerSpecificity = triggerSpecificity;
+                PressureOnlySpecificity = pressureOnlySpecificity;
+            }
+
+            public CharacterReactionRule Rule { get; }
+            public int RuleOrder { get; }
+            public int TriggerSpecificity { get; }
+            public int PressureOnlySpecificity { get; }
         }
     }
 

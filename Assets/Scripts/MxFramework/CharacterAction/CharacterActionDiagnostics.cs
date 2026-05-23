@@ -19,6 +19,9 @@ namespace MxFramework.CharacterAction
         public const string ReactionContextIncomplete = CharacterActionDiagnosticCodes.ReactionContextIncomplete;
         public const string ReactionRuleRequiresHitContext = CharacterActionDiagnosticCodes.ReactionRuleRequiresHitContext;
         public const string ReactionRuleNoTarget = CharacterActionDiagnosticCodes.ReactionRuleNoTarget;
+        public const string ReactionRuleMatched = CharacterActionDiagnosticCodes.ReactionRuleMatched;
+        public const string ReactionRuleSkipped = CharacterActionDiagnosticCodes.ReactionRuleSkipped;
+        public const string ReactionFallbackUsed = CharacterActionDiagnosticCodes.ReactionFallbackUsed;
         public const string PhaseCombatAnchorMissing = CharacterActionDiagnosticCodes.PhaseCombatAnchorMissing;
         public const string PhaseCombatRangeMismatch = CharacterActionDiagnosticCodes.PhaseCombatRangeMismatch;
         public const string InvalidCancelWindow = CharacterActionDiagnosticCodes.InvalidCancelWindow;

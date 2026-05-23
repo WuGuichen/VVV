@@ -24,6 +24,9 @@ namespace MxFramework.CharacterAction
         public const string ReactionContextIncomplete = "ACT_REACTION_CONTEXT_INCOMPLETE";
         public const string ReactionRuleRequiresHitContext = "ACT_REACTION_RULE_REQUIRES_HIT_CONTEXT";
         public const string ReactionRuleNoTarget = "ACT_REACTION_RULE_NO_TARGET";
+        public const string ReactionRuleMatched = "ACT_REACTION_RULE_MATCHED";
+        public const string ReactionRuleSkipped = "ACT_REACTION_RULE_SKIPPED";
+        public const string ReactionFallbackUsed = "ACT_REACTION_FALLBACK_USED";
         public const string PhaseCombatAnchorMissing = "ACT_PHASE_COMBAT_ANCHOR_MISSING";
         public const string PhaseCombatRangeMismatch = "ACT_PHASE_COMBAT_RANGE_MISMATCH";
         public const string InvalidCancelWindow = "ACT_INVALID_CANCEL_WINDOW";
