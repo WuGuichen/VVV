@@ -222,11 +222,13 @@ namespace MxFramework.CharacterAction
                     traceId);
             }
 
-            CharacterActionDiagnostic[] profileDiagnostics = CharacterReactionRuleValidator.ValidatePressureOnlyProfile(profile);
+            CharacterActionDiagnostic[] profileDiagnostics = CharacterActionValidation.ValidatePressureOnlyReactionProfile(
+                profile,
+                context.Actions);
             if (HasErrors(profileDiagnostics))
             {
                 return CharacterActionResolveResult.Rejected(
-                    CharacterActionRejectReason.ReactionContextIncomplete,
+                    ResolveReactionProfileRejectReason(profileDiagnostics),
                     profileDiagnostics,
                     traceId);
             }
@@ -302,7 +304,7 @@ namespace MxFramework.CharacterAction
             if (HasErrors(validationDiagnostics))
             {
                 return CharacterActionResolveResult.Rejected(
-                    CharacterActionRejectReason.PhaseAnchorInvalid,
+                    ResolveActionConfigRejectReason(validationDiagnostics),
                     validationDiagnostics,
                     request.TraceId);
             }
@@ -473,6 +475,55 @@ namespace MxFramework.CharacterAction
             }
 
             return false;
+        }
+
+        private static CharacterActionRejectReason ResolveReactionProfileRejectReason(CharacterActionDiagnostic[] diagnostics)
+        {
+            for (int i = 0; i < diagnostics.Length; i++)
+            {
+                if (diagnostics[i].Severity != CharacterActionDiagnosticSeverity.Error)
+                    continue;
+
+                if (diagnostics[i].Code == CharacterActionDiagnosticCodes.MissingActionConfig)
+                    return CharacterActionRejectReason.MissingActionConfig;
+                if (diagnostics[i].Code == CharacterActionDiagnosticCodes.ReactionRuleNoTarget)
+                    return CharacterActionRejectReason.InvalidTarget;
+            }
+
+            return CharacterActionRejectReason.ReactionContextIncomplete;
+        }
+
+        private static CharacterActionRejectReason ResolveActionConfigRejectReason(CharacterActionDiagnostic[] diagnostics)
+        {
+            for (int i = 0; i < diagnostics.Length; i++)
+            {
+                if (diagnostics[i].Severity != CharacterActionDiagnosticSeverity.Error)
+                    continue;
+
+                string code = diagnostics[i].Code;
+                if (code == CharacterActionDiagnosticCodes.PhaseCombatAnchorMissing
+                    || code == CharacterActionDiagnosticCodes.PhaseCombatRangeMismatch)
+                {
+                    return CharacterActionRejectReason.PhaseAnchorInvalid;
+                }
+
+                if (code == CharacterActionDiagnosticCodes.CombatActionMissing)
+                    return CharacterActionRejectReason.CombatActionMissing;
+                if (code == CharacterActionDiagnosticCodes.AnimationActionMissing)
+                    return CharacterActionRejectReason.AnimationActionMissing;
+                if (code == CharacterActionDiagnosticCodes.ResourceMissing
+                    || code == CharacterActionDiagnosticCodes.ResourceCostWithoutResourceId
+                    || code == CharacterActionDiagnosticCodes.PresentationResourceMissing
+                    || code == CharacterActionDiagnosticCodes.AudioCueMissing)
+                {
+                    return CharacterActionRejectReason.ResourceMissing;
+                }
+
+                if (code == CharacterActionDiagnosticCodes.MissingActionConfig)
+                    return CharacterActionRejectReason.MissingActionConfig;
+            }
+
+            return CharacterActionRejectReason.MissingActionConfig;
         }
     }
 }

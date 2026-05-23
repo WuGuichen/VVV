@@ -86,6 +86,40 @@ namespace MxFramework.Tests.CharacterAction
         }
 
         [Test]
+        public void PressureOnlyReactionProfile_TargetingNonReactionAction_IsRejectedByResolver()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig basicAttack = CreateAction(100, "light_attack", CharacterActionCategory.BasicAttack);
+            var profile = new CharacterReactionProfile(
+                "pressure-only",
+                new[]
+                {
+                    new CharacterReactionRule(
+                        "light_attack",
+                        CharacterReactionRuleTrigger.PostureBreak,
+                        currentPressureBand: PressureBand.Broken),
+                });
+            CharacterActionResolverContext context = CreateContext(
+                actions: new[] { basicAttack },
+                reactionProfiles: new[] { profile });
+            CharacterReactionContext reactionContext = CharacterReactionContextBuilder.FromPostureBreak(
+                new PostureBreakEvent(
+                    new RuntimeFrame(3),
+                    Entity(),
+                    PressureBand.Critical,
+                    previousValue: 80,
+                    currentPressure: 100,
+                    maxPressure: 100,
+                    delta: 20)).Context;
+
+            CharacterActionResolveResult result = resolver.ResolveReaction(context, reactionContext);
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.InvalidTarget, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.ReactionRuleNoTarget, result.Diagnostics[0].Code);
+        }
+
+        [Test]
         public void MissingActionSetBindingAndConfig_RejectWithStableDiagnostics()
         {
             var resolver = new CharacterActionResolver();
@@ -128,6 +162,50 @@ namespace MxFramework.Tests.CharacterAction
             Assert.IsTrue(result.IsRejected);
             Assert.AreEqual(CharacterActionRejectReason.PhaseAnchorInvalid, result.RejectReason);
             Assert.AreEqual(CharacterActionDiagnosticCodes.PhaseCombatAnchorMissing, result.Diagnostics[0].Code);
+        }
+
+        [Test]
+        public void MissingAnimationDependency_RejectsWithAnimationReason()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig action = CreateActionWithTrackDependencyIssue(
+                "missing_animation",
+                new AnimationTrackConfig(new[]
+                {
+                    new AnimationTrackEvent(0, CharacterActionTrackEventKind.PlayAnimation),
+                }),
+                default);
+            CharacterActionResolverContext context = CreateContext(actions: new[] { action });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "LightAttack"));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.AnimationActionMissing, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.AnimationActionMissing, result.Diagnostics[0].Code);
+        }
+
+        [Test]
+        public void MissingPresentationDependency_RejectsWithResourceReason()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig action = CreateActionWithTrackDependencyIssue(
+                "missing_visual",
+                default,
+                new PresentationTrackConfig(new[]
+                {
+                    new PresentationTrackEvent(6, CharacterActionTrackEventKind.SpawnVisualCue),
+                }));
+            CharacterActionResolverContext context = CreateContext(actions: new[] { action });
+
+            CharacterActionResolveResult result = resolver.ResolveCommand(
+                context,
+                CreateRequest(intentId: "LightAttack"));
+
+            Assert.IsTrue(result.IsRejected);
+            Assert.AreEqual(CharacterActionRejectReason.ResourceMissing, result.RejectReason);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.PresentationResourceMissing, result.Diagnostics[0].Code);
         }
 
         [Test]
@@ -413,6 +491,34 @@ namespace MxFramework.Tests.CharacterAction
                 cancelRules: null,
                 interruptRules: null,
                 combatTrack: new CombatTrackConfig(combatActionId, null));
+        }
+
+        private static CharacterActionConfig CreateActionWithTrackDependencyIssue(
+            string stableId,
+            AnimationTrackConfig animationTrack,
+            PresentationTrackConfig presentationTrack)
+        {
+            return new CharacterActionConfig(
+                id: 100,
+                stableId: "light_attack",
+                displayName: stableId,
+                category: CharacterActionCategory.BasicAttack,
+                timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
+                tags: null,
+                priority: 10,
+                durationFrames: 24,
+                requirements: null,
+                phases: new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 5),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 6, 10),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Recovery, 11, 23),
+                },
+                cancelRules: null,
+                interruptRules: null,
+                combatTrack: new CombatTrackConfig("1001", null),
+                animationTrack: animationTrack,
+                presentationTrack: presentationTrack);
         }
 
         private static CombatActionTimeline CreateCombatTimeline(int actionId, int cancelTargetActionId)
