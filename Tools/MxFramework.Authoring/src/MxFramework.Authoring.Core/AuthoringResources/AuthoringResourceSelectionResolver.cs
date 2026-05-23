@@ -383,24 +383,25 @@ namespace MxFramework.Authoring
             if (binding == null)
                 binding = FindPrimaryBinding(item);
 
+            bool selectedIsAudio = IsAudioBindingKind(binding != null ? binding.BindingKind : item.BindingKind);
             string expectedHash = FirstNonEmpty(
                 binding != null ? binding.Hash : string.Empty,
-                GetFirstBindingValue(item, BindingValueKind.Hash));
+                selectedIsAudio ? string.Empty : GetFirstBindingValue(item, BindingValueKind.Hash));
             string providerResourceKey = FirstNonEmpty(
                 binding != null ? binding.ProviderResourceKey : string.Empty,
-                GetFirstBindingValue(item, BindingValueKind.ProviderResourceKey));
+                selectedIsAudio ? string.Empty : GetFirstBindingValue(item, BindingValueKind.ProviderResourceKey));
             string packageResourceKey = FirstNonEmpty(
                 binding != null ? binding.PackageResourceKey : string.Empty,
-                GetFirstBindingValue(item, BindingValueKind.PackageResourceKey));
+                selectedIsAudio ? string.Empty : GetFirstBindingValue(item, BindingValueKind.PackageResourceKey));
             string runtimeResourceKey = FirstNonEmpty(
                 binding != null ? binding.RuntimeResourceKey : string.Empty,
-                GetFirstBindingValue(item, BindingValueKind.RuntimeResourceKey));
+                selectedIsAudio ? string.Empty : GetFirstBindingValue(item, BindingValueKind.RuntimeResourceKey));
             string unityGuid = FirstNonEmpty(
                 binding != null ? binding.UnityGuid : string.Empty,
-                GetFirstBindingValue(item, BindingValueKind.UnityGuid));
+                selectedIsAudio ? string.Empty : GetFirstBindingValue(item, BindingValueKind.UnityGuid));
             string unityAssetPath = FirstNonEmpty(
                 binding != null ? binding.UnityAssetPath : string.Empty,
-                GetFirstBindingValue(item, BindingValueKind.UnityAssetPath));
+                selectedIsAudio ? string.Empty : GetFirstBindingValue(item, BindingValueKind.UnityAssetPath));
             string audioCueId = FirstNonEmpty(
                 GetProviderData(binding, "audioCueId"),
                 GetFirstBindingValue(item, BindingValueKind.AudioCueId));
@@ -436,15 +437,6 @@ namespace MxFramework.Authoring
             if (item == null || item.ProviderBindings == null || item.ProviderBindings.Count == 0)
                 return null;
 
-            AuthoringResourceSelectionOutputKind outputKind = spec != null
-                ? spec.OutputKind
-                : AuthoringResourceSelectionOutputKind.Unknown;
-            bool prioritizeCompleteness =
-                outputKind == AuthoringResourceSelectionOutputKind.Unknown ||
-                outputKind == AuthoringResourceSelectionOutputKind.ResourceSelectionRef;
-            AuthoringResourceProviderBinding best = null;
-            int bestScore = int.MinValue;
-
             for (int i = 0; i < item.ProviderBindings.Count; i++)
             {
                 AuthoringResourceProviderBinding binding = item.ProviderBindings[i];
@@ -452,24 +444,17 @@ namespace MxFramework.Authoring
                     continue;
                 if (spec != null && spec.AcceptedBindingKinds != null && spec.AcceptedBindingKinds.Count > 0 && !spec.AcceptedBindingKinds.Contains(binding.BindingKind))
                     continue;
-                if (!MatchesOutputKind(binding, outputKind))
-                    continue;
-
-                if (!prioritizeCompleteness)
+                if (MatchesOutputKind(binding, spec != null ? spec.OutputKind : AuthoringResourceSelectionOutputKind.Unknown))
                     return binding;
-
-                int score = ComputeBindingCompletenessScore(binding);
-                if (best == null || score > bestScore)
-                {
-                    best = binding;
-                    bestScore = score;
-                }
             }
 
-            if (best != null)
-                return best;
-
             return FindPrimaryBinding(item);
+        }
+
+        private static bool IsAudioBindingKind(AuthoringResourceBindingKind kind)
+        {
+            return kind == AuthoringResourceBindingKind.AudioCue ||
+                   kind == AuthoringResourceBindingKind.AudioEventDefinition;
         }
 
         private enum BindingValueKind
@@ -482,25 +467,6 @@ namespace MxFramework.Authoring
             Hash,
             AudioCueId,
             AudioEventDefinitionId
-        }
-
-        private static int ComputeBindingCompletenessScore(AuthoringResourceProviderBinding binding)
-        {
-            if (binding == null)
-                return int.MinValue;
-
-            int score = 0;
-            if (binding.IsPrimary)
-                score += 1;
-            if (!string.IsNullOrWhiteSpace(GetBindingValue(binding, BindingValueKind.RuntimeResourceKey)))
-                score += 4;
-            if (!string.IsNullOrWhiteSpace(GetBindingValue(binding, BindingValueKind.UnityAssetPath)))
-                score += 3;
-            if (!string.IsNullOrWhiteSpace(GetBindingValue(binding, BindingValueKind.ProviderResourceKey)))
-                score += 2;
-            if (!string.IsNullOrWhiteSpace(GetBindingValue(binding, BindingValueKind.Hash)))
-                score += 1;
-            return score;
         }
 
         private static string GetFirstBindingValue(AuthoringResourceItem item, BindingValueKind kind)

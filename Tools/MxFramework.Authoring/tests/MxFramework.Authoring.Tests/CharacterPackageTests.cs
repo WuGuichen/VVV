@@ -32,6 +32,7 @@ internal static class CharacterPackageTests
         EditorServer_AnimationPackageApi_IsFileBackedAndValidatesShallowDraft();
         EditorServer_AnimationPreview_IsCompilerBackedAndResolvesResources();
         AuthoringResourceSelectionService_FiltersAndResolvesFieldSpecs();
+        AuthoringResourceSelectionService_SourceClipAndFmodMultiBinding_DoNotDriftResolution();
         AuthoringResourceReferenceGraph_ScansCrossConsumerReferencesAndDiagnostics();
         ResourceFieldSpec_ResolveSelection_FillsCompiledResourceReference();
         ResourceReferenceGraph_ValidatesBrokenReferencesAndOrphans();
@@ -2523,6 +2524,131 @@ internal static class CharacterPackageTests
                 BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
             });
         Require(vfxResult.Accepted && vfxResult.Selection.RuntimeResourceKey == "char.iron_vanguard.vfx.slash", "VFX prefab field should resolve through same contract.");
+    }
+
+    private static void AuthoringResourceSelectionService_SourceClipAndFmodMultiBinding_DoNotDriftResolution()
+    {
+        var service = new AuthoringResourceSelectionService();
+        var collection = new AuthoringResourceCollection { ScopeId = "selection-regression" };
+
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "runtime:anim.run_r",
+            StableId = "runtime.anim.run_r",
+            DisplayName = "Run_R",
+            Kind = CharacterPackageResourceTypeIds.Animation,
+            Usage = CharacterPackageResourceUsageIds.AnimationClip,
+            SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+            SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
+            BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.RuntimeReady,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                    BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.RuntimeResourceKey,
+                    IsPrimary = true,
+                    ProviderResourceKey = "char.iron_vanguard.anim.run_r",
+                    RuntimeResourceKey = "char.iron_vanguard.anim.run_r"
+                },
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                    BindingKind = AuthoringResourceBindingKind.UnityAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.UnityAssetPath,
+                    ProviderResourceKey = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim",
+                    UnityAssetPath = "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim"
+                }
+            }
+        });
+
+        AuthoringResourceSelectionResolutionResult sourceClipResult = service.Resolve(
+            collection,
+            AnimationAuthoringResourceFieldSpecs.CreateSourceClip(),
+            new AuthoringResourceConsumerContext { ConsumerKind = "AnimationEditor" },
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "runtime.anim.run_r",
+                SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
+                BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset
+            });
+
+        Require(sourceClipResult.Accepted, "source clip selection should resolve for runtime animation item.");
+        Require(sourceClipResult.Selection.BindingKind == AuthoringResourceBindingKind.ResourceManagerAsset, "source clip selection should keep the intended binding kind.");
+        Require(sourceClipResult.Selection.RuntimeResourceKey == "char.iron_vanguard.anim.run_r", "source clip selection should keep runtime resource key.");
+        Require(sourceClipResult.Selection.UnityAssetPath == "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim", "source clip selection should backfill unity asset path from sibling binding.");
+
+        collection.Items.Add(new AuthoringResourceItem
+        {
+            ResourceId = "fmod:event.hit",
+            StableId = "fmod.event.hit",
+            DisplayName = "Hit",
+            Kind = CharacterPackageResourceTypeIds.Audio,
+            Usage = CharacterPackageResourceUsageIds.AudioCue,
+            SourceProviderId = AuthoringResourceProviderIds.Fmod,
+            SourceKind = AuthoringResourceSourceKind.FmodLibrary,
+            BindingKind = AuthoringResourceBindingKind.AudioEventDefinition,
+            ImportStatus = AuthoringResourceImportStatus.Clean,
+            RuntimeAvailability = AuthoringResourceRuntimeAvailability.AudioCueOnly,
+            ProviderBindings = new List<AuthoringResourceProviderBinding>
+            {
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.AudioEventDefinition,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.FmodEventGuid,
+                    IsPrimary = true,
+                    ProviderResourceKey = "event:/Character/Hit",
+                    FmodEventGuid = "{fmod-hit}",
+                    ProviderData = new Dictionary<string, string>
+                    {
+                        { "audioCueId", "cue.hit" },
+                        { "audioEventDefinitionId", "event.hit" }
+                    }
+                },
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.AudioCue,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.FmodEventGuid,
+                    ProviderResourceKey = "cue.hit",
+                    FmodEventGuid = "{fmod-hit}",
+                    ProviderData = new Dictionary<string, string>
+                    {
+                        { "audioCueId", "cue.hit" },
+                        { "audioEventDefinitionId", "event.hit" }
+                    }
+                },
+                new AuthoringResourceProviderBinding
+                {
+                    ProviderId = AuthoringResourceProviderIds.Fmod,
+                    BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
+                    BindingKeyKind = AuthoringResourceBindingKeyKinds.RuntimeResourceKey,
+                    ProviderResourceKey = "runtime.should.not.leak",
+                    RuntimeResourceKey = "runtime.should.not.leak"
+                }
+            }
+        });
+
+        AuthoringResourceSelectionResolutionResult audioCueResult = service.Resolve(
+            collection,
+            AnimationAuthoringResourceFieldSpecs.CreateEventAudioCue(AuthoringResourceSelectionOutputKind.AudioCueId),
+            new AuthoringResourceConsumerContext { ConsumerKind = "AnimationEditor" },
+            new AuthoringResourceSelectionRef
+            {
+                ResourceStableId = "fmod.event.hit",
+                SourceProviderId = AuthoringResourceProviderIds.Fmod,
+                BindingKind = AuthoringResourceBindingKind.AudioCue
+            });
+
+        Require(audioCueResult.Accepted, "fmod audio cue selection should resolve.");
+        Require(audioCueResult.Selection.BindingKind == AuthoringResourceBindingKind.AudioCue, "fmod cue selection should keep audio cue binding kind.");
+        Require(audioCueResult.Selection.AudioCueId == "cue.hit", "fmod cue selection should preserve cue id.");
+        Require(string.IsNullOrEmpty(audioCueResult.Selection.RuntimeResourceKey), "fmod cue selection should not backfill runtime keys from sibling bindings.");
+        Require(string.IsNullOrEmpty(audioCueResult.Selection.UnityAssetPath), "fmod cue selection should not backfill unity asset path from sibling bindings.");
     }
 
     private static AuthoringResourceCollection BuildAuthoringSelectionCollection()
