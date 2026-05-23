@@ -7,11 +7,17 @@ namespace MxFramework.CharacterAction
         None = 0,
         Command = 1,
         GameplayAbility = 2,
+        LocalInput = 3,
+        RuntimeAiPlanner = 4,
+        RuntimeAI = RuntimeAiPlanner,
+        Replay = 5,
+        Scripted = 6,
         PostureBreak = 10,
         GuardBreak = 11,
         ArmorBreak = 12,
         Hit = 13,
         Death = 14,
+        Reaction = 15,
         PlayerIntervention = 20,
         Debug = 30,
     }
@@ -62,7 +68,7 @@ namespace MxFramework.CharacterAction
             return localFrame >= StartFrame
                 && localFrame <= EndFrame
                 && (TargetActionId == 0 || TargetActionId == targetActionId)
-                && (SourceKind == CharacterActionSourceKind.None || SourceKind == sourceKind);
+                && CharacterActionSourceKindUtility.Matches(SourceKind, sourceKind);
         }
 
         public bool Equals(CharacterCancelRule other)
@@ -122,7 +128,7 @@ namespace MxFramework.CharacterAction
 
         public bool Matches(CharacterActionSourceKind sourceKind, int priority, int targetActionId)
         {
-            return (SourceKind == CharacterActionSourceKind.None || SourceKind == sourceKind)
+            return CharacterActionSourceKindUtility.Matches(SourceKind, sourceKind)
                 && priority >= MinimumPriority
                 && (TargetActionId == 0 || TargetActionId == targetActionId);
         }
@@ -150,6 +156,24 @@ namespace MxFramework.CharacterAction
                 hash = (hash * 397) ^ Allow.GetHashCode();
                 return hash;
             }
+        }
+    }
+
+    internal static class CharacterActionSourceKindUtility
+    {
+        public static bool Matches(CharacterActionSourceKind ruleSourceKind, CharacterActionSourceKind requestSourceKind)
+        {
+            return ruleSourceKind == CharacterActionSourceKind.None
+                || ruleSourceKind == requestSourceKind
+                || (ruleSourceKind == CharacterActionSourceKind.Command && IsCommandLike(requestSourceKind));
+        }
+
+        private static bool IsCommandLike(CharacterActionSourceKind sourceKind)
+        {
+            return sourceKind == CharacterActionSourceKind.LocalInput
+                || sourceKind == CharacterActionSourceKind.RuntimeAiPlanner
+                || sourceKind == CharacterActionSourceKind.Replay
+                || sourceKind == CharacterActionSourceKind.Scripted;
         }
     }
 }
