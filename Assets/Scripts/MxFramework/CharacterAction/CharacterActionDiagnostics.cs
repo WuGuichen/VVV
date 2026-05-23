@@ -6,10 +6,12 @@ namespace MxFramework.CharacterAction
         public const string MissingActionBinding = CharacterActionDiagnosticCodes.MissingActionBinding;
         public const string MissingAbilityBinding = CharacterActionDiagnosticCodes.MissingAbilityBinding;
         public const string MissingActionConfig = CharacterActionDiagnosticCodes.MissingActionConfig;
+        public const string MissingReactionProfile = CharacterActionDiagnosticCodes.MissingReactionProfile;
         public const string ActionDurationMissing = CharacterActionDiagnosticCodes.ActionDurationMissing;
         public const string ActionDurationResolvedFromConfig = CharacterActionDiagnosticCodes.ActionDurationResolvedFromConfig;
         public const string ActionDurationResolvedFromCombat = CharacterActionDiagnosticCodes.ActionDurationResolvedFromCombat;
         public const string ActionDurationFallbackUsed = CharacterActionDiagnosticCodes.ActionDurationFallbackUsed;
+        public const string ActionQueued = CharacterActionDiagnosticCodes.ActionQueued;
         public const string InsufficientResource = CharacterActionDiagnosticCodes.InsufficientResource;
         public const string ResourceMissing = CharacterActionDiagnosticCodes.ResourceMissing;
         public const string ResourceCostWithoutResourceId = CharacterActionDiagnosticCodes.ResourceCostWithoutResourceId;
