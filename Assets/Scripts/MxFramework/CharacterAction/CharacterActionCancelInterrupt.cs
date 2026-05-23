@@ -173,7 +173,9 @@ namespace MxFramework.CharacterAction
             return sourceKind == CharacterActionSourceKind.LocalInput
                 || sourceKind == CharacterActionSourceKind.RuntimeAiPlanner
                 || sourceKind == CharacterActionSourceKind.Replay
-                || sourceKind == CharacterActionSourceKind.Scripted;
+                || sourceKind == CharacterActionSourceKind.Scripted
+                || sourceKind == CharacterActionSourceKind.Debug
+                || sourceKind == CharacterActionSourceKind.PlayerIntervention;
         }
     }
 }

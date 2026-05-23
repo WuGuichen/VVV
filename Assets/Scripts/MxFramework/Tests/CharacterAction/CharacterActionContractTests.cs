@@ -187,6 +187,11 @@ namespace MxFramework.Tests.CharacterAction
             Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.LocalInput));
             Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.RuntimeAiPlanner));
             Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.RuntimeAI));
+            Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.Replay));
+            Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.Scripted));
+            Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.Debug));
+            Assert.IsTrue(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.PlayerIntervention));
+            Assert.IsFalse(commandRule.Matches(5, targetActionId: 0, CharacterActionSourceKind.Reaction));
         }
 
         [Test]
