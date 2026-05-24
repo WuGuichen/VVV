@@ -1,6 +1,6 @@
 # Story.Runtime 接口
 
-> 状态：S0 Accepted Contract（2026-05-24）。本文固定 Story Runtime bridge 的目标公共契约；S1 实现关闭前，不代表仓库已有可用 API。
+> 状态：S1 Runtime Slice 已实现（2026-05-24）。本文记录 `MxFramework.Story.Runtime` 当前可用的 Runtime bridge API 和仍未实现的后续范围。
 
 ## 职责
 
@@ -92,9 +92,9 @@ Responsibilities:
 Default scheduling:
 
 - Stage: `RuntimeTickStage.Simulation`
-- Priority: lower than Gameplay runtime module priority when same-frame Story effects should enqueue Gameplay commands first.
+- Priority: `StoryRuntimeModule.DefaultPriority = -100`, so composition roots can run Story before Gameplay when a later bridge needs same-frame Story-to-Gameplay command enqueue.
 
-The exact priority must be documented in S1 implementation, with tests proving module order.
+S1 has no Gameplay bridge and does not enqueue Gameplay commands; the priority is reserved for that later composition policy.
 
 ## Runtime Events
 
@@ -197,6 +197,8 @@ Payload v1 includes:
 - ordered blackboard facts.
 - deterministic string table snapshot if used.
 
+S1 stores the payload as serialized `StoryDirectorSaveState`. It captures loaded graph definitions and versions, graph status, active beat instances, current step cursor, pending presentation wait, next beat instance id, and ordered blackboard facts.
+
 Restore rules:
 
 - Reject missing module state with structured `RuntimeSaveStateError`.
@@ -233,10 +235,12 @@ S1 may implement only `NoWait` and `WaitForCommand`, but the DTO must keep polic
 - Network rollback or replication.
 - Gameplay effect commands; defined in `Story.GameplayBridge`.
 - Unity trigger zone adapters; defined in `Story.Unity`.
+- Runtime timeout behavior for `WaitWithFrameTimeout`.
+- Config mapping, Resources preload, Runtime AI Planner projection, Authoring import, and Editor tooling.
 
 ## Test Entry
 
-Planned tests:
+S1 tests:
 
 - command registry and validator.
 - single-drain command buffer ownership.

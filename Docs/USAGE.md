@@ -1,6 +1,6 @@
 # MxFramework 使用手册
 
-> 版本 0.3.5 | 2026-05-18
+> 版本 0.3.6 | 2026-05-24
 >
 > 本文面向业务开发和 AI 辅助开发。目标是“先看这里就能接入”，不要靠通读源码理解基础模块。
 
@@ -657,6 +657,92 @@ MxFramework/Camera UI/Create 3D Validation Scene
 - 该 Demo 依赖 `MxFramework.Camera.URP`，URP 依赖保持在 Unity-facing Demo / adapter 层，不进入 noEngine camera core。
 - UI 3D 物体使用项目已有 `UI` layer 作为最小验证层；主相机排除该 layer，Overlay Camera 只渲染该 layer。
 - 不手写 `.unity`、Material 或 PanelSettings YAML；这些序列化资产由 Unity 菜单创建并保存。
+
+### 6.11 Story Runtime Minimal Replay Loop
+
+Story S1 是纯 C# `Runtime Slice`，用于验证剧情 graph/beat/step/choice 能通过 Runtime command、event queue、hash、SaveState 和 replay 路径闭环。它不是可玩 Demo，不包含 Unity 场景、UI Toolkit 对话框、Timeline、Gameplay effect、Resources preload 或 Story authoring import。
+
+最小装配：
+
+```csharp
+using MxFramework.Runtime;
+using MxFramework.Story;
+using MxFramework.Story.Runtime;
+
+var graph = new StoryGraphDefinition(
+    graphId: 1001,
+    version: 1,
+    entryBeatId: 2001,
+    beats: new[]
+    {
+        new StoryBeatDefinition(
+            beatId: 2001,
+            steps: new[]
+            {
+                new StoryStepDefinition(stepId: 3001, kind: StoryStepKind.Line)
+            },
+            branches: new[]
+            {
+                new StoryBranchDefinition(branchId: 1, targetBeatId: 2002, isFallback: true)
+            },
+            triggerIds: new[] { 4001 }),
+        new StoryBeatDefinition(
+            beatId: 2002,
+            steps: new[]
+            {
+                new StoryStepDefinition(
+                    stepId: 3002,
+                    kind: StoryStepKind.SetFact,
+                    factKey: new StoryFactKey(1001, 5001),
+                    factValue: StoryValue.FromBool(true))
+            })
+    });
+
+var director = new StoryDirector();
+director.LoadGraph(graph);
+
+var module = new StoryRuntimeModule(director);
+module.CommandBuffer.Enqueue(StoryRuntimeCommandFactory.RaiseTrigger(
+    RuntimeFrame.Zero,
+    StoryRuntimeCommandSources.TestDriver,
+    triggerId: 4001));
+
+module.Tick(new RuntimeTickContext(0, 0d, 0d, RuntimeTickStage.Simulation));
+
+long hash = RuntimeHashCombiner.ComputeHash(
+    RuntimeFrame.Zero,
+    new IRuntimeHashContributor[] { new StoryRuntimeHashContributor(director) });
+```
+
+Runtime command ids are fixed by ADR-005:
+
+| Factory | CommandId | Meaning |
+| --- | ---: | --- |
+| `RaiseTrigger(...)` | `1003001` | External input / adapter raises a stable trigger id. |
+| `SelectChoice(...)` | `1003002` | UI or test driver resolves a live `beatInstanceId` by stable `choiceId`. |
+| `CompletePresentation(...)` | `1003003` | UI / Timeline / audio / camera adapter acknowledges a waiting presentation step. |
+| `RequestEnterBeat(...)` | `1003004` | Debug/system source requests a graph + beat entry. |
+| `AbortGraph(...)` | `1003005` | Debug/system source aborts a loaded graph. |
+
+Save / restore uses existing Runtime contracts:
+
+```csharp
+var provider = new StoryRuntimeSaveStateProvider(director, () => 0L);
+RuntimeSaveState state = provider.CaptureSaveState().Value;
+string json = RuntimeSaveStateJson.SaveToJson(state);
+
+RuntimeSaveState loaded = RuntimeSaveStateJson.LoadFromJson(json).Value;
+var restoredDirector = new StoryDirector();
+new StoryRuntimeSaveStateProvider(restoredDirector).RestoreSaveState(loaded);
+```
+
+约束：
+
+- `MxFramework.Story` 是 noEngine core，只依赖 Core + Events，不读取 RuntimeCommand。
+- `MxFramework.Story.Runtime` 只依赖 Story + Runtime，拥有独立 Story `RuntimeCommandBuffer` drain owner。
+- Story Runtime 不 drain Gameplay command buffer；后续 `Story.GameplayBridge` 只能 enqueue Gameplay commands。
+- `WaitWithFrameTimeout` 只保留 DTO 字段，S1 未实现 runtime timeout 行为。
+- 当前测试入口：`Assets/Scripts/MxFramework/Tests/Story/` 和 `Assets/Scripts/MxFramework/Tests/Story.Runtime/`。
 
 ## 7. Config 表和校验
 

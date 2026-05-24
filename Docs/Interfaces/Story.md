@@ -1,10 +1,10 @@
 # Story 接口
 
-> 状态：S0 Accepted Contract（2026-05-24）。本文固定 Story core 的目标公共契约；S1 实现关闭前，不代表仓库已有可用 API。
+> 状态：S1 Runtime Slice 已实现（2026-05-24）。本文记录 `MxFramework.Story` 当前可用的 noEngine core API 和仍未实现的后续桥接范围。
 
 ## 职责
 
-`MxFramework.Story` 提供框架级剧情运行时核心：Story graph、beat、step、branch、choice、deterministic blackboard、Director 状态机和同步 id-only Story event。
+`MxFramework.Story` 提供框架级剧情运行时核心：Story graph、beat、step、branch、choice、deterministic blackboard、Director 状态机、快照、SaveState 输入 DTO 和同步 id-only Story event。
 
 Story core 是 noEngine 模块，只依赖 `MxFramework.Core` 和 `MxFramework.Events`。它不依赖 Runtime、Gameplay、Attributes、Buffs、Modifiers、Config、Resources、Runtime AI Planner、UnityEngine 或 UnityEditor。
 
@@ -47,12 +47,11 @@ MxFramework.Story
 | `StoryValue` | 无装箱受限 union，保存 bool/int/long/fix64/string-ref 等确定性值 |
 | `StoryFactEntry` | `StoryFactKey` + `StoryValue` 的有序枚举项 |
 | `StoryBlackboard` | 默认黑板实现，提供稳定 set/get/copy ordered facts |
-| `IStoryCondition` | 纯 Story 条件，只读 Story evaluation context |
-| `IStoryEffect` | 纯 Story effect，只能修改 Story blackboard 或返回 Story-local intent |
 | `StoryDirector` | Director 状态机，推进 graph/beat/step/branch，不读取 RuntimeCommand |
 | `StoryEvent` | core 同步事件，id-only payload |
-| `StorySnapshot` | Director 只读快照，用于 tests、Debug UI adapter 和 UI 查询 |
+| `StoryDirectorSnapshot` | Director 只读快照，用于 tests、Debug UI adapter 和 UI 查询 |
 | `IStoryChoiceSnapshotReader` | UI 查询当前可选项的只读接口 |
+| `StoryDirectorSaveState` | Story.Runtime SaveState payload 的 core 状态输入 |
 
 ## Blackboard
 
@@ -131,17 +130,27 @@ Implementation guidance:
 ```csharp
 public interface IStoryDirector
 {
+    StoryLoadGraphResult TryLoadGraph(StoryGraphDefinition graph);
     bool LoadGraph(in StoryGraphDefinition graph);
+    StoryTriggerResult TryRaiseTrigger(int triggerId, in StoryActivationContext context);
     StoryEnterBeatResult TryEnterBeat(int graphId, int beatId, in StoryActivationContext context);
     StoryTickResult Tick(in StoryTickContext context);
     StoryChoiceResult TryResolveChoice(int beatInstanceId, int choiceId);
     StoryPresentationResult CompletePresentation(int beatInstanceId, int stepId);
+    StoryAbortResult AbortGraph(int graphId, int reason);
+    StoryDirectorSnapshot CreateSnapshot();
     IStoryBlackboard Blackboard { get; }
     IEventBus<StoryEvent> Events { get; }
 }
 ```
 
-Director does not know `RuntimeCommand`. `Story.Runtime` translates commands into these method calls.
+Director does not know `RuntimeCommand`. `Story.Runtime` translates commands into these method calls. S1 supports a minimal deterministic graph flow:
+
+```text
+entry beat -> no-wait or wait-for-command steps -> optional choices -> branch or complete
+```
+
+`StoryStepKind.SetFact` writes deterministic `StoryValue` entries into the blackboard and emits `FactChanged`. `WaitWithFrameTimeout` is reserved in the DTO but S1 only implements `NoWait` and `WaitForCommand`; timeout interpretation remains a Story.Runtime follow-up.
 
 Director may internally update:
 
@@ -225,7 +234,7 @@ Step definitions include a presentation completion policy:
 | --- | --- |
 | `NoWait` | Director advances immediately. |
 | `WaitForCommand` | Director waits for matching beat instance and step id. |
-| `WaitWithFrameTimeout` | Director waits until a Runtime-frame timeout configured by the Runtime bridge. |
+| `WaitWithFrameTimeout` | DTO reserved for later Runtime-frame timeout support; S1 treats it as a waiting presentation step without timeout expiry. |
 
 Core stores the policy and pending wait state. Runtime owns frame interpretation and command validation.
 
@@ -243,19 +252,20 @@ It must not serialize private object trees, delegates, event handlers, Unity obj
 
 ## Current Unsupported
 
-- Runtime command integration. Planned in `Story.Runtime`.
 - Config loading / schema mapping. Planned in `Story.Config`.
+- Pluggable `IStoryCondition` / `IStoryEffect` contracts. S1 uses stable `conditionId` lookup against bool blackboard facts and `SetFact` steps only.
 - Gameplay effect execution. Planned in `Story.GameplayBridge`.
 - Resources preload. Planned in `Story.ResourcesBridge`.
 - Runtime AI Planner projection. Planned in `Story.RuntimeAiPlannerBridge`.
 - Unity trigger zones, Timeline, Cinemachine, UI Toolkit view, GraphView editor, or external authoring import.
+- `WaitWithFrameTimeout` runtime timeout behavior.
 
 ## Test Entry
 
-Planned S1 tests:
+S1 tests:
 
 - `Assets/Scripts/MxFramework/Tests/Story/StoryBlackboardTests.cs`
 - `Assets/Scripts/MxFramework/Tests/Story/StoryDirectorTests.cs`
-- `Assets/Scripts/MxFramework/Tests/Story/StoryRuntimeModuleTests.cs`
+- `Assets/Scripts/MxFramework/Tests/Story.Runtime/StoryRuntimeModuleTests.cs`
 
 See `Docs/Tasks/STORY_S1.md`.

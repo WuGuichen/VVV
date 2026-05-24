@@ -41,6 +41,8 @@
         "MxFramework.Logging.Diagnostics",
         "MxFramework.Runtime",
         "MxFramework.Runtime.Unity",
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime",
         "MxFramework.Input",
         "MxFramework.Gameplay",
         "MxFramework.Combat",
