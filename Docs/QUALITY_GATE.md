@@ -1,6 +1,6 @@
 # MxFramework 质量门禁
 
-> 版本 0.3.2 | 2026-05-13
+> 版本 0.3.3 | 2026-05-24
 >
 > 本文档定义每批迁移、每个模块和每次发布必须满足的验收条件。
 
@@ -88,6 +88,17 @@
 - 本地多人必须使用 `PlayerInput.actions` 的私有副本，不读全局 project-wide actions。
 - 至少覆盖上下文栈、命令队列和可替换输入源的 EditMode 测试。
 
+### 2.10 Rendering
+
+- `MxFramework.Rendering` 只能作为 Unity + URP-facing 表现层程序集存在，不得被 Core / Runtime / Gameplay / Combat / Buffs / Resources / Runtime AI Planner 等 noEngine 模块引用。
+- `MxFramework.Rendering` 不依赖 `MxFramework.DebugUI`；诊断只通过 `MxFramework.Diagnostics.IFrameworkDebugSource` 暴露。
+- `MxFrameworkUniversalRenderer.asset` 上唯一允许的框架级 Renderer Feature 是 `MxRenderingPipelineFeature`。
+- 具体渲染能力必须通过 `IMxRenderPass` / `IMxRenderPassProvider` 注册到 FeaturePipeline，不能新增独立框架 `ScriptableRendererFeature`。
+- GlobalFrameContext 不写入 camera-derived 值；CameraRenderContext 不覆盖 GlobalFrameContext 已拥有的 shader property id。
+- SharedRTRegistry 的 R-RT-01 至 R-RT-08 冲突规则必须有对应测试或明确验收记录。
+- Rendering state 不进入 runtime authority、Replay、SaveState 或 Runtime hash。
+- 公共 Rendering API 不暴露游戏业务词；source module entity id 必须通过 `MxRenderSubjectId` 映射进入 Rendering。
+
 ## 3. 自动检查建议
 
 可先用脚本实现以下检查；具体日常工作流和提交前步骤见 `WORKFLOW.md`：
@@ -113,6 +124,7 @@ check-source-comment-for-migrated-files
 5. 如涉及 Runtime Tick，运行 PlayMode smoke test。
 6. 打开 `MxFramework > Framework Manager`，验证依赖图和模块状态。
 7. 如涉及场景、材质、Shader、Volume、相机或可玩 Demo，按 `Docs/RENDERING_PIPELINE.md` 确认 URP 资产仍为项目基线，且无粉色材质或渲染管线错误。
+8. 如涉及 Rendering 框架能力，确认 `MxFrameworkUniversalRenderer.asset` 没有新增独立框架 Renderer Feature，所有能力都通过 `MxRenderingPipelineFeature` 下的 pass/provider 接入。
 
 ### 4.1 UI Toolkit Runtime Demo 验收
 

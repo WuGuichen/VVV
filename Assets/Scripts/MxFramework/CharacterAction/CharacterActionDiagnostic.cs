@@ -47,6 +47,8 @@ namespace MxFramework.CharacterAction
         public const string AdapterSinkMissing = "ACT_ADAPTER_SINK_MISSING";
         public const string AdapterPayloadMissing = "ACT_ADAPTER_PAYLOAD_MISSING";
         public const string AdapterSinkFailure = "ACT_ADAPTER_SINK_FAILURE";
+        public const string WorkstationEditingUnsupported = "ACT_WORKSTATION_EDITING_UNSUPPORTED";
+        public const string WorkstationUnsupportedField = "ACT_WORKSTATION_UNSUPPORTED_FIELD";
     }
 
     public enum CharacterActionDiagnosticSeverity
