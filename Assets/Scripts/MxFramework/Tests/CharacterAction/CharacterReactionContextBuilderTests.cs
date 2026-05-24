@@ -1,5 +1,8 @@
 using System.Linq;
 using MxFramework.CharacterAction;
+using MxFramework.Combat.Core;
+using MxFramework.Combat.Hit;
+using MxFramework.Core.Math;
 using MxFramework.Gameplay;
 using MxFramework.Runtime;
 using NUnit.Framework;
@@ -250,9 +253,183 @@ namespace MxFramework.Tests.CharacterAction
             AssertDiagnostic(validatorDiagnostics, CharacterActionDiagnosticCodes.ReactionRuleRequiresHitContext);
         }
 
+        [Test]
+        public void HitSource_BuildsFullContextWithAllHitDimensions()
+        {
+            CharacterReactionContextBuildResult result = CharacterReactionContextBuilder.FromHitSource(
+                CreateFullHitSource(
+                    bodyPartId: "body.head",
+                    hitZoneId: "zone.face",
+                    damageTypeId: "damage.blunt",
+                    hitDirection: CharacterHitDirection.Front,
+                    impactForce: 72,
+                    reactionGroupId: "reaction.upper"));
+
+            Assert.IsTrue(result.Success);
+            Assert.AreEqual(CharacterReactionContextCompleteness.Full, result.Completeness);
+            Assert.AreEqual(CharacterReactionContextSourceKind.Hit, result.Context.SourceKind);
+            Assert.IsTrue(result.Context.HasFullHitContext);
+            Assert.AreEqual("body.head", result.Context.BodyPartId);
+            Assert.AreEqual("zone.face", result.Context.HitZoneId);
+            Assert.AreEqual("damage.blunt", result.Context.DamageTypeId);
+            Assert.AreEqual(CharacterHitDirection.Front, result.Context.HitDirection);
+            Assert.AreEqual(72, result.Context.ImpactForce);
+            Assert.AreEqual("reaction.upper", result.Context.ReactionGroupId);
+            Assert.AreEqual(0, result.Diagnostics.Length);
+        }
+
+        [Test]
+        public void ReactionSelector_FullHitContext_SelectsByEveryHitDimension()
+        {
+            CharacterReactionContext context = CharacterReactionContextBuilder.FromHitSource(
+                CreateFullHitSource(
+                    bodyPartId: "body.torso",
+                    hitZoneId: "zone.rib",
+                    damageTypeId: "damage.slash",
+                    hitDirection: CharacterHitDirection.Back,
+                    impactForce: 80,
+                    reactionGroupId: "reaction.core")).Context;
+
+            AssertFullHitSelection(
+                context,
+                new CharacterReactionRule("BodyPartReact", CharacterReactionRuleTrigger.Hit, bodyPartId: "body.torso"),
+                "BodyPartReact");
+            AssertFullHitSelection(
+                context,
+                new CharacterReactionRule("HitZoneReact", CharacterReactionRuleTrigger.Hit, hitZoneId: "zone.rib"),
+                "HitZoneReact");
+            AssertFullHitSelection(
+                context,
+                new CharacterReactionRule("DamageTypeReact", CharacterReactionRuleTrigger.Hit, damageTypeId: "damage.slash"),
+                "DamageTypeReact");
+            AssertFullHitSelection(
+                context,
+                new CharacterReactionRule("DirectionReact", CharacterReactionRuleTrigger.Hit, hitDirection: CharacterHitDirection.Back),
+                "DirectionReact");
+            AssertFullHitSelection(
+                context,
+                new CharacterReactionRule("ImpactForceReact", CharacterReactionRuleTrigger.Hit, minImpactForce: 60),
+                "ImpactForceReact");
+            AssertFullHitSelection(
+                context,
+                new CharacterReactionRule("ReactionGroupReact", CharacterReactionRuleTrigger.Hit, reactionGroupId: "reaction.core"),
+                "ReactionGroupReact");
+        }
+
+        [Test]
+        public void MissingHitSourceFields_ProduceIncompleteDiagnosticsAndDoNotFallback()
+        {
+            CharacterReactionContextBuildResult build = CharacterReactionContextBuilder.FromHitSource(
+                new CharacterReactionHitSource(
+                    new RuntimeFrame(12),
+                    Entity(),
+                    bodyPartId: "body.torso",
+                    hitZoneId: "zone.rib",
+                    damageTypeId: string.Empty,
+                    hitDirection: CharacterHitDirection.Back,
+                    impactForce: null,
+                    reactionGroupId: "reaction.core",
+                    traceId: "hit-incomplete"));
+            var profile = new CharacterReactionProfile(
+                "full-hit",
+                new CharacterReactionRule[0],
+                defaultActionId: "WrongFallback");
+
+            CharacterReactionSelectionResult selection = CharacterReactionSelector.Select(profile, build.Context);
+
+            Assert.IsTrue(build.Success);
+            Assert.AreEqual(CharacterReactionContextCompleteness.SourceOnly, build.Completeness);
+            Assert.IsFalse(build.Context.HasFullHitContext);
+            AssertDiagnostic(build.Diagnostics, CharacterActionDiagnosticCodes.ReactionContextIncomplete);
+            Assert.IsFalse(selection.Accepted);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.ReactionContextIncomplete, selection.RejectCode);
+            Assert.AreEqual(string.Empty, selection.SelectedActionId);
+        }
+
+        [Test]
+        public void HitResolveResultBridge_ConsumesCombatFactsWithoutDuplicatingAuthority()
+        {
+            var hitResult = new HitResolveResult(
+                new CombatEntityId(10),
+                new CombatEntityId(20),
+                actionId: 1001,
+                actionInstanceId: 33,
+                traceId: 44,
+                frame: new CombatFrame(7),
+                kind: HitResolveKind.Damage,
+                damage: 12,
+                staggerFrames: 3,
+                knockback: new FixVector3(Fix64.FromInt(1), Fix64.Zero, Fix64.Zero));
+            CharacterReactionHitSource source = CharacterReactionHitSource.FromHitResolveResult(
+                hitResult,
+                Entity(),
+                bodyPartId: "body.torso",
+                hitZoneId: "zone.rib",
+                damageTypeId: "damage.pierce",
+                hitDirection: CharacterHitDirection.Left,
+                impactForce: 12,
+                reactionGroupId: "reaction.core");
+
+            CharacterReactionContextBuildResult build = CharacterReactionContextBuilder.FromHitSource(source);
+
+            Assert.AreEqual(new RuntimeFrame(7), build.Context.Frame);
+            Assert.AreEqual(10, build.Context.SourceId);
+            Assert.AreEqual("Damage", build.Context.Reason);
+            Assert.AreEqual("44", build.Context.TraceId);
+            Assert.AreEqual(CharacterReactionContextCompleteness.Full, build.Completeness);
+            Assert.IsTrue(hitResult.IsAcceptedDamage);
+            Assert.AreEqual(12, hitResult.Damage);
+            Assert.AreEqual(HitResolveKind.Damage, hitResult.Kind);
+        }
+
         private static GameplayEntityId Entity()
         {
             return new GameplayEntityId(1, 1);
+        }
+
+        private static CharacterReactionHitSource CreateFullHitSource(
+            string bodyPartId,
+            string hitZoneId,
+            string damageTypeId,
+            CharacterHitDirection hitDirection,
+            int impactForce,
+            string reactionGroupId)
+        {
+            return new CharacterReactionHitSource(
+                new RuntimeFrame(11),
+                Entity(),
+                bodyPartId,
+                hitZoneId,
+                damageTypeId,
+                hitDirection,
+                impactForce,
+                reactionGroupId,
+                sourceId: 9,
+                reason: "hit",
+                traceId: "hit-full");
+        }
+
+        private static void AssertFullHitSelection(
+            CharacterReactionContext context,
+            CharacterReactionRule matchingRule,
+            string expectedActionId)
+        {
+            var profile = new CharacterReactionProfile(
+                "full-hit",
+                new[]
+                {
+                    new CharacterReactionRule("GenericHitReact", CharacterReactionRuleTrigger.Hit),
+                    new CharacterReactionRule("WrongBodyReact", CharacterReactionRuleTrigger.Hit, bodyPartId: "body.arm", priority: 1000),
+                    matchingRule,
+                },
+                defaultActionId: "FallbackReact");
+
+            CharacterReactionSelectionResult result = CharacterReactionSelector.Select(profile, context);
+
+            Assert.IsTrue(result.Accepted);
+            Assert.AreEqual(expectedActionId, result.SelectedActionId);
+            AssertDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            AssertDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleSkipped);
         }
 
         private static void AssertHitFieldsAreEmpty(CharacterReactionContext context)

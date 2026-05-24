@@ -267,6 +267,103 @@ namespace MxFramework.Tests.CharacterAction
         }
 
         [Test]
+        public void FullHitReactionContext_ResolvesHitAwareReactionAction()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig torsoReact = CreateAction(300, "torso_back_slash_react", CharacterActionCategory.Reaction);
+            CharacterActionConfig fallback = CreateAction(301, "fallback_hit_react", CharacterActionCategory.Reaction);
+            var profile = new CharacterReactionProfile(
+                "pressure-only",
+                new[]
+                {
+                    new CharacterReactionRule(
+                        "torso_back_slash_react",
+                        CharacterReactionRuleTrigger.Hit,
+                        bodyPartId: "body.torso",
+                        hitZoneId: "zone.rib",
+                        damageTypeId: "damage.slash",
+                        hitDirection: CharacterHitDirection.Back,
+                        minImpactForce: 40,
+                        reactionGroupId: "reaction.core"),
+                },
+                defaultActionId: "fallback_hit_react");
+            CharacterReactionContext context = CharacterReactionContextBuilder.FromHitSource(
+                new CharacterReactionHitSource(
+                    new RuntimeFrame(12),
+                    Entity(),
+                    bodyPartId: "body.torso",
+                    hitZoneId: "zone.rib",
+                    damageTypeId: "damage.slash",
+                    hitDirection: CharacterHitDirection.Back,
+                    impactForce: 64,
+                    reactionGroupId: "reaction.core",
+                    traceId: "trace.full-hit")).Context;
+            CharacterActionResolverContext resolverContext = CreateContext(
+                actions: new[] { torsoReact, fallback },
+                reactionProfiles: new[] { profile });
+
+            CharacterActionResolveResult result = resolver.ResolveReaction(resolverContext, context);
+            CharacterActionDiagnostic[] validation = CharacterActionValidation.ValidateReactionProfile(
+                profile,
+                new[] { torsoReact, fallback },
+                CharacterReactionContextCompleteness.Full);
+
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreEqual("torso_back_slash_react", result.Plan.ActionId);
+            Assert.AreEqual(CharacterActionCategory.Reaction, result.Plan.Category);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            Assert.AreEqual(0, validation.Length);
+        }
+
+        [Test]
+        public void MixedReactionProfile_PressureOnlyPostureBreakSkipsIrrelevantFullHitRule()
+        {
+            var resolver = new CharacterActionResolver();
+            CharacterActionConfig hitReact = CreateAction(300, "torso_hit_react", CharacterActionCategory.Reaction);
+            CharacterActionConfig postureReact = CreateAction(301, "posture_break_react", CharacterActionCategory.Reaction);
+            var profile = new CharacterReactionProfile(
+                "pressure-only",
+                new[]
+                {
+                    new CharacterReactionRule(
+                        "torso_hit_react",
+                        CharacterReactionRuleTrigger.Hit,
+                        bodyPartId: "body.torso",
+                        hitZoneId: "zone.rib",
+                        damageTypeId: "damage.slash",
+                        hitDirection: CharacterHitDirection.Front,
+                        minImpactForce: 40,
+                        reactionGroupId: "reaction.core"),
+                    new CharacterReactionRule(
+                        "posture_break_react",
+                        CharacterReactionRuleTrigger.PostureBreak,
+                        currentPressureBand: PressureBand.Broken),
+                });
+            CharacterActionResolverContext context = CreateContext(
+                actions: new[] { hitReact, postureReact },
+                reactionProfiles: new[] { profile });
+            CharacterReactionContext reactionContext = CharacterReactionContextBuilder.FromPostureBreak(
+                new PostureBreakEvent(
+                    new RuntimeFrame(3),
+                    Entity(),
+                    PressureBand.Critical,
+                    previousValue: 80,
+                    currentPressure: 100,
+                    maxPressure: 100,
+                    delta: 20)).Context;
+
+            CharacterActionResolveResult result = resolver.ResolveReaction(context, reactionContext);
+            CharacterActionDiagnostic[] authoringDiagnostics =
+                CharacterActionValidation.ValidatePressureOnlyReactionProfile(profile, new[] { hitReact, postureReact });
+
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreEqual("posture_break_react", result.Plan.ActionId);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleSkipped);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            AssertHasDiagnostic(authoringDiagnostics, CharacterActionDiagnosticCodes.ReactionRuleRequiresHitContext);
+        }
+
+        [Test]
         public void PressureOnlyReactionProfile_TargetingNonReactionAction_IsRejectedByResolver()
         {
             var resolver = new CharacterActionResolver();
@@ -298,6 +395,8 @@ namespace MxFramework.Tests.CharacterAction
             Assert.IsTrue(result.IsRejected);
             Assert.AreEqual(CharacterActionRejectReason.InvalidTarget, result.RejectReason);
             Assert.AreEqual(CharacterActionDiagnosticCodes.ReactionRuleNoTarget, result.Diagnostics[0].Code);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            Assert.AreNotEqual(CharacterActionDiagnosticCodes.ReactionRuleMatched, result.Diagnostics[0].Code);
         }
 
         [Test]
