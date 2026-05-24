@@ -30,7 +30,7 @@ namespace MxFramework.Story.Runtime
             CommandBuffer = commandBuffer ?? new RuntimeCommandBuffer();
             Events = events ?? new RuntimeEventQueue<StoryRuntimeEvent>();
             Validator = validator ?? new StoryRuntimeCommandValidator(Director);
-            _eventSubscription = Director.Events.Subscribe(OnStoryEvent);
+            _eventSubscription = Director.SubscribeEvents(OnStoryEvent);
         }
 
         public StoryDirector Director { get; }

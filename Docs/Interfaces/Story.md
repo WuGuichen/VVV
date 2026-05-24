@@ -141,8 +141,12 @@ public interface IStoryDirector
     StoryDirectorSnapshot CreateSnapshot();
     IStoryBlackboard Blackboard { get; }
     IEventBus<StoryEvent> Events { get; }
+    IDisposable SubscribeEvents(Action<StoryEvent> handler);
 }
 ```
+
+`Events` remains available for core callers that already reference `MxFramework.Events`.
+Bridge assemblies should prefer `SubscribeEvents(...)` so they do not need to reference the Events assembly directly.
 
 Director does not know `RuntimeCommand`. `Story.Runtime` translates commands into these method calls. S1 supports a minimal deterministic graph flow:
 
