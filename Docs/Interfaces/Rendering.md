@@ -311,6 +311,26 @@ public interface ISharedRenderTextureRegistry
     bool TryResolve(SharedRTHandle handle, out RTHandle rtHandle);
     SharedRTDiagnosticsSnapshot CaptureDiagnostics();
 }
+
+public readonly struct SharedRTDiagnosticsEntry
+{
+    public SharedRTId Id { get; }
+    public string DebugName { get; }
+    public SharedRTOwnerId Owner { get; }
+    public SharedRTFormat Format { get; }
+    public SharedRTSize Dimensions { get; }
+    public SharedRTResizePolicy Resize { get; }
+    public long EstimatedMemoryBytes { get; }
+    public long ActualMemoryBytes { get; }
+    public bool IsAllocated { get; }
+    public bool IsFallback { get; }
+    public bool IsOrphaned { get; }
+    public int OrphanFrameCount { get; }
+    public IReadOnlyList<SharedRTOwnerId> CurrentFrameReaders { get; }
+    public IReadOnlyList<SharedRTOwnerId> CurrentFrameWriters { get; }
+    public IReadOnlyList<SharedRTResizeEvent> RecentResizeEvents { get; }
+    public IReadOnlyList<SharedRTConflictEvent> RecentConflicts { get; }
+}
 ```
 
 Conflicts use stable rule ids:
