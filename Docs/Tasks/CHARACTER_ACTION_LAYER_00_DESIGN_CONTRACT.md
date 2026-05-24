@@ -1334,19 +1334,30 @@ Phase 3 完成边界：
 
 ### Phase 4：Motion + Combat + Gameplay Adapter
 
-接入：
+Issue #432 的 Phase 4 vertical slice 先落 noEngine request stream，不直接调用 Unity backend，也不启动各权威系统：
 
 ```text
-MotionTrack -> CharacterMotionResolver / Combat motion request
-CombatTrack -> CharacterActionController / CombatActionRunner
-GameplayTrack -> RuntimeCommandBuffer / Gameplay request
+CharacterActionRunner TrackEventFired
+  -> CharacterActionTrackAdapter
+  -> CharacterActionMotionRequest / CharacterActionCombatRequest / CharacterActionGameplayRequest
+  -> ICharacterAction*RequestSink
 ```
 
-验收：
+边界：
+
+- MotionTrack 只生成 movement mode / impulse / lock 请求记录；后续由 CharacterMotionResolver、CombatKinematicMotor 或 CharacterControl 组合根消费并结算真实位置。
+- CombatTrack 只生成 combat action / hit trace 请求记录；不启动 `CombatActionRunner`，不 resolve hit，不写 Combat authority state。
+- GameplayTrack 只生成 gameplay request / ability / effect 请求记录；不 enqueue / drain `RuntimeCommandBuffer`，不直接修改 resource、pressure、buff 或 attribute。
+- adapter 缺 sink、缺关键 payload 或 sink 抛错时返回稳定 diagnostics：`ACT_ADAPTER_SINK_MISSING`、`ACT_ADAPTER_PAYLOAD_MISSING`、`ACT_ADAPTER_SINK_FAILURE`。
+- 本阶段只保留 `PressureOnly` reaction request seam；full hit-context Reaction bridge 仍留给 Phase 6。
+
+最小验收：
 
 ```text
-LightAttack -> Combat action -> trace / hit -> Gameplay pressure or HP delta
-PostureBreak -> current action cancel -> reaction action
+Runner MotionTrack dispatch -> motion request record
+Runner CombatTrack dispatch -> combat action / hit trace request record
+Runner GameplayTrack dispatch -> gameplay request / command-intent record
+PostureBreak PressureOnly context -> pressure-only reaction request record
 ```
 
 ### Phase 5：Animation / Presentation Adapter
