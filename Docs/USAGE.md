@@ -851,6 +851,64 @@ ResourcePreloadPlan plan = planResult.Success ? planResult.Plan : null;
 
 `StoryResourcePreloadPlanBuilder` 会校验 key / label、去重并稳定排序；它不依赖 Unity provider、不调用 `IResourceManager.Load`，也不释放资源。
 
+### 6.14 Story Unity Adapters / Editor Debug
+
+Story S4 新增 Unity-facing adapter 和 Editor-only debug surface，交付等级是 `Framework Feature`，不是可玩 Demo。Unity 侧只 enqueue Story runtime commands 或 consume `StoryRuntimeEvent`；Editor 侧只读 `StoryDirectorSnapshot` / event queue snapshot。
+
+Unity trigger/input adapter：
+
+```csharp
+using MxFramework.Story.Runtime;
+using MxFramework.Story.Unity;
+
+StoryRuntimeModule storyModule = CreateStoryRuntimeModule();
+
+var trigger = triggerObject.AddComponent<StoryTriggerZoneAdapter>();
+trigger.Bind(storyModule);
+trigger.TriggerId = 4001;
+trigger.Param0 = 0;
+trigger.Param1 = 0;
+
+// OnTriggerEnter 会 enqueue Story.RaiseTrigger；也可由显式 UI/测试调用：
+trigger.RaiseTrigger();
+```
+
+Presentation completion adapter：
+
+```csharp
+var completion = uiObject.AddComponent<StoryPresentationCompletionAdapter>();
+completion.Bind(storyModule);
+completion.CompletePresentation(beatInstanceId, stepId, graphId);
+```
+
+Presentation event router：
+
+```csharp
+var router = viewObject.AddComponent<StoryRuntimeEventPresentationRouter>();
+router.OnPresentationEvent.AddListener(evt => Debug.Log(evt.Kind));
+router.AddRoute(StoryEventKind.StepStarted).Event.AddListener(evt => PlayLine(evt));
+
+// 只有当该 router 是 event queue 的明确 drain owner 时才调用：
+router.DrainAndRoute(storyModule.Events, currentFrame);
+```
+
+Editor debug：
+
+```csharp
+using MxFramework.Story.Editor;
+
+StoryEditorDebugRegistry.Register("Demo Story Runtime", storyModule, () => router.RecentEvents);
+```
+
+打开菜单 `MxFramework > Story > Runtime Debug` 查看只读快照。窗口显示 graph、active beat、blackboard、event queue、recent events、last commands 和 command errors；没有注册 target 时只显示空状态。
+
+约束：
+
+- `MxFramework.Story.Unity` 不引用 `UnityEditor`。
+- Unity adapter 不直接调用 `StoryDirector` mutation API。
+- Editor debug surface 默认只读；若后续需要 debug command，必须显式 command gate 或 enqueue Story `RuntimeCommand`。
+- Timeline / Cinemachine package-specific binding 仍 deferred；当前提供通用 `StoryRuntimeEventPresentationRouter`。
+
 ## 7. Config 表和校验
 
 基础流程：

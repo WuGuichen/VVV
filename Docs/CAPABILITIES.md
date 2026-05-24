@@ -103,11 +103,13 @@
 | Story config schema / mapper / validator | ✅ v0.1 | `StoryConfigSet` / `StoryGraphConfigMapper` / `StoryConfigValidator` | Story.Config + Config |
 | Story Gameplay bridge | ✅ v0.1 | `StoryGameplayEffectBridge` / `StoryBeatGameplayLocator` / `StoryModifierConditionAdapter` | Story.GameplayBridge + Gameplay |
 | Story Resources preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` / `StoryResourcePreloadMetadata` | Story.ResourcesBridge + Resources |
+| Story Unity adapters | ✅ v0.1 | `StoryTriggerZoneAdapter` / `StoryPresentationCompletionAdapter` / `StoryRuntimeEventPresentationRouter` | Story.Unity + Runtime |
+| Story Editor debug surface | ✅ v0.1 | `StoryRuntimeDebugSource` / `StoryEditorDebugRegistry` / `StoryRuntimeDebugWindow` | Story.Editor + DebugUI |
 
-→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`, `Interfaces/Story.GameplayBridge.md`, `Interfaces/Story.ResourcesBridge.md`
-→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`, `Tests/Story.GameplayBridge/`, `Tests/Story.ResourcesBridge/`
-→ 交付等级：`Runtime Slice` + `Config Bridge` + noEngine `Gameplay/Resources Bridge`；没有 Unity 场景、UI Toolkit view、Timeline 或 Authoring 工具。
-→ **不含**: direct Story buff grant/remove、Story.Unity、Story.Editor、Runtime AI Planner projection、Yarn/Ink/Articy importer、可玩 Demo
+→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`, `Interfaces/Story.GameplayBridge.md`, `Interfaces/Story.ResourcesBridge.md`, `Interfaces/Story.Unity.md`, `Interfaces/Story.Editor.md`
+→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`, `Tests/Story.GameplayBridge/`, `Tests/Story.ResourcesBridge/`, `Tests/Story.Unity/`, `Tests/Story.Editor/`
+→ 交付等级：`Runtime Slice` + `Config Bridge` + noEngine `Gameplay/Resources Bridge` + Unity/Editor `Framework Feature`；没有可玩 Story 场景或 authoring importer。
+→ **不含**: direct Story buff grant/remove、Timeline/Cinemachine package-specific binding、Runtime AI Planner projection、Yarn/Ink/Articy importer、可玩 Demo
 
 ### 1.6 App / Scene Flow — 游戏启动状态和场景切换骨架
 

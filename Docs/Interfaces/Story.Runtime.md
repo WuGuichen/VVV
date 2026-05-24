@@ -102,9 +102,10 @@ Use existing Runtime queue:
 
 ```csharp
 public RuntimeEventQueue<StoryRuntimeEvent> Events { get; }
+public IReadOnlyList<StoryRuntimeEvent> RecentEvents { get; }
 ```
 
-Do not introduce a second event queue implementation.
+Do not introduce a second authoritative event queue implementation. `RecentEvents` is a bounded diagnostics mirror of emitted runtime events for Editor / Debug UI inspection; it does not affect Replay, SaveState, runtime hash, or event delivery.
 
 Event payload:
 
