@@ -29,6 +29,11 @@ namespace MxFramework.CharacterAction
         public const string ReactionFallbackUsed = "ACT_REACTION_FALLBACK_USED";
         public const string PhaseCombatAnchorMissing = "ACT_PHASE_COMBAT_ANCHOR_MISSING";
         public const string PhaseCombatRangeMismatch = "ACT_PHASE_COMBAT_RANGE_MISMATCH";
+        public const string PhaseOverlap = "ACT_PHASE_OVERLAP";
+        public const string PhaseGap = "ACT_PHASE_GAP";
+        public const string PhaseRangeOutsideDuration = "ACT_PHASE_RANGE_OUTSIDE_DURATION";
+        public const string CombatTraceOutsideActivePhase = "ACT_COMBAT_TRACE_OUTSIDE_ACTIVE_PHASE";
+        public const string TrackEventOutsideDuration = "ACT_TRACK_EVENT_OUTSIDE_DURATION";
         public const string InvalidCancelWindow = "ACT_INVALID_CANCEL_WINDOW";
         public const string CharacterCombatCancelConflict = "ACT_CHARACTER_COMBAT_CANCEL_CONFLICT";
         public const string CancelTargetMissing = "ACT_CANCEL_TARGET_MISSING";

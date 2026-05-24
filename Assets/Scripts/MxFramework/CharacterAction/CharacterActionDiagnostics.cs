@@ -24,6 +24,11 @@ namespace MxFramework.CharacterAction
         public const string ReactionFallbackUsed = CharacterActionDiagnosticCodes.ReactionFallbackUsed;
         public const string PhaseCombatAnchorMissing = CharacterActionDiagnosticCodes.PhaseCombatAnchorMissing;
         public const string PhaseCombatRangeMismatch = CharacterActionDiagnosticCodes.PhaseCombatRangeMismatch;
+        public const string PhaseOverlap = CharacterActionDiagnosticCodes.PhaseOverlap;
+        public const string PhaseGap = CharacterActionDiagnosticCodes.PhaseGap;
+        public const string PhaseRangeOutsideDuration = CharacterActionDiagnosticCodes.PhaseRangeOutsideDuration;
+        public const string CombatTraceOutsideActivePhase = CharacterActionDiagnosticCodes.CombatTraceOutsideActivePhase;
+        public const string TrackEventOutsideDuration = CharacterActionDiagnosticCodes.TrackEventOutsideDuration;
         public const string InvalidCancelWindow = CharacterActionDiagnosticCodes.InvalidCancelWindow;
         public const string CharacterCombatCancelConflict = CharacterActionDiagnosticCodes.CharacterCombatCancelConflict;
         public const string CancelTargetMissing = CharacterActionDiagnosticCodes.CancelTargetMissing;

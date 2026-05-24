@@ -70,6 +70,8 @@ namespace MxFramework.CharacterAction
                     "Reaction profile '" + actionSet.ReactionProfileId + "' is missing."));
             }
 
+            ValidateCancelTargets(actions, diagnostics);
+
             return diagnostics.ToArray();
         }
 
@@ -95,25 +97,18 @@ namespace MxFramework.CharacterAction
                     "Action config stable id is missing."));
             }
 
+            int? durationFrames = ResolveValidationDuration(action, combatTimeline);
             CharacterActionValidationIssue[] phaseIssues = CharacterActionPhaseValidator.Validate(
                 action.TimelineAuthority,
                 action.Phases,
-                combatTimeline);
+                combatTimeline,
+                durationFrames);
             for (int i = 0; i < phaseIssues.Length; i++)
             {
                 diagnostics.Add(CharacterActionDiagnostic.Error(phaseIssues[i].Code, phaseIssues[i].Message));
             }
 
-            for (int i = 0; i < action.CancelRules.Length; i++)
-            {
-                CharacterCancelRule rule = action.CancelRules[i];
-                if (rule.EndFrame >= action.DurationFrames.GetValueOrDefault(int.MaxValue))
-                {
-                    diagnostics.Add(CharacterActionDiagnostic.Warning(
-                        CharacterActionDiagnosticCodes.InvalidCancelWindow,
-                        "Cancel window extends beyond explicit action duration."));
-                }
-            }
+            ValidateCancelWindows(action, durationFrames, diagnostics);
 
             if (action.TimelineAuthority == CharacterActionTimelineAuthority.CombatAnchored && combatTimeline == null)
             {
@@ -123,6 +118,7 @@ namespace MxFramework.CharacterAction
             }
 
             ValidateTrackDependencies(action, diagnostics);
+            ValidateCombatTrackTimeline(action, durationFrames, diagnostics);
 
             return diagnostics.ToArray();
         }
@@ -271,9 +267,160 @@ namespace MxFramework.CharacterAction
             }
         }
 
+        private static void ValidateCancelTargets(
+            CharacterActionConfig[] actions,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            for (int i = 0; i < actions.Length; i++)
+            {
+                CharacterActionConfig action = actions[i];
+                if (action == null)
+                    continue;
+
+                for (int j = 0; j < action.CancelRules.Length; j++)
+                {
+                    CharacterCancelRule rule = action.CancelRules[j];
+                    if (rule.TargetActionId > 0 && !ContainsActionId(actions, rule.TargetActionId))
+                    {
+                        diagnostics.Add(CharacterActionDiagnostic.Error(
+                            CharacterActionDiagnosticCodes.CancelTargetMissing,
+                            "Cancel target action id " + rule.TargetActionId + " is missing."));
+                    }
+                }
+
+                for (int j = 0; j < action.InterruptRules.Length; j++)
+                {
+                    CharacterInterruptRule rule = action.InterruptRules[j];
+                    if (rule.TargetActionId > 0 && !ContainsActionId(actions, rule.TargetActionId))
+                    {
+                        diagnostics.Add(CharacterActionDiagnostic.Error(
+                            CharacterActionDiagnosticCodes.InterruptTargetMissing,
+                            "Interrupt target action id " + rule.TargetActionId + " is missing."));
+                    }
+                }
+            }
+        }
+
+        private static int? ResolveValidationDuration(CharacterActionConfig action, CombatActionTimeline combatTimeline)
+        {
+            if (action.DurationFrames.HasValue)
+                return action.DurationFrames.Value;
+            if (combatTimeline != null)
+                return combatTimeline.TotalFrames;
+            return null;
+        }
+
+        private static void ValidateCancelWindows(
+            CharacterActionConfig action,
+            int? durationFrames,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            for (int i = 0; i < action.CancelRules.Length; i++)
+            {
+                CharacterCancelRule rule = action.CancelRules[i];
+                if (durationFrames.HasValue && rule.EndFrame >= durationFrames.Value)
+                {
+                    diagnostics.Add(CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.InvalidCancelWindow,
+                        "Cancel window extends beyond action duration."));
+                }
+
+                if (!IsCancelWindowInsideCancelablePhase(action.Phases, rule.StartFrame, rule.EndFrame))
+                {
+                    diagnostics.Add(CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.InvalidCancelWindow,
+                        "Cancel window must fall within a cancelable phase."));
+                }
+            }
+        }
+
+        private static bool IsCancelWindowInsideCancelablePhase(CharacterActionPhase[] phases, int startFrame, int endFrame)
+        {
+            if (phases == null || phases.Length == 0)
+                return true;
+
+            for (int i = 0; i < phases.Length; i++)
+            {
+                CharacterActionPhase phase = phases[i];
+                if (phase.StartFrame <= startFrame
+                    && phase.EndFrame >= endFrame
+                    && IsCancelablePhase(phase.Kind))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsCancelablePhase(CharacterActionPhaseKind kind)
+        {
+            return kind == CharacterActionPhaseKind.Active
+                || kind == CharacterActionPhaseKind.Recovery
+                || kind == CharacterActionPhaseKind.Loop
+                || kind == CharacterActionPhaseKind.Channel
+                || kind == CharacterActionPhaseKind.Hold
+                || kind == CharacterActionPhaseKind.Exit;
+        }
+
+        private static void ValidateCombatTrackTimeline(
+            CharacterActionConfig action,
+            int? durationFrames,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            for (int i = 0; i < action.CombatTrack.Events.Length; i++)
+            {
+                CombatTrackEvent trackEvent = action.CombatTrack.Events[i];
+                bool outsideDuration = durationFrames.HasValue && trackEvent.Frame >= durationFrames.Value;
+                if (outsideDuration)
+                {
+                    diagnostics.Add(CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.TrackEventOutsideDuration,
+                        "Combat track event frame must be within action duration."));
+                }
+
+                if ((trackEvent.Kind == CharacterActionTrackEventKind.StartHitTrace
+                        || trackEvent.Kind == CharacterActionTrackEventKind.StopHitTrace)
+                    && !outsideDuration
+                    && !IsFrameInPhase(action.Phases, trackEvent.Frame, CharacterActionPhaseKind.Active))
+                {
+                    diagnostics.Add(CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.CombatTraceOutsideActivePhase,
+                        "Combat hit trace events must occur in the Active phase."));
+                }
+            }
+        }
+
+        private static bool IsFrameInPhase(CharacterActionPhase[] phases, int frame, CharacterActionPhaseKind kind)
+        {
+            if (phases == null || phases.Length == 0)
+                return true;
+
+            for (int i = 0; i < phases.Length; i++)
+            {
+                CharacterActionPhase phase = phases[i];
+                if (phase.Kind == kind && phase.Contains(frame))
+                    return true;
+            }
+
+            return false;
+        }
+
         private static bool ContainsAction(CharacterActionConfig[] actions, string actionId)
         {
             return FindAction(actions, actionId) != null;
+        }
+
+        private static bool ContainsActionId(CharacterActionConfig[] actions, int actionId)
+        {
+            for (int i = 0; i < actions.Length; i++)
+            {
+                CharacterActionConfig action = actions[i];
+                if (action != null && action.Id == actionId)
+                    return true;
+            }
+
+            return false;
         }
 
         private static CharacterActionConfig FindAction(CharacterActionConfig[] actions, string actionId)
