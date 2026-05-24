@@ -64,7 +64,22 @@ namespace MxFramework.Story.Runtime
                 return RuntimeSaveStateResult<bool>.Failed(load.Error);
             }
 
-            StoryLoadGraphResult restore = _director.RestoreSaveState(load.Value);
+            StoryLoadGraphResult restore;
+            try
+            {
+                restore = _director.RestoreSaveState(load.Value);
+            }
+            catch (Exception exception)
+            {
+                return RuntimeSaveStateResult<bool>.Failed(new RuntimeSaveStateError(
+                    RuntimeSaveStateErrorCode.InvalidDocument,
+                    "$.moduleStates[" + ModuleId + "].customState.payloadJson",
+                    "Story director restore threw: " + exception.Message,
+                    -1,
+                    StoryDirectorSaveState.CurrentSchemaVersion,
+                    exception));
+            }
+
             if (!restore.Success)
             {
                 return RuntimeSaveStateResult<bool>.Failed(new RuntimeSaveStateError(

@@ -389,57 +389,43 @@ namespace MxFramework.Story
 
         public StoryLoadGraphResult RestoreSaveState(StoryDirectorSaveState state)
         {
-            if (state == null)
+            List<GraphRuntimeState> stagedGraphs;
+            List<BeatInstanceState> stagedBeats;
+            List<StoryFactEntry> stagedFacts;
+            int stagedNextBeatInstanceId;
+            StoryLoadGraphResult validation = ValidateSaveState(
+                state,
+                out stagedGraphs,
+                out stagedBeats,
+                out stagedFacts,
+                out stagedNextBeatInstanceId);
+            if (!validation.Success)
             {
-                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, 0, "Story director save state is null.");
-            }
-
-            if (state.SchemaVersion != StoryDirectorSaveState.CurrentSchemaVersion)
-            {
-                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.UnsupportedSchemaVersion, 0, "Story director save state schema version is unsupported.");
+                return validation;
             }
 
             _graphs.Clear();
             _activeBeats.Clear();
             Blackboard.Clear();
 
-            for (int i = 0; i < state.Graphs.Count; i++)
+            for (int i = 0; i < stagedGraphs.Count; i++)
             {
-                StoryGraphSaveState graphState = state.Graphs[i];
-                StoryLoadGraphResult validation = ValidateGraph(graphState.Definition);
-                if (!validation.Success)
-                {
-                    return validation;
-                }
-
-                _graphs[graphState.Definition.GraphId] = new GraphRuntimeState(graphState.Definition, graphState.Status);
+                GraphRuntimeState graph = stagedGraphs[i];
+                _graphs[graph.Definition.GraphId] = graph;
             }
 
-            for (int i = 0; i < state.Facts.Count; i++)
+            for (int i = 0; i < stagedFacts.Count; i++)
             {
-                StoryFactEntry fact = state.Facts[i];
+                StoryFactEntry fact = stagedFacts[i];
                 Blackboard.Set(fact.Key, fact.Value);
             }
 
-            for (int i = 0; i < state.ActiveBeatInstances.Count; i++)
+            for (int i = 0; i < stagedBeats.Count; i++)
             {
-                StoryBeatInstanceSaveState saved = state.ActiveBeatInstances[i];
-                GraphRuntimeState graph;
-                if (!_graphs.TryGetValue(saved.GraphId, out graph) || graph.Definition.FindBeat(saved.BeatId) == null)
-                {
-                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.BeatNotFound, saved.GraphId, "Saved Story beat instance references a missing beat.");
-                }
-
-                _activeBeats.Add(new BeatInstanceState(saved));
+                _activeBeats.Add(stagedBeats[i]);
             }
 
-            int nextBeatInstanceId = Math.Max(1, state.NextBeatInstanceId);
-            for (int i = 0; i < _activeBeats.Count; i++)
-            {
-                nextBeatInstanceId = Math.Max(nextBeatInstanceId, _activeBeats[i].BeatInstanceId + 1);
-            }
-
-            _nextBeatInstanceId = nextBeatInstanceId;
+            _nextBeatInstanceId = stagedNextBeatInstanceId;
             return StoryLoadGraphResult.Succeeded(0);
         }
 
@@ -611,6 +597,225 @@ namespace MxFramework.Story
             _events.Publish(evt);
         }
 
+        private static StoryLoadGraphResult ValidateSaveState(
+            StoryDirectorSaveState state,
+            out List<GraphRuntimeState> stagedGraphs,
+            out List<BeatInstanceState> stagedBeats,
+            out List<StoryFactEntry> stagedFacts,
+            out int nextBeatInstanceId)
+        {
+            stagedGraphs = new List<GraphRuntimeState>();
+            stagedBeats = new List<BeatInstanceState>();
+            stagedFacts = new List<StoryFactEntry>();
+            nextBeatInstanceId = 1;
+
+            if (state == null)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, 0, "Story director save state is null.");
+            }
+
+            if (state.SchemaVersion != StoryDirectorSaveState.CurrentSchemaVersion)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.UnsupportedSchemaVersion, 0, "Story director save state schema version is unsupported.");
+            }
+
+            if (state.NextBeatInstanceId <= 0)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidBeatInstanceId, 0, "Story director save state next beat instance id must be positive.");
+            }
+
+            var graphMap = new Dictionary<int, GraphRuntimeState>();
+            for (int i = 0; i < state.Graphs.Count; i++)
+            {
+                StoryGraphSaveState graphState = state.Graphs[i];
+                if (graphState == null)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, 0, "Story director save state contains a null graph state.");
+                }
+
+                StoryLoadGraphResult graphValidation = ValidateGraph(graphState.Definition);
+                if (!graphValidation.Success)
+                {
+                    return graphValidation;
+                }
+
+                if (!IsValidGraphStatus(graphState.Status))
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, graphState.Definition.GraphId, "Story director save state graph status is invalid.");
+                }
+
+                if (graphMap.ContainsKey(graphState.Definition.GraphId))
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, graphState.Definition.GraphId, "Story director save state contains duplicate graph ids.");
+                }
+
+                var graph = new GraphRuntimeState(graphState.Definition, graphState.Status);
+                graphMap.Add(graphState.Definition.GraphId, graph);
+                stagedGraphs.Add(graph);
+            }
+
+            var factKeys = new HashSet<StoryFactKey>();
+            for (int i = 0; i < state.Facts.Count; i++)
+            {
+                StoryFactEntry fact = state.Facts[i];
+                if (!fact.Key.IsValid)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, fact.Key.Namespace, "Story director save state contains an invalid fact key.");
+                }
+
+                if (!factKeys.Add(fact.Key))
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, fact.Key.Namespace, "Story director save state contains duplicate fact keys.");
+                }
+
+                stagedFacts.Add(fact);
+            }
+
+            var beatInstanceIds = new HashSet<int>();
+            var activeGraphIds = new HashSet<int>();
+            nextBeatInstanceId = state.NextBeatInstanceId;
+            for (int i = 0; i < state.ActiveBeatInstances.Count; i++)
+            {
+                StoryBeatInstanceSaveState saved = state.ActiveBeatInstances[i];
+                StoryLoadGraphResult beatValidation = ValidateBeatInstanceSaveState(saved, graphMap);
+                if (!beatValidation.Success)
+                {
+                    return beatValidation;
+                }
+
+                if (!beatInstanceIds.Add(saved.BeatInstanceId))
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidBeatInstanceId, saved.GraphId, "Story director save state contains duplicate beat instance ids.");
+                }
+
+                stagedBeats.Add(new BeatInstanceState(saved));
+                activeGraphIds.Add(saved.GraphId);
+                nextBeatInstanceId = Math.Max(nextBeatInstanceId, saved.BeatInstanceId + 1);
+            }
+
+            if (stagedBeats.Count > 0 && state.NextBeatInstanceId != nextBeatInstanceId)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidBeatInstanceId, 0, "Story director save state next beat instance id would reuse an active instance id.");
+            }
+
+            for (int i = 0; i < stagedGraphs.Count; i++)
+            {
+                GraphRuntimeState graph = stagedGraphs[i];
+                bool hasActiveBeat = activeGraphIds.Contains(graph.Definition.GraphId);
+                if (hasActiveBeat && graph.Status != StoryGraphRuntimeStatus.Active)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, graph.Definition.GraphId, "Story director save state active beat references a non-active graph.");
+                }
+
+                if (!hasActiveBeat && graph.Status == StoryGraphRuntimeStatus.Active)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, graph.Definition.GraphId, "Story director save state active graph has no active beat instance.");
+                }
+            }
+
+            return StoryLoadGraphResult.Succeeded(0);
+        }
+
+        private static StoryLoadGraphResult ValidateBeatInstanceSaveState(
+            StoryBeatInstanceSaveState saved,
+            Dictionary<int, GraphRuntimeState> graphMap)
+        {
+            if (saved == null)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, 0, "Story director save state contains a null beat instance.");
+            }
+
+            if (saved.BeatInstanceId <= 0)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidBeatInstanceId, saved.GraphId, "Story director save state beat instance id must be positive.");
+            }
+
+            GraphRuntimeState graph;
+            if (!graphMap.TryGetValue(saved.GraphId, out graph))
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.GraphNotLoaded, saved.GraphId, "Saved Story beat instance references an unloaded graph.");
+            }
+
+            StoryBeatDefinition beat = graph.Definition.FindBeat(saved.BeatId);
+            if (beat == null)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.BeatNotFound, saved.GraphId, "Saved Story beat instance references a missing beat.");
+            }
+
+            if (saved.CurrentStepIndex < 0 || saved.CurrentStepIndex > beat.Steps.Count)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidStepId, saved.GraphId, "Saved Story beat instance has an invalid current step cursor.");
+            }
+
+            if (saved.PendingPresentationStepId < 0)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidStepId, saved.GraphId, "Saved Story beat instance has an invalid pending presentation step id.");
+            }
+
+            if (saved.AwaitingChoiceSetId < 0)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.ChoiceNotOffered, saved.GraphId, "Saved Story beat instance has an invalid awaiting choice set id.");
+            }
+
+            if (!IsValidPresentationWaitPolicy(saved.PendingPresentationPolicy))
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.PresentationNotWaiting, saved.GraphId, "Saved Story beat instance has an invalid presentation wait policy.");
+            }
+
+            if (saved.PendingPresentationStepId > 0)
+            {
+                if (saved.PendingPresentationPolicy == StoryPresentationWaitPolicy.NoWait)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.PresentationNotWaiting, saved.GraphId, "Saved Story beat instance has a pending presentation step with NoWait policy.");
+                }
+
+                if (saved.AwaitingChoiceSetId > 0)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, saved.GraphId, "Saved Story beat instance cannot wait for presentation and choice at the same time.");
+                }
+
+                int stepIndex = FindStepIndex(beat, saved.PendingPresentationStepId);
+                if (stepIndex < 0)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidStepId, saved.GraphId, "Saved Story beat instance pending presentation step is missing.");
+                }
+
+                StoryStepDefinition step = beat.Steps[stepIndex];
+                if (step.WaitPolicy != saved.PendingPresentationPolicy)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.PresentationStepMismatch, saved.GraphId, "Saved Story beat instance pending presentation policy does not match the step definition.");
+                }
+
+                if (saved.CurrentStepIndex != stepIndex + 1)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidStepId, saved.GraphId, "Saved Story beat instance step cursor does not match the pending presentation step.");
+                }
+            }
+            else if (saved.PendingPresentationPolicy != StoryPresentationWaitPolicy.NoWait)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.PresentationNotWaiting, saved.GraphId, "Saved Story beat instance has a presentation policy without a pending step.");
+            }
+
+            if (saved.AwaitingChoiceSetId > 0)
+            {
+                if (beat.Choices.Count == 0 || saved.AwaitingChoiceSetId != ChoiceSetId(beat))
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.ChoiceNotOffered, saved.GraphId, "Saved Story beat instance has an invalid choice set.");
+                }
+
+                if (saved.CurrentStepIndex != beat.Steps.Count)
+                {
+                    return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidStepId, saved.GraphId, "Saved Story beat instance offers choices before all steps are complete.");
+                }
+            }
+            else if (saved.PendingPresentationStepId == 0)
+            {
+                return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, saved.GraphId, "Saved Story active beat instance is neither waiting for presentation nor awaiting choices.");
+            }
+
+            return StoryLoadGraphResult.Succeeded(saved.GraphId);
+        }
+
         private static StoryLoadGraphResult ValidateGraph(StoryGraphDefinition graph)
         {
             if (graph == null)
@@ -656,6 +861,11 @@ namespace MxFramework.Story
                     if (step.Kind == StoryStepKind.SetFact && !step.FactKey.IsValid)
                     {
                         return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, graph.GraphId, "Story set-fact step has an invalid fact key.");
+                    }
+
+                    if (!IsValidPresentationWaitPolicy(step.WaitPolicy))
+                    {
+                        return StoryLoadGraphResult.Failed(StoryDirectorResultCode.InvalidDefinition, graph.GraphId, "Story step has an invalid presentation wait policy.");
                     }
                 }
 
@@ -703,6 +913,34 @@ namespace MxFramework.Story
             }
 
             return StoryLoadGraphResult.Succeeded(graph.GraphId);
+        }
+
+        private static bool IsValidGraphStatus(StoryGraphRuntimeStatus status)
+        {
+            return status == StoryGraphRuntimeStatus.Loaded
+                || status == StoryGraphRuntimeStatus.Active
+                || status == StoryGraphRuntimeStatus.Completed
+                || status == StoryGraphRuntimeStatus.Aborted;
+        }
+
+        private static bool IsValidPresentationWaitPolicy(StoryPresentationWaitPolicy policy)
+        {
+            return policy == StoryPresentationWaitPolicy.NoWait
+                || policy == StoryPresentationWaitPolicy.WaitForCommand
+                || policy == StoryPresentationWaitPolicy.WaitWithFrameTimeout;
+        }
+
+        private static int FindStepIndex(StoryBeatDefinition beat, int stepId)
+        {
+            for (int i = 0; i < beat.Steps.Count; i++)
+            {
+                if (beat.Steps[i].StepId == stepId)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         private static int ChoiceSetId(StoryBeatDefinition beat)

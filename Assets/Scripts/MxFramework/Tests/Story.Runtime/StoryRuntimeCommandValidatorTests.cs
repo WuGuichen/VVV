@@ -88,6 +88,25 @@ namespace MxFramework.Tests.Story.Runtime
         }
 
         [Test]
+        public void RejectsSelectChoiceWhenTargetGraphDoesNotMatchBeatInstance()
+        {
+            StoryDirector director = LoadedDirector();
+            director.TryEnterBeat(StoryTestGraphs.GraphId, StoryTestGraphs.EntryBeatId, default);
+            int beatInstanceId = director.CreateSnapshot().ActiveBeatInstances[0].BeatInstanceId;
+            var validator = new StoryRuntimeCommandValidator(director);
+
+            RuntimeCommandValidationResult result = validator.Validate(StoryRuntimeCommandFactory.SelectChoice(
+                RuntimeFrame.Zero,
+                StoryRuntimeCommandSources.TestDriver,
+                beatInstanceId,
+                StoryTestGraphs.FirstChoiceId,
+                graphId: StoryTestGraphs.GraphId + 1));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(RuntimeCommandErrorCode.InvalidPayload, result.Error.Code);
+        }
+
+        [Test]
         public void AcceptsCompletePresentationForWaitingStep()
         {
             var director = new StoryDirector();
@@ -104,6 +123,26 @@ namespace MxFramework.Tests.Story.Runtime
                 StoryTestGraphs.GraphId));
 
             Assert.IsTrue(result.Success);
+        }
+
+        [Test]
+        public void RejectsCompletePresentationWhenTargetGraphDoesNotMatchBeatInstance()
+        {
+            var director = new StoryDirector();
+            director.LoadGraph(StoryTestGraphs.MinimalChoiceGraph(waitForPresentation: true));
+            director.TryEnterBeat(StoryTestGraphs.GraphId, StoryTestGraphs.EntryBeatId, default);
+            int beatInstanceId = director.CreateSnapshot().ActiveBeatInstances[0].BeatInstanceId;
+            var validator = new StoryRuntimeCommandValidator(director);
+
+            RuntimeCommandValidationResult result = validator.Validate(StoryRuntimeCommandFactory.CompletePresentation(
+                RuntimeFrame.Zero,
+                StoryRuntimeCommandSources.PresentationAdapter,
+                beatInstanceId,
+                StoryTestGraphs.PresentationStepId,
+                graphId: StoryTestGraphs.GraphId + 1));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(RuntimeCommandErrorCode.InvalidPayload, result.Error.Code);
         }
 
         private static StoryDirector LoadedDirector()

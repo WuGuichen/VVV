@@ -228,17 +228,29 @@ namespace MxFramework.Story.Runtime
         private RuntimeCommandValidationResult ValidateSelectChoice(RuntimeCommand command)
         {
             StoryChoiceResult choice = _director.CanResolveChoice(command.Payload0, command.Payload1);
-            return choice.Success
+            if (!choice.Success)
+            {
+                return Invalid(command, "Story.SelectChoice rejected by Director: " + choice.Code + ".");
+            }
+
+            RuntimeCommandValidationResult targetGraph = ValidateTargetGraph(command, "Story.SelectChoice");
+            return targetGraph.Success
                 ? RuntimeCommandValidationResult.Accepted(command)
-                : Invalid(command, "Story.SelectChoice rejected by Director: " + choice.Code + ".");
+                : targetGraph;
         }
 
         private RuntimeCommandValidationResult ValidateCompletePresentation(RuntimeCommand command)
         {
             StoryPresentationResult presentation = _director.CanCompletePresentation(command.Payload0, command.Payload1);
-            return presentation.Success
+            if (!presentation.Success)
+            {
+                return Invalid(command, "Story.CompletePresentation rejected by Director: " + presentation.Code + ".");
+            }
+
+            RuntimeCommandValidationResult targetGraph = ValidateTargetGraph(command, "Story.CompletePresentation");
+            return targetGraph.Success
                 ? RuntimeCommandValidationResult.Accepted(command)
-                : Invalid(command, "Story.CompletePresentation rejected by Director: " + presentation.Code + ".");
+                : targetGraph;
         }
 
         private RuntimeCommandValidationResult ValidateRequestEnterBeat(RuntimeCommand command)
@@ -263,6 +275,28 @@ namespace MxFramework.Story.Runtime
             return _director.IsGraphLoaded(command.Payload0)
                 ? RuntimeCommandValidationResult.Accepted(command)
                 : Invalid(command, "Story.AbortGraph targets an unloaded graph.");
+        }
+
+        private RuntimeCommandValidationResult ValidateTargetGraph(RuntimeCommand command, string commandName)
+        {
+            if (command.TargetId == 0)
+            {
+                return RuntimeCommandValidationResult.Accepted(command);
+            }
+
+            StoryDirectorSnapshot snapshot = _director.CreateSnapshot();
+            for (int i = 0; i < snapshot.ActiveBeatInstances.Count; i++)
+            {
+                StoryBeatInstanceSnapshot beat = snapshot.ActiveBeatInstances[i];
+                if (beat.BeatInstanceId == command.Payload0)
+                {
+                    return beat.GraphId == command.TargetId
+                        ? RuntimeCommandValidationResult.Accepted(command)
+                        : Invalid(command, commandName + " target graph id does not match the live beat instance graph.");
+                }
+            }
+
+            return Invalid(command, commandName + " target beat instance is not live.");
         }
 
         private static RuntimeCommandValidationResult Invalid(RuntimeCommand command, string message)
