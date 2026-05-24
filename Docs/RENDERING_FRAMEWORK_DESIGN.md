@@ -227,7 +227,9 @@ Every rule must have a named test using `SharedRTRegistry_R_RT_0x_*` naming.
 Diagnostics must expose:
 
 - Owner.
+- Format.
 - Current dimensions.
+- Resize policy.
 - Estimated and actual memory.
 - Current frame writers.
 - Current frame readers.
