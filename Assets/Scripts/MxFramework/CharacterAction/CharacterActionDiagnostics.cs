@@ -42,5 +42,7 @@ namespace MxFramework.CharacterAction
         public const string AdapterSinkMissing = CharacterActionDiagnosticCodes.AdapterSinkMissing;
         public const string AdapterPayloadMissing = CharacterActionDiagnosticCodes.AdapterPayloadMissing;
         public const string AdapterSinkFailure = CharacterActionDiagnosticCodes.AdapterSinkFailure;
+        public const string WorkstationEditingUnsupported = CharacterActionDiagnosticCodes.WorkstationEditingUnsupported;
+        public const string WorkstationUnsupportedField = CharacterActionDiagnosticCodes.WorkstationUnsupportedField;
     }
 }
