@@ -41,7 +41,7 @@ namespace MxFramework.Tests.StoryGameplayBridge
         }
 
         [Test]
-        public void RejectsUnsupportedBuffEffectWithoutMutation()
+        public void RejectsUnsupportedBuffGrantWithoutMutation()
         {
             var world = new GameplayComponentWorld();
             GameplayEntityId entity = world.CreateEntity();
@@ -50,6 +50,26 @@ namespace MxFramework.Tests.StoryGameplayBridge
 
             StoryGameplayEffectResult result = bridge.EnqueueGameplayEffect(
                 StoryGameplayEffectIntent.BuffGrant(
+                    StoryGameplayEntityRef.ComponentEntity(entity),
+                    SourceId,
+                    buffId: 2001),
+                RuntimeFrame.Zero);
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(StoryGameplayBridgeDiagnosticCode.UnsupportedBuffEffect, result.Diagnostic.Code);
+            Assert.AreEqual(0, buffer.PendingCount);
+        }
+
+        [Test]
+        public void RejectsUnsupportedBuffRemoveWithoutMutation()
+        {
+            var world = new GameplayComponentWorld();
+            GameplayEntityId entity = world.CreateEntity();
+            var buffer = new RuntimeCommandBuffer();
+            var bridge = new StoryGameplayEffectBridge(buffer, world);
+
+            StoryGameplayEffectResult result = bridge.EnqueueGameplayEffect(
+                StoryGameplayEffectIntent.BuffRemove(
                     StoryGameplayEntityRef.ComponentEntity(entity),
                     SourceId,
                     buffId: 2001),
@@ -94,6 +114,27 @@ namespace MxFramework.Tests.StoryGameplayBridge
             Assert.AreEqual(1, drained.Count);
             Assert.AreEqual(new RuntimeFrame(10), drained[0].Frame);
             Assert.AreEqual(1, buffer.PendingCount);
+        }
+
+        [Test]
+        public void NegativeDelayFramesClampToCurrentFrame()
+        {
+            var world = new GameplayComponentWorld();
+            GameplayEntityId entity = world.CreateEntity();
+            var buffer = new RuntimeCommandBuffer();
+            var bridge = new StoryGameplayEffectBridge(buffer, world);
+
+            StoryGameplayEffectResult result = bridge.EnqueueGameplayEffect(
+                StoryGameplayEffectIntent.SetComponentAttribute(
+                    StoryGameplayEntityRef.ComponentEntity(entity),
+                    SourceId,
+                    HpAttributeId,
+                    90,
+                    delayFrames: -5),
+                new RuntimeFrame(10));
+
+            Assert.IsTrue(result.Success);
+            Assert.AreEqual(new RuntimeFrame(10), result.Command.Frame);
         }
 
         [Test]

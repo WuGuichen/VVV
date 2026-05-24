@@ -91,9 +91,9 @@ Story should not store raw references to Gameplay objects. It uses stable refs:
 ```csharp
 public readonly struct StoryGameplayEntityRef
 {
-    public readonly int Kind;
-    public readonly int Id0;
-    public readonly int Id1;
+    public int Kind { get; }
+    public int Id0 { get; }
+    public int Id1 { get; }
 }
 ```
 
@@ -165,7 +165,7 @@ Story.GameplayBridge receives a Gameplay command buffer reference from the compo
 
 ```text
 StoryRuntimeModule
-  -> StoryGameplayBridge.EnqueueGameplayEffects(...)
+  -> StoryGameplayEffectBridge.EnqueueGameplayEffect(...)
   -> GameplayCommandBuffer.Enqueue(...)
   -> GameplayRuntimeModule drains later
 ```
