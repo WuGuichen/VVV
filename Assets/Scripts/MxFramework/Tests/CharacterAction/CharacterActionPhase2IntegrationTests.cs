@@ -18,6 +18,12 @@ namespace MxFramework.Tests.CharacterAction
             CharacterActionResolveResult command = resolver.ResolveCommand(
                 context,
                 CreateRequest("LightAttack", traceId: "trace.command"));
+            CharacterActionResolveResult heavyCommand = resolver.ResolveCommand(
+                context,
+                CreateRequest("HeavyAttack", traceId: "trace.heavy"));
+            CharacterActionResolveResult jumpCommand = resolver.ResolveCommand(
+                context,
+                CreateRequest("Jump", traceId: "trace.jump"));
             CharacterActionResolveResult ability = resolver.ResolveAbility(
                 context,
                 CreateRequest(
@@ -69,6 +75,12 @@ namespace MxFramework.Tests.CharacterAction
             Assert.IsTrue(command.IsSuccess);
             Assert.AreEqual("light_attack", command.Plan.ActionId);
             Assert.AreEqual(CharacterActionDiagnosticCodes.ActionDurationResolvedFromCombat, command.Diagnostics[0].Code);
+            Assert.IsTrue(heavyCommand.IsSuccess);
+            Assert.AreEqual("heavy_attack", heavyCommand.Plan.ActionId);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.ActionDurationResolvedFromCombat, heavyCommand.Diagnostics[0].Code);
+            Assert.IsTrue(jumpCommand.IsSuccess);
+            Assert.AreEqual("basic_jump", jumpCommand.Plan.ActionId);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.ActionDurationResolvedFromConfig, jumpCommand.Diagnostics[0].Code);
             Assert.IsTrue(ability.IsSuccess);
             Assert.AreEqual("dash_strike", ability.Plan.ActionId);
             Assert.AreEqual(CharacterActionDiagnosticCodes.ActionDurationResolvedFromConfig, ability.Diagnostics[0].Code);
