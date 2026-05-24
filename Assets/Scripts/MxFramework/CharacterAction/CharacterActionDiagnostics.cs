@@ -39,5 +39,8 @@ namespace MxFramework.CharacterAction
         public const string AnimationActionMissing = CharacterActionDiagnosticCodes.AnimationActionMissing;
         public const string PresentationResourceMissing = CharacterActionDiagnosticCodes.PresentationResourceMissing;
         public const string AudioCueMissing = CharacterActionDiagnosticCodes.AudioCueMissing;
+        public const string AdapterSinkMissing = CharacterActionDiagnosticCodes.AdapterSinkMissing;
+        public const string AdapterPayloadMissing = CharacterActionDiagnosticCodes.AdapterPayloadMissing;
+        public const string AdapterSinkFailure = CharacterActionDiagnosticCodes.AdapterSinkFailure;
     }
 }

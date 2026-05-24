@@ -44,6 +44,9 @@ namespace MxFramework.CharacterAction
         public const string AnimationActionMissing = "ACT_ANIMATION_ACTION_MISSING";
         public const string PresentationResourceMissing = "ACT_PRESENTATION_RESOURCE_MISSING";
         public const string AudioCueMissing = "ACT_AUDIO_CUE_MISSING";
+        public const string AdapterSinkMissing = "ACT_ADAPTER_SINK_MISSING";
+        public const string AdapterPayloadMissing = "ACT_ADAPTER_PAYLOAD_MISSING";
+        public const string AdapterSinkFailure = "ACT_ADAPTER_SINK_FAILURE";
     }
 
     public enum CharacterActionDiagnosticSeverity
