@@ -1,0 +1,28 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="story-runtime-root" class="story-runtime-root">
+        <ui:VisualElement class="story-header">
+            <ui:Label name="title-label" text="Story Runtime Vertical Slice" class="story-title" />
+            <ui:Label name="phase-label" text="Ready" class="story-phase" />
+        </ui:VisualElement>
+        <ui:Label name="dialogue-label" text="Press Trigger to raise the Story event." class="story-dialogue" />
+        <ui:VisualElement class="metric-grid">
+            <ui:VisualElement class="metric-row"><ui:Label text="Story" class="metric-name" /><ui:Label name="story-label" text="-" class="metric-value" /></ui:VisualElement>
+            <ui:VisualElement class="metric-row"><ui:Label text="Gameplay" class="metric-name" /><ui:Label name="gameplay-label" text="-" class="metric-value" /></ui:VisualElement>
+            <ui:VisualElement class="metric-row"><ui:Label text="Hash" class="metric-name" /><ui:Label name="hash-label" text="-" class="metric-value" /></ui:VisualElement>
+            <ui:VisualElement class="metric-row"><ui:Label text="Save" class="metric-name" /><ui:Label name="save-label" text="-" class="metric-value" /></ui:VisualElement>
+            <ui:VisualElement class="metric-row"><ui:Label text="Replay" class="metric-name" /><ui:Label name="replay-label" text="-" class="metric-value" /></ui:VisualElement>
+            <ui:VisualElement class="metric-row"><ui:Label text="Runtime AI Planner" class="metric-name" /><ui:Label name="ai-label" text="-" class="metric-value" /></ui:VisualElement>
+            <ui:VisualElement class="metric-row"><ui:Label text="Resources" class="metric-name" /><ui:Label name="resource-label" text="-" class="metric-value" /></ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="button-row" class="button-row">
+            <ui:Button name="trigger-button" text="Trigger" />
+            <ui:Button name="continue-button" text="Continue" />
+            <ui:Button name="choice-button" text="Stabilize signal" />
+            <ui:Button name="save-button" text="Save" />
+            <ui:Button name="restore-button" text="Restore" />
+            <ui:Button name="replay-button" text="Replay" />
+            <ui:Button name="reset-button" text="Reset" />
+        </ui:VisualElement>
+        <ui:Label name="event-log-label" text="" class="event-log" />
+    </ui:VisualElement>
+</ui:UXML>

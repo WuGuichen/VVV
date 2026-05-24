@@ -909,6 +909,55 @@ StoryEditorDebugRegistry.Register("Demo Story Runtime", storyModule, () => route
 - Editor debug surface 默认只读；若后续需要 debug command，必须显式 command gate 或 enqueue Story `RuntimeCommand`。
 - Timeline / Cinemachine package-specific binding 仍 deferred；当前提供通用 `StoryRuntimeEventPresentationRouter`。
 
+### 6.15 Story Runtime AI Planner Bridge / Playable Demo
+
+Story S5 新增 noEngine `MxFramework.Story.RuntimeAiPlannerBridge` 和第一个可玩 Story 垂直切片。
+
+Runtime AI Planner projection 只读 Story facts，并写入调用方持有的 `IAiWorldState`：
+
+```csharp
+using MxFramework.AI;
+using MxFramework.Story;
+using MxFramework.Story.RuntimeAiPlannerBridge;
+
+var profile = new StoryRuntimeAiProjectionProfile(new[]
+{
+    new StoryRuntimeAiFactMapping(new StoryFactKey(1001, 5001), new AiFactKey("story.signal.seen"))
+});
+
+var worldState = new AiWorldState();
+var diagnostics = new StoryRuntimeAiProjectionDiagnostics();
+StoryRuntimeAiProjectionResult result =
+    StoryRuntimeAiWorldStateProjector.Project(storyDirector.CreateSnapshot(), worldState, profile, diagnostics);
+```
+
+支持的 Story value：`Bool -> bool`、`Int32 -> int`、`Int64 -> long`、`Fix64 -> long raw`。`StringRef` / `None` 不写入 Runtime AI Planner，会移除 stale AI fact 并记录 diagnostic。profile 外的 Story fact 会被跳过并记录 `SkippedUnlistedStoryFact`；profile 中缺失的 Story fact 会从 `IAiWorldState` 移除。
+
+Playable 入口：
+
+1. 生成或刷新场景：`MxFramework > Story > Create Runtime Vertical Slice Scene`。
+2. 打开 `Assets/Scenes/StoryRuntimeVerticalSlice.unity`。
+3. Play 后点击 `Trigger`，Story.Unity adapter enqueue `Story.RaiseTrigger`。
+4. 点击 `Continue`，presentation adapter enqueue `Story.CompletePresentation`。
+5. 点击 `Stabilize signal`，UI enqueue `Story.SelectChoice`；demo bridge 将 choice effect 转成 Gameplay-owned `AddComponentAttribute` command。
+6. 点击 `Save` / `Restore` 验证 Story + Gameplay state roundtrip。
+7. 点击 `Replay` 验证 recorded Story commands reproduce the same Story + Gameplay result hash。
+
+Demo 代码入口：
+
+- Runtime composition root：`Assets/Scripts/MxFramework/Demo/Story/StoryRuntimeVerticalSliceDemo.cs`
+- Unity UI Toolkit runner：`Assets/Scripts/MxFramework/Demo/Story/StoryRuntimeVerticalSliceRunner.cs`
+- UXML / USS：`Assets/UI/MxFramework/Story/StoryRuntimeVerticalSlice.uxml` / `.uss`
+- Scene generator：`Assets/Scripts/MxFramework/Demo/Editor/CreateStoryRuntimeVerticalSliceScene.cs`
+- Tests：`Assets/Scripts/MxFramework/Tests/Story.RuntimeAiPlannerBridge/` and `Assets/Scripts/MxFramework/Tests/Demo/Story/`
+
+边界：
+
+- Story state authority stays in `StoryDirector` / `StoryRuntimeModule`。
+- Gameplay effect uses `StoryGameplayEffectBridge` -> Gameplay `RuntimeCommandBuffer`; no direct buff grant/remove。
+- Runtime AI Planner projection is one-way Story -> Runtime AI Planner and never writes Story blackboard。
+- Scene / PanelSettings are generated through Unity Editor tooling; `.unity` and `.asset` YAML are not hand-authored。
+
 ## 7. Config 表和校验
 
 基础流程：

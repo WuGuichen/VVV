@@ -35,6 +35,7 @@
 | Story Config | `Docs/Interfaces/Story.Config.md` | `Assets/Scripts/MxFramework/Story.Config/` | `Assets/Scripts/MxFramework/Tests/Story.Config/` |
 | Story Gameplay Bridge | `Docs/Interfaces/Story.GameplayBridge.md` | `Assets/Scripts/MxFramework/Story.GameplayBridge/` | `Assets/Scripts/MxFramework/Tests/Story.GameplayBridge/` |
 | Story Resources Bridge | `Docs/Interfaces/Story.ResourcesBridge.md` | `Assets/Scripts/MxFramework/Story.ResourcesBridge/` | `Assets/Scripts/MxFramework/Tests/Story.ResourcesBridge/` |
+| Story Runtime AI Planner Bridge | `Docs/Interfaces/Story.RuntimeAiPlannerBridge.md` | `Assets/Scripts/MxFramework/Story.RuntimeAiPlannerBridge/` | `Assets/Scripts/MxFramework/Tests/Story.RuntimeAiPlannerBridge/` |
 | Story Unity | `Docs/Interfaces/Story.Unity.md` | `Assets/Scripts/MxFramework/Story.Unity/` | `Assets/Scripts/MxFramework/Tests/Story.Unity/` |
 | Story Editor | `Docs/Interfaces/Story.Editor.md` | `Assets/Scripts/MxFramework/Story.Editor/` | `Assets/Scripts/MxFramework/Tests/Story.Editor/` |
 | App / Scene Flow | `Docs/Interfaces/AppFlow.md` | `Assets/Scripts/MxFramework/Runtime*/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |

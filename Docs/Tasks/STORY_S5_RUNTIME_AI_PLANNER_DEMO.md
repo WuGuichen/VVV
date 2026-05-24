@@ -186,3 +186,11 @@ The implementation agent must report:
 - exact validation run.
 - playable smoke result.
 - remaining deferred Runtime AI Planner, Timeline/Cinemachine, or authoring-tool gaps.
+
+## Implementation Notes
+
+- noEngine bridge implemented under `Assets/Scripts/MxFramework/Story.RuntimeAiPlannerBridge/`.
+- Playable runtime composition implemented under `Assets/Scripts/MxFramework/Demo/Story/`.
+- Scene generation path is `MxFramework > Story > Create Runtime Vertical Slice Scene`, writing `Assets/Scenes/StoryRuntimeVerticalSlice.unity` and `Assets/UI/MxFramework/Story/StoryRuntimeVerticalSlicePanelSettings.asset` through Unity Editor serialization.
+- The demo uses Story.Config row contracts for graph setup, Story.ResourcesBridge for a deterministic preload plan, Story.Unity adapters for trigger / presentation commands, Story.GameplayBridge for Gameplay-owned `AddComponentAttribute`, and Story.RuntimeAiPlannerBridge for one-way Runtime AI Planner fact projection.
+- Direct Story buff grant/remove, Timeline/Cinemachine package-specific binding, external Story authoring importers, and WGame production content remain out of scope.

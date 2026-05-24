@@ -36,7 +36,14 @@
         "MxFramework.DebugUI",
         "MxFramework.DebugUI.Adapters",
         "MxFramework.DebugUI.Toolkit",
-        "MxFramework.UI.Toolkit"
+        "MxFramework.UI.Toolkit",
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime",
+        "MxFramework.Story.Config",
+        "MxFramework.Story.GameplayBridge",
+        "MxFramework.Story.ResourcesBridge",
+        "MxFramework.Story.RuntimeAiPlannerBridge",
+        "MxFramework.Story.Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

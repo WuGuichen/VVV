@@ -258,9 +258,9 @@ It must not serialize private object trees, delegates, event handlers, Unity obj
 
 - Config loading / schema mapping lives in sibling `Story.Config`; Story core still does not depend on Config.
 - Pluggable `IStoryCondition` / `IStoryEffect` contracts. S1 uses stable `conditionId` lookup against bool blackboard facts and `SetFact` steps only.
-- Gameplay effect execution. Planned in `Story.GameplayBridge`.
-- Resources preload. Planned in `Story.ResourcesBridge`.
-- Runtime AI Planner projection. Planned in `Story.RuntimeAiPlannerBridge`.
+- Gameplay effect execution lives in sibling `Story.GameplayBridge`; Story core still does not depend on Gameplay.
+- Resources preload lives in sibling `Story.ResourcesBridge`; Story core still does not depend on Resources.
+- Runtime AI Planner projection lives in sibling `Story.RuntimeAiPlannerBridge`; Story core still does not depend on Runtime AI Planner.
 - Unity trigger zones, Timeline, Cinemachine, UI Toolkit view, GraphView editor, or external authoring import.
 - `WaitWithFrameTimeout` runtime timeout behavior.
 
