@@ -1444,7 +1444,7 @@ PressureOnly 路径保持兼容：`PostureBreakEvent`、`GuardBreakEvent`、`Arm
 
 ### Phase 7：Character Action Workstation
 
-第一版只读 + 轻编辑：
+Issue #435 的 Phase 7 MVP 先落 noEngine Workstation core，不做完整 Editor UI，不写 Unity 场景 / Prefab / ScriptableObject / YAML 资产，不启动 Combat runner，也不播放动画。该阶段的输出是后续 Unity Editor Workstation 可直接消费的只读 preview model：
 
 ```text
 Action timeline
@@ -1456,7 +1456,17 @@ Diagnostics
 Preview data export
 ```
 
-不手写 Unity 序列化资产；需要 Unity 资产时走 Editor 菜单 / Unity MCP / 专用生成器。
+Phase 7 MVP API 边界：
+
+| API | 输入 | 输出 | 说明 |
+| --- | --- | --- | --- |
+| `CharacterActionWorkstation.BuildSnapshot` | `CharacterActionConfig`、可选 `CombatActionTimeline`、可选 runner/debug event stream、可选 diagnostics | `CharacterActionWorkstationSnapshot` | 聚合只读 timeline rows、dependency、diagnostics、preview event 和 deterministic export lines。 |
+| `CharacterActionWorkstationTimelineRow` | phase / track / cancel / interrupt data | row kind + sorted entries | 固定输出 Phase、Motion、Combat、Gameplay、Animation、Presentation、Debug、Cancel、Interrupt 分组；不声明未实现编辑能力。 |
+| `CharacterActionWorkstationSnapshot.ExportText` | snapshot | deterministic text report | 供测试、PR review artifact 和后续 Editor 面板复制/导出使用。 |
+
+Phase 7 MVP 必须复用 Phase 2 的 `CharacterActionValidation`、`CharacterActionResourceDependencyCollector` 和 `CharacterActionDiagnosticFormatter`。请求 `LightEditing` 或 `UnityAssetEditing` 这类超出 MVP 的能力时，只输出 `ACT_WORKSTATION_EDITING_UNSUPPORTED` 诊断，不能提供假的可编辑入口。
+
+不手写 Unity 序列化资产；需要 Unity 资产时走 Editor 菜单 / Unity MCP / 专用生成器。README / USAGE 暂不宣称 Character Action Workstation 是可用公共 Editor 功能，直到后续阶段真正接入 Unity Editor 窗口和项目配置源。
 
 ## 验收标准
 
