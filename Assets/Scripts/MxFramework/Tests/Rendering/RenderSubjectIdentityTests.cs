@@ -61,7 +61,7 @@ namespace MxFramework.Tests.Rendering
             MxRenderSubjectId first = registry.Register(MxRenderSubjectRole.Primary);
             var publisher = new RenderDataPublisher(registry, recentCapacity: 4);
 
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(first, RenderDataEventKind.Movement, default, default)));
+            publisher.PublishSubjectMovement(first, default);
             Assert.IsTrue(registry.Release(first));
             MxRenderSubjectId second = registry.Register(MxRenderSubjectRole.Focus);
 
@@ -69,6 +69,17 @@ namespace MxFramework.Tests.Rendering
             Assert.AreNotEqual(first, second);
             Assert.IsFalse(registry.TryResolve(first, out var _));
             Assert.AreEqual(0, publisher.CaptureSnapshot().RecentEventCount);
+        }
+
+        [Test]
+        public void Registry_GuardsConfiguredSlotCapacityBeforeEncoding()
+        {
+            var registry = new MxRenderSubjectRegistry(maxSubjectSlots: 1);
+
+            MxRenderSubjectId first = registry.Register(MxRenderSubjectRole.Primary);
+
+            Assert.IsTrue(first.IsValid);
+            Assert.Throws<System.InvalidOperationException>(() => registry.Register(MxRenderSubjectRole.Focus));
         }
 
         [Test]

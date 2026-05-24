@@ -2,11 +2,34 @@ using MxFramework.Diagnostics;
 using MxFramework.Rendering;
 using NUnit.Framework;
 using UnityEngine;
+using System;
+using System.Linq;
 
 namespace MxFramework.Tests.Rendering
 {
     public class RenderDataPublisherTests
     {
+        [Test]
+        public void PublisherInterface_ExposesDocumentedSemanticApi()
+        {
+            string[] methodNames = typeof(IRenderDataPublisher)
+                .GetMethods()
+                .Select(method => method.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    nameof(IRenderDataPublisher.PublishFieldImpulse),
+                    nameof(IRenderDataPublisher.PublishImpact),
+                    nameof(IRenderDataPublisher.PublishSubjectLifecycle),
+                    nameof(IRenderDataPublisher.PublishSubjectMovement),
+                    nameof(IRenderDataPublisher.PublishSurfaceContact)
+                },
+                methodNames);
+        }
+
         [Test]
         public void Publisher_TracksCurrentRecentAndTotalCountsByEventKind()
         {
@@ -14,11 +37,11 @@ namespace MxFramework.Tests.Rendering
             MxRenderSubjectId subject = registry.Register(MxRenderSubjectRole.Primary);
             var publisher = new RenderDataPublisher(registry, recentCapacity: 8);
 
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Impact, Vector3.one, Vector3.up, 2f)));
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.SurfaceContact, Vector3.right, Vector3.up)));
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.FieldImpulse, Vector3.zero, Vector3.forward, 3f)));
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Movement, Vector3.forward, Vector3.forward)));
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Lifecycle, Vector3.zero, Vector3.zero)));
+            publisher.PublishImpact(subject, new MxRenderImpactEvent(Vector3.one, Color.red, 2f, 0.25f));
+            publisher.PublishSurfaceContact(subject, new MxRenderSurfaceContactEvent(Vector3.right, 1.5f, 0.75f));
+            publisher.PublishFieldImpulse(subject, new MxRenderFieldImpulseEvent(Vector3.zero, 3f, 4f, 9));
+            publisher.PublishSubjectMovement(subject, Vector3.forward);
+            publisher.PublishSubjectLifecycle(subject, MxSubjectLifecycleKind.Enabled);
 
             RenderDataPublisherSnapshot snapshot = publisher.CaptureSnapshot();
 
@@ -32,6 +55,11 @@ namespace MxFramework.Tests.Rendering
             Assert.AreEqual(1, snapshot.CurrentFrameCount(RenderDataEventKind.Lifecycle));
             Assert.AreEqual(1, snapshot.RecentCount(RenderDataEventKind.Impact));
             Assert.AreEqual(1, snapshot.TotalCount(RenderDataEventKind.Lifecycle));
+            Assert.AreEqual(Color.red, snapshot.CurrentFrameEvents[0].Tint);
+            Assert.AreEqual(1.5f, snapshot.CurrentFrameEvents[1].Radius);
+            Assert.AreEqual(9, snapshot.CurrentFrameEvents[2].Frame);
+            Assert.AreEqual(Vector3.forward, snapshot.CurrentFrameEvents[3].Direction);
+            Assert.AreEqual(MxSubjectLifecycleKind.Enabled, snapshot.CurrentFrameEvents[4].Lifecycle);
         }
 
         [Test]
@@ -41,7 +69,7 @@ namespace MxFramework.Tests.Rendering
             MxRenderSubjectId subject = registry.Register(MxRenderSubjectRole.Focus);
             var publisher = new RenderDataPublisher(registry, recentCapacity: 8);
 
-            publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Impact, default, default));
+            publisher.PublishImpact(subject, new MxRenderImpactEvent(default, Color.white, 1f, 0.1f));
             publisher.BeginFrame();
 
             RenderDataPublisherSnapshot snapshot = publisher.CaptureSnapshot();
@@ -61,9 +89,9 @@ namespace MxFramework.Tests.Rendering
             MxRenderSubjectId subject = registry.Register(MxRenderSubjectRole.Tracked);
             var publisher = new RenderDataPublisher(registry, recentCapacity: 2);
 
-            publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Impact, default, default));
-            publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Movement, default, default));
-            publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Movement, default, default));
+            publisher.PublishImpact(subject, new MxRenderImpactEvent(default, Color.white, 1f, 0.1f));
+            publisher.PublishSubjectMovement(subject, Vector3.right);
+            publisher.PublishSubjectMovement(subject, Vector3.left);
 
             RenderDataPublisherSnapshot snapshot = publisher.CaptureSnapshot();
 
@@ -76,18 +104,21 @@ namespace MxFramework.Tests.Rendering
         }
 
         [Test]
-        public void Publisher_RejectsInvalidUnknownOrReleasedSubjects()
+        public void Publisher_RequiresRegistryAndRejectsInvalidUnknownOrReleasedSubjects()
         {
             var registry = new MxRenderSubjectRegistry();
             MxRenderSubjectId subject = registry.Register(MxRenderSubjectRole.Primary);
             var publisher = new RenderDataPublisher(registry);
 
-            Assert.IsFalse(publisher.Publish(new RenderDataEvent(default, RenderDataEventKind.Impact, default, default)));
-            Assert.IsFalse(publisher.Publish(new RenderDataEvent(subject, (RenderDataEventKind)99, default, default)));
+            Assert.Throws<ArgumentNullException>(() => new RenderDataPublisher(null));
+
+            publisher.PublishImpact(default, new MxRenderImpactEvent(default, Color.white, 1f, 0.1f));
+            publisher.PublishSubjectLifecycle(subject, (MxSubjectLifecycleKind)99);
 
             registry.Release(subject);
 
-            Assert.IsFalse(publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Impact, default, default)));
+            publisher.PublishImpact(subject, new MxRenderImpactEvent(default, Color.white, 1f, 0.1f));
+            publisher.PublishImpact(new MxRenderSubjectId(123), new MxRenderImpactEvent(default, Color.white, 1f, 0.1f));
             Assert.AreEqual(0, publisher.CaptureSnapshot().TotalEventCount);
         }
 
@@ -99,8 +130,8 @@ namespace MxFramework.Tests.Rendering
             var publisher = new RenderDataPublisher(registry);
             MxRenderSubjectId first = map.GetOrCreate(7, MxRenderSubjectRole.LocalControlled);
 
-            publisher.Publish(new RenderDataEvent(first, RenderDataEventKind.Lifecycle, default, default));
-            publisher.Publish(new RenderDataEvent(first, RenderDataEventKind.Movement, default, default));
+            publisher.PublishSubjectLifecycle(first, MxSubjectLifecycleKind.Spawned);
+            publisher.PublishSubjectMovement(first, Vector3.forward);
 
             Assert.IsTrue(map.Release(7));
 
@@ -112,7 +143,8 @@ namespace MxFramework.Tests.Rendering
 
             MxRenderSubjectId second = map.GetOrCreate(8, MxRenderSubjectRole.LocalControlled);
             Assert.AreNotEqual(first, second);
-            Assert.IsTrue(publisher.Publish(new RenderDataEvent(second, RenderDataEventKind.Movement, default, default)));
+            publisher.PublishSubjectMovement(second, Vector3.right);
+            Assert.AreEqual(1, publisher.CaptureSnapshot().CurrentFrameCount(RenderDataEventKind.Movement));
         }
 
         [Test]
@@ -121,7 +153,7 @@ namespace MxFramework.Tests.Rendering
             var registry = new MxRenderSubjectRegistry();
             MxRenderSubjectId subject = registry.Register(MxRenderSubjectRole.Primary);
             var publisher = new RenderDataPublisher(registry);
-            publisher.Publish(new RenderDataEvent(subject, RenderDataEventKind.Impact, default, default));
+            publisher.PublishImpact(subject, new MxRenderImpactEvent(default, Color.white, 1f, 0.1f));
             var source = new RenderDataPublisherDebugSource(publisher);
 
             FrameworkDebugSnapshot snapshot = source.CreateSnapshot();

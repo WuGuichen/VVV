@@ -17,11 +17,11 @@ namespace MxFramework.Rendering
 
     public interface IRenderDataPublisher
     {
-        void BeginFrame();
-        bool Publish(in RenderDataEvent evt);
-        void ClearSubject(MxRenderSubjectId subject);
-        void Clear();
-        RenderDataPublisherSnapshot CaptureSnapshot();
+        void PublishImpact(MxRenderSubjectId subject, in MxRenderImpactEvent impact);
+        void PublishSurfaceContact(MxRenderSubjectId subject, in MxRenderSurfaceContactEvent contact);
+        void PublishFieldImpulse(MxRenderSubjectId subject, in MxRenderFieldImpulseEvent impulse);
+        void PublishSubjectMovement(MxRenderSubjectId subject, Vector3 velocity);
+        void PublishSubjectLifecycle(MxRenderSubjectId subject, MxSubjectLifecycleKind lifecycle);
     }
 
     public sealed class RenderDataPublisher : IRenderDataPublisher
@@ -36,12 +36,83 @@ namespace MxFramework.Rendering
         private readonly int[] _recentCounts = new int[EventKindCount];
         private readonly int[] _totalCounts = new int[EventKindCount];
 
-        public RenderDataPublisher(MxRenderSubjectRegistry subjects = null, int recentCapacity = 32)
+        public RenderDataPublisher(MxRenderSubjectRegistry subjects, int recentCapacity = 32)
         {
-            _subjects = subjects;
+            _subjects = subjects ?? throw new ArgumentNullException(nameof(subjects));
             _recentCapacity = Math.Max(0, recentCapacity);
-            if (_subjects != null)
-                _subjects.SubjectReleased += ClearSubject;
+            _subjects.SubjectReleased += ClearSubject;
+        }
+
+        public void PublishImpact(MxRenderSubjectId subject, in MxRenderImpactEvent impact)
+        {
+            PublishEvent(new RenderDataEvent(
+                subject,
+                RenderDataEventKind.Impact,
+                impact.WorldPosition,
+                Vector3.zero,
+                impact.Intensity,
+                impact.Duration,
+                0,
+                impact.Tint,
+                0f,
+                MxSubjectLifecycleKind.Spawned));
+        }
+
+        public void PublishSurfaceContact(MxRenderSubjectId subject, in MxRenderSurfaceContactEvent contact)
+        {
+            PublishEvent(new RenderDataEvent(
+                subject,
+                RenderDataEventKind.SurfaceContact,
+                contact.WorldPosition,
+                Vector3.zero,
+                contact.Pressure,
+                0f,
+                0,
+                default,
+                contact.Radius,
+                MxSubjectLifecycleKind.Spawned));
+        }
+
+        public void PublishFieldImpulse(MxRenderSubjectId subject, in MxRenderFieldImpulseEvent impulse)
+        {
+            PublishEvent(new RenderDataEvent(
+                subject,
+                RenderDataEventKind.FieldImpulse,
+                impulse.WorldPosition,
+                Vector3.zero,
+                impulse.Intensity,
+                0f,
+                impulse.ChannelId,
+                default,
+                impulse.Radius,
+                MxSubjectLifecycleKind.Spawned));
+        }
+
+        public void PublishSubjectMovement(MxRenderSubjectId subject, Vector3 velocity)
+        {
+            PublishEvent(new RenderDataEvent(
+                subject,
+                RenderDataEventKind.Movement,
+                Vector3.zero,
+                velocity));
+        }
+
+        public void PublishSubjectLifecycle(MxRenderSubjectId subject, MxSubjectLifecycleKind lifecycle)
+        {
+            if (!Enum.IsDefined(typeof(MxSubjectLifecycleKind), lifecycle))
+                return;
+
+            PublishEvent(new RenderDataEvent(
+                subject,
+                RenderDataEventKind.Lifecycle,
+                Vector3.zero,
+                Vector3.zero,
+                0f,
+                0f,
+                0,
+                default,
+                0f,
+                lifecycle));
         }
 
         public void BeginFrame()
@@ -53,17 +124,14 @@ namespace MxFramework.Rendering
             Array.Clear(_currentFrameCounts, 0, _currentFrameCounts.Length);
         }
 
-        public bool Publish(in RenderDataEvent evt)
+        private bool PublishEvent(in RenderDataEvent evt)
         {
             if (!IsKnownEventKind(evt.Kind) || !evt.Subject.IsValid)
                 return false;
 
-            if (_subjects != null)
-            {
-                if (!_subjects.TryResolve(evt.Subject, out var _))
-                    return false;
-                _subjects.AddReference(evt.Subject);
-            }
+            if (!_subjects.TryResolve(evt.Subject, out var _))
+                return false;
+            _subjects.AddReference(evt.Subject);
 
             _currentFrameEvents.Add(evt);
             _currentFrameCounts[(int)evt.Kind]++;
@@ -113,8 +181,7 @@ namespace MxFramework.Rendering
             if (_recentCapacity <= 0)
                 return;
 
-            if (_subjects != null)
-                _subjects.AddReference(evt.Subject);
+            _subjects.AddReference(evt.Subject);
 
             _recentEvents.Add(evt);
             _recentCounts[(int)evt.Kind]++;
@@ -144,8 +211,7 @@ namespace MxFramework.Rendering
 
         private void ReleaseReference(MxRenderSubjectId subject)
         {
-            if (_subjects != null)
-                _subjects.ReleaseReference(subject);
+            _subjects.ReleaseReference(subject);
         }
 
         private static IReadOnlyList<RenderDataEventKindCount> CreateCounts(int[] counts)
@@ -180,7 +246,10 @@ namespace MxFramework.Rendering
             Vector3 direction,
             float magnitude = 0f,
             float duration = 0f,
-            int frame = 0)
+            int frame = 0,
+            Color tint = default,
+            float radius = 0f,
+            MxSubjectLifecycleKind lifecycle = MxSubjectLifecycleKind.Spawned)
         {
             Subject = subject;
             Kind = kind;
@@ -189,6 +258,9 @@ namespace MxFramework.Rendering
             Magnitude = magnitude;
             Duration = duration;
             Frame = frame;
+            Tint = tint;
+            Radius = radius;
+            Lifecycle = lifecycle;
         }
 
         public MxRenderSubjectId Subject { get; }
@@ -198,6 +270,63 @@ namespace MxFramework.Rendering
         public float Magnitude { get; }
         public float Duration { get; }
         public int Frame { get; }
+        public Color Tint { get; }
+        public float Radius { get; }
+        public MxSubjectLifecycleKind Lifecycle { get; }
+    }
+
+    public readonly struct MxRenderImpactEvent
+    {
+        public MxRenderImpactEvent(Vector3 worldPosition, Color tint, float intensity, float duration)
+        {
+            WorldPosition = worldPosition;
+            Tint = tint;
+            Intensity = intensity;
+            Duration = duration;
+        }
+
+        public Vector3 WorldPosition { get; }
+        public Color Tint { get; }
+        public float Intensity { get; }
+        public float Duration { get; }
+    }
+
+    public readonly struct MxRenderSurfaceContactEvent
+    {
+        public MxRenderSurfaceContactEvent(Vector3 worldPosition, float radius, float pressure)
+        {
+            WorldPosition = worldPosition;
+            Radius = radius;
+            Pressure = pressure;
+        }
+
+        public Vector3 WorldPosition { get; }
+        public float Radius { get; }
+        public float Pressure { get; }
+    }
+
+    public readonly struct MxRenderFieldImpulseEvent
+    {
+        public MxRenderFieldImpulseEvent(Vector3 worldPosition, float radius, float intensity, int channelId)
+        {
+            WorldPosition = worldPosition;
+            Radius = radius;
+            Intensity = intensity;
+            ChannelId = channelId;
+        }
+
+        public Vector3 WorldPosition { get; }
+        public float Radius { get; }
+        public float Intensity { get; }
+        public int ChannelId { get; }
+    }
+
+    public enum MxSubjectLifecycleKind
+    {
+        Spawned = 0,
+        Despawned = 1,
+        Disabled = 2,
+        Enabled = 3
     }
 
     public readonly struct RenderDataEventKindCount
@@ -278,9 +407,9 @@ namespace MxFramework.Rendering
 
     public sealed class RenderDataPublisherDebugSource : IRenderingDebugSource
     {
-        private readonly IRenderDataPublisher _publisher;
+        private readonly RenderDataPublisher _publisher;
 
-        public RenderDataPublisherDebugSource(IRenderDataPublisher publisher, string name = "Rendering")
+        public RenderDataPublisherDebugSource(RenderDataPublisher publisher, string name = "Rendering")
         {
             _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
             Name = string.IsNullOrWhiteSpace(name) ? "Rendering" : name;

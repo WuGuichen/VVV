@@ -65,13 +65,23 @@ namespace MxFramework.Rendering
         private const int SlotBits = 20;
         private const int SlotMask = (1 << SlotBits) - 1;
         private const int InitialGeneration = 1;
+        public const int MaxSubjectSlots = SlotMask;
 
+        private readonly int _maxSubjectSlots;
         private readonly List<Slot> _slots = new List<Slot>();
         private readonly Queue<int> _freeSlots = new Queue<int>();
 
         internal event Action<MxRenderSubjectId> SubjectReleased;
 
         public int ActiveCount { get; private set; }
+
+        public MxRenderSubjectRegistry(int maxSubjectSlots = MaxSubjectSlots)
+        {
+            if (maxSubjectSlots <= 0 || maxSubjectSlots > MaxSubjectSlots)
+                throw new ArgumentOutOfRangeException(nameof(maxSubjectSlots), maxSubjectSlots, "Subject slot capacity must be between 1 and MxRenderSubjectRegistry.MaxSubjectSlots.");
+
+            _maxSubjectSlots = maxSubjectSlots;
+        }
 
         public MxRenderSubjectId Register(MxRenderSubjectRole role)
         {
@@ -84,6 +94,9 @@ namespace MxFramework.Rendering
             }
             else
             {
+                if (_slots.Count >= _maxSubjectSlots)
+                    throw new InvalidOperationException("MxRenderSubjectRegistry subject slot capacity exceeded.");
+
                 slotIndex = _slots.Count;
                 slot = new Slot { Generation = InitialGeneration };
                 _slots.Add(slot);
