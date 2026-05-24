@@ -57,7 +57,7 @@ namespace MxFramework.Tests.Rendering
             Assert.AreEqual(1, snapshot.TotalCount(RenderDataEventKind.Lifecycle));
             Assert.AreEqual(Color.red, snapshot.CurrentFrameEvents[0].Tint);
             Assert.AreEqual(1.5f, snapshot.CurrentFrameEvents[1].Radius);
-            Assert.AreEqual(9, snapshot.CurrentFrameEvents[2].Frame);
+            Assert.AreEqual(9, snapshot.CurrentFrameEvents[2].ChannelId);
             Assert.AreEqual(Vector3.forward, snapshot.CurrentFrameEvents[3].Direction);
             Assert.AreEqual(MxSubjectLifecycleKind.Enabled, snapshot.CurrentFrameEvents[4].Lifecycle);
         }

@@ -82,10 +82,11 @@ namespace MxFramework.Rendering
                 Vector3.zero,
                 impulse.Intensity,
                 0f,
-                impulse.ChannelId,
+                0,
                 default,
                 impulse.Radius,
-                MxSubjectLifecycleKind.Spawned));
+                MxSubjectLifecycleKind.Spawned,
+                impulse.ChannelId));
         }
 
         public void PublishSubjectMovement(MxRenderSubjectId subject, Vector3 velocity)
@@ -249,7 +250,8 @@ namespace MxFramework.Rendering
             int frame = 0,
             Color tint = default,
             float radius = 0f,
-            MxSubjectLifecycleKind lifecycle = MxSubjectLifecycleKind.Spawned)
+            MxSubjectLifecycleKind lifecycle = MxSubjectLifecycleKind.Spawned,
+            int channelId = 0)
         {
             Subject = subject;
             Kind = kind;
@@ -261,6 +263,7 @@ namespace MxFramework.Rendering
             Tint = tint;
             Radius = radius;
             Lifecycle = lifecycle;
+            ChannelId = channelId;
         }
 
         public MxRenderSubjectId Subject { get; }
@@ -273,6 +276,7 @@ namespace MxFramework.Rendering
         public Color Tint { get; }
         public float Radius { get; }
         public MxSubjectLifecycleKind Lifecycle { get; }
+        public int ChannelId { get; }
     }
 
     public readonly struct MxRenderImpactEvent
