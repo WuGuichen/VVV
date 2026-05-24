@@ -250,14 +250,7 @@ namespace MxFramework.CharacterAction
             if (plan == null)
                 throw new ArgumentNullException(nameof(plan));
 
-            return new CharacterActionRunnerActionDefinition(
-                actionConfigId: 0,
-                actionId: plan.ActionId,
-                timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
-                cancelRules: null,
-                interruptRules: null,
-                combatTimeline: null,
-                trackEvents: null);
+            throw new NotSupportedException("CharacterActionRunner requires a resolved execution definition; plan-only definitions cannot execute tracks, cancel rules, or interrupt rules.");
         }
 
         public static CharacterActionRunnerActionDefinition FromConfig(
@@ -443,6 +436,16 @@ namespace MxFramework.CharacterAction
                 + " track=" + (TrackDispatch.HasEvent ? TrackDispatch.TrackKind.ToString() : "-")
                 + " trackEvent=" + (TrackDispatch.HasEvent ? TrackDispatch.EventKind.ToString() : "-")
                 + " stableEvent=" + EmptyOrValue(TrackDispatch.StableEventId)
+                + " combatActionId=" + EmptyOrValue(TrackDispatch.CombatActionId)
+                + " traceProfileId=" + EmptyOrValue(TrackDispatch.TraceProfileId)
+                + " gameplayRequestId=" + EmptyOrValue(TrackDispatch.GameplayRequestId)
+                + " abilityStableId=" + EmptyOrValue(TrackDispatch.AbilityStableId)
+                + " animationActionKey=" + EmptyOrValue(TrackDispatch.AnimationActionKey)
+                + " presentationCueId=" + EmptyOrValue(TrackDispatch.PresentationCueId)
+                + " resourceKey=" + EmptyOrValue(TrackDispatch.ResourceKey)
+                + " debugMarkerId=" + EmptyOrValue(TrackDispatch.DebugMarkerId)
+                + " motionMode=" + FormatMotionMode(TrackDispatch)
+                + " motionVector=" + FormatMotionVector(TrackDispatch)
                 + " code=" + EmptyOrValue(DiagnosticCode)
                 + " reason=" + EmptyOrValue(Reason)
                 + " trace=" + EmptyOrValue(TraceId);
@@ -495,6 +498,26 @@ namespace MxFramework.CharacterAction
                 return "-";
 
             return value.Replace("\\", "\\\\").Replace("\n", "\\n").Replace("\r", "\\r");
+        }
+
+        private static string FormatMotionMode(CharacterActionTrackDispatchEvent trackDispatch)
+        {
+            if (!trackDispatch.HasEvent || trackDispatch.TrackKind != CharacterActionTrackKind.Motion)
+                return "-";
+
+            return trackDispatch.MovementMode.ToString();
+        }
+
+        private static string FormatMotionVector(CharacterActionTrackDispatchEvent trackDispatch)
+        {
+            if (!trackDispatch.HasEvent || trackDispatch.TrackKind != CharacterActionTrackKind.Motion)
+                return "-";
+
+            return trackDispatch.X.ToString(CultureInfo.InvariantCulture)
+                + ","
+                + trackDispatch.Y.ToString(CultureInfo.InvariantCulture)
+                + ","
+                + trackDispatch.Z.ToString(CultureInfo.InvariantCulture);
         }
     }
 
@@ -608,7 +631,7 @@ namespace MxFramework.CharacterAction
             if (resolveResult == null)
                 throw new ArgumentNullException(nameof(resolveResult));
 
-            return Start(resolveResult, resolveResult.IsSuccess ? CharacterActionRunnerActionDefinition.FromPlan(resolveResult.Plan) : null);
+            return Start(resolveResult, null);
         }
 
         public CharacterActionRunnerOperationResult Start(
@@ -650,7 +673,7 @@ namespace MxFramework.CharacterAction
 
         public CharacterActionRunnerOperationResult Start(CharacterActionPlan plan)
         {
-            return Start(plan, plan == null ? null : CharacterActionRunnerActionDefinition.FromPlan(plan));
+            return Start(plan, null);
         }
 
         public CharacterActionRunnerOperationResult Tick()
@@ -860,6 +883,14 @@ namespace MxFramework.CharacterAction
                 return false;
             }
 
+            if (definition.ActionConfigId <= 0 || string.IsNullOrEmpty(definition.ActionId))
+            {
+                diagnostic = CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.MissingActionConfig,
+                    "CharacterActionRunner requires a resolved execution definition with a stable action config id and action id.");
+                return false;
+            }
+
             if (!string.Equals(plan.ActionId, definition.ActionId, StringComparison.Ordinal))
             {
                 diagnostic = CharacterActionDiagnostic.Error(
@@ -868,8 +899,53 @@ namespace MxFramework.CharacterAction
                 return false;
             }
 
+            if (definition.TimelineAuthority == CharacterActionTimelineAuthority.CombatAnchored && definition.CombatTimeline == null)
+            {
+                diagnostic = CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.CombatActionMissing,
+                    "CombatAnchored runner action definition requires a CombatActionTimeline.");
+                return false;
+            }
+
+            if (!HasResolvedTrackEvents(plan, definition))
+            {
+                diagnostic = CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.MissingActionConfig,
+                    "Runner action definition does not include all track dispatch events declared by the resolved plan.");
+                return false;
+            }
+
             diagnostic = default;
             return true;
+        }
+
+        private static bool HasResolvedTrackEvents(CharacterActionPlan plan, CharacterActionRunnerActionDefinition definition)
+        {
+            CharacterActionTrackPlan[] tracks = plan.Tracks ?? Array.Empty<CharacterActionTrackPlan>();
+            for (int i = 0; i < tracks.Length; i++)
+            {
+                CharacterActionTrackPlan track = tracks[i];
+                if (track.EventCount <= 0)
+                    continue;
+
+                if (CountTrackEvents(definition.TrackEvents, track.Kind) < track.EventCount)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static int CountTrackEvents(CharacterActionTrackDispatchEvent[] events, CharacterActionTrackKind trackKind)
+        {
+            events = events ?? Array.Empty<CharacterActionTrackDispatchEvent>();
+            int count = 0;
+            for (int i = 0; i < events.Length; i++)
+            {
+                if (events[i].HasEvent && events[i].TrackKind == trackKind)
+                    count++;
+            }
+
+            return count;
         }
 
         private static bool TryValidateTransitionRequest(
@@ -973,7 +1049,7 @@ namespace MxFramework.CharacterAction
             if (withinDuration)
                 FireTrackEvents(instance, events);
 
-            if (instance.Plan.DurationFrames == 0 || instance.LocalFrame >= instance.Plan.DurationFrames - 1)
+            if (instance.Plan.DurationFrames == 0 || instance.LocalFrame >= instance.Plan.DurationFrames)
             {
                 CompleteActive(CharacterActionInstanceState.Finished, "finished", CharacterActionRunnerEventKind.ActionFinished, instance.Plan.TraceId, events);
             }

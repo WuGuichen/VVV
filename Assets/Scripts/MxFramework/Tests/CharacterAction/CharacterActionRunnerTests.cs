@@ -1,4 +1,5 @@
 using MxFramework.CharacterAction;
+using MxFramework.Combat.Animation;
 using NUnit.Framework;
 
 namespace MxFramework.Tests.CharacterAction
@@ -24,16 +25,22 @@ namespace MxFramework.Tests.CharacterAction
 
             runner.Tick();
             runner.Tick();
-            CharacterActionRunnerOperationResult finish = runner.Tick();
+            CharacterActionRunnerOperationResult lastFrame = runner.Tick();
 
             Assert.AreEqual(3, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+            AssertNoEvent(lastFrame.Events, CharacterActionRunnerEventKind.ActionFinished);
+
+            CharacterActionRunnerOperationResult finish = runner.Tick();
+
+            Assert.AreEqual(4, runner.ActiveInstance.LocalFrame);
             Assert.AreEqual(CharacterActionInstanceState.Finished, runner.ActiveInstance.State);
             Assert.AreEqual("finished", runner.ActiveInstance.FinishReason);
             AssertHasEvent(finish.Events, CharacterActionRunnerEventKind.ActionFinished);
         }
 
         [Test]
-        public void Runner_StartsFromPlanWhenNoDefinitionIsNeeded()
+        public void Runner_StartResolveResultWithoutExecutionDefinitionIsRejected()
         {
             CharacterActionConfig action = CreateAction(
                 id: 100,
@@ -41,13 +48,114 @@ namespace MxFramework.Tests.CharacterAction
                 durationFrames: 3);
             var runner = new CharacterActionRunner();
 
-            CharacterActionRunnerOperationResult start = runner.Start(CreatePlan(action));
+            CharacterActionRunnerOperationResult start = runner.Start(CharacterActionResolveResult.Success(CreatePlan(action)));
+
+            Assert.IsFalse(start.Accepted);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.MissingActionConfig, start.Diagnostics[0].Code);
+            Assert.IsFalse(runner.HasActiveInstance);
+        }
+
+        [Test]
+        public void RunnerActionDefinition_FromPlanIsDisabled()
+        {
+            CharacterActionConfig action = CreateAction(
+                id: 100,
+                stableId: "phase_only_action",
+                durationFrames: 3);
+            CharacterActionPlan plan = CreatePlan(action);
+
+            Assert.Throws<System.NotSupportedException>(() => CharacterActionRunnerActionDefinition.FromPlan(plan));
+        }
+
+        [Test]
+        public void Runner_StartWithMissingTrackDispatchDefinitionIsRejected()
+        {
+            CharacterActionConfig action = CreateAction(
+                id: 100,
+                stableId: "track_action",
+                durationFrames: 3,
+                debugTrack: new DebugTrackConfig(new[]
+                {
+                    new DebugTrackEvent(1, CharacterActionTrackEventKind.EmitDebugMarker, "marker.track", "debug.track"),
+                }));
+            CharacterActionPlan plan = CreatePlan(action);
+            var runner = new CharacterActionRunner();
+            var definition = new CharacterActionRunnerActionDefinition(
+                action.Id,
+                action.StableId,
+                action.TimelineAuthority,
+                action.CancelRules,
+                action.InterruptRules,
+                combatTimeline: null,
+                trackEvents: null);
+
+            CharacterActionRunnerOperationResult start = runner.Start(
+                CharacterActionResolveResult.Success(plan),
+                definition);
+
+            Assert.IsFalse(start.Accepted);
+            Assert.AreEqual(CharacterActionDiagnosticCodes.MissingActionConfig, start.Diagnostics[0].Code);
+            Assert.IsFalse(runner.HasActiveInstance);
+        }
+
+        [Test]
+        public void Runner_FromConfigExecutionStillStartsPlan()
+        {
+            CharacterActionConfig action = CreateAction(
+                id: 100,
+                stableId: "phase_only_action",
+                durationFrames: 3);
+
+            CharacterActionRunner runner = StartRunner(action, out CharacterActionRunnerOperationResult start);
 
             Assert.IsTrue(start.Accepted);
             Assert.AreEqual("phase_only_action", runner.ActiveInstance.Plan.ActionId);
             Assert.AreEqual(0, runner.ActiveInstance.LocalFrame);
             AssertHasEvent(start.Events, CharacterActionRunnerEventKind.ActionStarted);
             AssertHasEvent(start.Events, CharacterActionRunnerEventKind.PhaseChanged);
+        }
+
+        [Test]
+        public void Runner_DurationOneFinishesAfterLastLegalFrame()
+        {
+            CharacterActionConfig action = CreateAction(
+                id: 100,
+                stableId: "one_frame_action",
+                durationFrames: 1);
+            CharacterActionRunner runner = StartRunner(action, out CharacterActionRunnerOperationResult start);
+
+            Assert.IsTrue(start.Accepted);
+            Assert.AreEqual(0, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+            AssertNoEvent(start.Events, CharacterActionRunnerEventKind.ActionFinished);
+
+            CharacterActionRunnerOperationResult finish = runner.Tick();
+
+            Assert.AreEqual(1, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Finished, runner.ActiveInstance.State);
+            AssertHasEvent(finish.Events, CharacterActionRunnerEventKind.ActionFinished);
+        }
+
+        [Test]
+        public void Runner_DurationTwoKeepsLastLegalFrameRunningAndFinishesOnNextTick()
+        {
+            CharacterActionConfig action = CreateAction(
+                id: 100,
+                stableId: "two_frame_action",
+                durationFrames: 2);
+            CharacterActionRunner runner = StartRunner(action, out _);
+
+            CharacterActionRunnerOperationResult lastFrame = runner.Tick();
+
+            Assert.AreEqual(1, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+            AssertNoEvent(lastFrame.Events, CharacterActionRunnerEventKind.ActionFinished);
+
+            CharacterActionRunnerOperationResult finish = runner.Tick();
+
+            Assert.AreEqual(2, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Finished, runner.ActiveInstance.State);
+            AssertHasEvent(finish.Events, CharacterActionRunnerEventKind.ActionFinished);
         }
 
         [Test]
@@ -113,15 +221,15 @@ namespace MxFramework.Tests.CharacterAction
                 durationFrames: 4,
                 motionTrack: new MotionTrackConfig(false, new[]
                 {
-                    new MotionTrackEvent(1, CharacterActionTrackEventKind.SetMovementMode, CharacterMovementMode.Run, stableEventId: "motion.run"),
+                    new MotionTrackEvent(1, CharacterActionTrackEventKind.SetMovementMode, CharacterMovementMode.Run, 1f, 0.5f, -1f, "motion.run"),
                 }),
                 combatTrack: new CombatTrackConfig("combat.light", new[]
                 {
-                    new CombatTrackEvent(1, CharacterActionTrackEventKind.StartCombatAction, "combat.light", stableEventId: "combat.start"),
+                    new CombatTrackEvent(1, CharacterActionTrackEventKind.StartCombatAction, "combat.light", "trace.light", "combat.start"),
                 }),
                 gameplayTrack: new GameplayTrackConfig(new[]
                 {
-                    new GameplayTrackEvent(1, CharacterActionTrackEventKind.SendGameplayRequest, "gameplay.hit", stableEventId: "gameplay.hit"),
+                    new GameplayTrackEvent(1, CharacterActionTrackEventKind.SendGameplayRequest, "gameplay.hit", "ability.light", "gameplay.hit"),
                 }),
                 animationTrack: new AnimationTrackConfig(new[]
                 {
@@ -129,7 +237,7 @@ namespace MxFramework.Tests.CharacterAction
                 }),
                 presentationTrack: new PresentationTrackConfig(new[]
                 {
-                    new PresentationTrackEvent(1, CharacterActionTrackEventKind.PlayAudioCue, "sfx.light", stableEventId: "sfx.light"),
+                    new PresentationTrackEvent(1, CharacterActionTrackEventKind.SpawnVisualCue, "vfx.light", "resource.light", "vfx.light"),
                 }),
                 debugTrack: new DebugTrackConfig(new[]
                 {
@@ -143,12 +251,26 @@ namespace MxFramework.Tests.CharacterAction
             AssertTrack(result.Events, CharacterActionTrackKind.Combat, CharacterActionTrackEventKind.StartCombatAction, "combat.start");
             AssertTrack(result.Events, CharacterActionTrackKind.Gameplay, CharacterActionTrackEventKind.SendGameplayRequest, "gameplay.hit");
             AssertTrack(result.Events, CharacterActionTrackKind.Animation, CharacterActionTrackEventKind.CrossFadeAnimation, "anim.start");
-            AssertTrack(result.Events, CharacterActionTrackKind.Presentation, CharacterActionTrackEventKind.PlayAudioCue, "sfx.light");
+            AssertTrack(result.Events, CharacterActionTrackKind.Presentation, CharacterActionTrackEventKind.SpawnVisualCue, "vfx.light");
             AssertTrack(result.Events, CharacterActionTrackKind.Debug, CharacterActionTrackEventKind.EmitDebugMarker, "debug.marker");
+            CharacterActionRunnerEvent motion = FindTrack(result.Events, CharacterActionTrackKind.Motion);
             CharacterActionRunnerEvent combat = FindTrack(result.Events, CharacterActionTrackKind.Combat);
-            Assert.AreEqual("combat.light", combat.TrackDispatch.CombatActionId);
+            CharacterActionRunnerEvent gameplay = FindTrack(result.Events, CharacterActionTrackKind.Gameplay);
             CharacterActionRunnerEvent animation = FindTrack(result.Events, CharacterActionTrackKind.Animation);
+            CharacterActionRunnerEvent presentation = FindTrack(result.Events, CharacterActionTrackKind.Presentation);
+            CharacterActionRunnerEvent debug = FindTrack(result.Events, CharacterActionTrackKind.Debug);
+            Assert.AreEqual("combat.light", combat.TrackDispatch.CombatActionId);
             Assert.AreEqual("anim.light", animation.TrackDispatch.AnimationActionKey);
+            StringAssert.Contains("motionMode=Run", motion.ToReplayLine());
+            StringAssert.Contains("motionVector=1,0.5,-1", motion.ToReplayLine());
+            StringAssert.Contains("combatActionId=combat.light", combat.ToReplayLine());
+            StringAssert.Contains("traceProfileId=trace.light", combat.ToReplayLine());
+            StringAssert.Contains("gameplayRequestId=gameplay.hit", gameplay.ToReplayLine());
+            StringAssert.Contains("abilityStableId=ability.light", gameplay.ToReplayLine());
+            StringAssert.Contains("animationActionKey=anim.light", animation.ToReplayLine());
+            StringAssert.Contains("presentationCueId=vfx.light", presentation.ToReplayLine());
+            StringAssert.Contains("resourceKey=resource.light", presentation.ToReplayLine());
+            StringAssert.Contains("debugMarkerId=marker.light", debug.ToReplayLine());
         }
 
         [Test]
@@ -179,6 +301,92 @@ namespace MxFramework.Tests.CharacterAction
             Assert.AreEqual("dodge", runner.ActiveInstance.Plan.ActionId);
             Assert.AreEqual(2, runner.ActiveInstance.InstanceId);
             Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+        }
+
+        [Test]
+        public void Runner_DispatchesTrackEventOnLastLegalFrameBeforeFinish()
+        {
+            CharacterActionConfig action = CreateAction(
+                id: 100,
+                stableId: "last_frame_track",
+                durationFrames: 2,
+                debugTrack: new DebugTrackConfig(new[]
+                {
+                    new DebugTrackEvent(1, CharacterActionTrackEventKind.EmitDebugMarker, "marker.last", "debug.last"),
+                }));
+            CharacterActionRunner runner = StartRunner(action, out _);
+
+            CharacterActionRunnerOperationResult lastFrame = runner.Tick();
+
+            Assert.AreEqual(1, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+            AssertTrack(lastFrame.Events, CharacterActionTrackKind.Debug, CharacterActionTrackEventKind.EmitDebugMarker, "debug.last");
+            AssertNoEvent(lastFrame.Events, CharacterActionRunnerEventKind.ActionFinished);
+        }
+
+        [Test]
+        public void Runner_LastFrameCancelAcceptedBeforeFinish()
+        {
+            CharacterActionConfig light = CreateAction(
+                id: 100,
+                stableId: "light_attack",
+                durationFrames: 2,
+                cancelRules: new[]
+                {
+                    new CharacterCancelRule(1, 1, targetActionId: 200, sourceKind: CharacterActionSourceKind.Command),
+                });
+            CharacterActionConfig dodge = CreateAction(
+                id: 200,
+                stableId: "dodge",
+                category: CharacterActionCategory.Dodge,
+                durationFrames: 3);
+            CharacterActionRunner runner = StartRunner(light, out _);
+            CharacterActionRunnerOperationResult lastFrame = runner.Tick();
+
+            Assert.AreEqual(1, runner.ActiveInstance.LocalFrame);
+            Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+            AssertNoEvent(lastFrame.Events, CharacterActionRunnerEventKind.ActionFinished);
+
+            CharacterActionRunnerOperationResult result = runner.RequestCancel(CreateTransition(dodge, CharacterActionSourceKind.Command));
+
+            Assert.IsTrue(result.Accepted);
+            AssertHasEvent(result.Events, CharacterActionRunnerEventKind.ActionCancelled);
+            AssertHasEvent(result.Events, CharacterActionRunnerEventKind.ActionStarted);
+            Assert.AreEqual("dodge", runner.ActiveInstance.Plan.ActionId);
+            Assert.AreEqual(CharacterActionInstanceState.Running, runner.ActiveInstance.State);
+        }
+
+        [Test]
+        public void Runner_CombatAnchoredCancelUsesCombatTimelineWindow()
+        {
+            CharacterActionConfig light = CreateAction(
+                id: 100,
+                stableId: "combat_light_attack",
+                durationFrames: 3,
+                timelineAuthority: CharacterActionTimelineAuthority.CombatAnchored,
+                cancelRules: new[]
+                {
+                    new CharacterCancelRule(1, 1, targetActionId: 200, sourceKind: CharacterActionSourceKind.Command),
+                });
+            CharacterActionConfig dodge = CreateAction(
+                id: 200,
+                stableId: "dodge",
+                category: CharacterActionCategory.Dodge,
+                durationFrames: 3);
+            CombatActionTimeline timeline = CreateCombatTimeline(cancelTargetActionId: 200);
+            var runner = new CharacterActionRunner();
+            CharacterActionRunnerOperationResult start = runner.Start(
+                CharacterActionResolveResult.Success(CreatePlan(light)),
+                CharacterActionRunnerActionDefinition.FromConfig(light, timeline));
+            Assert.IsTrue(start.Accepted);
+            runner.Tick();
+
+            CharacterActionRunnerOperationResult result = runner.RequestCancel(CreateTransition(dodge, CharacterActionSourceKind.Command));
+
+            Assert.IsTrue(result.Accepted);
+            AssertHasEvent(result.Events, CharacterActionRunnerEventKind.ActionCancelled);
+            AssertHasEvent(result.Events, CharacterActionRunnerEventKind.ActionStarted);
+            Assert.AreEqual("dodge", runner.ActiveInstance.Plan.ActionId);
         }
 
         [Test]
@@ -370,6 +578,7 @@ namespace MxFramework.Tests.CharacterAction
             string stableId,
             CharacterActionCategory category = CharacterActionCategory.BasicAttack,
             int durationFrames = 4,
+            CharacterActionTimelineAuthority timelineAuthority = CharacterActionTimelineAuthority.CharacterAuthored,
             CharacterActionPhase[] phases = null,
             CharacterCancelRule[] cancelRules = null,
             CharacterInterruptRule[] interruptRules = null,
@@ -385,17 +594,12 @@ namespace MxFramework.Tests.CharacterAction
                 stableId,
                 stableId,
                 category,
-                CharacterActionTimelineAuthority.CharacterAuthored,
+                timelineAuthority,
                 tags: null,
                 priority: category == CharacterActionCategory.Reaction ? 100 : 10,
                 durationFrames: durationFrames,
                 requirements: null,
-                phases: phases ?? new[]
-                {
-                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 0),
-                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 1, durationFrames - 2),
-                    new CharacterActionPhase(CharacterActionPhaseKind.Recovery, durationFrames - 1, durationFrames - 1),
-                },
+                phases: phases ?? CreateDefaultPhases(durationFrames),
                 cancelRules: cancelRules,
                 interruptRules: interruptRules,
                 motionTrack: motionTrack,
@@ -404,6 +608,47 @@ namespace MxFramework.Tests.CharacterAction
                 animationTrack: animationTrack,
                 presentationTrack: presentationTrack,
                 debugTrack: debugTrack);
+        }
+
+        private static CharacterActionPhase[] CreateDefaultPhases(int durationFrames)
+        {
+            if (durationFrames <= 0)
+                return new CharacterActionPhase[0];
+            if (durationFrames == 1)
+                return new[] { new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 0) };
+            if (durationFrames == 2)
+            {
+                return new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 0),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Recovery, 1, 1),
+                };
+            }
+
+            return new[]
+            {
+                new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 0),
+                new CharacterActionPhase(CharacterActionPhaseKind.Active, 1, durationFrames - 2),
+                new CharacterActionPhase(CharacterActionPhaseKind.Recovery, durationFrames - 1, durationFrames - 1),
+            };
+        }
+
+        private static CombatActionTimeline CreateCombatTimeline(int cancelTargetActionId)
+        {
+            return new CombatActionTimeline(
+                actionId: 100,
+                totalFrames: 3,
+                startup: new CombatFrameRange(0, 0),
+                active: new CombatFrameRange(1, 1),
+                recovery: new CombatFrameRange(2, 2),
+                windows: new[]
+                {
+                    new CombatActionWindow(
+                        CombatActionWindowKind.Cancel,
+                        new CombatFrameRange(1, 1),
+                        cancelTargetActionId),
+                },
+                events: null);
         }
 
         private static void AssertHasEvent(CharacterActionRunnerEvent[] events, CharacterActionRunnerEventKind kind)
@@ -415,6 +660,15 @@ namespace MxFramework.Tests.CharacterAction
             }
 
             Assert.Fail("Expected runner event " + kind + ".");
+        }
+
+        private static void AssertNoEvent(CharacterActionRunnerEvent[] events, CharacterActionRunnerEventKind kind)
+        {
+            for (int i = 0; i < events.Length; i++)
+            {
+                if (events[i].Kind == kind)
+                    Assert.Fail("Did not expect runner event " + kind + ".");
+            }
         }
 
         private static CharacterActionRunnerEvent FindEvent(CharacterActionRunnerEvent[] events, CharacterActionRunnerEventKind kind)
