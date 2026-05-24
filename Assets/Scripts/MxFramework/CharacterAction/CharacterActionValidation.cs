@@ -210,60 +210,48 @@ namespace MxFramework.CharacterAction
             CharacterActionConfig action,
             List<CharacterActionDiagnostic> diagnostics)
         {
-            for (int i = 0; i < action.CombatTrack.Events.Length; i++)
+            CharacterActionResourceDependency[] dependencies = CharacterActionResourceDependencyCollector.Collect(action);
+            for (int i = 0; i < dependencies.Length; i++)
             {
-                CombatTrackEvent trackEvent = action.CombatTrack.Events[i];
-                if (trackEvent.Kind == CharacterActionTrackEventKind.StartCombatAction
-                    && string.IsNullOrEmpty(trackEvent.CombatActionId)
-                    && string.IsNullOrEmpty(action.CombatTrack.CombatActionId))
-                {
+                CharacterActionResourceDependency dependency = dependencies[i];
+                if (!dependency.IsMissing)
+                    continue;
+
+                AddMissingDependencyDiagnostic(dependency, diagnostics);
+            }
+        }
+
+        private static void AddMissingDependencyDiagnostic(
+            CharacterActionResourceDependency dependency,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            switch (dependency.Kind)
+            {
+                case CharacterActionResourceDependencyKind.CombatAction:
                     diagnostics.Add(CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.CombatActionMissing,
                         "Combat track start event requires a combat action id."));
-                }
-            }
-
-            for (int i = 0; i < action.GameplayTrack.Events.Length; i++)
-            {
-                GameplayTrackEvent trackEvent = action.GameplayTrack.Events[i];
-                if (trackEvent.Kind == CharacterActionTrackEventKind.SendGameplayRequest
-                    && string.IsNullOrEmpty(trackEvent.RequestId))
-                {
+                    break;
+                case CharacterActionResourceDependencyKind.GameplayRequest:
                     diagnostics.Add(CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.ResourceCostWithoutResourceId,
                         "Gameplay request track event requires a request id."));
-                }
-            }
-
-            for (int i = 0; i < action.AnimationTrack.Events.Length; i++)
-            {
-                AnimationTrackEvent trackEvent = action.AnimationTrack.Events[i];
-                if (string.IsNullOrEmpty(trackEvent.AnimationActionKey))
-                {
+                    break;
+                case CharacterActionResourceDependencyKind.AnimationAction:
                     diagnostics.Add(CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.AnimationActionMissing,
                         "Animation track event requires an animation action key."));
-                }
-            }
-
-            for (int i = 0; i < action.PresentationTrack.Events.Length; i++)
-            {
-                PresentationTrackEvent trackEvent = action.PresentationTrack.Events[i];
-                if (trackEvent.Kind == CharacterActionTrackEventKind.PlayAudioCue
-                    && string.IsNullOrEmpty(trackEvent.CueId))
-                {
+                    break;
+                case CharacterActionResourceDependencyKind.AudioCue:
                     diagnostics.Add(CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.AudioCueMissing,
                         "Audio presentation event requires a cue id."));
-                }
-
-                if (trackEvent.Kind == CharacterActionTrackEventKind.SpawnVisualCue
-                    && string.IsNullOrEmpty(trackEvent.ResourceKey))
-                {
+                    break;
+                case CharacterActionResourceDependencyKind.VfxResource:
                     diagnostics.Add(CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.PresentationResourceMissing,
                         "Visual presentation event requires a resource key."));
-                }
+                    break;
             }
         }
 
