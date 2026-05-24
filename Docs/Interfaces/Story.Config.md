@@ -71,8 +71,19 @@ StoryGraphDefinition graph = result.Definition;
 | `UnsupportedStepKind` / `UnsupportedWaitPolicy` | enum 值不在 Story core 当前支持范围 |
 | `InvalidTextReference` | line / choice text key 非正数，或不在 `StoryConfigReferenceIndex` 中 |
 | `InvalidFactReference` / `InvalidFactValue` | set-fact / condition fact 缺失、类型不匹配，或 condition fact 不是 Bool |
+| `InvalidTriggerId` / `InvalidEffectId` | trigger / choice effect id 非正数 |
+| `InvalidBeatFlow` | 同一 beat 同时声明 choices 和 branches，或声明多个 fallback branches |
 
-`ConditionFactId` 只能表达 Story core 当前 DTO 的 id-only condition。运行时解析顺序与 `StoryDirector` 一致：优先 `(GraphId, ConditionFactId)`，再查 `(0, ConditionFactId)`。
+`ConditionFactId` 只能表达 Story core 当前 DTO 的 id-only condition。`0` 表示无条件；负数非法。正数运行时解析顺序与 `StoryDirector` 一致：优先 `(GraphId, ConditionFactId)`，再查 `(0, ConditionFactId)`，且被引用 fact 必须声明为 `Bool`。
+
+`SetFact` 的 `FactValueRaw` 必须符合声明的 `StoryValueKind`：
+
+- `Bool`: 只能为 `0` 或 `1`。
+- `Int32`: 必须落在 32-bit signed integer 范围内。
+- `Int64` / `Fix64`: 使用完整 `long` raw 值。
+- `StringRef`: 必须是正数 32-bit text key；如果提供 `StoryConfigReferenceIndex`，还必须存在于 text key 索引中。
+
+Beat transition 合约与 `StoryDirector` 当前推进顺序保持一致：choice beat 会先进入 choice wait，因此同一 beat 不允许再声明 branch rows；branch beat 最多只能有一个 `IsFallback=true` 的 fallback branch。
 
 ## 已知限制
 

@@ -76,6 +76,21 @@ namespace MxFramework.Tests.StoryConfig
         }
 
         [Test]
+        public void Validate_InvalidChoiceTarget_ReportsDiagnostic()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                choices: new[]
+                {
+                    new StoryChoiceConfig(6001, GraphId, ChoiceBeatId, labelTextKey: 9001, targetBeatId: 9999)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidChoiceTarget));
+        }
+
+        [Test]
         public void Validate_DuplicateStableIds_ReportsDiagnostic()
         {
             StoryConfigSet configSet = CreateValidConfigSet(
@@ -112,6 +127,26 @@ namespace MxFramework.Tests.StoryConfig
         }
 
         [Test]
+        public void Validate_UnsupportedWaitPolicy_ReportsDiagnostic()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                steps: new[]
+                {
+                    new StoryStepConfig(
+                        4998,
+                        GraphId,
+                        EntryBeatId,
+                        StoryStepKind.Wait,
+                        waitPolicy: (StoryPresentationWaitPolicy)99)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.UnsupportedWaitPolicy));
+        }
+
+        [Test]
         public void Validate_InvalidTextAndFactReferences_ReportDiagnostics()
         {
             StoryConfigSet configSet = CreateValidConfigSet(
@@ -140,6 +175,130 @@ namespace MxFramework.Tests.StoryConfig
             Assert.IsFalse(result.IsValid);
             Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidTextReference));
             Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidFactReference));
+        }
+
+        [Test]
+        public void Validate_NegativeConditionFactIds_ReportInvalidFactReference()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                branches: new[]
+                {
+                    new StoryBranchConfig(2, GraphId, EntryBeatId, targetBeatId: ChoiceBeatId, conditionFactId: -1, isFallback: true)
+                },
+                choices: new[]
+                {
+                    new StoryChoiceConfig(6001, GraphId, ChoiceBeatId, labelTextKey: 9001, targetBeatId: EndBeatId, conditionFactId: -2)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.GreaterOrEqual(CountDiagnostics(result, StoryConfigValidationDiagnosticCode.InvalidFactReference), 2);
+        }
+
+        [Test]
+        public void Validate_SetFactBoolRawMustBeZeroOrOne_ReportsInvalidFactValue()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                steps: new[]
+                {
+                    new StoryStepConfig(
+                        EntrySetFactStepId,
+                        GraphId,
+                        EntryBeatId,
+                        StoryStepKind.SetFact,
+                        factNamespace: GraphId,
+                        factId: GraphFactId,
+                        factValueKind: StoryValueKind.Bool,
+                        factValueRaw: 2L)
+                },
+                facts: new[]
+                {
+                    new StoryFactConfig(GlobalConditionFactId, 0, StoryValueKind.Bool),
+                    new StoryFactConfig(GraphFactId, GraphId, StoryValueKind.Bool)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidFactValue));
+        }
+
+        [Test]
+        public void Validate_SetFactInt32RawMustFitInt32_ReportsInvalidFactValue()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                steps: new[]
+                {
+                    new StoryStepConfig(
+                        EntrySetFactStepId,
+                        GraphId,
+                        EntryBeatId,
+                        StoryStepKind.SetFact,
+                        factNamespace: GraphId,
+                        factId: GraphFactId,
+                        factValueKind: StoryValueKind.Int32,
+                        factValueRaw: (long)int.MaxValue + 1L)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidFactValue));
+        }
+
+        [Test]
+        public void Validate_ChoiceBeatWithBranch_ReportsInvalidBeatFlow()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                branches: new[]
+                {
+                    new StoryBranchConfig(2, GraphId, EntryBeatId, targetBeatId: ChoiceBeatId, isFallback: true),
+                    new StoryBranchConfig(4, GraphId, ChoiceBeatId, targetBeatId: EndBeatId)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidBeatFlow));
+        }
+
+        [Test]
+        public void Validate_MultipleFallbackBranches_ReportsInvalidBeatFlow()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                branches: new[]
+                {
+                    new StoryBranchConfig(2, GraphId, EntryBeatId, targetBeatId: ChoiceBeatId, priority: 10, isFallback: true),
+                    new StoryBranchConfig(3, GraphId, EntryBeatId, targetBeatId: EndBeatId, priority: 20, isFallback: true)
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidBeatFlow));
+        }
+
+        [Test]
+        public void Validate_InvalidTriggerAndEffectIds_ReportDiagnostics()
+        {
+            StoryConfigSet configSet = CreateValidConfigSet(
+                beats: new[]
+                {
+                    new StoryBeatConfig(ChoiceBeatId, GraphId, sortOrder: 20, choiceSetId: 5001),
+                    new StoryBeatConfig(EndBeatId, GraphId, sortOrder: 30),
+                    new StoryBeatConfig(EntryBeatId, GraphId, sortOrder: 10, triggerIds: new[] { 0 })
+                },
+                choices: new[]
+                {
+                    new StoryChoiceConfig(6001, GraphId, ChoiceBeatId, labelTextKey: 9001, targetBeatId: EndBeatId, effectIds: new[] { 0 })
+                });
+
+            StoryConfigValidationResult result = StoryConfigValidator.Validate(configSet, GraphId, CreateTextReferences());
+
+            Assert.IsFalse(result.IsValid);
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidTriggerId));
+            Assert.IsTrue(result.Contains(StoryConfigValidationDiagnosticCode.InvalidEffectId));
         }
 
         private static StoryConfigReferenceIndex CreateTextReferences()
@@ -224,6 +383,20 @@ namespace MxFramework.Tests.StoryConfig
             for (int i = 0; i < choices.Count; i++)
                 ids[i] = choices[i].ChoiceId;
             return ids;
+        }
+
+        private static int CountDiagnostics(
+            StoryConfigValidationResult result,
+            StoryConfigValidationDiagnosticCode code)
+        {
+            int count = 0;
+            for (int i = 0; i < result.Diagnostics.Count; i++)
+            {
+                if (result.Diagnostics[i].Code == code)
+                    count++;
+            }
+
+            return count;
         }
     }
 }

@@ -19,7 +19,8 @@ namespace MxFramework.Story.Config
         InvalidFactReference = 12,
         InvalidFactValue = 13,
         InvalidTriggerId = 14,
-        InvalidEffectId = 15
+        InvalidEffectId = 15,
+        InvalidBeatFlow = 16
     }
 
     public readonly struct StoryConfigValidationDiagnostic
@@ -152,6 +153,7 @@ namespace MxFramework.Story.Config
             ValidateSteps(configSet.Steps, graphId, resolvedSourcePath, beatIds, factKinds, referenceIndex, diagnostics);
             ValidateBranches(configSet.Branches, graphId, resolvedSourcePath, beatIds, factKinds, diagnostics);
             ValidateChoices(configSet.Choices, graphId, resolvedSourcePath, beatIds, factKinds, referenceIndex, diagnostics);
+            ValidateBeatTransitions(configSet.Branches, configSet.Choices, graphId, resolvedSourcePath, beatIds, diagnostics);
 
             if (!beatIds.Contains(graph.EntryBeatId))
             {
@@ -617,6 +619,8 @@ namespace MxFramework.Story.Config
                     referenceIndex,
                     diagnostics);
             }
+
+            ValidateStepFactRawValue(step, graphId, sourcePath, diagnostics);
         }
 
         private static void ValidateConditionFact(
@@ -630,7 +634,22 @@ namespace MxFramework.Story.Config
             Dictionary<StoryFactKey, StoryValueKind> factKinds,
             List<StoryConfigValidationDiagnostic> diagnostics)
         {
-            if (conditionFactId <= 0)
+            if (conditionFactId < 0)
+            {
+                diagnostics.Add(new StoryConfigValidationDiagnostic(
+                    StoryConfigValidationDiagnosticCode.InvalidFactReference,
+                    sourcePath,
+                    tableName,
+                    rowId,
+                    fieldPath,
+                    "Story condition fact id cannot be negative; use 0 for no condition.",
+                    graphId,
+                    beatId,
+                    conditionFactId));
+                return;
+            }
+
+            if (conditionFactId == 0)
                 return;
 
             StoryValueKind kind;
@@ -661,6 +680,111 @@ namespace MxFramework.Story.Config
                     graphId,
                     beatId,
                     conditionFactId));
+            }
+        }
+
+        private static void ValidateBeatTransitions(
+            IReadOnlyList<StoryBranchConfig> branches,
+            IReadOnlyList<StoryChoiceConfig> choices,
+            int graphId,
+            string sourcePath,
+            HashSet<int> beatIds,
+            List<StoryConfigValidationDiagnostic> diagnostics)
+        {
+            var choiceBeatIds = new HashSet<int>();
+            for (int i = 0; i < choices.Count; i++)
+            {
+                StoryChoiceConfig choice = choices[i];
+                if (choice == null || choice.GraphId != graphId || choice.Id <= 0 || !beatIds.Contains(choice.BeatId))
+                    continue;
+
+                choiceBeatIds.Add(choice.BeatId);
+            }
+
+            var fallbackCounts = new Dictionary<int, int>();
+            for (int i = 0; i < branches.Count; i++)
+            {
+                StoryBranchConfig branch = branches[i];
+                if (branch == null || branch.GraphId != graphId || branch.Id <= 0 || !beatIds.Contains(branch.BeatId))
+                    continue;
+
+                if (choiceBeatIds.Contains(branch.BeatId))
+                {
+                    diagnostics.Add(new StoryConfigValidationDiagnostic(
+                        StoryConfigValidationDiagnosticCode.InvalidBeatFlow,
+                        sourcePath,
+                        "StoryBranch",
+                        branch.Id,
+                        "BeatId",
+                        "Story beat cannot declare choices and branches together; choice beats wait for explicit choice resolution.",
+                        graphId,
+                        branch.BeatId,
+                        branch.Id));
+                }
+
+                if (!branch.IsFallback)
+                    continue;
+
+                int fallbackCount;
+                fallbackCounts.TryGetValue(branch.BeatId, out fallbackCount);
+                fallbackCount++;
+                fallbackCounts[branch.BeatId] = fallbackCount;
+                if (fallbackCount > 1)
+                {
+                    diagnostics.Add(new StoryConfigValidationDiagnostic(
+                        StoryConfigValidationDiagnosticCode.InvalidBeatFlow,
+                        sourcePath,
+                        "StoryBranch",
+                        branch.Id,
+                        "IsFallback",
+                        "Story beat cannot declare multiple fallback branches; the director uses only the first sorted fallback.",
+                        graphId,
+                        branch.BeatId,
+                        branch.Id));
+                }
+            }
+        }
+
+        private static void ValidateStepFactRawValue(
+            StoryStepConfig step,
+            int graphId,
+            string sourcePath,
+            List<StoryConfigValidationDiagnostic> diagnostics)
+        {
+            if (step.FactValueKind == StoryValueKind.Bool)
+            {
+                if (step.FactValueRaw != 0L && step.FactValueRaw != 1L)
+                {
+                    diagnostics.Add(new StoryConfigValidationDiagnostic(
+                        StoryConfigValidationDiagnosticCode.InvalidFactValue,
+                        sourcePath,
+                        "StoryStep",
+                        step.Id,
+                        "FactValueRaw",
+                        "Story bool fact raw value must be 0 or 1.",
+                        graphId,
+                        step.BeatId,
+                        0));
+                }
+
+                return;
+            }
+
+            if (step.FactValueKind == StoryValueKind.Int32)
+            {
+                if (step.FactValueRaw < int.MinValue || step.FactValueRaw > int.MaxValue)
+                {
+                    diagnostics.Add(new StoryConfigValidationDiagnostic(
+                        StoryConfigValidationDiagnosticCode.InvalidFactValue,
+                        sourcePath,
+                        "StoryStep",
+                        step.Id,
+                        "FactValueRaw",
+                        "Story Int32 fact raw value must fit in a 32-bit signed integer.",
+                        graphId,
+                        step.BeatId,
+                        0));
+                }
             }
         }
 

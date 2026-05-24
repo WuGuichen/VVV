@@ -796,7 +796,7 @@ if (result.IsValid)
 - branch: `Priority`, `BranchId`
 - trigger / effect id 数组升序
 
-Validator 会阻止缺失 entry beat、非法 branch / choice target、重复稳定 id、unsupported step kind、非法 text key、缺失或类型不匹配的 Story fact reference。详见 `Docs/Interfaces/Story.Config.md`。
+Validator 会阻止缺失 entry beat、非法 branch / choice target、重复稳定 id、unsupported step kind / wait policy、非法 text key、非法 trigger / effect id、缺失或类型不匹配的 Story fact reference、非法 `SetFact` raw value，以及同一 beat 同时声明 choices / branches 或多个 fallback branches。详见 `Docs/Interfaces/Story.Config.md`。
 
 ## 7. Config 表和校验
 
