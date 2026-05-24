@@ -33,6 +33,7 @@
         "FMODUnity",
         "MxFramework.Editor",
         "MxFramework.Diagnostics",
+        "MxFramework.Rendering",
         "MxFramework.DebugUI",
         "MxFramework.DebugUI.Adapters",
         "MxFramework.DebugUI.Input",
