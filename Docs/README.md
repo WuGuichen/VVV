@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.52 | 2026-05-23
+> 版本 0.6.53 | 2026-05-24
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -89,6 +89,9 @@
 | `Interfaces/CharacterApplication.md` | Character Application 角色配置聚合、纯 resolver 和 diagnostics 接口 |
 | `Interfaces/DebugUI.md` | Debug UI source registry、snapshot aggregation、Toolkit overlay 和 source adapter 接入方式 |
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |
+| `Interfaces/Story.md` | Story core S0 proposed contract（未实现） |
+| `Interfaces/Story.Runtime.md` | Story Runtime S0 proposed contract（未实现） |
+| `Interfaces/Story.GameplayBridge.md` | Story 与 Gameplay bridge S0 proposed contract（未实现） |
 | `Interfaces/Editor.md` | Editor 工具接口 |
 
 ---
@@ -235,6 +238,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.53 | 2026-05-24 | 新增 Story 模块 S0 设计契约：ADR-004 / ADR-005、Story core / Runtime / GameplayBridge 接口稿和 `STORY_S1` runtime slice 任务；明确 Story core 仅依赖 Core + Events、RuntimeCommand 边界、独立 command buffer ownership、SaveState provider/restorer 形态和 Gameplay effect bridge 规则 |
 | 0.6.52 | 2026-05-23 | 新增 Character Gameplay Runtime foundation：角色包可生成 Gameplay component spawn definition，并通过 noEngine runtime bootstrap / live entity registry 创建真实 `GameplayEntityId` |
 | 0.6.51 | 2026-05-23 | 新增 ADR-003 角色 Gameplay Runtime Bootstrap 设计记录，明确 `GameplayComponentWorld` 作为角色权威状态、Unity prefab 作为 view、Combat / Character Control / Animation / Debug UI 的桥接边界 |
 | 0.6.50 | 2026-05-18 | 完成 Character Control playable vertical slice：在 `CombatAnimationPhysicsTest` 中串起 Local Input、Runtime AI Planner、state/motion/action、pressure reaction、MxAnimation 和 Debug UI，并补充 Showcase 回归测试 |

@@ -1,6 +1,6 @@
 # MxFramework 接口索引
 
-> 版本 0.3.7 | 2026-05-18
+> 版本 0.3.8 | 2026-05-24
 >
 > 本文件只做接口导航、跨模块规则和依赖矩阵。具体模块接口不要继续堆在这里，必须拆到 `Docs/Interfaces/`。
 
@@ -39,6 +39,16 @@
 | Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl*/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
 | Editor | `Docs/Interfaces/Editor.md` | `Assets/Scripts/MxFramework/Editor/` | Unity Editor / MCP |
 
+## S0 Proposed Interface Contracts
+
+以下文档是已接受方向的 S0 设计契约，供后续实现任务使用；在对应 S1/S3 任务关闭前，不代表当前仓库已有可用 API。
+
+| 模块 | 文档 | 计划代码 | 计划测试入口 |
+|------|------|----------|--------------|
+| Story | `Docs/Interfaces/Story.md` | `Assets/Scripts/MxFramework/Story/` | `Assets/Scripts/MxFramework/Tests/Story/` |
+| Story Runtime | `Docs/Interfaces/Story.Runtime.md` | `Assets/Scripts/MxFramework/Story.Runtime/` | `Assets/Scripts/MxFramework/Tests/Story/` |
+| Story Gameplay Bridge | `Docs/Interfaces/Story.GameplayBridge.md` | `Assets/Scripts/MxFramework/Story.GameplayBridge/` | `Assets/Scripts/MxFramework/Tests/Story/` |
+
 ## 文档规则
 
 - 每个模块页只写本模块公开接口、默认实现、使用约定和禁止事项。
@@ -75,6 +85,8 @@
 `MxFramework.Character.Application` 是应用层配置与纯解析器契约，当前只依赖 `MxFramework.Config`。它保存 Character 聚合所需的静态表、typed id、schema 元数据、resolved profile 和 diagnostics，不拥有 Runtime / Gameplay / Combat / Resources / Animation / CharacterControl 的权威状态；Runtime Spawn 也必须保持下层模块不反向依赖 Character Application。
 
 `MxFramework.Camera` 是表现层 noEngine 模块，只依赖 Core。Unity Camera 应用放在 `MxFramework.Camera.Unity`；Animation 表现事件到相机 request 的桥接放在 `MxFramework.Camera.Animation`；Debug UI 只通过 adapter 读取 `MxCameraDebugSnapshot`。Camera 默认不进入 Gameplay / Combat authority、Runtime hash、Replay hash 或 SaveState。
+
+Story S0 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 计划只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config、Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
 
 ## AI Terminology
 
