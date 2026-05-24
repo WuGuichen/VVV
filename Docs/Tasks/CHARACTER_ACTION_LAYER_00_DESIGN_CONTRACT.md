@@ -1324,6 +1324,14 @@ debug event stream
 
 Runner 不能重新选择 action、ability binding、reaction rule、resource dependency 或 phase authority。若 plan 不足以执行，Runner 应返回缺口 diagnostics，并把契约缺口回流到 Phase 2 文档 / 后续 Issue，而不是在 Runner 内部补一套隐式 resolver。
 
+Phase 3 完成边界：
+
+- `CharacterActionRunner` 从成功的 `CharacterActionResolveResult` / `CharacterActionPlan` 启动实例，维护 instance id、action id、state、local frame 和当前 phase。
+- Runner 按 plan phase range 推进并输出 `ActionStarted`、`PhaseChanged`、`TrackEventFired`、`ActionFinished`、`ActionCancelled`、`ActionInterrupted` 等 noEngine replay/debug events。
+- Motion / Combat / Gameplay / Animation / Presentation / Debug track 在 Phase 3 只转成 dispatch event stream；不启动 CombatActionRunner，不 enqueue Gameplay command，不播放动画，也不访问 Unity / resource backend。
+- runtime cancel / interrupt 只评估已解析 action definition 中的 `CharacterCancelRule` / `CharacterInterruptRule` 与 CombatAnchored cancel window；目标动作必须由外部 resolver 先给出 plan。
+- `CharacterActionDebugSnapshot` 只做只读诊断，覆盖 active action、state、local frame、phase、last reject reason 和最近事件；Debug UI / Workstation 后续只消费这些数据，不反向驱动 runner。
+
 ### Phase 4：Motion + Combat + Gameplay Adapter
 
 接入：
