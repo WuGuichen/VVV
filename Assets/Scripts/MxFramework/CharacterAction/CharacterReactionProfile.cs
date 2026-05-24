@@ -12,7 +12,8 @@ namespace MxFramework.CharacterAction
         ArmorBreak = 3,
         PressureBandChanged = 4,
         Death = 5,
-        Lifecycle = 6
+        Lifecycle = 6,
+        Hit = 7
     }
 
     public sealed class CharacterReactionRule
@@ -31,15 +32,40 @@ namespace MxFramework.CharacterAction
             CharacterActionPhaseKind? currentPhase = null,
             bool? currentActionCommitted = null,
             bool? currentActionInterruptible = null,
-            int priority = 0)
+            int priority = 0,
+            string bodyPartId = "",
+            string hitZoneId = "",
+            string damageTypeId = "",
+            CharacterHitDirection? hitDirection = null,
+            int? minImpactForce = null,
+            int? maxImpactForce = null,
+            string reactionGroupId = "",
+            bool requiresImpactForce = false)
         {
+            if (hitDirection.HasValue && !Enum.IsDefined(typeof(CharacterHitDirection), hitDirection.Value))
+                throw new ArgumentOutOfRangeException(nameof(hitDirection), "Hit direction is not defined.");
+            if (minImpactForce.HasValue && minImpactForce.Value < 0)
+                throw new ArgumentOutOfRangeException(nameof(minImpactForce), "Minimum impact force cannot be negative.");
+            if (maxImpactForce.HasValue && maxImpactForce.Value < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxImpactForce), "Maximum impact force cannot be negative.");
+            if (minImpactForce.HasValue && maxImpactForce.HasValue && minImpactForce.Value > maxImpactForce.Value)
+                throw new ArgumentOutOfRangeException(nameof(minImpactForce), "Minimum impact force cannot exceed maximum impact force.");
+
             ActionId = actionId ?? string.Empty;
             Trigger = trigger;
-            RequiresBodyPart = requiresBodyPart;
-            RequiresHitZone = requiresHitZone;
-            RequiresHitDirection = requiresHitDirection;
-            RequiresDamageType = requiresDamageType;
-            RequiresReactionGroup = requiresReactionGroup;
+            BodyPartId = bodyPartId ?? string.Empty;
+            HitZoneId = hitZoneId ?? string.Empty;
+            DamageTypeId = damageTypeId ?? string.Empty;
+            HitDirection = hitDirection;
+            MinImpactForce = minImpactForce;
+            MaxImpactForce = maxImpactForce;
+            ReactionGroupId = reactionGroupId ?? string.Empty;
+            RequiresBodyPart = requiresBodyPart || !string.IsNullOrEmpty(BodyPartId);
+            RequiresHitZone = requiresHitZone || !string.IsNullOrEmpty(HitZoneId);
+            RequiresHitDirection = requiresHitDirection || HitDirection.HasValue;
+            RequiresDamageType = requiresDamageType || !string.IsNullOrEmpty(DamageTypeId);
+            RequiresReactionGroup = requiresReactionGroup || !string.IsNullOrEmpty(ReactionGroupId);
+            RequiresImpactForce = requiresImpactForce || MinImpactForce.HasValue || MaxImpactForce.HasValue;
             CurrentPressureBand = currentPressureBand;
             IsDeath = isDeath;
             IsAirborne = isAirborne;
@@ -56,6 +82,14 @@ namespace MxFramework.CharacterAction
         public bool RequiresHitDirection { get; }
         public bool RequiresDamageType { get; }
         public bool RequiresReactionGroup { get; }
+        public bool RequiresImpactForce { get; }
+        public string BodyPartId { get; }
+        public string HitZoneId { get; }
+        public string DamageTypeId { get; }
+        public CharacterHitDirection? HitDirection { get; }
+        public int? MinImpactForce { get; }
+        public int? MaxImpactForce { get; }
+        public string ReactionGroupId { get; }
         public PressureBand? CurrentPressureBand { get; }
         public bool? IsDeath { get; }
         public bool? IsAirborne { get; }
@@ -63,7 +97,12 @@ namespace MxFramework.CharacterAction
         public bool? CurrentActionCommitted { get; }
         public bool? CurrentActionInterruptible { get; }
         public int Priority { get; }
-        public bool RequiresHitContext => RequiresBodyPart || RequiresHitZone || RequiresHitDirection || RequiresDamageType || RequiresReactionGroup;
+        public bool RequiresHitContext => RequiresBodyPart
+            || RequiresHitZone
+            || RequiresHitDirection
+            || RequiresDamageType
+            || RequiresReactionGroup
+            || RequiresImpactForce;
     }
 
     public sealed class CharacterReactionProfile
@@ -109,6 +148,9 @@ namespace MxFramework.CharacterAction
             if (profile == null)
                 throw new ArgumentNullException(nameof(profile));
 
+            if (context.SourceKind == CharacterReactionContextSourceKind.Hit && !context.HasFullHitContext)
+                return HitContextIncomplete(context);
+
             CharacterReactionRuleTrigger trigger = ToTrigger(context.SourceKind);
             var diagnostics = new List<CharacterActionDiagnostic>();
             var candidates = new List<CharacterReactionRuleCandidate>();
@@ -127,17 +169,33 @@ namespace MxFramework.CharacterAction
                     continue;
                 }
 
-                if (rule.RequiresHitContext && !context.HasFullHitContext)
-                {
-                    return HitContextRequired(rule, context);
-                }
-
                 if (!MatchesPressureOnlyDimensions(rule, context))
                 {
                     diagnostics.Add(CharacterActionDiagnostic.Info(
                         CharacterActionDiagnosticCodes.ReactionRuleSkipped,
                         "Skipped reaction rule '" + rule.ActionId + "' because PressureOnly dimensions did not match."));
                     continue;
+                }
+
+                bool requiresMissingHitContext = rule.RequiresHitContext && !context.HasFullHitContext;
+                if (!requiresMissingHitContext)
+                {
+                    CharacterActionDiagnostic hitDiagnostic;
+                    bool hitDimensionMatched = MatchesFullHitDimensions(rule, context, out hitDiagnostic);
+                    if (!hitDimensionMatched)
+                    {
+                        if (hitDiagnostic.Severity == CharacterActionDiagnosticSeverity.Error)
+                        {
+                            return new CharacterReactionSelectionResult(
+                                accepted: false,
+                                selectedActionId: string.Empty,
+                                rejectCode: hitDiagnostic.Code,
+                                diagnostics: new[] { hitDiagnostic });
+                        }
+
+                        diagnostics.Add(hitDiagnostic);
+                        continue;
+                    }
                 }
 
                 if (string.IsNullOrEmpty(rule.ActionId))
@@ -158,13 +216,18 @@ namespace MxFramework.CharacterAction
                     rule,
                     i,
                     GetTriggerSpecificity(rule.Trigger, trigger),
-                    GetPressureOnlySpecificity(rule)));
+                    GetHitSpecificity(rule),
+                    GetPressureOnlySpecificity(rule),
+                    requiresMissingHitContext));
             }
 
             if (candidates.Count > 0)
             {
                 candidates.Sort(CompareCandidates);
                 CharacterReactionRuleCandidate selected = candidates[0];
+                if (selected.RequiresMissingHitContext)
+                    return HitContextRequired(selected.Rule, context);
+
                 for (int i = 1; i < candidates.Count; i++)
                 {
                     diagnostics.Add(CharacterActionDiagnostic.Info(
@@ -222,7 +285,21 @@ namespace MxFramework.CharacterAction
                         "Reaction rule requires full hit context but only " + context.Completeness + " context is available."),
                     CharacterActionDiagnostic.Error(
                         CharacterActionDiagnosticCodes.ReactionContextIncomplete,
-                        "Rule action '" + rule.ActionId + "' cannot be evaluated without body part, hit zone, damage type, hit direction, or reaction group.")
+                        "Rule action '" + rule.ActionId + "' cannot be evaluated without body part, hit zone, damage type, hit direction, impact force, or reaction group.")
+                });
+        }
+
+        private static CharacterReactionSelectionResult HitContextIncomplete(CharacterReactionContext context)
+        {
+            return new CharacterReactionSelectionResult(
+                accepted: false,
+                selectedActionId: string.Empty,
+                rejectCode: CharacterActionDiagnosticCodes.ReactionContextIncomplete,
+                diagnostics: new[]
+                {
+                    CharacterActionDiagnostic.Error(
+                        CharacterActionDiagnosticCodes.ReactionContextIncomplete,
+                        "Hit reaction context is incomplete and cannot be used for fallback selection. Completeness=" + context.Completeness + ".")
                 });
         }
 
@@ -241,11 +318,92 @@ namespace MxFramework.CharacterAction
                 && (!rule.CurrentActionInterruptible.HasValue || rule.CurrentActionInterruptible.Value == context.CurrentActionInterruptible);
         }
 
+        private static bool MatchesFullHitDimensions(
+            CharacterReactionRule rule,
+            CharacterReactionContext context,
+            out CharacterActionDiagnostic diagnostic)
+        {
+            if (!rule.RequiresHitContext)
+            {
+                diagnostic = default;
+                return true;
+            }
+
+            if (rule.RequiresBodyPart && string.IsNullOrEmpty(context.BodyPartId))
+                return MissingRequiredHitField(rule, nameof(context.BodyPartId), out diagnostic);
+            if (rule.RequiresHitZone && string.IsNullOrEmpty(context.HitZoneId))
+                return MissingRequiredHitField(rule, nameof(context.HitZoneId), out diagnostic);
+            if (rule.RequiresDamageType && string.IsNullOrEmpty(context.DamageTypeId))
+                return MissingRequiredHitField(rule, nameof(context.DamageTypeId), out diagnostic);
+            if (rule.RequiresHitDirection && context.HitDirection == CharacterHitDirection.Unknown)
+                return MissingRequiredHitField(rule, nameof(context.HitDirection), out diagnostic);
+            if (rule.RequiresReactionGroup && string.IsNullOrEmpty(context.ReactionGroupId))
+                return MissingRequiredHitField(rule, nameof(context.ReactionGroupId), out diagnostic);
+
+            if (!string.IsNullOrEmpty(rule.BodyPartId) && !string.Equals(rule.BodyPartId, context.BodyPartId, StringComparison.Ordinal))
+                return HitDimensionSkipped(rule, "body part", out diagnostic);
+            if (!string.IsNullOrEmpty(rule.HitZoneId) && !string.Equals(rule.HitZoneId, context.HitZoneId, StringComparison.Ordinal))
+                return HitDimensionSkipped(rule, "hit zone", out diagnostic);
+            if (!string.IsNullOrEmpty(rule.DamageTypeId) && !string.Equals(rule.DamageTypeId, context.DamageTypeId, StringComparison.Ordinal))
+                return HitDimensionSkipped(rule, "damage type", out diagnostic);
+            if (rule.HitDirection.HasValue && rule.HitDirection.Value != context.HitDirection)
+                return HitDimensionSkipped(rule, "hit direction", out diagnostic);
+            if (!string.IsNullOrEmpty(rule.ReactionGroupId) && !string.Equals(rule.ReactionGroupId, context.ReactionGroupId, StringComparison.Ordinal))
+                return HitDimensionSkipped(rule, "reaction group", out diagnostic);
+            if (rule.MinImpactForce.HasValue && context.ImpactForce < rule.MinImpactForce.Value)
+                return HitDimensionSkipped(rule, "minimum impact force", out diagnostic);
+            if (rule.MaxImpactForce.HasValue && context.ImpactForce > rule.MaxImpactForce.Value)
+                return HitDimensionSkipped(rule, "maximum impact force", out diagnostic);
+
+            diagnostic = default;
+            return true;
+        }
+
+        private static bool MissingRequiredHitField(
+            CharacterReactionRule rule,
+            string fieldName,
+            out CharacterActionDiagnostic diagnostic)
+        {
+            diagnostic = CharacterActionDiagnostic.Error(
+                CharacterActionDiagnosticCodes.ReactionContextIncomplete,
+                "Reaction rule '" + rule.ActionId + "' requires missing hit field '" + fieldName + "'.");
+            return false;
+        }
+
+        private static bool HitDimensionSkipped(
+            CharacterReactionRule rule,
+            string dimensionName,
+            out CharacterActionDiagnostic diagnostic)
+        {
+            diagnostic = CharacterActionDiagnostic.Info(
+                CharacterActionDiagnosticCodes.ReactionRuleSkipped,
+                "Skipped reaction rule '" + rule.ActionId + "' because full hit " + dimensionName + " did not match.");
+            return false;
+        }
+
         private static int GetTriggerSpecificity(CharacterReactionRuleTrigger ruleTrigger, CharacterReactionRuleTrigger contextTrigger)
         {
             if (ruleTrigger == CharacterReactionRuleTrigger.Any)
                 return 0;
             return ruleTrigger == contextTrigger ? 1 : -1;
+        }
+
+        private static int GetHitSpecificity(CharacterReactionRule rule)
+        {
+            int score = 0;
+            if (rule.RequiresBodyPart)
+                score++;
+            if (rule.RequiresHitZone)
+                score++;
+            if (rule.RequiresDamageType)
+                score++;
+            if (rule.RequiresHitDirection)
+                score++;
+            if (rule.RequiresImpactForce)
+                score++;
+            if (rule.RequiresReactionGroup)
+                score++;
+            return score;
         }
 
         private static int GetPressureOnlySpecificity(CharacterReactionRule rule)
@@ -269,6 +427,9 @@ namespace MxFramework.CharacterAction
         private static int CompareCandidates(CharacterReactionRuleCandidate left, CharacterReactionRuleCandidate right)
         {
             int compare = right.TriggerSpecificity.CompareTo(left.TriggerSpecificity);
+            if (compare != 0)
+                return compare;
+            compare = right.HitSpecificity.CompareTo(left.HitSpecificity);
             if (compare != 0)
                 return compare;
             compare = right.PressureOnlySpecificity.CompareTo(left.PressureOnlySpecificity);
@@ -299,6 +460,8 @@ namespace MxFramework.CharacterAction
                     return CharacterReactionRuleTrigger.Death;
                 case CharacterReactionContextSourceKind.Lifecycle:
                     return CharacterReactionRuleTrigger.Lifecycle;
+                case CharacterReactionContextSourceKind.Hit:
+                    return CharacterReactionRuleTrigger.Hit;
                 default:
                     return CharacterReactionRuleTrigger.Any;
             }
@@ -310,23 +473,42 @@ namespace MxFramework.CharacterAction
                 CharacterReactionRule rule,
                 int ruleOrder,
                 int triggerSpecificity,
-                int pressureOnlySpecificity)
+                int hitSpecificity,
+                int pressureOnlySpecificity,
+                bool requiresMissingHitContext)
             {
                 Rule = rule;
                 RuleOrder = ruleOrder;
                 TriggerSpecificity = triggerSpecificity;
+                HitSpecificity = hitSpecificity;
                 PressureOnlySpecificity = pressureOnlySpecificity;
+                RequiresMissingHitContext = requiresMissingHitContext;
             }
 
             public CharacterReactionRule Rule { get; }
             public int RuleOrder { get; }
             public int TriggerSpecificity { get; }
+            public int HitSpecificity { get; }
             public int PressureOnlySpecificity { get; }
+            public bool RequiresMissingHitContext { get; }
         }
     }
 
     public static class CharacterReactionRuleValidator
     {
+        public static CharacterActionDiagnostic[] ValidateProfileForCompleteness(
+            CharacterReactionProfile profile,
+            CharacterReactionContextCompleteness completeness)
+        {
+            if (profile == null)
+                throw new ArgumentNullException(nameof(profile));
+
+            if (completeness == CharacterReactionContextCompleteness.Full)
+                return Array.Empty<CharacterActionDiagnostic>();
+
+            return ValidatePressureOnlyProfile(profile);
+        }
+
         public static CharacterActionDiagnostic[] ValidatePressureOnlyProfile(CharacterReactionProfile profile)
         {
             if (profile == null)
@@ -346,7 +528,7 @@ namespace MxFramework.CharacterAction
                     {
                         CharacterActionDiagnostic.Error(
                             CharacterActionDiagnosticCodes.ReactionRuleRequiresHitContext,
-                            "PressureOnly reaction profile cannot use body part, hit zone, damage type, hit direction, or reaction group dimensions.")
+                            "PressureOnly reaction profile cannot use body part, hit zone, damage type, hit direction, impact force, or reaction group dimensions.")
                     };
                 }
             }
@@ -371,7 +553,28 @@ namespace MxFramework.CharacterAction
                 };
             }
 
+            if (rule.RequiresBodyPart && string.IsNullOrEmpty(context.BodyPartId))
+                return MissingHitField(rule, nameof(context.BodyPartId));
+            if (rule.RequiresHitZone && string.IsNullOrEmpty(context.HitZoneId))
+                return MissingHitField(rule, nameof(context.HitZoneId));
+            if (rule.RequiresDamageType && string.IsNullOrEmpty(context.DamageTypeId))
+                return MissingHitField(rule, nameof(context.DamageTypeId));
+            if (rule.RequiresHitDirection && context.HitDirection == CharacterHitDirection.Unknown)
+                return MissingHitField(rule, nameof(context.HitDirection));
+            if (rule.RequiresReactionGroup && string.IsNullOrEmpty(context.ReactionGroupId))
+                return MissingHitField(rule, nameof(context.ReactionGroupId));
+
             return Array.Empty<CharacterActionDiagnostic>();
+        }
+
+        private static CharacterActionDiagnostic[] MissingHitField(CharacterReactionRule rule, string fieldName)
+        {
+            return new[]
+            {
+                CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.ReactionContextIncomplete,
+                    "Reaction rule '" + rule.ActionId + "' requires missing hit field '" + fieldName + "'.")
+            };
         }
     }
 }

@@ -13,7 +13,8 @@ namespace MxFramework.CharacterAction
         ArmorBreak = 3,
         PressureBandChanged = 4,
         Death = 5,
-        Lifecycle = 6
+        Lifecycle = 6,
+        Hit = 7
     }
 
     public enum CharacterReactionContextCompleteness

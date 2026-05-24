@@ -127,12 +127,23 @@ namespace MxFramework.CharacterAction
             CharacterReactionProfile profile,
             CharacterActionConfig[] actions)
         {
+            return ValidateReactionProfile(
+                profile,
+                actions,
+                CharacterReactionContextCompleteness.PressureOnly);
+        }
+
+        public static CharacterActionDiagnostic[] ValidateReactionProfile(
+            CharacterReactionProfile profile,
+            CharacterActionConfig[] actions,
+            CharacterReactionContextCompleteness completeness)
+        {
             if (profile == null)
                 throw new ArgumentNullException(nameof(profile));
 
             actions = actions ?? Array.Empty<CharacterActionConfig>();
             var diagnostics = new List<CharacterActionDiagnostic>();
-            diagnostics.AddRange(CharacterReactionRuleValidator.ValidatePressureOnlyProfile(profile));
+            diagnostics.AddRange(CharacterReactionRuleValidator.ValidateProfileForCompleteness(profile, completeness));
 
             for (int i = 0; i < profile.Rules.Length; i++)
             {
