@@ -62,13 +62,13 @@ namespace MxFramework.CharacterAction
             }
 
             var issues = new List<CharacterActionValidationIssue>();
-            ValidateTimelineShape(phases, durationFrames, issues);
-
             if (authority != CharacterActionTimelineAuthority.CombatAnchored)
             {
+                ValidateTimelineShape(phases, durationFrames, issues, suppressedPhaseIndexes: null);
                 return issues.ToArray();
             }
 
+            var combatAuthorityIssuePhaseIndexes = new List<int>();
             for (int i = 0; i < phases.Count; i++)
             {
                 CharacterActionPhase phase = phases[i];
@@ -82,6 +82,7 @@ namespace MxFramework.CharacterAction
                         i,
                         phase.Kind,
                         "CombatAnchored phases must declare a Startup, Active, or Recovery combat anchor."));
+                    combatAuthorityIssuePhaseIndexes.Add(i);
                     continue;
                 }
 
@@ -93,16 +94,19 @@ namespace MxFramework.CharacterAction
                         i,
                         phase.Kind,
                         "CombatAnchored phase range must match its anchored CombatActionTimeline range."));
+                    combatAuthorityIssuePhaseIndexes.Add(i);
                 }
             }
 
+            ValidateTimelineShape(phases, durationFrames, issues, combatAuthorityIssuePhaseIndexes);
             return issues.ToArray();
         }
 
         private static void ValidateTimelineShape(
             IReadOnlyList<CharacterActionPhase> phases,
             int? durationFrames,
-            List<CharacterActionValidationIssue> issues)
+            List<CharacterActionValidationIssue> issues,
+            IReadOnlyList<int> suppressedPhaseIndexes)
         {
             if (phases.Count == 0)
             {
@@ -140,19 +144,23 @@ namespace MxFramework.CharacterAction
                 IndexedPhase current = ordered[i];
                 if (current.Phase.StartFrame < expectedStart)
                 {
-                    issues.Add(new CharacterActionValidationIssue(
+                    AddShapeIssue(
+                        issues,
+                        suppressedPhaseIndexes,
                         CharacterActionDiagnosticCodes.PhaseOverlap,
                         current.Index,
                         current.Phase.Kind,
-                        "Character action phases must not overlap."));
+                        "Character action phases must not overlap.");
                 }
                 else if (current.Phase.StartFrame > expectedStart)
                 {
-                    issues.Add(new CharacterActionValidationIssue(
+                    AddShapeIssue(
+                        issues,
+                        suppressedPhaseIndexes,
                         CharacterActionDiagnosticCodes.PhaseGap,
                         current.Index,
                         current.Phase.Kind,
-                        "Character action phases must not leave frame gaps."));
+                        "Character action phases must not leave frame gaps.");
                 }
 
                 if (current.Phase.EndFrame + 1 > expectedStart)
@@ -162,12 +170,34 @@ namespace MxFramework.CharacterAction
             if (durationFrames.HasValue && expectedStart < durationFrames.Value)
             {
                 IndexedPhase last = ordered[ordered.Count - 1];
-                issues.Add(new CharacterActionValidationIssue(
+                AddShapeIssue(
+                    issues,
+                    suppressedPhaseIndexes,
                     CharacterActionDiagnosticCodes.PhaseGap,
                     last.Index,
                     last.Phase.Kind,
-                    "Character action phases must cover the full action duration."));
+                    "Character action phases must cover the full action duration.");
             }
+        }
+
+        private static void AddShapeIssue(
+            List<CharacterActionValidationIssue> issues,
+            IReadOnlyList<int> suppressedPhaseIndexes,
+            string code,
+            int phaseIndex,
+            CharacterActionPhaseKind phaseKind,
+            string message)
+        {
+            if (suppressedPhaseIndexes != null)
+            {
+                for (int i = 0; i < suppressedPhaseIndexes.Count; i++)
+                {
+                    if (suppressedPhaseIndexes[i] == phaseIndex)
+                        return;
+                }
+            }
+
+            issues.Add(new CharacterActionValidationIssue(code, phaseIndex, phaseKind, message));
         }
 
         private static int CompareIndexedPhases(IndexedPhase left, IndexedPhase right)
