@@ -1,6 +1,6 @@
 # MxFramework 路线图
 
-> 版本 0.6.39 | 2026-05-18
+> 版本 0.6.40 | 2026-05-24
 >
 > 路线图按“先稳定边界，再迁移实现，再做工具化”的顺序推进。
 
@@ -1084,3 +1084,31 @@
 - Debug snapshot 可定位 active profile、target group、framing bounds、shake queue 和 recent errors。
 
 **状态**: 🔄 #234-#239 implementation in progress
+
+## Phase 15: Rendering Framework Bus
+
+目标：在当前 URP 项目基线上沉淀框架级 Rendering 系统总线，统一 GlobalFrameContext、CameraRenderContext、SharedRTRegistry、FeaturePipeline 和 Diagnostics，让后续渲染能力通过同一入口调度和观测。
+
+阶段边界：
+- `MxFramework.Rendering` 是 Unity + URP-facing 程序集，允许引用 UnityEngine、UnityEngine.Rendering 和 UnityEngine.Rendering.Universal。
+- Core / Runtime / Gameplay / Combat / Buffs / Resources / Runtime AI Planner 等 noEngine 模块不得引用 Rendering。
+- Rendering 自身不引用 Gameplay、Combat、Character、Buffs、Animation 或 Camera；源模块接入必须放在 `MxFramework.Rendering.<Source>Bridge` 可选程序集或组合根中。
+- `MxFrameworkUniversalRenderer.asset` 上唯一允许的框架级 Renderer Feature 是 `MxRenderingPipelineFeature`；具体能力实现为 `IMxRenderPass` 或 `IMxRenderPassProvider`。
+- Rendering state 不进入 runtime authority、Replay、SaveState 或 Runtime hash。
+- Phase 15.0-15.3 不定义具体草、水、角色或其它 shader 实现。
+
+任务：
+- 15.0 Spec：`Docs/RENDERING_FRAMEWORK_DESIGN.md`、`Docs/Interfaces/Rendering.md` 和相关索引 / 质量门禁同步。
+- 15.1：`GlobalFrameContext` + `MxRenderingPipelineFeature` 骨架 + `_MxTime` / `_MxWindDirection` 注入 + Diagnostics source。
+- 15.2：`SharedRTRegistry` + R-RT-01 至 R-RT-08 冲突规则 + dummy RT pass 验证 + SharedRT diagnostics。
+- 15.3：`CameraRenderContext` + FeaturePipeline phase/order 排序 + camera kind 过滤 + pipeline topology diagnostics。
+- 15.4+：MaterialBindingHub、source bridges、VolumeBlender 和 Demo slice 另立任务定义。
+
+完成条件：
+- Rendering 设计文档明确依赖边界、业务词命名约束、唯一 URP Feature 入口、Context 分层、SharedRT 冲突语义和 Bridge 命名规则。
+- `Docs/Interfaces/Rendering.md` 只列 15.0-15.3 所需公共 surface，不包含特性专用 API。
+- SharedRT 八类冲突都有可测试 rule id。
+- Debug/Diagnostics 使用 `MxFramework.Diagnostics.IFrameworkDebugSource`，不让 Rendering 依赖 Debug UI。
+- 15.1-15.3 验收前，不允许能力 PR 绕过 FeaturePipeline、SharedRTRegistry 或 Context surface。
+
+**状态**: 📋 Spec Ready / Implementation pending

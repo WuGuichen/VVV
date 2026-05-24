@@ -1,6 +1,6 @@
 # MxFramework 接口索引
 
-> 版本 0.3.8 | 2026-05-24
+> 版本 0.3.9 | 2026-05-24
 >
 > 本文件只做接口导航、跨模块规则和依赖矩阵。具体模块接口不要继续堆在这里，必须拆到 `Docs/Interfaces/`。
 
@@ -25,6 +25,7 @@
 | Animation | `Docs/Interfaces/Animation.md` | `Assets/Scripts/MxFramework/Animation*/` | `Assets/Scripts/MxFramework/Tests/Animation/` |
 | Audio | `Docs/Interfaces/Audio.md` | `Assets/Scripts/MxFramework/Audio*/` | `Assets/Scripts/MxFramework/Tests/Audio/` |
 | Camera | `Docs/Interfaces/Camera.md` | `Assets/Scripts/MxFramework/Camera*/` | `Assets/Scripts/MxFramework/Tests/Camera/` |
+| Rendering | `Docs/Interfaces/Rendering.md` | `Assets/Scripts/MxFramework/Rendering*/` | `Assets/Scripts/MxFramework/Tests/Rendering/` |
 | AI | `Docs/Interfaces/AI.md` | `Assets/Scripts/MxFramework/AI/` | `Assets/Scripts/MxFramework/Tests/AI/` |
 | Diagnostics | `Docs/Interfaces/Diagnostics.md` | `Assets/Scripts/MxFramework/Diagnostics/` | `Assets/Scripts/MxFramework/Tests/Diagnostics/` |
 | Debug UI | `Docs/Interfaces/DebugUI.md` | `Assets/Scripts/MxFramework/DebugUI*/` | `Assets/Scripts/MxFramework/Tests/DebugUI/` |
@@ -80,6 +81,8 @@
 `MxFramework.Character.Application` 是应用层配置与纯解析器契约，当前只依赖 `MxFramework.Config`。它保存 Character 聚合所需的静态表、typed id、schema 元数据、resolved profile 和 diagnostics，不拥有 Runtime / Gameplay / Combat / Resources / Animation / CharacterControl 的权威状态；Runtime Spawn 也必须保持下层模块不反向依赖 Character Application。
 
 `MxFramework.Camera` 是表现层 noEngine 模块，只依赖 Core。Unity Camera 应用放在 `MxFramework.Camera.Unity`；Animation 表现事件到相机 request 的桥接放在 `MxFramework.Camera.Animation`；Debug UI 只通过 adapter 读取 `MxCameraDebugSnapshot`。Camera 默认不进入 Gameplay / Combat authority、Runtime hash、Replay hash 或 SaveState。
+
+`MxFramework.Rendering` 是 Unity + URP-facing 表现层模块，允许引用 UnityEngine、UnityEngine.Rendering 和 UnityEngine.Rendering.Universal，但不进入 noEngine 依赖矩阵。Core / Runtime / Gameplay / Combat / Buffs / Resources / Runtime AI Planner 等 noEngine 模块不得引用 Rendering；Rendering 自身也不得引用 Gameplay、Combat、Character、Buffs、Animation 或 Camera。源模块到 Rendering 的接入必须放在可选 bridge 程序集（如 `MxFramework.Rendering.GameplayBridge`、`MxFramework.Rendering.CombatBridge`、`MxFramework.Rendering.CharacterBridge`、未来可选 `MxFramework.Rendering.CameraBridge`）或组合根中。Rendering diagnostics 使用 `MxFramework.Diagnostics.IFrameworkDebugSource`，不依赖 `MxFramework.DebugUI`。
 
 Story 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config 只依赖 Story + Config；Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
 

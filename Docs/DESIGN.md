@@ -1,6 +1,6 @@
 # MxFramework 总体设计规范
 
-> 版本 0.3.1 | 2026-05-14
+> 版本 0.3.2 | 2026-05-24
 > 
 > 目标：从 WGame 提取通用的、低耦合的 Unity 游戏框架。
 > 当前阶段：**需求规范 + 总设计**，为后续开发铺路。
@@ -22,6 +22,7 @@
 | `Docs/API_STANDARDS.md` | API 分级、命名、事件、GC、兼容性 |
 | `Docs/QUALITY_GATE.md` | 每批迁移和每个模块的完成定义 |
 | `Docs/ROADMAP.md` | 分阶段路线图和阶段产物 |
+| `Docs/RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP Feature 入口、Context / SharedRT / Bridge 边界 |
 
 当本文与上述文档冲突时，以更具体的文档为准。
 
@@ -48,7 +49,7 @@
 可选:   Unity.Mathematics (高性能数学)
 ```
 
-当前 Unity 项目使用 Universal Render Pipeline (URP)，不是 Built-in Render Pipeline。URP 包和项目渲染资产是 Unity-facing 场景、Prefab、材质、UI/Demo 表现层的基线；纯 C# Core/Runtime/Gameplay/Combat/Config/Resources 等 noEngine 模块不得引用 URP。渲染管线资产、目录和验证规则见 `Docs/RENDERING_PIPELINE.md`。
+当前 Unity 项目使用 Universal Render Pipeline (URP)，不是 Built-in Render Pipeline。URP 包和项目渲染资产是 Unity-facing 场景、Prefab、材质、UI/Demo 表现层的基线；纯 C# Core/Runtime/Gameplay/Combat/Config/Resources 等 noEngine 模块不得引用 URP。渲染管线资产、目录和验证规则见 `Docs/RENDERING_PIPELINE.md`；Rendering 框架总线、唯一 URP Feature 入口、上下文分层和 SharedRT 规则见 `Docs/RENDERING_FRAMEWORK_DESIGN.md`。
 
 不再新增未评审的 UPM 外部包。GitNexus 作为外部辅助工具，不嵌入框架运行时代码；接入和工作流规则统一见 `GITNEXUS.md`。
 
@@ -96,6 +97,12 @@ MxFramework/
 ├── Diagnostics/       运行时调试快照协议
 │   └── IFrameworkDebugSource
 │
+├── Rendering/         Unity + URP 渲染编排层
+│   ├── GlobalFrameContext
+│   ├── CameraRenderContext
+│   ├── FeaturePipeline
+│   └── SharedRTRegistry
+│
 ├── Config/            配置系统抽象
 │   └── IConfigProvider     —— 配置提供者接口
 │
@@ -122,6 +129,7 @@ Buffs       ← Core + Events + Attributes
 AI          ← Core
 Config      ← Core
 Diagnostics ← Core
+Rendering   ← Core + Diagnostics + UnityEngine + URP（Unity-facing 表现层，不进入 noEngine 依赖矩阵）
 Editor      ← 所有模块（仅 Editor 程序集）
 ```
 
@@ -138,6 +146,8 @@ Editor      ← 所有模块（仅 Editor 程序集）
 | `MxFramework.AI` | MxFramework.AI |
 | `MxFramework.Config` | MxFramework.Config |
 | `MxFramework.Diagnostics` | MxFramework.Diagnostics |
+| `MxFramework.Rendering` | MxFramework.Rendering |
+| `MxFramework.Rendering.Editor` | MxFramework.Rendering.Editor |
 | `MxFramework.Editor` | MxFramework.Editor |
 
 ---
@@ -567,6 +577,8 @@ MxFramework.Buffs         → Core, Events, Attributes
 MxFramework.AI             → Core
 MxFramework.Config         → Core
 MxFramework.Diagnostics    → Core
+MxFramework.Rendering      → Core, Diagnostics, UnityEngine, UnityEngine.Rendering, URP
+MxFramework.Rendering.*Bridge → Rendering + 对应 source module（可选，组合根按需引用）
 MxFramework.Editor         → 所有模块 + UnityEditor
 ```
 

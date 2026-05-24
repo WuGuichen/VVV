@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.53 | 2026-05-24
+> 版本 0.6.54 | 2026-05-24
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -33,6 +33,7 @@
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、模块边界、加载契约和阶段切片。 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、命名、Catalog、临时资产归档和 FMOD 边界规范。 |
 | `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置、材质/场景创作和验证规则。 |
+| `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP 唯一 Feature 入口、Context / SharedRT / Bridge 边界。 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画/物理协作方案和落地阶段。 |
 | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包、外部 3D 装配编辑器、Unity 导入和 Runtime Spawn 总方案。 |
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程实现方案：模块拆分、目录、CLI、Tauri 编辑器、Unity Importer 和测试矩阵。 |
@@ -80,6 +81,7 @@
 | `Interfaces/Modifiers.md` | Modifiers 修改器管线 |
 | `Interfaces/Config.md` | Config 配置系统 |
 | `Interfaces/Resources.md` | Resources 资源管理 |
+| `Interfaces/Rendering.md` | Rendering URP 编排、Context、SharedRT、FeaturePipeline 和 Bridge 契约 |
 | `Interfaces/AI.md` | AI 轻量规划 |
 | `Interfaces/Diagnostics.md` | Diagnostics 调试接口 |
 | `Interfaces/Runtime.md` | Runtime Host / 生命周期调度 |
@@ -204,6 +206,7 @@
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源引用、加载、释放、Catalog、Provider 和 Mod 资源包如何协作 | 开发资源管理模块前 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 框架样例资源正式目录、ResourceKey 命名、Catalog 归档和 FMOD bank 边界 | 迁移或新增正式样例资源前 |
 | `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置和场景/材质验证规则 | 渲染管线、材质、Shader、Volume、相机或 Demo 表现基线变化 |
+| `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP Feature 入口、上下文分层、SharedRT 冲突和桥接边界 | 开发 Rendering 框架能力或变更 URP 编排规则前 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 确定性战斗动画、物理查询、命中结算和工具链如何协作 | 开发 Combat/动作/物理/联网战斗前 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 制作小游戏 / Demo 时如何优先复用框架模块 | 开发小游戏、Playable Demo、Runtime Showcase 或场景验证前 |
 | `USAGE.md` | 如何直接接入和组合模块 | 新增基础功能或改变推荐用法 |
@@ -239,6 +242,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.54 | 2026-05-24 | 新增 Rendering Framework Phase 15.0 设计基线：`RENDERING_FRAMEWORK_DESIGN.md`、`Interfaces/Rendering.md`、URP 唯一 `MxRenderingPipelineFeature` 入口、GlobalFrameContext / CameraRenderContext 分层、SharedRT 冲突规则和 Rendering bridge 边界 |
 | 0.6.53 | 2026-05-24 | 新增 Story 模块 S0 设计契约：ADR-004 / ADR-005、Story core / Runtime / GameplayBridge 接口稿和 `STORY_S1` runtime slice 任务；明确 Story core 仅依赖 Core + Events、RuntimeCommand 边界、独立 command buffer ownership、SaveState provider/restorer 形态和 Gameplay effect bridge 规则 |
 | 0.6.52 | 2026-05-23 | 新增 Character Gameplay Runtime foundation：角色包可生成 Gameplay component spawn definition，并通过 noEngine runtime bootstrap / live entity registry 创建真实 `GameplayEntityId` |
 | 0.6.51 | 2026-05-23 | 新增 ADR-003 角色 Gameplay Runtime Bootstrap 设计记录，明确 `GameplayComponentWorld` 作为角色权威状态、Unity prefab 作为 view、Combat / Character Control / Animation / Debug UI 的桥接边界 |

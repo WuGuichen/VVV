@@ -96,7 +96,7 @@ namespace MxFramework.Tests.CharacterAction
             AssertHasDependency(dependencies, CharacterActionResourceDependencyKind.AnimationAction, "anim.light_attack");
             AssertHasDependency(dependencies, CharacterActionResourceDependencyKind.AudioCue, "sfx.light_attack");
             AssertHasDependency(dependencies, CharacterActionResourceDependencyKind.VfxResource, "vfx.light_slash");
-            AssertHasDependency(dependencies, CharacterActionResourceDependencyKind.DebugMarker, "light.start");
+            AssertHasDependency(dependencies, CharacterActionResourceDependencyKind.DebugMarker, "light_attack.start");
             Assert.AreEqual(
                 "code=ACT_ANIMATION_ACTION_MISSING severity=Error action=invalid_action phase=- track=Animation frame=0 message=Animation track event requires an animation action key. suggestedFix=Assign animation action key.",
                 formatted);
