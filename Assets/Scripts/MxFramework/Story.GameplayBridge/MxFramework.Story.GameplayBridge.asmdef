@@ -1,0 +1,22 @@
+{
+    "name": "MxFramework.Story.GameplayBridge",
+    "rootNamespace": "MxFramework.Story.GameplayBridge",
+    "references": [
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.Attributes",
+        "MxFramework.Buffs",
+        "MxFramework.Modifiers",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,6 +1,6 @@
 # Story.GameplayBridge 接口
 
-> 状态：S0 Accepted Contract（2026-05-24）。本文固定 Story 与 Gameplay/Attributes/Buffs/Modifiers 的桥接边界；S3 实现关闭前，不代表仓库已有可用 API。
+> 状态：S3 最小切片已实现（2026-05-24）。本文记录 `MxFramework.Story.GameplayBridge` 当前可用的 noEngine bridge API 和仍然 deferred 的 Gameplay effect 范围。
 
 ## 职责
 
@@ -24,14 +24,32 @@ It must not:
 
 ```text
 MxFramework.Story.GameplayBridge
+  -> MxFramework.Story
   -> MxFramework.Story.Runtime
   -> MxFramework.Gameplay
   -> MxFramework.Attributes
   -> MxFramework.Buffs
   -> MxFramework.Modifiers
+  -> MxFramework.Runtime
 ```
 
 No UnityEngine or UnityEditor dependency.
+
+Story core 和 Story.Runtime 不依赖 GameplayBridge；组合根显式创建 bridge，并把 Gameplay-owned `RuntimeCommandBuffer` 传入 bridge。
+
+## Current API
+
+| 类型 | 用途 |
+| --- | --- |
+| `StoryGameplayEntityRef` | Story 持有的稳定 Gameplay ref，支持 legacy runtime entity id、component `GameplayEntityId` 和 project handle 占位 |
+| `StoryBeatGameplayLocator` | 将 graph/beat 或 trigger id 映射到 stable ref，并可用 `GameplayComponentWorld.IsAlive` 检查 stale component entity |
+| `StoryGameplayEntityResolutionResult` | locator 结构化结果，区分 missing / stale / unsupported ref kind |
+| `StoryEvaluationContext` | bridge condition 评价上下文，包含 Story ids、target ref、blackboard、frame 和 source |
+| `StoryModifierContextResolver` | 从显式注册的 resolver data 创建临时 `ModifierContext` |
+| `StoryModifierConditionAdapter` | 包装 `IModifierCondition`，创建临时 context 后评价；失败返回 false 并记录 diagnostic |
+| `StoryGameplayEffectIntent` | Story gameplay effect intent DTO，不直接执行 mutation |
+| `StoryGameplayEffectBridge` | 把支持的 intent 转成 Gameplay-owned `RuntimeCommand` 并 enqueue 到 Gameplay command buffer |
+| `StoryGameplayBridgeDiagnostics` | 非权威诊断计数和最近失败记录 |
 
 ## Condition Categories
 
@@ -73,9 +91,9 @@ Story should not store raw references to Gameplay objects. It uses stable refs:
 ```csharp
 public readonly struct StoryGameplayEntityRef
 {
-    public readonly int Kind;
-    public readonly int Id0;
-    public readonly int Id1;
+    public int Kind { get; }
+    public int Id0 { get; }
+    public int Id1 { get; }
 }
 ```
 
@@ -97,14 +115,16 @@ Story side effect declarations produce intent, not direct mutation:
 ```csharp
 public readonly struct StoryGameplayEffectIntent
 {
-    public readonly int CommandId;
-    public readonly int SourceId;
-    public readonly int TargetId;
-    public readonly int Payload0;
-    public readonly int Payload1;
-    public readonly int Payload2;
-    public readonly int DelayFrames;
-    public readonly StoryGameplayEntityRef TargetRef;
+    public StoryGameplayEffectIntentKind Kind { get; }
+    public int CommandId { get; }
+    public int SourceId { get; }
+    public int TargetId { get; }
+    public int Payload0 { get; }
+    public int Payload1 { get; }
+    public int Payload2 { get; }
+    public int DelayFrames { get; }
+    public StoryGameplayEntityRef TargetRef { get; }
+    public string TraceId { get; }
 }
 ```
 
@@ -117,17 +137,27 @@ Bridge behavior:
 
 If there is no Gameplay command capable of representing an effect, the bridge must reject the intent and emit diagnostics. It must not fall back to direct mutation.
 
-## Current Gameplay Command Gap
+Current S3 supported Gameplay-owned commands:
 
-Existing Gameplay commands cover component entity create/destroy, spawn, attribute set/add, ability cast, ability request, and lifecycle/despawn flows. There is currently no general `AddComponentBuff` command.
+| Intent factory | Gameplay command | Target ref kind | Payload semantics |
+| --- | --- | --- | --- |
+| `SetComponentAttribute(...)` | `GameplayRuntimeCommandIds.SetComponentAttribute` | `ComponentEntity` | `payload1=attributeId`, `payload2=value` |
+| `AddComponentAttribute(...)` | `GameplayRuntimeCommandIds.AddComponentAttribute` | `ComponentEntity` | `payload1=attributeId`, `payload2=delta` |
+| `CastComponentAbility(...)` | `GameplayRuntimeCommandIds.CastComponentAbility` | `ComponentEntity` | `payload1=abilityId` |
+| `CastLegacyAbility(...)` | `GameplayRuntimeCommandIds.CastAbility` | `LegacyRuntimeEntity` | `payload1=abilityId`, `payload2=optional candidate entity id` |
 
-Therefore Story S3 must choose one of these implementation paths before claiming Story can grant buffs:
+This slice does not add or change Gameplay command ids, payload layouts, or Gameplay command systems.
 
-1. Add a Gameplay-owned `AddComponentBuff` / `RemoveComponentBuff` command system.
-2. Represent buff application through a configured Gameplay ability and enqueue `CastComponentAbility` / request commands.
-3. Limit Story S3 effects to commands already supported, such as component attribute changes, and defer buff application.
+## Deferred Buff Effects
 
-The default recommendation is option 1 if framework-level story rewards need direct buff semantics. The command and system belong to Gameplay, not Story.
+Existing Gameplay commands cover component entity create/destroy, spawn, attribute set/add, ability cast, ability request, and lifecycle/despawn flows. There is currently no general `AddComponentBuff` / `RemoveComponentBuff` command.
+
+S3 therefore explicitly defers direct buff grant/remove semantics. `StoryGameplayEffectIntent.BuffGrant(...)` and `BuffRemove(...)` return `StoryGameplayEffectResult.Success=false` with `StoryGameplayBridgeDiagnosticCode.UnsupportedBuffEffect`, leave the Gameplay command buffer unchanged, and do not call:
+
+- `IBuffPipeline.AddBuff`
+- Attributes mutation APIs
+- Modifier mutation APIs
+- component store mutation APIs
 
 ## Command Buffer Ownership
 
@@ -135,7 +165,7 @@ Story.GameplayBridge receives a Gameplay command buffer reference from the compo
 
 ```text
 StoryRuntimeModule
-  -> StoryGameplayBridge.EnqueueGameplayEffects(...)
+  -> StoryGameplayEffectBridge.EnqueueGameplayEffect(...)
   -> GameplayCommandBuffer.Enqueue(...)
   -> GameplayRuntimeModule drains later
 ```
@@ -144,8 +174,10 @@ Rules:
 
 - The bridge does not own frame clocks.
 - The bridge does not call `DrainForFrame`.
-- The bridge must document whether it enqueues for current frame or `currentFrame + DelayFrames`.
+- The bridge enqueues at `targetFrame = currentStoryFrame + max(0, DelayFrames)`.
 - Same-frame effects require Story Runtime priority earlier than Gameplay Runtime priority.
+
+`DelayFrames == 0` is same-frame enqueue. Composition roots that need same-frame Gameplay consumption must tick Story before Gameplay in `RuntimeTickStage.Simulation`.
 
 ## Locator
 
@@ -172,12 +204,10 @@ Diagnostics are not authority state and do not enter Story hash unless S3 explic
 
 ## Test Entry
 
-Planned S3 tests:
+S3 tests:
 
-- `StoryModifierConditionAdapter` creates correct `ModifierContext` and releases pooled context.
-- missing Gameplay target returns false and diagnostic issue.
-- effect intent maps to existing Gameplay command without direct mutation.
-- unsupported buff effect is rejected until Gameplay command exists.
-- same-frame ordering test with separate Story and Gameplay command buffers.
+- `Assets/Scripts/MxFramework/Tests/Story.GameplayBridge/StoryBeatGameplayLocatorTests.cs`
+- `Assets/Scripts/MxFramework/Tests/Story.GameplayBridge/StoryModifierConditionAdapterTests.cs`
+- `Assets/Scripts/MxFramework/Tests/Story.GameplayBridge/StoryGameplayEffectBridgeTests.cs`
 
-See `Docs/Tasks/STORY_S1.md` for the S1 prerequisite runtime slice.
+See `Docs/Tasks/STORY_S3_GAMEPLAY_RESOURCES_BRIDGE.md` for the S3 task contract.

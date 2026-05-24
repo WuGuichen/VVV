@@ -101,11 +101,13 @@
 | Runtime SaveState provider/restorer | ✅ v0.1 | `StoryRuntimeSaveStateProvider` | Story.Runtime + Runtime |
 | Replay/hash validation | ✅ v0.1 | Existing `RuntimeReplayRecorder` / `RuntimeReplayPlaybackRunner` with Story commands | Story.Runtime + Runtime |
 | Story config schema / mapper / validator | ✅ v0.1 | `StoryConfigSet` / `StoryGraphConfigMapper` / `StoryConfigValidator` | Story.Config + Config |
+| Story Gameplay bridge | ✅ v0.1 | `StoryGameplayEffectBridge` / `StoryBeatGameplayLocator` / `StoryModifierConditionAdapter` | Story.GameplayBridge + Gameplay |
+| Story Resources preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` / `StoryResourcePreloadMetadata` | Story.ResourcesBridge + Resources |
 
-→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`
-→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`
-→ 交付等级：`Runtime Slice` + `Config Bridge`；没有 Unity 场景、UI Toolkit view、Timeline、Gameplay bridge、Resources bridge 或 Authoring 工具。
-→ **不含**: Story.GameplayBridge、Story.ResourcesBridge、Story.Unity、Story.Editor、Runtime AI Planner projection、Yarn/Ink/Articy importer、可玩 Demo
+→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`, `Interfaces/Story.GameplayBridge.md`, `Interfaces/Story.ResourcesBridge.md`
+→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`, `Tests/Story.GameplayBridge/`, `Tests/Story.ResourcesBridge/`
+→ 交付等级：`Runtime Slice` + `Config Bridge` + noEngine `Gameplay/Resources Bridge`；没有 Unity 场景、UI Toolkit view、Timeline 或 Authoring 工具。
+→ **不含**: direct Story buff grant/remove、Story.Unity、Story.Editor、Runtime AI Planner projection、Yarn/Ink/Articy importer、可玩 Demo
 
 ### 1.6 App / Scene Flow — 游戏启动状态和场景切换骨架
 
@@ -244,6 +246,7 @@
 | Sample Player AssetBundle Catalog | ✅ v0.6.6 | `SamplePlayerResourceCatalogBuilder` / `MxFramework/Samples/Build Player Resource Catalog` | Editor + Resources.Unity |
 | Runtime Demo Resource Binding | ✅ v0.6.7 | `RuntimeVerticalSliceRunner.ResourceWarmupSummary` / resource binding diagnostics | Demo + Resources |
 | Preload Group / Scene Warmup | ✅ v0.6.8 | `ResourcePreloadService` / `ResourcePreloadPlan.MaxConcurrentLoads` / progress + cancellation | Resources |
+| Story preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` produces `ResourcePreloadPlan` without loading | Story.ResourcesBridge + Resources |
 | Variant Catalog / Retain Policy | ✅ v0.6.2 | `ResourceVariantProfile` / `ResourceRetainPolicy` / retain diagnostics | Resources |
 | Retain Budget / Eviction Policy | ✅ v0.6.9 | `ResourceRetainPolicy.Budgeted` / retained bytes diagnostics / budget eviction | Resources |
 | Remote Bundle Provider | ✅ v0.6.3 | `RemoteBundleProvider` / `providerData.url` / SHA-256 cache validation | Resources.Unity |

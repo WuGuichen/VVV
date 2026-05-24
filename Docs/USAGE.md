@@ -740,7 +740,7 @@ new StoryRuntimeSaveStateProvider(restoredDirector).RestoreSaveState(loaded);
 
 - `MxFramework.Story` 是 noEngine core，只依赖 Core + Events，不读取 RuntimeCommand。
 - `MxFramework.Story.Runtime` 只依赖 Story + Runtime，拥有独立 Story `RuntimeCommandBuffer` drain owner。
-- Story Runtime 不 drain Gameplay command buffer；后续 `Story.GameplayBridge` 只能 enqueue Gameplay commands。
+- Story Runtime 不 drain Gameplay command buffer；`Story.GameplayBridge` 只能 enqueue Gameplay commands。
 - `WaitWithFrameTimeout` 只保留 DTO 字段，S1 未实现 runtime timeout 行为。
 - 当前测试入口：`Assets/Scripts/MxFramework/Tests/Story/` 和 `Assets/Scripts/MxFramework/Tests/Story.Runtime/`。
 
@@ -797,6 +797,59 @@ if (result.IsValid)
 - trigger / effect id 数组升序
 
 Validator 会阻止缺失 entry beat、非法 branch / choice target、重复稳定 id、unsupported step kind / wait policy、非法 text key、非法 trigger / effect id、缺失或类型不匹配的 Story fact reference、非法 `SetFact` raw value，以及同一 beat 同时声明 choices / branches 或多个 fallback branches。详见 `Docs/Interfaces/Story.Config.md`。
+
+### 6.13 Story Gameplay / Resources Bridges
+
+Story S3 新增两个 noEngine sibling bridge。它们不改变 Story core / Story.Runtime 依赖方向，也不新增 Gameplay command contract。
+
+Gameplay bridge 把 Story effect intent 转成 Gameplay-owned command：
+
+```csharp
+using MxFramework.Gameplay;
+using MxFramework.Runtime;
+using MxFramework.Story.GameplayBridge;
+
+var componentWorld = new GameplayComponentWorld();
+GameplayEntityId entity = componentWorld.CreateEntity();
+var gameplayBuffer = new RuntimeCommandBuffer();
+var bridge = new StoryGameplayEffectBridge(gameplayBuffer, componentWorld);
+
+StoryGameplayEffectResult effect = bridge.EnqueueGameplayEffect(
+    StoryGameplayEffectIntent.AddComponentAttribute(
+        StoryGameplayEntityRef.ComponentEntity(entity),
+        sourceId: 1003102,
+        attributeId: 100,
+        delta: -10,
+        delayFrames: 0,
+        traceId: "story-effect"),
+    currentStoryFrame: new RuntimeFrame(42));
+```
+
+`targetFrame = currentStoryFrame + max(0, DelayFrames)`。`DelayFrames == 0` 表示同帧 enqueue；组合根若要同帧消费，必须在 `RuntimeTickStage.Simulation` 中先 tick Story，再 tick Gameplay。Bridge 只调用 `RuntimeCommandBuffer.Enqueue`，不调用 `DrainForFrame`。
+
+当前支持的 Gameplay command：`SetComponentAttribute`、`AddComponentAttribute`、`CastComponentAbility` 和 legacy `CastAbility`。Direct buff grant/remove 会返回 `UnsupportedBuffEffect`，不会调用 `IBuffPipeline.AddBuff` 或任何 Attributes / Modifiers / component store mutation API。
+
+Resources bridge 只生成 preload plan，不加载资源：
+
+```csharp
+using MxFramework.Resources;
+using MxFramework.Story.ResourcesBridge;
+
+var metadata = new StoryResourcePreloadMetadata(
+    "story.cutscene.1001",
+    explicitKeys: new[]
+    {
+        new StoryResourceKeyMetadata("story.ui.dialogue", ResourceTypeIds.VisualTreeAsset),
+        new StoryResourceKeyMetadata("story.audio.line_001", ResourceTypeIds.AudioClip)
+    },
+    labels: new[] { "story.cutscene.common" },
+    maxConcurrentLoads: 4);
+
+StoryResourcePreloadPlanResult planResult = StoryResourcePreloadPlanBuilder.Build(metadata);
+ResourcePreloadPlan plan = planResult.Success ? planResult.Plan : null;
+```
+
+`StoryResourcePreloadPlanBuilder` 会校验 key / label、去重并稳定排序；它不依赖 Unity provider、不调用 `IResourceManager.Load`，也不释放资源。
 
 ## 7. Config 表和校验
 

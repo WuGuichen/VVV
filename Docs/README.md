@@ -91,7 +91,8 @@
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |
 | `Interfaces/Story.md` | Story core S0 proposed contract（未实现） |
 | `Interfaces/Story.Runtime.md` | Story Runtime S0 proposed contract（未实现） |
-| `Interfaces/Story.GameplayBridge.md` | Story 与 Gameplay bridge S0 proposed contract（未实现） |
+| `Interfaces/Story.GameplayBridge.md` | Story 与 Gameplay bridge：condition adapter、stable entity ref、Gameplay command enqueue 和 deferred buff strategy |
+| `Interfaces/Story.ResourcesBridge.md` | Story 与 Resources bridge：Story preload metadata 到 `ResourcePreloadPlan` 的 no-load 映射 |
 | `Interfaces/Editor.md` | Editor 工具接口 |
 
 ---

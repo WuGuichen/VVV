@@ -33,6 +33,8 @@
 | Story | `Docs/Interfaces/Story.md` | `Assets/Scripts/MxFramework/Story/` | `Assets/Scripts/MxFramework/Tests/Story/` |
 | Story Runtime | `Docs/Interfaces/Story.Runtime.md` | `Assets/Scripts/MxFramework/Story.Runtime/` | `Assets/Scripts/MxFramework/Tests/Story.Runtime/` |
 | Story Config | `Docs/Interfaces/Story.Config.md` | `Assets/Scripts/MxFramework/Story.Config/` | `Assets/Scripts/MxFramework/Tests/Story.Config/` |
+| Story Gameplay Bridge | `Docs/Interfaces/Story.GameplayBridge.md` | `Assets/Scripts/MxFramework/Story.GameplayBridge/` | `Assets/Scripts/MxFramework/Tests/Story.GameplayBridge/` |
+| Story Resources Bridge | `Docs/Interfaces/Story.ResourcesBridge.md` | `Assets/Scripts/MxFramework/Story.ResourcesBridge/` | `Assets/Scripts/MxFramework/Tests/Story.ResourcesBridge/` |
 | App / Scene Flow | `Docs/Interfaces/AppFlow.md` | `Assets/Scripts/MxFramework/Runtime*/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
 | Input | `Docs/Interfaces/Input.md` | `Assets/Scripts/MxFramework/Input/` | `Assets/Scripts/MxFramework/Tests/Input/` |
 | UI Toolkit | `Docs/Interfaces/UI.Toolkit.md` | `Assets/Scripts/MxFramework/UI.Toolkit/` | `Assets/Scripts/MxFramework/Tests/UI.Toolkit/` |
@@ -41,14 +43,6 @@
 | Character Application | `Docs/Interfaces/CharacterApplication.md` | `Assets/Scripts/MxFramework/Character.Application/` | `Assets/Scripts/MxFramework/Tests/CharacterApplication/` |
 | Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl*/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
 | Editor | `Docs/Interfaces/Editor.md` | `Assets/Scripts/MxFramework/Editor/` | Unity Editor / MCP |
-
-## S0 Proposed Interface Contracts
-
-以下文档是已接受方向的 S0 设计契约，供后续实现任务使用；在对应 S1/S3 任务关闭前，不代表当前仓库已有可用 API。
-
-| 模块 | 文档 | 计划代码 | 计划测试入口 |
-|------|------|----------|--------------|
-| Story Gameplay Bridge | `Docs/Interfaces/Story.GameplayBridge.md` | `Assets/Scripts/MxFramework/Story.GameplayBridge/` | `Assets/Scripts/MxFramework/Tests/Story/` |
 
 ## 文档规则
 
