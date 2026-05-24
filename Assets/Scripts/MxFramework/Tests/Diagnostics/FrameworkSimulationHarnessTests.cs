@@ -72,14 +72,15 @@ namespace MxFramework.Tests.Diagnostics
 
             string json = FrameworkSimulationReportFormatter.ToJson(report);
             ParsedSimulationReport parsed = JsonUtility.FromJson<ParsedSimulationReport>(json);
+            string jsonRoundtripText = controlText.Replace('\0', '\u2400');
 
-            Assert.That(json, Does.Contain("\\u0000"));
+            Assert.That(json, Does.Contain("\u2400"));
             Assert.That(json, Does.Contain("\\u0008"));
             Assert.That(json, Does.Contain("\\u000c"));
             Assert.AreEqual(1, parsed.scenarioCount);
-            Assert.AreEqual(controlText, parsed.scenarios[0].name);
-            Assert.AreEqual(controlText, parsed.scenarios[0].events[0].summary);
-            Assert.AreEqual(controlText, parsed.scenarios[0].failures[0].message);
+            Assert.AreEqual(jsonRoundtripText, parsed.scenarios[0].name);
+            Assert.AreEqual(jsonRoundtripText, parsed.scenarios[0].events[0].summary);
+            Assert.AreEqual(jsonRoundtripText, parsed.scenarios[0].failures[0].message);
         }
 
         [Test]

@@ -454,6 +454,9 @@ namespace MxFramework.Diagnostics
                 char ch = value[i];
                 switch (ch)
                 {
+                    case '\0':
+                        builder.Append('\u2400');
+                        break;
                     case '\\':
                         builder.Append("\\\\");
                         break;
