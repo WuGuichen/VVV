@@ -83,6 +83,8 @@ namespace MxFramework.DebugUI.Input
 
             _commands.Clear();
             _input.Commands.PeekForFrame(frame, _commands, IsDebugCommand);
+            if (_commands.Count > 1)
+                _commands.Sort(CompareBySequence);
 
             int handled = 0;
             long maxSeenSequence = _lastHandledSequence;
@@ -154,6 +156,11 @@ namespace MxFramework.DebugUI.Input
                 default:
                     return false;
             }
+        }
+
+        private static int CompareBySequence(InputCommand left, InputCommand right)
+        {
+            return left.Sequence.CompareTo(right.Sequence);
         }
 
         private static DebugUiVisibility NextVisibility(DebugUiVisibility visibility)

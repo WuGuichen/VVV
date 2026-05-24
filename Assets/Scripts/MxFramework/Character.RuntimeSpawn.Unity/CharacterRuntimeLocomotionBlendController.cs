@@ -145,7 +145,10 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _blendXParameter = blendDefinition.ParameterXId;
             _blendYParameter = blendDefinition.ParameterYId;
             _blendParameterScale = Mathf.Max(1, Math.Max(blendDefinition.ParameterXScale, blendDefinition.ParameterYScale));
-            RebuildBlendDomain(blendDefinition);
+            if (_animationBackend != null)
+                RebuildBlendDomain(blendDefinition);
+            else
+                ResetBlendDomain();
             RebuildBlendPointPlaybackCalibrations(blendDefinition);
             _blendReachabilityReport = CreateReachabilityReport();
         }
