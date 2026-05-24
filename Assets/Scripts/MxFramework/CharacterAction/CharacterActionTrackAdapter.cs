@@ -337,6 +337,293 @@ namespace MxFramework.CharacterAction
         }
     }
 
+    public readonly struct CharacterActionPresentationAdapterContext : IEquatable<CharacterActionPresentationAdapterContext>
+    {
+        public CharacterActionPresentationAdapterContext(
+            RuntimeFrame frame,
+            string targetActorId,
+            int sourceId = 0,
+            string traceId = "",
+            string animationLayerId = "base")
+        {
+            Frame = frame;
+            TargetActorId = targetActorId ?? string.Empty;
+            SourceId = sourceId;
+            TraceId = traceId ?? string.Empty;
+            AnimationLayerId = string.IsNullOrWhiteSpace(animationLayerId) ? "base" : animationLayerId;
+        }
+
+        public RuntimeFrame Frame { get; }
+        public string TargetActorId { get; }
+        public int SourceId { get; }
+        public string TraceId { get; }
+        public string AnimationLayerId { get; }
+        public bool HasTargetActor => !string.IsNullOrEmpty(TargetActorId);
+
+        public bool Equals(CharacterActionPresentationAdapterContext other)
+        {
+            return Frame.Equals(other.Frame)
+                && string.Equals(TargetActorId, other.TargetActorId, StringComparison.Ordinal)
+                && SourceId == other.SourceId
+                && string.Equals(TraceId, other.TraceId, StringComparison.Ordinal)
+                && string.Equals(AnimationLayerId, other.AnimationLayerId, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionPresentationAdapterContext other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = Frame.GetHashCode();
+                hash = (hash * 397) ^ (TargetActorId == null ? 0 : StringComparer.Ordinal.GetHashCode(TargetActorId));
+                hash = (hash * 397) ^ SourceId;
+                hash = (hash * 397) ^ (TraceId == null ? 0 : StringComparer.Ordinal.GetHashCode(TraceId));
+                hash = (hash * 397) ^ (AnimationLayerId == null ? 0 : StringComparer.Ordinal.GetHashCode(AnimationLayerId));
+                return hash;
+            }
+        }
+    }
+
+    public readonly struct CharacterActionAnimationRequest : IEquatable<CharacterActionAnimationRequest>
+    {
+        public CharacterActionAnimationRequest(
+            CharacterActionAdapterDispatchMetadata metadata,
+            string targetActorId,
+            CharacterActionTrackEventKind eventKind,
+            string actionKey,
+            string layerId,
+            float transitionSeconds)
+        {
+            EnsureAnimationKind(eventKind);
+            Metadata = metadata;
+            TargetActorId = targetActorId ?? string.Empty;
+            EventKind = eventKind;
+            ActionKey = actionKey ?? string.Empty;
+            LayerId = string.IsNullOrWhiteSpace(layerId) ? "base" : layerId;
+            TransitionSeconds = transitionSeconds;
+        }
+
+        public CharacterActionAdapterDispatchMetadata Metadata { get; }
+        public string TargetActorId { get; }
+        public CharacterActionTrackEventKind EventKind { get; }
+        public string ActionKey { get; }
+        public string LayerId { get; }
+        public float TransitionSeconds { get; }
+
+        public bool Equals(CharacterActionAnimationRequest other)
+        {
+            return Metadata.Equals(other.Metadata)
+                && string.Equals(TargetActorId, other.TargetActorId, StringComparison.Ordinal)
+                && EventKind == other.EventKind
+                && string.Equals(ActionKey, other.ActionKey, StringComparison.Ordinal)
+                && string.Equals(LayerId, other.LayerId, StringComparison.Ordinal)
+                && TransitionSeconds.Equals(other.TransitionSeconds);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionAnimationRequest other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = Metadata.GetHashCode();
+                hash = (hash * 397) ^ (TargetActorId == null ? 0 : StringComparer.Ordinal.GetHashCode(TargetActorId));
+                hash = (hash * 397) ^ (int)EventKind;
+                hash = (hash * 397) ^ (ActionKey == null ? 0 : StringComparer.Ordinal.GetHashCode(ActionKey));
+                hash = (hash * 397) ^ (LayerId == null ? 0 : StringComparer.Ordinal.GetHashCode(LayerId));
+                hash = (hash * 397) ^ TransitionSeconds.GetHashCode();
+                return hash;
+            }
+        }
+
+        private static void EnsureAnimationKind(CharacterActionTrackEventKind eventKind)
+        {
+            if (eventKind != CharacterActionTrackEventKind.PlayAnimation
+                && eventKind != CharacterActionTrackEventKind.CrossFadeAnimation
+                && eventKind != CharacterActionTrackEventKind.SetAnimationBlend)
+            {
+                throw new ArgumentOutOfRangeException(nameof(eventKind), "Event kind is not an AnimationTrack request.");
+            }
+        }
+    }
+
+    public readonly struct CharacterActionAudioCueRequest : IEquatable<CharacterActionAudioCueRequest>
+    {
+        public CharacterActionAudioCueRequest(
+            CharacterActionAdapterDispatchMetadata metadata,
+            string targetActorId,
+            string cueId)
+        {
+            Metadata = metadata;
+            TargetActorId = targetActorId ?? string.Empty;
+            CueId = cueId ?? string.Empty;
+        }
+
+        public CharacterActionAdapterDispatchMetadata Metadata { get; }
+        public string TargetActorId { get; }
+        public string CueId { get; }
+
+        public bool Equals(CharacterActionAudioCueRequest other)
+        {
+            return Metadata.Equals(other.Metadata)
+                && string.Equals(TargetActorId, other.TargetActorId, StringComparison.Ordinal)
+                && string.Equals(CueId, other.CueId, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionAudioCueRequest other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = Metadata.GetHashCode();
+                hash = (hash * 397) ^ (TargetActorId == null ? 0 : StringComparer.Ordinal.GetHashCode(TargetActorId));
+                hash = (hash * 397) ^ (CueId == null ? 0 : StringComparer.Ordinal.GetHashCode(CueId));
+                return hash;
+            }
+        }
+    }
+
+    public readonly struct CharacterActionVfxRequest : IEquatable<CharacterActionVfxRequest>
+    {
+        public CharacterActionVfxRequest(
+            CharacterActionAdapterDispatchMetadata metadata,
+            string targetActorId,
+            string resourceKey)
+        {
+            Metadata = metadata;
+            TargetActorId = targetActorId ?? string.Empty;
+            ResourceKey = resourceKey ?? string.Empty;
+        }
+
+        public CharacterActionAdapterDispatchMetadata Metadata { get; }
+        public string TargetActorId { get; }
+        public string ResourceKey { get; }
+
+        public bool Equals(CharacterActionVfxRequest other)
+        {
+            return Metadata.Equals(other.Metadata)
+                && string.Equals(TargetActorId, other.TargetActorId, StringComparison.Ordinal)
+                && string.Equals(ResourceKey, other.ResourceKey, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionVfxRequest other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = Metadata.GetHashCode();
+                hash = (hash * 397) ^ (TargetActorId == null ? 0 : StringComparer.Ordinal.GetHashCode(TargetActorId));
+                hash = (hash * 397) ^ (ResourceKey == null ? 0 : StringComparer.Ordinal.GetHashCode(ResourceKey));
+                return hash;
+            }
+        }
+    }
+
+    public readonly struct CharacterActionCameraRequest : IEquatable<CharacterActionCameraRequest>
+    {
+        public CharacterActionCameraRequest(
+            CharacterActionAdapterDispatchMetadata metadata,
+            string targetActorId,
+            string requestId,
+            string payloadKey)
+        {
+            Metadata = metadata;
+            TargetActorId = targetActorId ?? string.Empty;
+            RequestId = requestId ?? string.Empty;
+            PayloadKey = payloadKey ?? string.Empty;
+        }
+
+        public CharacterActionAdapterDispatchMetadata Metadata { get; }
+        public string TargetActorId { get; }
+        public string RequestId { get; }
+        public string PayloadKey { get; }
+
+        public bool Equals(CharacterActionCameraRequest other)
+        {
+            return Metadata.Equals(other.Metadata)
+                && string.Equals(TargetActorId, other.TargetActorId, StringComparison.Ordinal)
+                && string.Equals(RequestId, other.RequestId, StringComparison.Ordinal)
+                && string.Equals(PayloadKey, other.PayloadKey, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionCameraRequest other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = Metadata.GetHashCode();
+                hash = (hash * 397) ^ (TargetActorId == null ? 0 : StringComparer.Ordinal.GetHashCode(TargetActorId));
+                hash = (hash * 397) ^ (RequestId == null ? 0 : StringComparer.Ordinal.GetHashCode(RequestId));
+                hash = (hash * 397) ^ (PayloadKey == null ? 0 : StringComparer.Ordinal.GetHashCode(PayloadKey));
+                return hash;
+            }
+        }
+    }
+
+    public readonly struct CharacterActionUiFeedbackRequest : IEquatable<CharacterActionUiFeedbackRequest>
+    {
+        public CharacterActionUiFeedbackRequest(
+            CharacterActionAdapterDispatchMetadata metadata,
+            string targetActorId,
+            string feedbackId,
+            string payloadKey)
+        {
+            Metadata = metadata;
+            TargetActorId = targetActorId ?? string.Empty;
+            FeedbackId = feedbackId ?? string.Empty;
+            PayloadKey = payloadKey ?? string.Empty;
+        }
+
+        public CharacterActionAdapterDispatchMetadata Metadata { get; }
+        public string TargetActorId { get; }
+        public string FeedbackId { get; }
+        public string PayloadKey { get; }
+
+        public bool Equals(CharacterActionUiFeedbackRequest other)
+        {
+            return Metadata.Equals(other.Metadata)
+                && string.Equals(TargetActorId, other.TargetActorId, StringComparison.Ordinal)
+                && string.Equals(FeedbackId, other.FeedbackId, StringComparison.Ordinal)
+                && string.Equals(PayloadKey, other.PayloadKey, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is CharacterActionUiFeedbackRequest other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = Metadata.GetHashCode();
+                hash = (hash * 397) ^ (TargetActorId == null ? 0 : StringComparer.Ordinal.GetHashCode(TargetActorId));
+                hash = (hash * 397) ^ (FeedbackId == null ? 0 : StringComparer.Ordinal.GetHashCode(FeedbackId));
+                hash = (hash * 397) ^ (PayloadKey == null ? 0 : StringComparer.Ordinal.GetHashCode(PayloadKey));
+                return hash;
+            }
+        }
+    }
+
     public readonly struct CharacterActionPressureOnlyReactionRequest : IEquatable<CharacterActionPressureOnlyReactionRequest>
     {
         public CharacterActionPressureOnlyReactionRequest(CharacterReactionContext context, string requestedActionId = "")
@@ -456,6 +743,31 @@ namespace MxFramework.CharacterAction
         CharacterActionAdapterSinkResult SubmitPressureOnlyReactionRequest(CharacterActionPressureOnlyReactionRequest request);
     }
 
+    public interface ICharacterActionAnimationRequestSink
+    {
+        CharacterActionAdapterSinkResult SubmitAnimationRequest(CharacterActionAnimationRequest request);
+    }
+
+    public interface ICharacterActionAudioCueRequestSink
+    {
+        CharacterActionAdapterSinkResult SubmitAudioCueRequest(CharacterActionAudioCueRequest request);
+    }
+
+    public interface ICharacterActionVfxRequestSink
+    {
+        CharacterActionAdapterSinkResult SubmitVfxRequest(CharacterActionVfxRequest request);
+    }
+
+    public interface ICharacterActionCameraRequestSink
+    {
+        CharacterActionAdapterSinkResult SubmitCameraRequest(CharacterActionCameraRequest request);
+    }
+
+    public interface ICharacterActionUiFeedbackRequestSink
+    {
+        CharacterActionAdapterSinkResult SubmitUiFeedbackRequest(CharacterActionUiFeedbackRequest request);
+    }
+
     public sealed class CharacterActionAdapterRequestCollector :
         ICharacterActionMotionRequestSink,
         ICharacterActionCombatRequestSink,
@@ -502,6 +814,70 @@ namespace MxFramework.CharacterAction
         public CharacterActionAdapterSinkResult SubmitPressureOnlyReactionRequest(CharacterActionPressureOnlyReactionRequest request)
         {
             _pressureOnlyReactionRequests.Add(request);
+            return CharacterActionAdapterSinkResult.AcceptedResult();
+        }
+    }
+
+    public sealed class CharacterActionPresentationRequestCollector :
+        ICharacterActionAnimationRequestSink,
+        ICharacterActionAudioCueRequestSink,
+        ICharacterActionVfxRequestSink,
+        ICharacterActionCameraRequestSink,
+        ICharacterActionUiFeedbackRequestSink
+    {
+        private readonly List<CharacterActionAnimationRequest> _animationRequests =
+            new List<CharacterActionAnimationRequest>();
+        private readonly List<CharacterActionAudioCueRequest> _audioCueRequests =
+            new List<CharacterActionAudioCueRequest>();
+        private readonly List<CharacterActionVfxRequest> _vfxRequests =
+            new List<CharacterActionVfxRequest>();
+        private readonly List<CharacterActionCameraRequest> _cameraRequests =
+            new List<CharacterActionCameraRequest>();
+        private readonly List<CharacterActionUiFeedbackRequest> _uiFeedbackRequests =
+            new List<CharacterActionUiFeedbackRequest>();
+
+        public IReadOnlyList<CharacterActionAnimationRequest> AnimationRequests => _animationRequests;
+        public IReadOnlyList<CharacterActionAudioCueRequest> AudioCueRequests => _audioCueRequests;
+        public IReadOnlyList<CharacterActionVfxRequest> VfxRequests => _vfxRequests;
+        public IReadOnlyList<CharacterActionCameraRequest> CameraRequests => _cameraRequests;
+        public IReadOnlyList<CharacterActionUiFeedbackRequest> UiFeedbackRequests => _uiFeedbackRequests;
+
+        public void Clear()
+        {
+            _animationRequests.Clear();
+            _audioCueRequests.Clear();
+            _vfxRequests.Clear();
+            _cameraRequests.Clear();
+            _uiFeedbackRequests.Clear();
+        }
+
+        public CharacterActionAdapterSinkResult SubmitAnimationRequest(CharacterActionAnimationRequest request)
+        {
+            _animationRequests.Add(request);
+            return CharacterActionAdapterSinkResult.AcceptedResult();
+        }
+
+        public CharacterActionAdapterSinkResult SubmitAudioCueRequest(CharacterActionAudioCueRequest request)
+        {
+            _audioCueRequests.Add(request);
+            return CharacterActionAdapterSinkResult.AcceptedResult();
+        }
+
+        public CharacterActionAdapterSinkResult SubmitVfxRequest(CharacterActionVfxRequest request)
+        {
+            _vfxRequests.Add(request);
+            return CharacterActionAdapterSinkResult.AcceptedResult();
+        }
+
+        public CharacterActionAdapterSinkResult SubmitCameraRequest(CharacterActionCameraRequest request)
+        {
+            _cameraRequests.Add(request);
+            return CharacterActionAdapterSinkResult.AcceptedResult();
+        }
+
+        public CharacterActionAdapterSinkResult SubmitUiFeedbackRequest(CharacterActionUiFeedbackRequest request)
+        {
+            _uiFeedbackRequests.Add(request);
             return CharacterActionAdapterSinkResult.AcceptedResult();
         }
     }
@@ -755,6 +1131,369 @@ namespace MxFramework.CharacterAction
             CharacterActionRunnerEvent runnerEvent,
             CharacterActionTrackDispatchEvent dispatch,
             CharacterActionAdapterContext context)
+        {
+            string traceId = string.IsNullOrEmpty(context.TraceId) ? runnerEvent.TraceId : context.TraceId;
+            return new CharacterActionAdapterDispatchMetadata(
+                context.Frame,
+                runnerEvent.InstanceId,
+                runnerEvent.PlanId,
+                runnerEvent.ActionId,
+                runnerEvent.LocalFrame,
+                dispatch.StableEventId,
+                context.SourceId,
+                traceId);
+        }
+
+        private static CharacterActionAdapterSinkResult SubmitToSink(
+            Func<CharacterActionAdapterSinkResult> submit,
+            string sinkName)
+        {
+            try
+            {
+                return submit();
+            }
+            catch (Exception ex)
+            {
+                return CharacterActionAdapterSinkResult.Rejected(CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.AdapterSinkFailure,
+                    sinkName + " sink failed: " + ex.Message));
+            }
+        }
+
+        private static CharacterActionDiagnostic MissingSink(string sinkName)
+        {
+            return CharacterActionDiagnostic.Error(
+                CharacterActionDiagnosticCodes.AdapterSinkMissing,
+                sinkName + " request sink is missing.");
+        }
+
+        private static CharacterActionDiagnostic PayloadMissing(string message)
+        {
+            return CharacterActionDiagnostic.Error(
+                CharacterActionDiagnosticCodes.AdapterPayloadMissing,
+                message);
+        }
+    }
+
+    public readonly struct CharacterActionPresentationAdapterResult
+    {
+        public CharacterActionPresentationAdapterResult(
+            int animationRequestCount,
+            int audioCueRequestCount,
+            int vfxRequestCount,
+            int cameraRequestCount,
+            int uiFeedbackRequestCount,
+            CharacterActionDiagnostic[] diagnostics)
+        {
+            if (animationRequestCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(animationRequestCount), "Request count cannot be negative.");
+            if (audioCueRequestCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(audioCueRequestCount), "Request count cannot be negative.");
+            if (vfxRequestCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(vfxRequestCount), "Request count cannot be negative.");
+            if (cameraRequestCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(cameraRequestCount), "Request count cannot be negative.");
+            if (uiFeedbackRequestCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(uiFeedbackRequestCount), "Request count cannot be negative.");
+
+            AnimationRequestCount = animationRequestCount;
+            AudioCueRequestCount = audioCueRequestCount;
+            VfxRequestCount = vfxRequestCount;
+            CameraRequestCount = cameraRequestCount;
+            UiFeedbackRequestCount = uiFeedbackRequestCount;
+            Diagnostics = diagnostics ?? Array.Empty<CharacterActionDiagnostic>();
+        }
+
+        public int AnimationRequestCount { get; }
+        public int AudioCueRequestCount { get; }
+        public int VfxRequestCount { get; }
+        public int CameraRequestCount { get; }
+        public int UiFeedbackRequestCount { get; }
+        public CharacterActionDiagnostic[] Diagnostics { get; }
+        public bool Accepted => !HasErrors(Diagnostics);
+
+        private static bool HasErrors(CharacterActionDiagnostic[] diagnostics)
+        {
+            diagnostics = diagnostics ?? Array.Empty<CharacterActionDiagnostic>();
+            for (int i = 0; i < diagnostics.Length; i++)
+            {
+                if (diagnostics[i].Severity == CharacterActionDiagnosticSeverity.Error)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
+    public sealed class CharacterActionPresentationTrackAdapter
+    {
+        private readonly ICharacterActionAnimationRequestSink _animationSink;
+        private readonly ICharacterActionAudioCueRequestSink _audioCueSink;
+        private readonly ICharacterActionVfxRequestSink _vfxSink;
+        private readonly ICharacterActionCameraRequestSink _cameraSink;
+        private readonly ICharacterActionUiFeedbackRequestSink _uiFeedbackSink;
+
+        public CharacterActionPresentationTrackAdapter(
+            ICharacterActionAnimationRequestSink animationSink = null,
+            ICharacterActionAudioCueRequestSink audioCueSink = null,
+            ICharacterActionVfxRequestSink vfxSink = null,
+            ICharacterActionCameraRequestSink cameraSink = null,
+            ICharacterActionUiFeedbackRequestSink uiFeedbackSink = null)
+        {
+            _animationSink = animationSink;
+            _audioCueSink = audioCueSink;
+            _vfxSink = vfxSink;
+            _cameraSink = cameraSink;
+            _uiFeedbackSink = uiFeedbackSink;
+        }
+
+        public CharacterActionPresentationAdapterResult Adapt(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionPresentationAdapterContext context)
+        {
+            var diagnostics = new List<CharacterActionDiagnostic>();
+            int animationCount = 0;
+            int audioCount = 0;
+            int vfxCount = 0;
+            int cameraCount = 0;
+            int uiCount = 0;
+
+            if (runnerEvent.Kind != CharacterActionRunnerEventKind.TrackEventFired
+                || !runnerEvent.TrackDispatch.HasEvent)
+            {
+                return new CharacterActionPresentationAdapterResult(0, 0, 0, 0, 0, Array.Empty<CharacterActionDiagnostic>());
+            }
+
+            CharacterActionTrackDispatchEvent dispatch = runnerEvent.TrackDispatch;
+            if (dispatch.TrackKind == CharacterActionTrackKind.Animation)
+            {
+                if (TryAdaptAnimation(runnerEvent, dispatch, context, diagnostics))
+                    animationCount++;
+            }
+            else if (dispatch.TrackKind == CharacterActionTrackKind.Presentation)
+            {
+                switch (dispatch.EventKind)
+                {
+                    case CharacterActionTrackEventKind.PlayAudioCue:
+                        if (TryAdaptAudioCue(runnerEvent, dispatch, context, diagnostics))
+                            audioCount++;
+                        break;
+                    case CharacterActionTrackEventKind.SpawnVisualCue:
+                        if (TryAdaptVfx(runnerEvent, dispatch, context, diagnostics))
+                            vfxCount++;
+                        break;
+                    case CharacterActionTrackEventKind.CameraImpulse:
+                        if (TryAdaptCamera(runnerEvent, dispatch, context, diagnostics))
+                            cameraCount++;
+                        break;
+                    case CharacterActionTrackEventKind.UiFeedback:
+                        if (TryAdaptUiFeedback(runnerEvent, dispatch, context, diagnostics))
+                            uiCount++;
+                        break;
+                }
+            }
+
+            return new CharacterActionPresentationAdapterResult(
+                animationCount,
+                audioCount,
+                vfxCount,
+                cameraCount,
+                uiCount,
+                diagnostics.ToArray());
+        }
+
+        public CharacterActionPresentationAdapterResult AdaptMany(
+            CharacterActionRunnerEvent[] runnerEvents,
+            CharacterActionPresentationAdapterContext context)
+        {
+            runnerEvents = runnerEvents ?? Array.Empty<CharacterActionRunnerEvent>();
+            var diagnostics = new List<CharacterActionDiagnostic>();
+            int animationCount = 0;
+            int audioCount = 0;
+            int vfxCount = 0;
+            int cameraCount = 0;
+            int uiCount = 0;
+
+            for (int i = 0; i < runnerEvents.Length; i++)
+            {
+                CharacterActionPresentationAdapterResult result = Adapt(runnerEvents[i], context);
+                animationCount += result.AnimationRequestCount;
+                audioCount += result.AudioCueRequestCount;
+                vfxCount += result.VfxRequestCount;
+                cameraCount += result.CameraRequestCount;
+                uiCount += result.UiFeedbackRequestCount;
+                diagnostics.AddRange(result.Diagnostics);
+            }
+
+            return new CharacterActionPresentationAdapterResult(
+                animationCount,
+                audioCount,
+                vfxCount,
+                cameraCount,
+                uiCount,
+                diagnostics.ToArray());
+        }
+
+        private bool TryAdaptAnimation(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionTrackDispatchEvent dispatch,
+            CharacterActionPresentationAdapterContext context,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            if (_animationSink == null)
+            {
+                diagnostics.Add(MissingSink("Animation"));
+                return false;
+            }
+
+            if (!context.HasTargetActor)
+            {
+                diagnostics.Add(PayloadMissing("Animation request requires a target actor id."));
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(dispatch.AnimationActionKey))
+            {
+                diagnostics.Add(PayloadMissing("Animation track event requires an animation action key or blend id."));
+                return false;
+            }
+
+            var request = new CharacterActionAnimationRequest(
+                CreateMetadata(runnerEvent, dispatch, context),
+                context.TargetActorId,
+                dispatch.EventKind,
+                dispatch.AnimationActionKey,
+                context.AnimationLayerId,
+                dispatch.TransitionSeconds);
+            CharacterActionAdapterSinkResult sinkResult = SubmitToSink(
+                () => _animationSink.SubmitAnimationRequest(request),
+                "Animation");
+            diagnostics.AddRange(sinkResult.Diagnostics);
+            return sinkResult.Accepted;
+        }
+
+        private bool TryAdaptAudioCue(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionTrackDispatchEvent dispatch,
+            CharacterActionPresentationAdapterContext context,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            if (_audioCueSink == null)
+            {
+                diagnostics.Add(MissingSink("Audio"));
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(dispatch.PresentationCueId))
+            {
+                diagnostics.Add(PayloadMissing("Audio presentation event requires a cue id."));
+                return false;
+            }
+
+            var request = new CharacterActionAudioCueRequest(
+                CreateMetadata(runnerEvent, dispatch, context),
+                context.TargetActorId,
+                dispatch.PresentationCueId);
+            CharacterActionAdapterSinkResult sinkResult = SubmitToSink(
+                () => _audioCueSink.SubmitAudioCueRequest(request),
+                "Audio");
+            diagnostics.AddRange(sinkResult.Diagnostics);
+            return sinkResult.Accepted;
+        }
+
+        private bool TryAdaptVfx(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionTrackDispatchEvent dispatch,
+            CharacterActionPresentationAdapterContext context,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            if (_vfxSink == null)
+            {
+                diagnostics.Add(MissingSink("VFX"));
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(dispatch.ResourceKey))
+            {
+                diagnostics.Add(PayloadMissing("VFX presentation event requires a resource key."));
+                return false;
+            }
+
+            var request = new CharacterActionVfxRequest(
+                CreateMetadata(runnerEvent, dispatch, context),
+                context.TargetActorId,
+                dispatch.ResourceKey);
+            CharacterActionAdapterSinkResult sinkResult = SubmitToSink(
+                () => _vfxSink.SubmitVfxRequest(request),
+                "VFX");
+            diagnostics.AddRange(sinkResult.Diagnostics);
+            return sinkResult.Accepted;
+        }
+
+        private bool TryAdaptCamera(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionTrackDispatchEvent dispatch,
+            CharacterActionPresentationAdapterContext context,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            if (_cameraSink == null)
+            {
+                diagnostics.Add(MissingSink("Camera"));
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(dispatch.PresentationCueId) && string.IsNullOrEmpty(dispatch.ResourceKey))
+            {
+                diagnostics.Add(PayloadMissing("Camera presentation event requires a request id or payload key."));
+                return false;
+            }
+
+            var request = new CharacterActionCameraRequest(
+                CreateMetadata(runnerEvent, dispatch, context),
+                context.TargetActorId,
+                dispatch.PresentationCueId,
+                dispatch.ResourceKey);
+            CharacterActionAdapterSinkResult sinkResult = SubmitToSink(
+                () => _cameraSink.SubmitCameraRequest(request),
+                "Camera");
+            diagnostics.AddRange(sinkResult.Diagnostics);
+            return sinkResult.Accepted;
+        }
+
+        private bool TryAdaptUiFeedback(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionTrackDispatchEvent dispatch,
+            CharacterActionPresentationAdapterContext context,
+            List<CharacterActionDiagnostic> diagnostics)
+        {
+            if (_uiFeedbackSink == null)
+            {
+                diagnostics.Add(MissingSink("UIFeedback"));
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(dispatch.PresentationCueId))
+            {
+                diagnostics.Add(PayloadMissing("UI feedback presentation event requires a feedback id."));
+                return false;
+            }
+
+            var request = new CharacterActionUiFeedbackRequest(
+                CreateMetadata(runnerEvent, dispatch, context),
+                context.TargetActorId,
+                dispatch.PresentationCueId,
+                dispatch.ResourceKey);
+            CharacterActionAdapterSinkResult sinkResult = SubmitToSink(
+                () => _uiFeedbackSink.SubmitUiFeedbackRequest(request),
+                "UIFeedback");
+            diagnostics.AddRange(sinkResult.Diagnostics);
+            return sinkResult.Accepted;
+        }
+
+        private static CharacterActionAdapterDispatchMetadata CreateMetadata(
+            CharacterActionRunnerEvent runnerEvent,
+            CharacterActionTrackDispatchEvent dispatch,
+            CharacterActionPresentationAdapterContext context)
         {
             string traceId = string.IsNullOrEmpty(context.TraceId) ? runnerEvent.TraceId : context.TraceId;
             return new CharacterActionAdapterDispatchMetadata(

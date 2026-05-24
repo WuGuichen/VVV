@@ -174,6 +174,149 @@ namespace MxFramework.Tests.CharacterAction
             Assert.IsFalse(collector.PressureOnlyReactionRequests[0].Context.HasFullHitContext);
         }
 
+        [Test]
+        public void PresentationAdapter_RoutesAnimationTrackDispatchToAnimationRequestRecords()
+        {
+            CharacterActionConfig action = CreateAction(
+                animationTrack: new AnimationTrackConfig(new[]
+                {
+                    new AnimationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.PlayAnimation,
+                        "anim.light.play",
+                        stableEventId: "anim.play"),
+                    new AnimationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.CrossFadeAnimation,
+                        "anim.light.crossfade",
+                        transitionSeconds: 0.12f,
+                        stableEventId: "anim.crossfade"),
+                    new AnimationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.SetAnimationBlend,
+                        "blend.locomotion",
+                        transitionSeconds: 0.08f,
+                        stableEventId: "anim.blend"),
+                }));
+            CharacterActionRunner runner = StartRunner(action);
+            CharacterActionRunnerOperationResult tick = runner.Tick();
+            var collector = new CharacterActionPresentationRequestCollector();
+            var adapter = new CharacterActionPresentationTrackAdapter(collector);
+
+            CharacterActionPresentationAdapterResult result = adapter.AdaptMany(
+                tick.Events,
+                CreatePresentationContext());
+
+            Assert.IsTrue(result.Accepted);
+            Assert.AreEqual(3, result.AnimationRequestCount);
+            Assert.AreEqual(3, collector.AnimationRequests.Count);
+            Assert.AreEqual(CharacterActionTrackEventKind.PlayAnimation, collector.AnimationRequests[0].EventKind);
+            Assert.AreEqual("anim.light.play", collector.AnimationRequests[0].ActionKey);
+            Assert.AreEqual("actor.skeleton", collector.AnimationRequests[0].TargetActorId);
+            Assert.AreEqual("upper_body", collector.AnimationRequests[0].LayerId);
+            Assert.AreEqual(CharacterActionTrackEventKind.CrossFadeAnimation, collector.AnimationRequests[1].EventKind);
+            Assert.AreEqual(0.12f, collector.AnimationRequests[1].TransitionSeconds);
+            Assert.AreEqual(CharacterActionTrackEventKind.SetAnimationBlend, collector.AnimationRequests[2].EventKind);
+            Assert.AreEqual("blend.locomotion", collector.AnimationRequests[2].ActionKey);
+            Assert.AreEqual(new RuntimeFrame(42), collector.AnimationRequests[2].Metadata.Frame);
+            Assert.AreEqual("trace.light_attack", collector.AnimationRequests[2].Metadata.TraceId);
+        }
+
+        [Test]
+        public void PresentationAdapter_RoutesPresentationTrackDispatchToAudioVfxCameraAndUiRequestRecords()
+        {
+            CharacterActionConfig action = CreateAction(
+                presentationTrack: new PresentationTrackConfig(new[]
+                {
+                    new PresentationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.PlayAudioCue,
+                        cueId: "sfx.light",
+                        stableEventId: "audio.light"),
+                    new PresentationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.SpawnVisualCue,
+                        resourceKey: "vfx.slash:GameObject",
+                        stableEventId: "vfx.slash"),
+                    new PresentationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.CameraImpulse,
+                        cueId: "camera.hit",
+                        resourceKey: "camera.hit_payload:TextAsset",
+                        stableEventId: "camera.hit"),
+                    new PresentationTrackEvent(
+                        1,
+                        CharacterActionTrackEventKind.UiFeedback,
+                        cueId: "ui.hit_confirm",
+                        resourceKey: "ui.hit_payload:TextAsset",
+                        stableEventId: "ui.hit"),
+                }));
+            CharacterActionRunner runner = StartRunner(action);
+            CharacterActionRunnerOperationResult tick = runner.Tick();
+            var collector = new CharacterActionPresentationRequestCollector();
+            var adapter = new CharacterActionPresentationTrackAdapter(
+                audioCueSink: collector,
+                vfxSink: collector,
+                cameraSink: collector,
+                uiFeedbackSink: collector);
+
+            CharacterActionPresentationAdapterResult result = adapter.AdaptMany(
+                tick.Events,
+                CreatePresentationContext());
+
+            Assert.IsTrue(result.Accepted);
+            Assert.AreEqual(1, result.AudioCueRequestCount);
+            Assert.AreEqual(1, result.VfxRequestCount);
+            Assert.AreEqual(1, result.CameraRequestCount);
+            Assert.AreEqual(1, result.UiFeedbackRequestCount);
+            Assert.AreEqual("sfx.light", collector.AudioCueRequests[0].CueId);
+            Assert.AreEqual("vfx.slash:GameObject", collector.VfxRequests[0].ResourceKey);
+            Assert.AreEqual("camera.hit", collector.CameraRequests[0].RequestId);
+            Assert.AreEqual("camera.hit_payload:TextAsset", collector.CameraRequests[0].PayloadKey);
+            Assert.AreEqual("ui.hit_confirm", collector.UiFeedbackRequests[0].FeedbackId);
+            Assert.AreEqual("ui.hit_payload:TextAsset", collector.UiFeedbackRequests[0].PayloadKey);
+            Assert.AreEqual("actor.skeleton", collector.CameraRequests[0].TargetActorId);
+        }
+
+        [Test]
+        public void PresentationAdapter_MissingPayloadAndSinkFailureEmitDiagnosticsWithoutChangingActionAuthority()
+        {
+            CharacterActionConfig action = CreateAction(
+                animationTrack: new AnimationTrackConfig(new[]
+                {
+                    new AnimationTrackEvent(0, CharacterActionTrackEventKind.PlayAnimation, stableEventId: "anim.missing"),
+                }),
+                presentationTrack: new PresentationTrackConfig(new[]
+                {
+                    new PresentationTrackEvent(
+                        0,
+                        CharacterActionTrackEventKind.UiFeedback,
+                        cueId: "ui.hit_confirm",
+                        stableEventId: "ui.hit"),
+                }));
+            CharacterActionRunner runner = StartRunner(action);
+            CharacterActionDebugSnapshot before = runner.CreateDebugSnapshot();
+            var collector = new CharacterActionPresentationRequestCollector();
+            var adapter = new CharacterActionPresentationTrackAdapter(
+                animationSink: collector,
+                uiFeedbackSink: new ThrowingUiFeedbackSink());
+
+            CharacterActionPresentationAdapterResult result = adapter.AdaptMany(
+                runner.DrainEvents(),
+                CreatePresentationContext());
+            CharacterActionDebugSnapshot after = runner.CreateDebugSnapshot();
+
+            Assert.IsFalse(result.Accepted);
+            Assert.AreEqual(0, result.AnimationRequestCount);
+            Assert.AreEqual(0, result.UiFeedbackRequestCount);
+            Assert.AreEqual(0, collector.AnimationRequests.Count);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.AdapterPayloadMissing);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.AdapterSinkFailure);
+            Assert.AreEqual(before.ActiveActionId, after.ActiveActionId);
+            Assert.AreEqual(before.State, after.State);
+            Assert.AreEqual(before.LocalFrame, after.LocalFrame);
+        }
+
         private static CharacterActionRunner StartRunner(CharacterActionConfig action)
         {
             var runner = new CharacterActionRunner();
@@ -200,7 +343,9 @@ namespace MxFramework.Tests.CharacterAction
         private static CharacterActionConfig CreateAction(
             MotionTrackConfig motionTrack = null,
             CombatTrackConfig combatTrack = null,
-            GameplayTrackConfig gameplayTrack = null)
+            GameplayTrackConfig gameplayTrack = null,
+            AnimationTrackConfig animationTrack = null,
+            PresentationTrackConfig presentationTrack = null)
         {
             return new CharacterActionConfig(
                 id: 100,
@@ -222,7 +367,9 @@ namespace MxFramework.Tests.CharacterAction
                 interruptRules: null,
                 motionTrack: motionTrack,
                 combatTrack: combatTrack,
-                gameplayTrack: gameplayTrack);
+                gameplayTrack: gameplayTrack,
+                animationTrack: animationTrack,
+                presentationTrack: presentationTrack);
         }
 
         private static CharacterActionAdapterContext CreateContext()
@@ -233,6 +380,15 @@ namespace MxFramework.Tests.CharacterAction
                 new CombatEntityId(11),
                 new CombatBodyId(13),
                 sourceId: 5);
+        }
+
+        private static CharacterActionPresentationAdapterContext CreatePresentationContext()
+        {
+            return new CharacterActionPresentationAdapterContext(
+                new RuntimeFrame(42),
+                "actor.skeleton",
+                sourceId: 5,
+                animationLayerId: "upper_body");
         }
 
         private static void AssertHasDiagnostic(CharacterActionDiagnostic[] diagnostics, string code)
@@ -251,6 +407,14 @@ namespace MxFramework.Tests.CharacterAction
             public CharacterActionAdapterSinkResult SubmitMotionRequest(CharacterActionMotionRequest request)
             {
                 throw new System.InvalidOperationException("motion backend unavailable");
+            }
+        }
+
+        private sealed class ThrowingUiFeedbackSink : ICharacterActionUiFeedbackRequestSink
+        {
+            public CharacterActionAdapterSinkResult SubmitUiFeedbackRequest(CharacterActionUiFeedbackRequest request)
+            {
+                throw new System.InvalidOperationException("ui feedback backend unavailable");
             }
         }
     }

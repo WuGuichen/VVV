@@ -1362,17 +1362,35 @@ PostureBreak PressureOnly context -> pressure-only reaction request record
 
 ### Phase 5：Animation / Presentation Adapter
 
-接入：
+Issue #433 的 Phase 5 vertical slice 先落 noEngine request stream，不直接播放动画、不调用 FMOD、不实例化 VFX、不操作 Unity Camera 或 UI Toolkit：
 
 ```text
-MxAnimation
-Audio service
-VFX ResourceKey
-Camera request
-UI feedback
+CharacterActionRunner TrackEventFired
+  -> CharacterActionPresentationTrackAdapter
+  -> CharacterActionAnimationRequest
+  -> CharacterActionAudioCueRequest
+  -> CharacterActionVfxRequest
+  -> CharacterActionCameraRequest
+  -> CharacterActionUiFeedbackRequest
+  -> ICharacterAction*RequestSink
 ```
 
-表现失败进入 diagnostics，不改变 authority。
+边界：
+
+- AnimationTrack 只生成 action key / play / crossfade / blend / layer / transition request record；后续组合根可映射到 `MxAnimationPlayRequest`、`MxAnimationCrossFadeRequest` 或 blend request，但本层不持有 `IMxAnimationBackend`。
+- PresentationTrack 只生成 audio cue、VFX `ResourceKey` 字符串、camera request / payload key 和 UI feedback request record。
+- Audio service 和 Camera 已有 noEngine service / request sink，项目组合根可在后续 adapter 中映射；VFX 和 UI Toolkit 当前只保留 request seam，不硬接 Unity。
+- 缺 target actor、animation key、audio cue、VFX resource key、camera payload / request id、UI feedback id 或 sink 抛错时返回稳定 diagnostics：`ACT_ADAPTER_PAYLOAD_MISSING`、`ACT_ADAPTER_SINK_MISSING`、`ACT_ADAPTER_SINK_FAILURE`。
+- 表现失败只进入 diagnostics，不改变 action runner state、Gameplay authority、Combat hit result、resource state 或 movement authority。
+
+最小验收：
+
+```text
+Runner AnimationTrack dispatch -> animation request record
+Runner Audio/VFX/Camera/UI PresentationTrack dispatch -> presentation request records
+Missing presentation payload / sink failure -> diagnostics only
+noEngine adapter code does not reference UnityEngine / UnityEditor / AnimationClip / Playable / Prefab / Material
+```
 
 ### Phase 6：Reaction System
 
