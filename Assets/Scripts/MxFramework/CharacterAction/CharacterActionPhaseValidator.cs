@@ -105,7 +105,18 @@ namespace MxFramework.CharacterAction
             List<CharacterActionValidationIssue> issues)
         {
             if (phases.Count == 0)
+            {
+                if (durationFrames.HasValue && durationFrames.Value > 0)
+                {
+                    issues.Add(new CharacterActionValidationIssue(
+                        CharacterActionDiagnosticCodes.PhaseGap,
+                        -1,
+                        CharacterActionPhaseKind.None,
+                        "Character action phases must cover the full action duration."));
+                }
+
                 return;
+            }
 
             var ordered = new List<IndexedPhase>(phases.Count);
             for (int i = 0; i < phases.Count; i++)
@@ -146,6 +157,16 @@ namespace MxFramework.CharacterAction
 
                 if (current.Phase.EndFrame + 1 > expectedStart)
                     expectedStart = current.Phase.EndFrame + 1;
+            }
+
+            if (durationFrames.HasValue && expectedStart < durationFrames.Value)
+            {
+                IndexedPhase last = ordered[ordered.Count - 1];
+                issues.Add(new CharacterActionValidationIssue(
+                    CharacterActionDiagnosticCodes.PhaseGap,
+                    last.Index,
+                    last.Phase.Kind,
+                    "Character action phases must cover the full action duration."));
             }
         }
 

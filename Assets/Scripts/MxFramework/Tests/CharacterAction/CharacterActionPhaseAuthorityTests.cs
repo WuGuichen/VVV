@@ -101,6 +101,30 @@ namespace MxFramework.Tests.CharacterAction
             Assert.AreEqual(CharacterActionDiagnostics.PhaseRangeOutsideDuration, rangeIssues[0].Code);
         }
 
+        [Test]
+        public void PhaseTailGapAndEmptyDuration_ReturnStableGapDiagnosticCode()
+        {
+            CharacterActionValidationIssue[] tailGapIssues = CharacterActionPhaseValidator.Validate(
+                CharacterActionTimelineAuthority.CharacterAuthored,
+                new[]
+                {
+                    new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 3),
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 4, 7),
+                },
+                combatTimeline: null,
+                durationFrames: 12);
+            CharacterActionValidationIssue[] emptyIssues = CharacterActionPhaseValidator.Validate(
+                CharacterActionTimelineAuthority.CharacterAuthored,
+                new CharacterActionPhase[0],
+                combatTimeline: null,
+                durationFrames: 12);
+
+            Assert.AreEqual(CharacterActionDiagnostics.PhaseGap, tailGapIssues[0].Code);
+            Assert.AreEqual(1, tailGapIssues[0].PhaseIndex);
+            Assert.AreEqual(CharacterActionDiagnostics.PhaseGap, emptyIssues[0].Code);
+            Assert.AreEqual(-1, emptyIssues[0].PhaseIndex);
+        }
+
         private static CombatActionTimeline CreateTimeline()
         {
             return new CombatActionTimeline(
