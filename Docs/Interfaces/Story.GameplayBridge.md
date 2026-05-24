@@ -1,6 +1,6 @@
 # Story.GameplayBridge 接口
 
-> 状态：S0 Proposed Contract。本文固定 Story 与 Gameplay/Attributes/Buffs/Modifiers 的桥接边界；S3 实现关闭前，不代表仓库已有可用 API。
+> 状态：S0 Accepted Contract（2026-05-24）。本文固定 Story 与 Gameplay/Attributes/Buffs/Modifiers 的桥接边界；S3 实现关闭前，不代表仓库已有可用 API。
 
 ## 职责
 

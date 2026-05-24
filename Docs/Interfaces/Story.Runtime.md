@@ -1,6 +1,6 @@
 # Story.Runtime 接口
 
-> 状态：S0 Proposed Contract。本文固定 Story Runtime bridge 的目标公共契约；S1 实现关闭前，不代表仓库已有可用 API。
+> 状态：S0 Accepted Contract（2026-05-24）。本文固定 Story Runtime bridge 的目标公共契约；S1 实现关闭前，不代表仓库已有可用 API。
 
 ## 职责
 
@@ -45,7 +45,7 @@ Rules:
 
 ## Command IDs
 
-Proposed Story command id range: `1003000-1003999`.
+Accepted Story command id range: `1003000-1003999`.
 
 | Command | Id | Payload0 | Payload1 | Payload2 | TargetId |
 | --- | ---: | --- | --- | --- | --- |
@@ -135,7 +135,7 @@ Rules:
 
 `StoryRuntimeHashContributor` implements `IRuntimeHashContributor`.
 
-Proposed `ContributorId`:
+Accepted `ContributorId`:
 
 ```text
 mxframework.story.runtime

@@ -1,6 +1,6 @@
 # Story 接口
 
-> 状态：S0 Proposed Contract。本文固定 Story core 的目标公共契约；S1 实现关闭前，不代表仓库已有可用 API。
+> 状态：S0 Accepted Contract（2026-05-24）。本文固定 Story core 的目标公共契约；S1 实现关闭前，不代表仓库已有可用 API。
 
 ## 职责
 
