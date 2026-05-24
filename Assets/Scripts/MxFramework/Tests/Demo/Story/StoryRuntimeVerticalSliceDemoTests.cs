@@ -86,6 +86,27 @@ namespace MxFramework.Tests.Demo.Story
             }
         }
 
+        [Test]
+        public void Demo_RepeatedChoiceRuns_DoNotDependOnBoundedRecentEvents()
+        {
+            for (int i = 0; i < 40; i++)
+            {
+                using (var demo = new StoryRuntimeVerticalSliceDemo())
+                {
+                    Assert.IsTrue(demo.RaiseTriggerAndTick(), "trigger iteration " + i);
+                    Assert.IsTrue(demo.CompletePresentationAndTick(), "continue iteration " + i);
+                    Assert.IsTrue(demo.SelectFirstChoiceAndTick(), "choice iteration " + i);
+
+                    StoryRuntimeVerticalSliceSnapshot snapshot = demo.CreateSnapshot();
+                    Assert.AreEqual(
+                        StoryRuntimeVerticalSliceDemo.SignalDelta,
+                        snapshot.SignalValue,
+                        "signal iteration " + i);
+                    Assert.AreEqual(0, demo.StoryModule.Events.PendingCount, "pending Story events iteration " + i);
+                }
+            }
+        }
+
         private static void AssertContains(StoryRuntimeVerticalSliceSnapshot snapshot, string text)
         {
             Assert.IsTrue(

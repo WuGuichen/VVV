@@ -776,8 +776,8 @@ namespace MxFramework.Demo.Story
         {
             private readonly StoryRuntimeModule _storyModule;
             private readonly StoryGameplayEffectBridge _effectBridge;
+            private readonly List<StoryRuntimeEvent> _events = new List<StoryRuntimeEvent>();
             private Func<StoryRuntimeEvent, StoryGameplayEffectIntent> _intentFactory;
-            private int _observedRecentEventCount;
 
             public StoryChoiceGameplayEffectModule(
                 StoryRuntimeModule storyModule,
@@ -797,19 +797,15 @@ namespace MxFramework.Demo.Story
 
             public override void Tick(RuntimeTickContext context)
             {
-                IReadOnlyList<StoryRuntimeEvent> events = _storyModule.RecentEvents;
-                if (_observedRecentEventCount > events.Count)
-                    _observedRecentEventCount = 0;
-
-                for (int i = _observedRecentEventCount; i < events.Count; i++)
+                _events.Clear();
+                _storyModule.Events.Drain(new RuntimeFrame(context.FrameIndex), _events);
+                for (int i = 0; i < _events.Count; i++)
                 {
-                    StoryRuntimeEvent evt = events[i];
+                    StoryRuntimeEvent evt = _events[i];
                     StoryGameplayEffectIntent intent = _intentFactory(evt);
                     if (intent.CommandId != 0 || intent.Kind != StoryGameplayEffectIntentKind.RuntimeCommand)
                         _effectBridge.EnqueueGameplayEffect(intent, new RuntimeFrame(context.FrameIndex));
                 }
-
-                _observedRecentEventCount = events.Count;
             }
         }
 
