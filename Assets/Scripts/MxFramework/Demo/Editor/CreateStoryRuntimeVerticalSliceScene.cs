@@ -75,7 +75,9 @@ namespace MxFramework.Demo
         {
             document.panelSettings = panelSettings;
             document.visualTreeAsset = visualTree;
+            document.enabled = false;
             var serialized = new SerializedObject(document);
+            Set(serialized, "m_Enabled", false);
             SetRequired(serialized, "m_PanelSettings", panelSettings);
             SetRequired(serialized, "sourceAsset", visualTree);
             serialized.ApplyModifiedProperties();
@@ -84,6 +86,7 @@ namespace MxFramework.Demo
             EnsureReference(serialized, "sourceAsset", visualTree);
             document.panelSettings = panelSettings;
             document.visualTreeAsset = visualTree;
+            document.enabled = false;
             EditorUtility.SetDirty(document);
         }
 
@@ -172,6 +175,13 @@ namespace MxFramework.Demo
             SerializedProperty property = serialized.FindProperty(propertyName);
             if (property != null)
                 property.objectReferenceValue = value;
+        }
+
+        private static void Set(SerializedObject serialized, string propertyName, bool value)
+        {
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property != null)
+                property.boolValue = value;
         }
 
         private static void SetRequired(SerializedObject serialized, string propertyName, Object value)

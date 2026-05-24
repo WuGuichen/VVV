@@ -42,6 +42,10 @@ namespace MxFramework.Demo.Story
 
         private void OnEnable()
         {
+            SetDocumentEnabled(Application.isPlaying);
+            if (!Application.isPlaying)
+                return;
+
             _demo = new StoryRuntimeVerticalSliceDemo();
             _frameProvider = new StoryUnityManualFrameProvider(_demo.CurrentCommandFrame);
             EnsureUnityAdapters();
@@ -57,10 +61,15 @@ namespace MxFramework.Demo.Story
                 _demo.Dispose();
                 _demo = null;
             }
+
+            SetDocumentEnabled(false);
         }
 
         private void Update()
         {
+            if (!Application.isPlaying)
+                return;
+
             EnsureDocument();
             RefreshUi();
         }
@@ -102,6 +111,12 @@ namespace MxFramework.Demo.Story
         {
             if (_document == null)
                 _document = GetComponent<UIDocument>() ?? gameObject.AddComponent<UIDocument>();
+
+            if (Application.isPlaying && !_document.enabled)
+                _document.enabled = true;
+
+            if (!_document.enabled)
+                return;
 
             if (_document.panelSettings == null)
                 _document.panelSettings = CreateRuntimePanelSettings(_panelSettings);
@@ -161,6 +176,15 @@ namespace MxFramework.Demo.Story
 
             root.Add(new Label(string.Empty) { name = "event-log-label" });
             return root;
+        }
+
+        private void SetDocumentEnabled(bool enabled)
+        {
+            if (_document == null)
+                _document = GetComponent<UIDocument>();
+
+            if (_document != null)
+                _document.enabled = enabled;
         }
 
         private static VisualElement CreateMetric(string title, string valueName)
