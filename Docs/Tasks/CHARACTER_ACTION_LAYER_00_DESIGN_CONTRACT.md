@@ -1394,7 +1394,9 @@ noEngine adapter code does not reference UnityEngine / UnityEditor / AnimationCl
 
 ### Phase 6：Reaction System
 
-实现：
+Issue #434 已完成 Phase 6 的首个 noEngine bridge slice。当前 Combat 公共命中 DTO 是 `HitResolveResult`，它只稳定携带 attacker / target / action / trace / frame / resolve kind / damage / stagger / knockback，不携带 body part、hit zone、damage type、hit direction、impact force、reaction group 等完整选择字段。因此本阶段先在 CharacterAction 侧新增 `CharacterReactionHitSource` 作为 bridge input DTO，由 Combat / Character.Application / Character.RuntimeSpawn / 组合根把已解析的源事实填入，再由 `CharacterReactionContextBuilder.FromHitSource` 输出 `CharacterReactionContext`。
+
+实现范围：
 
 ```text
 CombatHitResult -> ReactionContext bridge
@@ -1403,7 +1405,42 @@ Full ReactionProfile dimensions
 HitReact / directional hit / body part hit / PostureBreak / GuardBreak / ArmorBreak / Death
 ```
 
-Phase 6 才启用 body part、damage type、hit direction、impact force、reaction group 等完整规则维度；在此之前只能使用 Phase 1 / Phase 2 已验证的 `PressureOnly` 维度。
+已落地边界：
+
+| 字段 | 当前 `CharacterReactionHitSource` | 当前来源 / 未来 `CombatHitResult` 映射 | 规则 |
+| --- | --- | --- | --- |
+| target entity | `EntityId` | Combat target 经 `CombatEntityGameplayMap` 或 Character runtime binding 映射到 `GameplayEntityId` | CharacterAction 不持有 Combat entity authority。 |
+| frame | `Frame` | `HitResolveResult.Frame` 可转 `RuntimeFrame`；未来稳定 hit result 应直接给 runtime/combat frame 对齐事实 | 只记录事实，不推进时间。 |
+| source actor | `SourceId` | 当前 `FromHitResolveResult` 默认使用 attacker combat id；组合根可覆盖为稳定 source id | 不据此做伤害归属结算。 |
+| trace | `TraceId` | 当前来自 `HitResolveResult.TraceId`；未来稳定 hit result 应提供 stable trace id | 只进入 diagnostics / replay trace。 |
+| resolve kind | `Reason` | 当前来自 `HitResolveKind.ToString()`；未来稳定 hit result 可提供 resolve reason | 不重新判断 block / parry / damage。 |
+| body part | `BodyPartId` | 当前由 body part / hit zone 解析器或 runtime binding 提供；未来 hit result 可直接携带 resolved body part stable id | 必填才可达到 `Full`。 |
+| hit zone | `HitZoneId` | 当前由 collider / hit zone binding 提供；未来 hit result 可直接携带 hit zone stable id | 必填才可达到 `Full`。 |
+| damage type | `DamageTypeId` | 当前由 Combat action / Gameplay payload / authoring bridge 提供 stable id | 必填才可达到 `Full`。 |
+| hit direction | `HitDirection` | 当前由 Combat / composition root 根据 hit vector 与 target facing 解析为泛化 enum | `Unknown` 视为缺失。 |
+| impact force | `ImpactForce` | 当前由 source facts 显式提供；可来自 damage、stagger、knockback 或 authoring payload 的已结算事实 | 必填才可达到 `Full`，但不反推 Combat damage。 |
+| reaction group | `ReactionGroupId` | 当前由 `CharacterBodyPartConfig.ReactionGroupId` 或外部 resolved source fact 提供 | 必填才可达到 `Full`。 |
+| pressure state | pressure band/value fields | 可选叠加 Gameplay pressure event / current state | 兼容 PressureOnly，不成为 hit authority。 |
+| current action state | current action / phase / committed / interruptible fields | CharacterAction / CombatActionRunner 只读状态快照 | 仅用于 reaction rule selection。 |
+
+`CharacterReactionContextCompleteness.Full` 只在 body part、hit zone、damage type、hit direction、impact force、reaction group 都存在时输出。缺任一字段时 builder 输出 `ACT_REACTION_CONTEXT_INCOMPLETE`，并把 hit context 保持为非 Full；`CharacterReactionSelector` 不允许 incomplete hit context 走 default fallback，避免静默选到错误 reaction。
+
+Full ReactionProfile 现已支持以下维度：
+
+- `bodyPartId`
+- `hitZoneId`
+- `damageTypeId`
+- `hitDirection`
+- `minImpactForce` / `maxImpactForce`
+- `reactionGroupId`
+
+PressureOnly 路径保持兼容：`PostureBreakEvent`、`GuardBreakEvent`、`ArmorBreakEvent`、`PressureBandChangedEvent`、death / lifecycle builder 仍输出 PressureOnly / SourceOnly，并继续禁止在非 Full context 下启用 hit-context rule。
+
+权威边界不变：
+
+- Combat 仍拥有 hit resolve、damage、block/parry/invincible/super armor、hit once 和 trace authority。
+- Gameplay 仍拥有 HP / pressure / armor / buff / attribute authority。
+- CharacterAction bridge 只消费这些来源已经给出的事实，生成 `CharacterReactionContext` 并做 reaction selection / diagnostics。
 
 ### Phase 7：Character Action Workstation
 

@@ -242,9 +242,10 @@ namespace MxFramework.CharacterAction
                     traceId);
             }
 
-            CharacterActionDiagnostic[] profileDiagnostics = CharacterActionValidation.ValidatePressureOnlyReactionProfile(
+            CharacterActionDiagnostic[] profileDiagnostics = CharacterActionValidation.ValidateReactionProfile(
                 profile,
-                context.Actions);
+                context.Actions,
+                reactionContext.Completeness);
             if (HasErrors(profileDiagnostics))
             {
                 return CharacterActionResolveResult.Rejected(
