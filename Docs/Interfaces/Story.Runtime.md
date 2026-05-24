@@ -237,7 +237,7 @@ S1 may implement only `NoWait` and `WaitForCommand`, but the DTO must keep polic
 - Gameplay effect commands; defined in `Story.GameplayBridge`.
 - Unity trigger zone adapters; defined in `Story.Unity`.
 - Runtime timeout behavior for `WaitWithFrameTimeout`.
-- Config mapping, Resources preload, Runtime AI Planner projection, Authoring import, and Editor tooling.
+- Config mapping, Resources preload, Runtime AI Planner projection, Authoring import, and Editor tooling live outside Story.Runtime in sibling bridge / outer adapter modules.
 
 ## Test Entry
 

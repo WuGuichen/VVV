@@ -103,13 +103,15 @@
 | Story config schema / mapper / validator | ✅ v0.1 | `StoryConfigSet` / `StoryGraphConfigMapper` / `StoryConfigValidator` | Story.Config + Config |
 | Story Gameplay bridge | ✅ v0.1 | `StoryGameplayEffectBridge` / `StoryBeatGameplayLocator` / `StoryModifierConditionAdapter` | Story.GameplayBridge + Gameplay |
 | Story Resources preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` / `StoryResourcePreloadMetadata` | Story.ResourcesBridge + Resources |
+| Story Runtime AI Planner fact projection | ✅ v0.1 | `StoryRuntimeAiWorldStateProjector` / `StoryRuntimeAiProjectionProfile` | Story.RuntimeAiPlannerBridge + Runtime AI Planner |
 | Story Unity adapters | ✅ v0.1 | `StoryTriggerZoneAdapter` / `StoryPresentationCompletionAdapter` / `StoryRuntimeEventPresentationRouter` | Story.Unity + Runtime |
 | Story Editor debug surface | ✅ v0.1 | `StoryRuntimeDebugSource` / `StoryEditorDebugRegistry` / `StoryRuntimeDebugWindow` | Story.Editor + DebugUI |
+| Story playable vertical slice | ✅ v0.1 | `StoryRuntimeVerticalSliceDemo` / `StoryRuntimeVerticalSliceRunner` | Demo + Story + Gameplay + UI Toolkit |
 
-→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`, `Interfaces/Story.GameplayBridge.md`, `Interfaces/Story.ResourcesBridge.md`, `Interfaces/Story.Unity.md`, `Interfaces/Story.Editor.md`
-→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`, `Tests/Story.GameplayBridge/`, `Tests/Story.ResourcesBridge/`, `Tests/Story.Unity/`, `Tests/Story.Editor/`
-→ 交付等级：`Runtime Slice` + `Config Bridge` + noEngine `Gameplay/Resources Bridge` + Unity/Editor `Framework Feature`；没有可玩 Story 场景或 authoring importer。
-→ **不含**: direct Story buff grant/remove、Timeline/Cinemachine package-specific binding、Runtime AI Planner projection、Yarn/Ink/Articy importer、可玩 Demo
+→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`, `Interfaces/Story.GameplayBridge.md`, `Interfaces/Story.ResourcesBridge.md`, `Interfaces/Story.RuntimeAiPlannerBridge.md`, `Interfaces/Story.Unity.md`, `Interfaces/Story.Editor.md`
+→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`, `Tests/Story.GameplayBridge/`, `Tests/Story.ResourcesBridge/`, `Tests/Story.RuntimeAiPlannerBridge/`, `Tests/Story.Unity/`, `Tests/Story.Editor/`, `Tests/Demo/Story/`
+→ 交付等级：`Playable` for `Assets/Scenes/StoryRuntimeVerticalSlice.unity` when generated through the Unity menu/MCP and smoke-validated；runtime/config/bridge APIs remain reusable slices.
+→ **不含**: direct Story buff grant/remove、Timeline/Cinemachine package-specific binding、Yarn/Ink/Articy importer、WGame production story content
 
 ### 1.6 App / Scene Flow — 游戏启动状态和场景切换骨架
 

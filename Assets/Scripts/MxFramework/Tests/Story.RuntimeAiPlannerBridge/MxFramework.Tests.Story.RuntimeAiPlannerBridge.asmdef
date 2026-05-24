@@ -1,0 +1,26 @@
+{
+    "name": "MxFramework.Tests.Story.RuntimeAiPlannerBridge",
+    "rootNamespace": "MxFramework.Tests.StoryRuntimeAiPlannerBridge",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "MxFramework.AI",
+        "MxFramework.Story",
+        "MxFramework.Story.RuntimeAiPlannerBridge"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
