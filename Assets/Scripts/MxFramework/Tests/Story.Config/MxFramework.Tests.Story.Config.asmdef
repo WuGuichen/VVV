@@ -1,0 +1,26 @@
+{
+    "name": "MxFramework.Tests.Story.Config",
+    "rootNamespace": "MxFramework.Tests.StoryConfig",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "MxFramework.Story",
+        "MxFramework.Config",
+        "MxFramework.Story.Config"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -30,6 +30,9 @@
 | Debug UI | `Docs/Interfaces/DebugUI.md` | `Assets/Scripts/MxFramework/DebugUI*/` | `Assets/Scripts/MxFramework/Tests/DebugUI/` |
 | Logging | `Docs/Interfaces/Logging.md` | `Assets/Scripts/MxFramework/Logging*/` | `Assets/Scripts/MxFramework/Tests/Logging/` |
 | Runtime | `Docs/Interfaces/Runtime.md` | `Assets/Scripts/MxFramework/Runtime/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
+| Story | `Docs/Interfaces/Story.md` | `Assets/Scripts/MxFramework/Story/` | `Assets/Scripts/MxFramework/Tests/Story/` |
+| Story Runtime | `Docs/Interfaces/Story.Runtime.md` | `Assets/Scripts/MxFramework/Story.Runtime/` | `Assets/Scripts/MxFramework/Tests/Story.Runtime/` |
+| Story Config | `Docs/Interfaces/Story.Config.md` | `Assets/Scripts/MxFramework/Story.Config/` | `Assets/Scripts/MxFramework/Tests/Story.Config/` |
 | App / Scene Flow | `Docs/Interfaces/AppFlow.md` | `Assets/Scripts/MxFramework/Runtime*/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
 | Input | `Docs/Interfaces/Input.md` | `Assets/Scripts/MxFramework/Input/` | `Assets/Scripts/MxFramework/Tests/Input/` |
 | UI Toolkit | `Docs/Interfaces/UI.Toolkit.md` | `Assets/Scripts/MxFramework/UI.Toolkit/` | `Assets/Scripts/MxFramework/Tests/UI.Toolkit/` |
@@ -45,8 +48,6 @@
 
 | 模块 | 文档 | 计划代码 | 计划测试入口 |
 |------|------|----------|--------------|
-| Story | `Docs/Interfaces/Story.md` | `Assets/Scripts/MxFramework/Story/` | `Assets/Scripts/MxFramework/Tests/Story/` |
-| Story Runtime | `Docs/Interfaces/Story.Runtime.md` | `Assets/Scripts/MxFramework/Story.Runtime/` | `Assets/Scripts/MxFramework/Tests/Story/` |
 | Story Gameplay Bridge | `Docs/Interfaces/Story.GameplayBridge.md` | `Assets/Scripts/MxFramework/Story.GameplayBridge/` | `Assets/Scripts/MxFramework/Tests/Story/` |
 
 ## 文档规则
@@ -86,7 +87,7 @@
 
 `MxFramework.Camera` 是表现层 noEngine 模块，只依赖 Core。Unity Camera 应用放在 `MxFramework.Camera.Unity`；Animation 表现事件到相机 request 的桥接放在 `MxFramework.Camera.Animation`；Debug UI 只通过 adapter 读取 `MxCameraDebugSnapshot`。Camera 默认不进入 Gameplay / Combat authority、Runtime hash、Replay hash 或 SaveState。
 
-Story S0 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 计划只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config、Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
+Story 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config 只依赖 Story + Config；Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
 
 ## AI Terminology
 

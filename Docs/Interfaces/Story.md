@@ -252,7 +252,7 @@ It must not serialize private object trees, delegates, event handlers, Unity obj
 
 ## Current Unsupported
 
-- Config loading / schema mapping. Planned in `Story.Config`.
+- Config loading / schema mapping lives in sibling `Story.Config`; Story core still does not depend on Config.
 - Pluggable `IStoryCondition` / `IStoryEffect` contracts. S1 uses stable `conditionId` lookup against bool blackboard facts and `SetFact` steps only.
 - Gameplay effect execution. Planned in `Story.GameplayBridge`.
 - Resources preload. Planned in `Story.ResourcesBridge`.
