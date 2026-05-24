@@ -730,25 +730,38 @@ def resolve_target_beat_id(target: str, slug_to_id: Dict[str, int]) -> Optional[
     return slug_to_id.get(target)
 
 
-def validate_story_draft(draft: Dict[str, Any]) -> List[Diagnostic]:
+def validate_story_draft(draft: Any) -> List[Diagnostic]:
     diagnostics: List[Diagnostic] = []
+
+    if not isinstance(draft, dict):
+        return [
+            Diagnostic(
+                "InvalidDraftShape",
+                "Error",
+                "Story config draft root must be a JSON object.",
+                "$",
+            )
+        ]
+
     source_path = str(draft.get("sourcePath", ""))
 
-    graphs = get_list(draft, "graphs")
-    beats = get_list(draft, "beats")
-    steps = get_list(draft, "steps")
-    branches = get_list(draft, "branches")
-    choices = get_list(draft, "choices")
-    facts = get_list(draft, "facts")
+    graphs = get_row_list(draft, "graphs", source_path, diagnostics)
+    beats = get_row_list(draft, "beats", source_path, diagnostics)
+    steps = get_row_list(draft, "steps", source_path, diagnostics)
+    branches = get_row_list(draft, "branches", source_path, diagnostics)
+    choices = get_row_list(draft, "choices", source_path, diagnostics)
+    facts = get_row_list(draft, "facts", source_path, diagnostics)
+    text_key_values = get_required_list(draft, "textKeys", source_path, diagnostics)
+    get_row_list(draft, "texts", source_path, diagnostics)
 
     report_duplicate_ids(graphs, "graphs", "Id", source_path, diagnostics)
-    report_duplicate_ids(beats, "beats", "Id", source_path, diagnostics)
-    report_duplicate_ids(steps, "steps", "Id", source_path, diagnostics)
-    report_duplicate_ids(branches, "branches", "Id", source_path, diagnostics)
-    report_duplicate_ids(choices, "choices", "Id", source_path, diagnostics)
+    report_duplicate_scoped_ids(beats, "beats", "Id", ("GraphId",), source_path, diagnostics)
+    report_duplicate_scoped_ids(steps, "steps", "Id", ("GraphId", "BeatId"), source_path, diagnostics)
+    report_duplicate_scoped_ids(branches, "branches", "Id", ("GraphId", "BeatId"), source_path, diagnostics)
+    report_duplicate_scoped_ids(choices, "choices", "Id", ("GraphId", "BeatId"), source_path, diagnostics)
     report_duplicate_fact_keys(facts, source_path, diagnostics)
 
-    text_keys = collect_text_keys(draft)
+    text_keys = collect_text_keys(text_key_values, source_path, diagnostics)
     beats_by_graph: Dict[int, set[int]] = {}
     for beat in beats:
         graph_id = coerce_int(beat.get("GraphId"))
@@ -869,6 +882,14 @@ def validate_story_draft(draft: Dict[str, Any]) -> List[Diagnostic]:
                     source_path,
                 )
             )
+        validate_condition_fact(
+            branch.get("ConditionFactId", 0),
+            graph_id,
+            f"branches[{branch_index}].ConditionFactId",
+            source_path,
+            fact_kind_by_key,
+            diagnostics,
+        )
 
     for choice_index, choice in enumerate(choices):
         graph_id = coerce_int(choice.get("GraphId"))
@@ -885,6 +906,15 @@ def validate_story_draft(draft: Dict[str, Any]) -> List[Diagnostic]:
                     source_path,
                 )
             )
+
+        validate_condition_fact(
+            choice.get("ConditionFactId", 0),
+            graph_id,
+            f"choices[{choice_index}].ConditionFactId",
+            source_path,
+            fact_kind_by_key,
+            diagnostics,
+        )
 
         label_text_key = coerce_int(choice.get("LabelTextKey"))
         if label_text_key is None or label_text_key <= 0 or label_text_key not in text_keys:
@@ -911,6 +941,65 @@ def validate_story_draft(draft: Dict[str, Any]) -> List[Diagnostic]:
                 )
 
     return diagnostics
+
+
+def get_required_list(
+    draft: Dict[str, Any],
+    key: str,
+    source_path: str,
+    diagnostics: List[Diagnostic],
+) -> List[Any]:
+    if key not in draft:
+        diagnostics.append(
+            Diagnostic(
+                "InvalidDraftShape",
+                "Error",
+                f"Story config draft top-level field '{key}' is missing; expected a list.",
+                key,
+                source_path,
+            )
+        )
+        return []
+
+    value = draft.get(key)
+    if not isinstance(value, list):
+        diagnostics.append(
+            Diagnostic(
+                "InvalidDraftShape",
+                "Error",
+                f"Story config draft top-level field '{key}' must be a list.",
+                key,
+                source_path,
+            )
+        )
+        return []
+
+    return value
+
+
+def get_row_list(
+    draft: Dict[str, Any],
+    key: str,
+    source_path: str,
+    diagnostics: List[Diagnostic],
+) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    value = get_required_list(draft, key, source_path, diagnostics)
+    for index, item in enumerate(value):
+        if isinstance(item, dict):
+            rows.append(item)
+            continue
+
+        diagnostics.append(
+            Diagnostic(
+                "InvalidDraftShape",
+                "Error",
+                f"Story config draft row '{key}[{index}]' must be a JSON object.",
+                f"{key}[{index}]",
+                source_path,
+            )
+        )
+    return rows
 
 
 def get_list(draft: Dict[str, Any], key: str) -> List[Dict[str, Any]]:
@@ -946,6 +1035,37 @@ def report_duplicate_ids(
             seen[row_id] = index
 
 
+def report_duplicate_scoped_ids(
+    rows: Sequence[Dict[str, Any]],
+    table_name: str,
+    id_field: str,
+    scope_fields: Sequence[str],
+    source_path: str,
+    diagnostics: List[Diagnostic],
+) -> None:
+    seen: Dict[Tuple[int, ...], int] = {}
+    for index, row in enumerate(rows):
+        row_id = coerce_int(row.get(id_field))
+        scope_values = tuple(coerce_int(row.get(field)) for field in scope_fields)
+        if row_id is None or any(value is None for value in scope_values):
+            continue
+
+        key = tuple(value for value in scope_values if value is not None) + (row_id,)
+        if key in seen:
+            scope = ", ".join(f"{field}={value}" for field, value in zip(scope_fields, scope_values))
+            diagnostics.append(
+                Diagnostic(
+                    "DuplicateId",
+                    "Error",
+                    f"Duplicate Story config id {row_id} in {table_name} scope ({scope}).",
+                    f"{table_name}[{index}].{id_field}",
+                    source_path,
+                )
+            )
+        else:
+            seen[key] = index
+
+
 def report_duplicate_fact_keys(
     facts: Sequence[Dict[str, Any]],
     source_path: str,
@@ -972,12 +1092,27 @@ def report_duplicate_fact_keys(
             seen[key] = index
 
 
-def collect_text_keys(draft: Dict[str, Any]) -> set[int]:
+def collect_text_keys(
+    values: Sequence[Any],
+    source_path: str,
+    diagnostics: List[Diagnostic],
+) -> set[int]:
     text_keys: set[int] = set()
-    for value in draft.get("textKeys", []):
+    for index, value in enumerate(values):
         parsed = coerce_int(value)
         if parsed is not None:
             text_keys.add(parsed)
+            continue
+
+        diagnostics.append(
+            Diagnostic(
+                "InvalidDraftShape",
+                "Error",
+                "Story config draft text key entries must be integers.",
+                f"textKeys[{index}]",
+                source_path,
+            )
+        )
     return text_keys
 
 
@@ -991,6 +1126,71 @@ def collect_fact_kinds(facts: Sequence[Dict[str, Any]]) -> Dict[Tuple[int, int],
             continue
         result[(namespace, fact_id)] = value_kind
     return result
+
+
+def validate_condition_fact(
+    value: Any,
+    graph_id: Optional[int],
+    path: str,
+    source_path: str,
+    fact_kind_by_key: Dict[Tuple[int, int], str],
+    diagnostics: List[Diagnostic],
+) -> None:
+    condition_fact_id = coerce_int(value)
+    if condition_fact_id is None:
+        diagnostics.append(
+            Diagnostic(
+                "InvalidFactReference",
+                "Error",
+                "Story condition fact id must be an integer; use 0 for no condition.",
+                path,
+                source_path,
+            )
+        )
+        return
+
+    if condition_fact_id < 0:
+        diagnostics.append(
+            Diagnostic(
+                "InvalidFactReference",
+                "Error",
+                "Story condition fact id cannot be negative; use 0 for no condition.",
+                path,
+                source_path,
+            )
+        )
+        return
+
+    if condition_fact_id == 0:
+        return
+
+    graph_scope = graph_id or 0
+    declared_kind = fact_kind_by_key.get((graph_scope, condition_fact_id))
+    if declared_kind is None:
+        declared_kind = fact_kind_by_key.get((0, condition_fact_id))
+
+    if declared_kind is None:
+        diagnostics.append(
+            Diagnostic(
+                "InvalidFactReference",
+                "Error",
+                "Story condition references a missing graph/global Story fact.",
+                path,
+                source_path,
+            )
+        )
+        return
+
+    if declared_kind != "Bool":
+        diagnostics.append(
+            Diagnostic(
+                "InvalidFactReference",
+                "Error",
+                "Story condition fact must be declared as Bool.",
+                path,
+                source_path,
+            )
+        )
 
 
 def validate_fact_raw_value(

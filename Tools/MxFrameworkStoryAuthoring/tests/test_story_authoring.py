@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import copy
+import contextlib
+import io
+import json
 import pathlib
 import sys
 import tempfile
@@ -36,9 +39,85 @@ class StoryAuthoringTests(unittest.TestCase):
 
         self.assertEqual([], diagnostics)
 
+    def test_validate_rejects_non_object_draft_without_traceback(self) -> None:
+        diagnostics = story_authoring.validate_story_draft([])
+
+        self.assertEqual({"InvalidDraftShape"}, {diagnostic.code for diagnostic in diagnostics})
+
+    def test_validate_rejects_missing_or_non_list_top_level_tables(self) -> None:
+        diagnostics = story_authoring.validate_story_draft(
+            {
+                "schema": "mx.story.config.draft.v1",
+                "graphs": "bad",
+            }
+        )
+
+        codes = {diagnostic.code for diagnostic in diagnostics}
+        paths = {diagnostic.path for diagnostic in diagnostics}
+        self.assertIn("InvalidDraftShape", codes)
+        self.assertIn("graphs", paths)
+        self.assertIn("beats", paths)
+
+    def test_command_validate_returns_failure_for_malformed_json_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = pathlib.Path(tmpdir) / "bad.story.json"
+            path.write_text(json.dumps(["bad"]), encoding="utf-8")
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                exit_code = story_authoring.command_validate(type("Args", (), {"story_json": path})())
+
+        self.assertEqual(1, exit_code)
+        payload = json.loads(stderr.getvalue())
+        self.assertEqual("InvalidDraftShape", payload[0]["code"])
+
     def test_validate_duplicate_ids_reports_diagnostic(self) -> None:
         draft = self.load_fixture()
         draft["beats"].append(copy.deepcopy(draft["beats"][0]))
+
+        self.assertIn("DuplicateId", self.diagnostic_codes(draft))
+
+    def test_validate_duplicate_step_branch_choice_ids_are_scoped_by_beat(self) -> None:
+        draft = self.load_fixture()
+
+        duplicate_step = copy.deepcopy(draft["steps"][0])
+        duplicate_step["BeatId"] = 442102
+        duplicate_step["TextKey"] = 442303
+        draft["steps"].append(duplicate_step)
+        draft["branches"].extend(
+            [
+                {
+                    "Id": 442701,
+                    "GraphId": 442001,
+                    "BeatId": 442101,
+                    "TargetBeatId": 0,
+                    "ConditionFactId": 0,
+                    "Priority": 10,
+                    "IsFallback": True,
+                },
+                {
+                    "Id": 442701,
+                    "GraphId": 442001,
+                    "BeatId": 442102,
+                    "TargetBeatId": 0,
+                    "ConditionFactId": 0,
+                    "Priority": 10,
+                    "IsFallback": True,
+                },
+            ]
+        )
+        duplicate_choice = copy.deepcopy(draft["choices"][0])
+        duplicate_choice["BeatId"] = 442102
+        duplicate_choice["TargetBeatId"] = 0
+        draft["choices"].append(duplicate_choice)
+
+        self.assertNotIn("DuplicateId", self.diagnostic_codes(draft))
+
+    def test_validate_duplicate_step_id_in_same_beat_reports_diagnostic(self) -> None:
+        draft = self.load_fixture()
+        duplicate_step = copy.deepcopy(draft["steps"][0])
+        duplicate_step["TextKey"] = 442303
+        draft["steps"].append(duplicate_step)
 
         self.assertIn("DuplicateId", self.diagnostic_codes(draft))
 
@@ -70,11 +149,44 @@ class StoryAuthoringTests(unittest.TestCase):
 
         self.assertIn("InvalidBranchTarget", self.diagnostic_codes(draft))
 
+    def test_validate_invalid_branch_condition_fact_reports_diagnostic(self) -> None:
+        draft = self.load_fixture()
+        draft["branches"].append(
+            {
+                "Id": 442701,
+                "GraphId": 442001,
+                "BeatId": 442102,
+                "TargetBeatId": 0,
+                "ConditionFactId": -1,
+                "Priority": 10,
+                "IsFallback": True,
+            }
+        )
+
+        self.assertIn("InvalidFactReference", self.diagnostic_codes(draft))
+
     def test_validate_invalid_choice_target_reports_diagnostic(self) -> None:
         draft = self.load_fixture()
         draft["choices"][0]["TargetBeatId"] = 999999
 
         self.assertIn("InvalidChoiceTarget", self.diagnostic_codes(draft))
+
+    def test_validate_choice_condition_fact_must_exist_and_be_bool(self) -> None:
+        missing_fact_draft = self.load_fixture()
+        missing_fact_draft["choices"][0]["ConditionFactId"] = 999999
+
+        non_bool_draft = self.load_fixture()
+        non_bool_draft["facts"].append(
+            {
+                "Id": 442602,
+                "Namespace": 442001,
+                "ValueKind": "Int32",
+            }
+        )
+        non_bool_draft["choices"][0]["ConditionFactId"] = 442602
+
+        self.assertIn("InvalidFactReference", self.diagnostic_codes(missing_fact_draft))
+        self.assertIn("InvalidFactReference", self.diagnostic_codes(non_bool_draft))
 
     def test_validate_invalid_trigger_and_effect_ids_report_diagnostics(self) -> None:
         draft = self.load_fixture()
