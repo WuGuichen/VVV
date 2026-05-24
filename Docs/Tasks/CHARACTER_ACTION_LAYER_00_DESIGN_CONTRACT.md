@@ -1219,7 +1219,7 @@ Phase 1 是 contract-only scope，不包含 resolver implementation、runner imp
 
 Full hit reaction 仍然延后。当前只验证 `PressureOnly` reaction path：posture / guard / armor pressure events 和 explicit death。Body part、hit zone、damage type、hit direction、impact force 和 reaction group 维度必须等后续 `CombatHitResult -> ReactionContext` bridge 落地后才能成为 runtime selection rules。
 
-### Phase 2：Resolver / Validation completion（进行中）
+### Phase 2：Resolver / Validation completion（已完成，#416-#424）
 
 Phase 2 的目标是让 resolver / validator 输出足够稳定，使后续 Action Runner 可以直接消费 `CharacterActionPlan`、diagnostics 和 dependency data。Runner 不能重新做 binding、resource、phase 或 reaction selection 决策。
 
@@ -1234,7 +1234,7 @@ Phase 2 的目标是让 resolver / validator 输出足够稳定，使后续 Acti
 
 未完成项包括 candidate priority、tag requirements、deterministic PressureOnly reaction diagnostics、timeline/cancel validation completion、resource dependency collection、diagnostics formatting 和集成文档。
 
-#### Phase 2.2：Phase 2 Plan Rebaseline（当前，#419）
+#### Phase 2.2：Phase 2 Plan Rebaseline（已完成，#419）
 
 更新本文档以反映 #416 / #417 的实际边界，并把剩余 Phase 2 work 拆为 2.3-2.7。该阶段不改代码，不更新 README / USAGE，除非那些入口已经公开宣传 Character Action runtime usage。
 
@@ -1270,12 +1270,12 @@ Phase 2 的目标是让 resolver / validator 输出足够稳定，使后续 Acti
 
 提取可复用的 dependency 和 diagnostics API：
 
-- `CharacterActionResourceDependencyCollector` 收集 CombatAction、TraceProfile、AnimationAction、AudioCue、VfxResource、GameplayRequest 及其 track/frame metadata。
+- `CharacterActionResourceDependencyCollector` 收集 MotionEvent、CombatAction、TraceProfile、GameplayRequest、AnimationAction、AudioCue、VfxResource、DebugMarker 及其 action / track / event / frame metadata。
 - validation 尽量复用 collector。
 - diagnostics formatter 输出 code、message、action id、phase、track、frame 和可用 suggested fix。
 - 不引用 Unity object、AnimationClip、Prefab、Material 或 Playables。
 
-#### Phase 2.7：Phase 2 Integration Tests and Docs（#424）
+#### Phase 2.7：Phase 2 Integration Tests and Docs（已完成，#424）
 
 用 noEngine 集成测试和文档关闭 Phase 2：
 
@@ -1284,9 +1284,34 @@ Phase 2 的目标是让 resolver / validator 输出足够稳定，使后续 Acti
 - 文档说明 resolver / validator API、输入、输出、限制和 Runner prerequisites。
 - 明确 Runner 消费 `CharacterActionPlan` 和 diagnostics，不重做 resolver decisions。
 
+Phase 2 closeout 后的 noEngine API 边界如下：
+
+| API | 输入 | 输出 | 说明 |
+| --- | --- | --- | --- |
+| `CharacterActionResolver.ResolveCommand` | `CharacterActionResolverContext` + `CharacterActionIntentRequest` | `CharacterActionResolveResult` | 只做 command binding、candidate ranking、tag / state / config validation 和 plan 生成。 |
+| `CharacterActionResolver.ResolveAbility` | `CharacterActionResolverContext` + ability request | `CharacterActionResolveResult` | 校验 ability binding、RequiredTags / ForbiddenTags、active action queue / cancel policy。 |
+| `CharacterActionResolver.ResolveReaction` | `CharacterActionResolverContext` + `CharacterReactionContext` | `CharacterActionResolveResult` | 仅支持 Phase 2 的 `PressureOnly` / death reaction selection；不消费 full Combat hit dimensions。 |
+| `CharacterActionValidation.ValidateActionSet` | action set、action configs、reaction profiles | `CharacterActionDiagnostic[]` | 校验 binding target、reaction profile、cancel / interrupt target。 |
+| `CharacterActionValidation.ValidateActionConfig` | action config、可选 Combat timeline | `CharacterActionDiagnostic[]` | 校验 phase shape、CombatAnchored range、cancel window、track dependency 和 trace frame / phase policy。 |
+| `CharacterActionResourceDependencyCollector.Collect` | action config | `CharacterActionResourceDependency[]` | 输出 track/frame/action metadata，覆盖 Motion、Combat、Gameplay、Animation、Presentation 和 Debug 轨道。 |
+| `CharacterActionDiagnosticFormatter` | diagnostics + 可选 action / phase / track / frame context | deterministic string | 给 Debug UI / Workstation / test report 使用，不做本地化或 Unity 对象解析。 |
+
+Phase 2 的输出约束：
+
+- `CharacterActionResolveResult` 是 Action Runner 的唯一启动输入；Runner 只能消费 `CharacterActionPlan`、resolved duration、tracks、phases 和 diagnostics。
+- Runner 不允许重新选择 command / ability / reaction action，不允许重新排序 candidate，不允许重新推断 resource dependency 或 phase authority。
+- Runner 发现 plan 不足以执行时，必须返回稳定 diagnostics，并把契约缺口回流到 Character Action 后续 Issue，而不是在 Runner 内部补隐式 resolver。
+- Diagnostics 和 reject reason 是 Debug UI / Workstation / Harness 的稳定协议；新增 code 必须走测试锁定。
+
+Phase 2 仍然保留的限制：
+
+- Reaction selection 只支持 `PressureOnly` 和 explicit death。Body part、hit zone、damage type、hit direction、impact force 和 reaction group 仍依赖后续 `CombatHitResult -> ReactionContext` bridge。
+- Resolver / validator 不读取 Unity scene object，不加载资源，不实例化 AnimationClip / Prefab / Material / Playable，不写 Gameplay / Combat / CharacterControl runtime state。
+- `CharacterActionResourceDependencyCollector` 只输出 dependency / track metadata，不判断资源是否真实存在；真实 catalog / provider 存在性验证由 Resources / Workstation / Editor validation 后续接入。
+
 ### Phase 3：Action Runner noEngine MVP（Phase 2 完成后）
 
-Action Runner work 必须等待 Phase 2.3-2.7 完成后再开始。Runner 的职责是实例化和推进 resolver 输出的 plan：
+Action Runner work 必须消费 Phase 2.3-2.7 已锁定的 resolver / validator surface。Runner 的职责是实例化和推进 resolver 输出的 plan：
 
 ```text
 ActionInstance
