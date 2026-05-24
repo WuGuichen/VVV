@@ -511,7 +511,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             float multiplier = sampleSpeed * (1f / nodeSpeed);
             return Mathf.Clamp(
                 multiplier,
-                Mathf.Clamp(_minPlaybackSpeedCompensation, 0.01f, 1f),
+                Mathf.Max(1f, Mathf.Clamp(_minPlaybackSpeedCompensation, 0.01f, 1f)),
                 Mathf.Max(1f, _maxPlaybackSpeedCompensation));
         }
 

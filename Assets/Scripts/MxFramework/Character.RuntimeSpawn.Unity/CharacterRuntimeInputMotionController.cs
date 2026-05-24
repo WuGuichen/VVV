@@ -59,6 +59,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
         private Quaternion _previousRootRotation = Quaternion.identity;
         private Quaternion _currentRootRotation = Quaternion.identity;
         private bool _hasVisualMotionState;
+        private bool _deferVisualMotionInterpolation;
 
         public bool IsInitialized => _initialized;
         public bool EnableInputMotion
@@ -118,11 +119,19 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
 
             int maxSteps = Mathf.Max(1, _maxStepsPerUpdate);
             int steps = 0;
-            while (_accumulator + FixedStepEpsilon >= fixedDelta && steps < maxSteps)
+            _deferVisualMotionInterpolation = _interpolateVisualMotion;
+            try
             {
-                StepFrame();
-                _accumulator -= fixedDelta;
-                steps++;
+                while (_accumulator + FixedStepEpsilon >= fixedDelta && steps < maxSteps)
+                {
+                    StepFrame();
+                    _accumulator -= fixedDelta;
+                    steps++;
+                }
+            }
+            finally
+            {
+                _deferVisualMotionInterpolation = false;
             }
 
             if (steps == maxSteps && _accumulator >= fixedDelta)
@@ -329,7 +338,7 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             _previousRootRotation = _currentRootRotation;
             _currentRootPosition = rootPosition;
             _currentRootRotation = rootRotation;
-            if (!_interpolateVisualMotion)
+            if (!_interpolateVisualMotion || !_deferVisualMotionInterpolation)
             {
                 transform.SetPositionAndRotation(rootPosition, rootRotation);
             }
