@@ -441,6 +441,7 @@ namespace MxFramework.CharacterAction
                 + " gameplayRequestId=" + EmptyOrValue(TrackDispatch.GameplayRequestId)
                 + " abilityStableId=" + EmptyOrValue(TrackDispatch.AbilityStableId)
                 + " animationActionKey=" + EmptyOrValue(TrackDispatch.AnimationActionKey)
+                + " transitionSeconds=" + FormatTransitionSeconds(TrackDispatch)
                 + " presentationCueId=" + EmptyOrValue(TrackDispatch.PresentationCueId)
                 + " resourceKey=" + EmptyOrValue(TrackDispatch.ResourceKey)
                 + " debugMarkerId=" + EmptyOrValue(TrackDispatch.DebugMarkerId)
@@ -518,6 +519,14 @@ namespace MxFramework.CharacterAction
                 + trackDispatch.Y.ToString(CultureInfo.InvariantCulture)
                 + ","
                 + trackDispatch.Z.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatTransitionSeconds(CharacterActionTrackDispatchEvent trackDispatch)
+        {
+            if (!trackDispatch.HasEvent || trackDispatch.TrackKind != CharacterActionTrackKind.Animation)
+                return "-";
+
+            return trackDispatch.TransitionSeconds.ToString(CultureInfo.InvariantCulture);
         }
     }
 

@@ -268,6 +268,7 @@ namespace MxFramework.Tests.CharacterAction
             StringAssert.Contains("gameplayRequestId=gameplay.hit", gameplay.ToReplayLine());
             StringAssert.Contains("abilityStableId=ability.light", gameplay.ToReplayLine());
             StringAssert.Contains("animationActionKey=anim.light", animation.ToReplayLine());
+            StringAssert.Contains("transitionSeconds=0.08", animation.ToReplayLine());
             StringAssert.Contains("presentationCueId=vfx.light", presentation.ToReplayLine());
             StringAssert.Contains("resourceKey=resource.light", presentation.ToReplayLine());
             StringAssert.Contains("debugMarkerId=marker.light", debug.ToReplayLine());
