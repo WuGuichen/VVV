@@ -1,6 +1,6 @@
 # MxFramework 能力清单
 
-> 框架当前（2026-05-18 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
+> 框架当前（2026-05-24 文档校准）**已经能做**什么。按你想做的事查找，不要按 Phase 翻。
 >
 > 状态标记：✅ v1 可用 | ✅ v0.x 部分可用 | 🔄 设计中 | 📋 规划中
 
@@ -88,6 +88,23 @@
 → 验证夹具：`Demo/Tetris/TetrisRuntimeValidation.cs` 用纯 C# Tetris 覆盖 RuntimeHost、CommandBuffer、Replay hash playback、SaveState JSON roundtrip
 → Ability Showcase 已接入：HUD 手动命令经 `RuntimeCommandBuffer` 入队，由 `RuntimeHost` 帧执行；每帧记录 replay result hash；支持 Ability Slice save -> reset -> load -> continue。
 → **不含**: JSON replay export/playback、具体 Gameplay/Combat hash contributor adapter、通用 Gameplay restore 编排接入
+
+### 1.5.1 Story Core / Runtime — 剧情最小可回放运行时切片
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| 确定性 Story blackboard | ✅ v0.1 | `StoryBlackboard` / `StoryFactKey` / `StoryFactCopyResult` | Story |
+| 最小 graph / beat / step / choice flow | ✅ v0.1 | `StoryGraphDefinition` / `StoryBeatDefinition` / `StoryDirector` | Story |
+| Story RuntimeCommand 边界 | ✅ v0.1 | `StoryRuntimeCommandFactory` / `StoryRuntimeCommandValidator` | Story.Runtime + Runtime |
+| Runtime event queue | ✅ v0.1 | `RuntimeEventQueue<StoryRuntimeEvent>` | Story.Runtime + Runtime |
+| Runtime hash contributor | ✅ v0.1 | `StoryRuntimeHashContributor` | Story.Runtime + Runtime |
+| Runtime SaveState provider/restorer | ✅ v0.1 | `StoryRuntimeSaveStateProvider` | Story.Runtime + Runtime |
+| Replay/hash validation | ✅ v0.1 | Existing `RuntimeReplayRecorder` / `RuntimeReplayPlaybackRunner` with Story commands | Story.Runtime + Runtime |
+
+→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`
+→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`
+→ 交付等级：`Runtime Slice`；没有 Unity 场景、UI Toolkit view、Timeline、Gameplay bridge、Resources bridge、Config mapper 或 Authoring 工具。
+→ **不含**: Story.Config、Story.GameplayBridge、Story.ResourcesBridge、Story.Unity、Story.Editor、Runtime AI Planner projection、可玩 Demo
 
 ### 1.6 App / Scene Flow — 游戏启动状态和场景切换骨架
 

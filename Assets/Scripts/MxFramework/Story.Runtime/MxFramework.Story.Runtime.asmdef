@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Story.Runtime",
+    "rootNamespace": "MxFramework.Story.Runtime",
+    "references": [
+        "MxFramework.Story",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
