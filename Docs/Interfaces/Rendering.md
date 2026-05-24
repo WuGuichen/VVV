@@ -107,6 +107,27 @@ public interface ICameraRenderContext
     void SetCameraOverride(int propertyId, Vector4 value);
     CameraRenderSnapshot Snapshot();
 }
+
+public readonly struct MxCameraRenderContextDescriptor
+{
+    public MxCameraRenderKind CameraKind { get; }
+    public Camera Camera { get; }
+    public Vector3 ViewFocusWorldPosition { get; }
+}
+
+public sealed class CameraRenderSnapshot
+{
+    public MxCameraRenderKind CameraKind { get; }
+    public Camera Camera { get; }
+    public Vector3 ViewFocusWorldPosition { get; }
+    public IReadOnlyList<CameraShaderOverride> Overrides { get; }
+}
+
+public readonly struct CameraShaderOverride
+{
+    public int PropertyId { get; }
+    public Vector4 Value { get; }
+}
 ```
 
 Shader property ids are centralized:
@@ -149,6 +170,7 @@ public interface IMxRenderPipeline
     bool UnregisterPass(string debugName);
     bool RegisterProvider(IMxRenderPassProvider provider);
     bool UnregisterProvider(string debugName);
+    IReadOnlyList<IMxRenderPass> CollectPasses(in MxCameraRenderContextDescriptor cameraContext);
     MxRenderPipelineTopologySnapshot CaptureTopology();
 }
 
@@ -204,7 +226,11 @@ enabled passes
   -> enqueue URP passes
 ```
 
+Current SharedRT frame lifecycle is scoped to one URP camera render invocation: `MxRenderingPipelineFeature` starts the SharedRT frame synchronously in `AddRenderPasses` before calling any `IMxRenderPass.Configure`, then enqueues camera globals, feature passes, and a SharedRT `EndFrame` pass after feature passes. This keeps Configure-side SharedRT reads/writes on fresh frame state, and keeps SceneView, Preview, reflection, and Game cameras isolated until a later Unity-runtime task has stronger evidence for a different multi-camera frame policy. The internal camera globals, SharedRT lifecycle, and feature wrapper passes implement both compatibility `Execute` and URP 17 `RecordRenderGraph` paths; their RenderGraph path records unsafe passes with culling disabled so camera globals, feature command buffers, and EndFrame execute when RenderGraph is active.
+
 Same `Phase + Order` is allowed only when pass dependencies do not read/write the same SharedRT and debug names provide deterministic ordering. Conflicts are reported through Diagnostics.
+
+Phase 15.3 topology diagnostics expose the sorted pass list, camera kind, duplicate debug names, invalid metadata, and same `Phase + Order` SharedRT read/write collisions through `MxRenderPipelineTopologySnapshot` and `RenderPipelineTopologyDebugSource`. These diagnostics are read-only and do not require Debug UI.
 
 ## 4. SharedRT Registry
 

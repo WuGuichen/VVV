@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace MxFramework.Rendering
@@ -62,6 +64,122 @@ namespace MxFramework.Rendering
         {
             return new Vector4(value.x, value.y, value.z, 0f);
         }
+    }
+
+    public enum MxCameraRenderKind
+    {
+        Unknown = 0,
+        Game = 1,
+        SceneView = 2,
+        Reflection = 3,
+        Preview = 4
+    }
+
+    public interface ICameraRenderContext
+    {
+        MxCameraRenderKind CurrentCameraKind { get; }
+        void SetViewFocus(Vector3 worldPosition);
+        void SetCameraOverride(int propertyId, Vector4 value);
+        CameraRenderSnapshot Snapshot();
+    }
+
+    public sealed class CameraRenderContext : ICameraRenderContext
+    {
+        private readonly Dictionary<int, Vector4> _overrides = new Dictionary<int, Vector4>();
+        private MxCameraRenderContextDescriptor _descriptor;
+        private Vector3 _viewFocusWorldPosition;
+
+        public MxCameraRenderKind CurrentCameraKind => _descriptor.CameraKind;
+
+        public void SetDescriptor(in MxCameraRenderContextDescriptor descriptor)
+        {
+            _descriptor = descriptor;
+            _viewFocusWorldPosition = descriptor.ViewFocusWorldPosition;
+            _overrides.Clear();
+        }
+
+        public void SetViewFocus(Vector3 worldPosition)
+        {
+            _viewFocusWorldPosition = worldPosition;
+        }
+
+        public void SetCameraOverride(int propertyId, Vector4 value)
+        {
+            if (OwnsProperty(MxRenderingShaderIds.GlobalFramePropertyIds, propertyId))
+                throw new ArgumentException("CameraRenderContext cannot override a GlobalFrameContext shader property id.", nameof(propertyId));
+
+            _overrides[propertyId] = value;
+        }
+
+        public CameraRenderSnapshot Snapshot()
+        {
+            var overrides = new CameraShaderOverride[_overrides.Count];
+            int index = 0;
+            foreach (KeyValuePair<int, Vector4> pair in _overrides)
+                overrides[index++] = new CameraShaderOverride(pair.Key, pair.Value);
+            Array.Sort(overrides, (left, right) => left.PropertyId.CompareTo(right.PropertyId));
+
+            return new CameraRenderSnapshot(_descriptor.CameraKind, _descriptor.Camera, _viewFocusWorldPosition, overrides);
+        }
+
+        private static bool OwnsProperty(IReadOnlyList<int> propertyIds, int propertyId)
+        {
+            for (int i = 0; i < propertyIds.Count; i++)
+            {
+                if (propertyIds[i] == propertyId)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
+    public readonly struct MxCameraRenderContextDescriptor
+    {
+        public MxCameraRenderContextDescriptor(MxCameraRenderKind cameraKind, Camera camera, Vector3 viewFocusWorldPosition)
+        {
+            CameraKind = cameraKind;
+            Camera = camera;
+            ViewFocusWorldPosition = viewFocusWorldPosition;
+        }
+
+        public MxCameraRenderKind CameraKind { get; }
+        public Camera Camera { get; }
+        public Vector3 ViewFocusWorldPosition { get; }
+    }
+
+    public readonly struct CameraShaderOverride
+    {
+        public CameraShaderOverride(int propertyId, Vector4 value)
+        {
+            PropertyId = propertyId;
+            Value = value;
+        }
+
+        public int PropertyId { get; }
+        public Vector4 Value { get; }
+    }
+
+    public sealed class CameraRenderSnapshot
+    {
+        private readonly List<CameraShaderOverride> _overrides;
+
+        public CameraRenderSnapshot(
+            MxCameraRenderKind cameraKind,
+            Camera camera,
+            Vector3 viewFocusWorldPosition,
+            IReadOnlyList<CameraShaderOverride> overrides)
+        {
+            CameraKind = cameraKind;
+            Camera = camera;
+            ViewFocusWorldPosition = viewFocusWorldPosition;
+            _overrides = overrides != null ? new List<CameraShaderOverride>(overrides) : new List<CameraShaderOverride>();
+        }
+
+        public MxCameraRenderKind CameraKind { get; }
+        public Camera Camera { get; }
+        public Vector3 ViewFocusWorldPosition { get; }
+        public IReadOnlyList<CameraShaderOverride> Overrides => _overrides;
     }
 
     public readonly struct GlobalFrameSnapshot
