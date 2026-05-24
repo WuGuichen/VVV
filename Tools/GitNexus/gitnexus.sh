@@ -38,6 +38,8 @@ if [[ "$NEEDS_INSTALL" == "1" ]]; then
     LBUG_PACKAGE="@ladybugdb/core-linux-x64@$LBUG_VERSION"
   elif [[ "$PLATFORM" == "linux" && "$ARCH" == "arm64" ]]; then
     LBUG_PACKAGE="@ladybugdb/core-linux-arm64@$LBUG_VERSION"
+  elif [[ "$PLATFORM" == "win32" && "$ARCH" == "x64" ]]; then
+    LBUG_PACKAGE="@ladybugdb/core-win32-x64@$LBUG_VERSION"
   else
     echo "Unsupported GitNexus LadybugDB prebuilt platform: $PLATFORM-$ARCH" >&2
     exit 1
