@@ -1,0 +1,139 @@
+{
+  "schema": "mx.story.config.draft.v1",
+  "sourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/basic_choice_story.md",
+  "graphs": [
+    {
+      "Id": 442001,
+      "Version": 1,
+      "EntryBeatId": 442101,
+      "SourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/basic_choice_story.md"
+    }
+  ],
+  "beats": [
+    {
+      "Id": 442101,
+      "GraphId": 442001,
+      "SortOrder": 10,
+      "ChoiceSetId": 442101,
+      "TriggerIds": [
+        442201
+      ]
+    },
+    {
+      "Id": 442102,
+      "GraphId": 442001,
+      "SortOrder": 20,
+      "ChoiceSetId": 0,
+      "TriggerIds": []
+    }
+  ],
+  "steps": [
+    {
+      "Id": 442301,
+      "GraphId": 442001,
+      "BeatId": 442101,
+      "SortOrder": 10,
+      "Kind": "Line",
+      "TextKey": 442301,
+      "SpeakerId": 0,
+      "ResourceId": 0,
+      "WaitPolicy": "WaitForCommand",
+      "FactNamespace": 0,
+      "FactId": 0,
+      "FactValueKind": "None",
+      "FactValueRaw": 0,
+      "AuxId": 0
+    },
+    {
+      "Id": 442303,
+      "GraphId": 442001,
+      "BeatId": 442102,
+      "SortOrder": 10,
+      "Kind": "Line",
+      "TextKey": 442303,
+      "SpeakerId": 0,
+      "ResourceId": 0,
+      "WaitPolicy": "NoWait",
+      "FactNamespace": 0,
+      "FactId": 0,
+      "FactValueKind": "None",
+      "FactValueRaw": 0,
+      "AuxId": 0
+    },
+    {
+      "Id": 442601,
+      "GraphId": 442001,
+      "BeatId": 442102,
+      "SortOrder": 20,
+      "Kind": "SetFact",
+      "TextKey": 0,
+      "SpeakerId": 0,
+      "ResourceId": 0,
+      "WaitPolicy": "NoWait",
+      "FactNamespace": 442001,
+      "FactId": 442601,
+      "FactValueKind": "Bool",
+      "FactValueRaw": 1,
+      "AuxId": 0
+    }
+  ],
+  "branches": [],
+  "choices": [
+    {
+      "Id": 442401,
+      "GraphId": 442001,
+      "BeatId": 442101,
+      "SortOrder": 10,
+      "LabelTextKey": 442302,
+      "TargetBeatId": 442102,
+      "ConditionFactId": 0,
+      "EffectIds": [
+        442501
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "Id": 442601,
+      "Namespace": 442001,
+      "ValueKind": "Bool"
+    }
+  ],
+  "textKeys": [
+    442301,
+    442302,
+    442303
+  ],
+  "texts": [
+    {
+      "TextKey": 442301,
+      "Text": "A signal waits at the story boundary.",
+      "Usage": "Line",
+      "SourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/basic_choice_story.md",
+      "SourceLine": 12,
+      "GraphId": 442001,
+      "BeatId": 442101,
+      "RowId": 442301
+    },
+    {
+      "TextKey": 442302,
+      "Text": "Stabilize signal",
+      "Usage": "ChoiceLabel",
+      "SourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/basic_choice_story.md",
+      "SourceLine": 13,
+      "GraphId": 442001,
+      "BeatId": 442101,
+      "RowId": 442401
+    },
+    {
+      "TextKey": 442303,
+      "Text": "Signal stabilized through generated Story config.",
+      "Usage": "Line",
+      "SourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/basic_choice_story.md",
+      "SourceLine": 17,
+      "GraphId": 442001,
+      "BeatId": 442102,
+      "RowId": 442303
+    }
+  ]
+}

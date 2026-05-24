@@ -8,6 +8,8 @@
 
 本模块不解析 Excel、CSV、JSON、Luban、Yarn、Ink、Articy 或 Unity 序列化资产；这些导入器应在项目层或后续 authoring 工具层实现，最后产出本页定义的配置行。
 
+外部工具层现在可以先产出 `.story.json` draft 作为 handoff 文件。`Tools/MxFrameworkStoryAuthoring/story_authoring.py import-markdown` 把 Markdown Story Outline v1 转成 `schema=mx.story.config.draft.v1` 的 JSON，字段名对齐下方配置行；`validate` 在工具层镜像本页的跨行约束并输出结构化 diagnostics。该 draft 不是 Runtime SaveState、Unity asset 或 Story core 输入，项目层仍需把 rows 映射进 `StoryConfigSet` / `StoryGraphConfigMapper`。
+
 ## 依赖边界
 
 ```text
@@ -91,6 +93,7 @@ Beat transition 合约与 `StoryDirector` 当前推进顺序保持一致：choic
 - 不执行 Story effect；`StoryChoiceConfig.EffectIds` 当前只做正数和确定性排序。
 - 不创建 RuntimeCommand、Runtime hash、SaveState、Gameplay command、Resources preload、Unity trigger、UI Toolkit view 或 authoring import。
 - `StoryFactConfig` 只声明可引用 fact 和 value kind；初始黑板值仍由 runtime / save / graph step 明确写入。
+- 外部 `.story.json` draft 当前只覆盖 Markdown Story Outline v1；Yarn / Ink / Articy 和 Authoring AI Assist 仍是后续工具层能力，不进入本模块依赖。
 
 ## 测试入口
 

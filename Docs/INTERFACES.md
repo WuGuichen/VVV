@@ -89,6 +89,8 @@
 
 Story 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config 只依赖 Story + Config；Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story.Unity 是 Unity-facing runtime adapter，只 enqueue Story `RuntimeCommand` 或 consume `StoryRuntimeEvent`，不引用 `UnityEditor`。Story.Editor 是 Editor-only 只读 debug surface，可引用 DebugUI / Diagnostics / UnityEditor，但不能被 runtime assembly 引用。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
 
+Story external authoring tools live under `Tools/MxFrameworkStoryAuthoring/` and emit `.story.json` drafts for Story.Config handoff. They are not runtime assemblies and must not add Unity, Runtime AI Planner, Authoring AI Assist execution, Yarn, Ink, Articy, or WGame production narrative dependencies.
+
 ## AI Terminology
 
 > 本项目中的 "AI" 一词指代四种不同的概念。为避免混淆，所有文档、任务、接口和目录命名必须遵循以下四域区分：

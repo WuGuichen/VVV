@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.54 | 2026-05-24
+> 版本 0.6.55 | 2026-05-24
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -57,6 +57,7 @@
 |------|------------|
 | `EDITORS.md` | Unity Editor 工具规范。 |
 | `../Tools/MxFramework.EditorHub/README.md` | 外部编辑器中心：一键启动 Authoring server，并集中打开 Buff Authoring Editor、CharacterStudio 和全局资源管理器入口。 |
+| `../Tools/MxFrameworkStoryAuthoring/story_authoring.py` | Story 外部 CLI：Markdown Story Outline v1 -> `.story.json` draft，并执行 Story.Config handoff 校验。 |
 | `AUTHORING_EDITOR_PROGRAM.md` | 外部主创编辑器总规划。 |
 | `AUTHORING_EDITOR_USAGE.md` | Buff 外部编辑器怎么开、怎么用、限制在哪。 |
 | `AUTHORING_WORKFLOW.md` | 创作流程跨 Unity/Mod Editor/AI/CLI 协作。 |
@@ -242,6 +243,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.55 | 2026-05-24 | 新增 Story S6 外部 authoring CLI：`Tools/MxFrameworkStoryAuthoring/story_authoring.py` 支持 Markdown Story Outline v1 import、deterministic `.story.json` draft、Story.Config handoff validate、结构化 diagnostics 和基础 fixtures/tests；Authoring AI Assist、Yarn/Ink/Articy 仍 deferred |
 | 0.6.54 | 2026-05-24 | 新增 Rendering Framework Phase 15.0 设计基线：`RENDERING_FRAMEWORK_DESIGN.md`、`Interfaces/Rendering.md`、URP 唯一 `MxRenderingPipelineFeature` 入口、GlobalFrameContext / CameraRenderContext 分层、SharedRT 冲突规则和 Rendering bridge 边界 |
 | 0.6.53 | 2026-05-24 | 新增 Story 模块 S0 设计契约：ADR-004 / ADR-005、Story core / Runtime / GameplayBridge 接口稿和 `STORY_S1` runtime slice 任务；明确 Story core 仅依赖 Core + Events、RuntimeCommand 边界、独立 command buffer ownership、SaveState provider/restorer 形态和 Gameplay effect bridge 规则 |
 | 0.6.52 | 2026-05-23 | 新增 Character Gameplay Runtime foundation：角色包可生成 Gameplay component spawn definition，并通过 noEngine runtime bootstrap / live entity registry 创建真实 `GameplayEntityId` |
