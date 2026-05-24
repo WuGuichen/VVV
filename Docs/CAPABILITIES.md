@@ -101,6 +101,7 @@
 | Runtime SaveState provider/restorer | ✅ v0.1 | `StoryRuntimeSaveStateProvider` | Story.Runtime + Runtime |
 | Replay/hash validation | ✅ v0.1 | Existing `RuntimeReplayRecorder` / `RuntimeReplayPlaybackRunner` with Story commands | Story.Runtime + Runtime |
 | Story config schema / mapper / validator | ✅ v0.1 | `StoryConfigSet` / `StoryGraphConfigMapper` / `StoryConfigValidator` | Story.Config + Config |
+| Story external authoring draft CLI | ✅ v0.1 | `Tools/MxFrameworkStoryAuthoring/story_authoring.py import-markdown` / `validate` | Tools + Story.Config handoff |
 | Story Gameplay bridge | ✅ v0.1 | `StoryGameplayEffectBridge` / `StoryBeatGameplayLocator` / `StoryModifierConditionAdapter` | Story.GameplayBridge + Gameplay |
 | Story Resources preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` / `StoryResourcePreloadMetadata` | Story.ResourcesBridge + Resources |
 | Story Runtime AI Planner fact projection | ✅ v0.1 | `StoryRuntimeAiWorldStateProjector` / `StoryRuntimeAiProjectionProfile` | Story.RuntimeAiPlannerBridge + Runtime AI Planner |
@@ -110,8 +111,9 @@
 
 → 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`, `Interfaces/Story.GameplayBridge.md`, `Interfaces/Story.ResourcesBridge.md`, `Interfaces/Story.RuntimeAiPlannerBridge.md`, `Interfaces/Story.Unity.md`, `Interfaces/Story.Editor.md`
 → 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`, `Tests/Story.GameplayBridge/`, `Tests/Story.ResourcesBridge/`, `Tests/Story.RuntimeAiPlannerBridge/`, `Tests/Story.Unity/`, `Tests/Story.Editor/`, `Tests/Demo/Story/`
+→ 外部工具：`Tools/MxFrameworkStoryAuthoring/tests/` 覆盖 Markdown import、`.story.json` validate 和结构化 diagnostics。
 → 交付等级：`Playable` for `Assets/Scenes/StoryRuntimeVerticalSlice.unity` when generated through the Unity menu/MCP and smoke-validated；runtime/config/bridge APIs remain reusable slices.
-→ **不含**: direct Story buff grant/remove、Timeline/Cinemachine package-specific binding、Yarn/Ink/Articy importer、WGame production story content
+→ **不含**: direct Story buff grant/remove、Timeline/Cinemachine package-specific binding、full Yarn/Ink/Articy importer、Authoring AI Assist execution、WGame production story content
 
 ### 1.6 App / Scene Flow — 游戏启动状态和场景切换骨架
 

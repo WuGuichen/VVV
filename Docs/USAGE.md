@@ -958,6 +958,53 @@ Demo 代码入口：
 - Runtime AI Planner projection is one-way Story -> Runtime AI Planner and never writes Story blackboard。
 - Scene / PanelSettings are generated through Unity Editor tooling; `.unity` and `.asset` YAML are not hand-authored。
 
+### 6.16 Story External Authoring CLI
+
+Story S6 新增外部 Python CLI，用 Markdown Story Outline v1 生成可审阅的 `.story.json` draft，再交给项目层导入器映射到 `MxFramework.Story.Config` 行。该工具位于 `Tools/MxFrameworkStoryAuthoring/story_authoring.py`，只使用 Python 标准库，不依赖 Unity、Runtime Story assemblies、Yarn、Ink、Articy 或 Authoring AI Assist 执行路径。
+
+导入和校验：
+
+```bash
+python Tools/MxFrameworkStoryAuthoring/story_authoring.py import-markdown \
+  Tools/MxFrameworkStoryAuthoring/fixtures/markdown/basic_choice_story.md \
+  --out Tools/MxFrameworkStoryAuthoring/fixtures/generated/basic_choice_story.story.json
+
+python Tools/MxFrameworkStoryAuthoring/story_authoring.py validate \
+  Tools/MxFrameworkStoryAuthoring/fixtures/generated/basic_choice_story.story.json
+```
+
+Markdown Story Outline v1 的首个支持子集：
+
+```markdown
+---
+graph: 442001
+entry: intro
+source: basic_choice_story
+---
+
+## Beat intro
+id: 442101
+trigger: 442201
+line: 442301 | WaitForCommand | A signal waits at the story boundary.
+choice: 442401 | 442302 | end | effect 442501 | Stabilize signal
+
+## Beat end
+id: 442102
+line: 442303 | NoWait | Signal stabilized through generated Story config.
+set-fact: 442601 | Bool | true
+```
+
+生成的 `.story.json` draft 使用 `schema=mx.story.config.draft.v1`，包含 `graphs`、`beats`、`steps`、`branches`、`choices`、`facts`、`textKeys` 和 `texts`。行字段名保持和 `StoryGraphConfig` / `StoryBeatConfig` / `StoryStepConfig` / `StoryBranchConfig` / `StoryChoiceConfig` / `StoryFactConfig` 一致；`texts` 只是创作元数据，用于检查 text key 和审阅内容，不进入 Runtime Story.Config 消费路径。
+
+`validate` 会输出结构化 JSON diagnostics 并在 Error 时返回非 0。首批稳定 code 包括 `DuplicateId`、`MissingEntryBeat`、`MissingTextKey`、`InvalidBranchTarget`、`InvalidChoiceTarget`、`InvalidTriggerId`、`InvalidEffectId`、`UnsupportedStepKind`、`UnsupportedWaitPolicy` 和 `UnsupportedDirective`。
+
+边界：
+
+- `.story.json` 是工具层 interchange draft，不是 Unity asset、ScriptableObject、Runtime SaveState 或 replay 文件。
+- Story.Config 仍是 C# 运行时配置桥接；外部 CLI 只输出匹配行契约的 JSON draft，不实例化 C# DTO。
+- Authoring AI Assist 在本切片中只保留术语和未来规划位置；没有 LLM SDK、API key、prompt runner 或自动生成文本路径。
+- Yarn / Ink / Articy 完整导入、GraphView 编辑、Timeline / Cinemachine 专项绑定和未来 Authoring AI Assist 建议流仍 deferred。
+
 ## 7. Config 表和校验
 
 基础流程：
