@@ -395,6 +395,8 @@ namespace MxFramework.Tests.CharacterAction
             Assert.IsTrue(result.IsRejected);
             Assert.AreEqual(CharacterActionRejectReason.InvalidTarget, result.RejectReason);
             Assert.AreEqual(CharacterActionDiagnosticCodes.ReactionRuleNoTarget, result.Diagnostics[0].Code);
+            AssertHasDiagnostic(result.Diagnostics, CharacterActionDiagnosticCodes.ReactionRuleMatched);
+            Assert.AreNotEqual(CharacterActionDiagnosticCodes.ReactionRuleMatched, result.Diagnostics[0].Code);
         }
 
         [Test]

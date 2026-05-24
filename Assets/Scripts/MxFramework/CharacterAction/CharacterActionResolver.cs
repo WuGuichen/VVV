@@ -268,7 +268,7 @@ namespace MxFramework.CharacterAction
             {
                 return CharacterActionResolveResult.Rejected(
                     ResolveReactionTargetRejectReason(targetDiagnostic),
-                    MergeDiagnostics(selection.Diagnostics, new[] { targetDiagnostic }),
+                    MergeDiagnostics(new[] { targetDiagnostic }, selection.Diagnostics),
                     traceId);
             }
 
