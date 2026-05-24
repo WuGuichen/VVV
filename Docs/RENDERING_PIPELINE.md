@@ -1,6 +1,6 @@
 # MxFramework Rendering Pipeline
 
-> Status: Current project baseline | 2026-05-20
+> Status: Current project baseline | 2026-05-24
 >
 > Scope: Unity project rendering pipeline, URP assets, and documentation rules for framework demos and sample content.
 
@@ -60,6 +60,7 @@ URP is a Unity project dependency, not a dependency of the noEngine framework co
 
 - New framework scenes and playable demos must be authored and verified under URP.
 - New materials should use URP-compatible shaders, for example `Universal Render Pipeline/Lit`, `Universal Render Pipeline/Unlit`, or a project-approved URP Shader Graph.
+- The only allowed framework-owned Renderer Feature on `MxFrameworkUniversalRenderer.asset` is `MxRenderingPipelineFeature`. Feature-specific work must be implemented as `IMxRenderPass` or `IMxRenderPassProvider` inside `MxFramework.Rendering`; do not add independent framework `ScriptableRendererFeature` assets for grass, water, decals, outlines, dissolve, or similar capabilities.
 - Do not add new Built-in Render Pipeline-only materials, post-processing profiles, image effects, or camera scripts as framework sample baselines.
 - Post-processing should use URP Volume components and profiles. Legacy Post Processing Stack v2 should not be introduced for new framework demos.
 - If a demo intentionally uses a fallback material or editor-only debug shader, document the reason in the demo/task doc and keep it out of noEngine runtime modules.
@@ -80,6 +81,8 @@ For changes that touch scenes, prefabs, materials, shaders, render settings, cam
 When the render pipeline baseline changes, update:
 
 - `Docs/RENDERING_PIPELINE.md`
+- `Docs/RENDERING_FRAMEWORK_DESIGN.md`
+- `Docs/Interfaces/Rendering.md`
 - `Docs/README.md`
 - `Docs/DESIGN.md` if package or dependency policy changes
 - `Docs/RESOURCE_DIRECTORY_LAYOUT.md` if rendering asset directories change
