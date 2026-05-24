@@ -35,6 +35,8 @@
 | Story Config | `Docs/Interfaces/Story.Config.md` | `Assets/Scripts/MxFramework/Story.Config/` | `Assets/Scripts/MxFramework/Tests/Story.Config/` |
 | Story Gameplay Bridge | `Docs/Interfaces/Story.GameplayBridge.md` | `Assets/Scripts/MxFramework/Story.GameplayBridge/` | `Assets/Scripts/MxFramework/Tests/Story.GameplayBridge/` |
 | Story Resources Bridge | `Docs/Interfaces/Story.ResourcesBridge.md` | `Assets/Scripts/MxFramework/Story.ResourcesBridge/` | `Assets/Scripts/MxFramework/Tests/Story.ResourcesBridge/` |
+| Story Unity | `Docs/Interfaces/Story.Unity.md` | `Assets/Scripts/MxFramework/Story.Unity/` | `Assets/Scripts/MxFramework/Tests/Story.Unity/` |
+| Story Editor | `Docs/Interfaces/Story.Editor.md` | `Assets/Scripts/MxFramework/Story.Editor/` | `Assets/Scripts/MxFramework/Tests/Story.Editor/` |
 | App / Scene Flow | `Docs/Interfaces/AppFlow.md` | `Assets/Scripts/MxFramework/Runtime*/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
 | Input | `Docs/Interfaces/Input.md` | `Assets/Scripts/MxFramework/Input/` | `Assets/Scripts/MxFramework/Tests/Input/` |
 | UI Toolkit | `Docs/Interfaces/UI.Toolkit.md` | `Assets/Scripts/MxFramework/UI.Toolkit/` | `Assets/Scripts/MxFramework/Tests/UI.Toolkit/` |
@@ -81,7 +83,7 @@
 
 `MxFramework.Camera` 是表现层 noEngine 模块，只依赖 Core。Unity Camera 应用放在 `MxFramework.Camera.Unity`；Animation 表现事件到相机 request 的桥接放在 `MxFramework.Camera.Animation`；Debug UI 只通过 adapter 读取 `MxCameraDebugSnapshot`。Camera 默认不进入 Gameplay / Combat authority、Runtime hash、Replay hash 或 SaveState。
 
-Story 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config 只依赖 Story + Config；Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
+Story 依赖规则见 `Docs/Decisions/ADR-004-story-module-scope.md` 和 `Docs/Decisions/ADR-005-story-runtime-command-boundary.md`。Story core 只依赖 Core + Events；Story.Runtime 独立接 Runtime；Story.Config 只依赖 Story + Config；Story.GameplayBridge、Story.ResourcesBridge、Story.RuntimeAiPlannerBridge 都是 sibling bridge，不能让 Story core 反向依赖 Runtime、Gameplay、Config、Resources 或 Runtime AI Planner。Story.Unity 是 Unity-facing runtime adapter，只 enqueue Story `RuntimeCommand` 或 consume `StoryRuntimeEvent`，不引用 `UnityEditor`。Story.Editor 是 Editor-only 只读 debug surface，可引用 DebugUI / Diagnostics / UnityEditor，但不能被 runtime assembly 引用。Story 与 Gameplay 必须使用独立 `RuntimeCommandBuffer` drain owner；Story bridge 只能 enqueue Gameplay commands，不能 drain Gameplay command buffer。
 
 ## AI Terminology
 
