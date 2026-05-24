@@ -12,6 +12,8 @@ namespace MxFramework.CharacterAction
         AnimationAction = 4,
         AudioCue = 5,
         VfxResource = 6,
+        MotionEvent = 7,
+        DebugMarker = 8,
     }
 
     public readonly struct CharacterActionResourceDependency : IEquatable<CharacterActionResourceDependency>
@@ -40,7 +42,7 @@ namespace MxFramework.CharacterAction
             EventKind = eventKind;
             Frame = frame;
             StableEventId = stableEventId ?? string.Empty;
-            IsMissing = isMissing || StableId.Length == 0;
+            IsMissing = isMissing;
         }
 
         public CharacterActionResourceDependencyKind Kind { get; }
@@ -94,11 +96,29 @@ namespace MxFramework.CharacterAction
                 throw new ArgumentNullException(nameof(action));
 
             var dependencies = new List<CharacterActionResourceDependency>();
+            CollectMotion(action, dependencies);
             CollectCombat(action, dependencies);
             CollectGameplay(action, dependencies);
             CollectAnimation(action, dependencies);
             CollectPresentation(action, dependencies);
+            CollectDebug(action, dependencies);
             return dependencies.ToArray();
+        }
+
+        private static void CollectMotion(CharacterActionConfig action, List<CharacterActionResourceDependency> dependencies)
+        {
+            for (int i = 0; i < action.MotionTrack.Events.Length; i++)
+            {
+                MotionTrackEvent trackEvent = action.MotionTrack.Events[i];
+                dependencies.Add(new CharacterActionResourceDependency(
+                    CharacterActionResourceDependencyKind.MotionEvent,
+                    trackEvent.StableEventId,
+                    action.StableId,
+                    CharacterActionTrackKind.Motion,
+                    trackEvent.Kind,
+                    trackEvent.Frame,
+                    trackEvent.StableEventId));
+            }
         }
 
         private static void CollectCombat(CharacterActionConfig action, List<CharacterActionResourceDependency> dependencies)
@@ -120,7 +140,8 @@ namespace MxFramework.CharacterAction
                         CharacterActionTrackKind.Combat,
                         trackEvent.Kind,
                         trackEvent.Frame,
-                        trackEvent.StableEventId));
+                        trackEvent.StableEventId,
+                        string.IsNullOrEmpty(combatActionId)));
                 }
 
                 if (trackEvent.Kind == CharacterActionTrackEventKind.StartHitTrace
@@ -133,7 +154,8 @@ namespace MxFramework.CharacterAction
                         CharacterActionTrackKind.Combat,
                         trackEvent.Kind,
                         trackEvent.Frame,
-                        trackEvent.StableEventId));
+                        trackEvent.StableEventId,
+                        string.IsNullOrEmpty(trackEvent.TraceProfileId)));
                 }
             }
 
@@ -144,7 +166,8 @@ namespace MxFramework.CharacterAction
                     action.CombatTrack.CombatActionId,
                     action.StableId,
                     CharacterActionTrackKind.Combat,
-                    CharacterActionTrackEventKind.None));
+                    CharacterActionTrackEventKind.None,
+                    isMissing: false));
             }
         }
 
@@ -162,7 +185,8 @@ namespace MxFramework.CharacterAction
                         CharacterActionTrackKind.Gameplay,
                         trackEvent.Kind,
                         trackEvent.Frame,
-                        trackEvent.StableEventId));
+                        trackEvent.StableEventId,
+                        string.IsNullOrEmpty(trackEvent.RequestId)));
                 }
             }
         }
@@ -179,7 +203,8 @@ namespace MxFramework.CharacterAction
                     CharacterActionTrackKind.Animation,
                     trackEvent.Kind,
                     trackEvent.Frame,
-                    trackEvent.StableEventId));
+                    trackEvent.StableEventId,
+                    string.IsNullOrEmpty(trackEvent.AnimationActionKey)));
             }
         }
 
@@ -197,7 +222,8 @@ namespace MxFramework.CharacterAction
                         CharacterActionTrackKind.Presentation,
                         trackEvent.Kind,
                         trackEvent.Frame,
-                        trackEvent.StableEventId));
+                        trackEvent.StableEventId,
+                        string.IsNullOrEmpty(trackEvent.CueId)));
                     continue;
                 }
 
@@ -210,8 +236,25 @@ namespace MxFramework.CharacterAction
                         CharacterActionTrackKind.Presentation,
                         trackEvent.Kind,
                         trackEvent.Frame,
-                        trackEvent.StableEventId));
+                        trackEvent.StableEventId,
+                        string.IsNullOrEmpty(trackEvent.ResourceKey)));
                 }
+            }
+        }
+
+        private static void CollectDebug(CharacterActionConfig action, List<CharacterActionResourceDependency> dependencies)
+        {
+            for (int i = 0; i < action.DebugTrack.Events.Length; i++)
+            {
+                DebugTrackEvent trackEvent = action.DebugTrack.Events[i];
+                dependencies.Add(new CharacterActionResourceDependency(
+                    CharacterActionResourceDependencyKind.DebugMarker,
+                    trackEvent.MarkerId,
+                    action.StableId,
+                    CharacterActionTrackKind.Debug,
+                    trackEvent.Kind,
+                    trackEvent.Frame,
+                    trackEvent.StableEventId));
             }
         }
     }

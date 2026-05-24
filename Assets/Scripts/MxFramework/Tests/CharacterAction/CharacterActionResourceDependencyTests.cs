@@ -31,9 +31,17 @@ namespace MxFramework.Tests.CharacterAction
 
             CharacterActionResourceDependency[] dependencies = CharacterActionResourceDependencyCollector.Collect(action);
 
-            Assert.AreEqual(6, dependencies.Length);
+            Assert.AreEqual(8, dependencies.Length);
             AssertDependency(
                 dependencies[0],
+                CharacterActionResourceDependencyKind.MotionEvent,
+                "motion.lock",
+                CharacterActionTrackKind.Motion,
+                CharacterActionTrackEventKind.LockMovement,
+                0,
+                "motion.lock");
+            AssertDependency(
+                dependencies[1],
                 CharacterActionResourceDependencyKind.CombatAction,
                 "combat.light",
                 CharacterActionTrackKind.Combat,
@@ -41,7 +49,7 @@ namespace MxFramework.Tests.CharacterAction
                 4,
                 "combat.start");
             AssertDependency(
-                dependencies[1],
+                dependencies[2],
                 CharacterActionResourceDependencyKind.TraceProfile,
                 "trace.sword",
                 CharacterActionTrackKind.Combat,
@@ -49,7 +57,7 @@ namespace MxFramework.Tests.CharacterAction
                 5,
                 "trace.start");
             AssertDependency(
-                dependencies[2],
+                dependencies[3],
                 CharacterActionResourceDependencyKind.GameplayRequest,
                 "gameplay.hit",
                 CharacterActionTrackKind.Gameplay,
@@ -57,7 +65,7 @@ namespace MxFramework.Tests.CharacterAction
                 6,
                 "gameplay.hit");
             AssertDependency(
-                dependencies[3],
+                dependencies[4],
                 CharacterActionResourceDependencyKind.AnimationAction,
                 "anim.light",
                 CharacterActionTrackKind.Animation,
@@ -65,7 +73,7 @@ namespace MxFramework.Tests.CharacterAction
                 0,
                 "anim.start");
             AssertDependency(
-                dependencies[4],
+                dependencies[5],
                 CharacterActionResourceDependencyKind.AudioCue,
                 "sfx.light",
                 CharacterActionTrackKind.Presentation,
@@ -73,13 +81,21 @@ namespace MxFramework.Tests.CharacterAction
                 4,
                 "sfx.light");
             AssertDependency(
-                dependencies[5],
+                dependencies[6],
                 CharacterActionResourceDependencyKind.VfxResource,
                 "vfx.slash",
                 CharacterActionTrackKind.Presentation,
                 CharacterActionTrackEventKind.SpawnVisualCue,
                 5,
                 "vfx.slash");
+            AssertDependency(
+                dependencies[7],
+                CharacterActionResourceDependencyKind.DebugMarker,
+                "light.start",
+                CharacterActionTrackKind.Debug,
+                CharacterActionTrackEventKind.EmitDebugMarker,
+                0,
+                "debug.start");
         }
 
         [Test]
@@ -117,7 +133,9 @@ namespace MxFramework.Tests.CharacterAction
         public void Collector_ReturnsTrackLevelCombatActionWhenNoStartEventExists()
         {
             CharacterActionConfig action = CreateAction(
-                combatTrack: new CombatTrackConfig("combat.light", null));
+                motionTrack: MotionTrackConfig.Empty,
+                combatTrack: new CombatTrackConfig("combat.light", null),
+                debugTrack: DebugTrackConfig.Empty);
 
             CharacterActionResourceDependency[] dependencies = CharacterActionResourceDependencyCollector.Collect(action);
 
@@ -154,10 +172,12 @@ namespace MxFramework.Tests.CharacterAction
         }
 
         private static CharacterActionConfig CreateAction(
+            MotionTrackConfig motionTrack = null,
             CombatTrackConfig combatTrack = null,
             GameplayTrackConfig gameplayTrack = null,
             AnimationTrackConfig animationTrack = null,
-            PresentationTrackConfig presentationTrack = null)
+            PresentationTrackConfig presentationTrack = null,
+            DebugTrackConfig debugTrack = null)
         {
             return new CharacterActionConfig(
                 id: 100,
@@ -177,17 +197,21 @@ namespace MxFramework.Tests.CharacterAction
                 },
                 cancelRules: null,
                 interruptRules: null,
-                motionTrack: new MotionTrackConfig(false, new[]
+                motionTrack: motionTrack ?? new MotionTrackConfig(false, new[]
                 {
-                    new MotionTrackEvent(0, CharacterActionTrackEventKind.LockMovement, CharacterMovementMode.ControlLocked),
+                    new MotionTrackEvent(
+                        0,
+                        CharacterActionTrackEventKind.LockMovement,
+                        CharacterMovementMode.ControlLocked,
+                        stableEventId: "motion.lock"),
                 }),
                 combatTrack: combatTrack,
                 gameplayTrack: gameplayTrack,
                 animationTrack: animationTrack,
                 presentationTrack: presentationTrack,
-                debugTrack: new DebugTrackConfig(new[]
+                debugTrack: debugTrack ?? new DebugTrackConfig(new[]
                 {
-                    new DebugTrackEvent(0, CharacterActionTrackEventKind.EmitDebugMarker, "light.start"),
+                    new DebugTrackEvent(0, CharacterActionTrackEventKind.EmitDebugMarker, "light.start", "debug.start"),
                 }));
         }
 
