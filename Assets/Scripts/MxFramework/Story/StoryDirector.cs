@@ -8,6 +8,7 @@ namespace MxFramework.Story
     {
         IStoryBlackboard Blackboard { get; }
         IEventBus<StoryEvent> Events { get; }
+        IDisposable SubscribeEvents(Action<StoryEvent> handler);
         StoryLoadGraphResult TryLoadGraph(StoryGraphDefinition graph);
         bool LoadGraph(in StoryGraphDefinition graph);
         StoryTriggerResult TryRaiseTrigger(int triggerId, in StoryActivationContext context);
@@ -45,6 +46,11 @@ namespace MxFramework.Story
         IStoryBlackboard IStoryDirector.Blackboard => Blackboard;
         public IEventBus<StoryEvent> Events => _events;
         public int NextBeatInstanceId => _nextBeatInstanceId;
+
+        public IDisposable SubscribeEvents(Action<StoryEvent> handler)
+        {
+            return _events.Subscribe(handler);
+        }
 
         public StoryLoadGraphResult TryLoadGraph(StoryGraphDefinition graph)
         {

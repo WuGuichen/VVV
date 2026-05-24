@@ -744,6 +744,60 @@ new StoryRuntimeSaveStateProvider(restoredDirector).RestoreSaveState(loaded);
 - `WaitWithFrameTimeout` 只保留 DTO 字段，S1 未实现 runtime timeout 行为。
 - 当前测试入口：`Assets/Scripts/MxFramework/Tests/Story/` 和 `Assets/Scripts/MxFramework/Tests/Story.Runtime/`。
 
+### 6.12 Story Config Mapping
+
+`MxFramework.Story.Config` 把项目层导入器产出的配置行映射成 `StoryGraphDefinition`。它只依赖 Story + Config，不读取 RuntimeCommand，不创建 Gameplay / Resources / Unity 侧对象。
+
+```csharp
+using MxFramework.Story;
+using MxFramework.Story.Config;
+
+var set = new StoryConfigSet(
+    graphs: new[]
+    {
+        new StoryGraphConfig(id: 1001, entryBeatId: 2001)
+    },
+    beats: new[]
+    {
+        new StoryBeatConfig(id: 2001, graphId: 1001, sortOrder: 10, triggerIds: new[] { 4001 }),
+        new StoryBeatConfig(id: 2002, graphId: 1001, sortOrder: 20)
+    },
+    steps: new[]
+    {
+        new StoryStepConfig(
+            id: 3001,
+            graphId: 1001,
+            beatId: 2001,
+            kind: StoryStepKind.Line,
+            textKey: 9001)
+    },
+    branches: new[]
+    {
+        new StoryBranchConfig(id: 1, graphId: 1001, beatId: 2001, targetBeatId: 2002, isFallback: true)
+    },
+    choices: System.Array.Empty<StoryChoiceConfig>(),
+    facts: System.Array.Empty<StoryFactConfig>());
+
+StoryConfigReferenceIndex references = new StoryConfigReferenceIndex()
+    .AddTextKey(9001);
+
+StoryGraphConfigMappingResult result = StoryGraphConfigMapper.Map(set, graphId: 1001, references);
+if (result.IsValid)
+{
+    StoryGraphDefinition graph = result.Definition;
+}
+```
+
+确定性排序规则：
+
+- beat: `SortOrder`, `BeatId`
+- step: `SortOrder`, `StepId`
+- choice: `SortOrder`, `ChoiceId`
+- branch: `Priority`, `BranchId`
+- trigger / effect id 数组升序
+
+Validator 会阻止缺失 entry beat、非法 branch / choice target、重复稳定 id、unsupported step kind / wait policy、非法 text key、非法 trigger / effect id、缺失或类型不匹配的 Story fact reference、非法 `SetFact` raw value，以及同一 beat 同时声明 choices / branches 或多个 fallback branches。详见 `Docs/Interfaces/Story.Config.md`。
+
 ## 7. Config 表和校验
 
 基础流程：

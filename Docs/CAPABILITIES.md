@@ -100,11 +100,12 @@
 | Runtime hash contributor | ✅ v0.1 | `StoryRuntimeHashContributor` | Story.Runtime + Runtime |
 | Runtime SaveState provider/restorer | ✅ v0.1 | `StoryRuntimeSaveStateProvider` | Story.Runtime + Runtime |
 | Replay/hash validation | ✅ v0.1 | Existing `RuntimeReplayRecorder` / `RuntimeReplayPlaybackRunner` with Story commands | Story.Runtime + Runtime |
+| Story config schema / mapper / validator | ✅ v0.1 | `StoryConfigSet` / `StoryGraphConfigMapper` / `StoryConfigValidator` | Story.Config + Config |
 
-→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`
-→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`
-→ 交付等级：`Runtime Slice`；没有 Unity 场景、UI Toolkit view、Timeline、Gameplay bridge、Resources bridge、Config mapper 或 Authoring 工具。
-→ **不含**: Story.Config、Story.GameplayBridge、Story.ResourcesBridge、Story.Unity、Story.Editor、Runtime AI Planner projection、可玩 Demo
+→ 接口：`Interfaces/Story.md`, `Interfaces/Story.Runtime.md`, `Interfaces/Story.Config.md`
+→ 测试：`Tests/Story/StoryBlackboardTests.cs`, `Tests/Story/StoryDirectorTests.cs`, `Tests/Story.Runtime/`, `Tests/Story.Config/`
+→ 交付等级：`Runtime Slice` + `Config Bridge`；没有 Unity 场景、UI Toolkit view、Timeline、Gameplay bridge、Resources bridge 或 Authoring 工具。
+→ **不含**: Story.GameplayBridge、Story.ResourcesBridge、Story.Unity、Story.Editor、Runtime AI Planner projection、Yarn/Ink/Articy importer、可玩 Demo
 
 ### 1.6 App / Scene Flow — 游戏启动状态和场景切换骨架
 

@@ -141,8 +141,12 @@ public interface IStoryDirector
     StoryDirectorSnapshot CreateSnapshot();
     IStoryBlackboard Blackboard { get; }
     IEventBus<StoryEvent> Events { get; }
+    IDisposable SubscribeEvents(Action<StoryEvent> handler);
 }
 ```
+
+`Events` remains available for core callers that already reference `MxFramework.Events`.
+Bridge assemblies should prefer `SubscribeEvents(...)` so they do not need to reference the Events assembly directly.
 
 Director does not know `RuntimeCommand`. `Story.Runtime` translates commands into these method calls. S1 supports a minimal deterministic graph flow:
 
@@ -252,7 +256,7 @@ It must not serialize private object trees, delegates, event handlers, Unity obj
 
 ## Current Unsupported
 
-- Config loading / schema mapping. Planned in `Story.Config`.
+- Config loading / schema mapping lives in sibling `Story.Config`; Story core still does not depend on Config.
 - Pluggable `IStoryCondition` / `IStoryEffect` contracts. S1 uses stable `conditionId` lookup against bool blackboard facts and `SetFact` steps only.
 - Gameplay effect execution. Planned in `Story.GameplayBridge`.
 - Resources preload. Planned in `Story.ResourcesBridge`.
