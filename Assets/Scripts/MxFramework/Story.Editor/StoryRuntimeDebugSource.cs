@@ -26,7 +26,7 @@ namespace MxFramework.Story.Editor
                 module != null ? module.Events : null,
                 module != null ? (Func<IReadOnlyList<RuntimeCommand>>)(() => module.LastDrainedCommands) : null,
                 module != null ? (Func<IReadOnlyList<RuntimeCommandError>>)(() => module.LastCommandErrors) : null,
-                recentEventsProvider,
+                recentEventsProvider ?? (module != null ? (Func<IReadOnlyList<StoryRuntimeEvent>>)(() => module.RecentEvents) : null),
                 name)
         {
         }

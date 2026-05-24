@@ -8,9 +8,11 @@ namespace MxFramework.Story.Runtime
     {
         public const string DefaultModuleId = "mxframework.story.runtime";
         public const int DefaultPriority = -100;
+        public const int DefaultRecentEventCapacity = 32;
 
         private readonly List<RuntimeCommand> _lastDrainedCommands = new List<RuntimeCommand>();
         private readonly List<RuntimeCommandError> _lastCommandErrors = new List<RuntimeCommandError>();
+        private readonly List<StoryRuntimeEvent> _recentEvents = new List<StoryRuntimeEvent>();
         private readonly IDisposable _eventSubscription;
         private RuntimeFrame _currentFrame;
 
@@ -39,6 +41,7 @@ namespace MxFramework.Story.Runtime
         public StoryRuntimeCommandValidator Validator { get; }
         public IReadOnlyList<RuntimeCommand> LastDrainedCommands => _lastDrainedCommands;
         public IReadOnlyList<RuntimeCommandError> LastCommandErrors => _lastCommandErrors;
+        public IReadOnlyList<StoryRuntimeEvent> RecentEvents => _recentEvents;
 
         public override void Tick(RuntimeTickContext context)
         {
@@ -104,7 +107,18 @@ namespace MxFramework.Story.Runtime
 
         private void OnStoryEvent(StoryEvent evt)
         {
-            Events.Enqueue(_currentFrame, StoryRuntimeEvent.FromStoryEvent(_currentFrame, evt));
+            StoryRuntimeEvent runtimeEvent = StoryRuntimeEvent.FromStoryEvent(_currentFrame, evt);
+            Events.Enqueue(_currentFrame, runtimeEvent);
+            RecordRecentEvent(runtimeEvent);
+        }
+
+        private void RecordRecentEvent(StoryRuntimeEvent evt)
+        {
+            _recentEvents.Add(evt);
+            while (_recentEvents.Count > DefaultRecentEventCapacity)
+            {
+                _recentEvents.RemoveAt(0);
+            }
         }
 
         private void AddDirectorError(RuntimeCommand command, StoryTriggerResult result)

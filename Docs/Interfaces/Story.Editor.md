@@ -45,7 +45,7 @@ MxFramework.Story.Editor
 - `Beats`：beat instance id、graph / beat id、step index、pending presentation step、choice set。
 - `Blackboard`：有序 `StoryFactKey=StoryValue`。
 - `事件队列`：pending count、oldest / newest frame、next sequence、event type。
-- `最近事件`：可选，由注册 target 传入 recent event provider。
+- `最近事件`：默认来自 `StoryRuntimeModule.RecentEvents`；注册 target 也可传入自定义 recent event provider。
 - `最近命令` / `命令错误`：来自 `StoryRuntimeModule.LastDrainedCommands` 和 `LastCommandErrors`。
 
 ## 使用约定

@@ -30,6 +30,7 @@ namespace MxFramework.Tests.StoryEditor
             Assert.That(GetBody(snapshot, "Beats"), Does.Contain("beat=201"));
             Assert.That(GetBody(snapshot, "Blackboard"), Does.Contain("101:701=Int32(9)"));
             Assert.That(GetBody(snapshot, "事件队列"), Does.Contain("pending=4"));
+            Assert.That(GetBody(snapshot, "最近事件"), Does.Contain("kind=StepStarted"));
         }
 
         [Test]
