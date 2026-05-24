@@ -242,18 +242,6 @@ namespace MxFramework.CharacterAction
                     traceId);
             }
 
-            CharacterActionDiagnostic[] profileDiagnostics = CharacterActionValidation.ValidateReactionProfile(
-                profile,
-                context.Actions,
-                reactionContext.Completeness);
-            if (HasErrors(profileDiagnostics))
-            {
-                return CharacterActionResolveResult.Rejected(
-                    ResolveReactionProfileRejectReason(profileDiagnostics),
-                    profileDiagnostics,
-                    traceId);
-            }
-
             CharacterReactionSelectionResult selection = CharacterReactionSelector.Select(profile, reactionContext);
             if (!selection.Accepted)
             {
@@ -275,14 +263,24 @@ namespace MxFramework.CharacterAction
                 traceId: traceId);
 
             CharacterActionConfig action = FindAction(context.Actions, selection.SelectedActionId);
-            return ResolveBoundAction(context, request, action, allowQueue: false);
+            CharacterActionDiagnostic targetDiagnostic;
+            if (!TryValidateSelectedReactionAction(selection.SelectedActionId, action, out targetDiagnostic))
+            {
+                return CharacterActionResolveResult.Rejected(
+                    ResolveReactionTargetRejectReason(targetDiagnostic),
+                    MergeDiagnostics(selection.Diagnostics, new[] { targetDiagnostic }),
+                    traceId);
+            }
+
+            return ResolveBoundAction(context, request, action, allowQueue: false, selection.Diagnostics);
         }
 
         private CharacterActionResolveResult ResolveBoundAction(
             CharacterActionResolverContext context,
             CharacterActionIntentRequest request,
             CharacterActionConfig action,
-            bool allowQueue)
+            bool allowQueue,
+            CharacterActionDiagnostic[] preDiagnostics = null)
         {
             if (context.State.IsDisabled)
             {
@@ -326,7 +324,7 @@ namespace MxFramework.CharacterAction
             {
                 return CharacterActionResolveResult.Rejected(
                     ResolveActionConfigRejectReason(validationDiagnostics),
-                    validationDiagnostics,
+                    MergeDiagnostics(preDiagnostics, validationDiagnostics),
                     request.TraceId);
             }
 
@@ -337,12 +335,13 @@ namespace MxFramework.CharacterAction
                     action.TimelineAuthority == CharacterActionTimelineAuthority.CombatAnchored
                         ? CharacterActionRejectReason.CombatActionMissing
                         : CharacterActionRejectReason.MissingActionConfig,
-                    duration.Diagnostics,
+                    MergeDiagnostics(preDiagnostics, duration.Diagnostics),
                     request.TraceId);
             }
 
             CharacterActionPlan plan = CreatePlan(action, duration.DurationFrames, request.TraceId);
             List<CharacterActionDiagnostic> diagnostics = new List<CharacterActionDiagnostic>();
+            AddDiagnostics(diagnostics, preDiagnostics);
             diagnostics.AddRange(duration.Diagnostics);
             diagnostics.AddRange(validationDiagnostics);
 
@@ -375,14 +374,16 @@ namespace MxFramework.CharacterAction
 
                 if (!cancel.Allowed)
                 {
+                    CharacterActionDiagnostic[] cancelDiagnostics =
+                    {
+                        CharacterActionDiagnostic.Error(
+                            cancel.Code,
+                            "Active action '" + context.State.ActiveActionId + "' rejected cancel to action '" + action.StableId + "'.")
+                    };
+
                     return CharacterActionResolveResult.Rejected(
                         CharacterActionRejectReason.CancelConflict,
-                        new[]
-                        {
-                            CharacterActionDiagnostic.Error(
-                                cancel.Code,
-                                "Active action '" + context.State.ActiveActionId + "' rejected cancel to action '" + action.StableId + "'.")
-                        },
+                        MergeDiagnostics(preDiagnostics, cancelDiagnostics),
                         request.TraceId);
                 }
             }
@@ -413,6 +414,74 @@ namespace MxFramework.CharacterAction
                 reason,
                 new[] { CharacterActionDiagnostic.Error(code, message) },
                 traceId);
+        }
+
+        private static bool TryValidateSelectedReactionAction(
+            string actionId,
+            CharacterActionConfig action,
+            out CharacterActionDiagnostic diagnostic)
+        {
+            if (string.IsNullOrEmpty(actionId))
+            {
+                diagnostic = CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.ReactionRuleNoTarget,
+                    "Reaction rule action id is missing.");
+                return false;
+            }
+
+            if (action == null)
+            {
+                diagnostic = CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.MissingActionConfig,
+                    "Reaction action '" + actionId + "' is missing.");
+                return false;
+            }
+
+            if (action.Category != CharacterActionCategory.Reaction)
+            {
+                diagnostic = CharacterActionDiagnostic.Error(
+                    CharacterActionDiagnosticCodes.ReactionRuleNoTarget,
+                    "Reaction action '" + actionId + "' must use CharacterActionCategory.Reaction.");
+                return false;
+            }
+
+            diagnostic = default;
+            return true;
+        }
+
+        private static CharacterActionRejectReason ResolveReactionTargetRejectReason(CharacterActionDiagnostic diagnostic)
+        {
+            return diagnostic.Code == CharacterActionDiagnosticCodes.MissingActionConfig
+                ? CharacterActionRejectReason.MissingActionConfig
+                : CharacterActionRejectReason.InvalidTarget;
+        }
+
+        private static CharacterActionDiagnostic[] MergeDiagnostics(
+            CharacterActionDiagnostic[] first,
+            CharacterActionDiagnostic[] second)
+        {
+            first = first ?? Array.Empty<CharacterActionDiagnostic>();
+            second = second ?? Array.Empty<CharacterActionDiagnostic>();
+
+            if (first.Length == 0)
+                return second;
+            if (second.Length == 0)
+                return first;
+
+            var merged = new CharacterActionDiagnostic[first.Length + second.Length];
+            Array.Copy(first, 0, merged, 0, first.Length);
+            Array.Copy(second, 0, merged, first.Length, second.Length);
+            return merged;
+        }
+
+        private static void AddDiagnostics(
+            List<CharacterActionDiagnostic> target,
+            CharacterActionDiagnostic[] diagnostics)
+        {
+            if (diagnostics == null || diagnostics.Length == 0)
+                return;
+
+            target.AddRange(diagnostics);
         }
 
         private static CandidateBuildResult BuildCommandCandidates(
@@ -584,22 +653,6 @@ namespace MxFramework.CharacterAction
             }
 
             return false;
-        }
-
-        private static CharacterActionRejectReason ResolveReactionProfileRejectReason(CharacterActionDiagnostic[] diagnostics)
-        {
-            for (int i = 0; i < diagnostics.Length; i++)
-            {
-                if (diagnostics[i].Severity != CharacterActionDiagnosticSeverity.Error)
-                    continue;
-
-                if (diagnostics[i].Code == CharacterActionDiagnosticCodes.MissingActionConfig)
-                    return CharacterActionRejectReason.MissingActionConfig;
-                if (diagnostics[i].Code == CharacterActionDiagnosticCodes.ReactionRuleNoTarget)
-                    return CharacterActionRejectReason.InvalidTarget;
-            }
-
-            return CharacterActionRejectReason.ReactionContextIncomplete;
         }
 
         private static CharacterActionRejectReason ResolveActionConfigRejectReason(CharacterActionDiagnostic[] diagnostics)

@@ -525,7 +525,7 @@ public readonly struct CharacterReactionContext
 
 ```text
 CharacterReactionContextBuilder
-  输入：Gameplay pressure typed event、Combat hit result、BodyPartHitZoneResolver、CharacterControl state、CombatActionRunner state。
+  输入：Gameplay pressure typed event、Combat hit result、source facts / composition root supplied body-hit-zone facts、CharacterControl state、CombatActionRunner state。
   输出：CharacterReactionContext + completeness + diagnostics。
 ```
 
@@ -1400,7 +1400,7 @@ Issue #434 已完成 Phase 6 的首个 noEngine bridge slice。当前 Combat 公
 
 ```text
 CombatHitResult -> ReactionContext bridge
-BodyPartHitZoneResolver integration
+Source facts / composition root supplied body-hit-zone facts (BodyPartHitZoneResolver integration remains follow-up)
 Full ReactionProfile dimensions
 HitReact / directional hit / body part hit / PostureBreak / GuardBreak / ArmorBreak / Death
 ```

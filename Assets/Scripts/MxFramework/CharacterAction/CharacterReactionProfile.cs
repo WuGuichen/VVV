@@ -169,34 +169,33 @@ namespace MxFramework.CharacterAction
                     continue;
                 }
 
-                if (rule.RequiresHitContext && !context.HasFullHitContext)
-                {
-                    return HitContextRequired(rule, context);
-                }
-
-                CharacterActionDiagnostic hitDiagnostic;
-                bool hitDimensionMatched = MatchesFullHitDimensions(rule, context, out hitDiagnostic);
-                if (!hitDimensionMatched)
-                {
-                    if (hitDiagnostic.Severity == CharacterActionDiagnosticSeverity.Error)
-                    {
-                        return new CharacterReactionSelectionResult(
-                            accepted: false,
-                            selectedActionId: string.Empty,
-                            rejectCode: hitDiagnostic.Code,
-                            diagnostics: new[] { hitDiagnostic });
-                    }
-
-                    diagnostics.Add(hitDiagnostic);
-                    continue;
-                }
-
                 if (!MatchesPressureOnlyDimensions(rule, context))
                 {
                     diagnostics.Add(CharacterActionDiagnostic.Info(
                         CharacterActionDiagnosticCodes.ReactionRuleSkipped,
                         "Skipped reaction rule '" + rule.ActionId + "' because PressureOnly dimensions did not match."));
                     continue;
+                }
+
+                bool requiresMissingHitContext = rule.RequiresHitContext && !context.HasFullHitContext;
+                if (!requiresMissingHitContext)
+                {
+                    CharacterActionDiagnostic hitDiagnostic;
+                    bool hitDimensionMatched = MatchesFullHitDimensions(rule, context, out hitDiagnostic);
+                    if (!hitDimensionMatched)
+                    {
+                        if (hitDiagnostic.Severity == CharacterActionDiagnosticSeverity.Error)
+                        {
+                            return new CharacterReactionSelectionResult(
+                                accepted: false,
+                                selectedActionId: string.Empty,
+                                rejectCode: hitDiagnostic.Code,
+                                diagnostics: new[] { hitDiagnostic });
+                        }
+
+                        diagnostics.Add(hitDiagnostic);
+                        continue;
+                    }
                 }
 
                 if (string.IsNullOrEmpty(rule.ActionId))
@@ -218,13 +217,17 @@ namespace MxFramework.CharacterAction
                     i,
                     GetTriggerSpecificity(rule.Trigger, trigger),
                     GetHitSpecificity(rule),
-                    GetPressureOnlySpecificity(rule)));
+                    GetPressureOnlySpecificity(rule),
+                    requiresMissingHitContext));
             }
 
             if (candidates.Count > 0)
             {
                 candidates.Sort(CompareCandidates);
                 CharacterReactionRuleCandidate selected = candidates[0];
+                if (selected.RequiresMissingHitContext)
+                    return HitContextRequired(selected.Rule, context);
+
                 for (int i = 1; i < candidates.Count; i++)
                 {
                     diagnostics.Add(CharacterActionDiagnostic.Info(
@@ -471,13 +474,15 @@ namespace MxFramework.CharacterAction
                 int ruleOrder,
                 int triggerSpecificity,
                 int hitSpecificity,
-                int pressureOnlySpecificity)
+                int pressureOnlySpecificity,
+                bool requiresMissingHitContext)
             {
                 Rule = rule;
                 RuleOrder = ruleOrder;
                 TriggerSpecificity = triggerSpecificity;
                 HitSpecificity = hitSpecificity;
                 PressureOnlySpecificity = pressureOnlySpecificity;
+                RequiresMissingHitContext = requiresMissingHitContext;
             }
 
             public CharacterReactionRule Rule { get; }
@@ -485,6 +490,7 @@ namespace MxFramework.CharacterAction
             public int TriggerSpecificity { get; }
             public int HitSpecificity { get; }
             public int PressureOnlySpecificity { get; }
+            public bool RequiresMissingHitContext { get; }
         }
     }
 
