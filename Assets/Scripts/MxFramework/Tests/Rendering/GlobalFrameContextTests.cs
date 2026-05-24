@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using MxFramework.Diagnostics;
 using MxFramework.Rendering;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace MxFramework.Tests.Rendering
 {
@@ -126,10 +129,10 @@ namespace MxFramework.Tests.Rendering
             finally
             {
                 RenderTexture.active = previousActive;
-                Object.DestroyImmediate(readback);
+                UnityEngine.Object.DestroyImmediate(readback);
                 target.Release();
-                Object.DestroyImmediate(target);
-                Object.DestroyImmediate(material);
+                UnityEngine.Object.DestroyImmediate(target);
+                UnityEngine.Object.DestroyImmediate(material);
             }
         }
 
@@ -165,6 +168,7 @@ namespace MxFramework.Tests.Rendering
             Assert.IsFalse(asmdef.Contains("MxFramework.Buffs"));
             Assert.IsFalse(asmdef.Contains("MxFramework.Character"));
             Assert.IsFalse(asmdef.Contains("MxFramework.Animation"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Camera"));
         }
 
         [Test]
@@ -189,6 +193,369 @@ namespace MxFramework.Tests.Rendering
             {
                 string asmdef = File.ReadAllText(asmdefPath);
                 Assert.IsFalse(asmdef.Contains("MxFramework.Rendering"), asmdefPath);
+            }
+        }
+    }
+
+    public class CameraRenderContextAndFeaturePipelineTests
+    {
+        private static readonly SharedRTOwnerId Owner = new SharedRTOwnerId("pipeline-owner");
+        private static readonly SharedRTWriterSetId WriterSet = new SharedRTWriterSetId("pipeline-writers");
+
+        [Test]
+        public void CameraRenderContext_SnapshotsCameraKindFocusAndOverrides()
+        {
+            var context = new CameraRenderContext();
+            var descriptor = new MxCameraRenderContextDescriptor(MxCameraRenderKind.SceneView, null, new Vector3(1f, 2f, 3f));
+            int overrideId = Shader.PropertyToID("_MxTestCameraOverride");
+
+            context.SetDescriptor(descriptor);
+            context.SetViewFocus(new Vector3(4f, 5f, 6f));
+            context.SetCameraOverride(overrideId, new Vector4(7f, 8f, 9f, 10f));
+
+            CameraRenderSnapshot snapshot = context.Snapshot();
+
+            Assert.AreEqual(MxCameraRenderKind.SceneView, context.CurrentCameraKind);
+            Assert.AreEqual(MxCameraRenderKind.SceneView, snapshot.CameraKind);
+            Assert.AreEqual(new Vector3(4f, 5f, 6f), snapshot.ViewFocusWorldPosition);
+            Assert.AreEqual(1, snapshot.Overrides.Count);
+            Assert.AreEqual(overrideId, snapshot.Overrides[0].PropertyId);
+            Assert.AreEqual(new Vector4(7f, 8f, 9f, 10f), snapshot.Overrides[0].Value);
+
+            var source = new CameraRenderContextDebugSource(context);
+            FrameworkDebugSnapshot debugSnapshot = source.CreateSnapshot();
+            Assert.AreEqual(RenderingDebugSectionNames.CameraGlobals, debugSnapshot.Sections[0].Title);
+            StringAssert.Contains("cameraKind: SceneView", debugSnapshot.Sections[0].Body);
+        }
+
+        [Test]
+        public void CameraRenderContext_RejectsGlobalOwnedShaderOverride()
+        {
+            var context = new CameraRenderContext();
+
+            Assert.Throws<ArgumentException>(() => context.SetCameraOverride(MxRenderingShaderIds.MxTime, Vector4.one));
+        }
+
+        [Test]
+        public void FeaturePipeline_SortsEnabledPassesByPhaseOrderAndDebugNameOrdinal()
+        {
+            var pipeline = new MxRenderPipeline();
+            pipeline.RegisterPass(new DummyPass("zeta", MxRenderPhase.AfterRendering, 0));
+            pipeline.RegisterPass(new DummyPass("bravo", MxRenderPhase.BeforeRenderingOpaques, 0));
+            pipeline.RegisterPass(new DummyPass("alpha", MxRenderPhase.BeforeRenderingOpaques, 0));
+            pipeline.RegisterPass(new DummyPass("disabled", MxRenderPhase.BeforeRendering, -100, isEnabled: false));
+            pipeline.RegisterPass(new DummyPass("late", MxRenderPhase.BeforeRenderingOpaques, 10));
+
+            IReadOnlyList<IMxRenderPass> passes = pipeline.CollectPasses(CreateDescriptor(MxCameraRenderKind.Game));
+
+            CollectionAssert.AreEqual(new[] { "alpha", "bravo", "late", "zeta" }, passes.Select(pass => pass.DebugName).ToArray());
+            CollectionAssert.AreEqual(new[] { "alpha", "bravo", "late", "zeta" }, pipeline.CaptureTopology().Passes.Select(pass => pass.DebugName).ToArray());
+        }
+
+        [Test]
+        public void FeaturePipeline_ProviderFiltersByCameraKind()
+        {
+            var pipeline = new MxRenderPipeline();
+            pipeline.RegisterProvider(new CameraKindProvider("game-provider", MxCameraRenderKind.Game, "game-pass"));
+            pipeline.RegisterProvider(new CameraKindProvider("scene-provider", MxCameraRenderKind.SceneView, "scene-pass"));
+            pipeline.RegisterProvider(new CameraKindProvider("preview-provider", MxCameraRenderKind.Preview, "preview-pass"));
+            pipeline.RegisterProvider(new CameraKindProvider("reflection-provider", MxCameraRenderKind.Reflection, "reflection-pass"));
+
+            AssertSinglePassForKind(pipeline, MxCameraRenderKind.Game, "game-pass");
+            AssertSinglePassForKind(pipeline, MxCameraRenderKind.SceneView, "scene-pass");
+            AssertSinglePassForKind(pipeline, MxCameraRenderKind.Preview, "preview-pass");
+            AssertSinglePassForKind(pipeline, MxCameraRenderKind.Reflection, "reflection-pass");
+        }
+
+        [Test]
+        public void FeaturePipeline_TopologyReportsDuplicateNamesSharedRTCollisionAndInvalidMetadata()
+        {
+            var pipeline = new MxRenderPipeline();
+            SharedRenderTextureKey shared = CreateSharedRT("mx.pipeline.shared");
+            pipeline.RegisterPass(new DummyPass("duplicate", MxRenderPhase.BeforeRenderingOpaques, 0));
+            pipeline.RegisterPass(new DummyPass("duplicate", MxRenderPhase.BeforeRenderingOpaques, 1));
+            pipeline.RegisterPass(new DummyPass("writer", MxRenderPhase.AfterRenderingOpaques, 0, writes: new[] { shared }));
+            pipeline.RegisterPass(new DummyPass("reader", MxRenderPhase.AfterRenderingOpaques, 0, reads: new[] { shared }));
+            pipeline.RegisterPass(new DummyPass(string.Empty, MxRenderPhase.AfterRendering, 0));
+
+            pipeline.CollectPasses(CreateDescriptor(MxCameraRenderKind.Preview));
+            MxRenderPipelineTopologySnapshot snapshot = pipeline.CaptureTopology();
+
+            Assert.AreEqual(MxCameraRenderKind.Preview, snapshot.CameraKind);
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.DuplicateDebugName));
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.SharedRTPhaseOrderCollision));
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.InvalidMetadata));
+            Assert.IsFalse(snapshot.Passes.Any(pass => string.IsNullOrEmpty(pass.DebugName)));
+
+            var source = new RenderPipelineTopologyDebugSource(pipeline);
+            FrameworkDebugSnapshot debugSnapshot = source.CreateSnapshot();
+            Assert.AreEqual(RenderingDebugSectionNames.PipelineTopology, debugSnapshot.Sections[0].Title);
+            StringAssert.Contains("cameraKind: Preview", debugSnapshot.Sections[0].Body);
+            StringAssert.Contains("SharedRTPhaseOrderCollision", debugSnapshot.Sections[0].Body);
+        }
+
+        [Test]
+        public void FeaturePipeline_ProviderMetadataReportsEmptyAndDuplicateDebugNames()
+        {
+            var pipeline = new MxRenderPipeline();
+            pipeline.RegisterProvider(new CameraKindProvider(string.Empty, MxCameraRenderKind.Game, "empty-provider-pass"));
+            pipeline.RegisterProvider(new CameraKindProvider("duplicate-provider", MxCameraRenderKind.Game, "first-provider-pass"));
+            pipeline.RegisterProvider(new CameraKindProvider("duplicate-provider", MxCameraRenderKind.SceneView, "second-provider-pass"));
+
+            pipeline.CollectPasses(CreateDescriptor(MxCameraRenderKind.Game));
+            MxRenderPipelineTopologySnapshot snapshot = pipeline.CaptureTopology();
+
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.InvalidProviderMetadata));
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.DuplicateProviderDebugName));
+        }
+
+        [Test]
+        public void FeaturePipeline_ReportsSharedRTOrderWriterPolicyAndInvalidKeyMetadata()
+        {
+            var pipeline = new MxRenderPipeline();
+            SharedRenderTextureKey shared = CreateSharedRT("mx.pipeline.order");
+            SharedRenderTextureKey missing = CreateSharedRT("mx.pipeline.missing");
+            SharedRenderTextureKey invalid = CreateInvalidSharedRT();
+
+            pipeline.RegisterPass(new DummyPass("early-reader", MxRenderPhase.BeforeRenderingOpaques, 0, reads: new[] { shared }));
+            pipeline.RegisterPass(new DummyPass("writer-a", MxRenderPhase.BeforeRenderingOpaques, 10, writes: new[] { shared }));
+            pipeline.RegisterPass(new DummyPass("writer-b", MxRenderPhase.BeforeRenderingOpaques, 20, writes: new[] { shared }));
+            pipeline.RegisterPass(new DummyPass("missing-reader", MxRenderPhase.BeforeRenderingTransparents, 0, reads: new[] { missing }));
+            pipeline.RegisterPass(new DummyPass("invalid-key-writer", MxRenderPhase.AfterRendering, 0, writes: new[] { invalid }));
+
+            pipeline.CollectPasses(CreateDescriptor(MxCameraRenderKind.Game));
+            MxRenderPipelineTopologySnapshot snapshot = pipeline.CaptureTopology();
+
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.SharedRTReadBeforeWrite));
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.SharedRTMissingWriter));
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.SharedRTMultipleWriters));
+            Assert.IsTrue(snapshot.Diagnostics.Any(diagnostic => diagnostic.Code == MxRenderPipelineDiagnosticCode.InvalidSharedRTMetadata));
+        }
+
+        [Test]
+        public void FeatureSharedRTLifecycle_IsPerCameraInvocationAndWrapsFeaturePasses()
+        {
+            IReadOnlyList<string> topology = MxRenderingPipelineFeature.CaptureLifecycleTopologyForTests(new[]
+            {
+                new DummyPass("feature-pass", MxRenderPhase.BeforeRenderingOpaques, 0)
+            });
+
+            Assert.AreEqual("PerCameraRenderInvocation", MxRenderingPipelineFeature.SharedRTLifecycleScope);
+            CollectionAssert.AreEqual(
+                new[] { "SharedRT.BeginFrame(sync)", "CameraGlobals", "feature-pass", "SharedRT.EndFrame" },
+                topology.ToArray());
+        }
+
+        [Test]
+        public void FeatureSharedRTLifecycle_BeginsFrameBeforePassConfigure()
+        {
+            var feature = ScriptableObject.CreateInstance<MxRenderingPipelineFeature>();
+
+            try
+            {
+                SharedRenderTextureRegistry registry = feature.EnsureSharedRenderTexturesForTests();
+                registry.RegisterWriterSet(WriterSet, new[] { Owner });
+                SharedRTHandle handle = registry.Register(CreateSharedRT("mx.pipeline.configure-lifecycle"));
+                Assert.IsTrue(handle.IsValid);
+
+                registry.RecordWriter(handle, Owner, MxRenderPhase.BeforeRenderingOpaques, 0);
+                Assert.AreEqual(1, registry.CaptureDiagnostics().Entries[0].CurrentFrameWriters.Count);
+
+                var probe = new ConfigureProbePass("configure-probe", MxRenderPhase.BeforeRenderingOpaques, 0);
+                feature.Pipeline.RegisterPass(probe);
+
+                feature.ConfigureRegisteredPassesForTests(CreateDescriptor(MxCameraRenderKind.Game));
+
+                Assert.AreEqual(0, probe.WritersSeenDuringConfigure);
+            }
+            finally
+            {
+                if (feature != null)
+                    UnityEngine.Object.DestroyImmediate(feature);
+            }
+        }
+
+        [Test]
+        public void FeatureSharedRTLifecycle_ClearsFrameDiagnosticsAndDisposesRegistry()
+        {
+            var feature = ScriptableObject.CreateInstance<MxRenderingPipelineFeature>();
+            SharedRenderTextureRegistry registry = null;
+
+            try
+            {
+                registry = feature.EnsureSharedRenderTexturesForTests();
+                registry.RegisterWriterSet(WriterSet, new[] { Owner });
+                SharedRTHandle handle = registry.Register(CreateSharedRT("mx.pipeline.lifecycle"));
+                Assert.IsTrue(handle.IsValid);
+
+                registry.RecordWriter(handle, Owner, MxRenderPhase.BeforeRenderingOpaques, 0);
+                Assert.AreEqual(1, registry.CaptureDiagnostics().Entries[0].CurrentFrameWriters.Count);
+
+                feature.BeginSharedRTFrameForTests();
+                Assert.AreEqual(0, registry.CaptureDiagnostics().Entries[0].CurrentFrameWriters.Count);
+
+                feature.EndSharedRTFrameForTests();
+                feature.DisposeFeatureResourcesForTests();
+
+                Assert.IsNull(feature.CurrentSharedRenderTexturesForTests);
+                Assert.AreEqual(0, registry.CaptureDiagnostics().Entries.Count);
+                Assert.IsFalse(registry.Register(CreateSharedRT("mx.pipeline.after-dispose")).IsValid);
+            }
+            finally
+            {
+                if (feature != null)
+                    UnityEngine.Object.DestroyImmediate(feature);
+            }
+        }
+
+        [Test]
+        public void MxRenderPhase_MapsToExpectedUrpRenderPassEvents()
+        {
+            Assert.AreEqual(RenderPassEvent.BeforeRendering, MxRenderPhase.BeforeRendering.ToRenderPassEvent());
+            Assert.AreEqual(RenderPassEvent.BeforeRenderingOpaques, MxRenderPhase.BeforeRenderingOpaques.ToRenderPassEvent());
+            Assert.AreEqual(RenderPassEvent.AfterRenderingOpaques, MxRenderPhase.AfterRenderingOpaques.ToRenderPassEvent());
+            Assert.AreEqual(RenderPassEvent.AfterRendering, MxRenderPhase.AfterRendering.ToRenderPassEvent());
+        }
+
+        [Test]
+        public void RenderingAsmdef_DoesNotGainForbiddenFeaturePipelineDependencies()
+        {
+            string asmdef = File.ReadAllText("Assets/Scripts/MxFramework/Rendering/MxFramework.Rendering.asmdef");
+
+            Assert.IsFalse(asmdef.Contains("MxFramework.DebugUI"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Gameplay"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Combat"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Character"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Buffs"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Animation"));
+            Assert.IsFalse(asmdef.Contains("MxFramework.Camera"));
+        }
+
+        private static void AssertSinglePassForKind(MxRenderPipeline pipeline, MxCameraRenderKind kind, string expectedDebugName)
+        {
+            IReadOnlyList<IMxRenderPass> passes = pipeline.CollectPasses(CreateDescriptor(kind));
+
+            Assert.AreEqual(1, passes.Count);
+            Assert.AreEqual(expectedDebugName, passes[0].DebugName);
+            Assert.AreEqual(kind, pipeline.CaptureTopology().CameraKind);
+        }
+
+        private static MxCameraRenderContextDescriptor CreateDescriptor(MxCameraRenderKind kind)
+        {
+            return new MxCameraRenderContextDescriptor(kind, null, Vector3.zero);
+        }
+
+        private static SharedRenderTextureKey CreateSharedRT(string id)
+        {
+            return new SharedRenderTextureKey(
+                new SharedRTId(id),
+                id,
+                Owner,
+                new SharedRTAccessPolicy(false, SharedRTOrderRule.ReadAfterWriteSameFrame, WriterSet),
+                SharedRTAnchor.MainCamera,
+                SharedRTFormat.ARGB32,
+                new SharedRTSize(16, 16),
+                new SharedRTClearSpec(SharedRTClearKind.ClearEveryFrame, Color.clear),
+                SharedRTResizePolicy.Reallocate);
+        }
+
+        private static SharedRenderTextureKey CreateInvalidSharedRT()
+        {
+            return new SharedRenderTextureKey(
+                default,
+                string.Empty,
+                default,
+                new SharedRTAccessPolicy(false, (SharedRTOrderRule)999, default),
+                (SharedRTAnchor)999,
+                SharedRTFormat.ARGB32,
+                default,
+                new SharedRTClearSpec((SharedRTClearKind)999, Color.clear),
+                SharedRTResizePolicy.Reallocate,
+                -1);
+        }
+
+        private sealed class CameraKindProvider : IMxRenderPassProvider
+        {
+            private readonly MxCameraRenderKind _cameraKind;
+            private readonly string _passName;
+
+            public CameraKindProvider(string debugName, MxCameraRenderKind cameraKind, string passName)
+            {
+                DebugName = debugName;
+                _cameraKind = cameraKind;
+                _passName = passName;
+            }
+
+            public string DebugName { get; }
+
+            public void CollectPasses(IMxRenderPassRegistry registry, in MxCameraRenderContextDescriptor cameraContext)
+            {
+                if (cameraContext.CameraKind == _cameraKind)
+                    registry.RegisterPass(new DummyPass(_passName, MxRenderPhase.BeforeRenderingOpaques, 0));
+            }
+        }
+
+        private sealed class DummyPass : IMxRenderPass
+        {
+            public DummyPass(
+                string debugName,
+                MxRenderPhase phase,
+                int order,
+                bool isEnabled = true,
+                IReadOnlyList<SharedRenderTextureKey> reads = null,
+                IReadOnlyList<SharedRenderTextureKey> writes = null)
+            {
+                DebugName = debugName;
+                Phase = phase;
+                Order = order;
+                IsEnabled = isEnabled;
+                Reads = reads ?? Array.Empty<SharedRenderTextureKey>();
+                Writes = writes ?? Array.Empty<SharedRenderTextureKey>();
+            }
+
+            public string DebugName { get; }
+            public MxRenderPhase Phase { get; }
+            public int Order { get; }
+            public bool IsEnabled { get; }
+            public IReadOnlyList<SharedRenderTextureKey> Reads { get; }
+            public IReadOnlyList<SharedRenderTextureKey> Writes { get; }
+
+            public void Configure(in MxRenderPassConfigureContext context)
+            {
+            }
+
+            public void Execute(in MxRenderPassExecuteContext context)
+            {
+            }
+        }
+
+        private sealed class ConfigureProbePass : IMxRenderPass
+        {
+            public ConfigureProbePass(string debugName, MxRenderPhase phase, int order)
+            {
+                DebugName = debugName;
+                Phase = phase;
+                Order = order;
+                Reads = Array.Empty<SharedRenderTextureKey>();
+                Writes = Array.Empty<SharedRenderTextureKey>();
+                WritersSeenDuringConfigure = -1;
+            }
+
+            public string DebugName { get; }
+            public MxRenderPhase Phase { get; }
+            public int Order { get; }
+            public bool IsEnabled => true;
+            public IReadOnlyList<SharedRenderTextureKey> Reads { get; }
+            public IReadOnlyList<SharedRenderTextureKey> Writes { get; }
+            public int WritersSeenDuringConfigure { get; private set; }
+
+            public void Configure(in MxRenderPassConfigureContext context)
+            {
+                WritersSeenDuringConfigure = context.SharedRenderTextures.CaptureDiagnostics().Entries[0].CurrentFrameWriters.Count;
+            }
+
+            public void Execute(in MxRenderPassExecuteContext context)
+            {
             }
         }
     }

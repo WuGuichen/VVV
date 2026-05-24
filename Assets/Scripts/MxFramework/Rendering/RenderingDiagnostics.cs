@@ -62,4 +62,101 @@ namespace MxFramework.Rendering
             return builder.ToString();
         }
     }
+
+    public sealed class CameraRenderContextDebugSource : IRenderingDebugSource
+    {
+        private readonly ICameraRenderContext _context;
+
+        public CameraRenderContextDebugSource(ICameraRenderContext context, string name = "Rendering")
+        {
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            Name = string.IsNullOrWhiteSpace(name) ? "Rendering" : name;
+        }
+
+        public string Name { get; }
+        public FrameworkDebugMode Mode => FrameworkDebugMode.Runtime;
+        public bool IsAvailable => true;
+
+        public FrameworkDebugSnapshot CreateSnapshot()
+        {
+            return new FrameworkDebugSnapshot(
+                Name,
+                Mode,
+                new[]
+                {
+                    new FrameworkDebugSection(RenderingDebugSectionNames.CameraGlobals, FormatCameraGlobals(_context.Snapshot()))
+                });
+        }
+
+        private static string FormatCameraGlobals(CameraRenderSnapshot snapshot)
+        {
+            var builder = new StringBuilder();
+            builder.Append("cameraKind: ").Append(snapshot.CameraKind).Append('\n');
+            builder.Append("viewFocusWorldPos: ").Append(snapshot.ViewFocusWorldPosition).Append('\n');
+            builder.Append("overrides: ").Append(snapshot.Overrides.Count);
+            return builder.ToString();
+        }
+    }
+
+    public sealed class RenderPipelineTopologyDebugSource : IRenderingDebugSource
+    {
+        private readonly IMxRenderPipeline _pipeline;
+
+        public RenderPipelineTopologyDebugSource(IMxRenderPipeline pipeline, string name = "Rendering")
+        {
+            _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+            Name = string.IsNullOrWhiteSpace(name) ? "Rendering" : name;
+        }
+
+        public string Name { get; }
+        public FrameworkDebugMode Mode => FrameworkDebugMode.Runtime;
+        public bool IsAvailable => true;
+
+        public FrameworkDebugSnapshot CreateSnapshot()
+        {
+            return new FrameworkDebugSnapshot(
+                Name,
+                Mode,
+                new[]
+                {
+                    new FrameworkDebugSection(RenderingDebugSectionNames.PipelineTopology, FormatTopology(_pipeline.CaptureTopology()))
+                });
+        }
+
+        private static string FormatTopology(MxRenderPipelineTopologySnapshot snapshot)
+        {
+            var builder = new StringBuilder();
+            builder.Append("cameraKind: ").Append(snapshot.CameraKind).Append('\n');
+            builder.Append("passes: ").Append(snapshot.Passes.Count).Append('\n');
+            builder.Append("diagnostics: ").Append(snapshot.Diagnostics.Count);
+
+            for (int i = 0; i < snapshot.Passes.Count; i++)
+            {
+                MxRenderPipelinePassTopology pass = snapshot.Passes[i];
+                builder.Append('\n')
+                    .Append(pass.Phase)
+                    .Append('/')
+                    .Append(pass.Order)
+                    .Append(' ')
+                    .Append(pass.DebugName)
+                    .Append(" reads=")
+                    .Append(pass.ReadCount)
+                    .Append(" writes=")
+                    .Append(pass.WriteCount);
+            }
+
+            for (int i = 0; i < snapshot.Diagnostics.Count; i++)
+            {
+                MxRenderPipelineDiagnostic diagnostic = snapshot.Diagnostics[i];
+                builder.Append('\n')
+                    .Append(diagnostic.Severity)
+                    .Append(' ')
+                    .Append(diagnostic.Code)
+                    .Append(": ")
+                    .Append(diagnostic.Message);
+            }
+
+            return builder.ToString();
+        }
+    }
 }
