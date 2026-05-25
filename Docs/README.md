@@ -67,6 +67,7 @@
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包创作管线的工程落地方案。 |
 | `Tasks/CHARACTER_RESOURCE_LIBRARY_00_DESIGN.md` | 全局 Authoring Resource Manager 设计：跨编辑器资源发现/选择、provider catalog、Authoring Compiler 资源计划和运行时资源编排。 |
 | `Tasks/CHARACTER_RESOURCE_LIBRARY_EDITOR_01_MVP.md` | 全局 Resource Manager Editor MVP：工具入口、provider 资源列表、inspect API、详情页、引用/诊断只读和 Hub 集成验收。 |
+| `Tasks/GLOBAL_RESOURCE_BUILD_PROFILE_00_DESIGN.md` | 全局 Resource Build Profile 设计：统一维护 runtime catalog、preload group、AssetBundle 打包规则和 CharacterTest 正式资源流。 |
 | `Tasks/ANIMATION_EDITOR_00_DESIGN.md` | 独立 Animation Editor 设计：AnimationGroup、Clip mapping、1D/2D Blend、Timeline Events、Bake/Compatibility 和 CharacterStudio 迁移边界。 |
 | `Tasks/ANIMATION_EDITOR_01_NATIVE_CLIP_UNITY_CONSUMPTION.md` | Animation Editor 下一阶段：Unity 原生 AnimationClip / model sub-clip 资源选择、权威预览、Compiler warmup 和 Unity runtime 消费闭环。 |
 | `WGAME_BUFF_AUTHORING_WORKFLOW.md` | 结合 WGame 类型的 Buff 创作流水线。 |
