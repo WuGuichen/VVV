@@ -169,6 +169,29 @@
 → 测试：`Tests/CharacterControl/`、`Tests/Combat/RuntimeCombatShowcaseRunnerTests.cs`
 → **边界**: Character Control 不读取 Unity 输入、不调用 Unity Physics、不写 Gameplay HP/Buff/Ability source of truth，也不让 MxAnimation / Animator / Playables root motion 反向驱动权威状态。
 
+### 1.8.1 Character Action — 可配置角色动作层
+
+| 能力 | 状态 | 关键 API | 对应模块 |
+|------|------|----------|----------|
+| 动作意图请求 | 🟡 代码完成，未集成 | `CharacterActionIntentRequest` | CharacterAction + Runtime |
+| 动作解析（候选、优先级、tag 需求） | 🟡 代码完成，未集成 | `CharacterActionResolver` / `CharacterActionCandidate` | CharacterAction |
+| 动作计划生成 | 🟡 代码完成，未集成 | `CharacterActionPlan` / `CharacterActionIntentPlan` | CharacterAction |
+| 动作执行器（phase/frame/track dispatch） | 🟡 代码完成，未集成 | `CharacterActionRunner` / `CharacterActionInstance` | CharacterAction |
+| Motion/Combat/Gameplay 轨道适配 | 🟡 代码完成，未集成 | `CharacterActionTrackAdapter` / 8 个 sink 接口 | CharacterAction + Combat + Gameplay |
+| Animation/Presentation 轨道适配 | 🟡 代码完成，未集成 | `CharacterActionPresentationTrackAdapter` | CharacterAction + Animation |
+| 取消/打断规则 | 🟡 代码完成，未集成 | `CharacterCancelConflictClassifier` / `CharacterInterruptRule` | CharacterAction |
+| 资源依赖收集 | 🟡 代码完成，未集成 | `CharacterActionResourceDependencyCollector` | CharacterAction |
+| 反应上下文（受击→动作选择） | 🟡 代码完成，未集成 | `CharacterReactionContextBuilder` / `CharacterReactionSelector` | CharacterAction |
+| 动作诊断和工作站 | 🟡 代码完成，未集成 | `CharacterActionWorkstation` / `CharacterActionDiagnostics` | CharacterAction |
+| 配置定义 | 🟡 代码完成，未集成 | `CharacterActionConfig` / `CharacterActionSetConfig` / `CharacterMovementProfileConfig` | CharacterAction |
+| 配置校验 | 🟡 代码完成，未集成 | `CharacterActionValidation` / `CharacterActionPhaseValidator` | CharacterAction |
+
+→ 接口：`Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档）
+→ 代码：`Assets/Scripts/MxFramework/CharacterAction/`
+→ 测试：`Tests/CharacterAction/`
+→ **状态说明**: Phase 1-7 代码已合并（8,391 行），但该层完全孤立——没有 asmdef 引用 `MxFramework.CharacterAction`，`CharacterControl` 仍使用旧 v0 路径。所有 Capability 标记为 🟡 表示代码存在、测试通过，但未接入任何运行管线。
+→ **不含**: CharacterControl v0 桥接、Playable 角色 Demo、独立接口文档、USAGE 示例
+
 ### 1.9 Camera — 运行时表现相机
 
 | 能力 | 状态 | 关键 API | 对应模块 |

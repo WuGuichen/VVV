@@ -46,6 +46,8 @@
 | Combat | `Docs/Interfaces/Combat.md` | `Assets/Scripts/MxFramework/Combat/` | `Assets/Scripts/MxFramework/Tests/Combat/` |
 | Character Application | `Docs/Interfaces/CharacterApplication.md` | `Assets/Scripts/MxFramework/Character.Application/` | `Assets/Scripts/MxFramework/Tests/CharacterApplication/` |
 | Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl*/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
+| Character Action | `Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档） | `Assets/Scripts/MxFramework/CharacterAction/` | `Assets/Scripts/MxFramework/Tests/CharacterAction/` |
+| Character Runtime Spawn | `Docs/Interfaces/Gameplay.md` 末节 + `Docs/Interfaces/CharacterApplication.md` | `Assets/Scripts/MxFramework/Character.RuntimeSpawn*/` | `Assets/Scripts/MxFramework/Tests/CharacterRuntimeSpawn/` |
 | Editor | `Docs/Interfaces/Editor.md` | `Assets/Scripts/MxFramework/Editor/` | Unity Editor / MCP |
 
 ## 文档规则
@@ -106,7 +108,7 @@ Story external authoring tools live under `Tools/MxFrameworkStoryAuthoring/` and
 
 1. **文档标题**禁止仅用 "AI" 作为独立名词。必须叠限定词：Runtime / AIAction / Authoring / Agent。
 2. **任务命名**禁止 `AI_*` 裸前缀。必须带域：`RUNTIME_AI_PLANNER_*`、`AI_ACTION_MIGRATION_*`、`AUTHORING_AI_ASSIST_*`、`AGENT_WORKFLOW_*`。
-3. **每篇涉及 AI 的文档**开头应标明''本文的 AI 指哪一域''。
+3. **每篇涉及 AI 的文档**开头应标明'本文的 AI 指哪一域'。
 4. 旧有任务文件名（如 `AI_ACTION_MIGRATION_PILOT_*`、`AUTHORING_EDITOR_04_AI_ASSIST`）保留，域已隐含在名称中，无需重命名。
 
 ## 总原则

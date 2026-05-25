@@ -1,7 +1,7 @@
 # Character Action Layer 00：角色动作层设计契约
 
-> 状态：设计草案
-> 交付等级：Design Contract
+> 状态：Phase 1-7 代码已合并（8,391 行），未接入运行管线
+> 交付等级：Design Contract + Runtime Slice（代码完成，零集成）
 > 范围：角色跳跃、攻击、特殊攻击、受击、破韧、动作取消、动作轨道、动作调试和动作编辑器的应用层契约
 
 ## 目标
