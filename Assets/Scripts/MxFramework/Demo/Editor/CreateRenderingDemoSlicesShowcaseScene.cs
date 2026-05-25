@@ -49,8 +49,7 @@ namespace MxFramework.Demo
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
             AssetDatabase.ForceReserializeAssets(new[] { ScenePath }, ForceReserializeAssetsOptions.ReserializeAssets);
-            PatchSerializedUiReferences(ScenePath, visualTree, styleSheet);
-            AssetDatabase.ImportAsset(ScenePath, ImportAssetOptions.ForceSynchronousImport);
+            RebindPersistedSceneReferences(ScenePath, visualTree, styleSheet);
             Debug.Log("Rendering demo slices showcase scene created: " + ScenePath);
         }
 
@@ -400,35 +399,63 @@ namespace MxFramework.Demo
             return asset;
         }
 
-        private static void PatchSerializedUiReferences(
+        private static void RebindPersistedSceneReferences(
             string scenePath,
             VisualTreeAsset visualTree,
             StyleSheet styleSheet)
         {
-            string absolute = Path.Combine(Directory.GetCurrentDirectory(), scenePath);
-            string text = File.ReadAllText(absolute);
-            string visualTreeReference = ToYamlReference(visualTree);
-            string styleSheetReference = ToYamlReference(styleSheet);
-            text = ReplaceRequired(text, "  _visualTree: {fileID: 0}", "  _visualTree: " + visualTreeReference, 2);
-            text = ReplaceRequired(text, "  _styleSheet: {fileID: 0}", "  _styleSheet: " + styleSheetReference, 2);
-            File.WriteAllText(absolute, text);
+            Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            RenderingDemoSlicesShowcaseRoot root = Object.FindFirstObjectByType<RenderingDemoSlicesShowcaseRoot>();
+            RenderingDemoSlicesHudController hud = Object.FindFirstObjectByType<RenderingDemoSlicesHudController>();
+            UIDocument document = Object.FindFirstObjectByType<UIDocument>();
+            Renderer subjectRenderer = GameObject.Find("RenderingDemo_GenericSubject")?.GetComponent<Renderer>();
+            Transform windArrow = GameObject.Find("RenderingDemo_WindDirection")?.transform;
+            Transform subjectMarker = GameObject.Find("RenderingDemo_GenericSubject")?.transform;
+            if (root == null || hud == null || document == null || subjectRenderer == null || windArrow == null || subjectMarker == null)
+                throw new System.InvalidOperationException("Rendering demo scene references could not be rebound through Unity scene APIs.");
+
+            ConfigureDocument(document, document.panelSettings, visualTree);
+            hud.Configure(root, document, visualTree, styleSheet);
+            root.ConfigureSceneReferences(document, visualTree, styleSheet, hud, subjectRenderer, windArrow, subjectMarker);
+            SetHudReferences(hud, root, document, visualTree, styleSheet);
+            SetShowcaseReferences(root, document, visualTree, styleSheet, hud, subjectRenderer, windArrow, subjectMarker);
+            CopyConfiguredManagedFields(root, hud, document, visualTree, styleSheet, subjectRenderer, windArrow, subjectMarker);
+            RequireSerializedReference<VisualTreeAsset>(root, "_visualTree");
+            RequireSerializedReference<StyleSheet>(root, "_styleSheet");
+            RequireSerializedReference<VisualTreeAsset>(hud, "_visualTree");
+            RequireSerializedReference<StyleSheet>(hud, "_styleSheet");
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, scenePath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(scenePath, ImportAssetOptions.ForceSynchronousImport);
         }
 
-        private static string ToYamlReference(Object asset)
+        private static void CopyConfiguredManagedFields(
+            RenderingDemoSlicesShowcaseRoot root,
+            RenderingDemoSlicesHudController hud,
+            UIDocument document,
+            VisualTreeAsset visualTree,
+            StyleSheet styleSheet,
+            Renderer subjectRenderer,
+            Transform windArrow,
+            Transform subjectMarker)
         {
-            if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string guid, out long localId))
-                throw new System.InvalidOperationException("Unable to resolve serialized asset id: " + asset);
-
-            return "{fileID: " + localId + ", guid: " + guid + ", type: 3}";
-        }
-
-        private static string ReplaceRequired(string text, string oldValue, string newValue, int expectedCount)
-        {
-            int count = CountOccurrences(text, oldValue);
-            if (count != expectedCount)
-                throw new System.InvalidOperationException("Expected " + expectedCount + " occurrences of `" + oldValue + "` but found " + count + ".");
-
-            return text.Replace(oldValue, newValue);
+            var tempRootObject = new GameObject("RenderingDemoSlicesShowcaseRoot_CopySource") { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                RenderingDemoSlicesShowcaseRoot tempRoot = tempRootObject.AddComponent<RenderingDemoSlicesShowcaseRoot>();
+                RenderingDemoSlicesHudController tempHud = tempRootObject.AddComponent<RenderingDemoSlicesHudController>();
+                tempHud.Configure(root, document, visualTree, styleSheet);
+                tempRoot.ConfigureSceneReferences(document, visualTree, styleSheet, hud, subjectRenderer, windArrow, subjectMarker);
+                EditorUtility.CopySerializedManagedFieldsOnly(tempRoot, root);
+                EditorUtility.CopySerializedManagedFieldsOnly(tempHud, hud);
+                EditorUtility.SetDirty(root);
+                EditorUtility.SetDirty(hud);
+            }
+            finally
+            {
+                Object.DestroyImmediate(tempRootObject);
+            }
         }
 
         private static string CreateUxml()
