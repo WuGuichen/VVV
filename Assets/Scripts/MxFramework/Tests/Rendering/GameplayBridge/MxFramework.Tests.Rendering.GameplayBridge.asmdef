@@ -1,0 +1,31 @@
+{
+    "name": "MxFramework.Tests.Rendering.GameplayBridge",
+    "rootNamespace": "MxFramework.Tests.Rendering",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "MxFramework.Core",
+        "MxFramework.Diagnostics",
+        "MxFramework.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.Rendering",
+        "MxFramework.Rendering.GameplayBridge",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

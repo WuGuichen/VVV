@@ -18,7 +18,7 @@ Rendering 是表现层能力，不进入 Gameplay / Combat authority、Runtime r
 | --- | --- | --- |
 | `MxFramework.Rendering` | `MxFramework.Core`, `MxFramework.Diagnostics`, UnityEngine, URP | Runtime-facing rendering orchestration |
 | `MxFramework.Rendering.Editor` | `MxFramework.Rendering`, UnityEditor | Authoring, validation, inspectors, asset menus |
-| `MxFramework.Rendering.GameplayBridge` | Planned | Optional bridge from Gameplay public events to Rendering |
+| `MxFramework.Rendering.GameplayBridge` | Implemented 15.6 subset | Optional bridge from Gameplay public lifecycle events to Rendering |
 | `MxFramework.Rendering.CombatBridge` | Planned | Optional bridge from Combat public events to Rendering |
 | `MxFramework.Rendering.CharacterBridge` | Planned | Optional bridge from Character-facing public events to Rendering |
 | `MxFramework.Rendering.CameraBridge` | Optional later | Optional bridge from Camera public state to Rendering |
@@ -482,6 +482,22 @@ public interface IRenderingBridge : IDisposable
     void Uninstall();
 }
 ```
+
+### GameplayBridge 15.6 Subset
+
+`MxFramework.Rendering.GameplayBridge` is an optional composition-root owned assembly. It depends on `MxFramework.Rendering`, `MxFramework.Gameplay`, and `MxFramework.Runtime`; Rendering core does not depend on it, and Gameplay does not depend on Rendering.
+
+Implemented event mapping:
+
+| Gameplay public event | Source id | Rendering lifecycle |
+| --- | --- | --- |
+| `GameplayRuntimeEventType.ComponentEntityCreated` | `GameplayRuntimeEvent.ComponentEntityId` / `GameplayEntityId` | `MxSubjectLifecycleKind.Spawned` |
+| `GameplayRuntimeEventType.ComponentEntityDestroyed` | `GameplayRuntimeEvent.ComponentEntityId` / `GameplayEntityId` | `MxSubjectLifecycleKind.Despawned`, then release the subject mapping |
+| `GameplayRuntimeEventType.EntityDespawned` | `GameplayRuntimeEvent.TargetEntityId` / `int` runtime entity id, only when the composition root supplied an existing runtime entity subject map | `MxSubjectLifecycleKind.Despawned`, then release the subject mapping |
+
+The bridge consumes `GameplayRuntimeModule.DrainEvents(...)` and public `GameplayRuntimeEvent` payloads only. It does not read Gameplay private fields and does not create fake `GameplayEntityId` values for legacy `EntityDespawned` events. Unsupported Gameplay events are drained as no-op render events.
+
+Deferred bridge scopes remain outside this subset: Combat hit/contact translation, Character movement/impact translation, Camera render-value translation, MaterialBindingHub writes, SharedRT writes, VolumeBlender, demo scenes, shader assets, runtime authority, Replay hash, deterministic simulation, and SaveState integration.
 
 Bridge dependencies are constructor-injected. Do not add a broad composition-root parameter type to this interface.
 
