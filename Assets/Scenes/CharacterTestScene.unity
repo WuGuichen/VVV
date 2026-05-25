@@ -235,6 +235,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _startPaused: 0
+  _targetFrameRate: 60
+  _logConsole: 1
+  _logConsoleColors: 1
+  _logCategoryColors: 1
+  _gameManagerLogColor: '#BB8FCE'
+  _gameSliceLogColor: '#58D68D'
+  _storyLogColor: '#5DADE2'
+  _useExternalStoryAuthoring: 0
+  _storyDraftStreamingAssetsPath: MxFramework/CharacterTest/character_test_bootstrap.story.json
 --- !u!4 &896793424
 Transform:
   m_ObjectHideFlags: 0
@@ -244,7 +253,7 @@ Transform:
   m_GameObject: {fileID: 896793422}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.6073664, y: -3.6897764, z: -8.514706}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

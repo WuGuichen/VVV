@@ -17,13 +17,15 @@ namespace MxFramework.Demo.CharacterTest
         private readonly StoryRuntimeModule _storyModule;
         private readonly RuntimeHost _host;
         private readonly IDisposable _storyEventSubscription;
+        private readonly CharacterTestStoryContent _storyContent;
         private readonly RuntimeLogBuffer _logBuffer = new RuntimeLogBuffer(160);
         private double _elapsedSeconds;
         private bool _disposed;
 
-        public GameSlice(IRuntimeLogger logger = null)
+        public GameSlice(IRuntimeLogger logger = null, CharacterTestStoryContent storyContent = null)
         {
             _logger = logger ?? NullRuntimeLogger.Instance;
+            _storyContent = storyContent ?? CharacterTestStoryFixture.CreateBootstrapContent();
             _logger.Info("GameSlice", "Construct");
 
             _clock = new RuntimeClock(RuntimeFrame.Zero);
@@ -122,7 +124,7 @@ namespace MxFramework.Demo.CharacterTest
 
         private void BootstrapStorySession()
         {
-            StoryLoadGraphResult load = _storyDirector.TryLoadGraph(CharacterTestStoryFixture.CreateBootstrapGraph());
+            StoryLoadGraphResult load = _storyDirector.TryLoadGraph(_storyContent.Graph);
             if (!load.Success)
             {
                 _logBuffer.Clear().Append("CharacterTest graph load failed: ").Append(load.Message);
@@ -132,15 +134,15 @@ namespace MxFramework.Demo.CharacterTest
 
             _logBuffer.Clear()
                 .Append("CharacterTest graph loaded. graphId=")
-                .Append(CharacterTestStoryFixture.GraphId);
+                .Append(_storyContent.GraphId);
             _logger.Info("Story", _logBuffer);
 
             RuntimeCommandValidationResult enter = _storyModule.CommandBuffer.Enqueue(
                 StoryRuntimeCommandFactory.RequestEnterBeat(
                     RuntimeFrame.Zero,
                     StoryRuntimeCommandSources.System,
-                    CharacterTestStoryFixture.GraphId,
-                    CharacterTestStoryFixture.EntryBeatId,
+                    _storyContent.GraphId,
+                    _storyContent.EntryBeatId,
                     traceId: "character-test.bootstrap"));
             if (!enter.Success)
             {
@@ -151,7 +153,7 @@ namespace MxFramework.Demo.CharacterTest
 
             _logBuffer.Clear()
                 .Append("Entry beat enqueued. beatId=")
-                .Append(CharacterTestStoryFixture.EntryBeatId);
+                .Append(_storyContent.EntryBeatId);
             _logger.Info("Story", _logBuffer);
 
             Tick(0d);
@@ -159,11 +161,10 @@ namespace MxFramework.Demo.CharacterTest
 
         private void OnStoryDirectorEvent(StoryEvent evt)
         {
-            if (evt.Kind != StoryEventKind.StepStarted || evt.StepId != CharacterTestStoryFixture.WelcomeLineStepId)
+            if (evt.Kind != StoryEventKind.StepStarted)
                 return;
 
-            string text = CharacterTestStoryFixture.ResolveText(CharacterTestStoryFixture.WelcomeTextKey);
-            if (string.IsNullOrEmpty(text))
+            if (!_storyContent.TryResolveStepText(evt.StepId, out string text))
                 return;
 
             _logger.Info("Story", text);

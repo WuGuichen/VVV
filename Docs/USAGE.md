@@ -1027,6 +1027,16 @@ set-fact: 442601 | Bool | true
 
 `validate` 会输出结构化 JSON diagnostics 并在 Error 时返回非 0。首批稳定 code 包括 `DuplicateId`、`MissingEntryBeat`、`MissingTextKey`、`InvalidBranchTarget`、`InvalidChoiceTarget`、`InvalidTriggerId`、`InvalidEffectId`、`UnsupportedStepKind`、`UnsupportedWaitPolicy` 和 `UnsupportedDirective`。
 
+CharacterTest demo 已接入这条 handoff 链路。默认 Markdown 源是 `Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md`，运行时读取 `Assets/StreamingAssets/MxFramework/CharacterTest/character_test_bootstrap.story.json`。修改 Markdown 后重新生成：
+
+```bash
+python Tools/MxFrameworkStoryAuthoring/story_authoring.py import-markdown \
+  Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md \
+  --out Assets/StreamingAssets/MxFramework/CharacterTest/character_test_bootstrap.story.json
+```
+
+场景里只放 `GameManager` 时，`GameManager` 会从 `Application.streamingAssetsPath/MxFramework/CharacterTest/character_test_bootstrap.story.json` 加载外部 draft，经 `CharacterTestStoryDraftJson` 转为 `StoryConfigSet`，再用 `StoryGraphConfigMapper` 生成 `StoryGraphDefinition` 交给 `GameSlice`。Console 会输出 external draft loaded、graph loaded、entry beat enqueued 和 line 文本；文件缺失或校验失败时会 warning 并退回内置 fixture。
+
 边界：
 
 - `.story.json` 是工具层 interchange draft，不是 Unity asset、ScriptableObject、Runtime SaveState 或 replay 文件。

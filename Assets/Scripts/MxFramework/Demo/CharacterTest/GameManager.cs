@@ -1,5 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
 using MxFramework.Runtime;
 using MxFramework.Runtime.Unity;
+using MxFramework.Story.Runtime;
 using UnityEngine;
 
 namespace MxFramework.Demo.CharacterTest
@@ -20,6 +25,13 @@ namespace MxFramework.Demo.CharacterTest
         [SerializeField] private string _gameManagerLogColor = "#BB8FCE";
         [SerializeField] private string _gameSliceLogColor = "#58D68D";
         [SerializeField] private string _storyLogColor = "#5DADE2";
+        [SerializeField] private bool _useExternalStoryAuthoring;
+        [SerializeField] private string _storyDraftStreamingAssetsPath =
+            "MxFramework/CharacterTest/character_test_bootstrap.story.json";
+
+        private const string StoryDebugTargetName = "CharacterTest Story";
+        private const string StoryEditorDebugRegistryTypeName =
+            "MxFramework.Story.Editor.StoryEditorDebugRegistry, MxFramework.Story.Editor";
 
         private GameSlice _slice;
         private UnityRuntimeLogger _logger;
@@ -42,7 +54,9 @@ namespace MxFramework.Demo.CharacterTest
             _logger.Info("GameManager", "OnEnable");
 
             ApplyTargetFrameRate();
-            _slice = new GameSlice(_logger);
+            CharacterTestStoryContent storyContent = LoadStoryContent();
+            _slice = new GameSlice(_logger, storyContent);
+            RegisterStoryDebugTarget();
             _paused = _startPaused;
             _logBuffer.Clear().Append("GameSlice created. startPaused=").Append(_startPaused);
             _logger.Info("GameManager", _logBuffer);
@@ -51,6 +65,7 @@ namespace MxFramework.Demo.CharacterTest
         private void OnDisable()
         {
             _logger?.Info("GameManager", "OnDisable");
+            UnregisterStoryDebugTarget();
             DisposeSlice();
             RestoreTargetFrameRate();
         }
@@ -58,6 +73,7 @@ namespace MxFramework.Demo.CharacterTest
         private void OnDestroy()
         {
             _logger?.Info("GameManager", "OnDestroy");
+            UnregisterStoryDebugTarget();
             DisposeSlice();
         }
 
@@ -85,6 +101,117 @@ namespace MxFramework.Demo.CharacterTest
             _paused = !_paused;
             _logBuffer.Clear().Append("TogglePaused=").Append(_paused);
             _logger?.Info("GameManager", _logBuffer);
+        }
+
+        private CharacterTestStoryContent LoadStoryContent()
+        {
+            if (!_useExternalStoryAuthoring)
+            {
+                _logger?.Info("Story", "External Story authoring disabled. Using built-in fixture.");
+                return CharacterTestStoryFixture.CreateBootstrapContent();
+            }
+
+            string absolutePath = ResolveStreamingAssetsPath(_storyDraftStreamingAssetsPath);
+            if (string.IsNullOrEmpty(absolutePath) || !File.Exists(absolutePath))
+            {
+                _logBuffer.Clear()
+                    .Append("Story draft not found. path=")
+                    .Append(absolutePath)
+                    .Append(". Using built-in fixture.");
+                _logger?.Warning("Story", _logBuffer);
+                return CharacterTestStoryFixture.CreateBootstrapContent();
+            }
+
+            try
+            {
+                string json = File.ReadAllText(absolutePath);
+                if (CharacterTestStoryDraftJson.TryLoad(
+                    json,
+                    out CharacterTestStoryContent content,
+                    out string error,
+                    sourcePath: absolutePath))
+                {
+                    _logBuffer.Clear()
+                        .Append("External Story draft loaded. graphId=")
+                        .Append(content.GraphId)
+                        .Append(", path=")
+                        .Append(absolutePath);
+                    _logger?.Info("Story", _logBuffer);
+                    return content;
+                }
+
+                _logBuffer.Clear()
+                    .Append(error)
+                    .Append(" path=")
+                    .Append(absolutePath)
+                    .Append(". Using built-in fixture.");
+                _logger?.Warning("Story", _logBuffer);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                _logBuffer.Clear()
+                    .Append("Story draft read failed: ")
+                    .Append(ex.Message)
+                    .Append(". Using built-in fixture.");
+                _logger?.Warning("Story", _logBuffer);
+            }
+
+            return CharacterTestStoryFixture.CreateBootstrapContent();
+        }
+
+        private static string ResolveStreamingAssetsPath(string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath))
+                return string.Empty;
+
+            string normalizedPath = relativePath.Replace('\\', Path.DirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar);
+            return Path.Combine(Application.streamingAssetsPath, normalizedPath);
+        }
+
+        private void RegisterStoryDebugTarget()
+        {
+#if UNITY_EDITOR
+            if (_slice == null)
+                return;
+
+            Type registryType = Type.GetType(StoryEditorDebugRegistryTypeName);
+            MethodInfo register = registryType?.GetMethod(
+                "Register",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[]
+                {
+                    typeof(string),
+                    typeof(StoryRuntimeModule),
+                    typeof(Func<IReadOnlyList<StoryRuntimeEvent>>)
+                },
+                null);
+            if (register == null)
+            {
+                _logger?.Warning("Story", "Story Runtime Debug registry is unavailable.");
+                return;
+            }
+
+            Func<IReadOnlyList<StoryRuntimeEvent>> recentEventsProvider =
+                () => _slice != null ? _slice.StoryModule.RecentEvents : Array.Empty<StoryRuntimeEvent>();
+            register.Invoke(null, new object[] { StoryDebugTargetName, _slice.StoryModule, recentEventsProvider });
+            _logger?.Info("Story", "Story Runtime Debug target registered. name=" + StoryDebugTargetName);
+#endif
+        }
+
+        private void UnregisterStoryDebugTarget()
+        {
+#if UNITY_EDITOR
+            Type registryType = Type.GetType(StoryEditorDebugRegistryTypeName);
+            MethodInfo unregister = registryType?.GetMethod(
+                "Unregister",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(string) },
+                null);
+            unregister?.Invoke(null, new object[] { StoryDebugTargetName });
+#endif
         }
 
         private void DisposeSlice()

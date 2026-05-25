@@ -1,0 +1,57 @@
+{
+  "schema": "mx.story.config.draft.v1",
+  "sourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md",
+  "graphs": [
+    {
+      "Id": 450001,
+      "Version": 1,
+      "EntryBeatId": 450101,
+      "SourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md"
+    }
+  ],
+  "beats": [
+    {
+      "Id": 450101,
+      "GraphId": 450001,
+      "SortOrder": 10,
+      "ChoiceSetId": 0,
+      "TriggerIds": []
+    }
+  ],
+  "steps": [
+    {
+      "Id": 450301,
+      "GraphId": 450001,
+      "BeatId": 450101,
+      "SortOrder": 10,
+      "Kind": "Line",
+      "TextKey": 450301,
+      "SpeakerId": 0,
+      "ResourceId": 0,
+      "WaitPolicy": "NoWait",
+      "FactNamespace": 0,
+      "FactId": 0,
+      "FactValueKind": "None",
+      "FactValueRaw": 0,
+      "AuxId": 0
+    }
+  ],
+  "branches": [],
+  "choices": [],
+  "facts": [],
+  "textKeys": [
+    450301
+  ],
+  "texts": [
+    {
+      "TextKey": 450301,
+      "Text": "Welcome to Character Test from external authoring.",
+      "Usage": "Line",
+      "SourcePath": "Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md",
+      "SourceLine": 11,
+      "GraphId": 450001,
+      "BeatId": 450101,
+      "RowId": 450301
+    }
+  ]
+}
