@@ -2680,13 +2680,16 @@ if (resolveResult.IsSuccess && resolveResult.Plan != null)
 
 ```csharp
 // 从 Combat 命中结果构建 reaction 上下文
+// 注意：必须提供 impactForce 和 reactionGroupId，否则上下文不完整
 var hitSource = new CharacterReactionHitSource(
     frame: new RuntimeFrame(10),
     entityId: new GameplayEntityId(2, 1),
     bodyPartId: "torso",
     hitZoneId: "chest",
     damageTypeId: "physical",
-    hitDirection: CharacterHitDirection.FromFront,
+    hitDirection: CharacterHitDirection.Front,
+    impactForce: 100,
+    reactionGroupId: "medium_hit",
     traceId: "hit-001");
 
 CharacterReactionContextBuildResult buildResult = CharacterReactionContextBuilder.FromHitSource(hitSource);
