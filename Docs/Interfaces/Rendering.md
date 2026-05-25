@@ -1,14 +1,14 @@
 # Rendering 接口
 
-> Version 0.1 | 2026-05-24
+> Version 0.2 | 2026-05-25
 >
-> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender now includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
+> Status: Current through Phase 15.8 infrastructure and demo showcase. VolumeBlender includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
-> Scope: Public API shape for `MxFramework.Rendering` through Phase 15.7 VolumeBlender request arbitration and diagnostics. Feature-specific shader APIs are out of scope.
+> Scope: Public API shape for `MxFramework.Rendering` through Phase 15.8 demo showcase. Feature-specific shader APIs are out of scope.
 
 ## 职责
 
-Rendering 提供 Unity + URP-facing 的渲染编排接口：全局帧上下文、相机作用域上下文、URP 总入口 Feature、Pass/Provider 注册、SharedRT 注册与冲突诊断、后续 MaterialBindingHub 和 RenderDataPublisher 的公共边界。
+Rendering 提供 Unity + URP-facing 的渲染编排接口：全局帧上下文、相机作用域上下文、URP 总入口 Feature、Pass/Provider 注册、SharedRT 注册与冲突诊断、MaterialBindingHub、RenderDataPublisher、VolumeBlender request arbitration / diagnostics 和 bridge 公共边界。
 
 Rendering 是表现层能力，不进入 Gameplay / Combat authority、Runtime result hash、Replay hash 或 SaveState。
 
@@ -377,7 +377,7 @@ public enum SharedRTConflictCode
 
 ## 5. Material Binding
 
-Material binding is planned after Phase 15.3. The public shape is fixed early so future features do not call `Renderer.SetPropertyBlock` directly.
+Material binding is implemented as the framework-owned path for material property writes. Future features must not call `Renderer.SetPropertyBlock` directly.
 
 ```csharp
 public enum MxMaterialChannel
@@ -527,7 +527,7 @@ Arbitration rules:
 - Global and camera-scoped requests do not mutate each other. A camera-scoped request contributes only to its matching evaluation; it does not lower or release the global request.
 - Higher `Priority` wins when multiple active requests target mutually exclusive control of the same final URP profile slot.
 - Equal priority uses stable tie-breaker: earlier request creation sequence wins; if creation sequence is unavailable in persisted diagnostics, lower `MxVolumeRequestId.Value` wins.
-- Multiple profiles may contribute weights to the final state when the implementation can represent them as separate URP Volume entries. If the implementation can apply only one framework-owned runtime Volume entry, it must apply the arbitration winner and still report suppressed candidates and weights.
+- Multiple profiles may contribute weights to the diagnostics final state. Current code does not create runtime URP Volume entries; a future runtime application may apply one arbitration winner or multiple weighted URP Volume entries only if it preserves the same public diagnostics and deterministic ordering.
 - VolumeBlender must not read Gameplay, Combat, Runtime authority, replay, or SaveState data to choose priorities or weights. Bridges or composition roots translate source events into explicit requests.
 
 Evaluation context and diagnostics:
@@ -653,17 +653,20 @@ public enum MxSubjectLifecycleKind
 }
 ```
 
-Phase 15.0 may implement this as no-op in later code. Actual connection to MaterialBindingHub, SharedRT, particles, or post-processing is deferred.
+The publisher is implemented as generic Rendering semantic input and diagnostics. Actual connection from these generic events to feature-specific MaterialBindingHub, SharedRT, particles, or post-processing behavior is deferred to feature tasks.
 
-Bridge lifecycle:
+Bridge lifecycle convention:
 
 ```csharp
-public interface IRenderingBridge : IDisposable
+public sealed class GameplayRenderingBridge : IDisposable
 {
-    void Install();
-    void Uninstall();
+    public void Install() { ... }
+    public void Uninstall() { ... }
+    public void Dispose() { ... }
 }
 ```
+
+No shared public bridge lifecycle interface is implemented today. Concrete bridge classes, such as `GameplayRenderingBridge`, own this convention directly: constructor-injected dependencies, explicit `Install()`, explicit `Uninstall()`, and `Dispose()` cleanup.
 
 ### GameplayBridge 15.6 Subset
 
@@ -681,7 +684,7 @@ The bridge consumes `GameplayRuntimeModule.DrainEvents(...)` and public `Gamepla
 
 Deferred bridge scopes remain outside this subset: Combat hit/contact translation, Character movement/impact translation, Camera render-value translation, MaterialBindingHub writes, SharedRT writes, VolumeBlender, demo scenes, shader assets, runtime authority, Replay hash, deterministic simulation, and SaveState integration.
 
-Bridge dependencies are constructor-injected. Do not add a broad composition-root parameter type to this interface.
+Bridge dependencies are constructor-injected. Do not add a broad composition-root parameter type to bridge constructors.
 
 Concrete bridge docs must not list private source module types. They may subscribe only to already-public runtime or presentation event contracts.
 
@@ -702,14 +705,11 @@ public static class RenderingDebugSectionNames
     public const string VolumeBlender = "volumeBlender";
     public const string PublisherCounts = "publisherCounts";
 }
-
-public static class RenderingReportExporter
-{
-    public static RenderingReportExportResult Export(string targetDirectory);
-}
 ```
 
 Diagnostics are read-only and depend on `MxFramework.Diagnostics`, not `MxFramework.DebugUI`.
+
+Rendering report bundles are a future reporting convention, not an implemented public exporter API. Until a dedicated exporter lands, manual bundles should collect the diagnostics sections above and use the stable filenames documented by the authoring/design guides.
 
 ## 9. Test Surface
 
@@ -783,6 +783,6 @@ Enums may append values but must not reorder existing values:
 - Any API returning `RTHandle`, `CommandBuffer`, `Renderer`, `Texture`, or `Color` is inside the Unity + URP Rendering assembly boundary.
 - Rendering diagnostics use `IFrameworkDebugSource` from Diagnostics, not Debug UI.
 - Bridge contracts list only generic lifecycle and naming rules.
-- VolumeBlender documents request id, profile reference, scope, priority, lifecycle, release, stable tie-breaker, diagnostics, and URP Volume Framework ownership before implementation.
+- VolumeBlender documents request id, profile reference, scope, priority, lifecycle, release, stable tie-breaker, diagnostics, and URP Volume Framework ownership for the implemented arbitration and diagnostics boundary.
 - VolumeBlender does not replace URP Volume Framework, does not introduce independent framework `ScriptableRendererFeature`, and does not require legacy post-processing.
 - No grass, water, character, or other feature-specific API appears in this interface page.
