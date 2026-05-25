@@ -1107,7 +1107,7 @@
 - 15.6：`MxFramework.Rendering.GameplayBridge` lifecycle subset。✅ 已完成
 - 15.7：`VolumeBlender` request arbitration、stable tie-breaker、scope isolation、final applied snapshot 和 diagnostics；runtime URP `Volume` object application 未实现。✅ 已完成
 - 15.8：Rendering Demo Slices Showcase，验证 Context、SharedRT / FeaturePipeline、MaterialBindingHub、RenderDataPublisher 和 VolumeBlender diagnostics。✅ 已完成
-- 15.9：`Docs/RENDERING_AUTHORING_GUIDE.md` authoring 唯一入口和文档同步。🔄 in progress
+- 15.9：`Docs/RENDERING_AUTHORING_GUIDE.md` authoring 唯一入口和文档同步。✅ 已完成
 - Future：VolumeBlender runtime URP Volume object application、Combat / Character / Camera bridges、feature-specific production shader slices。
 
 完成条件：
@@ -1118,7 +1118,7 @@
 - Debug/Diagnostics 使用 `MxFramework.Diagnostics.IFrameworkDebugSource`，不让 Rendering 依赖 Debug UI。
 - 后续能力 PR 不允许绕过 FeaturePipeline、SharedRTRegistry、Context surface、MaterialBindingHub 或 reviewed VolumeBlender request API。
 
-**状态**: ✅ 15.1-15.8 infrastructure accepted; 🔄 15.9 docs sync in progress; Future runtime Volume application / feature slices deferred
+**状态**: ✅ 15.1-15.9 accepted; Future runtime Volume application / feature slices deferred
 
 ## Phase 16: Character Action Layer
 
