@@ -312,6 +312,8 @@ Request timing uses non-negative `BlendInSeconds`, `HoldSeconds`, and `BlendOutS
 - Zero durations are legal and produce immediate transitions.
 - `HoldSeconds <= 0` means the request does not auto-expire and must be released explicitly.
 - `Release(requestId)` is idempotent and starts blend-out once; it does not restart or extend the request on repeated calls.
+- Presentation time is controlled through the VolumeBlender public API. Composition roots must advance time before creating or releasing requests, or use the explicit-time request/release overloads when those operations happen between render evaluations.
+- Diagnostics capture also performs expiry cleanup, so requests that expire without a later blend-state evaluation still appear in expired diagnostics and are removed from active lookup.
 
 Arbitration is deterministic:
 

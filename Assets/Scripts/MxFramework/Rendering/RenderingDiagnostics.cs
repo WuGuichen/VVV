@@ -227,6 +227,9 @@ namespace MxFramework.Rendering
                         .Append(" weight=")
                         .Append(applied.Weight);
                 }
+
+                for (int suppressedIndex = 0; suppressedIndex < blendState.SuppressedRequests.Count; suppressedIndex++)
+                    AppendRequest(builder, "suppressed", blendState.SuppressedRequests[suppressedIndex]);
             }
 
             return builder.ToString();

@@ -47,6 +47,41 @@ namespace MxFramework.Tests.Rendering
         }
 
         [Test]
+        public void VolumeBlender_RequestAndRelease_UsePublicPresentationTime()
+        {
+            IVolumeBlender blender = new VolumeBlender();
+
+            blender.SetPresentationTime(100f);
+            MxVolumeRequestId requestId = blender.Request(Request("profile-a", 1, Timing(2f, 0f, 4f)));
+
+            MxVolumeRequestSnapshot blendIn = blender.CaptureBlendState(Context(101f)).ActiveRequests[0];
+            Assert.AreEqual(requestId, blendIn.RequestId);
+            Assert.AreEqual(MxVolumeRequestPhase.BlendIn, blendIn.Phase);
+            Assert.AreEqual(0.5f, blendIn.Weight, 0.0001f);
+
+            blender.SetPresentationTime(200f);
+            Assert.IsTrue(blender.Release(requestId));
+
+            MxVolumeRequestSnapshot released = blender.CaptureBlendState(Context(202f)).ActiveRequests[0];
+            Assert.AreEqual(MxVolumeRequestPhase.Released, released.Phase);
+            Assert.AreEqual(0.5f, released.Weight, 0.0001f);
+        }
+
+        [Test]
+        public void VolumeBlender_RequestExplicitTime_DoesNotInheritStaleEvaluationTime()
+        {
+            IVolumeBlender blender = new VolumeBlender();
+            blender.CaptureBlendState(Context(500f));
+
+            MxVolumeRequestId requestId = blender.Request(Request("profile-a", 1, Timing(2f, 0f, 1f)), 700f);
+
+            MxVolumeRequestSnapshot snapshot = blender.CaptureBlendState(Context(701f)).ActiveRequests[0];
+            Assert.AreEqual(requestId, snapshot.RequestId);
+            Assert.AreEqual(MxVolumeRequestPhase.BlendIn, snapshot.Phase);
+            Assert.AreEqual(0.5f, snapshot.Weight, 0.0001f);
+        }
+
+        [Test]
         public void VolumeBlender_Priority_UsesStableTieBreakerForEqualPriority()
         {
             var blender = new VolumeBlender();
@@ -158,10 +193,27 @@ namespace MxFramework.Tests.Rendering
         }
 
         [Test]
+        public void VolumeBlender_Diagnostics_CleansUpExpiredRequestsWithoutBlendStateCapture()
+        {
+            IVolumeBlender blender = new VolumeBlender();
+            MxVolumeRequestId requestId = blender.Request(Request("profile-a", 1, Timing(0f, 1f, 0.5f)));
+
+            blender.SetPresentationTime(2f);
+            MxVolumeDiagnosticsSnapshot diagnostics = blender.CaptureDiagnostics();
+
+            Assert.AreEqual(0, diagnostics.ActiveRequests.Count);
+            Assert.AreEqual(1, diagnostics.ExpiredRequests.Count);
+            Assert.AreEqual(requestId, diagnostics.ExpiredRequests[0].RequestId);
+            Assert.AreEqual(MxVolumeRequestCleanupReason.AutoExpired, diagnostics.ExpiredRequests[0].CleanupReason);
+            Assert.IsFalse(blender.TryGetRequest(requestId, out _));
+        }
+
+        [Test]
         public void VolumeBlenderDebugSource_ExposesDiagnosticsSection()
         {
             var blender = new VolumeBlender();
-            blender.Request(Request("profile-a", 1, Timing(0f, 0f, 1f), debugName: "debug-a"));
+            blender.Request(Request("profile-low", 1, Timing(0f, 0f, 1f), debugName: "debug-low"));
+            blender.Request(Request("profile-high", 5, Timing(0f, 0f, 1f), debugName: "debug-high"));
             blender.CaptureBlendState(Context(0f));
             var source = new VolumeBlenderDebugSource(blender);
 
@@ -170,9 +222,14 @@ namespace MxFramework.Tests.Rendering
             Assert.AreEqual("Rendering", snapshot.SourceName);
             Assert.AreEqual(FrameworkDebugMode.Runtime, snapshot.Mode);
             Assert.AreEqual(RenderingDebugSectionNames.VolumeBlender, snapshot.Sections[0].Title);
-            StringAssert.Contains("activeRequests: 1", snapshot.Sections[0].Body);
+            StringAssert.Contains("activeRequests: 2", snapshot.Sections[0].Body);
             StringAssert.Contains("applied id=", snapshot.Sections[0].Body);
-            StringAssert.Contains("debugName=debug-a", snapshot.Sections[0].Body);
+            StringAssert.Contains("profile=profile-high", snapshot.Sections[0].Body);
+            StringAssert.Contains("suppressed id=", snapshot.Sections[0].Body);
+            StringAssert.Contains("profile=profile-low", snapshot.Sections[0].Body);
+            StringAssert.Contains("priority=1", snapshot.Sections[0].Body);
+            StringAssert.Contains("weight=1", snapshot.Sections[0].Body);
+            StringAssert.Contains("debugName=debug-low", snapshot.Sections[0].Body);
         }
 
         [Test]

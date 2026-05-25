@@ -262,8 +262,11 @@ namespace MxFramework.Rendering
 
     public interface IVolumeBlender
     {
+        void SetPresentationTime(float presentationTimeSeconds);
         MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor);
+        MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor, float presentationTimeSeconds);
         bool Release(MxVolumeRequestId requestId);
+        bool Release(MxVolumeRequestId requestId, float presentationTimeSeconds);
         bool TryGetRequest(MxVolumeRequestId requestId, out MxVolumeRequestSnapshot request);
         MxVolumeBlendStateSnapshot CaptureBlendState(in MxVolumeEvaluationContext context);
         MxVolumeDiagnosticsSnapshot CaptureDiagnostics();
@@ -433,14 +436,26 @@ namespace MxFramework.Rendering
         private ulong _nextCreationSequence = 1;
         private float _lastPresentationTimeSeconds;
 
+        public void SetPresentationTime(float presentationTimeSeconds)
+        {
+            _lastPresentationTimeSeconds = Mathf.Max(0f, presentationTimeSeconds);
+        }
+
         public MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor)
         {
+            return Request(descriptor, _lastPresentationTimeSeconds);
+        }
+
+        public MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor, float presentationTimeSeconds)
+        {
             var requestId = new MxVolumeRequestId(_nextRequestId++);
+            float startTimeSeconds = Mathf.Max(0f, presentationTimeSeconds);
+            _lastPresentationTimeSeconds = startTimeSeconds;
             var state = new RequestState(
                 requestId,
                 descriptor,
                 _nextCreationSequence++,
-                _lastPresentationTimeSeconds);
+                startTimeSeconds);
 
             _requests.Add(requestId, state);
             return requestId;
@@ -448,14 +463,28 @@ namespace MxFramework.Rendering
 
         public bool Release(MxVolumeRequestId requestId)
         {
+            return Release(requestId, _lastPresentationTimeSeconds);
+        }
+
+        public bool Release(MxVolumeRequestId requestId, float presentationTimeSeconds)
+        {
             if (!_requests.TryGetValue(requestId, out RequestState state))
                 return false;
 
             if (state.ReleaseTimeSeconds.HasValue)
                 return false;
 
-            float weight = state.Evaluate(_lastPresentationTimeSeconds).Weight;
-            state.ReleaseTimeSeconds = _lastPresentationTimeSeconds;
+            float releaseTimeSeconds = Mathf.Max(0f, presentationTimeSeconds);
+            _lastPresentationTimeSeconds = releaseTimeSeconds;
+            MxVolumeRequestSnapshot snapshot = state.Evaluate(releaseTimeSeconds);
+            if (snapshot.Phase == MxVolumeRequestPhase.Expired)
+            {
+                ExpireRequest(snapshot);
+                return false;
+            }
+
+            float weight = snapshot.Weight;
+            state.ReleaseTimeSeconds = releaseTimeSeconds;
             state.ReleaseStartWeight = weight;
             _requests[requestId] = state;
             return true;
@@ -466,6 +495,13 @@ namespace MxFramework.Rendering
             if (_requests.TryGetValue(requestId, out RequestState state))
             {
                 request = state.Evaluate(_lastPresentationTimeSeconds);
+                if (request.Phase == MxVolumeRequestPhase.Expired)
+                {
+                    ExpireRequest(request);
+                    request = default;
+                    return false;
+                }
+
                 return true;
             }
 
@@ -479,25 +515,15 @@ namespace MxFramework.Rendering
             _scratchVisible.Clear();
             _scratchSuppressed.Clear();
 
-            var expiredIds = new List<MxVolumeRequestId>();
+            RemoveExpiredRequests(context.PresentationTimeSeconds);
             foreach (RequestState state in _requests.Values)
             {
                 MxVolumeRequestSnapshot snapshot = state.Evaluate(context.PresentationTimeSeconds);
-                if (snapshot.Phase == MxVolumeRequestPhase.Expired)
-                {
-                    expiredIds.Add(snapshot.RequestId);
-                    AddExpired(snapshot);
-                    continue;
-                }
-
                 if (!snapshot.Scope.IsVisibleTo(context))
                     continue;
 
                 _scratchVisible.Add(snapshot);
             }
-
-            for (int i = 0; i < expiredIds.Count; i++)
-                _requests.Remove(expiredIds[i]);
 
             _scratchVisible.Sort(CompareByWinnerOrder);
             var applied = new List<MxVolumeAppliedProfileSnapshot>();
@@ -536,21 +562,13 @@ namespace MxFramework.Rendering
 
         public MxVolumeDiagnosticsSnapshot CaptureDiagnostics()
         {
+            RemoveExpiredRequests(_lastPresentationTimeSeconds);
             var active = new List<MxVolumeRequestSnapshot>(_requests.Count);
             foreach (RequestState state in _requests.Values)
-            {
-                MxVolumeRequestSnapshot snapshot = state.Evaluate(_lastPresentationTimeSeconds);
-                if (snapshot.Phase != MxVolumeRequestPhase.Expired)
-                    active.Add(snapshot);
-            }
+                active.Add(state.Evaluate(_lastPresentationTimeSeconds));
 
             active.Sort(CompareByWinnerOrder);
             return new MxVolumeDiagnosticsSnapshot(active, _expiredRequests, _recentBlendStates);
-        }
-
-        public void SetPresentationTime(float presentationTimeSeconds)
-        {
-            _lastPresentationTimeSeconds = Mathf.Max(0f, presentationTimeSeconds);
         }
 
         private static int CompareByWinnerOrder(MxVolumeRequestSnapshot left, MxVolumeRequestSnapshot right)
@@ -564,6 +582,31 @@ namespace MxFramework.Rendering
                 return sequenceCompare;
 
             return left.RequestId.Value.CompareTo(right.RequestId.Value);
+        }
+
+        private void RemoveExpiredRequests(float presentationTimeSeconds)
+        {
+            var expiredIds = new List<MxVolumeRequestId>();
+            foreach (RequestState state in _requests.Values)
+            {
+                MxVolumeRequestSnapshot snapshot = state.Evaluate(presentationTimeSeconds);
+                if (snapshot.Phase != MxVolumeRequestPhase.Expired)
+                    continue;
+
+                expiredIds.Add(snapshot.RequestId);
+                AddExpired(snapshot);
+            }
+
+            for (int i = 0; i < expiredIds.Count; i++)
+                _requests.Remove(expiredIds[i]);
+        }
+
+        private void ExpireRequest(MxVolumeRequestSnapshot snapshot)
+        {
+            if (!snapshot.RequestId.IsValid || !_requests.Remove(snapshot.RequestId))
+                return;
+
+            AddExpired(snapshot);
         }
 
         private void AddExpired(MxVolumeRequestSnapshot snapshot)

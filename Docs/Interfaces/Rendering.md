@@ -500,8 +500,11 @@ public readonly struct MxVolumeRequestDescriptor
 
 public interface IVolumeBlender
 {
+    void SetPresentationTime(float presentationTimeSeconds);
     MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor);
+    MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor, float presentationTimeSeconds);
     bool Release(MxVolumeRequestId requestId);
+    bool Release(MxVolumeRequestId requestId, float presentationTimeSeconds);
     bool TryGetRequest(MxVolumeRequestId requestId, out MxVolumeRequestSnapshot request);
     MxVolumeBlendStateSnapshot CaptureBlendState(in MxVolumeEvaluationContext context);
     MxVolumeDiagnosticsSnapshot CaptureDiagnostics();
@@ -516,6 +519,7 @@ Lifecycle rules:
 - `Release(...)` is idempotent. The first release moves an active request into blend-out using its `BlendOutSeconds`; later releases return `false` without restarting the fade.
 - Expired requests remain visible in diagnostics long enough to report cleanup reason, then may be pruned by the implementation.
 - Time used for VolumeBlender is presentation time owned by Rendering and must not enter runtime authority, Replay hash, Runtime result hash, or SaveState.
+- Composition roots must advance VolumeBlender time through `SetPresentationTime(...)`, `Request(..., presentationTimeSeconds)`, `Release(..., presentationTimeSeconds)`, or `CaptureBlendState(...)`. The overloads with explicit presentation time are preferred when request or release timing occurs between render evaluations.
 
 Arbitration rules:
 
@@ -596,6 +600,8 @@ The first implementation is diagnostics/arbitration-only: it evaluates the final
 Future implementation tests must cover:
 
 - Request id creation, lookup, release idempotency, and expired cleanup.
+- Diagnostics-only expiry cleanup without a blend-state evaluation.
+- Public presentation-time control for request and release timing.
 - Priority ordering and stable equal-priority tie-breaker.
 - Blend-in, hold, blend-out, zero-duration transitions, and manual release semantics.
 - Global request visibility across camera kinds.
@@ -733,12 +739,15 @@ Required VolumeBlender tests:
 
 - `VolumeBlender_RequestId_IsStableUntilReleaseOrExpiry`
 - `VolumeBlender_RequestLookup_ReturnsCurrentWeight`
+- `VolumeBlender_RequestAndRelease_UsePublicPresentationTime`
+- `VolumeBlender_RequestExplicitTime_DoesNotInheritStaleEvaluationTime`
 - `VolumeBlender_Priority_UsesStableTieBreakerForEqualPriority`
 - `VolumeBlender_Lifetime_BlendInHoldBlendOutAndZeroDurations`
 - `VolumeBlender_Release_IsIdempotentAndStartsBlendOut`
 - `VolumeBlender_Scope_GlobalAppliesToAllCameraKinds`
 - `VolumeBlender_Scope_CameraKindAndExplicitCameraAreIsolated`
 - `VolumeBlender_Diagnostics_ReportsActiveExpiredSuppressedWeightsAndAppliedState`
+- `VolumeBlender_Diagnostics_CleansUpExpiredRequestsWithoutBlendStateCapture`
 - `VolumeBlender_Dependencies_DoNotReferenceForbiddenModulesOrLegacyPostProcessing`
 
 ## 10. Compatibility
