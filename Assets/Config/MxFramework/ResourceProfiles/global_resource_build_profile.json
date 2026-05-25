@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "profileId": "global.default",
+  "catalogId": "global.runtime",
+  "packageId": "mxframework.samples",
+  "entries": [
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.button.normal",
+        "type": "Texture2D",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
+        "unityGuid": "9b7cb3348a06dee46ba153871343231b"
+      },
+      "labels": [
+        "package.mxframework.samples",
+        "domain.ui",
+        "bundle.ui.start_screen",
+        "preload.boot.base",
+        "warmup.demo.player_smoke"
+      ],
+      "bundleRule": "ui.start_screen",
+      "preloadGroups": [
+        "boot.base"
+      ],
+      "dependencies": [],
+      "providerData": {
+        "usage": "texture"
+      },
+      "runtimeLoadable": true,
+      "editorOnly": false
+    }
+  ],
+  "bundleRules": [
+    {
+      "id": "ui.start_screen",
+      "bundleName": "global.ui.start_screen.assetbundle",
+      "matchLabels": [
+        "bundle.ui.start_screen"
+      ],
+      "compression": "lz4",
+      "buildTarget": "ActiveBuildTarget",
+      "includeDependencies": true
+    }
+  ],
+  "preloadGroups": [
+    {
+      "id": "boot.base",
+      "labels": [
+        "preload.boot.base"
+      ],
+      "explicitKeys": [],
+      "failFast": true,
+      "maxConcurrentLoads": 4
+    }
+  ]
+}
