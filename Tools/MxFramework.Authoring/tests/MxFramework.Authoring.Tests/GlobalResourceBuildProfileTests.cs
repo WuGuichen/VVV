@@ -19,6 +19,7 @@ internal static class GlobalResourceBuildProfileTests
         UnknownCompression_IsError();
         EmptyPreloadGroup_IsError();
         RequiredDomainPlanMissing_IsError();
+        AuthoringResourceProvider_ProjectsProfileEntriesAndDiagnostics();
     }
 
     private static void ValidProfile_PassesAndRoundTripsCamelCaseJson()
@@ -112,6 +113,33 @@ internal static class GlobalResourceBuildProfileTests
         Require(HasCode(report, GlobalResourceBuildProfileValidationCodes.RequiredDomainPlanKeyMissing), "Missing required domain plan key should be reported.");
     }
 
+    private static void AuthoringResourceProvider_ProjectsProfileEntriesAndDiagnostics()
+    {
+        GlobalResourceBuildProfile profile = CreateValidProfile();
+        var context = new AuthoringResourceProviderContext
+        {
+            ScopeId = "global",
+            ProjectRootPath = FindRepoRoot(),
+            GlobalResourceBuildProfile = profile,
+            GlobalResourceBuildProfilePath = "Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json",
+            GlobalRuntimeCatalogPath = "Assets/StreamingAssets/MxFramework/Resources/global_runtime_catalog.json",
+            GlobalPreloadGroupsPath = "Assets/StreamingAssets/MxFramework/Resources/global_preload_groups.json",
+            GlobalBundleDependenciesPath = "Assets/StreamingAssets/MxFramework/Resources/global_bundle_dependencies.json",
+            GlobalResourceBuildReportPath = "Assets/Config/MxFramework/ResourceBuildReports/global_resource_build_report.json"
+        };
+
+        AuthoringResourceCollection collection = new GlobalResourceBuildProfileAuthoringResourceProvider().BuildResourceCollection(context);
+
+        Require(collection.Providers.Count == 1, "Global build profile provider descriptor should be present.");
+        Require(collection.Items.Count == 1, "Global build profile provider should project profile entries.");
+        AuthoringResourceItem item = collection.Items[0];
+        Require(item.SourceProviderId == AuthoringResourceProviderIds.GlobalResourceBuildProfile, "profile item provider id should be globalResourceBuildProfile.");
+        Require(item.Metadata["bundleRule"] == "ui.startup", "profile item should expose bundle rule metadata.");
+        Require(item.Metadata["preloadGroups"].Contains("boot.base"), "profile item should expose preload group metadata.");
+        Require(item.ProviderBindings.Exists(binding => binding.ProviderId == AuthoringResourceProviderIds.UnityAssetDatabase), "profile item should expose Unity source binding.");
+        Require(collection.Diagnostics.Exists(diagnostic => diagnostic.Code == "GLOBAL_RESOURCE_RUNTIME_CATALOG_MISSING"), "missing generated catalog should surface as provider diagnostic.");
+    }
+
     private static GlobalResourceBuildProfile CreateValidProfile()
     {
         return new GlobalResourceBuildProfile
@@ -186,6 +214,21 @@ internal static class GlobalResourceBuildProfileTests
         };
         options.Converters.Add(new JsonStringEnumConverter());
         return options;
+    }
+
+    private static string FindRepoRoot()
+    {
+        string directory = AppContext.BaseDirectory;
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            if (System.IO.File.Exists(System.IO.Path.Combine(directory, "WGameFramework.sln")) ||
+                System.IO.Directory.Exists(System.IO.Path.Combine(directory, ".git")))
+                return directory;
+
+            directory = System.IO.Directory.GetParent(directory)?.FullName;
+        }
+
+        return AppContext.BaseDirectory;
     }
 
     private static void Require(bool condition, string message)
