@@ -1112,3 +1112,26 @@
 - 15.1-15.3 验收前，不允许能力 PR 绕过 FeaturePipeline、SharedRTRegistry 或 Context surface。
 
 **状态**: 📋 Spec Ready / Implementation pending
+
+## Phase 16: Character Action Layer
+
+目标：将角色动作从 CharacterControl v0（`CharacterActionRequest` / `CharacterActionController`）推进到可配置、可调试的新 CharacterAction 层（Resolver → Plan → Runner → TrackAdapters → Workstation）。
+
+当前状况：
+- Phase 1-7 代码已合并到 `MxFramework.CharacterAction` 程序集，共 8,391 行代码、19 个文件、10 个测试文件。
+- 核心能力包括：`CharacterActionIntentRequest` → `CharacterActionResolver` → `CharacterActionPlan` → `CharacterActionRunner` → `CharacterActionTrackAdapter`（Motion/Combat/Gameplay/Animation/Audio/VFX/Camera/UI sink），以及 `CharacterActionWorkstation` 诊断工作站、`CharacterReactionContextBuilder` 反应构建器。
+- 该层当前**完全孤立**：没有任何 asmdef 引用 `MxFramework.CharacterAction`；`CharacterControl` 仍使用 v0 路径；Demo/Playable 场景使用旧 `CharacterActionController`。
+- 无独立接口文档、无 CAPABILITIES 条目、无 USAGE 示例。
+
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| Phase 1 | ReactionContext + Phase Authority Contracts | ✅ 代码已合并 |
+| Phase 2.1 | Resolver + Validation MVP | ✅ 代码已合并 |
+| Phase 2.2-2.7 | Plan Rebaseline、Candidate、Reaction Determinism、Timeline/Cancel、Resource Dependency、Integration Tests | ✅ 代码已合并 |
+| Phase 3 | Runner noEngine MVP | ✅ 代码已合并 |
+| Phase 4 | Motion Combat Gameplay Adapter | ✅ 代码已合并 |
+| Phase 5 | Animation Presentation Adapter | ✅ 代码已合并 |
+| Phase 6 | Reaction Bridge (CombatHitResult → ReactionContext) | ✅ 代码已合并 |
+| Phase 7 | Workstation MVP | ✅ 代码已合并 |
+| **集成** | 桥接 CharacterControl v0 → CharacterAction 新层 | 📋 需要设计 |
+| **Playable Demo** | 角色动作可玩场景 | 📋 需要设计 |
