@@ -9,19 +9,21 @@ namespace MxFramework.Demo.Rendering
     [AddComponentMenu("MxFramework/Demo/Rendering Demo Slices Showcase Root")]
     public sealed class RenderingDemoSlicesShowcaseRoot : MonoBehaviour
     {
-        [SerializeField] private UIDocument _document;
-        [SerializeField] private VisualTreeAsset _visualTree;
-        [SerializeField] private StyleSheet _styleSheet;
-        [SerializeField] private RenderingDemoSlicesHudController _hud;
-        [SerializeField] private Renderer _subjectRenderer;
-        [SerializeField] private Transform _windArrow;
-        [SerializeField] private Transform _subjectMarker;
+        [SerializeField] private UIDocument _document = null;
+        [SerializeField] private VisualTreeAsset _visualTree = null;
+        [SerializeField] private StyleSheet _styleSheet = null;
+        [SerializeField] private RenderingDemoSlicesHudController _hud = null;
+        [SerializeField] private Renderer _subjectRenderer = null;
+        [SerializeField] private Transform _windArrow = null;
+        [SerializeField] private Transform _subjectMarker = null;
 
         private RenderingDemoSlicesShowcaseRuntime _runtime;
         private bool _initialized;
 
         public bool IsInitialized => _initialized;
         public RenderingDemoSlicesSnapshot Snapshot => _runtime != null ? _runtime.Snapshot : default;
+        private VisualTreeAsset VisualTree => _visualTree;
+        private StyleSheet StyleSheet => _styleSheet;
 
         public void ConfigureSceneReferences(
             UIDocument document,
@@ -69,6 +71,22 @@ namespace MxFramework.Demo.Rendering
             _runtime?.Enqueue(command);
         }
 
+        public void InitializeForValidation()
+        {
+            Initialize();
+        }
+
+        public void RunFrameForValidation(float deltaTime)
+        {
+            Initialize();
+            if (_runtime == null)
+                return;
+
+            _runtime.Step(deltaTime);
+            ApplyScenePresentation(_runtime.Snapshot);
+            _hud?.Refresh(_runtime.Snapshot);
+        }
+
         private void Initialize()
         {
             if (_initialized)
@@ -76,7 +94,7 @@ namespace MxFramework.Demo.Rendering
 
             _document = _document != null ? _document : GetComponent<UIDocument>();
             _hud = _hud != null ? _hud : GetComponent<RenderingDemoSlicesHudController>();
-            _hud?.Configure(this, _document, _visualTree, _styleSheet);
+            _hud?.Configure(this, _document, VisualTree, StyleSheet);
 
             _runtime = new RenderingDemoSlicesShowcaseRuntime();
             _runtime.Initialize(_subjectRenderer, FindFrameworkPipelines());

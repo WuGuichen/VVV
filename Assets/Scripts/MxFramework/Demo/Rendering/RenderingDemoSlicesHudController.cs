@@ -8,10 +8,10 @@ namespace MxFramework.Demo.Rendering
     [AddComponentMenu("MxFramework/Demo/Rendering Demo Slices HUD")]
     public sealed class RenderingDemoSlicesHudController : MonoBehaviour
     {
-        [SerializeField] private UIDocument _document;
-        [SerializeField] private VisualTreeAsset _visualTree;
-        [SerializeField] private StyleSheet _styleSheet;
-        [SerializeField] private RenderingDemoSlicesShowcaseRoot _root;
+        [SerializeField] private UIDocument _document = null;
+        [SerializeField] private VisualTreeAsset _visualTree = null;
+        [SerializeField] private StyleSheet _styleSheet = null;
+        [SerializeField] private RenderingDemoSlicesShowcaseRoot _root = null;
 
         private VisualElement _hudRoot;
         private Label _contextValue;
@@ -22,6 +22,8 @@ namespace MxFramework.Demo.Rendering
         private Label _controlsValue;
         private VisualElement _eventList;
         private bool _built;
+        private VisualTreeAsset VisualTree => _visualTree;
+        private StyleSheet StyleSheet => _styleSheet;
 
         public void Configure(
             RenderingDemoSlicesShowcaseRoot root,
@@ -53,12 +55,44 @@ namespace MxFramework.Demo.Rendering
 
             SetText(_contextValue, "wind " + FormatVector(snapshot.Globals.WindDirection) + " strength " + snapshot.Globals.WindStrength.ToString("0.00"));
             SetText(_sharedRtValue, "passes " + snapshot.Topology.Passes.Count + " sharedRT " + snapshot.SharedRT.Entries.Count + " conflicts " + snapshot.SharedRT.RecentConflicts.Count);
-            SetText(_materialValue, "bindings " + snapshot.MaterialBindings.BindingCount + " targets " + snapshot.MaterialBindings.TargetCount + " applied " + snapshot.MaterialBindings.LastAppliedTargetCount);
+            SetText(_materialValue, "bindings " + snapshot.MaterialBindings.BindingCount + " targets " + snapshot.MaterialBindings.TargetCount + " applied " + snapshot.MaterialBindings.LastAppliedTargetCount + " events " + snapshot.Events.Count);
             SetText(_publisherValue, "current " + snapshot.Publisher.CurrentFrameEventCount + " recent " + snapshot.Publisher.RecentEventCount + " total " + snapshot.Publisher.TotalEventCount);
             SetText(_volumeValue, "active " + snapshot.VolumeDiagnostics.ActiveRequests.Count + " applied " + snapshot.VolumeBlendState.AppliedProfiles.Count + " suppressed " + snapshot.VolumeBlendState.SuppressedRequests.Count);
             SetText(_controlsValue, "1 Wind  2 Material  3 Publisher  4 Volume  R Reset");
             RefreshEvents(snapshot.Events);
             ApplyRuntimeStyleFallback();
+        }
+
+        public bool InvokeButtonForValidation(string buttonName)
+        {
+            EnsureBuilt();
+            if (!_built || _hudRoot == null)
+                return false;
+
+            Button button = _hudRoot.Q<Button>(buttonName);
+            if (button == null)
+                return false;
+
+            switch (buttonName)
+            {
+                case "wind-button":
+                    DispatchCommand(RenderingDemoCommand.ToggleWind);
+                    return true;
+                case "material-button":
+                    DispatchCommand(RenderingDemoCommand.PulseMaterial);
+                    return true;
+                case "publisher-button":
+                    DispatchCommand(RenderingDemoCommand.PublishEventBurst);
+                    return true;
+                case "volume-button":
+                    DispatchCommand(RenderingDemoCommand.CycleVolumePriority);
+                    return true;
+                case "reset-button":
+                    DispatchCommand(RenderingDemoCommand.Reset);
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private void EnsureBuilt()
@@ -70,15 +104,15 @@ namespace MxFramework.Demo.Rendering
             if (_document == null)
                 return;
 
-            if (_visualTree != null)
-                _document.visualTreeAsset = _visualTree;
+            if (VisualTree != null)
+                _document.visualTreeAsset = VisualTree;
 
             VisualElement root = _document.rootVisualElement;
             if (root == null)
                 return;
 
-            if (_styleSheet != null && !root.styleSheets.Contains(_styleSheet))
-                root.styleSheets.Add(_styleSheet);
+            if (StyleSheet != null && !root.styleSheets.Contains(StyleSheet))
+                root.styleSheets.Add(StyleSheet);
 
             _hudRoot = root.Q<VisualElement>("rendering-demo-hud") ?? root;
             _contextValue = root.Q<Label>("context-value");
@@ -104,7 +138,12 @@ namespace MxFramework.Demo.Rendering
             if (button == null)
                 return;
 
-            button.clicked += () => _root?.EnqueueCommand(command);
+            button.clicked += () => DispatchCommand(command);
+        }
+
+        private void DispatchCommand(RenderingDemoCommand command)
+        {
+            _root?.EnqueueCommand(command);
         }
 
         private void RefreshEvents(IReadOnlyList<string> events)

@@ -28,17 +28,13 @@ namespace MxFramework.Demo
             EnsureFolder("Assets/UI/MxFramework", "RenderingDemoSlices");
             EnsureTextAsset(UxmlPath, CreateUxml());
             EnsureTextAsset(UssPath, CreateUss());
-            AssetDatabase.ImportAsset(UxmlPath);
-            AssetDatabase.ImportAsset(UssPath);
+            AssetDatabase.ImportAsset(UxmlPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.ImportAsset(UssPath, ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
             PanelSettings panelSettings = LoadOrCreatePanelSettings();
-            VisualTreeAsset visualTree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(UxmlPath);
-            StyleSheet styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(UssPath);
-            if (visualTree == null)
-                throw new System.InvalidOperationException("Rendering demo HUD UXML could not be loaded: " + UxmlPath);
-            if (styleSheet == null)
-                throw new System.InvalidOperationException("Rendering demo HUD USS could not be loaded: " + UssPath);
-
+            VisualTreeAsset visualTree = LoadRequired<VisualTreeAsset>(UxmlPath);
+            StyleSheet styleSheet = LoadRequired<StyleSheet>(UssPath);
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.ambientLight = new Color(0.48f, 0.54f, 0.58f);
             CreateCamera();
@@ -48,10 +44,13 @@ namespace MxFramework.Demo
             Transform windArrow = CreateWindArrow();
             GameObject root = CreateRoot(panelSettings, visualTree, styleSheet, subjectRenderer, windArrow, subjectMarker);
 
-            EditorSceneManager.SaveScene(scene, ScenePath);
             EditorUtility.SetDirty(root);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            AssetDatabase.ForceReserializeAssets(new[] { ScenePath }, ForceReserializeAssetsOptions.ReserializeAssets);
+            PatchSerializedUiReferences(ScenePath, visualTree, styleSheet);
+            AssetDatabase.ImportAsset(ScenePath, ImportAssetOptions.ForceSynchronousImport);
             Debug.Log("Rendering demo slices showcase scene created: " + ScenePath);
         }
 
@@ -76,6 +75,10 @@ namespace MxFramework.Demo
                 throw new System.InvalidOperationException("Rendering demo scene is missing root, HUD, or UIDocument.");
             if (document.panelSettings == null || document.visualTreeAsset == null)
                 throw new System.InvalidOperationException("Rendering demo UIDocument must bind PanelSettings and UXML.");
+            RequireSerializedReference<VisualTreeAsset>(root, "_visualTree");
+            RequireSerializedReference<StyleSheet>(root, "_styleSheet");
+            RequireSerializedReference<VisualTreeAsset>(hud, "_visualTree");
+            RequireSerializedReference<StyleSheet>(hud, "_styleSheet");
 
             VisualElement tree = document.visualTreeAsset.CloneTree();
             RequireLabel(tree, "title");
@@ -102,6 +105,70 @@ namespace MxFramework.Demo
                 throw new System.InvalidOperationException("MxFrameworkUniversalRenderer.asset must contain exactly one MxRenderingPipelineFeature entry.");
 
             Debug.Log("Rendering demo slices showcase smoke validation passed.");
+        }
+
+        public static void ValidatePlayableSmoke()
+        {
+            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            if (!scene.IsValid() || !scene.isLoaded)
+                throw new System.InvalidOperationException("Rendering demo scene did not load: " + ScenePath);
+
+            RenderingDemoSlicesShowcaseRoot root = Object.FindFirstObjectByType<RenderingDemoSlicesShowcaseRoot>();
+            RenderingDemoSlicesHudController hud = Object.FindFirstObjectByType<RenderingDemoSlicesHudController>();
+            UIDocument document = Object.FindFirstObjectByType<UIDocument>();
+            if (root == null || hud == null || document == null)
+                throw new System.InvalidOperationException("Rendering demo playable smoke requires root, HUD, and UIDocument.");
+
+            RequireSerializedReference<VisualTreeAsset>(root, "_visualTree");
+            RequireSerializedReference<StyleSheet>(root, "_styleSheet");
+            RequireSerializedReference<VisualTreeAsset>(hud, "_visualTree");
+            RequireSerializedReference<StyleSheet>(hud, "_styleSheet");
+
+            root.InitializeForValidation();
+            root.RunFrameForValidation(0.016f);
+
+            VisualElement visualRoot = document.rootVisualElement;
+            Label context = RequireLiveLabel(visualRoot, "context-value");
+            Label material = RequireLiveLabel(visualRoot, "material-value");
+            Label publisher = RequireLiveLabel(visualRoot, "publisher-value");
+            Label volume = RequireLiveLabel(visualRoot, "volume-value");
+            Button windButton = RequireLiveButton(visualRoot, "wind-button");
+            Button materialButton = RequireLiveButton(visualRoot, "material-button");
+            Button publisherButton = RequireLiveButton(visualRoot, "publisher-button");
+            Button volumeButton = RequireLiveButton(visualRoot, "volume-button");
+            RequireVisible(context, "context-value");
+            RequireVisible(windButton, "wind-button");
+            RequireVisible(materialButton, "material-button");
+
+            string contextBefore = context.text;
+            string materialBefore = material.text;
+            string publisherBefore = publisher.text;
+            string volumeBefore = volume.text;
+
+            if (!hud.InvokeButtonForValidation("wind-button"))
+                throw new System.InvalidOperationException("Wind HUD button did not dispatch.");
+            root.RunFrameForValidation(0.05f);
+            RequireTextChanged(context, contextBefore, "context-value");
+
+            if (!hud.InvokeButtonForValidation("material-button"))
+                throw new System.InvalidOperationException("Material HUD button did not dispatch.");
+            root.RunFrameForValidation(0.05f);
+            RequireTextChanged(material, materialBefore, "material-value");
+
+            if (!hud.InvokeButtonForValidation("publisher-button"))
+                throw new System.InvalidOperationException("Publisher HUD button did not dispatch.");
+            root.RunFrameForValidation(0.05f);
+            RequireTextChanged(publisher, publisherBefore, "publisher-value");
+
+            if (!hud.InvokeButtonForValidation("volume-button"))
+                throw new System.InvalidOperationException("Volume HUD button did not dispatch.");
+            root.RunFrameForValidation(0.05f);
+            RequireTextChanged(volume, volumeBefore, "volume-value");
+
+            if (windButton.text != "Wind" || materialButton.text != "Material" || publisherButton.text != "Publisher" || volumeButton.text != "Volume")
+                throw new System.InvalidOperationException("HUD button labels are not readable.");
+
+            Debug.Log("Rendering demo slices showcase playable smoke validation passed.");
         }
 
         private static GameObject CreateRoot(
@@ -214,15 +281,17 @@ namespace MxFramework.Demo
         private static void ConfigureDocument(UIDocument document, PanelSettings panelSettings, VisualTreeAsset visualTree)
         {
             var serialized = new SerializedObject(document);
+            serialized.UpdateIfRequiredOrScript();
             SetRequired(serialized, "m_PanelSettings", panelSettings);
             SetRequired(serialized, "sourceAsset", visualTree);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
+            serialized.ApplyModifiedProperties();
             serialized.Update();
             EnsureReference(serialized, "m_PanelSettings", panelSettings);
             EnsureReference(serialized, "sourceAsset", visualTree);
             document.panelSettings = panelSettings;
             document.visualTreeAsset = visualTree;
             EditorUtility.SetDirty(document);
+            EditorSceneManager.MarkSceneDirty(document.gameObject.scene);
         }
 
         private static PanelSettings LoadOrCreatePanelSettings()
@@ -261,12 +330,19 @@ namespace MxFramework.Demo
             StyleSheet styleSheet)
         {
             var serialized = new SerializedObject(hud);
+            serialized.UpdateIfRequiredOrScript();
             SetRequired(serialized, "_root", root);
             SetRequired(serialized, "_document", document);
             SetRequired(serialized, "_visualTree", visualTree);
             SetRequired(serialized, "_styleSheet", styleSheet);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
+            serialized.ApplyModifiedProperties();
+            serialized.Update();
+            EnsureReference(serialized, "_root", root);
+            EnsureReference(serialized, "_document", document);
+            EnsureReference(serialized, "_visualTree", visualTree);
+            EnsureReference(serialized, "_styleSheet", styleSheet);
             EditorUtility.SetDirty(hud);
+            EditorSceneManager.MarkSceneDirty(hud.gameObject.scene);
         }
 
         private static void SetShowcaseReferences(
@@ -280,6 +356,7 @@ namespace MxFramework.Demo
             Transform subjectMarker)
         {
             var serialized = new SerializedObject(showcase);
+            serialized.UpdateIfRequiredOrScript();
             SetRequired(serialized, "_document", document);
             SetRequired(serialized, "_visualTree", visualTree);
             SetRequired(serialized, "_styleSheet", styleSheet);
@@ -287,14 +364,71 @@ namespace MxFramework.Demo
             SetRequired(serialized, "_subjectRenderer", subjectRenderer);
             SetRequired(serialized, "_windArrow", windArrow);
             SetRequired(serialized, "_subjectMarker", subjectMarker);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
+            serialized.ApplyModifiedProperties();
+            serialized.Update();
+            EnsureReference(serialized, "_document", document);
+            EnsureReference(serialized, "_visualTree", visualTree);
+            EnsureReference(serialized, "_styleSheet", styleSheet);
+            EnsureReference(serialized, "_hud", hud);
+            EnsureReference(serialized, "_subjectRenderer", subjectRenderer);
+            EnsureReference(serialized, "_windArrow", windArrow);
+            EnsureReference(serialized, "_subjectMarker", subjectMarker);
             EditorUtility.SetDirty(showcase);
+            EditorSceneManager.MarkSceneDirty(showcase.gameObject.scene);
         }
 
         private static void EnsureTextAsset(string path, string contents)
         {
             string absolute = Path.Combine(Directory.GetCurrentDirectory(), path);
+            if (File.Exists(absolute) && File.ReadAllText(absolute) == contents)
+                return;
+
             File.WriteAllText(absolute, contents);
+        }
+
+        private static T LoadRequired<T>(string path)
+            where T : Object
+        {
+            T asset = AssetDatabase.LoadAssetAtPath<T>(path);
+            if (asset == null)
+                throw new System.InvalidOperationException("Required asset could not be loaded: " + path);
+
+            if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string guid, out long localId))
+                throw new System.InvalidOperationException("Required asset has no stable file identifier: " + path);
+
+            Debug.Log("Loaded " + typeof(T).Name + " " + path + " guid=" + guid + " localId=" + localId);
+            return asset;
+        }
+
+        private static void PatchSerializedUiReferences(
+            string scenePath,
+            VisualTreeAsset visualTree,
+            StyleSheet styleSheet)
+        {
+            string absolute = Path.Combine(Directory.GetCurrentDirectory(), scenePath);
+            string text = File.ReadAllText(absolute);
+            string visualTreeReference = ToYamlReference(visualTree);
+            string styleSheetReference = ToYamlReference(styleSheet);
+            text = ReplaceRequired(text, "  _visualTree: {fileID: 0}", "  _visualTree: " + visualTreeReference, 2);
+            text = ReplaceRequired(text, "  _styleSheet: {fileID: 0}", "  _styleSheet: " + styleSheetReference, 2);
+            File.WriteAllText(absolute, text);
+        }
+
+        private static string ToYamlReference(Object asset)
+        {
+            if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out string guid, out long localId))
+                throw new System.InvalidOperationException("Unable to resolve serialized asset id: " + asset);
+
+            return "{fileID: " + localId + ", guid: " + guid + ", type: 3}";
+        }
+
+        private static string ReplaceRequired(string text, string oldValue, string newValue, int expectedCount)
+        {
+            int count = CountOccurrences(text, oldValue);
+            if (count != expectedCount)
+                throw new System.InvalidOperationException("Expected " + expectedCount + " occurrences of `" + oldValue + "` but found " + count + ".");
+
+            return text.Replace(oldValue, newValue);
         }
 
         private static string CreateUxml()
@@ -400,6 +534,50 @@ namespace MxFramework.Demo
             Button button = root.Q<Button>(name);
             if (button == null || string.IsNullOrWhiteSpace(button.text))
                 throw new System.InvalidOperationException("HUD button missing or empty: " + name);
+        }
+
+        private static void RequireSerializedReference<T>(Object target, string propertyName)
+            where T : Object
+        {
+            var serialized = new SerializedObject(target);
+            SerializedProperty property = serialized.FindProperty(propertyName);
+            if (property == null || property.objectReferenceValue == null)
+                throw new System.InvalidOperationException("Missing serialized reference: " + propertyName + " on " + target);
+            if (!(property.objectReferenceValue is T))
+                throw new System.InvalidOperationException("Serialized reference has wrong type: " + propertyName + " on " + target);
+        }
+
+        private static Label RequireLiveLabel(VisualElement root, string name)
+        {
+            Label label = root.Q<Label>(name);
+            if (label == null || string.IsNullOrWhiteSpace(label.text))
+                throw new System.InvalidOperationException("Live HUD label missing or empty: " + name);
+
+            return label;
+        }
+
+        private static Button RequireLiveButton(VisualElement root, string name)
+        {
+            Button button = root.Q<Button>(name);
+            if (button == null || string.IsNullOrWhiteSpace(button.text))
+                throw new System.InvalidOperationException("Live HUD button missing or empty: " + name);
+
+            return button;
+        }
+
+        private static void RequireTextChanged(Label label, string before, string name)
+        {
+            if (label == null || label.text == before || string.IsNullOrWhiteSpace(label.text))
+                throw new System.InvalidOperationException("HUD label did not update after control dispatch: " + name);
+        }
+
+        private static void RequireVisible(VisualElement element, string name)
+        {
+            Color color = element.resolvedStyle.color;
+            StyleColor inlineColor = element.style.color;
+            float alpha = color.a > 0f ? color.a : inlineColor.value.a;
+            if (alpha <= 0f)
+                throw new System.InvalidOperationException("HUD element is not visibly readable: " + name);
         }
 
         private static int CountOccurrences(string value, string pattern)
