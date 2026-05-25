@@ -1,9 +1,9 @@
 using System;
 using MxFramework.Core.Math;
+using MxFramework.Input;
 using MxFramework.Runtime;
 using UnityEngine;
 using UnityEngine.UIElements;
-using UnityInput = UnityEngine.Input;
 
 namespace MxFramework.Demo.CharacterControl
 {
@@ -25,6 +25,7 @@ namespace MxFramework.Demo.CharacterControl
         [SerializeField] private bool _startPaused = false;
 
         private CharacterControlPlayableSlice _slice;
+        private IInputProvider _input;
         private CharacterControlPlayableSnapshot _snapshot;
         private float _simulationFrameAccumulator;
         private bool _paused;
@@ -53,6 +54,7 @@ namespace MxFramework.Demo.CharacterControl
 
         private void OnEnable()
         {
+            ResolveInput();
             _slice = new CharacterControlPlayableSlice();
             _snapshot = _slice.CurrentSnapshot;
             _paused = _startPaused;
@@ -95,7 +97,8 @@ namespace MxFramework.Demo.CharacterControl
 
             EnsureDocument();
             EnsureWorldMarkers();
-            HandleKeyboardInput();
+            ResolveInput();
+            HandleInput(_input != null ? _input.Snapshot : InputSnapshot.Empty);
 
             if (!_paused)
                 TickSimulation();
@@ -103,35 +106,32 @@ namespace MxFramework.Demo.CharacterControl
             RefreshUi(force: false);
         }
 
-        private void HandleKeyboardInput()
+        private void HandleInput(InputSnapshot input)
         {
-            if (UnityInput.GetKeyDown(KeyCode.R))
+            if (input.RestartPressed)
             {
                 ResetSlice();
                 return;
             }
 
-            if (UnityInput.GetKeyDown(KeyCode.P))
+            if (input.PausePressed || input.DebugSecondaryPressed)
                 TogglePaused();
 
-            float x = ReadAxis(KeyCode.A, KeyCode.LeftArrow, KeyCode.D, KeyCode.RightArrow);
-            float z = ReadAxis(KeyCode.S, KeyCode.DownArrow, KeyCode.W, KeyCode.UpArrow);
-            bool sprint = UnityInput.GetKey(KeyCode.LeftShift) || UnityInput.GetKey(KeyCode.RightShift);
-            if (Mathf.Abs(x) > 0f || Mathf.Abs(z) > 0f)
+            Vector2 move = input.Move;
+            if (Mathf.Abs(move.x) > 0f || Mathf.Abs(move.y) > 0f)
             {
-                Vector2 move = new Vector2(x, z);
                 if (move.sqrMagnitude > 1f)
                     move.Normalize();
-                _slice.EnqueueMove(move.x, move.y, sprint);
+                _slice.EnqueueMove(move.x, move.y, input.SprintHeld);
             }
 
-            if (UnityInput.GetKeyDown(KeyCode.Space))
+            if (input.JumpPressed)
                 _slice.EnqueueJump();
-            if (UnityInput.GetKeyDown(KeyCode.J) || UnityInput.GetKeyDown(KeyCode.F))
+            if (input.AttackPrimaryPressed || input.DebugPrimaryPressed)
                 _slice.EnqueueAttack();
-            if (UnityInput.GetKeyDown(KeyCode.K) || UnityInput.GetKeyDown(KeyCode.H))
+            if (input.AttackSecondaryPressed || input.ToggleHudPressed)
                 _slice.EnqueuePressureBreak();
-            if (UnityInput.GetKeyDown(KeyCode.I) || UnityInput.GetKeyDown(KeyCode.L))
+            if (input.DebugStepPressed || input.DebugCyclePressed)
                 _slice.EnqueueRuntimeAiStep();
         }
 
@@ -387,14 +387,10 @@ namespace MxFramework.Demo.CharacterControl
             ResetSlice();
         }
 
-        private static float ReadAxis(KeyCode negative, KeyCode negativeAlt, KeyCode positive, KeyCode positiveAlt)
+        private void ResolveInput()
         {
-            float value = 0f;
-            if (UnityInput.GetKey(negative) || UnityInput.GetKey(negativeAlt))
-                value -= 1f;
-            if (UnityInput.GetKey(positive) || UnityInput.GetKey(positiveAlt))
-                value += 1f;
-            return value;
+            if (_input == null)
+                _input = InputProviderResolver.ResolveOrCreateDefault(this);
         }
 
         private static PanelSettings CreateFallbackPanelSettings()
