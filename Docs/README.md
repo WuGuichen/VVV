@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.55 | 2026-05-24
+> 版本 0.6.56 | 2026-05-25
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -15,6 +15,7 @@
 | **让 Agent 读取最小上下文** | → `PROJECT_INDEX.md`（Context Pack 入口和禁止默认读取范围） |
 | **排查运行时状态和调试面板** | → `Guides/OBSERVABILITY_DEBUGGING_GUIDE.md`（Debug UI、日志、timeline、hot reload、commands 和 Simulation Harness） |
 | **让 agent 基于框架制作小游戏 / Demo** | → `AGENT_GAME_CREATION_GUIDE.md`（API 复用计划、标准分层、禁用项和验收清单） |
+| **创作 Rendering pass / SharedRT / 材质绑定 / Volume 请求 / Demo 验证** | → `RENDERING_AUTHORING_GUIDE.md`（Rendering authoring 唯一入口） |
 | **选读哪个文档** | → 本文件下方「职责表」 |
 
 ---
@@ -34,6 +35,7 @@
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、命名、Catalog、临时资产归档和 FMOD 边界规范。 |
 | `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置、材质/场景创作和验证规则。 |
 | `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP 唯一 Feature 入口、Context / SharedRT / Bridge 边界。 |
+| `RENDERING_AUTHORING_GUIDE.md` | Rendering authoring 唯一入口：shader globals、camera globals、SharedRT、pass/provider、MaterialBindingHub、RenderDataPublisher、VolumeBlender、Demo 和 diagnostics。 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画/物理协作方案和落地阶段。 |
 | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包、外部 3D 装配编辑器、Unity 导入和 Runtime Spawn 总方案。 |
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程实现方案：模块拆分、目录、CLI、Tauri 编辑器、Unity Importer 和测试矩阵。 |
@@ -208,6 +210,7 @@
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 框架样例资源正式目录、ResourceKey 命名、Catalog 归档和 FMOD bank 边界 | 迁移或新增正式样例资源前 |
 | `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置和场景/材质验证规则 | 渲染管线、材质、Shader、Volume、相机或 Demo 表现基线变化 |
 | `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP Feature 入口、上下文分层、SharedRT 冲突和桥接边界 | 开发 Rendering 框架能力或变更 URP 编排规则前 |
+| `RENDERING_AUTHORING_GUIDE.md` | Rendering pass、SharedRT、材质绑定、Volume 请求、Demo 和 diagnostics 如何创作 | 新增或调整 Rendering authoring 规则、Demo 验证或诊断输出前 |
 | `COMBAT_ANIMATION_PHYSICS.md` | 确定性战斗动画、物理查询、命中结算和工具链如何协作 | 开发 Combat/动作/物理/联网战斗前 |
 | `AGENT_GAME_CREATION_GUIDE.md` | Agent 制作小游戏 / Demo 时如何优先复用框架模块 | 开发小游戏、Playable Demo、Runtime Showcase 或场景验证前 |
 | `USAGE.md` | 如何直接接入和组合模块 | 新增基础功能或改变推荐用法 |
@@ -243,6 +246,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.56 | 2026-05-25 | 新增 `RENDERING_AUTHORING_GUIDE.md` 作为 Rendering authoring 唯一入口，并同步 Phase 15.1-15.8 当前状态：MaterialBindingHub、RenderDataPublisher、GameplayRenderingBridge、VolumeBlender arbitration/diagnostics 和 Demo Showcase 已落地；runtime URP Volume object application 仍为后续工作 |
 | 0.6.55 | 2026-05-24 | 新增 Story S6 外部 authoring CLI：`Tools/MxFrameworkStoryAuthoring/story_authoring.py` 支持 Markdown Story Outline v1 import、deterministic `.story.json` draft、Story.Config handoff validate、结构化 diagnostics 和基础 fixtures/tests；Authoring AI Assist、Yarn/Ink/Articy 仍 deferred |
 | 0.6.54 | 2026-05-24 | 新增 Rendering Framework Phase 15.0 设计基线：`RENDERING_FRAMEWORK_DESIGN.md`、`Interfaces/Rendering.md`、URP 唯一 `MxRenderingPipelineFeature` 入口、GlobalFrameContext / CameraRenderContext 分层、SharedRT 冲突规则和 Rendering bridge 边界 |
 | 0.6.53 | 2026-05-24 | 新增 Story 模块 S0 设计契约：ADR-004 / ADR-005、Story core / Runtime / GameplayBridge 接口稿和 `STORY_S1` runtime slice 任务；明确 Story core 仅依赖 Core + Events、RuntimeCommand 边界、独立 command buffer ownership、SaveState provider/restorer 形态和 Gameplay effect bridge 规则 |

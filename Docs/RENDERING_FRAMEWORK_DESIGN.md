@@ -1,10 +1,10 @@
 # MxFramework Rendering Framework Design
 
-> Version 0.1 | 2026-05-24
+> Version 0.2 | 2026-05-25
 >
-> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender now includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
+> Status: Current through Phase 15.8 infrastructure and demo showcase. VolumeBlender includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
-> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.7 VolumeBlender request arbitration and diagnostics. Later runtime Volume object application and demo feature details remain follow-up tasks.
+> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.8 demo showcase. Runtime Volume object application and feature-specific production shader slices remain follow-up tasks.
 
 ## 0. Context
 
@@ -15,8 +15,9 @@ This document extends the current URP project baseline in `Docs/RENDERING_PIPELI
 - `Docs/Interfaces/Diagnostics.md` for read-only debug source contracts.
 - `Docs/Interfaces/Camera.md` for the existing camera presentation boundary.
 - `Docs/Guides/OBSERVABILITY_DEBUGGING_GUIDE.md` for Debug UI registration and report reading workflow.
+- `Docs/RENDERING_AUTHORING_GUIDE.md` for concrete authoring rules and demo validation.
 
-This file only fixes the Phase 15.0-15.3 design surface. It does not define grass, water, character, outline, decal, dissolve, or other feature-specific shader implementations.
+This file defines the Rendering framework bus and infrastructure boundaries. It does not define grass, water, character, outline, decal, dissolve, or other feature-specific shader implementations.
 
 ## 1. Goals And Non-Goals
 
@@ -67,11 +68,11 @@ Rendering itself must not reference Gameplay, Combat, Character, Buffs, Animatio
 | --- | --- | --- |
 | `MxFramework.Rendering` | Phase 15.1+ | Unity + URP + Core + Diagnostics only |
 | `MxFramework.Rendering.Editor` | Phase 15.x | Editor authoring, validation, menus, inspectors |
-| `MxFramework.Rendering.GameplayBridge` | Planned 15.4+ | Depends on Rendering + Gameplay contracts |
+| `MxFramework.Rendering.GameplayBridge` | Implemented 15.6 subset | Depends on Rendering + Gameplay contracts |
 | `MxFramework.Rendering.CombatBridge` | Planned 15.4+ | Depends on Rendering + Combat contracts |
 | `MxFramework.Rendering.CharacterBridge` | Planned 15.4+ | Depends on Rendering + Character-facing contracts |
 | `MxFramework.Rendering.CameraBridge` | Optional later | Depends on Rendering + Camera contracts if direct camera evaluation input is needed |
-| `MxFramework.Demo.Rendering` | Planned 15.x | Showcase composition and sample assets only |
+| `MxFramework.Demo.Rendering` | Implemented 15.8 showcase | Showcase composition and sample assets only |
 
 Dependency shape:
 
@@ -112,7 +113,7 @@ Allowed subject roles:
 - `Focus`
 - `Tracked`
 
-Shader global variables use the `_Mx` prefix. Phase 15.1-15.3 reserves:
+Shader global variables use the `_Mx` prefix. Current reserved properties:
 
 Global frame scope:
 
@@ -188,7 +189,7 @@ Forbidden: Global frame context must not write camera-derived values such as act
 
 Camera values are written from URP camera rendering, normally through a pipeline-injected `MxCameraGlobalsPass` that uses `CommandBuffer.SetGlobalXxx`. This prevents SceneView, Preview, and reflection cameras from accidentally consuming Game camera-only values.
 
-The same shader property id must not be owned by both context layers. Phase 15.1-15.3 tests must treat duplicate ownership as a validation error.
+The same shader property id must not be owned by both context layers. Tests must treat duplicate ownership as a validation error.
 
 ## 6. SharedRTRegistry Conflict Semantics
 
@@ -239,7 +240,7 @@ Diagnostics must expose:
 
 ## 7. MaterialBindingHub Channel Rules
 
-`MaterialBindingHub` is planned after Phase 15.3, but its constraints are fixed here because later render features must not bypass it.
+`MaterialBindingHub` is implemented and owns framework material property writes so render features and bridges do not bypass channel arbitration.
 
 Rules:
 
@@ -273,7 +274,7 @@ Responsibilities:
 1. Accept profile blend requests with Rendering-owned ids.
 2. Evaluate request weight from blend-in, hold, blend-out, and release state.
 3. Arbitrate requests by scope, priority, and stable tie-breaker.
-4. Apply the resulting state through URP Volume Framework runtime objects, or expose the same final state as diagnostics before runtime application is implemented.
+4. Expose the final applied profile snapshot as diagnostics. Runtime URP Volume object application is not implemented yet and remains a follow-up integration step.
 5. Report active requests, expired requests, priorities, weights, suppressed candidates, and final applied blend state.
 
 Non-responsibilities:
@@ -323,13 +324,13 @@ Arbitration is deterministic:
 4. For equal priority, earlier creation sequence wins.
 5. If creation sequence is unavailable in a persisted diagnostic snapshot, lower `MxVolumeRequestId.Value` wins.
 
-The initial implementation may apply a single framework-owned runtime Volume entry if that is the only robust URP integration path. In that case it applies the arbitration winner and reports non-winning candidates as suppressed with their computed weights. A later implementation may apply multiple weighted URP Volume entries if it can preserve the same public diagnostics and deterministic ordering.
+The current implementation produces diagnostics-only applied profile snapshots and suppressed candidates. A future runtime application may apply one arbitration winner or multiple weighted URP Volume entries only if it preserves the same public diagnostics and deterministic ordering.
 
 ### 8.4 URP Volume Runtime Ownership
 
-VolumeBlender manages request intent and framework-owned runtime application. It must use URP Volume Framework for actual post-processing behavior. It must not create a parallel post-processing evaluator, bypass URP Volume components, or add a new framework renderer feature.
+VolumeBlender currently manages request intent, arbitration, and diagnostics. Runtime application is not implemented yet. When added, it must use URP Volume Framework for actual post-processing behavior. It must not create a parallel post-processing evaluator, bypass URP Volume components, or add a new framework renderer feature.
 
-Allowed implementation choices:
+Allowed future runtime-application choices:
 
 - Maintain one or more framework-owned runtime `Volume` objects.
 - Update profile references and weights during Rendering presentation update.
@@ -363,7 +364,7 @@ Follow-up implementation acceptance requires:
 
 ## 9. RenderDataPublisher And Bridge Rules
 
-`IRenderDataPublisher` is the Rendering-side semantic input API. Gameplay, Combat, Buffs, Character, and Camera modules do not call it directly. Phase 15.0 only reserves generic semantic categories:
+`IRenderDataPublisher` is the implemented Rendering-side semantic input API. Gameplay, Combat, Buffs, Character, and Camera modules do not call it directly. The generic semantic categories are:
 
 - Subject impact.
 - Surface contact.
@@ -371,7 +372,7 @@ Follow-up implementation acceptance requires:
 - Subject movement.
 - Subject lifecycle.
 
-Feature-specific concepts such as grass deformation, water ripples, character hit flash, decals, or dissolve must be mapped from these generic events by later feature tasks instead of becoming 15.0 public API.
+Feature-specific concepts such as grass deformation, water ripples, character hit flash, decals, or dissolve must be mapped from these generic events by later feature tasks instead of becoming generic Rendering public API.
 
 Source modules publish their existing runtime or presentation events. Optional bridge assemblies translate those events into render semantics:
 
@@ -390,13 +391,13 @@ Bridge rules:
 - Bridges are composition-root owned.
 - Bridge lifecycle uses constructor dependency injection plus `Install()` and `Dispose()` or `Uninstall()`. Do not introduce a broad composition root interface into Rendering public API.
 
-Phase 15.0 defines only the contract. Concrete bridges start in later tasks.
+`MxFramework.Rendering.GameplayBridge` implements the 15.6 Gameplay lifecycle subset. Other concrete bridges remain later tasks.
 
 ## 10. Diagnostics Protocol
 
 Rendering diagnostics use `MxFramework.Diagnostics.IFrameworkDebugSource`.
 
-Planned sources or sections:
+Current or reserved sources or sections:
 
 - `globals`
 - `cameraGlobals`
@@ -412,7 +413,7 @@ Report bundles reuse the existing report pattern under:
 Temp/MxFrameworkReports/Rendering/
 ```
 
-Stable planned filenames:
+Stable filenames:
 
 - `rendering_pipeline_topology.txt`
 - `rendering_sharedrt_health.txt`
@@ -487,36 +488,57 @@ Deliver:
 
 Do not deliver MaterialBindingHub, source bridges, VolumeBlender, or feature-specific demo slices.
 
-### 15.4-15.6 Hub And Bridge Follow-Ups
+### 15.4-15.6 Hub, Publisher, And Gameplay Bridge
 
-MaterialBindingHub, source bridges, and demo feature details are defined by their own later task specs. Any later feature must first prove that it can use the 15.1-15.3 surface. If not, the infrastructure spec must be updated before the feature bypasses it.
+Delivered:
 
-### 15.7 VolumeBlender Public API Spec
+- `IMaterialBindingHub`, `IMaterialBindingWriter`, channel arbitration, diagnostics, and duplicate writer warnings.
+- `IRenderDataPublisher`, generic render semantic events, counters, recent event diagnostics, and debug source.
+- `MxFramework.Rendering.GameplayBridge` 15.6 subset for public Gameplay lifecycle events.
+
+Deferred:
+
+- Combat, Character, and Camera bridges.
+- Feature-specific production shader slices.
+
+### 15.7 VolumeBlender Request Arbitration And Diagnostics
 
 Deliver:
 
 - VolumeBlender public API/spec in `Docs/Interfaces/Rendering.md`.
 - Request scope, priority, lifetime, release, stable tie-breaker, global/per-camera isolation, diagnostics, and acceptance criteria.
+- Implementation of request arbitration and diagnostics.
 
-Do not deliver runtime code, asmdef changes, Unity assets, scene-authored Volume cleanup, or demo polish in the spec-review PR.
+Do not claim runtime URP Volume object application. The current implementation evaluates applied profile snapshots for diagnostics but does not create or mutate runtime `Volume` objects.
 
-### 15.8+
+### 15.8 Rendering Demo Slices Showcase
+
+Deliver:
+
+- `Assets/Scenes/RenderingDemoSlicesShowcase.unity`.
+- UI Toolkit HUD and buttons/keys for context, material pulse, publisher event burst, and VolumeBlender priority.
+- Showcase diagnostics for Context, SharedRT / FeaturePipeline, MaterialBindingHub, RenderDataPublisher, and VolumeBlender.
+
+Do not deliver production grass, water, character, post-processing presets, project business assets, or runtime URP Volume object application.
+
+### 15.9+ Future Work
 
 VolumeBlender runtime URP Volume object application and feature-specific Volume presets may start only after the Phase 15.7 arbitration and diagnostics implementation is reviewed. They must use URP Volume Framework and the reviewed request API.
 
 ## 13. Documentation Sync Requirements
 
-Phase 15.0 must update:
+Rendering documentation changes should keep these files aligned:
 
 - `Docs/RENDERING_PIPELINE.md`
+- `Docs/RENDERING_FRAMEWORK_DESIGN.md`
+- `Docs/RENDERING_AUTHORING_GUIDE.md`
+- `Docs/Interfaces/Rendering.md`
 - `Docs/README.md`
 - `Docs/PROJECT_INDEX.md`
-- `Docs/DESIGN.md`
-- `Docs/INTERFACES.md`
 - `Docs/ROADMAP.md`
 - `Docs/QUALITY_GATE.md`
 
-`Docs/CAPABILITIES.md` is updated only after implementation lands.
+`Docs/CAPABILITIES.md` and `Docs/USAGE.md` are updated only when capability status or demo usage changes.
 
 ## 14. Spec Acceptance Checklist
 
