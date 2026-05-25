@@ -23,7 +23,7 @@ This file defines the Rendering framework bus and infrastructure boundaries. It 
 
 Goals:
 
-- Provide a unified rendering system bus for context globals, shared render textures, pass ordering, diagnostics, and later material binding.
+- Provide a unified rendering system bus for context globals, shared render textures, pass ordering, diagnostics, and material binding.
 - Let data from gameplay-facing systems reach rendering through a one-way, observable path.
 - Keep Rendering as a Unity + URP-facing assembly. Mesh, Material, CommandBuffer, RTHandle, Volume, and ScriptableRendererFeature are allowed implementation types inside Rendering.
 - Keep shader implementation local to each feature. The framework standardizes scheduling, inputs, resources, diagnostics, and hot toggles, not HLSL or Shader Graph authoring style.
@@ -72,7 +72,7 @@ Rendering itself must not reference Gameplay, Combat, Character, Buffs, Animatio
 | `MxFramework.Rendering.CombatBridge` | Planned 15.4+ | Depends on Rendering + Combat contracts |
 | `MxFramework.Rendering.CharacterBridge` | Planned 15.4+ | Depends on Rendering + Character-facing contracts |
 | `MxFramework.Rendering.CameraBridge` | Optional later | Depends on Rendering + Camera contracts if direct camera evaluation input is needed |
-| `MxFramework.Demo.Rendering` | Implemented 15.8 showcase | Showcase composition and sample assets only |
+| `Assets/Scripts/MxFramework/Demo/Rendering` namespace/path slice | Implemented 15.8 showcase | Lives in `Assets/Scripts/MxFramework/Demo/MxFramework.Demo.asmdef`; showcase composition and sample assets only |
 
 Dependency shape:
 
@@ -407,13 +407,13 @@ Current or reserved sources or sections:
 - `volumeBlender`
 - `publisherCounts`
 
-Report bundles reuse the existing report pattern under:
+Rendering report bundles are a future reporting convention, not an implemented exporter API. Manual bundles for review or QA should use the existing report directory pattern:
 
 ```text
 Temp/MxFrameworkReports/Rendering/
 ```
 
-Stable filenames:
+Expected manual bundle filenames:
 
 - `rendering_pipeline_topology.txt`
 - `rendering_sharedrt_health.txt`
@@ -549,5 +549,5 @@ Rendering documentation changes should keep these files aligned:
 - The only framework-level URP Renderer Feature is `MxRenderingPipelineFeature`.
 - Global frame context and camera render context have distinct ownership.
 - SharedRT conflicts are written as testable rules.
-- VolumeBlender request id, profile reference, scope, priority, lifetime, release, stable tie-breaker, global/per-camera isolation, diagnostics, and URP Volume Framework boundary are documented before implementation.
+- VolumeBlender request id, profile reference, scope, priority, lifetime, release, stable tie-breaker, global/per-camera isolation, diagnostics, and URP Volume Framework boundary are documented for the implemented arbitration and diagnostics boundary.
 - VolumeBlender does not introduce Runtime authority, Replay hash, SaveState, Camera, Gameplay, Combat, independent RendererFeature, or legacy post-processing dependencies.

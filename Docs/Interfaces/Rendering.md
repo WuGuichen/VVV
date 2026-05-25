@@ -655,15 +655,18 @@ public enum MxSubjectLifecycleKind
 
 The publisher is implemented as generic Rendering semantic input and diagnostics. Actual connection from these generic events to feature-specific MaterialBindingHub, SharedRT, particles, or post-processing behavior is deferred to feature tasks.
 
-Bridge lifecycle:
+Bridge lifecycle convention:
 
 ```csharp
-public interface IRenderingBridge : IDisposable
+public sealed class GameplayRenderingBridge : IDisposable
 {
-    void Install();
-    void Uninstall();
+    public void Install() { ... }
+    public void Uninstall() { ... }
+    public void Dispose() { ... }
 }
 ```
+
+No shared public bridge lifecycle interface is implemented today. Concrete bridge classes, such as `GameplayRenderingBridge`, own this convention directly: constructor-injected dependencies, explicit `Install()`, explicit `Uninstall()`, and `Dispose()` cleanup.
 
 ### GameplayBridge 15.6 Subset
 
@@ -681,7 +684,7 @@ The bridge consumes `GameplayRuntimeModule.DrainEvents(...)` and public `Gamepla
 
 Deferred bridge scopes remain outside this subset: Combat hit/contact translation, Character movement/impact translation, Camera render-value translation, MaterialBindingHub writes, SharedRT writes, VolumeBlender, demo scenes, shader assets, runtime authority, Replay hash, deterministic simulation, and SaveState integration.
 
-Bridge dependencies are constructor-injected. Do not add a broad composition-root parameter type to this interface.
+Bridge dependencies are constructor-injected. Do not add a broad composition-root parameter type to bridge constructors.
 
 Concrete bridge docs must not list private source module types. They may subscribe only to already-public runtime or presentation event contracts.
 
@@ -702,14 +705,11 @@ public static class RenderingDebugSectionNames
     public const string VolumeBlender = "volumeBlender";
     public const string PublisherCounts = "publisherCounts";
 }
-
-public static class RenderingReportExporter
-{
-    public static RenderingReportExportResult Export(string targetDirectory);
-}
 ```
 
 Diagnostics are read-only and depend on `MxFramework.Diagnostics`, not `MxFramework.DebugUI`.
+
+Rendering report bundles are a future reporting convention, not an implemented public exporter API. Until a dedicated exporter lands, manual bundles should collect the diagnostics sections above and use the stable filenames documented by the authoring/design guides.
 
 ## 9. Test Surface
 
@@ -783,6 +783,6 @@ Enums may append values but must not reorder existing values:
 - Any API returning `RTHandle`, `CommandBuffer`, `Renderer`, `Texture`, or `Color` is inside the Unity + URP Rendering assembly boundary.
 - Rendering diagnostics use `IFrameworkDebugSource` from Diagnostics, not Debug UI.
 - Bridge contracts list only generic lifecycle and naming rules.
-- VolumeBlender documents request id, profile reference, scope, priority, lifecycle, release, stable tie-breaker, diagnostics, and URP Volume Framework ownership before implementation.
+- VolumeBlender documents request id, profile reference, scope, priority, lifecycle, release, stable tie-breaker, diagnostics, and URP Volume Framework ownership for the implemented arbitration and diagnostics boundary.
 - VolumeBlender does not replace URP Volume Framework, does not introduce independent framework `ScriptableRendererFeature`, and does not require legacy post-processing.
 - No grass, water, character, or other feature-specific API appears in this interface page.

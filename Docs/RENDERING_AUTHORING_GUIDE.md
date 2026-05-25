@@ -4,7 +4,7 @@
 >
 > Status: Current authoring guide for Phase 15.1-15.8 Rendering infrastructure.
 >
-> Scope: Authoring rules for shader globals, camera globals, SharedRT keys, render passes/providers, material bindings, render data publishing, VolumeBlender request diagnostics, demo showcase validation, and rendering report bundles.
+> Scope: Authoring rules for shader globals, camera globals, SharedRT keys, render passes/providers, material bindings, render data publishing, VolumeBlender request diagnostics, demo showcase validation, and the rendering report bundle convention.
 
 This is the single Rendering authoring guide. Keep design rationale in `RENDERING_FRAMEWORK_DESIGN.md`, public signatures in `Interfaces/Rendering.md`, and Unity pipeline baseline in `RENDERING_PIPELINE.md`.
 
@@ -230,13 +230,13 @@ Sections:
 - `volumeBlender`
 - `publisherCounts`
 
-Report bundles follow the existing report pattern under:
+Rendering report bundles are a future reporting convention, not an implemented exporter API. When a manual bundle is needed for review or QA, collect read-only diagnostics under:
 
 ```text
 Temp/MxFrameworkReports/Rendering/
 ```
 
-Stable filenames:
+Expected manual bundle filenames:
 
 - `rendering_pipeline_topology.txt`
 - `rendering_sharedrt_health.txt`
@@ -245,7 +245,7 @@ Stable filenames:
 - `rendering_globals.txt`
 - `rendering_report_index.txt`
 
-Reports are diagnostic artifacts. Do not commit generated files from `Temp/`.
+Reports are diagnostic artifacts. Do not commit generated or manually collected files from `Temp/`.
 
 ## 10. Authoring Checklist
 
