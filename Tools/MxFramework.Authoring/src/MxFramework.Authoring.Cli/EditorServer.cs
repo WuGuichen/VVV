@@ -1675,6 +1675,11 @@ internal static class EditorServer
         string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", packageId);
         string unityResourceCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
         string runtimeResourceCatalogPath = Path.Combine(generatedRoot, "config", "runtime_resource_catalog.json");
+        string globalResourceBuildProfilePath = Path.Combine(rootPath, "Assets", "Config", "MxFramework", "ResourceProfiles", "global_resource_build_profile.json");
+        string globalRuntimeCatalogPath = Path.Combine(rootPath, "Assets", "StreamingAssets", "MxFramework", "Resources", "global_runtime_catalog.json");
+        string globalPreloadGroupsPath = Path.Combine(rootPath, "Assets", "StreamingAssets", "MxFramework", "Resources", "global_preload_groups.json");
+        string globalBundleDependenciesPath = Path.Combine(rootPath, "Assets", "StreamingAssets", "MxFramework", "Resources", "global_bundle_dependencies.json");
+        string globalResourceBuildReportPath = Path.Combine(rootPath, "Assets", "Config", "MxFramework", "ResourceBuildReports", "global_resource_build_report.json");
         string fmodAudioLibrarySnapshotPath = ResolveFmodAudioLibrarySnapshotPath(rootPath, packageId);
         CharacterResourcePlanCompileResult plan = ReadCharacterResourcePlan(rootPath, packageRelative, checkFiles: false, checkHashes: false, jsonOptions);
         RuntimeResourceCatalogDocument projectRuntimeCatalog = AnimationPackageCommands.ReadProjectRuntimeResourceCatalogs(rootPath, jsonOptions);
@@ -1688,9 +1693,15 @@ internal static class EditorServer
             PackageResourceCatalog = package.ResourceCatalog,
             UnityResourceCatalog = ReadOptionalJsonFile<AuthoringUnityResourceCatalogDocument>(rootPath, unityResourceCatalogPath, jsonOptions),
             RuntimeResourceCatalog = runtimeCatalog,
+            GlobalResourceBuildProfile = ReadOptionalJsonFile<GlobalResourceBuildProfile>(rootPath, globalResourceBuildProfilePath, jsonOptions),
             FmodAudioLibrarySnapshot = ReadOptionalJsonFile<AuthoringFmodAudioLibrarySnapshotDocument>(rootPath, fmodAudioLibrarySnapshotPath, jsonOptions),
             UnityResourceCatalogPath = ToProjectRelativePath(rootPath, unityResourceCatalogPath),
             RuntimeResourceCatalogPath = ToProjectRelativePath(rootPath, runtimeResourceCatalogPath),
+            GlobalResourceBuildProfilePath = ToProjectRelativePath(rootPath, globalResourceBuildProfilePath),
+            GlobalRuntimeCatalogPath = ToProjectRelativePath(rootPath, globalRuntimeCatalogPath),
+            GlobalPreloadGroupsPath = ToProjectRelativePath(rootPath, globalPreloadGroupsPath),
+            GlobalBundleDependenciesPath = ToProjectRelativePath(rootPath, globalBundleDependenciesPath),
+            GlobalResourceBuildReportPath = ToProjectRelativePath(rootPath, globalResourceBuildReportPath),
             FmodAudioLibrarySnapshotPath = ToProjectRelativePath(rootPath, fmodAudioLibrarySnapshotPath)
         };
         context.Metadata["externalImportStaging"] = "empty";
@@ -1698,6 +1709,7 @@ internal static class EditorServer
             new CharacterPackageAuthoringResourceProvider().BuildResourceCollection(context),
             new UnityAssetDatabaseAuthoringResourceProvider().BuildResourceCollection(context),
             new UnityProjectAssetAuthoringResourceProvider().BuildResourceCollection(context),
+            new GlobalResourceBuildProfileAuthoringResourceProvider().BuildResourceCollection(context),
             new RuntimeCatalogAuthoringResourceProvider().BuildResourceCollection(context),
             new FmodAudioLibraryAuthoringResourceProvider().BuildResourceCollection(context),
             new ExternalImportStagingAuthoringResourceProvider().BuildResourceCollection(context));

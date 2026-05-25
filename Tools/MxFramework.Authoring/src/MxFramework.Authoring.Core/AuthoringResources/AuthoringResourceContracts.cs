@@ -11,6 +11,7 @@ namespace MxFramework.Authoring
         public const string Fmod = "fmod";
         public const string ExternalImportStaging = "externalImportStaging";
         public const string GeneratedAssets = "generatedAssets";
+        public const string GlobalResourceBuildProfile = "globalResourceBuildProfile";
     }
 
     public enum AuthoringResourceSourceKind
@@ -126,9 +127,15 @@ namespace MxFramework.Authoring
         public CharacterPackageResourceCatalog PackageResourceCatalog { get; set; }
         public AuthoringUnityResourceCatalogDocument UnityResourceCatalog { get; set; }
         public RuntimeResourceCatalogDocument RuntimeResourceCatalog { get; set; }
+        public GlobalResourceBuildProfile GlobalResourceBuildProfile { get; set; }
         public AuthoringFmodAudioLibrarySnapshotDocument FmodAudioLibrarySnapshot { get; set; }
         public string UnityResourceCatalogPath { get; set; } = string.Empty;
         public string RuntimeResourceCatalogPath { get; set; } = string.Empty;
+        public string GlobalResourceBuildProfilePath { get; set; } = string.Empty;
+        public string GlobalRuntimeCatalogPath { get; set; } = string.Empty;
+        public string GlobalPreloadGroupsPath { get; set; } = string.Empty;
+        public string GlobalBundleDependenciesPath { get; set; } = string.Empty;
+        public string GlobalResourceBuildReportPath { get; set; } = string.Empty;
         public string FmodAudioLibrarySnapshotPath { get; set; } = string.Empty;
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
     }
