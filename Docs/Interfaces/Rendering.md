@@ -2,9 +2,9 @@
 
 > Version 0.1 | 2026-05-24
 >
-> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender remains spec-only until implementation PR.
+> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender now includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
-> Scope: Public API shape for `MxFramework.Rendering` through Phase 15.7 VolumeBlender spec. Feature-specific shader APIs are out of scope.
+> Scope: Public API shape for `MxFramework.Rendering` through Phase 15.7 VolumeBlender request arbitration and diagnostics. Feature-specific shader APIs are out of scope.
 
 ## 职责
 
@@ -429,7 +429,7 @@ public interface IMaterialBindingWriter
 
 ## 6. VolumeBlender
 
-VolumeBlender is the Rendering-owned request API for code-side URP Volume Profile blend intent. It does not replace Unity's URP Volume Framework. The implementation may create, update, or recycle framework-owned URP `Volume` runtime objects inside `MxFramework.Rendering`, but the public contract is request arbitration plus diagnostics, not a new post-processing framework.
+VolumeBlender is the Rendering-owned request API for code-side URP Volume Profile blend intent. It does not replace Unity's URP Volume Framework. The Phase 15.7 implementation provides deterministic request arbitration plus diagnostics and does not create runtime `Volume` objects yet. A later integration may create, update, or recycle framework-owned URP `Volume` runtime objects inside `MxFramework.Rendering` while preserving this public contract.
 
 Public request shape:
 
@@ -466,6 +466,9 @@ public readonly struct MxVolumeRequestScope
     public MxVolumeRequestScopeKind Kind { get; }
     public MxCameraRenderKind CameraKind { get; }
     public MxRenderingCameraToken CameraToken { get; }
+    public static MxVolumeRequestScope Global();
+    public static MxVolumeRequestScope ForCameraKind(MxCameraRenderKind cameraKind);
+    public static MxVolumeRequestScope ForExplicitCamera(MxRenderingCameraToken cameraToken);
 }
 ```
 
@@ -542,6 +545,13 @@ public enum MxVolumeRequestPhase
     Released = 4
 }
 
+public enum MxVolumeRequestCleanupReason
+{
+    None = 0,
+    AutoExpired = 1,
+    Released = 2
+}
+
 public readonly struct MxVolumeRequestSnapshot
 {
     public MxVolumeRequestId RequestId { get; }
@@ -552,6 +562,7 @@ public readonly struct MxVolumeRequestSnapshot
     public float Weight { get; }
     public ulong CreationSequence { get; }
     public string DebugName { get; }
+    public MxVolumeRequestCleanupReason CleanupReason { get; }
 }
 
 public readonly struct MxVolumeBlendStateSnapshot
@@ -579,6 +590,8 @@ public readonly struct MxVolumeDiagnosticsSnapshot
 ```
 
 Diagnostics must expose active requests, expired requests, profile references, request scopes, priorities, weights, phases, stable tie-break data, suppressed candidates, and the final applied blend state per evaluated camera context.
+
+The first implementation is diagnostics/arbitration-only: it evaluates the final applied profile snapshot but does not create or mutate runtime URP `Volume` objects. Because no runtime `Volume` GameObject, scene asset, prefab, or VolumeProfile asset is touched, PlayMode smoke is not required for Phase 15.7; runtime URP application must add its own PlayMode smoke when implemented.
 
 Future implementation tests must cover:
 
@@ -719,6 +732,7 @@ Required SharedRT tests:
 Required VolumeBlender tests:
 
 - `VolumeBlender_RequestId_IsStableUntilReleaseOrExpiry`
+- `VolumeBlender_RequestLookup_ReturnsCurrentWeight`
 - `VolumeBlender_Priority_UsesStableTieBreakerForEqualPriority`
 - `VolumeBlender_Lifetime_BlendInHoldBlendOutAndZeroDurations`
 - `VolumeBlender_Release_IsIdempotentAndStartsBlendOut`
@@ -751,6 +765,7 @@ Enums may append values but must not reorder existing values:
 - `MxMaterialChannel`
 - `MxVolumeRequestScopeKind`
 - `MxVolumeRequestPhase`
+- `MxVolumeRequestCleanupReason`
 
 ## 11. Acceptance Checklist
 

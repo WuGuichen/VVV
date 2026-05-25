@@ -2,9 +2,9 @@
 
 > Version 0.1 | 2026-05-24
 >
-> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender remains spec-only until implementation PR.
+> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender now includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
-> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.7 VolumeBlender spec. Later demo feature details remain follow-up tasks.
+> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.7 VolumeBlender request arbitration and diagnostics. Later runtime Volume object application and demo feature details remain follow-up tasks.
 
 ## 0. Context
 
@@ -500,7 +500,7 @@ Do not deliver runtime code, asmdef changes, Unity assets, scene-authored Volume
 
 ### 15.8+
 
-VolumeBlender implementation and feature-specific Volume presets may start only after the Phase 15.7 public API/spec is reviewed. They must use URP Volume Framework and the reviewed request API.
+VolumeBlender runtime URP Volume object application and feature-specific Volume presets may start only after the Phase 15.7 arbitration and diagnostics implementation is reviewed. They must use URP Volume Framework and the reviewed request API.
 
 ## 13. Documentation Sync Requirements
 
