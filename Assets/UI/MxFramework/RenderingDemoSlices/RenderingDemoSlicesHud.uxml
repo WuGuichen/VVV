@@ -1,0 +1,20 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+  <ui:VisualElement name="rendering-demo-hud" class="hud">
+    <ui:Label name="title" text="Rendering Demo Slices Showcase" />
+    <ui:Label name="controls-value" text="1 Wind  2 Material  3 Publisher  4 Volume  R Reset" />
+    <ui:VisualElement class="button-row">
+      <ui:Button name="wind-button" text="Wind" />
+      <ui:Button name="material-button" text="Material" />
+      <ui:Button name="publisher-button" text="Publisher" />
+      <ui:Button name="volume-button" text="Volume" />
+      <ui:Button name="reset-button" text="Reset" />
+    </ui:VisualElement>
+    <ui:VisualElement class="slice-row"><ui:Label class="slice-title" text="Context" /><ui:Label name="context-value" text="wind -" /></ui:VisualElement>
+    <ui:VisualElement class="slice-row"><ui:Label class="slice-title" text="SharedRT / FeaturePipeline" /><ui:Label name="sharedrt-value" text="passes -" /></ui:VisualElement>
+    <ui:VisualElement class="slice-row"><ui:Label class="slice-title" text="MaterialBindingHub" /><ui:Label name="material-value" text="bindings -" /></ui:VisualElement>
+    <ui:VisualElement class="slice-row"><ui:Label class="slice-title" text="RenderDataPublisher" /><ui:Label name="publisher-value" text="events -" /></ui:VisualElement>
+    <ui:VisualElement class="slice-row"><ui:Label class="slice-title" text="VolumeBlender Diagnostics" /><ui:Label name="volume-value" text="requests -" /></ui:VisualElement>
+    <ui:Label class="slice-title" text="Event Log" />
+    <ui:VisualElement name="event-list" class="event-list" />
+  </ui:VisualElement>
+</ui:UXML>

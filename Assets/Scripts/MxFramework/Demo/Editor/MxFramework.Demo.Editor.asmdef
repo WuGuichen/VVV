@@ -15,6 +15,7 @@
         "MxFramework.Preview.Runtime",
         "MxFramework.Resources",
         "MxFramework.Editor",
+        "MxFramework.Rendering",
         "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [
