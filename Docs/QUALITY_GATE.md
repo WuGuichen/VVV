@@ -96,6 +96,8 @@
 - 具体渲染能力必须通过 `IMxRenderPass` / `IMxRenderPassProvider` 注册到 FeaturePipeline，不能新增独立框架 `ScriptableRendererFeature`。
 - GlobalFrameContext 不写入 camera-derived 值；CameraRenderContext 不覆盖 GlobalFrameContext 已拥有的 shader property id。
 - SharedRTRegistry 的 R-RT-01 至 R-RT-08 冲突规则必须有对应测试或明确验收记录。
+- VolumeBlender 必须先有 public API/spec 评审记录；后续实现必须覆盖 request id、profile reference、Global / CameraKind / explicit camera token scope、priority、lifetime、blend-in/hold/blend-out、release 语义、稳定 tie-breaker、global/per-camera 隔离、diagnostics 与 final applied blend state。
+- VolumeBlender 只能通过 URP Volume Framework 执行运行时效果；不得替代 URP Volume Framework，不得新增独立框架 `ScriptableRendererFeature`，不得引入 legacy post-processing。
 - Rendering state 不进入 runtime authority、Replay、SaveState 或 Runtime hash。
 - 公共 Rendering API 不暴露游戏业务词；source module entity id 必须通过 `MxRenderSubjectId` 映射进入 Rendering。
 
