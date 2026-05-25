@@ -34,6 +34,13 @@ Global resource library / authoring view
 
 Without this layer, demos and domain editors are forced to either hand-write catalog JSON or generate local catalogs from their own folder rules. That is not acceptable for formal game flow, because Character, UI, VFX, Audio, Story and Gameplay must all resolve resources through one global resource world.
 
+This design is only the internal build authority part of that global resource world. The Authoring Resource Manager remains the global aggregation and management surface. It must bridge editor tools and runtime resource consumption by showing both:
+
+- internally built resources controlled by `GlobalResourceBuildProfile`;
+- externally supplied runtime resources, such as existing `StreamingAssets` catalogs/files, standalone AssetBundles, package-local catalogs, Mod package catalogs and future remote bundle sources.
+
+The build profile owns internally generated runtime outputs. It does not own every runtime resource visible to the Resource Manager.
+
 ## Current Status
 
 This project does not yet have a complete Global Resource Editor / Resource Build Profile tool.
@@ -49,6 +56,37 @@ Existing reusable parts:
 | Authoring resource model | `AuthoringResourceItem`, provider adapters, `RuntimeCatalogAuthoringResourceProvider` | Reuse as global resource discovery and picker model. |
 | Resource Manager web tool | `Tools/MxFramework.ResourceLibrary` | Continue as the global authoring resource manager shell. Rename later only if a dedicated task does it. |
 | Character resource plan | `CharacterResourcePlan`, `CharacterResourceOrchestrator` | Use as a consumer/domain plan. It must not own global resource packaging. |
+
+## Resource Manager Relationship
+
+`Tools/MxFramework.ResourceLibrary` is the global Authoring Resource Manager surface. Its responsibility is broader than this build profile:
+
+```text
+Unity AssetDatabase
+Global Resource Build Profile
+Generated runtime catalog
+StreamingAssets catalogs / files
+Standalone AssetBundles
+Package-local catalogs
+Mod package catalogs
+Future remote bundle sources
+  -> Authoring Resource Manager
+       unified provider view
+       resource identity bridge
+       references and diagnostics
+       editor picker source
+       runtime availability status
+```
+
+The build profile should appear in Resource Manager as the provider / authority for internally built Player resources. External runtime resources should appear through their own providers. Resource Manager can compare and diagnose them together, but it should not force external resources to be imported into the internal build profile.
+
+This distinction is important:
+
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| Authoring Resource Manager | Unified resource view, provider status, editor picker data, references, diagnostics, runtime availability | Physical bundle layout or runtime loading implementation |
+| Global Resource Build Profile | Internal runtime catalog membership, bundle rules, preload groups, generated AssetBundles, generated reports | External package/mod/remote resources that are not built by this profile |
+| Runtime ResourceManager | Catalog resolution, provider routing, handle lifecycle, preload execution | Authoring selection, import, source asset organization |
 
 ## Correct Ownership
 
@@ -146,6 +184,7 @@ Minimal schema:
       "bundleName": "global.ui.startup",
       "matchLabels": ["bundle.ui.startup"],
       "compression": "lz4",
+      "buildTarget": "ActiveBuildTarget",
       "includeDependencies": true
     }
   ],
@@ -174,6 +213,8 @@ Examples:
 
 The runtime provider is selected by the build backend. For Player builds, the first backend should emit `assetBundle` entries.
 
+For Unity source entries, `unityGuid` is the stable identity and `unityAssetPath` is the human-readable and diagnostic path. The Unity resolver must prefer GUID resolution, then compare the resolved path with the stored path and report drift. A missing GUID is only allowed for temporary drafts that are not runtime-loadable.
+
 ### Bundle Rule
 
 Bundle rules describe packaging intent. They should not duplicate resource keys one by one when labels can express the group.
@@ -195,6 +236,16 @@ Recommended output:
 - build target;
 - content hash;
 - warnings for duplicated or orphaned assets.
+
+Supported compression values for the first backend:
+
+| Value | Unity mapping | Notes |
+| --- | --- | --- |
+| `lz4` | `BuildAssetBundleOptions.ChunkBasedCompression` | Recommended default for Player bundles. |
+| `uncompressed` | `BuildAssetBundleOptions.UncompressedAssetBundle` | Useful for local debugging and smoke tests. |
+| `lzma` | no `UncompressedAssetBundle` or `ChunkBasedCompression` option | Smaller initial bundle, slower load; must be explicit. |
+
+Unknown compression values are validation errors.
 
 ### Preload Group
 
@@ -221,6 +272,33 @@ preload.boot.base
   runtime timing and failure policy
 ```
 
+Preload groups must also have a generated runtime artifact. The first implementation should write:
+
+```text
+Assets/StreamingAssets/MxFramework/Resources/global_preload_groups.json
+```
+
+This file is not a replacement for `ResourceCatalog`; it is a small plan index that lets a runtime composition root or Story step construct `ResourcePreloadPlan` without hard-coding labels in CharacterTest or other demos.
+
+Minimal generated schema:
+
+```json
+{
+  "schemaVersion": 1,
+  "profileId": "global.default",
+  "catalogId": "global.runtime",
+  "groups": [
+    {
+      "id": "boot.base",
+      "explicitKeys": [],
+      "labels": ["preload.boot.base"],
+      "failFast": true,
+      "maxConcurrentLoads": 4
+    }
+  ]
+}
+```
+
 ## Build Pipeline
 
 The global build pipeline should be deterministic:
@@ -232,8 +310,10 @@ Load GlobalResourceBuildProfile
   -> validate source asset existence and type
   -> expand bundle rules
   -> build AssetBundles
+  -> export AssetBundle dependency manifest
   -> compute hashes and sizes
   -> generate runtime ResourceCatalog JSON
+  -> generate preload group JSON
   -> generate preload group report
   -> generate build report
   -> validate generated catalog
@@ -243,9 +323,13 @@ Recommended output paths:
 
 ```text
 Assets/StreamingAssets/MxFramework/Resources/global_runtime_catalog.json
-Assets/StreamingAssets/MxFramework/Resources/Bundles/<bundleName>
+Assets/StreamingAssets/MxFramework/Resources/global_preload_groups.json
+Assets/StreamingAssets/MxFramework/Resources/global_bundle_dependencies.json
+Assets/StreamingAssets/MxFramework/Resources/Bundles/<buildTarget>/<bundleName>
 Assets/Config/MxFramework/ResourceBuildReports/global_resource_build_report.json
 ```
+
+Bundle outputs must include the Unity build target in the path, because AssetBundles are platform-specific. The build report and generated catalog must record the build target used for the generated files.
 
 Generated `ResourceCatalog` entries for Player should use:
 
@@ -259,10 +343,41 @@ Generated `ResourceCatalog` entries for Player should use:
   "providerData": {
     "bundleName": "<bundleName>",
     "assetPath": "<unityAssetPath>",
-    "buildProfileId": "global.default"
+    "buildProfileId": "global.default",
+    "buildTarget": "<buildTarget>"
   }
 }
 ```
+
+The runtime composition root must register `AssetBundleProvider` with a dependency provider backed by `global_bundle_dependencies.json`. The default empty dependency provider is only valid for bundles that have no cross-bundle dependencies.
+
+Minimal generated dependency manifest schema:
+
+```json
+{
+  "schemaVersion": 1,
+  "profileId": "global.default",
+  "buildTarget": "StandaloneOSX",
+  "bundles": [
+    {
+      "bundleName": "global.ui.startup",
+      "dependencies": []
+    }
+  ]
+}
+```
+
+### Determinism and Cleanup
+
+The builder should keep generated outputs deterministic:
+
+- sort profile entries by `ResourceKey`;
+- sort expanded bundle asset paths ordinally before build;
+- sort labels, preload groups, dependency lists and report sections;
+- fail when the same asset is selected by multiple bundle rules unless an explicit conflict policy is added;
+- clean stale generated bundles for the same `profileId` and `buildTarget`, or report them as stale in the build report.
+
+The builder must not delete unrelated user-authored files under `StreamingAssets`; cleanup is limited to files recorded as generated by the same profile/build target.
 
 ## Editor and Tooling Surface
 
@@ -283,19 +398,22 @@ These commands should:
 - write catalog and report;
 - log a concise result to Unity Console.
 
-### Resource Manager Web Tool
+### Existing Resource Manager Web Tool
 
-`Tools/MxFramework.ResourceLibrary` should become the visual surface later.
+`Tools/MxFramework.ResourceLibrary` is already the current Authoring Resource Manager surface. It keeps the historical directory name to reduce migration noise, but its product meaning is the global resource manager, not a character-local resource library.
 
-For the first slice, it can stay read-only and expose:
+This build profile task should integrate with the existing tool instead of creating another window. The Resource Manager should expose:
 
 - resources from the global profile;
 - generated runtime catalog status;
 - bundle rule membership;
 - preload group membership;
+- generated preload group status;
+- generated bundle dependency manifest status;
+- build target and stale output status;
 - diagnostics.
 
-Write operations should remain disabled until the authoring API has preview/validate/commit endpoints.
+Existing import, reimport and replace-source write operations can remain in the Resource Manager. Build profile writes should still wait for a preview/validate/commit API, because changing bundle rules, preload groups or runtime catalog membership has broader Player build impact than importing a source resource.
 
 ## Character Flow Integration
 
@@ -371,9 +489,12 @@ Profile validation must fail on:
 - source type mismatch against `ResourceTypeIds`;
 - missing bundle rule for runtime-loadable entries;
 - missing provider for generated catalog;
+- unknown bundle compression value;
+- build target mismatch between profile, output path and generated catalog;
 - bundle rule selecting no assets, unless explicitly allowed;
 - preload group with no labels or keys, unless explicitly allowed;
-- runtime-required domain plan key missing from the global profile.
+- runtime-required domain plan key missing from the global profile;
+- runtime-loadable Unity source entry without a resolvable GUID.
 
 Profile validation should warn on:
 
@@ -382,7 +503,17 @@ Profile validation should warn on:
 - very large bundle;
 - one preload group spanning too many bundles;
 - AssetBundle dependency duplication;
+- stored Unity asset path drifting from the path resolved by GUID;
+- stale generated bundle files for the same profile/build target;
 - editor-only or preview-only asset selected for runtime.
+
+Domain plan references should be classified before validation:
+
+| Classification | Missing from global profile | Notes |
+| --- | --- | --- |
+| `required` | Error | Spawn-critical or boot-critical runtime asset. |
+| `optional` | Warning | Runtime can continue with fallback or degraded presentation. |
+| `editorOnly` / `previewOnly` | Warning or ignored | Must not be emitted into Player runtime catalog unless explicitly promoted. |
 
 ## Development Plan
 
@@ -424,7 +555,9 @@ This builder should:
 
 - call `BuildPipeline.BuildAssetBundles`;
 - copy bundles to `StreamingAssets`;
+- export the bundle dependency manifest;
 - generate `ResourceCatalog`;
+- generate preload group JSON;
 - write build report;
 - run `ResourceCatalogEditorValidator`.
 
@@ -469,7 +602,9 @@ First implementation is accepted when:
 - duplicate keys and missing Unity assets are reported before build;
 - Player AssetBundles are generated from profile rules;
 - a generated runtime catalog is written to `StreamingAssets`;
+- generated preload group and bundle dependency manifests are written to `StreamingAssets`;
 - generated catalog validates through `ResourceCatalogEditorValidator`;
 - runtime can load at least one generated asset through `AssetBundleProvider`;
+- `AssetBundleProvider` is registered with generated dependency data when bundles have dependencies;
 - preload by label works through `ResourcePreloadService`;
 - CharacterTest can consume global catalog without owning resource definitions.

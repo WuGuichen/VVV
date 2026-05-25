@@ -2537,7 +2537,7 @@ internal static class CharacterPackageTests
             StableId = "runtime.anim.run_r",
             DisplayName = "Run_R",
             Kind = CharacterPackageResourceTypeIds.Animation,
-            Usage = CharacterPackageResourceUsageIds.AnimationClip,
+            Usage = AnimationAuthoringResourceUsages.AnimationClip,
             SourceProviderId = AuthoringResourceProviderIds.RuntimeCatalog,
             SourceKind = AuthoringResourceSourceKind.RuntimeCatalogAsset,
             BindingKind = AuthoringResourceBindingKind.ResourceManagerAsset,
