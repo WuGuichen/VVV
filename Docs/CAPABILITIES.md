@@ -186,7 +186,7 @@
 | 配置定义 | 🟡 代码完成，未集成 | `CharacterActionConfig` / `CharacterActionSetConfig` / `CharacterMovementProfileConfig` | CharacterAction |
 | 配置校验 | 🟡 代码完成，未集成 | `CharacterActionValidation` / `CharacterActionPhaseValidator` | CharacterAction |
 
-→ 接口：`Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档）
+→ 接口：`Docs/Interfaces/CharacterAction.md`
 → 代码：`Assets/Scripts/MxFramework/CharacterAction/`
 → 测试：`Tests/CharacterAction/`
 → **状态说明**: Phase 1-7 代码已合并（8,391 行），但该层完全孤立——没有 asmdef 引用 `MxFramework.CharacterAction`，`CharacterControl` 仍使用旧 v0 路径。所有 Capability 标记为 🟡 表示代码存在、测试通过，但未接入任何运行管线。

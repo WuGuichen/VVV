@@ -92,7 +92,7 @@
 | `Interfaces/Input.md` | Unity Input System 上层的输入意图、上下文和重绑定接口 |
 | `Interfaces/CharacterControl.md` | Character Control 角色控制编排接口 |
 | `Interfaces/CharacterApplication.md` | Character Application 角色配置聚合、纯 resolver 和 diagnostics 接口 |
-| `Interfaces/CharacterAction.md` | Character Action（待创建独立接口文档，当前参考 `Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`） |
+| `Interfaces/CharacterAction.md` | Character Action 角色动作层接口 |
 | `Interfaces/Character.RuntimeSpawn.md` | Character Runtime Spawn（接口见 `Interfaces/Gameplay.md` 末节和 `Interfaces/CharacterApplication.md`） |
 | `Interfaces/DebugUI.md` | Debug UI source registry、snapshot aggregation、Toolkit overlay 和 source adapter 接入方式 |
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |

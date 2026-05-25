@@ -2703,7 +2703,7 @@ if (buildResult.Success)
 }
 ```
 
-→ 接口：`Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档）
+→ 接口：`Docs/Interfaces/CharacterAction.md`
 → 代码：`Assets/Scripts/MxFramework/CharacterAction/`
 → 测试：`Tests/CharacterAction/`（10 个测试文件，覆盖 Phase 1-7 核心行为）
 → **约束**: 当前无 asmdef 引用 CharacterAction；CharacterControl 仍使用旧 v0 路径。本节示例只能验证 noEngine 解析/执行逻辑，不能替代完整的角色控制回路。
