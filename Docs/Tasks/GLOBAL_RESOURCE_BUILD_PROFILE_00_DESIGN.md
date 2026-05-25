@@ -473,4 +473,3 @@ First implementation is accepted when:
 - runtime can load at least one generated asset through `AssetBundleProvider`;
 - preload by label works through `ResourcePreloadService`;
 - CharacterTest can consume global catalog without owning resource definitions.
-
