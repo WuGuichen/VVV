@@ -838,7 +838,6 @@ namespace MxFramework.Combat.Editor
             {
                 CompleteTimelineRangeDrag(cancel: true);
                 evt.StopPropagation();
-                evt.PreventDefault();
                 return;
             }
 
@@ -854,7 +853,6 @@ namespace MxFramework.Combat.Editor
 
             TryDeleteSelectedShape();
             evt.StopPropagation();
-            evt.PreventDefault();
         }
 
         private void OnUndoRedoPerformed()
