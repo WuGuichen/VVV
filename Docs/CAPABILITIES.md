@@ -190,7 +190,7 @@
 → 代码：`Assets/Scripts/MxFramework/CharacterAction/`
 → 测试：`Tests/CharacterAction/`
 → **状态说明**: Phase 1-7 代码已合并（8,391 行），但该层完全孤立——没有 asmdef 引用 `MxFramework.CharacterAction`，`CharacterControl` 仍使用旧 v0 路径。所有 Capability 标记为 🟡 表示代码存在、测试通过，但未接入任何运行管线。
-→ **不含**: CharacterControl v0 桥接、Playable 角色 Demo、独立接口文档、USAGE 示例
+→ **不含**: CharacterControl v0 桥接、Playable 角色 Demo
 
 ### 1.9 Camera — 运行时表现相机
 
