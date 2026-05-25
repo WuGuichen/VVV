@@ -14,17 +14,5 @@ namespace MxFramework.Demo.CharacterTest
             };
         }
 
-        public static bool TryResolve(int textKey, out string text)
-        {
-            switch (textKey)
-            {
-                case CharacterTestStoryIds.Text.WelcomeLine:
-                    text = WelcomeLine;
-                    return true;
-                default:
-                    text = string.Empty;
-                    return false;
-            }
-        }
     }
 }

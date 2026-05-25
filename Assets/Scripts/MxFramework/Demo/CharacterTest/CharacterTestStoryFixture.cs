@@ -51,11 +51,6 @@ namespace MxFramework.Demo.CharacterTest
                 CharacterTestStoryIds.BootstrapSourcePath);
         }
 
-        public static string ResolveText(int textKey)
-        {
-            return CharacterTestStoryText.TryResolve(textKey, out string text) ? text : string.Empty;
-        }
-
         private static StoryGraphConfig[] CreateGraphs()
         {
             return new[]
@@ -82,10 +77,35 @@ namespace MxFramework.Demo.CharacterTest
             return new[]
             {
                 new StoryStepConfig(
+                    CharacterTestStoryIds.Steps.OpenLoadingUi,
+                    CharacterTestStoryIds.BootstrapGraph,
+                    CharacterTestStoryIds.Beats.Entry,
+                    StoryStepKind.Presentation,
+                    sortOrder: 10,
+                    waitPolicy: StoryPresentationWaitPolicy.NoWait,
+                    auxId: CharacterTestStoryIds.Actions.OpenLoadingUi),
+                new StoryStepConfig(
+                    CharacterTestStoryIds.Steps.LoadBaseResources,
+                    CharacterTestStoryIds.BootstrapGraph,
+                    CharacterTestStoryIds.Beats.Entry,
+                    StoryStepKind.Presentation,
+                    sortOrder: 20,
+                    waitPolicy: StoryPresentationWaitPolicy.WaitForCommand,
+                    auxId: CharacterTestStoryIds.Actions.LoadBaseResources),
+                new StoryStepConfig(
+                    CharacterTestStoryIds.Steps.OpenStartupUi,
+                    CharacterTestStoryIds.BootstrapGraph,
+                    CharacterTestStoryIds.Beats.Entry,
+                    StoryStepKind.Presentation,
+                    sortOrder: 30,
+                    waitPolicy: StoryPresentationWaitPolicy.NoWait,
+                    auxId: CharacterTestStoryIds.Actions.OpenStartupUi),
+                new StoryStepConfig(
                     CharacterTestStoryIds.Steps.WelcomeLine,
                     CharacterTestStoryIds.BootstrapGraph,
                     CharacterTestStoryIds.Beats.Entry,
                     StoryStepKind.Line,
+                    sortOrder: 40,
                     textKey: CharacterTestStoryIds.Text.WelcomeLine)
             };
         }

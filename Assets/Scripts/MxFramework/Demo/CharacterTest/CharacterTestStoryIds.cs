@@ -13,12 +13,22 @@ namespace MxFramework.Demo.CharacterTest
 
         public static class Steps
         {
-            public const int WelcomeLine = 450201;
+            public const int OpenLoadingUi = 450201;
+            public const int LoadBaseResources = 450202;
+            public const int OpenStartupUi = 450203;
+            public const int WelcomeLine = 450204;
         }
 
         public static class Text
         {
             public const int WelcomeLine = 450301;
+        }
+
+        public static class Actions
+        {
+            public const int OpenLoadingUi = 451001;
+            public const int LoadBaseResources = 451002;
+            public const int OpenStartupUi = 451003;
         }
     }
 }
