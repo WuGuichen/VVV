@@ -2568,6 +2568,146 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 
 详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/` 和 `Assets/Scripts/MxFramework/Tests/Demo/CharacterControl/`。
 
+## 15.6 Character Action 角色动作层（新架构，待集成）
+
+> 当前状态：代码已合并（8,391 行），但尚未接入 CharacterControl 运行管线。
+> 本节展示可直接运行的纯 C# 用法，适用于 noEngine 测试和诊断验证。
+> 集成到实际角色输入 → 动作循环仍需额外的桥接工作（见 ROADMAP Phase 16）。
+
+`MxFramework.CharacterAction` 把角色动作拆为四个阶段：
+
+```text
+CharacterActionIntentRequest
+  → CharacterActionResolver 解析候选、优先级、tag 需求
+    → CharacterActionResolveResult (含 CharacterActionPlan)
+      → CharacterActionRunner 按 frame/phase 推进，派发 track event
+        → CharacterActionTrackAdapter 转成 Motion / Combat / Gameplay / Animation 等请求
+```
+
+最小用法（配置 + 解析 + 执行）：
+
+```csharp
+using System;
+using MxFramework.CharacterAction;
+using MxFramework.Gameplay;
+using MxFramework.Runtime;
+
+// 1. 定义动作配置（注意：所有类型使用构造函数，不支持 object initializer）
+//    DurationFrames 和 Phases 必须覆盖完整动作时长，否则验证器会拒绝
+var actionConfig = new CharacterActionConfig(
+    id: 1001,
+    stableId: "demo.light_attack",
+    displayName: "Light Attack",
+    category: CharacterActionCategory.BasicAttack,
+    timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
+    tags: new[] { "attack", "melee" },
+    priority: 10,
+    durationFrames: 20,
+    requirements: Array.Empty<CharacterActionRequirement>(),
+    phases: new[]
+    {
+        new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 4),
+        new CharacterActionPhase(CharacterActionPhaseKind.Active, 5, 14),
+        new CharacterActionPhase(CharacterActionPhaseKind.Recovery, 15, 19),
+    },
+    cancelRules: Array.Empty<CharacterCancelRule>(),
+    interruptRules: Array.Empty<CharacterInterruptRule>());
+
+var actionSet = new CharacterActionSetConfig(
+    id: 1,
+    stableId: "demo.character.actions",
+    displayName: "Demo Character Actions",
+    characterStableId: "demo.character",
+    equipmentStateStableId: "",
+    commandBindings: new[]
+    {
+        new CharacterActionBinding("LightAttack", "demo.light_attack",
+            priority: 10, allowQueue: true, queueWindowFrames: 5)
+    },
+    abilityBindings: Array.Empty<CharacterAbilityActionBinding>(),
+    reactionBindings: Array.Empty<CharacterReactionBinding>(),
+    movementProfileId: "",
+    reactionProfileId: "",
+    defaultActionId: "");
+
+// 2. 准备解析上下文
+var resolveContext = new CharacterActionResolverContext(
+    actionSet: actionSet,
+    actions: new[] { actionConfig });
+
+// 3. 提交意图请求
+var intentRequest = new CharacterActionIntentRequest(
+    entity: new GameplayEntityId(1, 1),
+    intentId: "LightAttack",
+    abilityId: null,
+    abilityStableId: "",
+    requestedActionId: "",
+    sourceKind: CharacterActionSourceKind.Input,
+    priority: 10,
+    frame: new RuntimeFrame(1),
+    traceId: "demo-001");
+
+// 4. 解析
+var resolver = new CharacterActionResolver();
+CharacterActionResolveResult resolveResult = resolver.ResolveCommand(resolveContext, intentRequest);
+
+if (resolveResult.IsSuccess && resolveResult.Plan != null)
+{
+    // 5. 准备 runner definition（必须提供 CharacterActionRunnerActionDefinition）
+    var runnerDefinition = new CharacterActionRunnerActionDefinition(
+        actionConfigId: actionConfig.Id,
+        actionId: actionConfig.StableId,
+        timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
+        cancelRules: Array.Empty<CharacterCancelRule>(),
+        interruptRules: Array.Empty<CharacterInterruptRule>(),
+        combatTimeline: null,
+        trackEvents: Array.Empty<CharacterActionTrackDispatchEvent>());
+
+    var runner = new CharacterActionRunner();
+    CharacterActionRunnerOperationResult runResult = runner.Start(resolveResult, runnerDefinition);
+
+    if (runResult.Accepted)
+    {
+        // 6. 逐帧推进（Tick() 无参数，自动递增 local frame）
+        runner.Tick();
+        // 读取已派发的事件
+        CharacterActionRunnerEvent[] events = runner.DrainEvents();
+    }
+}
+```
+
+受击反应构建（独立于 Combat 桥接）：
+
+```csharp
+// 从 Combat 命中结果构建 reaction 上下文
+// 注意：必须提供 impactForce 和 reactionGroupId，否则上下文不完整
+var hitSource = new CharacterReactionHitSource(
+    frame: new RuntimeFrame(10),
+    entityId: new GameplayEntityId(2, 1),
+    bodyPartId: "torso",
+    hitZoneId: "chest",
+    damageTypeId: "physical",
+    hitDirection: CharacterHitDirection.Front,
+    impactForce: 100,
+    reactionGroupId: "medium_hit",
+    traceId: "hit-001");
+
+CharacterReactionContextBuildResult buildResult = CharacterReactionContextBuilder.FromHitSource(hitSource);
+
+if (buildResult.Success)
+{
+    // 从 reaction profile 选择对应动作（注意参数顺序：profile 在前，context 在后）
+    CharacterReactionSelectionResult reaction = CharacterReactionSelector.Select(
+        reactionProfile,
+        buildResult.Context);
+}
+```
+
+→ 接口：`Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档）
+→ 代码：`Assets/Scripts/MxFramework/CharacterAction/`
+→ 测试：`Tests/CharacterAction/`（10 个测试文件，覆盖 Phase 1-7 核心行为）
+→ **约束**: 当前无 asmdef 引用 CharacterAction；CharacterControl 仍使用旧 v0 路径。本节示例只能验证 noEngine 解析/执行逻辑，不能替代完整的角色控制回路。
+
 ## 16. Audio 音频系统
 
 Audio 模块的业务入口是 `IAudioService` / `AudioService`。普通测试、服务器和未安装 FMOD 的环境使用 `NullAudioBackend`，不会依赖 Unity 或 FMOD。

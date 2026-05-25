@@ -2,7 +2,7 @@
 
 Date: 2026-05-23
 
-Status: Proposed
+Status: Accepted（架构决策已记录，代码实现已合并，但产物尚未接入运行管线）
 
 ## Context
 
