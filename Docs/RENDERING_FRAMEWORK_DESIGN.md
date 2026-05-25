@@ -2,9 +2,9 @@
 
 > Version 0.1 | 2026-05-24
 >
-> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender remains spec-only until implementation PR.
+> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender now includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
-> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.7 VolumeBlender spec. Later demo feature details remain follow-up tasks.
+> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.7 VolumeBlender request arbitration and diagnostics. Later runtime Volume object application and demo feature details remain follow-up tasks.
 
 ## 0. Context
 
@@ -312,6 +312,8 @@ Request timing uses non-negative `BlendInSeconds`, `HoldSeconds`, and `BlendOutS
 - Zero durations are legal and produce immediate transitions.
 - `HoldSeconds <= 0` means the request does not auto-expire and must be released explicitly.
 - `Release(requestId)` is idempotent and starts blend-out once; it does not restart or extend the request on repeated calls.
+- Presentation time is controlled through the VolumeBlender public API. Composition roots must advance time before creating or releasing requests, or use the explicit-time request/release overloads when those operations happen between render evaluations.
+- Diagnostics capture also performs expiry cleanup, so requests that expire without a later blend-state evaluation still appear in expired diagnostics and are removed from active lookup.
 
 Arbitration is deterministic:
 
@@ -500,7 +502,7 @@ Do not deliver runtime code, asmdef changes, Unity assets, scene-authored Volume
 
 ### 15.8+
 
-VolumeBlender implementation and feature-specific Volume presets may start only after the Phase 15.7 public API/spec is reviewed. They must use URP Volume Framework and the reviewed request API.
+VolumeBlender runtime URP Volume object application and feature-specific Volume presets may start only after the Phase 15.7 arbitration and diagnostics implementation is reviewed. They must use URP Volume Framework and the reviewed request API.
 
 ## 13. Documentation Sync Requirements
 

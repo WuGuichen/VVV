@@ -15,6 +15,7 @@ namespace MxFramework.Rendering
         public const string PipelineTopology = "pipelineTopology";
         public const string SharedRTHealth = "sharedRTHealth";
         public const string MaterialBindings = "materialBindings";
+        public const string VolumeBlender = "volumeBlender";
         public const string PublisherCounts = "publisherCounts";
     }
 
@@ -157,6 +158,110 @@ namespace MxFramework.Rendering
             }
 
             return builder.ToString();
+        }
+    }
+
+    public sealed class VolumeBlenderDebugSource : IRenderingDebugSource
+    {
+        private readonly IVolumeBlender _volumeBlender;
+
+        public VolumeBlenderDebugSource(IVolumeBlender volumeBlender, string name = "Rendering")
+        {
+            _volumeBlender = volumeBlender ?? throw new ArgumentNullException(nameof(volumeBlender));
+            Name = string.IsNullOrWhiteSpace(name) ? "Rendering" : name;
+        }
+
+        public string Name { get; }
+        public FrameworkDebugMode Mode => FrameworkDebugMode.Runtime;
+        public bool IsAvailable => true;
+
+        public FrameworkDebugSnapshot CreateSnapshot()
+        {
+            return new FrameworkDebugSnapshot(
+                Name,
+                Mode,
+                new[]
+                {
+                    new FrameworkDebugSection(RenderingDebugSectionNames.VolumeBlender, FormatVolumeBlender(_volumeBlender.CaptureDiagnostics()))
+                });
+        }
+
+        private static string FormatVolumeBlender(MxVolumeDiagnosticsSnapshot snapshot)
+        {
+            var builder = new StringBuilder();
+            builder.Append("activeRequests: ").Append(snapshot.ActiveRequests.Count).Append('\n');
+            builder.Append("expiredRequests: ").Append(snapshot.ExpiredRequests.Count).Append('\n');
+            builder.Append("recentBlendStates: ").Append(snapshot.RecentBlendStates.Count);
+
+            for (int i = 0; i < snapshot.ActiveRequests.Count; i++)
+                AppendRequest(builder, "active", snapshot.ActiveRequests[i]);
+
+            for (int i = 0; i < snapshot.ExpiredRequests.Count; i++)
+                AppendRequest(builder, "expired", snapshot.ExpiredRequests[i]);
+
+            for (int i = 0; i < snapshot.RecentBlendStates.Count; i++)
+            {
+                MxVolumeBlendStateSnapshot blendState = snapshot.RecentBlendStates[i];
+                builder.Append('\n')
+                    .Append("blendState cameraKind=")
+                    .Append(blendState.Context.CameraKind)
+                    .Append(" cameraToken=")
+                    .Append(blendState.Context.CameraToken)
+                    .Append(" time=")
+                    .Append(blendState.Context.PresentationTimeSeconds)
+                    .Append(" applied=")
+                    .Append(blendState.AppliedProfiles.Count)
+                    .Append(" suppressed=")
+                    .Append(blendState.SuppressedRequests.Count);
+
+                for (int appliedIndex = 0; appliedIndex < blendState.AppliedProfiles.Count; appliedIndex++)
+                {
+                    MxVolumeAppliedProfileSnapshot applied = blendState.AppliedProfiles[appliedIndex];
+                    builder.Append('\n')
+                        .Append("applied id=")
+                        .Append(applied.SourceRequestId)
+                        .Append(" profile=")
+                        .Append(applied.Profile)
+                        .Append(" priority=")
+                        .Append(applied.Priority)
+                        .Append(" weight=")
+                        .Append(applied.Weight);
+                }
+
+                for (int suppressedIndex = 0; suppressedIndex < blendState.SuppressedRequests.Count; suppressedIndex++)
+                    AppendRequest(builder, "suppressed", blendState.SuppressedRequests[suppressedIndex]);
+            }
+
+            return builder.ToString();
+        }
+
+        private static void AppendRequest(StringBuilder builder, string label, MxVolumeRequestSnapshot request)
+        {
+            builder.Append('\n')
+                .Append(label)
+                .Append(" id=")
+                .Append(request.RequestId)
+                .Append(" profile=")
+                .Append(request.Profile)
+                .Append(" scope=")
+                .Append(request.Scope.Kind)
+                .Append(" cameraKind=")
+                .Append(request.Scope.CameraKind)
+                .Append(" cameraToken=")
+                .Append(request.Scope.CameraToken)
+                .Append(" priority=")
+                .Append(request.Priority)
+                .Append(" phase=")
+                .Append(request.Phase)
+                .Append(" weight=")
+                .Append(request.Weight)
+                .Append(" sequence=")
+                .Append(request.CreationSequence)
+                .Append(" cleanup=")
+                .Append(request.CleanupReason);
+
+            if (!string.IsNullOrWhiteSpace(request.DebugName))
+                builder.Append(" debugName=").Append(request.DebugName);
         }
     }
 }
