@@ -2591,32 +2591,37 @@ using MxFramework.CharacterAction;
 using MxFramework.Gameplay;
 using MxFramework.Runtime;
 
-// 1. 定义动作配置
-var actionConfig = new CharacterActionConfig
-{
-    Id = 1001,
-    StableId = "demo.light_attack",
-    DisplayName = "Light Attack",
-    Category = CharacterActionCategory.BasicAttack,
-    Priority = 10,
-    DurationFrames = 20,
-    Tags = new[] { "attack", "melee" }
-};
+// 1. 定义动作配置（注意：所有类型使用构造函数，不支持 object initializer）
+var actionConfig = new CharacterActionConfig(
+    id: 1001,
+    stableId: "demo.light_attack",
+    displayName: "Light Attack",
+    category: CharacterActionCategory.BasicAttack,
+    timelineAuthority: CharacterActionTimelineAuthority.CombatDriven,
+    tags: new[] { "attack", "melee" },
+    priority: 10,
+    durationFrames: 20,
+    requirements: Array.Empty<CharacterActionRequirement>(),
+    phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Startup, 5) },
+    cancelRules: Array.Empty<CharacterCancelRule>(),
+    interruptRules: Array.Empty<CharacterInterruptRule>());
 
-var actionSet = new CharacterActionSetConfig
-{
-    Id = 1,
-    StableId = "demo.character.actions",
-    CharacterStableId = "demo.character",
-    CommandBindings = new[]
+var actionSet = new CharacterActionSetConfig(
+    id: 1,
+    stableId: "demo.character.actions",
+    displayName: "Demo Character Actions",
+    characterStableId: "demo.character",
+    equipmentStateStableId: "",
+    commandBindings: new[]
     {
-        new CharacterActionBinding
-        {
-            IntentId = "LightAttack",
-            ActionId = "demo.light_attack"
-        }
-    }
-};
+        new CharacterActionBinding("LightAttack", "demo.light_attack",
+            priority: 10, allowQueue: true, queueWindowFrames: 5)
+    },
+    abilityBindings: Array.Empty<CharacterAbilityActionBinding>(),
+    reactionBindings: Array.Empty<CharacterReactionBinding>(),
+    movementProfileId: "",
+    reactionProfileId: "",
+    defaultActionId: "");
 
 // 2. 准备解析上下文
 var resolveContext = new CharacterActionResolverContext(
@@ -2639,16 +2644,28 @@ var intentRequest = new CharacterActionIntentRequest(
 var resolver = new CharacterActionResolver();
 CharacterActionResolveResult resolveResult = resolver.ResolveCommand(resolveContext, intentRequest);
 
-if (resolveResult.IsSuccess)
+if (resolveResult.IsSuccess && resolveResult.Plan != null)
 {
-    // 5. 执行
-    var runner = new CharacterActionRunner();
-    CharacterActionRunnerOperationResult runResult = runner.Start(resolveResult);
+    // 5. 准备 runner definition（必须提供 CharacterActionRunnerActionDefinition）
+    var runnerDefinition = new CharacterActionRunnerActionDefinition(
+        actionConfigId: actionConfig.Id,
+        actionId: actionConfig.StableId,
+        timelineAuthority: CharacterActionTimelineAuthority.CombatDriven,
+        cancelRules: Array.Empty<CharacterCancelRule>(),
+        interruptRules: Array.Empty<CharacterInterruptRule>(),
+        combatTimeline: null,
+        trackEvents: Array.Empty<CharacterActionTrackDispatchEvent>());
 
-    // 6. 逐帧推进
-    CharacterActionRunnerOperationResult frameResult = runner.Tick(new RuntimeFrame(2));
-    // 读取已派发的 track events
-    string[] events = runner.DrainFrameEvents();
+    var runner = new CharacterActionRunner();
+    CharacterActionRunnerOperationResult runResult = runner.Start(resolveResult, runnerDefinition);
+
+    if (runResult.Success)
+    {
+        // 6. 逐帧推进（Tick() 无参数，自动递增 local frame）
+        runner.Tick();
+        // 读取已派发的事件
+        CharacterActionRunnerEvent[] events = runner.DrainEvents();
+    }
 }
 ```
 
@@ -2657,22 +2674,22 @@ if (resolveResult.IsSuccess)
 ```csharp
 // 从 Combat 命中结果构建 reaction 上下文
 var hitSource = new CharacterReactionHitSource(
-    gameplayEntityId: new GameplayEntityId(2, 1),
-    postureBand: 3,           // Critical
-    guardBroken: false,
-    armorBroken: false,
+    frame: new RuntimeFrame(10),
+    entityId: new GameplayEntityId(2, 1),
+    bodyPartId: "torso",
+    hitZoneId: "chest",
+    damageTypeId: "physical",
     hitDirection: CharacterHitDirection.FromFront,
-    damageType: "physical",
     traceId: "hit-001");
 
-CharacterReactionContextBuildResult buildResult = CharacterReactionContextBuilder.Build(hitSource);
+CharacterReactionContextBuildResult buildResult = CharacterReactionContextBuilder.FromHitSource(hitSource);
 
-if (buildResult.IsComplete)
+if (buildResult.Success)
 {
-    // 从 reaction profile 选择对应动作
+    // 从 reaction profile 选择对应动作（注意参数顺序：profile 在前，context 在后）
     CharacterReactionSelectionResult reaction = CharacterReactionSelector.Select(
-        buildResult.Context,
-        reactionProfile);
+        reactionProfile,
+        buildResult.Context);
 }
 ```
 
