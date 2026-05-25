@@ -2587,6 +2587,7 @@ CharacterActionIntentRequest
 最小用法（配置 + 解析 + 执行）：
 
 ```csharp
+using System;
 using MxFramework.CharacterAction;
 using MxFramework.Gameplay;
 using MxFramework.Runtime;
@@ -2597,12 +2598,12 @@ var actionConfig = new CharacterActionConfig(
     stableId: "demo.light_attack",
     displayName: "Light Attack",
     category: CharacterActionCategory.BasicAttack,
-    timelineAuthority: CharacterActionTimelineAuthority.CombatDriven,
+    timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
     tags: new[] { "attack", "melee" },
     priority: 10,
     durationFrames: 20,
     requirements: Array.Empty<CharacterActionRequirement>(),
-    phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Startup, 5) },
+    phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 5) },
     cancelRules: Array.Empty<CharacterCancelRule>(),
     interruptRules: Array.Empty<CharacterInterruptRule>());
 
@@ -2650,7 +2651,7 @@ if (resolveResult.IsSuccess && resolveResult.Plan != null)
     var runnerDefinition = new CharacterActionRunnerActionDefinition(
         actionConfigId: actionConfig.Id,
         actionId: actionConfig.StableId,
-        timelineAuthority: CharacterActionTimelineAuthority.CombatDriven,
+        timelineAuthority: CharacterActionTimelineAuthority.CharacterAuthored,
         cancelRules: Array.Empty<CharacterCancelRule>(),
         interruptRules: Array.Empty<CharacterInterruptRule>(),
         combatTimeline: null,
@@ -2659,7 +2660,7 @@ if (resolveResult.IsSuccess && resolveResult.Plan != null)
     var runner = new CharacterActionRunner();
     CharacterActionRunnerOperationResult runResult = runner.Start(resolveResult, runnerDefinition);
 
-    if (runResult.Success)
+    if (runResult.Accepted)
     {
         // 6. 逐帧推进（Tick() 无参数，自动递增 local frame）
         runner.Tick();
