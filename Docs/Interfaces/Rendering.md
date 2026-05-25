@@ -2,9 +2,9 @@
 
 > Version 0.1 | 2026-05-24
 >
-> Status: Spec Ready for Phase 15.0 documentation baseline. Implementation starts in Phase 15.1.
+> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender remains spec-only until implementation PR.
 >
-> Scope: Public API shape for `MxFramework.Rendering` through Phase 15.3. Feature-specific shader APIs are out of scope.
+> Scope: Public API shape for `MxFramework.Rendering` through Phase 15.7 VolumeBlender spec. Feature-specific shader APIs are out of scope.
 
 ## 职责
 

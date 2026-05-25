@@ -2,9 +2,9 @@
 
 > Version 0.1 | 2026-05-24
 >
-> Status: Spec Ready for Phase 15.0 documentation baseline. Implementation starts in Phase 15.1.
+> Status: Spec Ready for Phase 15.0-15.7 selected public API surface. Phase 15.7 VolumeBlender remains spec-only until implementation PR.
 >
-> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.3. Later Hub, Bridge, Volume, and demo feature details are intentionally left to follow-up tasks.
+> Scope: Rendering system orchestration for URP-facing framework code through Phase 15.7 VolumeBlender spec. Later demo feature details remain follow-up tasks.
 
 ## 0. Context
 
