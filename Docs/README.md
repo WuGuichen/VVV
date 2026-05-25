@@ -92,6 +92,7 @@
 | `Interfaces/Input.md` | Unity Input System 上层的输入意图、上下文和重绑定接口 |
 | `Interfaces/CharacterControl.md` | Character Control 角色控制编排接口 |
 | `Interfaces/CharacterApplication.md` | Character Application 角色配置聚合、纯 resolver 和 diagnostics 接口 |
+| `Interfaces/CharacterAction.md` | Character Action 角色动作层接口 |
 | `Interfaces/DebugUI.md` | Debug UI source registry、snapshot aggregation、Toolkit overlay 和 source adapter 接入方式 |
 | `Interfaces/Gameplay.md` | Gameplay 运行时行为核心 |
 | `Interfaces/Story.md` | Story core S0 proposed contract（未实现） |
@@ -159,6 +160,7 @@
 | `Tasks/GAMEPLAY_COMPONENT_PLAYABLE_COMBAT_BRIDGE_PLAN_01.md` | Gameplay Component Playable + Combat Bridge Plan：规划将 Gameplay Component Runtime Showcase 升级为提交的 Unity Playable 入口，并固定 component-native Combat bridge 的 source-of-truth 边界和后续实施切片。 |
 | `Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md` | Character Control Runtime 00：固定 noEngine 角色控制编排边界，并实现 command DTO、控制状态机、Combat Motion resolver 和 Combat / Gameplay action bridge 首批切片。 |
 | Gitea #195 / #196 / #201 / #197 / #198 / #199 | Character Control command sources, motion modifiers, pressure reaction, animation presentation and diagnostics：新增 Local Input adapter、Runtime AI Planner command source、motion modifier / traction provider contract、pressure reaction bridge、MxAnimation presentation adapter 和 Debug UI source。 |
+| `Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md` | Character Action Layer 00：角色动作层设计契约，覆盖 Resolver → Plan → Runner → TrackAdapters → Workstation 的 noEngine 动作编排管线。当前 Phase 1-7 代码已合并（8,391 行），未接入 CharacterControl 运行管线。 |
 | `Tasks/GAMEPLAY_COMPONENT_BUFF_MODIFIER_01.md` | Gameplay Component Buff / Modifier 01：新增 component-native buff / additive modifier state、cleanup system、diagnostics、hash 和 SaveState。 |
 | `Tasks/GAMEPLAY_ABILITY_03_COMMAND_SYSTEM.md` | Gameplay Ability 03：将 CastAbility / DespawnEntity 迁入 command systems，让 GameplayRuntimeModule 只负责 drain、pipeline、event queue 和 world tick。 |
 | `Tasks/GAMEPLAY_ABILITY_04_COMMAND_HANDLED_STATE.md` | Gameplay Ability 04：新增 command handled 状态，让 unsupported system 基于 handled 判断，支持 default pipeline 上扩展自定义 command system。 |
@@ -246,6 +248,7 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.57 | 2026-05-25 | 文档同步：`INTERFACES.md` 模块表新增 Character Action 和 Character Runtime Spawn；`CAPABILITIES.md` 新增 §1.8.1 Character Action 能力清单（12 行，全标记 🟡 未集成）；`ROADMAP.md` 新增 Phase 16 Character Action Layer；`USAGE.md` 新增 §15.6 使用示例；ADR-003 状态更新为 Accepted；`README.md` 同步新增 Character Action 和 Character Runtime Spawn 入口。 |
 | 0.6.56 | 2026-05-25 | 新增 `RENDERING_AUTHORING_GUIDE.md` 作为 Rendering authoring 唯一入口，并同步 Phase 15.1-15.8 当前状态：MaterialBindingHub、RenderDataPublisher、GameplayRenderingBridge、VolumeBlender arbitration/diagnostics 和 Demo Showcase 已落地；runtime URP Volume object application 仍为后续工作 |
 | 0.6.55 | 2026-05-24 | 新增 Story S6 外部 authoring CLI：`Tools/MxFrameworkStoryAuthoring/story_authoring.py` 支持 Markdown Story Outline v1 import、deterministic `.story.json` draft、Story.Config handoff validate、结构化 diagnostics 和基础 fixtures/tests；Authoring AI Assist、Yarn/Ink/Articy 仍 deferred |
 | 0.6.54 | 2026-05-24 | 新增 Rendering Framework Phase 15.0 设计基线：`RENDERING_FRAMEWORK_DESIGN.md`、`Interfaces/Rendering.md`、URP 唯一 `MxRenderingPipelineFeature` 入口、GlobalFrameContext / CameraRenderContext 分层、SharedRT 冲突规则和 Rendering bridge 边界 |

@@ -46,7 +46,7 @@
 | Combat | `Docs/Interfaces/Combat.md` | `Assets/Scripts/MxFramework/Combat/` | `Assets/Scripts/MxFramework/Tests/Combat/` |
 | Character Application | `Docs/Interfaces/CharacterApplication.md` | `Assets/Scripts/MxFramework/Character.Application/` | `Assets/Scripts/MxFramework/Tests/CharacterApplication/` |
 | Character Control | `Docs/Interfaces/CharacterControl.md` | `Assets/Scripts/MxFramework/CharacterControl*/` | `Assets/Scripts/MxFramework/Tests/CharacterControl/` |
-| Character Action | `Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档） | `Assets/Scripts/MxFramework/CharacterAction/` | `Assets/Scripts/MxFramework/Tests/CharacterAction/` |
+| Character Action | `Docs/Interfaces/CharacterAction.md` | `Assets/Scripts/MxFramework/CharacterAction/` | `Assets/Scripts/MxFramework/Tests/CharacterAction/` |
 | Character Runtime Spawn | `Docs/Interfaces/Gameplay.md` 末节 + `Docs/Interfaces/CharacterApplication.md` | `Assets/Scripts/MxFramework/Character.RuntimeSpawn*/` | `Assets/Scripts/MxFramework/Tests/CharacterRuntimeSpawn/` |
 | Editor | `Docs/Interfaces/Editor.md` | `Assets/Scripts/MxFramework/Editor/` | Unity Editor / MCP |
 
