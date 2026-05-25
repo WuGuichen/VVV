@@ -12,17 +12,24 @@ namespace MxFramework.Demo.CharacterTest
     public sealed class GameSlice : IDisposable
     {
         private readonly RuntimeClock _clock;
+        private readonly IRuntimeLogger _logger;
         private readonly StoryDirector _storyDirector;
         private readonly StoryRuntimeModule _storyModule;
         private readonly RuntimeHost _host;
+        private readonly IDisposable _storyEventSubscription;
+        private readonly RuntimeLogBuffer _logBuffer = new RuntimeLogBuffer(160);
         private double _elapsedSeconds;
         private bool _disposed;
 
-        public GameSlice()
+        public GameSlice(IRuntimeLogger logger = null)
         {
+            _logger = logger ?? NullRuntimeLogger.Instance;
+            _logger.Info("GameSlice", "Construct");
+
             _clock = new RuntimeClock(RuntimeFrame.Zero);
             _storyDirector = new StoryDirector();
             _storyModule = new StoryRuntimeModule(_storyDirector, new RuntimeCommandBuffer(null, RuntimeFrame.Zero));
+            _storyEventSubscription = _storyDirector.SubscribeEvents(OnStoryDirectorEvent);
 
             _host = new RuntimeHost(new RuntimeHostOptions
             {
@@ -31,6 +38,8 @@ namespace MxFramework.Demo.CharacterTest
             RegisterRuntimeModules();
             _host.Initialize();
             _host.Start();
+            _logger.Info("GameSlice", "RuntimeHost started");
+            BootstrapStorySession();
         }
 
         public RuntimeHost Host => _host;
@@ -49,6 +58,16 @@ namespace MxFramework.Demo.CharacterTest
 
             RuntimeFrame frame = _clock.CurrentFrame;
             _host.Tick(frame.Value, deltaTime, _elapsedSeconds);
+            if (_storyModule.LastCommandErrors.Count > 0)
+            {
+                _logBuffer.Clear()
+                    .Append("Story command errors=")
+                    .Append(_storyModule.LastCommandErrors.Count)
+                    .Append(" frame=")
+                    .Append(frame.Value);
+                _logger.Warning("GameSlice", _logBuffer);
+            }
+
             _elapsedSeconds += deltaTime;
             _clock.Step();
         }
@@ -61,7 +80,27 @@ namespace MxFramework.Demo.CharacterTest
                 sourceId,
                 triggerId,
                 traceId: "character-test.trigger");
-            return _storyModule.CommandBuffer.Enqueue(command);
+            RuntimeCommandValidationResult result = _storyModule.CommandBuffer.Enqueue(command);
+            if (result.Success)
+            {
+                _logBuffer.Clear()
+                    .Append("RaiseTrigger enqueued. triggerId=")
+                    .Append(triggerId)
+                    .Append(", frame=")
+                    .Append(CurrentFrame.Value);
+                _logger.Info("GameSlice", _logBuffer);
+            }
+            else
+            {
+                _logBuffer.Clear()
+                    .Append("RaiseTrigger rejected. triggerId=")
+                    .Append(triggerId)
+                    .Append(", error=")
+                    .Append(result.Error.Message);
+                _logger.Warning("GameSlice", _logBuffer);
+            }
+
+            return result;
         }
 
         public RuntimeHostDiagnostics CaptureDiagnostics()
@@ -75,8 +114,59 @@ namespace MxFramework.Demo.CharacterTest
             if (_disposed)
                 return;
 
+            _logger.Info("GameSlice", "Dispose");
+            _storyEventSubscription?.Dispose();
             _host?.Dispose();
             _disposed = true;
+        }
+
+        private void BootstrapStorySession()
+        {
+            StoryLoadGraphResult load = _storyDirector.TryLoadGraph(CharacterTestStoryFixture.CreateBootstrapGraph());
+            if (!load.Success)
+            {
+                _logBuffer.Clear().Append("CharacterTest graph load failed: ").Append(load.Message);
+                _logger.Warning("Story", _logBuffer);
+                return;
+            }
+
+            _logBuffer.Clear()
+                .Append("CharacterTest graph loaded. graphId=")
+                .Append(CharacterTestStoryFixture.GraphId);
+            _logger.Info("Story", _logBuffer);
+
+            RuntimeCommandValidationResult enter = _storyModule.CommandBuffer.Enqueue(
+                StoryRuntimeCommandFactory.RequestEnterBeat(
+                    RuntimeFrame.Zero,
+                    StoryRuntimeCommandSources.System,
+                    CharacterTestStoryFixture.GraphId,
+                    CharacterTestStoryFixture.EntryBeatId,
+                    traceId: "character-test.bootstrap"));
+            if (!enter.Success)
+            {
+                _logBuffer.Clear().Append("CharacterTest entry beat enqueue failed: ").Append(enter.Error.Message);
+                _logger.Warning("Story", _logBuffer);
+                return;
+            }
+
+            _logBuffer.Clear()
+                .Append("Entry beat enqueued. beatId=")
+                .Append(CharacterTestStoryFixture.EntryBeatId);
+            _logger.Info("Story", _logBuffer);
+
+            Tick(0d);
+        }
+
+        private void OnStoryDirectorEvent(StoryEvent evt)
+        {
+            if (evt.Kind != StoryEventKind.StepStarted || evt.StepId != CharacterTestStoryFixture.WelcomeLineStepId)
+                return;
+
+            string text = CharacterTestStoryFixture.ResolveText(CharacterTestStoryFixture.WelcomeTextKey);
+            if (string.IsNullOrEmpty(text))
+                return;
+
+            _logger.Info("Story", text);
         }
 
         private void RegisterRuntimeModules()

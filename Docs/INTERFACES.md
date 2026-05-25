@@ -29,7 +29,7 @@
 | AI | `Docs/Interfaces/AI.md` | `Assets/Scripts/MxFramework/AI/` | `Assets/Scripts/MxFramework/Tests/AI/` |
 | Diagnostics | `Docs/Interfaces/Diagnostics.md` | `Assets/Scripts/MxFramework/Diagnostics/` | `Assets/Scripts/MxFramework/Tests/Diagnostics/` |
 | Debug UI | `Docs/Interfaces/DebugUI.md` | `Assets/Scripts/MxFramework/DebugUI*/` | `Assets/Scripts/MxFramework/Tests/DebugUI/` |
-| Logging | `Docs/Interfaces/Logging.md` | `Assets/Scripts/MxFramework/Logging*/` | `Assets/Scripts/MxFramework/Tests/Logging/` |
+| Logging | `Docs/Interfaces/Logging.md` | `Assets/Scripts/MxFramework/Runtime/RuntimeLogger.cs`, `Assets/Scripts/MxFramework/Runtime.Unity/UnityRuntimeLogger.cs` | Compile `MxFramework.Runtime`, `MxFramework.Runtime.Unity`, `MxFramework.Demo` |
 | Runtime | `Docs/Interfaces/Runtime.md` | `Assets/Scripts/MxFramework/Runtime/` | `Assets/Scripts/MxFramework/Tests/Runtime/` |
 | Story | `Docs/Interfaces/Story.md` | `Assets/Scripts/MxFramework/Story/` | `Assets/Scripts/MxFramework/Tests/Story/` |
 | Story Runtime | `Docs/Interfaces/Story.Runtime.md` | `Assets/Scripts/MxFramework/Story.Runtime/` | `Assets/Scripts/MxFramework/Tests/Story.Runtime/` |
@@ -81,7 +81,9 @@
           ✓* = Modifiers → Buffs 只允许通过 IBuffPipeline 等接口访问。
 ```
 
-`MxFramework.Logging.Diagnostics` 是 Diagnostics adapter，依赖 `MxFramework.Logging` + `MxFramework.Diagnostics`，不改变 Runtime 依赖矩阵。`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat、CharacterControl、Config Runtime 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。`MxFramework.DebugUI.Input` 是可选 Unity/Input 桥，不进入 noEngine 依赖矩阵。Performance counters、Simulation Harness、hot reload observation 与 command gate diagnostics 归入观察 / 报告 API，默认不改变 Runtime authority、Replay、SaveState 或 hash。
+Logging current state: the implemented API is `IRuntimeLogger` in `MxFramework.Runtime` plus `UnityRuntimeLogger` in `MxFramework.Runtime.Unity`. There is no standalone `MxFramework.Logging` assembly, `LogBuffer`, or `Logging.Diagnostics` adapter in the current codebase.
+
+`MxFramework.DebugUI` 只依赖 Diagnostics / Core；跨 Runtime、Resources、Gameplay、Combat、CharacterControl、Config Runtime 的接入放在 Debug UI adapter 层或组合根中，保持被观察模块不反向依赖 Debug UI。`MxFramework.DebugUI.Input` 是可选 Unity/Input 桥，不进入 noEngine 依赖矩阵。Performance counters、Simulation Harness、hot reload observation 与 command gate diagnostics 归入观察 / 报告 API，默认不改变 Runtime authority、Replay、SaveState 或 hash。
 
 `MxFramework.Character.Application` 是应用层配置与纯解析器契约，当前只依赖 `MxFramework.Config`。它保存 Character 聚合所需的静态表、typed id、schema 元数据、resolved profile 和 diagnostics，不拥有 Runtime / Gameplay / Combat / Resources / Animation / CharacterControl 的权威状态；Runtime Spawn 也必须保持下层模块不反向依赖 Character Application。
 

@@ -1,3 +1,5 @@
+using MxFramework.Runtime;
+using MxFramework.Runtime.Unity;
 using UnityEngine;
 
 namespace MxFramework.Demo.CharacterTest
@@ -12,8 +14,16 @@ namespace MxFramework.Demo.CharacterTest
     {
         [SerializeField] private bool _startPaused;
         [SerializeField] [Min(1)] private int _targetFrameRate = 60;
+        [SerializeField] private bool _logConsole = true;
+        [SerializeField] private bool _logConsoleColors = true;
+        [SerializeField] private bool _logCategoryColors = true;
+        [SerializeField] private string _gameManagerLogColor = "#BB8FCE";
+        [SerializeField] private string _gameSliceLogColor = "#58D68D";
+        [SerializeField] private string _storyLogColor = "#5DADE2";
 
         private GameSlice _slice;
+        private UnityRuntimeLogger _logger;
+        private readonly RuntimeLogBuffer _logBuffer = new RuntimeLogBuffer(96);
         private bool _paused;
         private int _previousTargetFrameRate;
         private bool _hasPreviousTargetFrameRate;
@@ -23,19 +33,31 @@ namespace MxFramework.Demo.CharacterTest
 
         private void OnEnable()
         {
+            _logger = new UnityRuntimeLogger(this, "CharacterTest")
+            {
+                Enabled = _logConsole,
+                UseRichTextColors = _logConsoleColors
+            };
+            ConfigureLogColors();
+            _logger.Info("GameManager", "OnEnable");
+
             ApplyTargetFrameRate();
-            _slice = new GameSlice();
+            _slice = new GameSlice(_logger);
             _paused = _startPaused;
+            _logBuffer.Clear().Append("GameSlice created. startPaused=").Append(_startPaused);
+            _logger.Info("GameManager", _logBuffer);
         }
 
         private void OnDisable()
         {
+            _logger?.Info("GameManager", "OnDisable");
             DisposeSlice();
             RestoreTargetFrameRate();
         }
 
         private void OnDestroy()
         {
+            _logger?.Info("GameManager", "OnDestroy");
             DisposeSlice();
         }
 
@@ -54,11 +76,15 @@ namespace MxFramework.Demo.CharacterTest
         public void SetPaused(bool paused)
         {
             _paused = paused;
+            _logBuffer.Clear().Append("SetPaused=").Append(_paused);
+            _logger?.Info("GameManager", _logBuffer);
         }
 
         public void TogglePaused()
         {
             _paused = !_paused;
+            _logBuffer.Clear().Append("TogglePaused=").Append(_paused);
+            _logger?.Info("GameManager", _logBuffer);
         }
 
         private void DisposeSlice()
@@ -68,6 +94,18 @@ namespace MxFramework.Demo.CharacterTest
 
             _slice.Dispose();
             _slice = null;
+            _logger?.Info("GameManager", "GameSlice disposed");
+        }
+
+        private void ConfigureLogColors()
+        {
+            if (_logger == null)
+                return;
+
+            _logger.UseCategoryHeaderColors = _logCategoryColors;
+            _logger.SetCategoryHeaderColor("GameManager", _gameManagerLogColor);
+            _logger.SetCategoryHeaderColor("GameSlice", _gameSliceLogColor);
+            _logger.SetCategoryHeaderColor("Story", _storyLogColor);
         }
 
         private void ApplyTargetFrameRate()
@@ -78,6 +116,12 @@ namespace MxFramework.Demo.CharacterTest
             _previousTargetFrameRate = Application.targetFrameRate;
             _hasPreviousTargetFrameRate = true;
             Application.targetFrameRate = _targetFrameRate;
+            _logBuffer.Clear()
+                .Append("TargetFrameRate applied. previous=")
+                .Append(_previousTargetFrameRate)
+                .Append(", current=")
+                .Append(_targetFrameRate);
+            _logger?.Info("GameManager", _logBuffer);
         }
 
         private void RestoreTargetFrameRate()
@@ -87,6 +131,10 @@ namespace MxFramework.Demo.CharacterTest
 
             Application.targetFrameRate = _previousTargetFrameRate;
             _hasPreviousTargetFrameRate = false;
+            _logBuffer.Clear()
+                .Append("TargetFrameRate restored. current=")
+                .Append(_previousTargetFrameRate);
+            _logger?.Info("GameManager", _logBuffer);
         }
     }
 }

@@ -3011,6 +3011,61 @@ public sealed class DoneSceneFlowOperation : ISceneFlowOperation
 - SceneFlow busy 时会拒绝新的 load request；调用方读取 `SceneFlowResult.Error` 做 UI 或日志。
 - Unity 项目中使用 `UnitySceneFlowDriver`，但 `MxFramework.Runtime` 本身不引用 `SceneManager`。
 
+## 18.1 Logging / Unity Console Feedback
+
+Use `IRuntimeLogger` when a runtime slice needs development feedback without depending on Unity. The contract lives in `MxFramework.Runtime`; the Unity Console adapter lives in `MxFramework.Runtime.Unity`.
+
+Pure runtime or demo slice:
+
+```csharp
+using MxFramework.Runtime;
+
+public sealed class GameSlice
+{
+    private readonly IRuntimeLogger _logger;
+
+    public GameSlice(IRuntimeLogger logger = null)
+    {
+        _logger = logger ?? NullRuntimeLogger.Instance;
+        _logger.Info("GameSlice", "Construct");
+    }
+}
+```
+
+Unity composition root:
+
+```csharp
+using MxFramework.Runtime.Unity;
+using UnityEngine;
+
+public sealed class GameManager : MonoBehaviour
+{
+    [SerializeField] private bool _logConsole = true;
+
+    private UnityRuntimeLogger _logger;
+    private GameSlice _slice;
+
+    private void OnEnable()
+    {
+        _logger = new UnityRuntimeLogger(this, "CharacterTest")
+        {
+            Enabled = _logConsole
+        };
+        _logger.SetCategoryHeaderColor("GameManager", "#BB8FCE");
+        _logger.SetCategoryHeaderColor("GameSlice", "#58D68D");
+        _slice = new GameSlice(_logger);
+    }
+}
+```
+
+Rules:
+
+- Do not call `UnityEngine.Debug` from `MxFramework.Runtime` or pure C# runtime slices.
+- Logs are developer feedback, not gameplay authority, Replay data, SaveState, or hash input.
+- Recoverable failures should still return structured result types such as `RuntimeCommandValidationResult`; logging is only an observation path.
+- For long-lived runtime state views, prefer Diagnostics snapshots or Debug UI.
+- `UnityRuntimeLogger` supports level colors by default; use `SetCategoryHeaderColor(category, color)` from a Unity composition root for demo-specific category colors.
+
 ## 19. Diagnostics 诊断
 
 Diagnostics 模块用 `IFrameworkDebugSource` 暴露只读快照。Editor、工具和运行时 HUD 读取 snapshot，不直接读模块私有字段。
