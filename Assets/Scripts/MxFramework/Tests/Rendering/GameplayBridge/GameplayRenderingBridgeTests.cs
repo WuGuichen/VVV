@@ -60,11 +60,11 @@ namespace MxFramework.Tests.Rendering
         }
 
         [Test]
-        public void DrainFrame_TranslatesComponentLifecycleAndReleasesMapping()
+        public void DrainFrame_TranslatesComponentLifecycleAndDefersReleaseUntilNextFrame()
         {
             GameplayRuntimeModule gameplay = CreateGameplayModule();
             var registry = new MxRenderSubjectRegistry();
-            var publisher = new RecordingRenderDataPublisher();
+            var publisher = new RenderDataPublisher(registry, recentCapacity: 8);
             IRenderSubjectMap<GameplayEntityId> componentSubjects = registry.CreateMap<GameplayEntityId>();
             var bridge = new GameplayRenderingBridge(gameplay, publisher, componentSubjects);
             RuntimeFrame frame = new RuntimeFrame(20);
@@ -74,26 +74,32 @@ namespace MxFramework.Tests.Rendering
             Assert.AreEqual(1, bridge.DrainFrame(frame));
 
             Assert.IsTrue(componentSubjects.TryResolve(entityId, out MxRenderSubjectId subject));
-            Assert.AreEqual(1, publisher.LifecycleEvents.Count);
-            Assert.AreEqual(MxSubjectLifecycleKind.Spawned, publisher.LifecycleEvents[0].Lifecycle);
-            Assert.AreEqual(subject, publisher.LifecycleEvents[0].Subject);
+            AssertLifecycle(publisher.CaptureSnapshot(), 0, subject, MxSubjectLifecycleKind.Spawned);
 
             EnqueueComponentDestroyed(gameplay, frame, entityId);
             Assert.AreEqual(1, bridge.DrainFrame(frame));
 
+            Assert.IsTrue(componentSubjects.TryResolve(entityId, out MxRenderSubjectId pendingSubject));
+            Assert.AreEqual(subject, pendingSubject);
+            Assert.IsTrue(registry.TryResolve(subject, out var _));
+            RenderDataPublisherSnapshot despawnFrame = publisher.CaptureSnapshot();
+            Assert.AreEqual(2, despawnFrame.CurrentFrameCount(RenderDataEventKind.Lifecycle));
+            AssertLifecycle(despawnFrame, 1, subject, MxSubjectLifecycleKind.Despawned);
+
+            publisher.BeginFrame();
+            Assert.AreEqual(0, bridge.DrainFrame(frame.Next()));
+
             Assert.IsFalse(componentSubjects.TryResolve(entityId, out var _));
             Assert.IsFalse(registry.TryResolve(subject, out var _));
-            Assert.AreEqual(2, publisher.LifecycleEvents.Count);
-            Assert.AreEqual(MxSubjectLifecycleKind.Despawned, publisher.LifecycleEvents[1].Lifecycle);
-            Assert.AreEqual(subject, publisher.LifecycleEvents[1].Subject);
+            Assert.AreEqual(0, publisher.CaptureSnapshot().CurrentFrameEventCount);
         }
 
         [Test]
-        public void DrainFrame_TranslatesRuntimeEntityDespawnOnlyForExistingPublicSourceMapping()
+        public void DrainFrame_TranslatesRuntimeEntityDespawnAndDefersReleaseUntilNextFrame()
         {
             GameplayRuntimeModule gameplay = CreateGameplayModule();
             var registry = new MxRenderSubjectRegistry();
-            var publisher = new RecordingRenderDataPublisher();
+            var publisher = new RenderDataPublisher(registry, recentCapacity: 8);
             IRenderSubjectMap<GameplayEntityId> componentSubjects = registry.CreateMap<GameplayEntityId>();
             IRenderSubjectMap<int> runtimeSubjects = registry.CreateMap<int>();
             var bridge = new GameplayRenderingBridge(gameplay, publisher, componentSubjects, runtimeSubjects);
@@ -114,11 +120,17 @@ namespace MxFramework.Tests.Rendering
             bridge.Install();
             Assert.AreEqual(1, bridge.DrainFrame(frame));
 
+            Assert.IsTrue(runtimeSubjects.TryResolve(17, out MxRenderSubjectId pendingSubject));
+            Assert.AreEqual(subject, pendingSubject);
+            Assert.IsTrue(registry.TryResolve(subject, out var _));
+            AssertLifecycle(publisher.CaptureSnapshot(), 0, subject, MxSubjectLifecycleKind.Despawned);
+
+            publisher.BeginFrame();
+            Assert.AreEqual(0, bridge.DrainFrame(frame.Next()));
+
             Assert.IsFalse(runtimeSubjects.TryResolve(17, out var _));
             Assert.IsFalse(registry.TryResolve(subject, out var _));
-            Assert.AreEqual(1, publisher.LifecycleEvents.Count);
-            Assert.AreEqual(subject, publisher.LifecycleEvents[0].Subject);
-            Assert.AreEqual(MxSubjectLifecycleKind.Despawned, publisher.LifecycleEvents[0].Lifecycle);
+            Assert.AreEqual(0, publisher.CaptureSnapshot().CurrentFrameEventCount);
         }
 
         [Test]
@@ -241,42 +253,16 @@ namespace MxFramework.Tests.Rendering
                 componentEntityGeneration: entityId.Generation));
         }
 
-        private sealed class RecordingRenderDataPublisher : IRenderDataPublisher
+        private static void AssertLifecycle(
+            RenderDataPublisherSnapshot snapshot,
+            int eventIndex,
+            MxRenderSubjectId subject,
+            MxSubjectLifecycleKind lifecycle)
         {
-            public readonly List<LifecycleEvent> LifecycleEvents = new List<LifecycleEvent>();
-
-            public void PublishImpact(MxRenderSubjectId subject, in MxRenderImpactEvent impact)
-            {
-            }
-
-            public void PublishSurfaceContact(MxRenderSubjectId subject, in MxRenderSurfaceContactEvent contact)
-            {
-            }
-
-            public void PublishFieldImpulse(MxRenderSubjectId subject, in MxRenderFieldImpulseEvent impulse)
-            {
-            }
-
-            public void PublishSubjectMovement(MxRenderSubjectId subject, UnityEngine.Vector3 velocity)
-            {
-            }
-
-            public void PublishSubjectLifecycle(MxRenderSubjectId subject, MxSubjectLifecycleKind lifecycle)
-            {
-                LifecycleEvents.Add(new LifecycleEvent(subject, lifecycle));
-            }
+            Assert.AreEqual(RenderDataEventKind.Lifecycle, snapshot.CurrentFrameEvents[eventIndex].Kind);
+            Assert.AreEqual(subject, snapshot.CurrentFrameEvents[eventIndex].Subject);
+            Assert.AreEqual(lifecycle, snapshot.CurrentFrameEvents[eventIndex].Lifecycle);
         }
 
-        private readonly struct LifecycleEvent
-        {
-            public LifecycleEvent(MxRenderSubjectId subject, MxSubjectLifecycleKind lifecycle)
-            {
-                Subject = subject;
-                Lifecycle = lifecycle;
-            }
-
-            public MxRenderSubjectId Subject { get; }
-            public MxSubjectLifecycleKind Lifecycle { get; }
-        }
     }
 }

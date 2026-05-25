@@ -492,10 +492,10 @@ Implemented event mapping:
 | Gameplay public event | Source id | Rendering lifecycle |
 | --- | --- | --- |
 | `GameplayRuntimeEventType.ComponentEntityCreated` | `GameplayRuntimeEvent.ComponentEntityId` / `GameplayEntityId` | `MxSubjectLifecycleKind.Spawned` |
-| `GameplayRuntimeEventType.ComponentEntityDestroyed` | `GameplayRuntimeEvent.ComponentEntityId` / `GameplayEntityId` | `MxSubjectLifecycleKind.Despawned`, then release the subject mapping |
-| `GameplayRuntimeEventType.EntityDespawned` | `GameplayRuntimeEvent.TargetEntityId` / `int` runtime entity id, only when the composition root supplied an existing runtime entity subject map | `MxSubjectLifecycleKind.Despawned`, then release the subject mapping |
+| `GameplayRuntimeEventType.ComponentEntityDestroyed` | `GameplayRuntimeEvent.ComponentEntityId` / `GameplayEntityId` | `MxSubjectLifecycleKind.Despawned`, then defer subject mapping release until a later bridge drain |
+| `GameplayRuntimeEventType.EntityDespawned` | `GameplayRuntimeEvent.TargetEntityId` / `int` runtime entity id, only when the composition root supplied an existing runtime entity subject map | `MxSubjectLifecycleKind.Despawned`, then defer subject mapping release until a later bridge drain |
 
-The bridge consumes `GameplayRuntimeModule.DrainEvents(...)` and public `GameplayRuntimeEvent` payloads only. It does not read Gameplay private fields and does not create fake `GameplayEntityId` values for legacy `EntityDespawned` events. Unsupported Gameplay events are drained as no-op render events.
+The bridge consumes `GameplayRuntimeModule.DrainEvents(...)` and public `GameplayRuntimeEvent` payloads only. It does not read Gameplay private fields and does not create fake `GameplayEntityId` values for legacy `EntityDespawned` events. Unsupported Gameplay events are drained as no-op render events. Despawn subject releases are deferred so the real `RenderDataPublisher` can keep the despawn lifecycle event visible for the publisher frame that received it; pending releases are flushed on a later runtime frame or when the bridge is uninstalled/disposed.
 
 Deferred bridge scopes remain outside this subset: Combat hit/contact translation, Character movement/impact translation, Camera render-value translation, MaterialBindingHub writes, SharedRT writes, VolumeBlender, demo scenes, shader assets, runtime authority, Replay hash, deterministic simulation, and SaveState integration.
 
