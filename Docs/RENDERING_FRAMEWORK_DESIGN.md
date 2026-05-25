@@ -264,7 +264,102 @@ The same `(Subject, Channel)` has a single writer. Re-registering the same chann
 
 Diagnostics must report binding count, channel distribution, merge cost, pool hit rate, and duplicate channel writer warnings.
 
-## 8. RenderDataPublisher And Bridge Rules
+## 8. VolumeBlender Request Semantics
+
+VolumeBlender is the Phase 15.7 public API/spec for code-side URP Volume Profile requests. It belongs to `MxFramework.Rendering` because it is Unity + URP-facing presentation orchestration. It does not replace URP Volume Framework and does not define feature-specific post-processing presets.
+
+Responsibilities:
+
+1. Accept profile blend requests with Rendering-owned ids.
+2. Evaluate request weight from blend-in, hold, blend-out, and release state.
+3. Arbitrate requests by scope, priority, and stable tie-breaker.
+4. Apply the resulting state through URP Volume Framework runtime objects, or expose the same final state as diagnostics before runtime application is implemented.
+5. Report active requests, expired requests, priorities, weights, suppressed candidates, and final applied blend state.
+
+Non-responsibilities:
+
+- Do not author or replace Unity `VolumeProfile` component semantics.
+- Do not introduce an independent framework `ScriptableRendererFeature` for post-processing.
+- Do not use legacy Post Processing Stack v2 or camera image effects.
+- Do not depend on `MxFramework.Camera`, Gameplay, Combat, Runtime authority, Replay hash, Runtime result hash, or SaveState.
+- Do not make post-processing state authoritative gameplay state.
+
+### 8.1 Request Identity And Profile Reference
+
+`MxVolumeRequestId` is created by Rendering and remains stable until the request has been released or expired and removed from the active request table. Callers must not construct ids to claim ownership.
+
+`MxVolumeProfileReference` is the public profile target. It may contain a stable resource/catalog key, a direct URP `VolumeProfile` reference, or both. The stable key is preferred for equality, diagnostics, and future resource indirection. A direct profile reference is allowed only because `MxFramework.Rendering` is a Unity-facing assembly.
+
+### 8.2 Scope
+
+Requests support three scopes:
+
+| Scope | Meaning | Dependency boundary |
+| --- | --- | --- |
+| `Global` | Contributes to every rendering camera evaluation. | No camera dependency. |
+| `CameraKind` | Contributes only when `MxCameraRenderKind` matches. | Uses Rendering's existing camera kind enum. |
+| `ExplicitCamera` | Contributes only when an opaque `MxRenderingCameraToken` matches. | Token is supplied by composition root or optional CameraBridge; Rendering still does not depend on `MxFramework.Camera`. |
+
+Global and per-camera requests are isolated in storage and lifecycle. A per-camera release must not release or alter a global request. During evaluation, a camera receives the union of global requests plus matching camera-kind and explicit-camera requests.
+
+### 8.3 Priority, Lifetime, Release, And Tie-Breaker
+
+Request timing uses non-negative `BlendInSeconds`, `HoldSeconds`, and `BlendOutSeconds`.
+
+- Blend-in ramps weight from `0` to `1`.
+- Hold keeps weight at `1`.
+- Blend-out ramps weight from current value to `0`.
+- Zero durations are legal and produce immediate transitions.
+- `HoldSeconds <= 0` means the request does not auto-expire and must be released explicitly.
+- `Release(requestId)` is idempotent and starts blend-out once; it does not restart or extend the request on repeated calls.
+
+Arbitration is deterministic:
+
+1. Filter to requests visible to the current evaluation scope.
+2. Remove requests whose computed weight is `0` and whose cleanup phase has completed.
+3. Sort by higher `Priority`.
+4. For equal priority, earlier creation sequence wins.
+5. If creation sequence is unavailable in a persisted diagnostic snapshot, lower `MxVolumeRequestId.Value` wins.
+
+The initial implementation may apply a single framework-owned runtime Volume entry if that is the only robust URP integration path. In that case it applies the arbitration winner and reports non-winning candidates as suppressed with their computed weights. A later implementation may apply multiple weighted URP Volume entries if it can preserve the same public diagnostics and deterministic ordering.
+
+### 8.4 URP Volume Runtime Ownership
+
+VolumeBlender manages request intent and framework-owned runtime application. It must use URP Volume Framework for actual post-processing behavior. It must not create a parallel post-processing evaluator, bypass URP Volume components, or add a new framework renderer feature.
+
+Allowed implementation choices:
+
+- Maintain one or more framework-owned runtime `Volume` objects.
+- Update profile references and weights during Rendering presentation update.
+- Keep scripting-controlled Volume update mode compatible with the baseline in `Docs/RENDERING_PIPELINE.md`.
+- Expose diagnostics-only final blend state before runtime application is connected.
+
+Forbidden implementation choices:
+
+- Add a standalone `ScriptableRendererFeature` for Volume blending.
+- Add legacy post-processing image effects or Post Processing Stack v2.
+- Read `MxFramework.Camera` state directly from Rendering.
+- Feed Volume state into Gameplay/Combat decisions, Runtime authority, Replay hash, Runtime result hash, or SaveState.
+
+### 8.5 Diagnostics And Acceptance
+
+VolumeBlender diagnostics must expose:
+
+- Active requests and expired requests.
+- Request id, profile reference, scope, priority, phase, computed weight, creation sequence, and debug name.
+- Suppressed requests after arbitration.
+- Final applied blend state per evaluated camera kind/token.
+- Cleanup reason for expired or released requests.
+
+Follow-up implementation acceptance requires:
+
+- EditMode tests for request id stability, release idempotency, priority, stable tie-breaker, blend-in/hold/blend-out, zero durations, and cleanup.
+- Tests for global visibility, `CameraKind` isolation, and explicit camera token isolation.
+- Diagnostics tests for active requests, expired requests, priorities, weights, suppressed candidates, and final applied state.
+- Dependency inspection proving no direct reference from Rendering to Camera, Gameplay, Combat, Runtime authority/replay/SaveState, independent framework `ScriptableRendererFeature`, or legacy post-processing.
+- Unity/PlayMode smoke only when runtime URP Volume objects or assets are touched.
+
+## 9. RenderDataPublisher And Bridge Rules
 
 `IRenderDataPublisher` is the Rendering-side semantic input API. Gameplay, Combat, Buffs, Character, and Camera modules do not call it directly. Phase 15.0 only reserves generic semantic categories:
 
@@ -295,7 +390,7 @@ Bridge rules:
 
 Phase 15.0 defines only the contract. Concrete bridges start in later tasks.
 
-## 9. Diagnostics Protocol
+## 10. Diagnostics Protocol
 
 Rendering diagnostics use `MxFramework.Diagnostics.IFrameworkDebugSource`.
 
@@ -306,6 +401,7 @@ Planned sources or sections:
 - `pipelineTopology`
 - `sharedRTHealth`
 - `materialBindings`
+- `volumeBlender`
 - `publisherCounts`
 
 Report bundles reuse the existing report pattern under:
@@ -319,12 +415,13 @@ Stable planned filenames:
 - `rendering_pipeline_topology.txt`
 - `rendering_sharedrt_health.txt`
 - `rendering_material_bindings.txt`
+- `rendering_volume_blender.txt`
 - `rendering_globals.txt`
 - `rendering_report_index.txt`
 
 Rendering diagnostics are read-only. Any future debug command must go through Debug UI command gate or another explicit command interface outside `IFrameworkDebugSource`.
 
-## 10. Authority, Hash, Replay, And SaveState Boundary
+## 11. Authority, Hash, Replay, And SaveState Boundary
 
 Rendering state must not enter runtime authority, replay hash, Runtime result hash, or SaveState.
 
@@ -334,12 +431,13 @@ Examples that must stay out:
 - SharedRT contents.
 - MaterialPropertyBlock state.
 - Volume blend runtime weights.
+- Volume request ids, priorities, scopes, profile references, and diagnostics snapshots.
 - Debug overlay state.
 - Pipeline pass enable flags unless a future task explicitly defines them as configuration, not runtime authority.
 
 Tests that cover runtime hash or SaveState must fail if Rendering state becomes an input to those systems.
 
-## 11. Phase 15 Roadmap
+## 12. Phase 15 Roadmap
 
 ### 15.0 Spec
 
@@ -387,11 +485,24 @@ Deliver:
 
 Do not deliver MaterialBindingHub, source bridges, VolumeBlender, or feature-specific demo slices.
 
-### 15.4+
+### 15.4-15.6 Hub And Bridge Follow-Ups
 
-Hub, Bridge, Volume, and demo feature details will be defined by later task specs. Any later feature must first prove that it can use the 15.1-15.3 surface. If not, the infrastructure spec must be updated before the feature bypasses it.
+MaterialBindingHub, source bridges, and demo feature details are defined by their own later task specs. Any later feature must first prove that it can use the 15.1-15.3 surface. If not, the infrastructure spec must be updated before the feature bypasses it.
 
-## 12. Documentation Sync Requirements
+### 15.7 VolumeBlender Public API Spec
+
+Deliver:
+
+- VolumeBlender public API/spec in `Docs/Interfaces/Rendering.md`.
+- Request scope, priority, lifetime, release, stable tie-breaker, global/per-camera isolation, diagnostics, and acceptance criteria.
+
+Do not deliver runtime code, asmdef changes, Unity assets, scene-authored Volume cleanup, or demo polish in the spec-review PR.
+
+### 15.8+
+
+VolumeBlender implementation and feature-specific Volume presets may start only after the Phase 15.7 public API/spec is reviewed. They must use URP Volume Framework and the reviewed request API.
+
+## 13. Documentation Sync Requirements
 
 Phase 15.0 must update:
 
@@ -405,7 +516,7 @@ Phase 15.0 must update:
 
 `Docs/CAPABILITIES.md` is updated only after implementation lands.
 
-## 13. Spec Acceptance Checklist
+## 14. Spec Acceptance Checklist
 
 - Public API names avoid business terms, except in explicit forbidden-term documentation.
 - noEngine modules do not reference Rendering.
@@ -414,4 +525,5 @@ Phase 15.0 must update:
 - The only framework-level URP Renderer Feature is `MxRenderingPipelineFeature`.
 - Global frame context and camera render context have distinct ownership.
 - SharedRT conflicts are written as testable rules.
-- 15.4+ content is placeholder-only.
+- VolumeBlender request id, profile reference, scope, priority, lifetime, release, stable tie-breaker, global/per-camera isolation, diagnostics, and URP Volume Framework boundary are documented before implementation.
+- VolumeBlender does not introduce Runtime authority, Replay hash, SaveState, Camera, Gameplay, Combat, independent RendererFeature, or legacy post-processing dependencies.

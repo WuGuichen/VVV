@@ -63,6 +63,7 @@ URP is a Unity project dependency, not a dependency of the noEngine framework co
 - The only allowed framework-owned Renderer Feature on `MxFrameworkUniversalRenderer.asset` is `MxRenderingPipelineFeature`. Feature-specific work must be implemented as `IMxRenderPass` or `IMxRenderPassProvider` inside `MxFramework.Rendering`; do not add independent framework `ScriptableRendererFeature` assets for grass, water, decals, outlines, dissolve, or similar capabilities.
 - Do not add new Built-in Render Pipeline-only materials, post-processing profiles, image effects, or camera scripts as framework sample baselines.
 - Post-processing should use URP Volume components and profiles. Legacy Post Processing Stack v2 should not be introduced for new framework demos.
+- Code-side profile blending must go through the reviewed VolumeBlender request API. VolumeBlender may manage framework-owned runtime URP `Volume` objects, but it must not replace URP Volume Framework, add an independent framework `ScriptableRendererFeature`, or depend on `MxFramework.Camera`.
 - If a demo intentionally uses a fallback material or editor-only debug shader, document the reason in the demo/task doc and keep it out of noEngine runtime modules.
 - New serialized rendering assets should be created through Unity Editor, Unity MCP, or an existing editor menu. Do not hand-write Unity YAML for pipeline assets, renderer assets, materials, or volume profiles.
 

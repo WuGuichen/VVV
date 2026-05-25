@@ -427,7 +427,170 @@ public interface IMaterialBindingWriter
 
 `MaterialBindingCurveDescriptor` must not expose Unity `Keyframe` as the stable public contract. The implementation may convert to Unity curves internally.
 
-## 6. Data Publishing And Bridge Contract
+## 6. VolumeBlender
+
+VolumeBlender is the Rendering-owned request API for code-side URP Volume Profile blend intent. It does not replace Unity's URP Volume Framework. The implementation may create, update, or recycle framework-owned URP `Volume` runtime objects inside `MxFramework.Rendering`, but the public contract is request arbitration plus diagnostics, not a new post-processing framework.
+
+Public request shape:
+
+```csharp
+public readonly struct MxVolumeRequestId : IEquatable<MxVolumeRequestId>
+{
+    public MxVolumeRequestId(ulong value);
+    public ulong Value { get; }
+    public bool IsValid { get; }
+}
+
+public readonly struct MxVolumeProfileReference : IEquatable<MxVolumeProfileReference>
+{
+    public string Key { get; }
+    public VolumeProfile Profile { get; }
+}
+
+public enum MxVolumeRequestScopeKind
+{
+    Global = 0,
+    CameraKind = 1,
+    ExplicitCamera = 2
+}
+
+public readonly struct MxRenderingCameraToken : IEquatable<MxRenderingCameraToken>
+{
+    public MxRenderingCameraToken(ulong value);
+    public ulong Value { get; }
+    public bool IsValid { get; }
+}
+
+public readonly struct MxVolumeRequestScope
+{
+    public MxVolumeRequestScopeKind Kind { get; }
+    public MxCameraRenderKind CameraKind { get; }
+    public MxRenderingCameraToken CameraToken { get; }
+}
+```
+
+Rules:
+
+- `MxVolumeRequestId` is assigned by Rendering and is stable until release or expiry cleanup.
+- `MxVolumeProfileReference` may be a stable resource/catalog key, a direct `VolumeProfile` reference inside the Unity-facing Rendering boundary, or both. Equality and diagnostics must prefer the stable key when present.
+- `ExplicitCamera` uses `MxRenderingCameraToken`; it must not expose or depend on `MxFramework.Camera`. A composition root or optional future `MxFramework.Rendering.CameraBridge` may map presentation cameras to tokens.
+- `Global` requests apply to all rendering cameras unless isolated by stronger camera-scoped requests. `CameraKind` requests apply only to matching `MxCameraRenderKind`. `ExplicitCamera` requests apply only to the matching token.
+
+Request timing and arbitration:
+
+```csharp
+public readonly struct MxVolumeBlendTiming
+{
+    public float BlendInSeconds { get; }
+    public float HoldSeconds { get; }
+    public float BlendOutSeconds { get; }
+}
+
+public readonly struct MxVolumeRequestDescriptor
+{
+    public MxVolumeProfileReference Profile { get; }
+    public MxVolumeRequestScope Scope { get; }
+    public int Priority { get; }
+    public MxVolumeBlendTiming Timing { get; }
+    public string DebugName { get; }
+}
+
+public interface IVolumeBlender
+{
+    MxVolumeRequestId Request(in MxVolumeRequestDescriptor descriptor);
+    bool Release(MxVolumeRequestId requestId);
+    bool TryGetRequest(MxVolumeRequestId requestId, out MxVolumeRequestSnapshot request);
+    MxVolumeBlendStateSnapshot CaptureBlendState(in MxVolumeEvaluationContext context);
+    MxVolumeDiagnosticsSnapshot CaptureDiagnostics();
+}
+```
+
+Lifecycle rules:
+
+- `BlendInSeconds`, `HoldSeconds`, and `BlendOutSeconds` are non-negative. Zero durations are valid and produce immediate phase transitions.
+- A request becomes active at creation, ramps from weight `0` to `1` during blend-in, stays at `1` during hold, then ramps from `1` to `0` during blend-out.
+- `HoldSeconds <= 0` means no automatic hold expiry; the request remains until `Release(...)` unless a future implementation explicitly adds a separate finite lifetime field.
+- `Release(...)` is idempotent. The first release moves an active request into blend-out using its `BlendOutSeconds`; later releases return `false` without restarting the fade.
+- Expired requests remain visible in diagnostics long enough to report cleanup reason, then may be pruned by the implementation.
+- Time used for VolumeBlender is presentation time owned by Rendering and must not enter runtime authority, Replay hash, Runtime result hash, or SaveState.
+
+Arbitration rules:
+
+- Scope isolation is evaluated per rendered camera from the union of `Global`, matching `CameraKind`, and matching `ExplicitCamera` requests.
+- Global and camera-scoped requests do not mutate each other. A camera-scoped request contributes only to its matching evaluation; it does not lower or release the global request.
+- Higher `Priority` wins when multiple active requests target mutually exclusive control of the same final URP profile slot.
+- Equal priority uses stable tie-breaker: earlier request creation sequence wins; if creation sequence is unavailable in persisted diagnostics, lower `MxVolumeRequestId.Value` wins.
+- Multiple profiles may contribute weights to the final state when the implementation can represent them as separate URP Volume entries. If the implementation can apply only one framework-owned runtime Volume entry, it must apply the arbitration winner and still report suppressed candidates and weights.
+- VolumeBlender must not read Gameplay, Combat, Runtime authority, replay, or SaveState data to choose priorities or weights. Bridges or composition roots translate source events into explicit requests.
+
+Evaluation context and diagnostics:
+
+```csharp
+public readonly struct MxVolumeEvaluationContext
+{
+    public MxCameraRenderKind CameraKind { get; }
+    public MxRenderingCameraToken CameraToken { get; }
+    public float PresentationTimeSeconds { get; }
+}
+
+public enum MxVolumeRequestPhase
+{
+    BlendIn = 0,
+    Hold = 1,
+    BlendOut = 2,
+    Expired = 3,
+    Released = 4
+}
+
+public readonly struct MxVolumeRequestSnapshot
+{
+    public MxVolumeRequestId RequestId { get; }
+    public MxVolumeProfileReference Profile { get; }
+    public MxVolumeRequestScope Scope { get; }
+    public int Priority { get; }
+    public MxVolumeRequestPhase Phase { get; }
+    public float Weight { get; }
+    public ulong CreationSequence { get; }
+    public string DebugName { get; }
+}
+
+public readonly struct MxVolumeBlendStateSnapshot
+{
+    public MxVolumeEvaluationContext Context { get; }
+    public IReadOnlyList<MxVolumeRequestSnapshot> ActiveRequests { get; }
+    public IReadOnlyList<MxVolumeRequestSnapshot> SuppressedRequests { get; }
+    public IReadOnlyList<MxVolumeAppliedProfileSnapshot> AppliedProfiles { get; }
+}
+
+public readonly struct MxVolumeAppliedProfileSnapshot
+{
+    public MxVolumeProfileReference Profile { get; }
+    public float Weight { get; }
+    public int Priority { get; }
+    public MxVolumeRequestId SourceRequestId { get; }
+}
+
+public readonly struct MxVolumeDiagnosticsSnapshot
+{
+    public IReadOnlyList<MxVolumeRequestSnapshot> ActiveRequests { get; }
+    public IReadOnlyList<MxVolumeRequestSnapshot> ExpiredRequests { get; }
+    public IReadOnlyList<MxVolumeBlendStateSnapshot> RecentBlendStates { get; }
+}
+```
+
+Diagnostics must expose active requests, expired requests, profile references, request scopes, priorities, weights, phases, stable tie-break data, suppressed candidates, and the final applied blend state per evaluated camera context.
+
+Future implementation tests must cover:
+
+- Request id creation, lookup, release idempotency, and expired cleanup.
+- Priority ordering and stable equal-priority tie-breaker.
+- Blend-in, hold, blend-out, zero-duration transitions, and manual release semantics.
+- Global request visibility across camera kinds.
+- `CameraKind` isolation and `ExplicitCamera` token isolation.
+- Diagnostics for active requests, expired requests, suppressed requests, weights, priorities, and final applied blend state.
+- Forbidden dependency checks: Rendering must not depend on `MxFramework.Camera`, Gameplay, Combat, Runtime authority, Replay hash, SaveState, independent `ScriptableRendererFeature`, or legacy post-processing.
+
+## 7. Data Publishing And Bridge Contract
 
 ```csharp
 public interface IRenderDataPublisher
@@ -503,7 +666,7 @@ Bridge dependencies are constructor-injected. Do not add a broad composition-roo
 
 Concrete bridge docs must not list private source module types. They may subscribe only to already-public runtime or presentation event contracts.
 
-## 7. Diagnostics
+## 8. Diagnostics
 
 ```csharp
 public interface IRenderingDebugSource : IFrameworkDebugSource
@@ -517,6 +680,7 @@ public static class RenderingDebugSectionNames
     public const string PipelineTopology = "pipelineTopology";
     public const string SharedRTHealth = "sharedRTHealth";
     public const string MaterialBindings = "materialBindings";
+    public const string VolumeBlender = "volumeBlender";
     public const string PublisherCounts = "publisherCounts";
 }
 
@@ -528,7 +692,7 @@ public static class RenderingReportExporter
 
 Diagnostics are read-only and depend on `MxFramework.Diagnostics`, not `MxFramework.DebugUI`.
 
-## 8. Test Surface
+## 9. Test Surface
 
 Implementation may expose internal test hooks to the test assembly through `InternalsVisibleTo`.
 
@@ -537,6 +701,7 @@ internal interface IRenderingTestHooks
 {
     void AdvanceTestTime(float deltaTime);
     void ForceSharedRTConflict(SharedRTConflictCode code);
+    void AdvanceVolumeBlendTime(float deltaTime);
 }
 ```
 
@@ -551,7 +716,18 @@ Required SharedRT tests:
 - `SharedRTRegistry_R_RT_07_ResizeBurst`
 - `SharedRTRegistry_R_RT_08_DroppedAllocation`
 
-## 9. Compatibility
+Required VolumeBlender tests:
+
+- `VolumeBlender_RequestId_IsStableUntilReleaseOrExpiry`
+- `VolumeBlender_Priority_UsesStableTieBreakerForEqualPriority`
+- `VolumeBlender_Lifetime_BlendInHoldBlendOutAndZeroDurations`
+- `VolumeBlender_Release_IsIdempotentAndStartsBlendOut`
+- `VolumeBlender_Scope_GlobalAppliesToAllCameraKinds`
+- `VolumeBlender_Scope_CameraKindAndExplicitCameraAreIsolated`
+- `VolumeBlender_Diagnostics_ReportsActiveExpiredSuppressedWeightsAndAppliedState`
+- `VolumeBlender_Dependencies_DoNotReferenceForbiddenModulesOrLegacyPostProcessing`
+
+## 10. Compatibility
 
 Stable identity and policy types must not reorder fields once implementation lands:
 
@@ -559,6 +735,9 @@ Stable identity and policy types must not reorder fields once implementation lan
 - `SharedRTId`
 - `SharedRTOwnerId`
 - `SharedRTWriterSetId`
+- `MxVolumeRequestId`
+- `MxVolumeProfileReference`
+- `MxRenderingCameraToken`
 - `SharedRenderTextureKey`
 - `SharedRTAccessPolicy`
 - `SharedRTClearSpec`
@@ -570,12 +749,16 @@ Enums may append values but must not reorder existing values:
 - `MxCameraRenderKind`
 - `SharedRTConflictCode`
 - `MxMaterialChannel`
+- `MxVolumeRequestScopeKind`
+- `MxVolumeRequestPhase`
 
-## 10. Acceptance Checklist
+## 11. Acceptance Checklist
 
 - Public signatures use `MxRenderSubjectId`, not source module entity ids.
 - Public signatures avoid game-specific terms.
 - Any API returning `RTHandle`, `CommandBuffer`, `Renderer`, `Texture`, or `Color` is inside the Unity + URP Rendering assembly boundary.
 - Rendering diagnostics use `IFrameworkDebugSource` from Diagnostics, not Debug UI.
 - Bridge contracts list only generic lifecycle and naming rules.
+- VolumeBlender documents request id, profile reference, scope, priority, lifecycle, release, stable tie-breaker, diagnostics, and URP Volume Framework ownership before implementation.
+- VolumeBlender does not replace URP Volume Framework, does not introduce independent framework `ScriptableRendererFeature`, and does not require legacy post-processing.
 - No grass, water, character, or other feature-specific API appears in this interface page.
