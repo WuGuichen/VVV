@@ -2593,6 +2593,7 @@ using MxFramework.Gameplay;
 using MxFramework.Runtime;
 
 // 1. 定义动作配置（注意：所有类型使用构造函数，不支持 object initializer）
+//    DurationFrames 和 Phases 必须覆盖完整动作时长，否则验证器会拒绝
 var actionConfig = new CharacterActionConfig(
     id: 1001,
     stableId: "demo.light_attack",
@@ -2603,7 +2604,12 @@ var actionConfig = new CharacterActionConfig(
     priority: 10,
     durationFrames: 20,
     requirements: Array.Empty<CharacterActionRequirement>(),
-    phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 5) },
+    phases: new[]
+    {
+        new CharacterActionPhase(CharacterActionPhaseKind.Startup, 0, 4),
+        new CharacterActionPhase(CharacterActionPhaseKind.Active, 5, 14),
+        new CharacterActionPhase(CharacterActionPhaseKind.Recovery, 15, 19),
+    },
     cancelRules: Array.Empty<CharacterCancelRule>(),
     interruptRules: Array.Empty<CharacterInterruptRule>());
 
