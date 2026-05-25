@@ -2568,6 +2568,119 @@ public sealed class SlowMotionProvider : ICharacterMotionModifierProvider
 
 详细接口见 `Docs/Interfaces/CharacterControl.md`，测试入口为 `Assets/Scripts/MxFramework/Tests/CharacterControl/` 和 `Assets/Scripts/MxFramework/Tests/Demo/CharacterControl/`。
 
+## 15.6 Character Action 角色动作层（新架构，待集成）
+
+> 当前状态：代码已合并（8,391 行），但尚未接入 CharacterControl 运行管线。
+> 本节展示可直接运行的纯 C# 用法，适用于 noEngine 测试和诊断验证。
+> 集成到实际角色输入 → 动作循环仍需额外的桥接工作（见 ROADMAP Phase 16）。
+
+`MxFramework.CharacterAction` 把角色动作拆为四个阶段：
+
+```text
+CharacterActionIntentRequest
+  → CharacterActionResolver 解析候选、优先级、tag 需求
+    → CharacterActionResolveResult (含 CharacterActionPlan)
+      → CharacterActionRunner 按 frame/phase 推进，派发 track event
+        → CharacterActionTrackAdapter 转成 Motion / Combat / Gameplay / Animation 等请求
+```
+
+最小用法（配置 + 解析 + 执行）：
+
+```csharp
+using MxFramework.CharacterAction;
+using MxFramework.Gameplay;
+using MxFramework.Runtime;
+
+// 1. 定义动作配置
+var actionConfig = new CharacterActionConfig
+{
+    Id = 1001,
+    StableId = "demo.light_attack",
+    DisplayName = "Light Attack",
+    Category = CharacterActionCategory.BasicAttack,
+    Priority = 10,
+    DurationFrames = 20,
+    Tags = new[] { "attack", "melee" }
+};
+
+var actionSet = new CharacterActionSetConfig
+{
+    Id = 1,
+    StableId = "demo.character.actions",
+    CharacterStableId = "demo.character",
+    CommandBindings = new[]
+    {
+        new CharacterActionBinding
+        {
+            IntentId = "LightAttack",
+            ActionId = "demo.light_attack"
+        }
+    }
+};
+
+// 2. 准备解析上下文
+var resolveContext = new CharacterActionResolverContext(
+    actionSet: actionSet,
+    actions: new[] { actionConfig });
+
+// 3. 提交意图请求
+var intentRequest = new CharacterActionIntentRequest(
+    entity: new GameplayEntityId(1, 1),
+    intentId: "LightAttack",
+    abilityId: null,
+    abilityStableId: "",
+    requestedActionId: "",
+    sourceKind: CharacterActionSourceKind.Input,
+    priority: 10,
+    frame: new RuntimeFrame(1),
+    traceId: "demo-001");
+
+// 4. 解析
+var resolver = new CharacterActionResolver();
+CharacterActionResolveResult resolveResult = resolver.ResolveCommand(resolveContext, intentRequest);
+
+if (resolveResult.IsSuccess)
+{
+    // 5. 执行
+    var runner = new CharacterActionRunner();
+    CharacterActionRunnerOperationResult runResult = runner.Start(resolveResult);
+
+    // 6. 逐帧推进
+    CharacterActionRunnerOperationResult frameResult = runner.Tick(new RuntimeFrame(2));
+    // 读取已派发的 track events
+    string[] events = runner.DrainFrameEvents();
+}
+```
+
+受击反应构建（独立于 Combat 桥接）：
+
+```csharp
+// 从 Combat 命中结果构建 reaction 上下文
+var hitSource = new CharacterReactionHitSource(
+    gameplayEntityId: new GameplayEntityId(2, 1),
+    postureBand: 3,           // Critical
+    guardBroken: false,
+    armorBroken: false,
+    hitDirection: CharacterHitDirection.FromFront,
+    damageType: "physical",
+    traceId: "hit-001");
+
+CharacterReactionContextBuildResult buildResult = CharacterReactionContextBuilder.Build(hitSource);
+
+if (buildResult.IsComplete)
+{
+    // 从 reaction profile 选择对应动作
+    CharacterReactionSelectionResult reaction = CharacterReactionSelector.Select(
+        buildResult.Context,
+        reactionProfile);
+}
+```
+
+→ 接口：`Docs/Tasks/CHARACTER_ACTION_LAYER_00_DESIGN_CONTRACT.md`（待创建独立接口文档）
+→ 代码：`Assets/Scripts/MxFramework/CharacterAction/`
+→ 测试：`Tests/CharacterAction/`（10 个测试文件，覆盖 Phase 1-7 核心行为）
+→ **约束**: 当前无 asmdef 引用 CharacterAction；CharacterControl 仍使用旧 v0 路径。本节示例只能验证 noEngine 解析/执行逻辑，不能替代完整的角色控制回路。
+
 ## 16. Audio 音频系统
 
 Audio 模块的业务入口是 `IAudioService` / `AudioService`。普通测试、服务器和未安装 FMOD 的环境使用 `NullAudioBackend`，不会依赖 Unity 或 FMOD。
