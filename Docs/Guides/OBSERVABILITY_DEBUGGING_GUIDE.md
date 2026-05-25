@@ -10,7 +10,6 @@ Create a registry in the Demo, game composition root or tool host. The registry 
 
 ```csharp
 var registry = new FrameworkDebugSourceRegistry();
-registry.Register(new LogDebugSource(logBuffer));
 registry.Register(new ResourceDebugSource(resourceManager));
 registry.Register(new RuntimeHostDebugSource(runtimeHost));
 registry.Register(new GameplayDiagnosticSnapshotDebugSource(() => gameplaySnapshot));
@@ -20,6 +19,8 @@ registry.Register(new CharacterControlDebugSource(characterControlStateMachine))
 var aggregator = new DebugUiSnapshotAggregator();
 DebugUiDashboardViewModel dashboard = aggregator.Refresh(registry);
 ```
+
+Logging note: the current implemented logging path is `IRuntimeLogger` plus `UnityRuntimeLogger` for Unity Console feedback. A Debug UI log source such as `LogDebugSource` is not implemented in the current codebase and remains deferred.
 
 Unavailable sources still appear in the dashboard. If one source throws during `CreateSnapshot()`, the aggregator records a `DebugUiErrorViewModel` and continues refreshing the other sources.
 

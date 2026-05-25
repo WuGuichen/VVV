@@ -346,7 +346,8 @@
 | RuntimeHost adapter | ✅ v0.1 | `RuntimeHostDebugSource` | DebugUI.Adapters + Runtime |
 | Gameplay / Combat adapters | ✅ v0.1 | `GameplayDiagnosticSnapshotDebugSource` / `GameplayComponentWorldDebugSource` / `CombatDebugSnapshotDebugSource` | DebugUI.Adapters |
 | Character Control adapter | ✅ v0.1 | `CharacterControlDebugSource` | DebugUI.Adapters + CharacterControl |
-| Logging / Resources 接入 | ✅ v0.1 | 复用 `LogDebugSource` / `ResourceDebugSource` | Logging.Diagnostics / Resources |
+| Runtime logging contract / Unity Console adapter | ✅ v0.1 | `IRuntimeLogger` / `NullRuntimeLogger` / `UnityRuntimeLogger` | Runtime + Runtime.Unity |
+| Resources Debug UI 接入 | ✅ v0.1 | `ResourceDebugSource` | Resources |
 | Event timeline view model | ✅ v0.2 | `DebugUiTimelineEntryViewModel` / `DebugUiTimelineViewModel` / `DebugUiTimelineFilter` | DebugUI |
 | Gameplay / Combat timeline adapters | ✅ v0.2 | `GameplayRuntimeEventTimelineDebugSource` / `CombatTimelineDebugSource` | DebugUI.Adapters |
 | Entity watch view model | ✅ v0.2 | `DebugUiEntityWatchEntryViewModel` / `DebugUiEntityWatchViewModel` | DebugUI |

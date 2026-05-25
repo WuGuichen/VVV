@@ -1027,6 +1027,16 @@ set-fact: 442601 | Bool | true
 
 `validate` 会输出结构化 JSON diagnostics 并在 Error 时返回非 0。首批稳定 code 包括 `DuplicateId`、`MissingEntryBeat`、`MissingTextKey`、`InvalidBranchTarget`、`InvalidChoiceTarget`、`InvalidTriggerId`、`InvalidEffectId`、`UnsupportedStepKind`、`UnsupportedWaitPolicy` 和 `UnsupportedDirective`。
 
+CharacterTest demo 已接入这条 handoff 链路。默认 Markdown 源是 `Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md`，运行时读取 `Assets/StreamingAssets/MxFramework/CharacterTest/character_test_bootstrap.story.json`。修改 Markdown 后重新生成：
+
+```bash
+python Tools/MxFrameworkStoryAuthoring/story_authoring.py import-markdown \
+  Tools/MxFrameworkStoryAuthoring/fixtures/markdown/character_test_bootstrap.md \
+  --out Assets/StreamingAssets/MxFramework/CharacterTest/character_test_bootstrap.story.json
+```
+
+场景里只放 `GameManager` 时，`GameManager` 会从 `Application.streamingAssetsPath/MxFramework/CharacterTest/character_test_bootstrap.story.json` 加载外部 draft，经 `CharacterTestStoryDraftJson` 转为 `StoryConfigSet`，再用 `StoryGraphConfigMapper` 生成 `StoryGraphDefinition` 交给 `GameSlice`。Console 会输出 external draft loaded、graph loaded、entry beat enqueued 和 line 文本；文件缺失或校验失败时会 warning 并退回内置 fixture。
+
 边界：
 
 - `.story.json` 是工具层 interchange draft，不是 Unity asset、ScriptableObject、Runtime SaveState 或 replay 文件。
@@ -3010,6 +3020,61 @@ public sealed class DoneSceneFlowOperation : ISceneFlowOperation
 - 状态在自身 `Tick` 中只请求 pending transition，真正 `Exit` / `Enter` 在下一次 `Tick` 开始执行。
 - SceneFlow busy 时会拒绝新的 load request；调用方读取 `SceneFlowResult.Error` 做 UI 或日志。
 - Unity 项目中使用 `UnitySceneFlowDriver`，但 `MxFramework.Runtime` 本身不引用 `SceneManager`。
+
+## 18.1 Logging / Unity Console Feedback
+
+Use `IRuntimeLogger` when a runtime slice needs development feedback without depending on Unity. The contract lives in `MxFramework.Runtime`; the Unity Console adapter lives in `MxFramework.Runtime.Unity`.
+
+Pure runtime or demo slice:
+
+```csharp
+using MxFramework.Runtime;
+
+public sealed class GameSlice
+{
+    private readonly IRuntimeLogger _logger;
+
+    public GameSlice(IRuntimeLogger logger = null)
+    {
+        _logger = logger ?? NullRuntimeLogger.Instance;
+        _logger.Info("GameSlice", "Construct");
+    }
+}
+```
+
+Unity composition root:
+
+```csharp
+using MxFramework.Runtime.Unity;
+using UnityEngine;
+
+public sealed class GameManager : MonoBehaviour
+{
+    [SerializeField] private bool _logConsole = true;
+
+    private UnityRuntimeLogger _logger;
+    private GameSlice _slice;
+
+    private void OnEnable()
+    {
+        _logger = new UnityRuntimeLogger(this, "CharacterTest")
+        {
+            Enabled = _logConsole
+        };
+        _logger.SetCategoryHeaderColor("GameManager", "#BB8FCE");
+        _logger.SetCategoryHeaderColor("GameSlice", "#58D68D");
+        _slice = new GameSlice(_logger);
+    }
+}
+```
+
+Rules:
+
+- Do not call `UnityEngine.Debug` from `MxFramework.Runtime` or pure C# runtime slices.
+- Logs are developer feedback, not gameplay authority, Replay data, SaveState, or hash input.
+- Recoverable failures should still return structured result types such as `RuntimeCommandValidationResult`; logging is only an observation path.
+- For long-lived runtime state views, prefer Diagnostics snapshots or Debug UI.
+- `UnityRuntimeLogger` supports level colors by default; use `SetCategoryHeaderColor(category, color)` from a Unity composition root for demo-specific category colors.
 
 ## 19. Diagnostics 诊断
 

@@ -47,6 +47,7 @@ Runtime 提供框架级运行时组合根和生命周期调度。它不承载业
 | `RuntimeHostError` | 单个模块错误记录 |
 | `RuntimeHostException` | FailFast 策略下抛出的包装异常 |
 | `RuntimeHostDiagnostics` / `RuntimeModuleDiagnostics` | Host 状态、模块列表和错误快照 |
+| `RuntimeLogLevel` / `IRuntimeLogger` / `NullRuntimeLogger` | Lightweight noEngine logging contract for composition roots and runtime probes |
 | `RuntimeFrame` | 非负 runtime frame 值，支持比较、相等和字符串输出 |
 | `RuntimeClock` | 显式 frame clock，支持 `CurrentFrame`、`Step()`、`Reset(frame)` |
 | `RuntimeCommand` | 通用输入命令契约，包含 frame、source、command、target、payload、trace 和 sequence |

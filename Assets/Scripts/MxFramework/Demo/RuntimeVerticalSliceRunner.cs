@@ -136,6 +136,7 @@ namespace MxFramework.Demo
         private float _elapsed;
         private int _totalDamageTaken;
         private IConfigProvider _configRegistry;
+        public bool ConfigReady => _configReady;
         private bool _configReady;
         private ConfigChangeSet _changeSet;
         private RuntimeConfigHotReloadResult _lastHotReloadResult;
@@ -360,7 +361,8 @@ namespace MxFramework.Demo
                 abilityRunner.AppendExternalEvent(_resourceTestLines[i]);
         }
 
-        private void StartHardcoded() { /* unchanged from previous implementation */ 
+        private void StartHardcoded()
+        { /* unchanged from previous implementation */
             LogEvent("=== Hardcoded Slice ===");
             LogEvent($"HP={_initialHp} Attack={_initialAttack} Defense={_initialDefense}");
             var attackMod = new FlatAddModifier(Const.ModAttackBoost, Const.AttrAttack, 50);

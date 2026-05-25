@@ -30,7 +30,8 @@ namespace MxFramework.Tests.StoryEditor
             VisualElement root = host.Q<VisualElement>(StoryEditorDebugWindowView.RootName);
             Assert.IsNotNull(root);
             Assert.AreEqual("Story 运行时调试", host.Q<Label>(StoryEditorDebugWindowView.TitleName).text);
-            Assert.That(host.Q<VisualElement>(StoryEditorDebugWindowView.ContentName).Q<Label>().text, Does.Contain("StoryRuntime"));
+            var contentLabels = host.Q<VisualElement>(StoryEditorDebugWindowView.ContentName).Query<Label>().ToList();
+            Assert.That(contentLabels.Exists(label => label.text.Contains("StoryRuntime")));
 
             TextField report = host.Q<TextField>(StoryEditorDebugWindowView.ReportName);
             Assert.IsNotNull(report);
@@ -45,10 +46,9 @@ namespace MxFramework.Tests.StoryEditor
 
             StoryEditorDebugWindowView.BuildReadonlyTree(host, DebugUiDashboardViewModel.Empty, "empty");
 
-            var labels = new List<Label>();
-            host.Q<VisualElement>(StoryEditorDebugWindowView.ContentName).Query<Label>().ForEach(labels.Add);
-            Assert.That(labels[0].text, Does.Contain("状态"));
-            Assert.That(labels[1].text, Does.Contain("没有已注册的 Story Runtime 调试源"));
+            var labels = host.Q<VisualElement>(StoryEditorDebugWindowView.ContentName).Query<Label>().ToList();
+            Assert.That(labels.Exists(label => label.text.Contains("状态")));
+            Assert.That(labels.Exists(label => label.text.Contains("没有已注册的 Story Runtime 调试源")));
         }
     }
 }

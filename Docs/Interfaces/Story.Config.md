@@ -10,6 +10,8 @@
 
 外部工具层现在可以先产出 `.story.json` draft 作为 handoff 文件。`Tools/MxFrameworkStoryAuthoring/story_authoring.py import-markdown` 把 Markdown Story Outline v1 转成 `schema=mx.story.config.draft.v1` 的 JSON，字段名对齐下方配置行；`validate` 在工具层镜像本页的跨行约束并输出结构化 diagnostics。该 draft 不是 Runtime SaveState、Unity asset 或 Story core 输入，项目层仍需把 rows 映射进 `StoryConfigSet` / `StoryGraphConfigMapper`。
 
+CharacterTest 当前提供了项目层最小适配示例：`CharacterTestStoryDraftJson` 读取 `.story.json` draft，构造 `StoryConfigSet`，调用 `StoryGraphConfigMapper`，并把 `texts` 元数据保留给 demo Console 反馈使用。该适配器属于 demo/project layer，不是 `MxFramework.Story.Config` 的公共 JSON importer。
+
 ## 依赖边界
 
 ```text
