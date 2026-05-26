@@ -27,6 +27,8 @@ assert(index.includes("Overview") && index.includes("Unity") && index.includes("
 assert(index.includes("resourceImportFileInput") && index.includes("resourceImportFolderInput") && index.includes("resourceReplaceFileInput"), "write actions should provide hidden file inputs");
 assert(index.includes("importPresetSelect") && index.includes("导入类型"), "write actions should expose typed import presets");
 assert(index.includes("importResourceButton") && index.includes("importFolderButton") && index.includes("reimportResourceButton") && index.includes("replaceSourceButton"), "write actions should expose import/folder/reimport/replace buttons");
+assert(index.includes("buildProfilePanel") && index.includes("addToBuildProfileButton") && index.includes("saveBuildProfileButton"), "profile UI should expose build profile panel and write actions");
+assert(index.includes("data-tab=\"build\""), "inspector should expose Build tab");
 assert(index.includes("deleteResourceButton") && index.includes("editTagsButton") && index.includes("等待 reference graph delete guard"), "delete/tag actions should remain guarded");
 assert(index.includes("复制详情 JSON") && index.includes("复制诊断 JSON"), "copy JSON actions should be visible");
 
@@ -36,6 +38,8 @@ assert(app.includes("/api/authoring/resources/resource-plan?package="), "app sho
 assert(app.includes("/api/authoring/resources/inspect?package="), "app should call authoring inspect API defensively");
 assert(app.includes("/api/authoring/resources/stage-import"), "app should call external import staging API before folder promotion");
 assert(app.includes("/api/authoring/resources/import") && app.includes("/api/authoring/resources/reimport") && app.includes("/api/authoring/resources/replace-source"), "app should call authoring resource write API gates");
+assert(app.includes("/api/authoring/resources/global-build-profile") && app.includes("/api/authoring/resources/bundle-plan?package="), "app should call global build profile and bundle planner APIs");
+assert(app.includes("saveBuildProfileDraft") && app.includes("findBuildProfileEntryForItem") && app.includes("bundleOverrideMode"), "app should support profile membership and planner intent editing");
 assert(!app.includes("/api/character/resources/import") && !app.includes("/api/character/resources/reimport") && !app.includes("/api/character/resources/replace-source"), "new Resource Manager writes should not use character-prefixed write APIs");
 assert(app.includes("resourceId") && app.includes("sourceProviderId") && app.includes("providerBindings"), "app should understand authoring resource identity and provider bindings");
 assert(app.includes("providerFilter") && app.includes("getProviders") && app.includes("provider 状态"), "app should expose provider filter and provider status");
@@ -54,7 +58,7 @@ assert(app.includes("onlyRuntimeLoadable") && app.includes("onlyDiagnostics"), "
 assert(app.includes("navigator.clipboard.writeText"), "app should copy JSON through the clipboard when available");
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "app should remain vanilla DOM/fetch JavaScript");
 
-assert(styles.includes(".resource-browser") && styles.includes(".inspector-tabs") && styles.includes(".action-bar") && styles.includes(".import-preset-label"), "styles should cover browser, inspector tabs, action bar, and import preset");
+assert(styles.includes(".resource-browser") && styles.includes(".inspector-tabs") && styles.includes(".action-bar") && styles.includes(".import-preset-label") && styles.includes(".build-profile-panel"), "styles should cover browser, inspector tabs, action bar, import preset, and build profile UI");
 assert(styles.includes("@media"), "styles should include responsive rules");
 assert(launcher.includes("HEALTH_INSPECT_URL") && launcher.includes("is_resource_library_server_ready"), "launcher should require inspect API readiness");
 assert(windowsLauncher.includes("HEALTH_INSPECT_URL"), "Windows launcher should require inspect API readiness");

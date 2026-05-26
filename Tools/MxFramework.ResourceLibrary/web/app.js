@@ -8,6 +8,9 @@ const API = {
     return `/api/authoring/resources/resource-plan?package=${encodeURIComponent(packageRelative)}${suffix}`;
   },
   inspect: (packageRelative, id) => `/api/authoring/resources/inspect?package=${encodeURIComponent(packageRelative)}&id=${encodeURIComponent(id)}`,
+  buildProfile: "/api/authoring/resources/global-build-profile",
+  saveBuildProfile: "/api/authoring/resources/global-build-profile/save",
+  bundlePlan: packageRelative => `/api/authoring/resources/bundle-plan?package=${encodeURIComponent(packageRelative)}`,
   stageImport: "/api/authoring/resources/stage-import",
   importResource: "/api/authoring/resources/import",
   reimportResource: "/api/authoring/resources/reimport",
@@ -111,6 +114,9 @@ const state = {
   packageRelative: DEFAULT_PACKAGE,
   resourcesPayload: null,
   resourcePlanPayload: null,
+  buildProfilePayload: null,
+  buildProfileDraft: null,
+  bundlePlanPayload: null,
   selectedResourceKey: "",
   activeTab: "overview",
   filters: { ...FILTER_DEFAULTS },
@@ -138,15 +144,17 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   for (const id of [
     "serverStatus", "packageSelect", "refreshButton", "openCharacterStudioButton",
-    "validateButton", "viewPlanButton", "statusStrip", "resourceSummary",
+    "validateButton", "viewPlanButton", "viewBuildProfileButton", "statusStrip", "resourceSummary",
     "searchInput", "kindFilter", "usageFilter", "providerFilter", "sourceFilter", "importFilter",
     "runtimeFilter", "tagFilter", "onlyReferenced", "onlyOrphan",
     "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "resourceList",
     "previewTitle", "previewSubtitle", "previewBody", "resourcePlanPanel",
-    "planSummary", "planGrid", "inspectorStatus", "inspectorContent",
+    "planSummary", "planGrid", "buildProfilePanel", "buildProfileSummary",
+    "buildProfileContent", "inspectorStatus", "inspectorContent",
     "resourceImportFileInput", "resourceImportFolderInput", "resourceReplaceFileInput",
     "importPresetSelect", "importResourceButton", "importFolderButton",
-    "reimportResourceButton", "replaceSourceButton", "deleteResourceButton",
+    "reimportResourceButton", "replaceSourceButton", "addToBuildProfileButton",
+    "removeFromBuildProfileButton", "saveBuildProfileButton", "deleteResourceButton",
     "editTagsButton", "writeActionStatus", "copyDetailJsonButton",
     "copyDiagnosticsJsonButton", "copyStatus"
   ]) {
@@ -170,6 +178,9 @@ function bindEvents() {
   el.validateButton.addEventListener("click", runResourceValidation);
   el.viewPlanButton.addEventListener("click", () => {
     el.resourcePlanPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  el.viewBuildProfileButton.addEventListener("click", () => {
+    el.buildProfilePanel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   const filterBindings = [
@@ -239,6 +250,17 @@ function bindEvents() {
     el.resourceReplaceFileInput.click();
   });
   el.reimportResourceButton.addEventListener("click", reimportSelectedResource);
+  el.addToBuildProfileButton.addEventListener("click", addSelectedToBuildProfile);
+  el.removeFromBuildProfileButton.addEventListener("click", removeSelectedFromBuildProfile);
+  el.saveBuildProfileButton.addEventListener("click", saveBuildProfileDraft);
+  el.buildProfileContent.addEventListener("input", event => {
+    const control = event.target.closest("[data-profile-field]");
+    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value);
+  });
+  el.buildProfileContent.addEventListener("change", event => {
+    const control = event.target.closest("[data-profile-field]");
+    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value);
+  });
   el.resourceImportFileInput.addEventListener("change", event => importResourceFile(event.target.files?.[0]));
   el.resourceImportFolderInput.addEventListener("change", event => importResourceFolder(Array.from(event.target.files || [])));
   el.resourceReplaceFileInput.addEventListener("change", event => replaceSelectedResourceFile(event.target.files?.[0]));
@@ -261,7 +283,9 @@ async function loadPackageData() {
   renderLoading();
   await Promise.all([
     loadResources(),
-    loadResourcePlan(false)
+    loadResourcePlan(false),
+    loadBuildProfile(),
+    loadBundlePlan()
   ]);
   const items = getNormalizedItems();
   const previousSelection = state.selectedResourceKey;
@@ -314,6 +338,26 @@ async function loadResourcePlan(checkHashes) {
   } catch (error) {
     state.resourcePlanPayload = null;
     state.errors.push(apiError("resource plan", error));
+  }
+}
+
+async function loadBuildProfile() {
+  try {
+    state.buildProfilePayload = await fetchJson(API.buildProfile);
+    state.buildProfileDraft = structuredCloneCompat(pick(state.buildProfilePayload, "profile") || {});
+  } catch (error) {
+    state.buildProfilePayload = null;
+    state.buildProfileDraft = null;
+    state.errors.push(apiError("Global Build Profile", error));
+  }
+}
+
+async function loadBundlePlan() {
+  try {
+    state.bundlePlanPayload = await fetchJson(API.bundlePlan(state.packageRelative));
+  } catch (error) {
+    state.bundlePlanPayload = null;
+    state.errors.push(apiError("Bundle Planner", error));
   }
 }
 
@@ -412,6 +456,64 @@ async function reimportSelectedResource() {
   const id = getResourceWriteId(item);
   if (!window.confirm(`重导资源 ${item.displayName || id}？`)) return;
   await executeResourceWrite("reimport", API.reimportResource, { id }, "重导资源");
+}
+
+async function addSelectedToBuildProfile() {
+  const item = getSelectedItem();
+  const profile = ensureBuildProfileDraft();
+  if (!item || !profile) return;
+  if (findBuildProfileEntryForItem(item)) return;
+  if (!Array.isArray(profile.entries)) profile.entries = [];
+  profile.entries.push(buildProfileEntryFromItem(item));
+  state.lastActionMessage = "已加入构建 Profile 草稿，保存后生效。";
+  render();
+}
+
+async function removeSelectedFromBuildProfile() {
+  const item = getSelectedItem();
+  const profile = getBuildProfile();
+  if (!item || !profile || !Array.isArray(profile.entries)) return;
+  const before = profile.entries.length;
+  profile.entries = profile.entries.filter(entry => !profileEntryMatchesItem(entry, item));
+  state.lastActionMessage = before === profile.entries.length ? "当前资源不在构建 Profile 中。" : "已从构建 Profile 草稿移除，保存后生效。";
+  render();
+}
+
+function updateSelectedBuildProfileField(field, value) {
+  const item = getSelectedItem();
+  const entry = item ? findBuildProfileEntryForItem(item) : null;
+  if (!entry) return;
+  if (field === "labels" || field === "preloadGroups") {
+    entry[field] = splitCsv(value);
+  } else {
+    entry[field] = value;
+  }
+  renderActions();
+}
+
+async function saveBuildProfileDraft() {
+  const profile = getBuildProfile();
+  if (!profile) return;
+  state.writeState = { status: "running", action: "save-build-profile", error: "" };
+  state.lastActionMessage = "正在保存 Global Resource Build Profile...";
+  render();
+  try {
+    const payload = await postJson(API.saveBuildProfile, { profile });
+    state.buildProfilePayload = payload;
+    state.buildProfileDraft = structuredCloneCompat(pick(payload, "profile") || profile);
+    await loadBundlePlan();
+    state.writeState = { status: "idle", action: "", error: "" };
+    state.lastActionMessage = "Global Resource Build Profile 已保存。";
+  } catch (error) {
+    state.writeState = { status: "error", action: "save-build-profile", error: error.message };
+    state.lastActionMessage = `Profile 保存失败：${formatValidationSummary(error.data) || error.message}`;
+    if (error.data) {
+      state.buildProfilePayload = error.data;
+      state.buildProfileDraft = structuredCloneCompat(pick(error.data, "profile") || profile);
+    }
+    state.errors.push(apiError("保存 Global Build Profile", error));
+  }
+  render();
 }
 
 async function replaceSelectedResourceFile(file) {
@@ -648,6 +750,8 @@ function renderLoading() {
   el.previewBody.innerHTML = "";
   el.planSummary.textContent = "正在读取 resource plan...";
   el.planGrid.innerHTML = "";
+  el.buildProfileSummary.textContent = "正在读取 Global Resource Build Profile...";
+  el.buildProfileContent.innerHTML = "";
   el.inspectorStatus.textContent = "正在读取详情...";
   el.inspectorContent.innerHTML = emptyBlock("等待资源详情");
 }
@@ -660,6 +764,7 @@ function render() {
   renderBrowser();
   renderPreview();
   renderPlan();
+  renderBuildProfile();
   renderInspector();
   renderActions();
 }
@@ -680,6 +785,8 @@ function renderStatus() {
   const packageLabel = getSelectedPackageLabel();
   const providers = getProviders();
   const unavailableProviders = providers.filter(provider => !provider.available);
+  const buildProfile = getBuildProfile();
+  const bundlePlan = getBundlePlan();
 
   el.serverStatus.textContent = connected
     ? `已连接 Authoring 服务，全局资源视图；包筛选：${packageLabel}`
@@ -694,6 +801,8 @@ function renderStatus() {
     statusChip("资源项", String(items.length), items.length > 0 ? "ok" : "warn"),
     statusChip("诊断", String(diagnostics.length), diagnostics.some(d => getSeverity(d) === "Error") ? "error" : diagnostics.length > 0 ? "warn" : "ok"),
     statusChip("resource plan", planStatus, planStatus === "Ready" ? "ok" : state.resourcePlanPayload ? "warn" : "error"),
+    statusChip("build profile", `${asArray(pick(buildProfile, "entries")).length}`, buildProfile ? "ok" : "warn"),
+    statusChip("bundle plan", `${asArray(pick(bundlePlan, "bundles")).length}`, bundlePlan ? "ok" : "warn"),
     validationMessage
   ].filter(Boolean).join("");
 }
@@ -873,6 +982,108 @@ function renderPlan() {
     </article>`).join("") || emptyBlock(plan ? "resource plan 没有资源分组" : "未生成 resource plan") ;
 }
 
+function renderBuildProfile() {
+  const profile = getBuildProfile();
+  const entries = getBuildProfileEntries();
+  const plan = getBundlePlan();
+  const bundles = asArray(pick(plan, "bundles"));
+  const diagnostics = [
+    ...asArray(pick(pick(state.buildProfilePayload, "validation"), "issues")),
+    ...asArray(pick(plan, "diagnostics"))
+  ];
+  const selected = getSelectedItem();
+  const selectedEntry = selected ? findBuildProfileEntryForItem(selected) : null;
+
+  if (!profile) {
+    el.buildProfileSummary.textContent = "没有读取到 Global Resource Build Profile API。";
+    el.buildProfileContent.innerHTML = emptyBlock("Authoring Server 未暴露构建 Profile 状态。");
+    return;
+  }
+
+  el.buildProfileSummary.textContent = `${entries.length} 个 profile entry，${bundles.length} 个 bundle，${diagnostics.length} 条构建诊断`;
+  el.buildProfileContent.innerHTML = `
+    <div class="summary-grid">
+      ${metric("profile entries", entries.length)}
+      ${metric("bundles", bundles.length)}
+      ${metric("external", asArray(pick(plan, "externalEntries")).length)}
+      ${metric("excluded", asArray(pick(plan, "excludedEntries")).length)}
+    </div>
+    <div class="profile-editor-grid">
+      <div class="detail-card">
+        <h3>当前选择</h3>
+        ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("选择左侧资源后编辑构建意图")}
+      </div>
+      <div class="detail-card">
+        <h3>Planner 输出</h3>
+        <p class="profile-hint">Planner 输出来自已保存 Profile；草稿保存后刷新。</p>
+        ${renderBundlePlanSummary(bundles)}
+      </div>
+    </div>
+    <div class="detail-card">
+      <h3>构建诊断</h3>
+      ${renderDiagnosticsList(diagnostics)}
+    </div>`;
+}
+
+function renderBuildProfileEditor(item, entry) {
+  const inProfile = Boolean(entry);
+  const draft = entry || buildProfileEntryFromItem(item);
+  return `
+    <div class="profile-status-line">
+      ${smallBadge(inProfile ? "inProfile" : "notInProfile", inProfile ? "ok" : "warn")}
+      ${smallBadge(getBuildProfileStatus(item), toneForBuildProfileStatus(getBuildProfileStatus(item)))}
+    </div>
+    ${renderKeyValueList([
+      ["resourceKey", formatProfileResourceKey(pick(draft, "resourceKey")) || item.resourceKey || "-"],
+      ["sourceProvider", stringValue(pick(pick(draft, "source"), "providerId")) || item.providerId || "-"],
+      ["unityGuid", pick(pick(draft, "source"), "unityGuid") || item.unityGuid || "-"]
+    ])}
+    <div class="profile-form">
+      <label>
+        <span>delivery mode</span>
+        <select data-profile-field="deliveryMode" ${inProfile ? "" : "disabled"}>
+          ${selectOptions(["internal", "external", "editorOnly", "excluded"], pick(draft, "deliveryMode") || "internal")}
+        </select>
+      </label>
+      <label>
+        <span>override mode</span>
+        <select data-profile-field="bundleOverrideMode" ${inProfile ? "" : "disabled"}>
+          ${selectOptions(["none", "forceBundle", "forceStandalone", "forceExternal", "exclude"], pick(draft, "bundleOverrideMode") || "none")}
+        </select>
+      </label>
+      <label>
+        <span>override value</span>
+        <input data-profile-field="bundleOverrideValue" value="${escapeHtml(pick(draft, "bundleOverrideValue") || "")}" ${inProfile ? "" : "disabled"}>
+      </label>
+      <label>
+        <span>bundle group hint</span>
+        <input data-profile-field="bundleGroupHint" value="${escapeHtml(pick(draft, "bundleGroupHint") || pick(draft, "bundleRule") || "")}" ${inProfile ? "" : "disabled"}>
+      </label>
+      <label>
+        <span>bundle rule</span>
+        <input data-profile-field="bundleRule" value="${escapeHtml(pick(draft, "bundleRule") || "")}" ${inProfile ? "" : "disabled"}>
+      </label>
+      <label>
+        <span>preload groups</span>
+        <input data-profile-field="preloadGroups" value="${escapeHtml(asArray(pick(draft, "preloadGroups")).join(", "))}" ${inProfile ? "" : "disabled"}>
+      </label>
+      <label>
+        <span>labels</span>
+        <input data-profile-field="labels" value="${escapeHtml(asArray(pick(draft, "labels")).join(", "))}" ${inProfile ? "" : "disabled"}>
+      </label>
+    </div>`;
+}
+
+function renderBundlePlanSummary(bundles) {
+  if (bundles.length === 0) return emptyBlock("Planner 尚未生成内部 bundle。");
+  return `<div class="bundle-list">${bundles.slice(0, 8).map(bundle => `
+    <article class="bundle-row">
+      <strong>${escapeHtml(pick(bundle, "bundleName") || "-")}</strong>
+      <span>${escapeHtml(pick(bundle, "compression") || "-")} · ${asArray(pick(bundle, "includedResourceKeys")).length} resources</span>
+      <small>${escapeHtml(asArray(pick(bundle, "dependencyBundleNames")).join(", ") || "no dependencies")}</small>
+    </article>`).join("")}</div>`;
+}
+
 function renderInspector() {
   for (const tab of el.inspectorTabs) {
     tab.classList.toggle("active", tab.dataset.tab === state.activeTab);
@@ -903,6 +1114,7 @@ function renderInspector() {
 function renderInspectorTab(tab, item, detail) {
   if (tab === "unity") return renderUnityTab(item, detail);
   if (tab === "runtime") return renderRuntimeTab(item, detail);
+  if (tab === "build") return renderBuildTab(item);
   if (tab === "references") return renderReferencesTab(detail);
   if (tab === "diagnostics") return renderDiagnosticsTab(detail);
   return renderOverviewTab(item, detail);
@@ -979,6 +1191,38 @@ function renderRuntimeTab(item, detail) {
     </section>`;
 }
 
+function renderBuildTab(item) {
+  const entry = findBuildProfileEntryForItem(item);
+  const planEntry = findBundlePlanEntryForItem(item);
+  return `
+    <section class="inspector-section">
+      <h3>Global Build Profile</h3>
+      ${entry ? renderKeyValueList([
+        ["status", getBuildProfileStatus(item)],
+        ["deliveryMode", pick(entry, "deliveryMode") || "internal"],
+        ["bundleOverrideMode", pick(entry, "bundleOverrideMode") || "none"],
+        ["bundleOverrideValue", pick(entry, "bundleOverrideValue") || "-"],
+        ["bundleGroupHint", pick(entry, "bundleGroupHint") || "-"],
+        ["bundleRule", pick(entry, "bundleRule") || "-"],
+        ["preloadGroups", asArray(pick(entry, "preloadGroups")).join(", ") || "-"],
+        ["labels", asArray(pick(entry, "labels")).join(", ") || "-"]
+      ]) : emptyBlock("当前资源尚未加入 Global Resource Build Profile。")}
+    </section>
+    <section class="inspector-section">
+      <h3>Bundle Planner</h3>
+      ${planEntry ? renderKeyValueList([
+        ["bundleName", pick(planEntry, "bundleName") || "-"],
+        ["reason", pick(planEntry, "reason") || "-"],
+        ["deliveryMode", pick(planEntry, "deliveryMode") || "-"],
+        ["sourceProviderId", pick(planEntry, "sourceProviderId") || "-"]
+      ]) : emptyBlock("当前资源没有 planner 输出。")}
+    </section>
+    <section class="inspector-section">
+      <h3>Profile entry JSON</h3>
+      ${renderJsonBlock(entry || {})}
+    </section>`;
+}
+
 function normalizeInspectPlans(plans) {
   return plans.map(plan => {
     const resource = pick(plan, "resource") || {};
@@ -1024,24 +1268,32 @@ function renderActions() {
   const preset = getSelectedImportPreset();
   const connected = Boolean(state.resourcesPayload);
   const writeBusy = state.writeState.status === "running";
+  const profileReady = Boolean(getBuildProfile());
+  const profileEntry = item ? findBuildProfileEntryForItem(item) : null;
   el.importResourceButton.disabled = !connected || writeBusy;
   el.importFolderButton.disabled = !connected || writeBusy;
   el.reimportResourceButton.disabled = !connected || !item || writeBusy;
   el.replaceSourceButton.disabled = !connected || !item || writeBusy;
+  el.addToBuildProfileButton.disabled = !profileReady || !item || Boolean(profileEntry) || writeBusy;
+  el.removeFromBuildProfileButton.disabled = !profileReady || !item || !profileEntry || writeBusy;
+  el.saveBuildProfileButton.disabled = !profileReady || writeBusy;
   el.deleteResourceButton.disabled = true;
   el.editTagsButton.disabled = true;
   el.importResourceButton.title = connected ? `导入一个${preset.label}资源` : "Authoring 资源 API 未连接";
   el.importFolderButton.title = connected ? `批量导入文件夹中的${preset.label}资源` : "Authoring 资源 API 未连接";
   el.reimportResourceButton.title = item ? "重新计算当前资源的导入状态和哈希" : "先选择一个资源项";
   el.replaceSourceButton.title = item ? "替换当前资源源文件，并保留 stableId/resourceKey" : "先选择一个资源项";
+  el.addToBuildProfileButton.title = profileEntry ? "当前资源已在构建 Profile 中" : "把当前资源加入 Global Resource Build Profile";
+  el.removeFromBuildProfileButton.title = profileEntry ? "从 Global Resource Build Profile 移除当前资源" : "当前资源不在构建 Profile 中";
+  el.saveBuildProfileButton.title = "通过 Authoring API 校验并保存 Global Resource Build Profile";
   if (state.writeState.status === "running") {
     el.writeActionStatus.textContent = "写入中：正在通过 Authoring API 更新资源库。";
   } else if (state.writeState.status === "error") {
     el.writeActionStatus.textContent = `写入失败：${state.writeState.error}`;
   } else if (item) {
-    el.writeActionStatus.textContent = `导入类型：${preset.label}；当前目标：${item.displayName || getResourceWriteId(item)}；delete/tag 仍锁定。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；当前目标：${item.displayName || getResourceWriteId(item)}；构建 Profile：${profileEntry ? "已加入" : "未加入"}。`;
   } else {
-    el.writeActionStatus.textContent = `导入类型：${preset.label}；支持单文件和文件夹导入；delete/tag 仍锁定。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；支持单文件、文件夹和构建 Profile 写入。`;
   }
   el.copyDetailJsonButton.disabled = false;
   el.copyDiagnosticsJsonButton.disabled = false;
@@ -1153,6 +1405,127 @@ function readFileAsBase64(file) {
 function getNormalizedItems() {
   const items = asArray(pick(state.resourcesPayload, "items", "entries", "Items", "Entries"));
   return items.map((raw, index) => normalizeItem(raw, index));
+}
+
+function getBuildProfile() {
+  return state.buildProfileDraft || pick(state.buildProfilePayload, "profile") || null;
+}
+
+function ensureBuildProfileDraft() {
+  if (!state.buildProfileDraft) {
+    state.buildProfileDraft = structuredCloneCompat(pick(state.buildProfilePayload, "profile") || {
+      schemaVersion: 1,
+      profileId: "global.default",
+      catalogId: "global.runtime",
+      entries: [],
+      bundleRules: [],
+      preloadGroups: []
+    });
+  }
+  if (!Array.isArray(state.buildProfileDraft.entries)) state.buildProfileDraft.entries = [];
+  return state.buildProfileDraft;
+}
+
+function getBuildProfileEntries() {
+  return asArray(pick(getBuildProfile(), "entries"));
+}
+
+function getBundlePlan() {
+  return pick(state.bundlePlanPayload, "plan") || null;
+}
+
+function findBuildProfileEntryForItem(item) {
+  return getBuildProfileEntries().find(entry => profileEntryMatchesItem(entry, item)) || null;
+}
+
+function profileEntryMatchesItem(entry, item) {
+  const key = pick(entry, "resourceKey") || {};
+  const source = pick(entry, "source") || {};
+  const entryId = stringValue(pick(key, "id"));
+  const entryType = stringValue(pick(key, "type", "typeId"));
+  return Boolean(
+    (entryId && [item.resourceKey, item.runtimeResourceKey, item.providerResourceKey, item.packageResourceKey, item.stableId, item.libraryItemId, item.resourceId].includes(entryId))
+    || (entryId && item.resourceKey && item.resourceKey.endsWith(`:${entryId}:`))
+    || (entryId && entryType && item.resourceKey === formatProfileResourceKey(key))
+    || (source.unityGuid && item.unityGuid && source.unityGuid === item.unityGuid)
+    || (source.unityAssetPath && item.unityAssetPath && source.unityAssetPath === item.unityAssetPath)
+  );
+}
+
+function findBundlePlanEntryForItem(item) {
+  const plan = getBundlePlan();
+  const candidates = [
+    ...asArray(pick(plan, "externalEntries")),
+    ...asArray(pick(plan, "excludedEntries")),
+    ...asArray(pick(plan, "bundles")).flatMap(bundle => asArray(pick(bundle, "entries")))
+  ];
+  return candidates.find(entry => {
+    const key = stringValue(pick(entry, "resourceKey"));
+    const id = stringValue(pick(entry, "resourceId"));
+    return matchesItem(item, "", key, id) || id === item.resourceKey || id === item.stableId;
+  }) || null;
+}
+
+function buildProfileEntryFromItem(item) {
+  const resourceKey = buildProfileResourceKeyFromItem(item);
+  const domainLabel = item.kind ? `domain.${normalizeLabelSegment(item.kind)}` : "domain.resource";
+  const bundleHint = item.usage ? normalizeLabelSegment(item.usage) : item.kind ? normalizeLabelSegment(item.kind) : "misc";
+  return {
+    resourceKey,
+    source: {
+      providerId: item.providerId || "unknown",
+      unityAssetPath: item.unityAssetPath || "",
+      unityGuid: item.unityGuid || "",
+      runtimeResourceKey: item.runtimeResourceKey || item.resourceKey || "",
+      externalSourcePath: item.sourcePath || "",
+      providerData: {}
+    },
+    labels: [domainLabel, `bundle.${bundleHint}`],
+    bundleRule: bundleHint,
+    deliveryMode: inferDeliveryModeForItem(item),
+    bundleOverrideMode: "none",
+    bundleOverrideValue: "",
+    bundleGroupHint: bundleHint,
+    preloadGroups: [],
+    dependencies: [],
+    providerData: {},
+    runtimeLoadable: isRuntimeLoadable(item),
+    editorOnly: String(item.runtimeAvailability || "").toLowerCase().includes("editor")
+  };
+}
+
+function buildProfileResourceKeyFromItem(item) {
+  const parsed = parseProfileResourceKey(item.resourceKey || item.runtimeResourceKey || item.providerResourceKey || item.packageResourceKey || "");
+  return {
+    id: parsed.id || item.stableId || item.libraryItemId || item.resourceId,
+    type: item.kind || parsed.type || "Object",
+    typeId: "",
+    variant: parsed.variant,
+    packageId: parsed.packageId
+  };
+}
+
+function inferDeliveryModeForItem(item) {
+  if (!isRuntimeLoadable(item)) return "excluded";
+  if (["runtimeCatalog", "fmod", "externalImportStaging"].includes(item.providerId)) return "external";
+  return "internal";
+}
+
+function getBuildProfileStatus(item) {
+  const entry = findBuildProfileEntryForItem(item);
+  if (!entry) return "notInProfile";
+  const mode = pick(entry, "bundleOverrideMode") || "none";
+  const delivery = pick(entry, "deliveryMode") || "internal";
+  if (mode === "exclude" || delivery === "excluded") return "excluded";
+  if (mode === "forceExternal" || delivery === "external") return "external";
+  return "inProfile";
+}
+
+function toneForBuildProfileStatus(status) {
+  if (status === "inProfile") return "ok";
+  if (status === "external" || status === "excluded") return "warn";
+  if (status === "conflict" || status === "missing") return "error";
+  return "neutral";
 }
 
 function normalizeItem(raw, index) {
@@ -1335,7 +1708,9 @@ function getAllDiagnostics() {
   const resourcesDiagnostics = asArray(pick(state.resourcesPayload, "diagnostics"));
   const planDiagnostics = asArray(pick(getPlanDocument(), "diagnostics"));
   const reportDiagnostics = asArray(pick(getValidationReport(), "diagnostics"));
-  diagnostics.push(...resourcesDiagnostics, ...planDiagnostics, ...reportDiagnostics);
+  const buildProfileDiagnostics = asArray(pick(pick(state.buildProfilePayload, "validation"), "issues"));
+  const bundlePlanDiagnostics = asArray(pick(getBundlePlan(), "diagnostics"));
+  diagnostics.push(...resourcesDiagnostics, ...planDiagnostics, ...reportDiagnostics, ...buildProfileDiagnostics, ...bundlePlanDiagnostics);
   for (const error of state.errors) {
     diagnostics.push({
       severity: "Error",
@@ -1719,6 +2094,66 @@ function formatCell(value) {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function formatProfileResourceKey(key) {
+  if (!key) return "";
+  const packageId = stringValue(pick(key, "packageId"));
+  const type = stringValue(pick(key, "type", "typeId"));
+  const id = stringValue(pick(key, "id"));
+  const variant = stringValue(pick(key, "variant"));
+  return `${packageId}:${type}:${id}:${variant}`;
+}
+
+function parseProfileResourceKey(value) {
+  const text = String(value || "");
+  const parts = text.split(":");
+  if (parts.length === 4) {
+    return {
+      packageId: parts[0] || "",
+      type: parts[1] || "",
+      id: parts[2] || "",
+      variant: parts[3] || ""
+    };
+  }
+
+  return {
+    packageId: "",
+    type: "",
+    id: text,
+    variant: ""
+  };
+}
+
+function formatValidationSummary(payload) {
+  const issues = asArray(pick(pick(payload, "validation"), "issues"));
+  if (issues.length === 0) return "";
+  return issues.slice(0, 2).map(issue => pick(issue, "message") || pick(issue, "code") || "validation issue").join("; ");
+}
+
+function selectOptions(values, selected) {
+  return values.map(value => `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value)}</option>`).join("");
+}
+
+function splitCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function normalizeLabelSegment(value) {
+  return String(value || "misc")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .toLowerCase() || "misc";
+}
+
+function structuredCloneCompat(value) {
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value ?? null));
 }
 
 function mergeDiagnostics(primary, secondary) {
