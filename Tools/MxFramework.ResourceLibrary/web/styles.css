@@ -403,6 +403,18 @@ code {
 
 .status-chip.pending::after { background: var(--muted-2); }
 
+.status-chip.clickable {
+  width: 100%;
+  align-items: flex-start;
+  text-align: left;
+  box-shadow: none;
+}
+
+.status-chip.clickable:hover {
+  border-color: var(--accent);
+  background: rgba(47, 194, 189, 0.08);
+}
+
 /* Workspace navigation */
 .workspace-nav {
   display: flex;
@@ -2252,6 +2264,34 @@ tr:last-child td {
   color: var(--muted-2);
   font-family: var(--mono);
   font-size: 10px;
+}
+
+.diagnostic-fix {
+  color: var(--text) !important;
+}
+
+.diagnostics-overview {
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.diagnostics-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.diagnostics-code-summary {
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.diagnostics-code-summary summary {
+  padding: 8px 10px;
+  color: var(--muted);
+  cursor: pointer;
 }
 
 /* JSON viewer styling */

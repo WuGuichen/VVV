@@ -218,7 +218,13 @@ function bindEvents() {
   el.copyBuildReportButton.addEventListener("click", copyBuildReport);
 
   for (const button of el.workspaceNavButtons) {
-    button.addEventListener("click", () => setWorkspace(button.dataset.workspace));
+    button.addEventListener("click", () => {
+      if (button.dataset.workspace === "debug" && getAllDiagnostics().length > 0) {
+        state.activeTab = "diagnostics";
+      }
+      setWorkspace(button.dataset.workspace);
+      render();
+    });
   }
 
   const filterBindings = [
@@ -345,6 +351,11 @@ function bindEvents() {
   });
   el.reimportResourceButton.addEventListener("click", reimportSelectedResource);
   el.saveBuildProfileButton.addEventListener("click", saveBuildProfileDraft);
+  el.statusStrip.addEventListener("click", event => {
+    const button = event.target.closest("[data-status-action]");
+    if (!button) return;
+    if (button.dataset.statusAction === "open-diagnostics") openDiagnosticsView();
+  });
 
   el.browseContextActions.addEventListener("click", handleContextActionClick);
   el.profileContextActions.addEventListener("click", handleContextActionClick);
@@ -1345,12 +1356,18 @@ function renderStatus() {
     statusChip("Authoring", connected ? "已连接" : "未连接", connected ? "ok" : "error"),
     statusChip("providers", providers.length > 0 ? `${providers.length}` : "0", unavailableProviders.length > 0 ? "warn" : providers.length > 0 ? "ok" : "warn"),
     statusChip("资源项", String(items.length), items.length > 0 ? "ok" : "warn"),
-    statusChip("诊断", String(diagnostics.length), diagnostics.some(d => getSeverity(d) === "Error") ? "error" : diagnostics.length > 0 ? "warn" : "ok"),
+    statusChip("诊断", String(diagnostics.length), diagnostics.some(d => getSeverity(d) === "Error") ? "error" : diagnostics.length > 0 ? "warn" : "ok", diagnostics.length > 0 ? "open-diagnostics" : ""),
     statusChip("resource plan", planStatus, planStatus === "Ready" ? "ok" : state.resourcePlanPayload ? "warn" : "error"),
     statusChip("build profile", `${asArray(pick(buildProfile, "entries")).length}`, buildProfile ? "ok" : "warn"),
     statusChip("bundle plan", `${asArray(pick(bundlePlan, "bundles")).length}`, bundlePlan ? "ok" : "warn"),
     validationMessage
   ].filter(Boolean).join("");
+}
+
+function openDiagnosticsView() {
+  state.activeTab = "diagnostics";
+  setWorkspace("debug");
+  render();
 }
 
 function renderFilters() {
@@ -2391,7 +2408,9 @@ function renderInspector() {
   const item = getSelectedItem();
   if (!item) {
     el.inspectorStatus.textContent = "选择一个资源项";
-    el.inspectorContent.innerHTML = emptyBlock("选择左侧资源后查看 Overview / Unity / Runtime / References / Diagnostics。");
+    el.inspectorContent.innerHTML = state.activeTab === "diagnostics"
+      ? renderDiagnosticsTab(null, null)
+      : emptyBlock("选择左侧资源后查看 Overview / Unity / Runtime / References / Diagnostics。");
     return;
   }
 
@@ -2424,7 +2443,7 @@ function renderDebugPicker() {
   el.debugResourcePicker.innerHTML = items.map(item => `
     <button type="button" class="debug-picker-item${item.key === selectedKey ? " active" : ""}" data-resource-key="${escapeHtml(item.key)}">
       <strong>${escapeHtml(item.displayName || item.stableId || "resource")}</strong>
-      <span>${escapeHtml(item.kind || "-")} · ${escapeHtml(getBuildProfileStatus(item))}</span>
+      <span>${escapeHtml(item.kind || "-")} · ${escapeHtml(getBuildProfileStatus(item))}${item.diagnosticCount > 0 ? ` · 诊断 ${item.diagnosticCount}` : ""}</span>
     </button>`).join("");
 }
 
@@ -2447,7 +2466,7 @@ function renderInspectorTab(tab, item, detail) {
   if (tab === "runtime") return renderRuntimeTab(item, detail);
   if (tab === "build") return renderBuildTab(item);
   if (tab === "references") return renderReferencesTab(detail);
-  if (tab === "diagnostics") return renderDiagnosticsTab(detail);
+  if (tab === "diagnostics") return renderDiagnosticsTab(detail, item);
   return renderOverviewTab(item, detail);
 }
 
@@ -2588,12 +2607,19 @@ function renderReferencesTab(detail) {
     </section>`;
 }
 
-function renderDiagnosticsTab(detail) {
-  const diagnostics = asArray(detail.diagnostics);
+function renderDiagnosticsTab(detail, item) {
+  const globalDiagnostics = getAllDiagnostics();
+  const itemDiagnostics = detail ? asArray(detail.diagnostics) : [];
   return `
+    <section class="inspector-section diagnostics-overview">
+      <h3>Global Diagnostics</h3>
+      ${renderDiagnosticsSummary(globalDiagnostics)}
+      ${renderDiagnosticsList(globalDiagnostics)}
+    </section>
     <section class="inspector-section">
-      <h3>Diagnostics</h3>
-      ${renderDiagnosticsList(diagnostics)}
+      <h3>${item ? "当前资源 Diagnostics" : "当前资源 Diagnostics"}</h3>
+      ${item ? `<p class="profile-hint">${escapeHtml(item.displayName || item.stableId || item.resourceKey || "当前资源")}</p>` : ""}
+      ${renderDiagnosticsList(itemDiagnostics)}
     </section>`;
 }
 
@@ -3645,6 +3671,7 @@ function renderDiagnosticsList(diagnostics) {
   if (rows.length === 0) return emptyBlock("没有诊断信息。");
   return `<div class="diagnostics-list">${rows.map(diagnostic => {
     const severity = getSeverity(diagnostic);
+    const source = formatDiagnosticSource(diagnostic);
     return `
       <article class="diagnostic-row ${severity.toLowerCase()}">
         <div>
@@ -3652,9 +3679,45 @@ function renderDiagnosticsList(diagnostics) {
           <code>${escapeHtml(pick(diagnostic, "code") || "-")}</code>
         </div>
         <p>${escapeHtml(pick(diagnostic, "message") || pick(diagnostic, "description") || JSON.stringify(diagnostic))}</p>
-        <small>${escapeHtml(pick(diagnostic, "suggestedFix") || pick(diagnostic, "sourceField") || "-")}</small>
+        <small>${escapeHtml(source)}</small>
+        ${pick(diagnostic, "suggestedFix") ? `<small class="diagnostic-fix">${escapeHtml(pick(diagnostic, "suggestedFix"))}</small>` : ""}
       </article>`;
   }).join("")}</div>`;
+}
+
+function renderDiagnosticsSummary(diagnostics) {
+  const rows = asArray(diagnostics);
+  if (rows.length === 0) return emptyBlock("没有全局诊断。");
+  const severityCounts = {};
+  const codeCounts = {};
+  for (const diagnostic of rows) {
+    const severity = getSeverity(diagnostic);
+    const code = pick(diagnostic, "code") || "UNKNOWN";
+    severityCounts[severity] = (severityCounts[severity] || 0) + 1;
+    codeCounts[code] = (codeCounts[code] || 0) + 1;
+  }
+  return `
+    <div class="diagnostics-summary">
+      ${metric("total", rows.length)}
+      ${metric("errors", severityCounts.Error || 0)}
+      ${metric("warnings", severityCounts.Warning || 0)}
+      ${metric("info", severityCounts.Info || 0)}
+    </div>
+    <details class="diagnostics-code-summary">
+      <summary>按诊断代码汇总</summary>
+      ${renderCountList(codeCounts, "没有诊断代码。")}
+    </details>`;
+}
+
+function formatDiagnosticSource(diagnostic) {
+  const parts = [
+    pick(diagnostic, "providerId"),
+    pick(diagnostic, "resourceKey", "runtimeResourceKey", "targetResourceKey"),
+    pick(diagnostic, "resourceStableId", "libraryItemStableId", "targetLibraryItemStableId"),
+    pick(diagnostic, "sourceStableId"),
+    pick(diagnostic, "sourceField")
+  ].map(value => stringValue(value)).filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "-";
 }
 
 function renderJsonBlock(value) {
@@ -3684,8 +3747,12 @@ function smallBadge(text, tone) {
   return `<span class="small-badge ${tone || "neutral"}">${escapeHtml(text)}</span>`;
 }
 
-function statusChip(label, value, tone) {
-  return `<div class="status-chip ${tone || "neutral"}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+function statusChip(label, value, tone, action = "") {
+  const attrs = action
+    ? ` data-status-action="${escapeHtml(action)}" title="点击查看诊断详情"`
+    : "";
+  const tag = action ? "button" : "div";
+  return `<${tag} class="status-chip ${tone || "neutral"}${action ? " clickable" : ""}"${attrs}><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></${tag}>`;
 }
 
 function emptyBlock(text) {

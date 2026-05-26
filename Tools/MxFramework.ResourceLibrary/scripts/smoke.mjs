@@ -61,6 +61,7 @@ assert(app.includes("saveBuildProfileDraft") && app.includes("findBuildProfileEn
 assert(app.includes("activeWorkspace") && app.includes("setWorkspace") && app.includes('setWorkspace("profile")'), "app should navigate across browse/profile/build/debug workspaces");
 assert(app.includes("getDeliveryEntryState") && app.includes("will build"), "app should expose delivery outcome labels for profile entries");
 assert(app.includes("inferProfileValidationField") && app.includes("field-highlight"), "app should highlight profile fields on save validation failure");
+assert(app.includes('data-status-action="') && app.includes("openDiagnosticsView") && app.includes("renderDiagnosticsSummary"), "diagnostic count should be actionable and expose a global diagnostic summary");
 assert(app.includes("deliveryMode") && app.includes('entry.bundleRule = ""'), "non-internal delivery modes should clear bundle rule in draft edits");
 assert(app.includes("needs bundle") && app.includes("missing bundle"), "profile delivery state should surface missing bundle assignments");
 assert(app.includes("checkedResourceKeys: new Set()") && app.includes("selectVisibleResources") && app.includes("toggleCheckedResource"), "app should keep explicit checked resources separate from inspected resource selection");
@@ -93,6 +94,7 @@ assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("v
 assert(styles.includes(".resource-browser") && styles.includes(".inspector-tabs") && styles.includes(".workspace-nav") && styles.includes(".import-preset-label") && styles.includes(".profile-workspace-panel"), "styles should cover browser, workspace nav, import preset, and profile workspace UI");
 assert(styles.includes(".bundle-rule-meta") && styles.includes(".bundle-plan-resources"), "styles should cover bundle-first metadata and plan resource lists");
 assert(styles.includes(".context-actions") && styles.includes(".batch-bar") && styles.includes(".build-checklist"), "styles should cover contextual actions and build checklist");
+assert(styles.includes(".status-chip.clickable") && styles.includes(".diagnostics-summary"), "styles should cover clickable diagnostics and diagnostics summary");
 assert(!styles.includes(".action-bar") && !styles.includes(".bottom-panel-container"), "styles should not retain persistent bottom action bar layout");
 assert(styles.includes(".selection-toolbar") && styles.includes(".resource-check") && styles.includes(".profile-state-strip"), "styles should cover multi-select and profile state feedback");
 assert(styles.includes(".profile-batch-form") && styles.includes(".profile-batch-toggle") && styles.includes(".profile-batch-apply"), "styles should cover build profile batch field editing controls");
