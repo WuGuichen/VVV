@@ -162,6 +162,7 @@ namespace MxFramework.UI.FairyGui
     public sealed class MxFairyGuiHost : IMxFairyGuiHost
     {
         private readonly Dictionary<string, int> _packageRefCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly HashSet<string> _ownedPackages = new HashSet<string>(StringComparer.Ordinal);
 
         public bool EnsurePackage(MxFairyGuiPackageLoadScope scope, out string failure)
         {
@@ -196,15 +197,21 @@ namespace MxFramework.UI.FairyGui
             try
             {
                 Fgui.UIPackage package = Fgui.UIPackage.GetByName(packageId);
-                if (package == null)
+                bool ownsPackage = package == null;
+                if (ownsPackage)
+                {
                     package = Fgui.UIPackage.AddPackage(bytes, packageId, (string name, string extension, Type type, out Fgui.DestroyMethod destroyMethod) =>
                         LoadPackageResource(scope, name, extension, type, out destroyMethod));
+                }
 
                 if (package == null)
                 {
                     failure = "FairyGUI package registration returned null: " + packageId + ".";
                     return false;
                 }
+
+                if (ownsPackage)
+                    _ownedPackages.Add(packageId);
 
                 _packageRefCounts.Add(packageId, 1);
                 failure = string.Empty;
@@ -264,7 +271,8 @@ namespace MxFramework.UI.FairyGui
             }
 
             _packageRefCounts.Remove(packageId);
-            Fgui.UIPackage.RemovePackage(packageId);
+            if (_ownedPackages.Remove(packageId))
+                Fgui.UIPackage.RemovePackage(packageId);
         }
 
         private static object LoadPackageResource(MxFairyGuiPackageLoadScope scope, string name, string extension, Type type, out Fgui.DestroyMethod destroyMethod)

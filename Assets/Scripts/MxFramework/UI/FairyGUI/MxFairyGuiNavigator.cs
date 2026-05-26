@@ -32,20 +32,36 @@ namespace MxFramework.UI.FairyGui
             if (!id.IsValid)
                 return MxUiOpenResult.Fail(MxUiOpenErrorCode.InvalidViewId, "UI view id is required.");
 
+            MxUiViewContract contract;
+            if (!_contracts.TryGet(id, out contract))
+                return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewNotFound, "UI view contract is not registered: " + id + ".");
+
+            string failure;
+            if (!ValidateViewModelType<TArgs>(contract, out failure))
+                return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, failure);
+
             IMxUiView existing;
             if (_openViews.TryGetValue(id, out existing))
             {
-                var typedExisting = existing as IMxUiView<TArgs>;
-                if (typedExisting != null)
+                var typedExisting = existing as MxFairyGuiView<TArgs>;
+                if (typedExisting == null)
+                    return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "FairyGUI open args do not match existing view model type for: " + id + ".");
+
+                try
+                {
+                    if (!_bindings.TryBind(id, typedExisting.Component, args, out failure))
+                        return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, failure);
+
                     typedExisting.Bind(args);
+                }
+                catch (Exception ex)
+                {
+                    return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "FairyGUI view binding failed: " + ex.Message);
+                }
 
                 existing.Show();
                 return MxUiOpenResult.Opened(existing);
             }
-
-            MxUiViewContract contract;
-            if (!_contracts.TryGet(id, out contract))
-                return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewNotFound, "UI view contract is not registered: " + id + ".");
 
             MxFairyGuiPackageDescriptor package;
             if (!_packages.TryGet(contract.Descriptor.PackageKey, out package))
@@ -56,7 +72,6 @@ namespace MxFramework.UI.FairyGui
                 return MxFairyGuiResourceBridgeUiMapping.ToOpenFailure(loadResult);
 
             MxFairyGuiPackageLoadScope scope = loadResult.Scope;
-            string failure;
             if (!_host.EnsurePackage(scope, out failure))
                 return FailAndRelease(scope, MxUiOpenErrorCode.ViewCreateFailed, failure);
 
@@ -66,8 +81,7 @@ namespace MxFramework.UI.FairyGui
 
             try
             {
-                if (!string.IsNullOrWhiteSpace(contract.ViewModelType)
-                    && !_bindings.TryBind(id, component, args, out failure))
+                if (!_bindings.TryBind(id, component, args, out failure))
                 {
                     component.Dispose();
                     return FailAndRelease(scope, MxUiOpenErrorCode.ViewCreateFailed, failure);
@@ -116,6 +130,28 @@ namespace MxFramework.UI.FairyGui
             }
 
             return MxUiOpenResult.Fail(code, message);
+        }
+
+        private static bool ValidateViewModelType<TArgs>(MxUiViewContract contract, out string failure)
+        {
+            string contractType = contract.ViewModelType;
+            if (string.IsNullOrWhiteSpace(contractType))
+            {
+                failure = "FairyGUI view model type is required for: " + contract.Descriptor.Id + ".";
+                return false;
+            }
+
+            Type argsType = typeof(TArgs);
+            if (string.Equals(contractType, argsType.FullName, StringComparison.Ordinal)
+                || string.Equals(contractType, argsType.AssemblyQualifiedName, StringComparison.Ordinal))
+            {
+                failure = string.Empty;
+                return true;
+            }
+
+            failure = "FairyGUI view model type does not match open args for: " + contract.Descriptor.Id + ". Expected "
+                + contractType + ", got " + argsType.FullName + ".";
+            return false;
         }
     }
 }
