@@ -1,4 +1,5 @@
 using System;
+using MxFramework.Resources.Unity;
 using MxFramework.Runtime;
 using MxFramework.Story;
 using MxFramework.Story.Runtime;
@@ -18,7 +19,7 @@ namespace MxFramework.Demo.CharacterTest
         private readonly RuntimeHost _host;
         private readonly IDisposable _storyEventSubscription;
         private readonly CharacterTestStoryContent _storyContent;
-        private readonly CharacterTestResourceServices _resources;
+        private readonly GlobalResourceRuntimeServices _resources;
         private readonly CharacterTestStoryFlowBridge _storyFlowBridge;
         private readonly RuntimeLogBuffer _logBuffer = new RuntimeLogBuffer(160);
         private double _elapsedSeconds;
@@ -27,18 +28,19 @@ namespace MxFramework.Demo.CharacterTest
         public GameSlice(
             IRuntimeLogger logger = null,
             CharacterTestStoryContent storyContent = null,
-            CharacterTestResourceServices resources = null)
+            GlobalResourceRuntimeServices resources = null,
+            string baseResourcePreloadGroupId = "")
         {
             _logger = logger ?? NullRuntimeLogger.Instance;
             _storyContent = storyContent ?? CharacterTestStoryFixture.CreateBootstrapContent();
             _logger.Info("GameSlice", "Construct");
 
             _clock = new RuntimeClock(RuntimeFrame.Zero);
-            _resources = resources ?? CharacterTestResourceServices.CreateDefault(_logger);
+            _resources = resources ?? GlobalResourceRuntimeServices.Create();
             _storyDirector = new StoryDirector();
             _storyModule = new StoryRuntimeModule(_storyDirector, new RuntimeCommandBuffer(null, RuntimeFrame.Zero));
             _storyEventSubscription = _storyDirector.SubscribeEvents(OnStoryDirectorEvent);
-            _storyFlowBridge = new CharacterTestStoryFlowBridge(_storyModule, _resources, _logger, () => _clock.CurrentFrame);
+            _storyFlowBridge = new CharacterTestStoryFlowBridge(_storyModule, _resources, _logger, () => _clock.CurrentFrame, baseResourcePreloadGroupId);
 
             _host = new RuntimeHost(new RuntimeHostOptions
             {
@@ -55,7 +57,7 @@ namespace MxFramework.Demo.CharacterTest
         public RuntimeClock Clock => _clock;
         public StoryDirector StoryDirector => _storyDirector;
         public StoryRuntimeModule StoryModule => _storyModule;
-        public CharacterTestResourceServices Resources => _resources;
+        public GlobalResourceRuntimeServices Resources => _resources;
         public RuntimeFrame CurrentFrame => _clock.CurrentFrame;
         public double ElapsedSeconds => _elapsedSeconds;
         public StoryDirectorSnapshot StorySnapshot => _storyDirector.CreateSnapshot();
@@ -127,6 +129,7 @@ namespace MxFramework.Demo.CharacterTest
             _logger.Info("GameSlice", "Dispose");
             _storyFlowBridge?.Dispose();
             _storyEventSubscription?.Dispose();
+            _resources?.Dispose();
             _host?.Dispose();
             _disposed = true;
         }

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using MxFramework.Resources;
+using MxFramework.Resources.Unity;
 using MxFramework.Runtime;
 using MxFramework.Story;
 using MxFramework.Story.Runtime;
@@ -9,23 +11,26 @@ namespace MxFramework.Demo.CharacterTest
     public sealed class CharacterTestStoryFlowBridge : IDisposable
     {
         private readonly StoryRuntimeModule _storyModule;
-        private readonly CharacterTestResourceServices _resources;
+        private readonly GlobalResourceRuntimeServices _resources;
         private readonly IRuntimeLogger _logger;
         private readonly Func<RuntimeFrame> _currentFrameProvider;
+        private readonly string _baseResourcePreloadGroupId;
         private readonly IDisposable _subscription;
         private readonly RuntimeLogBuffer _logBuffer = new RuntimeLogBuffer(128);
         private bool _disposed;
 
         public CharacterTestStoryFlowBridge(
             StoryRuntimeModule storyModule,
-            CharacterTestResourceServices resources,
+            GlobalResourceRuntimeServices resources,
             IRuntimeLogger logger,
-            Func<RuntimeFrame> currentFrameProvider)
+            Func<RuntimeFrame> currentFrameProvider,
+            string baseResourcePreloadGroupId)
         {
             _storyModule = storyModule ?? throw new ArgumentNullException(nameof(storyModule));
             _resources = resources ?? throw new ArgumentNullException(nameof(resources));
             _logger = logger ?? NullRuntimeLogger.Instance;
             _currentFrameProvider = currentFrameProvider ?? (() => RuntimeFrame.Zero);
+            _baseResourcePreloadGroupId = baseResourcePreloadGroupId ?? string.Empty;
             _subscription = _storyModule.Director.SubscribeEvents(OnStoryEvent);
             _logger.Info("StoryFlow", "Bridge attached");
         }
@@ -75,8 +80,28 @@ namespace MxFramework.Demo.CharacterTest
                 .Append(evt.BeatInstanceId);
             _logger.Info("StoryFlow", _logBuffer);
 
-            if (_resources.LoadBaseResources())
-                CompletePresentationNextFrame(evt, "character-test.base-resources");
+            if (!_resources.TryPreloadGroup(_baseResourcePreloadGroupId, out ResourcePreloadResult result, out string errorMessage))
+            {
+                _logBuffer.Clear()
+                    .Append("LoadBaseResources failed. mode=")
+                    .Append(_resources.Mode.ToString())
+                    .Append(", groupId=")
+                    .Append(string.IsNullOrWhiteSpace(_baseResourcePreloadGroupId) ? "<none>" : _baseResourcePreloadGroupId)
+                    .Append(", error=")
+                    .Append(errorMessage);
+                _logger.Warning("StoryFlow", _logBuffer);
+                return;
+            }
+
+            _logBuffer.Clear()
+                .Append("LoadBaseResources completed. mode=")
+                .Append(_resources.Mode.ToString())
+                .Append(", groupId=")
+                .Append(string.IsNullOrWhiteSpace(_baseResourcePreloadGroupId) ? "<none>" : _baseResourcePreloadGroupId)
+                .Append(", loaded=")
+                .Append(result != null ? result.LoadedCount : 0);
+            _logger.Info("StoryFlow", _logBuffer);
+            CompletePresentationNextFrame(evt, "character-test.base-resources");
         }
 
         private void OpenStartupUi(StoryEvent evt)

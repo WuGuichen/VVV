@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using MxFramework.Resources.Unity;
 using MxFramework.Runtime;
 using MxFramework.Runtime.Unity;
 using MxFramework.Story.Runtime;
@@ -28,6 +29,9 @@ namespace MxFramework.Demo.CharacterTest
         [SerializeField] private bool _useExternalStoryAuthoring;
         [SerializeField] private string _storyDraftStreamingAssetsPath =
             "MxFramework/CharacterTest/character_test_bootstrap.story.json";
+        [SerializeField] private GlobalResourceRuntimeMode _resourceMode = GlobalResourceRuntimeMode.Editor;
+        [SerializeField] private string _baseResourcePreloadGroupId = "SpawnCritical";
+        [SerializeField] private string _resourcesLogColor = "#F4D03F";
 
         private const string StoryDebugTargetName = "CharacterTest Story";
         private const string StoryEditorDebugRegistryTypeName =
@@ -55,7 +59,13 @@ namespace MxFramework.Demo.CharacterTest
 
             ApplyTargetFrameRate();
             CharacterTestStoryContent storyContent = LoadStoryContent();
-            _slice = new GameSlice(_logger, storyContent);
+            GlobalResourceRuntimeServices resources = GlobalResourceRuntimeServices.Create(new GlobalResourceRuntimeOptions
+            {
+                Mode = _resourceMode,
+                AllowMissingPreloadGroupInEditor = true
+            });
+            LogResourceRuntimeBootstrap(resources);
+            _slice = new GameSlice(_logger, storyContent, resources, _baseResourcePreloadGroupId);
             RegisterStoryDebugTarget();
             _paused = _startPaused;
             _logBuffer.Clear().Append("GameSlice created. startPaused=").Append(_startPaused);
@@ -233,6 +243,30 @@ namespace MxFramework.Demo.CharacterTest
             _logger.SetCategoryHeaderColor("GameManager", _gameManagerLogColor);
             _logger.SetCategoryHeaderColor("GameSlice", _gameSliceLogColor);
             _logger.SetCategoryHeaderColor("Story", _storyLogColor);
+            _logger.SetCategoryHeaderColor("Resources", _resourcesLogColor);
+        }
+
+        private void LogResourceRuntimeBootstrap(GlobalResourceRuntimeServices resources)
+        {
+            if (resources == null)
+                return;
+
+            _logBuffer.Clear()
+                .Append("Global resource runtime initialized. mode=")
+                .Append(resources.Mode.ToString())
+                .Append(", preloadGroup=")
+                .Append(string.IsNullOrWhiteSpace(_baseResourcePreloadGroupId) ? "<none>" : _baseResourcePreloadGroupId)
+                .Append(", catalogs=")
+                .Append(resources.ResourceManager.CreateDebugSnapshot().CatalogCount);
+            _logger?.Info("Resources", _logBuffer);
+
+            if (resources.HasBootstrapError)
+            {
+                _logBuffer.Clear()
+                    .Append("Global resource runtime bootstrap warning: ")
+                    .Append(resources.BootstrapErrorMessage);
+                _logger?.Warning("Resources", _logBuffer);
+            }
         }
 
         private void ApplyTargetFrameRate()
