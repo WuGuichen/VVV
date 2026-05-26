@@ -38,6 +38,7 @@
         "MxFramework.DebugUI",
         "MxFramework.DebugUI.Adapters",
         "MxFramework.DebugUI.Toolkit",
+        "MxFramework.UI",
         "MxFramework.UI.Toolkit",
         "MxFramework.Story",
         "MxFramework.Story.Runtime",

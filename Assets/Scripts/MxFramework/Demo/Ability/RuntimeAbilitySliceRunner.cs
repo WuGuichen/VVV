@@ -158,9 +158,10 @@ namespace MxFramework.Demo
     }
 
     [AddComponentMenu("MxFramework/Demo/Runtime Ability Slice Runner")]
-    public sealed class RuntimeAbilitySliceRunner : MonoBehaviour
-        , IRuntimeSaveStateProvider
-        , IRuntimeSaveStateRestorer
+    public sealed class RuntimeAbilitySliceRunner : MonoBehaviour,
+        IRuntimeAbilitySliceHudCommandTarget,
+        IRuntimeSaveStateProvider,
+        IRuntimeSaveStateRestorer
     {
         private const int RuntimeCommandSourceManual = 100;
         private const int RuntimeCommandSourceAuto = 101;
@@ -451,6 +452,23 @@ namespace MxFramework.Demo
                         default(RuntimeCommand),
                         _runtimeCommandBuffer != null ? _runtimeCommandBuffer.CurrentFrame : RuntimeFrame.Zero,
                         "HUD command is not a runtime simulation command: " + command));
+            }
+        }
+
+        public RuntimeCommandValidationResult EnqueueHudCommand(RuntimeAbilitySliceHudManualCommand command)
+        {
+            switch (command)
+            {
+                case RuntimeAbilitySliceHudManualCommand.Strike:
+                    return EnqueueManualCommand(MxRuntimeHudManualCommand.Strike);
+                case RuntimeAbilitySliceHudManualCommand.Reset:
+                    return EnqueueManualCommand(MxRuntimeHudManualCommand.Reset);
+                default:
+                    return RuntimeCommandValidationResult.Failed(new RuntimeCommandError(
+                        RuntimeCommandErrorCode.InvalidCommandId,
+                        default(RuntimeCommand),
+                        _runtimeCommandBuffer != null ? _runtimeCommandBuffer.CurrentFrame : RuntimeFrame.Zero,
+                        "RuntimeAbilitySlice HUD command is not supported: " + command + "."));
             }
         }
 
