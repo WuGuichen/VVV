@@ -491,7 +491,7 @@ This document only.
   - `FGUIProject/` exists as the framework-owned FairyGUI source project.
   - `MxFguiSmoke` exists as the first minimal source package and publish output under `Assets/Bundles/FGUI/MxFguiSmoke`.
   - `FGUIProject/plugins/wgameframework-agent-helper` provides project-local FairyGUI Editor commands to create/repair and publish the smoke package.
-  - #510 still needs the real navigator smoke test using the published package.
+  - #510 adds the real navigator smoke using the published package: open `MxFguiSmoke/SmokePanel`, bind `txtTitle`, close and release resources.
 
 ### M3: Runtime HUD Vertical Slice
 

@@ -71,7 +71,7 @@ FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script refresh
 The local command-line script path has been unreliable so far, so the GUI menu
 workflow is the expected path until that is resolved.
 
-## Next Implementation Step
+## Follow-up Runtime Smoke
 
-Use the smoke package in #510 to validate `MxFairyGuiNavigator` with a real
+#510 uses the smoke package to validate `MxFairyGuiNavigator` with a real
 FairyGUI package/component asset, including ViewModel bind, close and release.
