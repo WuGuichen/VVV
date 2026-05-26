@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -28,6 +29,7 @@ internal static class GlobalResourceBuildProfileTests
         BundlePlanner_LegacyEditorOnlyAndRuntimeFlagsDoNotEnterInternalBundles();
         BundlePlanner_ForceBundleOverridesDeliveryModeExternal();
         BundlePlanner_IncludeDependenciesFalseSuppressesDependencyBundles();
+        EditorServer_GlobalBuildProfileApi_ReadsPlanAndValidatesSaveGate();
     }
 
     private static void ValidProfile_PassesAndRoundTripsCamelCaseJson()
@@ -309,6 +311,53 @@ internal static class GlobalResourceBuildProfileTests
         Require(startup.DependencyBundleNames.Count == 0, "Bundle rule IncludeDependencies=false should suppress dependency bundle output.");
     }
 
+    private static void EditorServer_GlobalBuildProfileApi_ReadsPlanAndValidatesSaveGate()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "mx-global-profile-api-" + Guid.NewGuid().ToString("N"));
+        string packageRelative = "Tools/MxFramework.Authoring/samples/resource-api-test";
+        string packagePath = Path.Combine(tempRoot, packageRelative);
+        string profilePath = Path.Combine(tempRoot, "Assets", "Config", "MxFramework", "ResourceProfiles", "global_resource_build_profile.json");
+        Directory.CreateDirectory(packagePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(profilePath)!);
+        File.WriteAllText(Path.Combine(packagePath, "manifest.json"), JsonSerializer.Serialize(new CharacterPackageManifest
+        {
+            PackageId = "resource_api_test",
+            StableId = "char.resource_api_test",
+            DisplayName = "Resource API Test"
+        }, JsonOptions));
+        File.WriteAllText(Path.Combine(packagePath, "resource_catalog.json"), JsonSerializer.Serialize(new CharacterPackageResourceCatalog(), JsonOptions));
+        File.WriteAllText(profilePath, JsonSerializer.Serialize(CreateValidProfile(), JsonOptions));
+
+        try
+        {
+            object planResult = MxFramework.Authoring.Cli.EditorServer.ReadGlobalResourceBundlePlan(tempRoot, packageRelative, JsonOptions, "StandaloneOSX");
+            JsonElement planJson = ToJsonElement(planResult);
+            Require(planJson.GetProperty("profileId").GetString() == "global.default", "bundle plan endpoint should expose profile id.");
+            Require(planJson.GetProperty("plan").GetProperty("bundles").GetArrayLength() == 1, "bundle plan endpoint should expose planner bundles.");
+
+            string beforeInvalid = File.ReadAllText(profilePath);
+            GlobalResourceBuildProfile invalid = CreateValidProfile();
+            invalid.Entries[0].ResourceKey.Id = "bad id";
+            object invalidSave = MxFramework.Authoring.Cli.EditorServer.SaveGlobalResourceBuildProfile(tempRoot, invalid, JsonOptions);
+            JsonElement invalidJson = ToJsonElement(invalidSave);
+            Require(invalidJson.GetProperty("success").GetBoolean() == false, "invalid profile save should fail.");
+            Require(File.ReadAllText(profilePath) == beforeInvalid, "invalid profile save should not write to disk.");
+
+            GlobalResourceBuildProfile valid = CreateValidProfile();
+            valid.ProfileId = "global.saved";
+            object validSave = MxFramework.Authoring.Cli.EditorServer.SaveGlobalResourceBuildProfile(tempRoot, valid, JsonOptions);
+            JsonElement validJson = ToJsonElement(validSave);
+            Require(validJson.GetProperty("success").GetBoolean(), "valid profile save should succeed.");
+            GlobalResourceBuildProfile saved = JsonSerializer.Deserialize<GlobalResourceBuildProfile>(File.ReadAllText(profilePath), JsonOptions);
+            Require(saved != null && saved.ProfileId == "global.saved", "valid profile save should write the profile atomically.");
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
     private static GlobalResourceBuildProfile CreateValidProfile()
     {
         return new GlobalResourceBuildProfile
@@ -405,6 +454,11 @@ internal static class GlobalResourceBuildProfileTests
         };
         options.Converters.Add(new JsonStringEnumConverter());
         return options;
+    }
+
+    private static JsonElement ToJsonElement(object value)
+    {
+        return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(value, JsonOptions), JsonOptions);
     }
 
     private static string FindRepoRoot()
