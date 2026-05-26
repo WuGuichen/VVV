@@ -12,20 +12,17 @@ Use this from FairyGUI Editor after opening `FGUIProject/FGUIProject.fairy`.
 If the menu does not appear, open `Tools/Plugins` in FairyGUI Editor and reload
 plugins, or restart FairyGUI Editor.
 
-## Batch Commands
+## Local Editor
 
-The plugin also exposes batch commands for FairyGUI Editor command-line script
-execution when that editor mode is available:
+The FairyGUI Editor executable currently used on this machine is:
 
-```bash
-FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script create-smoke
-FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script publish-smoke
-FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script refresh
+```text
+..\FairyGUI-Editor\FairyGUI-Editor.exe
 ```
 
-Known local limitation: the currently available FairyGUI Editor command-line
-batch/publish path has been unreliable on this machine, so the menu workflow is
-the primary path for now.
+Use it to open `FGUIProject/FGUIProject.fairy`, then run the menu commands above.
+The previously documented `-script` command-line form is not a verified plugin
+entry on this editor build; it only opens the editor welcome flow here.
 
 ## Scope
 

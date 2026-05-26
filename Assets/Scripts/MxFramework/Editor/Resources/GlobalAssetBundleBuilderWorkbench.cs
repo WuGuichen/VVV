@@ -13,10 +13,11 @@ namespace MxFramework.Editor
         private const string MenuPath = "MxFramework/Resources/Open Global AssetBundle Builder";
 
         private GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildPlan _plan;
-        private Label _statusLabel;
-        private Label _profilePathLabel;
-        private Label _buildTargetLabel;
-        private Label _summaryLabel;
+        private VisualElement _statusBanner;
+        private VisualElement _statsRow;
+        private VisualElement _profilePathRow;
+        private VisualElement _profileStateRow;
+        private VisualElement _buildTargetRow;
         private VisualElement _artifactRows;
         private VisualElement _diagnosticRows;
         private string _lastStatus = "Ready.";
@@ -27,7 +28,7 @@ namespace MxFramework.Editor
         {
             GlobalAssetBundleBuilderWorkbench window = GetWindow<GlobalAssetBundleBuilderWorkbench>();
             window.titleContent = new GUIContent("Global AB Builder");
-            window.minSize = new Vector2(780f, 520f);
+            window.minSize = new Vector2(800f, 540f);
             window.Show();
         }
 
@@ -46,6 +47,7 @@ namespace MxFramework.Editor
             var scroll = new ScrollView(ScrollViewMode.Vertical);
             scroll.style.flexGrow = 1;
             scroll.style.marginTop = 10;
+            scroll.contentContainer.style.flexGrow = 1;
             root.Add(scroll);
 
             scroll.Add(CreateStatusPanel());
@@ -61,25 +63,50 @@ namespace MxFramework.Editor
             var header = new VisualElement();
             header.style.flexDirection = FlexDirection.Row;
             header.style.alignItems = Align.Center;
-            header.style.marginBottom = 8;
+            header.style.flexShrink = 0;
+            header.style.paddingBottom = 8;
+            header.style.borderBottomWidth = 1;
+            header.style.borderBottomColor = new Color(0.24f, 0.24f, 0.24f);
+
+            Image icon = CreateIcon("d_BuildSettings.Editor", 32);
+            if (icon == null)
+                icon = CreateIcon("d_UnityEditor.SceneAsset Icon", 32);
+            if (icon != null)
+                header.Add(icon);
+
+            var textContainer = new VisualElement();
+            textContainer.style.flexDirection = FlexDirection.Column;
+            textContainer.style.flexGrow = 1;
+            textContainer.style.marginLeft = icon != null ? 8 : 0;
 
             var title = new Label("Global AssetBundle Builder");
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
-            title.style.fontSize = 18;
-            title.style.flexGrow = 1;
-            header.Add(title);
+            title.style.fontSize = 16;
+            title.style.color = new Color(0.92f, 0.92f, 0.92f);
+            textContainer.Add(title);
 
-            var badge = new Label("Editor Workbench");
-            badge.style.paddingLeft = 8;
-            badge.style.paddingRight = 8;
-            badge.style.paddingTop = 3;
-            badge.style.paddingBottom = 3;
-            badge.style.borderTopLeftRadius = 4;
-            badge.style.borderTopRightRadius = 4;
-            badge.style.borderBottomLeftRadius = 4;
-            badge.style.borderBottomRightRadius = 4;
+            var subtitle = new Label("Validate profile, build player resource catalog, and inspect generated artifacts.");
+            subtitle.style.color = new Color(0.6f, 0.6f, 0.6f);
+            subtitle.style.fontSize = 11;
+            subtitle.style.marginTop = 2;
+            subtitle.style.whiteSpace = WhiteSpace.Normal;
+            textContainer.Add(subtitle);
+            header.Add(textContainer);
+
+            var badge = new Label("Workbench");
+            badge.style.paddingLeft = 10;
+            badge.style.paddingRight = 10;
+            badge.style.paddingTop = 4;
+            badge.style.paddingBottom = 4;
+            badge.style.borderTopLeftRadius = 10;
+            badge.style.borderTopRightRadius = 10;
+            badge.style.borderBottomLeftRadius = 10;
+            badge.style.borderBottomRightRadius = 10;
             badge.style.backgroundColor = new Color(0.18f, 0.32f, 0.52f);
             badge.style.color = Color.white;
+            badge.style.fontSize = 10;
+            badge.style.unityFontStyleAndWeight = FontStyle.Bold;
+            badge.style.alignSelf = Align.FlexStart;
             header.Add(badge);
 
             return header;
@@ -90,40 +117,63 @@ namespace MxFramework.Editor
             var bar = new VisualElement();
             bar.style.flexDirection = FlexDirection.Row;
             bar.style.flexWrap = Wrap.Wrap;
+            bar.style.alignItems = Align.Center;
+            bar.style.marginTop = 10;
             bar.style.marginBottom = 4;
+            bar.style.flexShrink = 0;
+            bar.style.backgroundColor = new Color(0.16f, 0.16f, 0.16f);
+            bar.style.paddingLeft = 8;
+            bar.style.paddingRight = 8;
+            bar.style.paddingTop = 6;
+            bar.style.paddingBottom = 6;
+            bar.style.borderTopLeftRadius = 4;
+            bar.style.borderTopRightRadius = 4;
+            bar.style.borderBottomLeftRadius = 4;
+            bar.style.borderBottomRightRadius = 4;
 
-            bar.Add(CreateCommandButton("Refresh / Validate Profile", RefreshCommand));
-            bar.Add(CreateCommandButton("Build Global Player Resource Catalog", BuildCommand));
-            bar.Add(CreateCommandButton("Copy Report", CopyReportCommand));
-            bar.Add(CreateCommandButton("Open Profile", OpenProfileCommand));
+            bar.Add(CreateStyledButton("Refresh / Validate", "d_Refresh", RefreshCommand));
+            bar.Add(CreateStyledButton(
+                "Build Catalog",
+                "d_SaveAs",
+                BuildCommand,
+                customNormalBg: new Color(0.15f, 0.38f, 0.62f)));
+            bar.Add(CreateToolbarSeparator());
+            bar.Add(CreateStyledButton("Copy Report", "d_Copy", CopyReportCommand));
+            bar.Add(CreateStyledButton("Open Profile", "d_TextAsset Icon", OpenProfileCommand));
             return bar;
         }
 
         private VisualElement CreateStatusPanel()
         {
-            VisualElement panel = CreatePanel("Build Status");
-            _statusLabel = CreateWrappedLabel(string.Empty);
-            panel.Add(_statusLabel);
+            VisualElement panel = CreatePanel("Build Status", PanelAccent.Status);
+            _statusBanner = CreateAlertBanner("Status", _lastStatus, _lastStatusIsError);
+            panel.Add(_statusBanner);
             return panel;
         }
 
         private VisualElement CreateBuildPlanPanel()
         {
-            VisualElement panel = CreatePanel("Build Plan Summary");
+            VisualElement panel = CreatePanel("Build Plan", PanelAccent.Plan);
 
-            _profilePathLabel = CreateWrappedLabel(string.Empty);
-            _buildTargetLabel = CreateWrappedLabel(string.Empty);
-            _summaryLabel = CreateWrappedLabel(string.Empty);
+            _statsRow = new VisualElement();
+            _statsRow.style.flexDirection = FlexDirection.Row;
+            _statsRow.style.flexWrap = Wrap.Wrap;
+            _statsRow.style.marginBottom = 10;
+            panel.Add(_statsRow);
 
-            panel.Add(_profilePathLabel);
-            panel.Add(_buildTargetLabel);
-            panel.Add(_summaryLabel);
+            _profilePathRow = CreateKeyValueRow("Profile", string.Empty);
+            _profileStateRow = CreateKeyValueRow("Profile State", string.Empty);
+            _buildTargetRow = CreateKeyValueRow("Build Target", string.Empty);
+
+            panel.Add(_profilePathRow);
+            panel.Add(_profileStateRow);
+            panel.Add(_buildTargetRow);
             return panel;
         }
 
         private VisualElement CreateArtifactsPanel()
         {
-            VisualElement panel = CreatePanel("Generated Artifacts");
+            VisualElement panel = CreatePanel("Generated Artifacts", PanelAccent.Artifacts);
             _artifactRows = new VisualElement();
             _artifactRows.Add(CreateArtifactHeader());
             panel.Add(_artifactRows);
@@ -132,7 +182,7 @@ namespace MxFramework.Editor
 
         private VisualElement CreateDiagnosticsPanel()
         {
-            VisualElement panel = CreatePanel("Diagnostics");
+            VisualElement panel = CreatePanel("Diagnostics", PanelAccent.Diagnostics);
             _diagnosticRows = new VisualElement();
             _diagnosticRows.Add(CreateDiagnosticHeader());
             panel.Add(_diagnosticRows);
@@ -176,6 +226,7 @@ namespace MxFramework.Editor
 
             EditorGUIUtility.systemCopyBuffer = CreateWorkbenchReport();
             SetStatus("Report copied to clipboard.", false);
+            ShowNotification(new GUIContent("Report copied"));
         }
 
         private void OpenProfileCommand()
@@ -192,16 +243,25 @@ namespace MxFramework.Editor
 
         private void RefreshViews()
         {
-            _profilePathLabel.text = "Profile: " + GlobalPlayerResourceBuildProfileBuilder.ProfilePath
-                + " (" + (File.Exists(GlobalPlayerResourceBuildProfileBuilder.ProfilePath) ? "exists" : "missing") + ")";
-            _buildTargetLabel.text = "Active build target: " + EditorUserBuildSettings.activeBuildTarget;
-            _summaryLabel.text = CreateSummaryText(_plan);
+            bool profileExists = File.Exists(GlobalPlayerResourceBuildProfileBuilder.ProfilePath);
+            Label profilePathValue = _profilePathRow.Q<Label>("kv-value");
+            profilePathValue.text = GlobalPlayerResourceBuildProfileBuilder.ProfilePath;
+
+            Label profileStateValue = _profileStateRow.Q<Label>("kv-value");
+            profileStateValue.text = profileExists ? "Exists" : "Missing";
+            profileStateValue.style.color = profileExists
+                ? new Color(0.45f, 0.85f, 0.5f)
+                : new Color(0.95f, 0.45f, 0.35f);
+
+            _buildTargetRow.Q<Label>("kv-value").text = EditorUserBuildSettings.activeBuildTarget.ToString();
+
+            RefreshStatBadges(_plan);
 
             _artifactRows.Clear();
             _artifactRows.Add(CreateArtifactHeader());
             IReadOnlyList<ArtifactInfo> artifacts = CreateArtifacts();
             for (int i = 0; i < artifacts.Count; i++)
-                _artifactRows.Add(CreateArtifactRow(artifacts[i]));
+                _artifactRows.Add(CreateArtifactRow(artifacts[i], i % 2 == 1));
 
             _diagnosticRows.Clear();
             _diagnosticRows.Add(CreateDiagnosticHeader());
@@ -209,24 +269,49 @@ namespace MxFramework.Editor
                 _plan?.Report?.Issues ?? (IReadOnlyList<GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue>)Array.Empty<GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue>();
             if (issues.Count == 0)
             {
-                _diagnosticRows.Add(CreateEmptyRow("No diagnostics."));
+                _diagnosticRows.Add(CreateEmptyRow("No diagnostics. Profile looks clean."));
             }
             else
             {
                 for (int i = 0; i < issues.Count; i++)
-                    _diagnosticRows.Add(CreateDiagnosticRow(issues[i]));
+                    _diagnosticRows.Add(CreateDiagnosticRow(issues[i], i % 2 == 1));
             }
+        }
+
+        private void RefreshStatBadges(GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildPlan plan)
+        {
+            _statsRow.Clear();
+            if (plan == null || plan.Report == null)
+            {
+                _statsRow.Add(CreateStatBadge("Plan", "Unavailable", new Color(0.45f, 0.45f, 0.45f)));
+                return;
+            }
+
+            CountIssues(plan.Report, out int errors, out int warnings);
+            _statsRow.Add(CreateStatBadge("Entries", plan.Entries.Count.ToString(), new Color(0.23f, 0.51f, 0.96f)));
+            _statsRow.Add(CreateStatBadge("Bundles", plan.Bundles.Count.ToString(), new Color(0.23f, 0.51f, 0.96f)));
+            _statsRow.Add(CreateStatBadge("Errors", errors.ToString(), errors > 0
+                ? new Color(0.96f, 0.32f, 0.28f)
+                : new Color(0.35f, 0.75f, 0.4f)));
+            _statsRow.Add(CreateStatBadge("Warnings", warnings.ToString(), warnings > 0
+                ? new Color(0.95f, 0.72f, 0.28f)
+                : new Color(0.35f, 0.75f, 0.4f)));
+            _statsRow.Add(CreateStatBadge("Catalog", plan.Report.CatalogId, new Color(0.55f, 0.55f, 0.55f)));
+            _statsRow.Add(CreateStatBadge("Package", plan.Report.PackageId, new Color(0.55f, 0.55f, 0.55f)));
         }
 
         private void SetStatus(string text, bool isError)
         {
             _lastStatus = text ?? string.Empty;
             _lastStatusIsError = isError;
-            if (_statusLabel == null)
+            if (_statusBanner == null || _statusBanner.parent == null)
                 return;
 
-            _statusLabel.text = _lastStatus;
-            _statusLabel.style.color = isError ? new Color(0.95f, 0.32f, 0.28f) : new Color(0.4f, 0.82f, 0.45f);
+            VisualElement parent = _statusBanner.parent;
+            int index = parent.IndexOf(_statusBanner);
+            parent.Remove(_statusBanner);
+            _statusBanner = CreateAlertBanner(isError ? "Build Blocked" : "Ready", _lastStatus, isError);
+            parent.Insert(index, _statusBanner);
         }
 
         private static string CreateSummaryText(GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildPlan plan)
@@ -301,30 +386,32 @@ namespace MxFramework.Editor
 
         private static VisualElement CreateArtifactHeader()
         {
-            var row = CreateRow(true);
-            row.Add(CreateCell("Artifact", 18, true));
-            row.Add(CreateCell("State", 10, true));
-            row.Add(CreateCell("Path", 52, true));
+            var row = CreateTableRow(true, false);
+            row.Add(CreateCell("Artifact", 20, true));
+            row.Add(CreateCell("State", 12, true));
+            row.Add(CreateCell("Path", 48, true));
             row.Add(CreateFixedCell("Actions", 160, true));
             return row;
         }
 
-        private static VisualElement CreateArtifactRow(ArtifactInfo artifact)
+        private static VisualElement CreateArtifactRow(ArtifactInfo artifact, bool zebra)
         {
-            var row = CreateRow(false);
-            row.Add(CreateCell(artifact.Name, 18, false));
-            row.Add(CreateCell(artifact.Exists ? "Exists" : "Missing", 10, false));
-            row.Add(CreateCell(artifact.Path, 52, false));
+            var row = CreateTableRow(false, zebra);
+            row.Add(CreateCell(artifact.Name, 20, false));
+            row.Add(CreateStateBadge(artifact.Exists));
+            row.Add(CreateCell(artifact.Path, 48, false));
 
             var actions = new VisualElement();
             actions.style.flexDirection = FlexDirection.Row;
             actions.style.width = 160;
+            actions.style.alignItems = Align.Center;
 
-            Button ping = CreateMiniButton("Ping", () => PingAsset(artifact.Path));
+            Button ping = CreateMiniButton("Ping", "d_ViewToolMove", () => PingAsset(artifact.Path));
             ping.SetEnabled(artifact.Exists && !artifact.IsFolder);
             actions.Add(ping);
 
-            Button open = CreateMiniButton(artifact.IsFolder ? "Open" : "Open", () => OpenAssetOrReveal(artifact.Path));
+            string openIcon = artifact.IsFolder ? "d_FolderOpened Icon" : "d_TextAsset Icon";
+            Button open = CreateMiniButton(artifact.IsFolder ? "Open" : "Reveal", openIcon, () => OpenAssetOrReveal(artifact.Path));
             open.SetEnabled(artifact.Exists);
             actions.Add(open);
 
@@ -334,21 +421,23 @@ namespace MxFramework.Editor
 
         private static VisualElement CreateDiagnosticHeader()
         {
-            var row = CreateRow(true);
+            var row = CreateTableRow(true, false);
             row.Add(CreateCell("Severity", 10, true));
-            row.Add(CreateCell("Code", 18, true));
-            row.Add(CreateCell("Message", 38, true));
+            row.Add(CreateCell("Code", 16, true));
+            row.Add(CreateCell("Message", 40, true));
             row.Add(CreateCell("Path", 20, true));
             row.Add(CreateCell("Resource Key", 14, true));
             return row;
         }
 
-        private static VisualElement CreateDiagnosticRow(GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue issue)
+        private static VisualElement CreateDiagnosticRow(
+            GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue issue,
+            bool zebra)
         {
-            var row = CreateRow(false);
-            row.Add(CreateCell(issue.Severity, 10, false));
-            row.Add(CreateCell(issue.Code, 18, false));
-            row.Add(CreateCell(issue.Message, 38, false));
+            var row = CreateTableRow(false, zebra);
+            row.Add(CreateSeverityBadge(issue.Severity));
+            row.Add(CreateCell(issue.Code, 16, false));
+            row.Add(CreateCell(issue.Message, 40, false));
             row.Add(CreateCell(issue.SourcePath, 20, false));
             row.Add(CreateCell(issue.ResourceKey, 14, false));
             return row;
@@ -356,14 +445,156 @@ namespace MxFramework.Editor
 
         private static VisualElement CreateEmptyRow(string text)
         {
-            var row = CreateRow(false);
+            var row = CreateTableRow(false, false);
             var label = CreateWrappedLabel(text);
             label.style.flexGrow = 1;
+            label.style.color = new Color(0.55f, 0.55f, 0.55f);
+            label.style.unityFontStyleAndWeight = FontStyle.Italic;
             row.Add(label);
             return row;
         }
 
-        private static VisualElement CreatePanel(string titleText)
+        private static VisualElement CreateStatBadge(string title, string value, Color accent)
+        {
+            var badge = new VisualElement();
+            badge.style.minWidth = 88;
+            badge.style.marginRight = 8;
+            badge.style.marginBottom = 6;
+            badge.style.paddingLeft = 10;
+            badge.style.paddingRight = 10;
+            badge.style.paddingTop = 8;
+            badge.style.paddingBottom = 8;
+            badge.style.borderTopLeftRadius = 6;
+            badge.style.borderTopRightRadius = 6;
+            badge.style.borderBottomLeftRadius = 6;
+            badge.style.borderBottomRightRadius = 6;
+            badge.style.backgroundColor = new Color(accent.r, accent.g, accent.b, 0.12f);
+            badge.style.borderTopWidth = 1;
+            badge.style.borderRightWidth = 1;
+            badge.style.borderBottomWidth = 1;
+            badge.style.borderLeftWidth = 1;
+            badge.style.borderTopColor = new Color(accent.r, accent.g, accent.b, 0.35f);
+            badge.style.borderRightColor = badge.style.borderTopColor;
+            badge.style.borderBottomColor = badge.style.borderTopColor;
+            badge.style.borderLeftColor = badge.style.borderTopColor;
+
+            var titleLabel = new Label(title);
+            titleLabel.style.fontSize = 10;
+            titleLabel.style.color = new Color(0.6f, 0.6f, 0.6f);
+            badge.Add(titleLabel);
+
+            var valueLabel = new Label(value ?? string.Empty);
+            valueLabel.style.fontSize = 13;
+            valueLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            valueLabel.style.color = accent;
+            valueLabel.style.marginTop = 2;
+            valueLabel.style.whiteSpace = WhiteSpace.Normal;
+            badge.Add(valueLabel);
+            return badge;
+        }
+
+        private static VisualElement CreateStateBadge(bool exists)
+        {
+            var container = new VisualElement();
+            container.style.width = Length.Percent(12);
+            container.style.paddingLeft = 4;
+            container.style.paddingRight = 4;
+            container.style.justifyContent = Justify.Center;
+
+            var pill = new Label(exists ? "Exists" : "Missing");
+            pill.style.alignSelf = Align.FlexStart;
+            pill.style.paddingLeft = 8;
+            pill.style.paddingRight = 8;
+            pill.style.paddingTop = 2;
+            pill.style.paddingBottom = 2;
+            pill.style.borderTopLeftRadius = 8;
+            pill.style.borderTopRightRadius = 8;
+            pill.style.borderBottomLeftRadius = 8;
+            pill.style.borderBottomRightRadius = 8;
+            pill.style.fontSize = 10;
+            pill.style.unityFontStyleAndWeight = FontStyle.Bold;
+            if (exists)
+            {
+                pill.style.backgroundColor = new Color(0.3f, 0.69f, 0.31f, 0.18f);
+                pill.style.color = new Color(0.45f, 0.85f, 0.5f);
+            }
+            else
+            {
+                pill.style.backgroundColor = new Color(0.96f, 0.32f, 0.28f, 0.15f);
+                pill.style.color = new Color(0.95f, 0.45f, 0.35f);
+            }
+
+            container.Add(pill);
+            return container;
+        }
+
+        private static VisualElement CreateSeverityBadge(string severity)
+        {
+            var container = new VisualElement();
+            container.style.width = Length.Percent(10);
+            container.style.paddingLeft = 4;
+            container.style.paddingRight = 4;
+
+            Color accent = new Color(0.55f, 0.55f, 0.55f);
+            if (string.Equals(severity, "Error", StringComparison.Ordinal))
+                accent = new Color(0.96f, 0.32f, 0.28f);
+            else if (string.Equals(severity, "Warning", StringComparison.Ordinal))
+                accent = new Color(0.95f, 0.72f, 0.28f);
+
+            var pill = new Label(severity ?? string.Empty);
+            pill.style.alignSelf = Align.FlexStart;
+            pill.style.paddingLeft = 8;
+            pill.style.paddingRight = 8;
+            pill.style.paddingTop = 2;
+            pill.style.paddingBottom = 2;
+            pill.style.borderTopLeftRadius = 8;
+            pill.style.borderTopRightRadius = 8;
+            pill.style.borderBottomLeftRadius = 8;
+            pill.style.borderBottomRightRadius = 8;
+            pill.style.fontSize = 10;
+            pill.style.unityFontStyleAndWeight = FontStyle.Bold;
+            pill.style.backgroundColor = new Color(accent.r, accent.g, accent.b, 0.15f);
+            pill.style.color = accent;
+            container.Add(pill);
+            return container;
+        }
+
+        private static VisualElement CreateKeyValueRow(string key, string value)
+        {
+            var row = new VisualElement();
+            row.style.flexDirection = FlexDirection.Row;
+            row.style.alignItems = Align.FlexStart;
+            row.style.marginBottom = 6;
+            row.style.paddingTop = 2;
+            row.style.paddingBottom = 2;
+
+            var keyLabel = new Label(key);
+            keyLabel.name = "kv-key";
+            keyLabel.style.width = 108;
+            keyLabel.style.flexShrink = 0;
+            keyLabel.style.color = new Color(0.55f, 0.55f, 0.55f);
+            keyLabel.style.fontSize = 11;
+            row.Add(keyLabel);
+
+            var valueLabel = new Label(value ?? string.Empty);
+            valueLabel.name = "kv-value";
+            valueLabel.style.flexGrow = 1;
+            valueLabel.style.whiteSpace = WhiteSpace.Normal;
+            valueLabel.style.color = new Color(0.88f, 0.88f, 0.88f);
+            valueLabel.style.fontSize = 11;
+            row.Add(valueLabel);
+            return row;
+        }
+
+        private enum PanelAccent
+        {
+            Status,
+            Plan,
+            Artifacts,
+            Diagnostics
+        }
+
+        private static VisualElement CreatePanel(string titleText, PanelAccent accent)
         {
             var panel = new VisualElement();
             panel.style.borderTopWidth = 1;
@@ -373,7 +604,7 @@ namespace MxFramework.Editor
             panel.style.borderTopColor = new Color(0.22f, 0.22f, 0.22f);
             panel.style.borderRightColor = new Color(0.22f, 0.22f, 0.22f);
             panel.style.borderBottomColor = new Color(0.22f, 0.22f, 0.22f);
-            panel.style.borderLeftColor = new Color(0.23f, 0.51f, 0.96f);
+            panel.style.borderLeftColor = GetPanelAccentColor(accent);
             panel.style.backgroundColor = new Color(0.14f, 0.14f, 0.14f);
             panel.style.borderTopRightRadius = 6;
             panel.style.borderBottomRightRadius = 6;
@@ -383,50 +614,231 @@ namespace MxFramework.Editor
             panel.style.paddingBottom = 10;
             panel.style.marginBottom = 8;
 
+            var titleContainer = new VisualElement();
+            titleContainer.style.flexDirection = FlexDirection.Row;
+            titleContainer.style.alignItems = Align.Center;
+            titleContainer.style.borderBottomWidth = 1;
+            titleContainer.style.borderBottomColor = new Color(0.22f, 0.22f, 0.22f);
+            titleContainer.style.paddingBottom = 6;
+            titleContainer.style.marginBottom = 8;
+
+            Image icon = CreateIcon(GetPanelIconName(accent), 14);
+            if (icon != null)
+                titleContainer.Add(icon);
+
             var title = new Label(titleText);
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             title.style.fontSize = 12;
             title.style.color = new Color(0.9f, 0.9f, 0.9f);
-            title.style.marginBottom = 8;
-            panel.Add(title);
+            title.style.marginLeft = icon != null ? 2 : 0;
+            titleContainer.Add(title);
+            panel.Add(titleContainer);
             return panel;
         }
 
-        private static Button CreateCommandButton(string text, Action action)
+        private static Color GetPanelAccentColor(PanelAccent accent)
         {
-            var button = new Button(action) { text = text };
-            button.style.height = 26;
+            switch (accent)
+            {
+                case PanelAccent.Status:
+                    return new Color(0.3f, 0.69f, 0.31f);
+                case PanelAccent.Plan:
+                    return new Color(0.23f, 0.51f, 0.96f);
+                case PanelAccent.Artifacts:
+                    return new Color(0.61f, 0.34f, 0.82f);
+                case PanelAccent.Diagnostics:
+                    return new Color(0.96f, 0.55f, 0.21f);
+                default:
+                    return new Color(0.23f, 0.51f, 0.96f);
+            }
+        }
+
+        private static string GetPanelIconName(PanelAccent accent)
+        {
+            switch (accent)
+            {
+                case PanelAccent.Status:
+                    return "d_Checkmark";
+                case PanelAccent.Plan:
+                    return "d_CustomTool";
+                case PanelAccent.Artifacts:
+                    return "d_Folder Icon";
+                case PanelAccent.Diagnostics:
+                    return "d_console.warnicon.sml";
+                default:
+                    return "d_Settings";
+            }
+        }
+
+        private static VisualElement CreateAlertBanner(string title, string content, bool isError)
+        {
+            var banner = new VisualElement();
+            banner.style.paddingLeft = 12;
+            banner.style.paddingRight = 12;
+            banner.style.paddingTop = 10;
+            banner.style.paddingBottom = 10;
+            banner.style.borderLeftWidth = 4;
+            banner.style.borderTopRightRadius = 6;
+            banner.style.borderBottomRightRadius = 6;
+
+            Color leftBarColor = isError ? new Color(0.96f, 0.26f, 0.21f) : new Color(0.3f, 0.69f, 0.31f);
+            Color bgColor = isError ? new Color(0.96f, 0.26f, 0.21f, 0.08f) : new Color(0.3f, 0.69f, 0.31f, 0.08f);
+            banner.style.borderLeftColor = leftBarColor;
+            banner.style.backgroundColor = bgColor;
+
+            var titleContainer = new VisualElement();
+            titleContainer.style.flexDirection = FlexDirection.Row;
+            titleContainer.style.alignItems = Align.Center;
+
+            Image icon = CreateIcon(isError ? "d_console.erroricon.sml" : "d_Checkmark", 14);
+            if (icon != null)
+                titleContainer.Add(icon);
+
+            var titleLabel = new Label(title);
+            titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            titleLabel.style.fontSize = 12;
+            titleLabel.style.color = leftBarColor;
+            titleLabel.style.marginLeft = icon != null ? 2 : 0;
+            titleContainer.Add(titleLabel);
+            banner.Add(titleContainer);
+
+            var textLabel = new Label(content ?? string.Empty);
+            textLabel.AddToClassList("status-content");
+            textLabel.style.whiteSpace = WhiteSpace.Normal;
+            textLabel.style.marginTop = 6;
+            textLabel.style.color = new Color(0.85f, 0.85f, 0.85f);
+            textLabel.style.fontSize = 11;
+            banner.Add(textLabel);
+            return banner;
+        }
+
+        private static VisualElement CreateToolbarSeparator()
+        {
+            var separator = new VisualElement();
+            separator.style.width = 1;
+            separator.style.height = 18;
+            separator.style.backgroundColor = new Color(0.28f, 0.28f, 0.28f);
+            separator.style.marginRight = 8;
+            separator.style.marginLeft = 4;
+            return separator;
+        }
+
+        private static Button CreateStyledButton(string text, string iconName, Action onClick, Color? customNormalBg = null)
+        {
+            var button = new Button(onClick);
+            button.style.flexDirection = FlexDirection.Row;
+            button.style.alignItems = Align.Center;
+            button.style.justifyContent = Justify.Center;
             button.style.marginRight = 6;
-            button.style.marginBottom = 6;
+            button.style.marginBottom = 4;
+            button.style.paddingLeft = 10;
+            button.style.paddingRight = 10;
+            button.style.paddingTop = 5;
+            button.style.paddingBottom = 5;
+            button.style.borderTopLeftRadius = 4;
+            button.style.borderTopRightRadius = 4;
+            button.style.borderBottomLeftRadius = 4;
+            button.style.borderBottomRightRadius = 4;
+            button.style.borderTopWidth = 1;
+            button.style.borderRightWidth = 1;
+            button.style.borderBottomWidth = 1;
+            button.style.borderLeftWidth = 1;
+
+            Color defBg = customNormalBg ?? new Color(0.24f, 0.24f, 0.24f);
+            Color hvrBg = customNormalBg != null
+                ? new Color(customNormalBg.Value.r * 1.12f, customNormalBg.Value.g * 1.12f, customNormalBg.Value.b * 1.12f)
+                : new Color(0.28f, 0.28f, 0.28f);
+            Color borderCol = new Color(0.18f, 0.18f, 0.18f);
+
+            button.style.backgroundColor = defBg;
+            button.style.borderTopColor = borderCol;
+            button.style.borderRightColor = borderCol;
+            button.style.borderBottomColor = borderCol;
+            button.style.borderLeftColor = borderCol;
+
+            if (!string.IsNullOrEmpty(iconName))
+            {
+                Image icon = CreateIcon(iconName, 14);
+                if (icon != null)
+                    button.Add(icon);
+            }
+
+            var label = new Label(text);
+            label.style.marginLeft = string.IsNullOrEmpty(iconName) ? 0 : 4;
+            label.style.color = new Color(0.88f, 0.88f, 0.88f);
+            button.Add(label);
+
+            button.RegisterCallback<MouseEnterEvent>(_ =>
+            {
+                button.style.backgroundColor = hvrBg;
+                button.style.borderTopColor = new Color(0.38f, 0.38f, 0.38f);
+                button.style.borderRightColor = new Color(0.38f, 0.38f, 0.38f);
+                button.style.borderBottomColor = new Color(0.38f, 0.38f, 0.38f);
+                button.style.borderLeftColor = new Color(0.38f, 0.38f, 0.38f);
+            });
+
+            button.RegisterCallback<MouseLeaveEvent>(_ =>
+            {
+                button.style.backgroundColor = defBg;
+                button.style.borderTopColor = borderCol;
+                button.style.borderRightColor = borderCol;
+                button.style.borderBottomColor = borderCol;
+                button.style.borderLeftColor = borderCol;
+            });
+
             return button;
         }
 
-        private static Button CreateMiniButton(string text, Action action)
+        private static Button CreateMiniButton(string text, string iconName, Action action)
         {
-            var button = new Button(action) { text = text };
-            button.style.width = 70;
+            var button = new Button(action);
+            button.style.flexDirection = FlexDirection.Row;
+            button.style.alignItems = Align.Center;
+            button.style.justifyContent = Justify.Center;
+            button.style.width = 74;
             button.style.height = 22;
             button.style.marginRight = 4;
-            button.style.paddingLeft = 2;
-            button.style.paddingRight = 2;
+            button.style.paddingLeft = 4;
+            button.style.paddingRight = 4;
+            button.style.borderTopLeftRadius = 3;
+            button.style.borderTopRightRadius = 3;
+            button.style.borderBottomLeftRadius = 3;
+            button.style.borderBottomRightRadius = 3;
+
+            if (!string.IsNullOrEmpty(iconName))
+            {
+                Image icon = CreateIcon(iconName, 12);
+                if (icon != null)
+                    button.Add(icon);
+            }
+
+            var label = new Label(text);
+            label.style.fontSize = 10;
+            label.style.marginLeft = 2;
+            button.Add(label);
             return button;
         }
 
-        private static VisualElement CreateRow(bool isHeader)
+        private static VisualElement CreateTableRow(bool isHeader, bool zebra)
         {
             var row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
-            row.style.minHeight = 26;
+            row.style.minHeight = 28;
             row.style.alignItems = Align.Center;
             row.style.borderBottomWidth = 1;
             row.style.borderBottomColor = new Color(0.2f, 0.2f, 0.2f);
-            row.style.paddingTop = 2;
-            row.style.paddingBottom = 2;
+            row.style.paddingTop = 3;
+            row.style.paddingBottom = 3;
+
             if (isHeader)
             {
                 row.style.backgroundColor = new Color(0.18f, 0.18f, 0.18f);
-                row.style.borderBottomColor = new Color(0.24f, 0.24f, 0.24f);
+                row.style.borderBottomColor = new Color(0.26f, 0.26f, 0.26f);
                 row.style.borderBottomWidth = 2;
+            }
+            else if (zebra)
+            {
+                row.style.backgroundColor = new Color(0.12f, 0.12f, 0.12f);
             }
 
             return row;
@@ -467,6 +879,36 @@ namespace MxFramework.Editor
             label.style.fontSize = 11;
             label.style.color = new Color(0.82f, 0.82f, 0.82f);
             return label;
+        }
+
+        private static Image CreateIcon(string iconName, float size)
+        {
+            Texture2D tex = FindBuiltInTexture(iconName);
+            if (tex == null)
+                return null;
+
+            var icon = new Image();
+            icon.image = tex;
+            icon.style.width = size;
+            icon.style.height = size;
+            icon.style.marginRight = 4;
+            icon.style.alignSelf = Align.Center;
+            return icon;
+        }
+
+        private static Texture2D FindBuiltInTexture(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            Texture2D tex = EditorGUIUtility.FindTexture(name);
+            if (tex != null)
+                return tex;
+
+            if (name.StartsWith("d_", StringComparison.Ordinal))
+                return EditorGUIUtility.FindTexture(name.Substring(2));
+
+            return EditorGUIUtility.FindTexture("d_" + name);
         }
 
         private static void PingAsset(string path)

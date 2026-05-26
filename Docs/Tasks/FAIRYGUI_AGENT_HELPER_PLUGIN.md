@@ -39,27 +39,27 @@ WGameFramework/Refresh Project
 If the menu is missing, reload FairyGUI plugins from the editor plugin panel or
 restart FairyGUI Editor after opening the project.
 
-## Batch Entry
+## Local Editor Entry
 
-The plugin exposes these script commands for FairyGUI Editor command-line script
-mode when available:
+The FairyGUI Editor executable currently used on this machine is:
 
-```bash
-FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-smoke
-FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-smoke
-FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script refresh
+```text
+..\FairyGUI-Editor\FairyGUI-Editor.exe
 ```
 
-The local non-professional command-line publish path has been unreliable so far,
-so the GUI menu path is the expected workflow until that is resolved.
+Use it to open `FGUIProject/FGUIProject.fairy`, then run the GUI menu commands
+listed above. The previously documented `-script` command-line form is not a
+verified plugin entry on this editor build; it only opens the editor welcome
+flow here.
 
 Observed local behavior:
 
 - `package.json`, `main.js`, source XML, and `Publish.json` pass static checks.
 - `MxFguiSmoke_fui.bytes` has a valid `FGUI` header and contains `mxfgui0` /
   `MxFguiSmoke`.
-- The command-line `-script create-smoke` path currently hangs in this local
-  editor setup and is not the recommended path.
+- GUI menu commands are the verified workflow for this plugin.
+- The `-script` command-line form is not accepted as proof of plugin execution
+  in this local editor setup.
 
 ## Boundaries
 

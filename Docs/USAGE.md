@@ -1810,6 +1810,14 @@ YooAsset 也不是 MxFramework 默认资源路线。本仓库当前不做 YooAss
 
 外部资源管理器是全局 Authoring Resource Manager，不是角色包私有资源库。默认 Iron Vanguard 路径只作为包筛选 / 消费者上下文。
 
+`Tools/MxFramework.ResourceLibrary` 现在也是 `Global Resource Build Profile` 的编辑入口。点击“加入构建 Profile”只修改浏览器内的 Profile 草稿；点击“保存 Profile”才会通过 Authoring Server 校验并写入：
+
+```text
+Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json
+```
+
+保存 Profile 不会构建 AssetBundle，也不会写 `StreamingAssets`。构建 Player 运行时产物仍由 Unity Editor 中的 `GlobalAssetBundleBuilderWorkbench` 或低层构建菜单执行。
+
 从 Editor Hub 启动：
 
 ```bash
@@ -1831,6 +1839,11 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh
 5. 点击“查看构建 Profile”或查看 Build Profile 面板中的 Bundle Planner 摘要，预览内部 bundle、资源数量、依赖和诊断。
 
 Resource Manager 的 Bundle Plan 是预览和诊断面：它不会构建 AssetBundle，也不会写 `StreamingAssets` 产物。真正生成 Player 运行时 catalog / bundle / preload group 仍走 Unity Editor Global AssetBundle Builder 工作台或低层构建菜单。
+
+保存失败时优先检查 Profile 草稿字段：
+
+- `ResourceKey id contains invalid characters.` 表示 `resourceKey.id` 不是合法运行时 key。应使用类似 `ui.start_screen.button.normal` 的稳定 runtime key，不能使用带 provider 前缀的 `resourceId`、文件路径、包含 `:` / `|` / 空白 / 斜杠的字符串。
+- `Bundle rule is ignored for external, editor-only or excluded entries.` 表示该 entry 的 `deliveryMode` 是 `external`、`editorOnly` 或 `excluded`，但仍填了 `bundleRule`。这类资源不应进入内部 AssetBundle，除非明确改成 `internal` 或使用强制内部 override；否则清空 `bundleRule` / bundle hints。
 
 ### 13.2 Global Resource Build Profile
 

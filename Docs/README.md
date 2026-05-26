@@ -32,6 +32,7 @@
 | `DESIGN.md` | 框架为什么存在、包含什么、不包含什么。 |
 | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 的运行时底座规划。 |
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、模块边界、加载契约和阶段切片。 |
+| `RESOURCE_SYSTEM_WORKFLOW.md` | 当前资源系统主工作流：Resource Manager 编辑 Profile、Workbench 构建、Runtime Offline 加载，以及当前阻塞项。 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、命名、Catalog、临时资产归档和 FMOD 边界规范。 |
 | `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置、材质/场景创作和验证规则。 |
 | `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP 唯一 Feature 入口、Context / SharedRT / Bridge 边界。 |
@@ -210,6 +211,7 @@
 | `ARCHITECTURE.md` | 模块如何协作、依赖如何约束、生命周期如何运行 | 新增模块或改变依赖方向 |
 | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 如何协作 | 开发运行时底座、回放、存档前 |
 | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源引用、加载、释放、Catalog、Provider 和 Mod 资源包如何协作 | 开发资源管理模块前 |
+| `RESOURCE_SYSTEM_WORKFLOW.md` | 当前可执行的资源系统工作流、职责边界和阻塞项 | 调整资源管理器、Build Profile、Workbench 或 Runtime Offline 加载前 |
 | `RESOURCE_DIRECTORY_LAYOUT.md` | 框架样例资源正式目录、ResourceKey 命名、Catalog 归档和 FMOD bank 边界 | 迁移或新增正式样例资源前 |
 | `RENDERING_PIPELINE.md` | 当前 Unity 渲染管线基线、URP 资产位置和场景/材质验证规则 | 渲染管线、材质、Shader、Volume、相机或 Demo 表现基线变化 |
 | `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 系统总线、URP Feature 入口、上下文分层、SharedRT 冲突和桥接边界 | 开发 Rendering 框架能力或变更 URP 编排规则前 |

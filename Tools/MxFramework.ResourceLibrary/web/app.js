@@ -1755,6 +1755,8 @@ function buildProfileEntryFromItem(item) {
   const bundleHint = preloadGroups.length > 0
     ? normalizeLabelSegment(preloadGroups[0])
     : item.usage ? normalizeLabelSegment(item.usage) : item.kind ? normalizeLabelSegment(item.kind) : "misc";
+  const deliveryMode = inferDeliveryModeForItem(item);
+  const isInternalDelivery = deliveryMode === "internal";
   return {
     resourceKey,
     source: {
@@ -1765,12 +1767,12 @@ function buildProfileEntryFromItem(item) {
       externalSourcePath: stringValue(pick(authoring, "sourcePath")) || item.sourcePath || "",
       providerData
     },
-    labels: [domainLabel, `bundle.${bundleHint}`],
-    bundleRule: bundleHint,
-    deliveryMode: inferDeliveryModeForItem(item),
+    labels: isInternalDelivery ? [domainLabel, `bundle.${bundleHint}`] : [domainLabel],
+    bundleRule: isInternalDelivery ? bundleHint : "",
+    deliveryMode,
     bundleOverrideMode: "none",
     bundleOverrideValue: "",
-    bundleGroupHint: bundleHint,
+    bundleGroupHint: isInternalDelivery ? bundleHint : "",
     preloadGroups,
     dependencies: [],
     providerData: {},
@@ -1791,8 +1793,21 @@ function buildProfileResourceKeyFromItem(item) {
   const providerData = pick(runtime, "providerData") || item.metadata || {};
   const parsed = parseProfileResourceKey(item.resourceKey || item.runtimeResourceKey || item.providerResourceKey || item.packageResourceKey || "");
   const type = stringValue(pick(planResource, "typeId", "type")) || parsed.type || stringValue(pick(runtime, "assetType")) || item.kind || "Object";
+  const id = firstValidProfileResourceKeyId(
+    stringValue(pick(planResource, "resourceKey", "id")),
+    stringValue(pick(runtime, "resourceKey", "runtimeResourceKey", "providerResourceKey", "packageResourceKey")),
+    parsed.id,
+    stringValue(pick(providerData, "runtimeResourceKey", "providerResourceKey", "packageResourceKey")),
+    item.runtimeResourceKey,
+    item.providerResourceKey,
+    item.packageResourceKey,
+    item.stableId,
+    item.libraryItemId,
+    item.displayName,
+    item.resourceId
+  );
   return {
-    id: stringValue(pick(planResource, "resourceKey", "id")) || stringValue(pick(runtime, "resourceKey", "runtimeResourceKey", "providerResourceKey", "packageResourceKey")) || parsed.id || item.stableId || item.libraryItemId || item.resourceId,
+    id,
     type,
     typeId: type,
     variant: stringValue(pick(planResource, "variant")) || parsed.variant || stringValue(pick(providerData, "variant")),
@@ -2511,6 +2526,33 @@ function parseProfileResourceKey(value) {
     id: text,
     variant: ""
   };
+}
+
+function firstValidProfileResourceKeyId(...values) {
+  for (const value of values) {
+    const text = stringValue(value).trim();
+    if (isValidProfileResourceKeyId(text)) return text;
+  }
+
+  for (const value of values) {
+    const normalized = normalizeProfileResourceKeyId(value);
+    if (normalized) return normalized;
+  }
+
+  return "resource.unnamed";
+}
+
+function isValidProfileResourceKeyId(value) {
+  return /^[a-z0-9._-]+$/.test(String(value || ""));
+}
+
+function normalizeProfileResourceKeyId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1.$2")
+    .replace(/[^a-zA-Z0-9._-]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .toLowerCase();
 }
 
 function formatValidationSummary(payload) {

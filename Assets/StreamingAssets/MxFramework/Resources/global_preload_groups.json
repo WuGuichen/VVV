@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "profileId": "global.default",
+  "catalogId": "global.runtime",
+  "groups": [
+    {
+      "id": "boot.base",
+      "explicitKeys": [],
+      "labels": [
+        "preload.boot.base"
+      ],
+      "failFast": true,
+      "maxConcurrentLoads": 4
+    }
+  ]
+}

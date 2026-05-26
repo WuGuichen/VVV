@@ -1,0 +1,9 @@
+{
+  "ProfileId": "global.default",
+  "CatalogId": "global.runtime",
+  "PackageId": "mxframework.samples",
+  "BuildTarget": "StandaloneWindows64",
+  "GeneratedAtUtc": "2026-05-26T11:09:51.3447095Z",
+  "Issues": [],
+  "HasErrors": false
+}

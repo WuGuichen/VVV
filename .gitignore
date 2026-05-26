@@ -46,6 +46,7 @@ node_modules/
 .npm/
 .yarn/
 .pnpm-store/
+FGUIProject/.objs/
 
 # Version control metadata from other systems or nested working copies
 .svn/

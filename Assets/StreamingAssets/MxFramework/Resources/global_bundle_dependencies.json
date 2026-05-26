@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "profileId": "global.default",
+  "buildTarget": "StandaloneWindows64",
+  "bundles": [
+    {
+      "bundleName": "global.ui.start_screen.assetbundle",
+      "dependencies": []
+    }
+  ]
+}

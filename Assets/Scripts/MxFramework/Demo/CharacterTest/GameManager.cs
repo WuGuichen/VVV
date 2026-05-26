@@ -19,7 +19,7 @@ namespace MxFramework.Demo.CharacterTest
     public sealed class GameManager : MonoBehaviour
     {
         [SerializeField] private bool _startPaused;
-        [SerializeField] [Min(1)] private int _targetFrameRate = 60;
+        [SerializeField][Min(1)] private int _targetFrameRate = 60;
         [SerializeField] private bool _logConsole = true;
         [SerializeField] private bool _logConsoleColors = true;
         [SerializeField] private bool _logCategoryColors = true;
@@ -27,7 +27,8 @@ namespace MxFramework.Demo.CharacterTest
         [SerializeField] private string _gameSliceLogColor = "#58D68D";
         [SerializeField] private string _storyLogColor = "#5DADE2";
         [SerializeField] private bool _useExternalStoryAuthoring;
-        [SerializeField] private string _storyDraftStreamingAssetsPath =
+        [SerializeField]
+        private string _storyDraftStreamingAssetsPath =
             "MxFramework/CharacterTest/character_test_bootstrap.story.json";
         [SerializeField] private GlobalResourceRuntimeMode _resourceMode = GlobalResourceRuntimeMode.Editor;
         [SerializeField] private string _baseResourcePreloadGroupId = "SpawnCritical";
@@ -55,7 +56,6 @@ namespace MxFramework.Demo.CharacterTest
                 UseRichTextColors = _logConsoleColors
             };
             ConfigureLogColors();
-            _logger.Info("GameManager", "OnEnable");
 
             ApplyTargetFrameRate();
             CharacterTestStoryContent storyContent = LoadStoryContent();
@@ -74,7 +74,6 @@ namespace MxFramework.Demo.CharacterTest
 
         private void OnDisable()
         {
-            _logger?.Info("GameManager", "OnDisable");
             UnregisterStoryDebugTarget();
             DisposeSlice();
             RestoreTargetFrameRate();
@@ -82,7 +81,6 @@ namespace MxFramework.Demo.CharacterTest
 
         private void OnDestroy()
         {
-            _logger?.Info("GameManager", "OnDestroy");
             UnregisterStoryDebugTarget();
             DisposeSlice();
         }
@@ -231,7 +229,6 @@ namespace MxFramework.Demo.CharacterTest
 
             _slice.Dispose();
             _slice = null;
-            _logger?.Info("GameManager", "GameSlice disposed");
         }
 
         private void ConfigureLogColors()

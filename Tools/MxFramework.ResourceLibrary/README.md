@@ -10,6 +10,30 @@
 
 ## Build Profile / Bundle Plan
 
+Ownership summary:
+
+```text
+Resource Manager Web UI
+  -> edits the Global Resource Build Profile draft
+  -> saves through Authoring Server validation
+  -> writes Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json
+
+Global AssetBundle Builder Workbench
+  -> reads the saved profile
+  -> generates StreamingAssets catalog, preload groups, bundle dependencies and AssetBundles
+
+Runtime
+  -> reads generated Player artifacts
+  -> does not read the Authoring Resource Manager aggregate view
+```
+
+The Resource Manager is the current editor for `global_resource_build_profile.json`. The Bundle Plan shown in the web UI is a preview from the saved profile; it does not build AssetBundles or write generated `StreamingAssets` artifacts.
+
+Save validation rejects invalid profile drafts. Common causes:
+
+- `ResourceKey id contains invalid characters.` The generated or edited resource key must be a runtime key such as `ui.start_screen.button.normal`, not a provider id, `resourceId`, path, or value containing characters such as `:`, `|`, whitespace or slashes.
+- `Bundle rule is ignored for external, editor-only or excluded entries.` Entries with `deliveryMode` set to `external`, `editorOnly` or `excluded` should not carry `bundleRule` unless an explicit internal override is intended. Clear `bundleRule` / bundle hints or change `deliveryMode` to `internal`.
+
 Resource Manager 已接入 Global Resource Build Profile 的第一段 authoring 流程：
 
 - Build Profile 筛选：资源浏览器可按 `notInProfile`、`saved`、`draftOnly`、`removedInDraft`、`modifiedInDraft` 过滤，也可只看 runtime-ready candidates。

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "global.runtime",
+  "packageId": "mxframework.samples",
+  "entries": [
+    {
+      "id": "ui.start_screen.button.normal",
+      "type": "Texture2D",
+      "variant": "",
+      "packageId": "mxframework.samples",
+      "provider": "assetBundle",
+      "address": "global.ui.start_screen.assetbundle|Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
+      "labels": [
+        "bundle.ui.start_screen",
+        "domain.ui",
+        "package.mxframework.samples",
+        "preload.boot.base",
+        "warmup.demo.player_smoke"
+      ],
+      "dependencies": [],
+      "hash": "sha256:6b2bdc994bab97e8690efa52cc1eecf5f121a00a0ed698501870f935ddc99b77",
+      "size": 38236,
+      "allowOverride": false,
+      "providerData": {
+        "usage": "texture",
+        "bundleName": "global.ui.start_screen.assetbundle",
+        "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
+        "unityGuid": "9b7cb3348a06dee46ba153871343231b",
+        "buildProfileId": "global.default",
+        "buildTarget": "StandaloneWindows64",
+        "unityMainObjectType": "Texture2D"
+      }
+    }
+  ]
+}

@@ -60,16 +60,15 @@ WGameFramework/Publish Smoke Package
 WGameFramework/Refresh Project
 ```
 
-The plugin also exposes best-effort batch script commands:
+The FairyGUI Editor executable currently used on this machine is:
 
-```bash
-FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-smoke
-FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-smoke
-FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script refresh
+```text
+..\FairyGUI-Editor\FairyGUI-Editor.exe
 ```
 
-The local command-line script path has been unreliable so far, so the GUI menu
-workflow is the expected path until that is resolved.
+Use it to open `FGUIProject/FGUIProject.fairy`, then run the GUI menu commands
+above. The previously documented `-script` command-line form is not a verified
+plugin entry on this editor build; it only opens the editor welcome flow here.
 
 ## Follow-up Runtime Smoke
 
