@@ -196,6 +196,43 @@ internal static class EditorServer
             return;
         }
 
+        if (path == "/api/authoring/resources/bundle-plan" && context.Request.HttpMethod == "GET")
+        {
+            string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
+            string buildTarget = context.Request.QueryString["buildTarget"] ?? "ActiveBuildTarget";
+            WriteJson(context.Response, ReadGlobalResourceBundlePlan(rootPath, characterPackage, jsonOptions, buildTarget), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/resources/global-build-profile" && context.Request.HttpMethod == "GET")
+        {
+            WriteJson(context.Response, ReadGlobalResourceBuildProfileState(rootPath, jsonOptions), jsonOptions);
+            return;
+        }
+
+        if (path == "/api/authoring/resources/global-build-profile/save" && context.Request.HttpMethod == "POST")
+        {
+            string body = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding).ReadToEnd();
+            GlobalResourceBuildProfileSaveRequest request;
+            try
+            {
+                request = string.IsNullOrWhiteSpace(body)
+                    ? new GlobalResourceBuildProfileSaveRequest()
+                    : (JsonSerializer.Deserialize<GlobalResourceBuildProfileSaveRequest>(body, jsonOptions) ?? new GlobalResourceBuildProfileSaveRequest());
+            }
+            catch (JsonException ex)
+            {
+                WriteJson(context.Response, new { success = false, error = "GLOBAL_RESOURCE_PROFILE_INVALID_JSON", message = ex.Message }, jsonOptions, 400);
+                return;
+            }
+
+            object result = SaveGlobalResourceBuildProfile(rootPath, request.profile, jsonOptions);
+            JsonElement resultJson = JsonSerializer.SerializeToElement(result, jsonOptions);
+            bool success = resultJson.TryGetProperty("success", out JsonElement successElement) && successElement.GetBoolean();
+            WriteJson(context.Response, result, jsonOptions, success ? 200 : 400);
+            return;
+        }
+
         if (path == "/api/authoring/resources/inspect" && context.Request.HttpMethod == "GET")
         {
             string characterPackage = ResolveCharacterPackageRelative(context, rootPath, defaultPackage);
@@ -1675,7 +1712,7 @@ internal static class EditorServer
         string generatedRoot = Path.Combine(rootPath, "Assets", "MxFrameworkGenerated", "CharacterPackages", packageId);
         string unityResourceCatalogPath = Path.Combine(generatedRoot, "config", "unity_resource_catalog.json");
         string runtimeResourceCatalogPath = Path.Combine(generatedRoot, "config", "runtime_resource_catalog.json");
-        string globalResourceBuildProfilePath = Path.Combine(rootPath, "Assets", "Config", "MxFramework", "ResourceProfiles", "global_resource_build_profile.json");
+        string globalResourceBuildProfilePath = ResolveGlobalResourceBuildProfilePath(rootPath);
         string globalRuntimeCatalogPath = Path.Combine(rootPath, "Assets", "StreamingAssets", "MxFramework", "Resources", "global_runtime_catalog.json");
         string globalPreloadGroupsPath = Path.Combine(rootPath, "Assets", "StreamingAssets", "MxFramework", "Resources", "global_preload_groups.json");
         string globalBundleDependenciesPath = Path.Combine(rootPath, "Assets", "StreamingAssets", "MxFramework", "Resources", "global_bundle_dependencies.json");
@@ -1717,6 +1754,79 @@ internal static class EditorServer
         collection.ReferenceGraph = AuthoringResourceReferenceGraphBuilder.FromCharacterPackage(package, collection);
         collection.Diagnostics.AddRange(collection.ReferenceGraph.Diagnostics);
         return collection;
+    }
+
+    internal static object ReadGlobalResourceBuildProfileState(string rootPath, JsonSerializerOptions jsonOptions)
+    {
+        string profilePath = ResolveGlobalResourceBuildProfilePath(rootPath);
+        GlobalResourceBuildProfile profile = ReadOptionalJsonFile<GlobalResourceBuildProfile>(rootPath, profilePath, jsonOptions) ?? new GlobalResourceBuildProfile
+        {
+            ProfileId = "global.default",
+            CatalogId = "global.runtime"
+        };
+        GlobalResourceBuildProfileValidationReport validation = GlobalResourceBuildProfileValidator.Validate(profile);
+        return new
+        {
+            profilePath = ToProjectRelativePath(rootPath, profilePath),
+            exists = File.Exists(profilePath),
+            profile,
+            validation
+        };
+    }
+
+    internal static object ReadGlobalResourceBundlePlan(string rootPath, string packageRelative, JsonSerializerOptions jsonOptions, string buildTarget = "ActiveBuildTarget")
+    {
+        AuthoringResourceCollection resources = ReadAuthoringResources(rootPath, packageRelative, jsonOptions);
+        string profilePath = ResolveGlobalResourceBuildProfilePath(rootPath);
+        GlobalResourceBuildProfile profile = ReadOptionalJsonFile<GlobalResourceBuildProfile>(rootPath, profilePath, jsonOptions) ?? new GlobalResourceBuildProfile
+        {
+            ProfileId = "global.default",
+            CatalogId = "global.runtime"
+        };
+        GlobalResourceBuildProfileValidationReport validation = GlobalResourceBuildProfileValidator.Validate(profile);
+        GlobalResourceBundlePlan plan = new GlobalResourceBundlePlanner().Plan(
+            profile,
+            resources,
+            new GlobalResourceBundlePlannerOptions { BuildTarget = buildTarget });
+
+        return new
+        {
+            profilePath = ToProjectRelativePath(rootPath, profilePath),
+            profileId = profile.ProfileId,
+            catalogId = profile.CatalogId,
+            validation,
+            plan
+        };
+    }
+
+    internal static object SaveGlobalResourceBuildProfile(string rootPath, GlobalResourceBuildProfile profile, JsonSerializerOptions jsonOptions)
+    {
+        string profilePath = ResolveGlobalResourceBuildProfilePath(rootPath);
+        GlobalResourceBuildProfileValidationReport validation = GlobalResourceBuildProfileValidator.Validate(profile);
+        if (validation.HasErrors)
+        {
+            return new
+            {
+                success = false,
+                profilePath = ToProjectRelativePath(rootPath, profilePath),
+                validation,
+                profile
+            };
+        }
+
+        WriteJsonFileAtomic(profilePath, profile, jsonOptions);
+        return new
+        {
+            success = true,
+            profilePath = ToProjectRelativePath(rootPath, profilePath),
+            validation,
+            profile
+        };
+    }
+
+    private static string ResolveGlobalResourceBuildProfilePath(string rootPath)
+    {
+        return Path.Combine(rootPath, "Assets", "Config", "MxFramework", "ResourceProfiles", "global_resource_build_profile.json");
     }
 
     private static string ResolveFmodAudioLibrarySnapshotPath(string rootPath, string packageId)
@@ -4586,6 +4696,11 @@ internal static class EditorServer
         public AuthoringResourceFieldSpec fieldSpec { get; set; } = new AuthoringResourceFieldSpec();
         public AuthoringResourceConsumerContext context { get; set; } = new AuthoringResourceConsumerContext();
         public AuthoringResourceSelectionRef selection { get; set; } = new AuthoringResourceSelectionRef();
+    }
+
+    private sealed class GlobalResourceBuildProfileSaveRequest
+    {
+        public GlobalResourceBuildProfile profile { get; set; }
     }
 
     private sealed class AnimationAuthoringSaveRequest
