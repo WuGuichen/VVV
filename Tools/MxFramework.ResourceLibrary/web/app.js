@@ -560,19 +560,24 @@ function applyBuildProfileBatchFields() {
 
   let applied = 0;
   let skipped = 0;
+  let changed = 0;
   for (const item of checkedItems) {
     const entry = findDraftBuildProfileEntryForItem(item);
     if (!entry) {
       skipped++;
       continue;
     }
+    let entryChanged = false;
     for (const field of batch) {
-      entry[field.key] = field.value;
+      if (buildProfileBatchValuesEqual(entry[field.key], field.value)) continue;
+      entry[field.key] = cloneBuildProfileBatchValue(field.value);
+      entryChanged = true;
     }
     applied++;
+    if (entryChanged) changed++;
   }
 
-  if (applied > 0) markBuildProfileDirty();
+  if (changed > 0) markBuildProfileDirty();
   state.lastActionMessage = `批量字段编辑已应用 ${applied} 个 draft profile entry，跳过 ${skipped} 个未加入草稿的勾选资源。`;
   render();
 }
@@ -584,15 +589,33 @@ function readBuildProfileBatchFields() {
     const key = control.dataset.profileBatchField;
     const enabled = el.buildProfileContent.querySelector(`[data-profile-batch-enabled="${cssEscapeCompat(key)}"]`);
     if (!enabled?.checked) continue;
+    if (control.disabled) continue;
     const rawValue = String(control.value || "");
     if (rawValue.trim() === "") continue;
     const value = key === "labels" || key === "preloadGroups"
       ? splitCsv(rawValue)
       : rawValue.trim();
     if (Array.isArray(value) && value.length === 0) continue;
+    if (key === "bundleOverrideMode" && !isAllowedBuildProfileBatchOverrideMode(value)) continue;
     fields.push({ key, value });
   }
   return fields;
+}
+
+function isAllowedBuildProfileBatchOverrideMode(value) {
+  return ["none", "forceStandalone", "forceExternal", "exclude"].includes(value);
+}
+
+function buildProfileBatchValuesEqual(left, right) {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) return false;
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+  }
+  return left === right;
+}
+
+function cloneBuildProfileBatchValue(value) {
+  return Array.isArray(value) ? [...value] : value;
 }
 
 function syncBuildProfileBatchField(field, enabled) {
