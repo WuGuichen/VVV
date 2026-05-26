@@ -209,14 +209,14 @@ namespace MxFramework.UI.FairyGui
                     "Required package resource is not registered.");
             }
 
-            ResourceLoadResult<ResourceHandle<object>> packageResult;
-            MxFairyGuiPackageLoadResult packageOperationResult = LoadObject(descriptor.PackageBytesKey, out packageResult);
-            if (packageOperationResult.Failed)
-                return WithPackageStatus(packageOperationResult, descriptor.PackageBytesKey);
+            ResourceHandle<object> packageHandle;
+            MxFairyGuiPackageLoadResult packageFailure;
+            if (!TryLoadObject(descriptor.PackageBytesKey, out packageHandle, out packageFailure))
+                return WithPackageStatus(packageFailure, descriptor.PackageBytesKey);
 
-            if (!(packageResult.Value.Value is byte[]))
+            if (!(packageHandle.Value is byte[]))
             {
-                _resourceManager.Release(packageResult.Value);
+                _resourceManager.Release(packageHandle);
                 return MxFairyGuiPackageLoadResult.FailedResult(
                     MxFairyGuiResourceBridgeStatus.LoadFailed,
                     descriptor.PackageBytesKey,
@@ -227,18 +227,21 @@ namespace MxFramework.UI.FairyGui
             for (int i = 0; i < descriptor.Resources.Count; i++)
             {
                 MxFairyGuiPackageResourceDescriptor resource = descriptor.Resources[i];
-                ResourceLoadResult<ResourceHandle<object>> resourceResult;
-                MxFairyGuiPackageLoadResult resourceOperationResult = LoadObject(resource.Key, out resourceResult);
-                if (resourceOperationResult.Failed)
+                if (!resource.Required && !_resourceManager.Contains(resource.Key))
+                    continue;
+
+                ResourceHandle<object> resourceHandle;
+                MxFairyGuiPackageLoadResult resourceFailure;
+                if (!TryLoadObject(resource.Key, out resourceHandle, out resourceFailure))
                 {
-                    ReleaseLoaded(packageResult.Value, loadedResources);
-                    return resourceOperationResult;
+                    ReleaseLoaded(packageHandle, loadedResources);
+                    return resourceFailure;
                 }
 
-                loadedResources.Add(resourceResult.Value);
+                loadedResources.Add(resourceHandle);
             }
 
-            var scope = new MxFairyGuiPackageLoadScope(this, descriptor.PackageId, packageResult.Value, loadedResources);
+            var scope = new MxFairyGuiPackageLoadScope(this, descriptor.PackageId, packageHandle, loadedResources);
             LoadedScopeCount++;
             return MxFairyGuiPackageLoadResult.Loaded(scope);
         }
@@ -275,6 +278,15 @@ namespace MxFramework.UI.FairyGui
                 return false;
             }
 
+            if (string.IsNullOrWhiteSpace(descriptor.PackageId))
+            {
+                invalid = MxFairyGuiPackageLoadResult.FailedResult(
+                    MxFairyGuiResourceBridgeStatus.InvalidDescriptor,
+                    descriptor.PackageBytesKey,
+                    "Package id is required.");
+                return false;
+            }
+
             if (!descriptor.PackageBytesKey.IsValid)
             {
                 invalid = MxFairyGuiPackageLoadResult.FailedResult(
@@ -300,29 +312,35 @@ namespace MxFramework.UI.FairyGui
             return true;
         }
 
-        private MxFairyGuiPackageLoadResult LoadObject(ResourceKey key, out ResourceLoadResult<ResourceHandle<object>> result)
+        private bool TryLoadObject(ResourceKey key, out ResourceHandle<object> handle, out MxFairyGuiPackageLoadResult failure)
         {
             IResourceOperation<ResourceHandle<object>> operation = _resourceManager.LoadAsync<object>(key);
             if (!operation.IsDone)
             {
-                result = default;
-                return MxFairyGuiPackageLoadResult.FailedResult(
+                operation.Cancel();
+                handle = null;
+                failure = MxFairyGuiPackageLoadResult.FailedResult(
                     MxFairyGuiResourceBridgeStatus.LoadPending,
                     key,
                     "Package resource load is still pending.");
+                return false;
             }
 
-            result = operation.Result;
+            ResourceLoadResult<ResourceHandle<object>> result = operation.Result;
             if (!result.Success)
             {
-                return MxFairyGuiPackageLoadResult.FailedResult(
+                handle = null;
+                failure = MxFairyGuiPackageLoadResult.FailedResult(
                     MxFairyGuiResourceBridgeStatus.LoadFailed,
                     key,
                     result.Error.Message,
                     result.Error);
+                return false;
             }
 
-            return MxFairyGuiPackageLoadResult.Loaded(new MxFairyGuiPackageLoadScope(this, string.Empty, result.Value, null));
+            handle = result.Value;
+            failure = default;
+            return true;
         }
 
         private static MxFairyGuiPackageLoadResult WithPackageStatus(MxFairyGuiPackageLoadResult result, ResourceKey packageKey)
