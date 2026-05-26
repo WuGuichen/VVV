@@ -6,7 +6,8 @@
         "UnityEditor.TestRunner",
         "MxFramework.Resources",
         "MxFramework.UI",
-        "MxFramework.UI.FairyGUI"
+        "MxFramework.UI.FairyGUI",
+        "FairyGUI"
     ],
     "includePlatforms": [
         "Editor"

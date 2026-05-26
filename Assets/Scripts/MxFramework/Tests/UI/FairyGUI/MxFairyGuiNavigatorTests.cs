@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using MxFramework.Resources;
 using MxFramework.UI;
 using MxFramework.UI.FairyGui;
 using NUnit.Framework;
+using Fgui = global::FairyGUI;
 
 namespace MxFramework.Tests.UI.FairyGui
 {
@@ -30,6 +32,58 @@ namespace MxFramework.Tests.UI.FairyGui
             Assert.AreSame(host.LastHandle, binder.LastComponent);
             Assert.IsTrue(host.LastHandle.Visible);
             Assert.AreEqual(MxUiLifecycleState.Visible, result.View.Lifecycle.State);
+        }
+
+        [Test]
+        public void Open_WithRealMxFguiSmokePackage_BindsClosesAndReleases()
+        {
+            RemoveRealSmokePackageIfLoaded();
+
+            byte[] packageBytes = File.ReadAllBytes(Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Assets/Bundles/FGUI/MxFguiSmoke/MxFguiSmoke_fui.bytes"));
+            Assert.Greater(packageBytes.Length, 4);
+            Assert.AreEqual((byte)'F', packageBytes[0]);
+            Assert.AreEqual((byte)'G', packageBytes[1]);
+            Assert.AreEqual((byte)'U', packageBytes[2]);
+            Assert.AreEqual((byte)'I', packageBytes[3]);
+
+            ResourceManager manager = CreateManager(
+                new MemoryResourceProvider().Register("fgui/MxFguiSmoke_fui.bytes", packageBytes),
+                RealSmokePackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new MxFairyGuiHost();
+            var binder = new RealSmokeBinder();
+            MxFairyGuiNavigator navigator = CreateRealSmokeNavigator(bridge, host, binder);
+
+            try
+            {
+                MxUiOpenResult result = navigator.Open(RealSmokeViewId, new RealSmokeViewModel("Navigator smoke bound"));
+
+                Assert.IsTrue(result.Success, result.Message);
+                Assert.IsTrue(navigator.IsOpen(RealSmokeViewId));
+                Assert.AreEqual(1, bridge.LoadedScopeCount);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(1, binder.BindCount);
+                Assert.AreEqual("Navigator smoke bound", binder.BoundTitle);
+                Assert.IsFalse(binder.BoundComponent.IsDisposed);
+                Assert.AreEqual(MxUiLifecycleState.Visible, result.View.Lifecycle.State);
+
+                Assert.IsTrue(navigator.Close(RealSmokeViewId));
+                Assert.IsFalse(navigator.Close(RealSmokeViewId));
+                Assert.IsFalse(navigator.IsOpen(RealSmokeViewId));
+                Assert.IsTrue(binder.BoundComponent.IsDisposed);
+                Assert.AreEqual(1, bridge.ReleasedScopeCount);
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.IsNull(Fgui.UIPackage.GetByName(RealSmokePackageId));
+            }
+            finally
+            {
+                if (navigator.IsOpen(RealSmokeViewId))
+                    navigator.Close(RealSmokeViewId);
+
+                RemoveRealSmokePackageIfLoaded();
+            }
         }
 
         [Test]
@@ -293,6 +347,10 @@ namespace MxFramework.Tests.UI.FairyGui
         private static readonly MxUiViewId ViewId = new MxUiViewId("ui.demo.main");
         private static readonly ResourceKey PackageKey = new ResourceKey("ui.demo.package", MxFairyGuiResourceTypeIds.PackageBytes);
         private static readonly ResourceCatalogEntry PackageEntry = Entry(PackageKey, "ui/demo.bytes");
+        private static readonly MxUiViewId RealSmokeViewId = new MxUiViewId("ui.fairygui.smoke");
+        private static readonly ResourceKey RealSmokePackageKey = new ResourceKey("ui.fairygui.smoke.package", MxFairyGuiResourceTypeIds.PackageBytes, packageId: RealSmokePackageId);
+        private static readonly ResourceCatalogEntry RealSmokePackageEntry = Entry(RealSmokePackageKey, "fgui/MxFguiSmoke_fui.bytes");
+        private const string RealSmokePackageId = "MxFguiSmoke";
 
         private static MxFairyGuiNavigator CreateNavigator(
             MxFairyGuiResourceBridge bridge,
@@ -340,6 +398,26 @@ namespace MxFramework.Tests.UI.FairyGui
             return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings);
         }
 
+        private static MxFairyGuiNavigator CreateRealSmokeNavigator(
+            MxFairyGuiResourceBridge bridge,
+            IMxFairyGuiHost host,
+            IMxFairyGuiViewBinder<RealSmokeViewModel> binder)
+        {
+            var contracts = new MxUiViewContractRegistry();
+            contracts.Register(new MxUiViewContract(new MxUiViewDescriptor(RealSmokeViewId, RealSmokePackageId, "SmokePanel", MxUiLayer.Panel))
+            {
+                ViewModelType = typeof(RealSmokeViewModel).FullName
+            });
+
+            var packages = new MxFairyGuiPackageCatalog();
+            packages.Register(new MxFairyGuiPackageDescriptor(RealSmokePackageId, RealSmokePackageKey));
+
+            var bindings = new MxFairyGuiViewBindingRegistry();
+            bindings.Register(RealSmokeViewId, binder);
+
+            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings);
+        }
+
         private static ResourceManager CreateManager(MemoryResourceProvider provider, params ResourceCatalogEntry[] entries)
         {
             var manager = new ResourceManager();
@@ -353,9 +431,25 @@ namespace MxFramework.Tests.UI.FairyGui
             return new ResourceCatalogEntry(key.Id, key.TypeId, "memory", address, key.Variant, key.PackageId);
         }
 
+        private static void RemoveRealSmokePackageIfLoaded()
+        {
+            if (Fgui.UIPackage.GetByName(RealSmokePackageId) != null)
+                Fgui.UIPackage.RemovePackage(RealSmokePackageId);
+        }
+
         private sealed class DemoViewModel
         {
             public DemoViewModel(string title)
+            {
+                Title = title;
+            }
+
+            public string Title { get; }
+        }
+
+        private sealed class RealSmokeViewModel
+        {
+            public RealSmokeViewModel(string title)
             {
                 Title = title;
             }
@@ -374,6 +468,25 @@ namespace MxFramework.Tests.UI.FairyGui
                 BindCount++;
                 LastComponent = component;
                 Last = viewModel;
+            }
+        }
+
+        private sealed class RealSmokeBinder : IMxFairyGuiViewBinder<RealSmokeViewModel>
+        {
+            public MxFairyGuiComponentHandle BoundComponent { get; private set; }
+            public int BindCount { get; private set; }
+            public string BoundTitle { get; private set; }
+
+            public void Bind(IMxFairyGuiComponentHandle component, RealSmokeViewModel viewModel)
+            {
+                BindCount++;
+                BoundComponent = component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(BoundComponent);
+
+                var title = BoundComponent.Component.GetChild("txtTitle")?.asTextField;
+                Assert.IsNotNull(title);
+                title.text = viewModel.Title;
+                BoundTitle = title.text;
             }
         }
 
