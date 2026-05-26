@@ -1830,7 +1830,7 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh
 4. 点击“保存 Profile”。保存会通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
 5. 点击“查看构建 Profile”或查看 Build Profile 面板中的 Bundle Planner 摘要，预览内部 bundle、资源数量、依赖和诊断。
 
-Resource Manager 的 Bundle Plan 是预览和诊断面：它不会构建 AssetBundle，也不会写 `StreamingAssets` 产物。真正生成 Player 运行时 catalog / bundle / preload group 仍走 Unity Editor 菜单。
+Resource Manager 的 Bundle Plan 是预览和诊断面：它不会构建 AssetBundle，也不会写 `StreamingAssets` 产物。真正生成 Player 运行时 catalog / bundle / preload group 仍走 Unity Editor Global AssetBundle Builder 工作台或低层构建菜单。
 
 ### 13.2 Global Resource Build Profile
 
@@ -1840,7 +1840,15 @@ Resource Manager 的 Bundle Plan 是预览和诊断面：它不会构建 AssetBu
 Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json
 ```
 
-Unity 菜单：
+推荐 Unity 工作台：
+
+```text
+MxFramework/Resources/Open Global AssetBundle Builder
+```
+
+工作台会显示当前 Profile 路径、active build target、generated catalog / preload groups / bundle dependencies / build report / bundle output folder 的存在状态，并展示 `CreateBuildPlan(...)` 产出的 profileId、catalogId、packageId、entry count、bundle count 和错误/警告数。点击 `Refresh / Validate Profile` 只刷新 build plan 与诊断，不写 Player 产物；点击 `Build Global Player Resource Catalog` 才调用正式 builder 生成本地 Player catalog、preload group、bundle dependency manifest、AssetBundle 和 build report。`Copy Report` 会复制当前摘要、artifact 状态和诊断，artifact 行可打开或定位已生成文件。
+
+低层 Unity 菜单仍保留给脚本化或快速调用：
 
 ```text
 MxFramework/Resources/Validate Global Resource Build Profile
@@ -1859,8 +1867,8 @@ MxFramework/Resources/Build Global Player Resource Catalog
 
 当前边界：
 
-- 已完成：Resource Manager 加入/移出 Build Profile、保存 Profile、Bundle Plan 预览、Unity 菜单校验和本地 Player AssetBundle/catalog/preload/dependency/report 生成。
-- 未完成：通用 AB Builder 工作台、批量构建队列、增量/差分热更、CDN 发布、签名/加密、断点续传和多版本远端 manifest。
+- 已完成：Resource Manager 加入/移出 Build Profile、保存 Profile、Bundle Plan 预览、Global AssetBundle Builder 工作台、Unity 低层菜单校验和本地 Player AssetBundle/catalog/preload/dependency/report 生成。
+- 未完成：批量构建队列、增量/差分热更、CDN 发布、签名/加密、断点续传和多版本远端 manifest。
 - 默认路线：Catalog + AssetBundleProvider + RemoteBundleProvider + Preload + diagnostics。Addressables 仅可选，YooAsset 不作为默认路线且本仓库不做 adapter。
 
 Demo / 测试场景中的 UI、材质、图标、prefab 等运行时资源不应再放入 `Assets/Resources`。Runtime HUD 默认 `PanelSettings`、`GameplayShowcase.uxml`、`GameplayShowcase.uss` 已迁到 `Assets/UI/MxFramework/Showcase`，由 Runner、场景 bootstrap 或测试显式注入；纯调试材质优先运行时生成，不放入 `Resources`。
