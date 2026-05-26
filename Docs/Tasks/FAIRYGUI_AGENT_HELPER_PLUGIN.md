@@ -15,6 +15,8 @@ The helper narrows that editor dependency to explicit commands:
 
 - create or repair the `MxFguiSmoke` package source
 - publish the `MxFguiSmoke` package
+- create or repair the `MxRuntimeHud` package source
+- publish the `MxRuntimeHud` package
 - refresh the open FairyGUI project
 
 Current checked-in smoke output:
@@ -33,11 +35,17 @@ Open `FGUIProject/FGUIProject.fairy` in FairyGUI Editor, then use:
 ```text
 WGameFramework/Create/Repair Smoke Package
 WGameFramework/Publish Smoke Package
+WGameFramework/Create/Repair Runtime HUD Package
+WGameFramework/Publish Runtime HUD Package
 WGameFramework/Refresh Project
 ```
 
 If the menu is missing, reload FairyGUI plugins from the editor plugin panel or
 restart FairyGUI Editor after opening the project.
+
+The FairyGUI Editor GUI menu is the expected publish path for runtime package
+bytes. Do not handwrite `Assets/Bundles/FGUI/MxRuntimeHud/*_fui.bytes`; publish
+the source package through `WGameFramework/Publish Runtime HUD Package`.
 
 ## Batch Entry
 
@@ -47,6 +55,8 @@ mode when available:
 ```bash
 FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-smoke
 FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-smoke
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-runtime-hud
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-runtime-hud
 FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script refresh
 ```
 
@@ -63,12 +73,17 @@ Observed local behavior:
 
 ## Boundaries
 
-The helper is intentionally limited to framework smoke assets:
+The helper is intentionally limited to framework-owned FairyGUI assets:
 
 - source package: `FGUIProject/assets/MxFguiSmoke`
 - component: `SmokePanel`
 - bindable child: `txtTitle`
+- source package: `FGUIProject/assets/MxRuntimeHud`
+- component: `RuntimeHudPanel`
+- bindable children: `title`, `mode`, `playerName`, `playerHp`, `enemyName`,
+  `enemyHp`, `recentAction`, `btnStrike`, `btnReset`
 - publish output: `Assets/Bundles/FGUI/MxFguiSmoke`
+  and `Assets/Bundles/FGUI/MxRuntimeHud`
 
 It must not create WGame business UI, generated C# UI bindings, global UI
 manager code, fonts, images, or Story/HUD migration code.

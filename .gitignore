@@ -80,6 +80,7 @@ Desktop.ini
 
 # Project-local runtime/build outputs
 Bundles/
+FGUIProject/.objs/
 dist/
 out/
 *.log
