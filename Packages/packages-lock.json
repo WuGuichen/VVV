@@ -17,6 +17,21 @@
         "com.unity.test-framework": "1.1.31"
       }
     },
+    "com.fairygui.gui": {
+      "version": "file:com.fairygui.gui",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.textmeshpro": "5.0.0",
+        "com.unity.ugui": "2.0.0",
+        "com.unity.modules.assetbundle": "1.0.0",
+        "com.unity.modules.audio": "1.0.0",
+        "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.ui": "1.0.0",
+        "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
+        "com.unity.modules.unitywebrequesttexture": "1.0.0"
+      }
+    },
     "com.unity.burst": {
       "version": "1.8.29",
       "depth": 1,
@@ -176,9 +191,17 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.textmeshpro": {
+      "version": "5.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.ugui": "2.0.0"
+      }
+    },
     "com.unity.ugui": {
       "version": "2.0.0",
-      "depth": 2,
+      "depth": 1,
       "source": "builtin",
       "dependencies": {
         "com.unity.modules.ui": "1.0.0",
