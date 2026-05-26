@@ -1148,7 +1148,7 @@ function capitalize(value) {
 
 function renderPackageSelect() {
   el.packageSelect.innerHTML = state.packages.map(pkg => {
-    const label = `${pkg.packageId || pkg.relative} (${pkg.version || pkg.kind || "character"})`;
+    const label = formatPackageContextLabel(pkg);
     return `<option value="${escapeHtml(pkg.relative)}"${pkg.relative === state.packageRelative ? " selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
   el.openCharacterStudioButton.href = `/Tools/MxFramework.CharacterStudio/web/?package=${encodeURIComponent(state.packageRelative)}`;
@@ -1166,7 +1166,7 @@ function renderStatus() {
   const bundlePlan = getBundlePlan();
 
   el.serverStatus.textContent = connected
-    ? `已连接 Authoring 服务，全局资源视图；包筛选：${packageLabel}`
+    ? `已连接 Authoring 服务；当前工作上下文：${packageLabel}。资源归属和打包归属仍由 provider / Global Build Profile 决定。`
     : "未连接 Authoring 服务。请通过 Editor Hub 或启动脚本打开本工具。";
 
   const validationMessage = state.lastActionMessage
@@ -3217,7 +3217,15 @@ function kindTitle(kind) {
 
 function getSelectedPackageLabel() {
   const pkg = state.packages.find(item => item.relative === state.packageRelative);
-  return pkg?.packageId || state.packageRelative;
+  return pkg ? formatPackageContextLabel(pkg) : state.packageRelative;
+}
+
+function formatPackageContextLabel(pkg) {
+  if (!pkg) return state.packageRelative;
+  const kind = pkg.kind || "Character";
+  const id = pkg.packageId || pkg.relative || "context";
+  const version = pkg.version ? ` ${pkg.version}` : "";
+  return `${kind} · ${id}${version}`;
 }
 
 function syncPackageQuery() {

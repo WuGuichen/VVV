@@ -338,21 +338,21 @@ function render() {
 
 function renderPackageSelect() {
   el.packageSelect.innerHTML = state.packages.map(pkg => {
-    const label = `${pkg.packageId || pkg.relative} (${pkg.kind || "character"})`;
+    const label = formatPackageContextLabel(pkg);
     return `<option value="${escapeHtml(pkg.relative)}"${pkg.relative === state.packageRelative ? " selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
 }
 
 function renderStatus() {
   const connected = state.errors.length === 0 || state.characterState || state.authoringState;
-  const characterPackage = state.characterState?.package?.manifest?.packageId || selectedPackageLabel();
+  const contextLabel = selectedPackageLabel();
   const resourceCount = Array.isArray(state.resources?.items) ? state.resources.items.length : 0;
   const providerCount = Array.isArray(state.resources?.providers) ? state.resources.providers.length : 0;
   const animationStatus = getAnimationEditorStatus();
   const planStatus = getResourcePlanStatus();
 
   el.serverStatus.textContent = connected
-    ? `已连接本机 Authoring 服务；默认包上下文：${characterPackage}`
+    ? `已连接本机 Authoring 服务；当前工作上下文：${contextLabel}`
     : isHttpServed()
       ? "未连接 Authoring 服务。请通过启动脚本打开。"
       : "当前是静态 file:// 页面，不能读取 Authoring API。请通过 Tools/MxFramework.EditorHub/start-editor-hub 启动。";
@@ -420,7 +420,8 @@ function renderTools() {
       href: resourceLibraryUrl,
       action: "打开资源管理器",
       details: [
-        `包筛选: ${state.characterState?.package?.manifest?.packageId || selectedPackageLabel()}`,
+        `工作上下文: ${selectedPackageLabel()}`,
+        "说明: 上下文只影响引用图、Resource Plan 和 consumer 诊断",
         "用途: provider 状态、资源浏览、inspect 详情、引用关系、运行时计划诊断"
       ]
     }
@@ -679,7 +680,15 @@ function emptyBlock(text) {
 
 function selectedPackageLabel() {
   const pkg = state.packages.find(item => item.relative === state.packageRelative);
-  return pkg?.packageId || state.packageRelative;
+  return pkg ? formatPackageContextLabel(pkg) : state.packageRelative;
+}
+
+function formatPackageContextLabel(pkg) {
+  if (!pkg) return state.packageRelative;
+  const kind = pkg.kind || "Character";
+  const id = pkg.packageId || pkg.relative || "context";
+  const version = pkg.version ? ` ${pkg.version}` : "";
+  return `${kind} · ${id}${version}`;
 }
 
 function escapeHtml(value) {

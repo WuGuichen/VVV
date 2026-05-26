@@ -1808,7 +1808,7 @@ YooAsset 也不是 MxFramework 默认资源路线。本仓库当前不做 YooAss
 
 ### 13.1 Authoring Resource Manager / Editor Hub
 
-外部资源管理器是全局 Authoring Resource Manager，不是角色包私有资源库。默认 Iron Vanguard 路径只作为包筛选 / 消费者上下文。
+外部资源管理器是全局 Authoring Resource Manager，不是角色包私有资源库。默认 Iron Vanguard 路径只作为当前工作上下文：用于引用图、Resource Plan 和 consumer 诊断，不代表资源归属于该角色包。
 
 `Tools/MxFramework.ResourceLibrary` 现在也是 `Global Resource Build Profile` 的编辑入口。点击“加入构建 Profile”只修改浏览器内的 Profile 草稿；点击“保存 Profile”才会通过 Authoring Server 校验并写入：
 

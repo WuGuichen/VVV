@@ -2,7 +2,7 @@
 
 独立资源管理器用于查看 Authoring 阶段的全局资源视图、provider 状态、运行时资源计划、引用关系和诊断信息。它的目标是服务 CharacterStudio、Animation Editor、Combat/VFX Editor、UI/Config Editor 等所有外部编辑器。
 
-当前目录和启动脚本仍沿用旧 `ResourceLibrary` 路径以减少迁移噪音，但界面语义已经改为资源管理器。默认 Iron Vanguard 只是包筛选 / 消费者上下文，不代表资源归属于该角色包。
+当前目录和启动脚本仍沿用旧 `ResourceLibrary` 路径以减少迁移噪音，但界面语义已经改为资源管理器。默认 Iron Vanguard 只是当前工作上下文：用于引用图、Resource Plan 和 consumer 诊断，不代表资源归属于该角色包。
 
 设计目标已经调整为全局 Authoring Resource Manager。角色包资源只是 `characterPackage` provider，Unity AssetDatabase、现有 `MxFramework.Resources.ResourceCatalog`、FMOD snapshot、external import staging 和 generated assets 也应进入统一资源视图。
 
@@ -125,7 +125,7 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh 4884 Tools/MxFramewo
 ## 环境变量
 
 - `MXFRAMEWORK_RESOURCE_LIBRARY_PORT`: 默认端口。
-- `MXFRAMEWORK_RESOURCE_LIBRARY_PACKAGE`: 默认包筛选 / 消费者上下文路径。
+- `MXFRAMEWORK_RESOURCE_LIBRARY_PACKAGE`: 默认工作上下文路径。当前阶段通常是角色包路径，后续应扩展为通用 authoring scope。
 - `MXFRAMEWORK_RESOURCE_LIBRARY_OPEN_BROWSER`: 设为 `0` 时不自动打开浏览器。
 
 ## Authoring Server

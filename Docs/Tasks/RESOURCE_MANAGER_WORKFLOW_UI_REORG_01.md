@@ -33,7 +33,7 @@ Debug    详情 / 引用 / 诊断 / JSON
 Top-level global actions only:
 
 ```text
-包上下文选择
+工作上下文选择（当前阶段通常是角色包）
 刷新
 打开 CharacterStudio
 保存 Profile
@@ -341,4 +341,3 @@ Manual browser validation:
 5. Save Profile or see field-level validation.
 6. Open Build and confirm Bundle Plan/artifact guidance.
 7. Open Debug and confirm Raw JSON is not shown by default.
-

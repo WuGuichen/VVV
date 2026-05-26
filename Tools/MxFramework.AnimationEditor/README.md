@@ -43,7 +43,7 @@ Tools/MxFramework.AnimationEditor/start-animation-editor.command
 - package context: `Tools/MxFramework.Authoring/samples/character-iron-vanguard`
 - URL: `http://127.0.0.1:4873/Tools/MxFramework.AnimationEditor/web/?package=Tools/MxFramework.Authoring/samples/character-iron-vanguard`
 
-可指定端口和包上下文：
+可指定端口和工作上下文：
 
 ```bash
 Tools/MxFramework.AnimationEditor/start-animation-editor.sh 4885 Tools/MxFramework.Authoring/samples/character-iron-vanguard
@@ -52,7 +52,7 @@ Tools/MxFramework.AnimationEditor/start-animation-editor.sh 4885 Tools/MxFramewo
 ## 环境变量
 
 - `MXFRAMEWORK_ANIMATION_EDITOR_PORT`: 默认端口。
-- `MXFRAMEWORK_ANIMATION_EDITOR_PACKAGE`: 默认包上下文路径。
+- `MXFRAMEWORK_ANIMATION_EDITOR_PACKAGE`: 默认工作上下文路径。当前阶段通常指角色包或动画 authoring 包路径。
 - `MXFRAMEWORK_ANIMATION_EDITOR_OPEN_BROWSER`: 设为 `0` 时不自动打开浏览器。
 
 ## 验证
