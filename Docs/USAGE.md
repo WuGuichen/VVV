@@ -496,6 +496,33 @@ RuntimeVerticalSliceSceneConfig asset
 6. Diagnostic View 可在 `Summary` / `Technical` 间切换，分区显示 Entity、Ability Events、AttributeChanged Events、Config Source、last cast failure 和 config errors；无错误时显示 `No runtime errors`。
 7. Mini Game Feedback 会显示 Player / Enemy HP 状态徽章、Buff 层数和剩余时间、技能按钮可用反馈，以及最近动作摘要。
 
+### 6.4.1 FairyGUI Runtime UI Adapter
+
+FairyGUI 是正式 runtime game UI 的 preferred adapter；UI Toolkit 继续承担 Debug UI、Editor 工具、现有 showcase 和轻量验证 surface。这个结论来自 M3 `MxRuntimeHud` 竖切和 M4 manifest/resource validation，不表示所有 UI 已经迁移。
+
+当前可用边界：
+
+- `MxFramework.UI` 是 noEngine UI core，保存 `MxUiViewId`、`MxUiViewContract`、`MxUiViewDescriptor`、`MxUiLayer`、`IMxUiNavigator`、`MxUiOpenResult` 和 `MxUiCommand`。
+- `MxFramework.UI.FairyGUI` 是 Unity/FairyGUI adapter，负责 package bytes 加载、package ref-count、component 创建、typed ViewModel binder 和 button -> `MxUiCommand` 映射。
+- `MxFramework.UI.FairyGUI.Manifest` 是 noEngine validation sidecar，可读取 framework-owned FairyGUI source XML、package bytes 和 `ResourceCatalog`，检查 schema、component、controls、commands 和 resource drift。
+- `FGUIProject/assets/MxRuntimeHud` 是当前已验证的 FairyGUI source package；发布输出是 `Assets/Bundles/FGUI/MxRuntimeHud/MxRuntimeHud_fui.bytes`。
+
+本地校验：
+
+```bash
+dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj
+dotnet build MxFramework.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
+dotnet build MxFramework.UI.FairyGUI.Manifest.csproj /nr:false -m:1 -v:minimal
+dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
+```
+
+约定：
+
+- FairyGUI view 只消费 ViewModel 并发出 `MxUiCommand`；不得直接读写 Gameplay、Combat、Story 的权威状态或全局单例。
+- `*_fui.bytes` 是 FairyGUI Editor publish output，不手写。需要重新发布时打开 `FGUIProject/FGUIProject.fairy`，使用 `WGameFramework/Publish Runtime HUD Package` 等 helper 菜单。
+- 新 FairyGUI package 必须有 manifest 或 generator output，且至少通过 package source XML、component XML、package bytes header、catalog entry、required controls 和 command button 校验。
+- Lifecycle、modal stack、focus/input bridge、localization 和 transition-safe close 还属于后续 product hardening，迁移 Story 或复杂 runtime panels 前必须先补齐。
+
 ### 6.5 Combat Physics Playground
 
 Combat Physics 的当前手测入口复用 `CombatAnimationPhysicsTest` 场景，用于验证自研 `CombatPhysicsWorld`、Combat Motion、统一 query、hit resolve 和场景反馈是否能形成可玩闭环。
