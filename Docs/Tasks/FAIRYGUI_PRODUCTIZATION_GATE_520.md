@@ -91,7 +91,7 @@ Forbidden dependencies:
   and cached views, including keep-alive views.
 - Views must not retain resource handles outside their package load scope.
 - Modal ownership is tracked by the FairyGUI layer host; input blocking,
-  focus and cancel/back behavior remain #524 scope.
+  focus and cancel/back behavior are bridged in #524.
 
 ### Layers and Windows
 
@@ -126,8 +126,10 @@ Forbidden dependencies:
 - FairyGUI may own pointer/click routing inside opened components.
 - Global input context changes must go through the framework Input context stack
   or an adapter bridge; views must not poll devices directly.
-- Focus, navigation, modal blocking and cancel/back semantics are not yet
-  productized and must be hardened before Story or broad runtime panels migrate.
+- FairyGUI M7 (#524) bridges modal views to `InputContext.UI`, maps
+  cancel/back input to `MxUiCommand`, and blocks lower-layer commands while a
+  modal is active.
+- Visual keyboard navigation remains a later UX concern.
 
 ### Localization
 

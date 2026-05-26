@@ -5,6 +5,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "MxFramework.Resources",
+        "MxFramework.Input",
         "MxFramework.UI",
         "MxFramework.UI.FairyGUI",
         "MxFramework.UI.FairyGUI.Manifest",
