@@ -2,6 +2,7 @@ using System.IO;
 using MxFramework.Demo;
 using MxFramework.Demo.FairyGui;
 using MxFramework.Resources;
+using MxFramework.Runtime;
 using MxFramework.UI;
 using MxFramework.UI.FairyGui;
 using NUnit.Framework;
@@ -105,6 +106,65 @@ namespace MxFramework.Tests.UI.FairyGui
         }
 
         [Test]
+        public void Shell_OpenRefreshCommandAndClose_UsesProductizedNavigatorPath()
+        {
+            RemoveRuntimeHudPackageIfLoaded();
+
+            ResourceManager manager = CreatePublishedRuntimeHudManager();
+            var target = new RecordingHudCommandTarget();
+            RuntimeAbilitySliceFairyGuiHudShell shell = RuntimeAbilitySliceFairyGuiHudComposition.CreateShell(manager, target);
+
+            try
+            {
+                RuntimeAbilitySliceHudViewModel first = CreateViewModel();
+                MxUiOpenResult firstResult = shell.Open(first);
+
+                Assert.IsTrue(firstResult.Success, firstResult.Message);
+                Assert.IsTrue(shell.IsOpen);
+
+                var view = firstResult.View as MxFairyGuiView<RuntimeAbilitySliceHudViewModel>;
+                Assert.IsNotNull(view);
+                var handle = view.Component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(handle);
+                Fgui.GComponent root = handle.Component;
+                Assert.AreEqual("Ability HUD", Text(root, RuntimeAbilitySliceFairyGuiHudIds.Title));
+
+                RuntimeAbilitySliceHudViewModel refreshed = CreateViewModel();
+                refreshed.Title = "Ability HUD Refreshed";
+                MxUiOpenResult refreshResult = shell.Refresh(refreshed);
+
+                Assert.IsTrue(refreshResult.Success, refreshResult.Message);
+                Assert.AreSame(firstResult.View, refreshResult.View);
+                Assert.AreEqual("Ability HUD Refreshed", Text(root, RuntimeAbilitySliceFairyGuiHudIds.Title));
+
+                Button(root, RuntimeAbilitySliceFairyGuiHudIds.Strike).onClick.Call();
+                Assert.AreEqual(RuntimeAbilitySliceHudCommandIds.Strike, shell.LastCommand.CommandId);
+                Assert.AreEqual(RuntimeAbilitySliceHudManualCommand.Strike, target.LastCommand);
+                Assert.AreEqual(1, shell.AcceptedCommandCount);
+                Assert.IsTrue(shell.LastCommandResult.Success);
+                Assert.IsFalse(target.AutoSequenceEnabled);
+
+                Button(root, RuntimeAbilitySliceFairyGuiHudIds.Reset).onClick.Call();
+                Assert.AreEqual(RuntimeAbilitySliceHudCommandIds.Reset, shell.LastCommand.CommandId);
+                Assert.AreEqual(RuntimeAbilitySliceHudManualCommand.Reset, target.LastCommand);
+                Assert.AreEqual(2, shell.AcceptedCommandCount);
+                Assert.IsTrue(shell.LastCommandResult.Success);
+
+                Assert.IsTrue(shell.Close());
+                Assert.IsFalse(shell.IsOpen);
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.IsNull(Fgui.UIPackage.GetByName(RuntimeAbilitySliceFairyGuiHudIds.PackageId));
+            }
+            finally
+            {
+                if (shell.IsOpen)
+                    shell.Close();
+
+                RemoveRuntimeHudPackageIfLoaded();
+            }
+        }
+
+        [Test]
         public void GeneratedManifest_ValidatesPublishedRuntimeHudSourceAndProjectsContract()
         {
             MxFairyGuiManifest manifest = RuntimeAbilitySliceFairyGuiHudManifest.Create();
@@ -193,6 +253,17 @@ namespace MxFramework.Tests.UI.FairyGui
             return manager;
         }
 
+        private static ResourceManager CreatePublishedRuntimeHudManager()
+        {
+            byte[] packageBytes = File.ReadAllBytes(Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Assets/Bundles/FGUI/MxRuntimeHud/MxRuntimeHud_fui.bytes"));
+
+            return CreateManager(
+                new MemoryResourceProvider().Register("fgui/MxRuntimeHud_fui.bytes", packageBytes),
+                Entry(RuntimeAbilitySliceFairyGuiHudIds.PackageBytesKey, "fgui/MxRuntimeHud_fui.bytes"));
+        }
+
         private static ResourceCatalog CreateManagerCatalog(ResourceKey key, string address)
         {
             return CreateCatalog(Entry(key, address));
@@ -241,6 +312,31 @@ namespace MxFramework.Tests.UI.FairyGui
             {
                 Last = command;
                 Count++;
+            }
+        }
+
+        private sealed class RecordingHudCommandTarget : IRuntimeAbilitySliceHudCommandTarget
+        {
+            public bool IsInitialized { get; set; } = true;
+            public bool AutoSequenceEnabled { get; private set; } = true;
+            public RuntimeAbilitySliceHudManualCommand LastCommand { get; private set; }
+            public int Count { get; private set; }
+
+            public void SetAutoSequenceEnabled(bool enabled)
+            {
+                AutoSequenceEnabled = enabled;
+            }
+
+            public RuntimeCommandValidationResult EnqueueHudCommand(RuntimeAbilitySliceHudManualCommand command)
+            {
+                LastCommand = command;
+                Count++;
+                return RuntimeCommandValidationResult.Accepted(new RuntimeCommand(
+                    RuntimeFrame.Zero,
+                    sourceId: 1,
+                    commandId: (int)command,
+                    targetId: 0,
+                    traceId: "fairygui-hud-shell-test"));
             }
         }
     }

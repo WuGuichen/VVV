@@ -36,6 +36,9 @@ global UI manager.
   framework-owned source XML and spec metadata, with a noEngine stale-output
   gate that reports `GeneratedDescriptorMismatch` when checked-in generated
   code drifts.
+- FairyGUI M10 (#527) wraps the Runtime Ability HUD proof in a reusable shell
+  that opens, refreshes, dispatches commands and closes through the productized
+  FairyGUI navigator path.
 - The M4 manifest validator catches invalid schema, missing package source,
   missing package bytes, invalid package bytes header, catalog misses, missing
   exported components, missing component source, missing or renamed controls,
@@ -176,7 +179,8 @@ Initial candidate order:
 
 1. Runtime Ability HUD hardening, because it already has a real FairyGUI slice.
 2. Runtime HUD shell/common UI services, because lifecycle/layers/input must be
-   settled before broad panels.
+   settled before broad panels. #527 now provides the Runtime Ability HUD shell
+   but does not replace UI Toolkit diagnostics.
 3. Story presentation UI, after focus/modal/localization hooks exist.
 4. Debug surfaces only if the goal is player-facing diagnostics; otherwise keep
    UI Toolkit Debug UI.
@@ -205,6 +209,7 @@ dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/Fai
 dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj -- --check-generated
 dotnet build MxFramework.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
 dotnet build MxFramework.UI.FairyGUI.Manifest.csproj /nr:false -m:1 -v:minimal
+dotnet build MxFramework.Demo.FairyGUI.csproj /nr:false -m:1 -v:minimal
 dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
 rg -n "FairyGUI|Fgui|FairyGui" Assets/Scripts/MxFramework/Core Assets/Scripts/MxFramework/Runtime Assets/Scripts/MxFramework/Gameplay Assets/Scripts/MxFramework/Combat Assets/Scripts/MxFramework/Story -g '*.cs'
 ```
