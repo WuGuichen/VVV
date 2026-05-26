@@ -111,6 +111,23 @@ const FILTER_DEFAULTS = {
   onlyDiagnostics: false
 };
 
+const PROFILE_STATUS_ORDER = {
+  notInProfile: 0,
+  draftOnly: 1,
+  modifiedInDraft: 2,
+  removedInDraft: 3,
+  saved: 4
+};
+
+const WORKSPACES = ["browse", "profile", "build", "debug"];
+
+const UNITY_WORKBENCH_GUIDANCE = [
+  "Unity 菜单执行 Player 资源构建：",
+  "1. MxFramework/Resources/Validate Global Resource Build Profile",
+  "2. MxFramework/Resources/Build Global Player Resource Catalog",
+  "或打开：MxFramework/Resources/Open Global AssetBundle Builder"
+].join("\n");
+
 const state = {
   packages: [],
   packageRelative: DEFAULT_PACKAGE,
@@ -120,13 +137,21 @@ const state = {
   buildProfileDraft: null,
   bundlePlanPayload: null,
   selectedResourceKey: "",
+  activeWorkspace: "browse",
   activeTab: "overview",
   filters: { ...FILTER_DEFAULTS },
+  resourceSort: "name",
+  quickFilter: "",
+  treeGroupMode: "path",
+  selectedTreeNodeId: "",
+  expandedTreeNodes: new Set(),
+  treeNodeKeys: new Map(),
   inspectCache: new Map(),
   inspectState: { id: "", status: "idle", payload: null, error: "" },
   writeState: { status: "idle", action: "", error: "" },
   checkedResourceKeys: new Set(),
   selectedImportPreset: "modelPreview",
+  profileFieldHighlight: "",
   errors: [],
   lastActionMessage: "",
   buildProfileDirty: false
@@ -148,24 +173,28 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   for (const id of [
     "serverStatus", "packageSelect", "refreshButton", "openCharacterStudioButton",
-    "validateButton", "viewPlanButton", "viewBuildProfileButton", "statusStrip", "resourceSummary",
+    "saveBuildProfileButton", "openUnityWorkbenchButton", "statusStrip", "resourceSummary",
     "searchInput", "kindFilter", "usageFilter", "providerFilter", "sourceFilter", "importFilter",
     "runtimeFilter", "profileMembershipFilter", "runtimeReadyFilter", "tagFilter", "onlyReferenced", "onlyOrphan",
-    "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "selectVisibleButton",
-    "clearCheckedButton", "checkedSummary", "resourceList",
-    "previewTitle", "previewSubtitle", "previewBody", "resourcePlanPanel",
-    "planSummary", "planGrid", "buildProfilePanel", "buildProfileSummary",
-    "buildProfileContent", "inspectorStatus", "inspectorContent",
+    "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "resourceSortSelect", "activeFiltersBar",
+    "advancedFilterBadge", "advancedFilters", "selectVisibleButton",
+    "clearCheckedButton", "checkedSummary", "treeGroupModeSelect", "expandTreeButton",
+    "collapseTreeButton", "resourceTree", "resourceListHeading", "resourceList",
+    "browsePanelTitle", "browsePanelSubtitle", "browseContextBody", "browseContextActions", "browseBatchBar",
+    "buildProfileSummary", "buildProfileContent", "profileContextActions", "profileBatchBar",
+    "resourcePlanPanel", "planSummary", "planGrid", "bundlePlanSummary", "buildChecklist",
+    "bundlePlanContent", "buildDiagnostics", "validateButton", "refreshBundlePlanButton",
+    "copyBuildReportButton", "debugPickerSummary", "debugResourcePicker",
+    "inspectorStatus", "inspectorContent", "rawJsonSection", "rawJsonContent",
     "resourceImportFileInput", "resourceImportFolderInput", "resourceReplaceFileInput",
     "importPresetSelect", "importResourceButton", "importFolderButton",
-    "reimportResourceButton", "replaceSourceButton", "addToBuildProfileButton",
-    "removeFromBuildProfileButton", "batchAddToBuildProfileButton",
-    "batchRemoveFromBuildProfileButton", "saveBuildProfileButton", "deleteResourceButton",
-    "editTagsButton", "writeActionStatus", "copyDetailJsonButton",
-    "copyDiagnosticsJsonButton", "copyStatus"
+    "reimportResourceButton", "replaceSourceButton", "writeActionStatus",
+    "copyDetailJsonButton", "copyDiagnosticsJsonButton", "copyStatus"
   ]) {
     el[id] = document.getElementById(id);
   }
+  el.workspaceViews = WORKSPACES.map(name => document.getElementById(`workspace${capitalize(name)}`));
+  el.workspaceNavButtons = Array.from(document.querySelectorAll(".workspace-nav button[data-workspace]"));
   el.inspectorTabs = Array.from(document.querySelectorAll(".inspector-tabs button[data-tab]"));
 }
 
@@ -182,12 +211,13 @@ function bindEvents() {
   });
 
   el.validateButton.addEventListener("click", runResourceValidation);
-  el.viewPlanButton.addEventListener("click", () => {
-    el.resourcePlanPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  el.viewBuildProfileButton.addEventListener("click", () => {
-    el.buildProfilePanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  el.openUnityWorkbenchButton.addEventListener("click", showUnityWorkbenchGuidance);
+  el.refreshBundlePlanButton.addEventListener("click", () => loadBundlePlan().then(render));
+  el.copyBuildReportButton.addEventListener("click", copyBuildReport);
+
+  for (const button of el.workspaceNavButtons) {
+    button.addEventListener("click", () => setWorkspace(button.dataset.workspace));
+  }
 
   const filterBindings = [
     ["searchInput", "search", "input"],
@@ -204,6 +234,7 @@ function bindEvents() {
   for (const [elementId, key, eventName] of filterBindings) {
     el[elementId].addEventListener(eventName, event => {
       state.filters[key] = event.target.value;
+      state.quickFilter = "";
       render();
     });
   }
@@ -215,12 +246,36 @@ function bindEvents() {
   ]) {
     el[elementId].addEventListener("change", event => {
       state.filters[key] = event.target.checked;
+      state.quickFilter = "";
       render();
     });
   }
   el.clearFiltersButton.addEventListener("click", () => {
-    state.filters = { ...FILTER_DEFAULTS };
-    applyFilterControls();
+    resetFilters();
+    render();
+  });
+
+  el.resourceSortSelect.addEventListener("change", event => {
+    state.resourceSort = event.target.value;
+    renderBrowser();
+    renderBrowseContext();
+  });
+
+  document.querySelector(".filter-quick-bar")?.addEventListener("click", event => {
+    const chip = event.target.closest("[data-quick-filter]");
+    if (!chip) return;
+    applyQuickFilter(chip.dataset.quickFilter);
+    render();
+  });
+
+  el.activeFiltersBar.addEventListener("click", event => {
+    const chip = event.target.closest("[data-clear-filter]");
+    if (!chip) return;
+    if (chip.dataset.clearFilter === "__all__") {
+      resetFilters();
+    } else {
+      clearFilterKey(chip.dataset.clearFilter);
+    }
     render();
   });
   el.selectVisibleButton.addEventListener("click", selectVisibleResources);
@@ -229,6 +284,24 @@ function bindEvents() {
     state.lastActionMessage = "已清除资源勾选。";
     render();
   });
+
+  el.treeGroupModeSelect.addEventListener("change", event => {
+    state.treeGroupMode = event.target.value;
+    state.selectedTreeNodeId = "";
+    state.expandedTreeNodes.clear();
+    renderBrowser();
+  });
+  el.expandTreeButton.addEventListener("click", () => {
+    expandAllTreeNodes();
+    renderBrowser();
+  });
+  el.collapseTreeButton.addEventListener("click", () => {
+    state.expandedTreeNodes.clear();
+    if (state.treeGroupMode === "path") state.expandedTreeNodes.add("path::__root__");
+    else state.expandedTreeNodes.add("tax::__root__");
+    renderBrowser();
+  });
+  el.resourceTree.addEventListener("click", handleResourceTreeClick);
 
   el.resourceList.addEventListener("click", event => {
     const checkbox = event.target.closest("input[data-check-resource-key]");
@@ -253,7 +326,7 @@ function bindEvents() {
   el.importPresetSelect.addEventListener("change", event => {
     state.selectedImportPreset = event.target.value;
     syncImportAccept();
-    renderActions();
+    renderContextActions();
   });
   el.importResourceButton.addEventListener("click", () => {
     el.resourceImportFileInput.value = "";
@@ -269,27 +342,32 @@ function bindEvents() {
     el.resourceReplaceFileInput.click();
   });
   el.reimportResourceButton.addEventListener("click", reimportSelectedResource);
-  el.addToBuildProfileButton.addEventListener("click", addSelectedToBuildProfile);
-  el.removeFromBuildProfileButton.addEventListener("click", removeSelectedFromBuildProfile);
-  el.batchAddToBuildProfileButton.addEventListener("click", addCheckedToBuildProfile);
-  el.batchRemoveFromBuildProfileButton.addEventListener("click", removeCheckedFromBuildProfile);
   el.saveBuildProfileButton.addEventListener("click", saveBuildProfileDraft);
-  el.buildProfileContent.addEventListener("click", event => {
-    const applyButton = event.target.closest("[data-profile-batch-apply]");
-    if (applyButton) applyBuildProfileBatchFields();
+
+  el.browseContextActions.addEventListener("click", handleContextActionClick);
+  el.profileContextActions.addEventListener("click", handleContextActionClick);
+  el.browseBatchBar.addEventListener("click", handleContextActionClick);
+  el.profileBatchBar.addEventListener("click", handleContextActionClick);
+  el.debugResourcePicker.addEventListener("click", event => {
+    const button = event.target.closest("button[data-resource-key]");
+    if (button) selectResource(button.dataset.resourceKey);
   });
-  el.buildProfileContent.addEventListener("change", event => {
-    const toggle = event.target.closest("[data-profile-batch-enabled]");
-    if (toggle) syncBuildProfileBatchField(toggle.dataset.profileBatchEnabled, toggle.checked);
-  });
-  el.buildProfileContent.addEventListener("input", event => {
-    const control = event.target.closest("[data-profile-field]");
-    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, false);
-  });
-  el.buildProfileContent.addEventListener("change", event => {
-    const control = event.target.closest("[data-profile-field]");
-    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, true);
-  });
+  for (const root of [el.buildProfileContent, el.profileBatchBar]) {
+    root.addEventListener("click", event => {
+      const applyButton = event.target.closest("[data-profile-batch-apply]");
+      if (applyButton) applyBuildProfileBatchFields();
+    });
+    root.addEventListener("change", event => {
+      const toggle = event.target.closest("[data-profile-batch-enabled]");
+      if (toggle) syncBuildProfileBatchField(toggle.dataset.profileBatchEnabled, toggle.checked);
+      const control = event.target.closest("[data-profile-field]");
+      if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, true);
+    });
+    root.addEventListener("input", event => {
+      const control = event.target.closest("[data-profile-field]");
+      if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, false);
+    });
+  }
   el.resourceImportFileInput.addEventListener("change", event => importResourceFile(event.target.files?.[0]));
   el.resourceImportFolderInput.addEventListener("change", event => importResourceFolder(Array.from(event.target.files || [])));
   el.resourceReplaceFileInput.addEventListener("change", event => replaceSelectedResourceFile(event.target.files?.[0]));
@@ -493,11 +571,15 @@ async function addSelectedToBuildProfile() {
   const item = getSelectedItem();
   const profile = ensureBuildProfileDraft();
   if (!item || !profile) return;
-  if (findDraftBuildProfileEntryForItem(item)) return;
+  if (findDraftBuildProfileEntryForItem(item)) {
+    setWorkspace("profile");
+    return;
+  }
   if (!Array.isArray(profile.entries)) profile.entries = [];
   profile.entries.push(buildDraftBuildProfileEntryForItem(item));
   markBuildProfileDirty();
   state.lastActionMessage = "已加入构建 Profile 草稿，保存后生效。";
+  setWorkspace("profile");
   render();
 }
 
@@ -527,6 +609,7 @@ async function addCheckedToBuildProfile() {
   state.lastActionMessage = added > 0
     ? `已将 ${added} 个勾选资源加入 Build Profile 草稿，保存后生效。`
     : "已勾选资源都已在 Build Profile 草稿中。";
+  if (added > 0) setWorkspace("profile");
   render();
 }
 
@@ -582,12 +665,17 @@ function applyBuildProfileBatchFields() {
   render();
 }
 
+function getProfileBatchRoot() {
+  return !el.profileBatchBar.classList.contains("hidden") ? el.profileBatchBar : el.buildProfileContent;
+}
+
 function readBuildProfileBatchFields() {
   const fields = [];
-  const controls = Array.from(el.buildProfileContent.querySelectorAll("[data-profile-batch-field]"));
+  const root = getProfileBatchRoot();
+  const controls = Array.from(root.querySelectorAll("[data-profile-batch-field]"));
   for (const control of controls) {
     const key = control.dataset.profileBatchField;
-    const enabled = el.buildProfileContent.querySelector(`[data-profile-batch-enabled="${cssEscapeCompat(key)}"]`);
+    const enabled = root.querySelector(`[data-profile-batch-enabled="${cssEscapeCompat(key)}"]`);
     if (!enabled?.checked) continue;
     if (control.disabled) continue;
     const rawValue = String(control.value || "");
@@ -619,7 +707,7 @@ function cloneBuildProfileBatchValue(value) {
 }
 
 function syncBuildProfileBatchField(field, enabled) {
-  const control = el.buildProfileContent.querySelector(`[data-profile-batch-field="${cssEscapeCompat(field)}"]`);
+  const control = getProfileBatchRoot().querySelector(`[data-profile-batch-field="${cssEscapeCompat(field)}"]`);
   if (control) control.disabled = !enabled;
 }
 
@@ -632,19 +720,38 @@ function updateSelectedBuildProfileField(field, value, renderFeedback) {
   } else {
     entry[field] = value;
   }
+  if (field === "deliveryMode" && value !== "internal") {
+    entry.bundleRule = "";
+    entry.bundleGroupHint = entry.bundleGroupHint || "";
+    if (entry.bundleOverrideMode === "forceBundle") {
+      entry.bundleOverrideMode = "none";
+    }
+  }
+  if (field === "resourceKeyId") {
+    const parsed = parseProfileResourceKey(value);
+    entry.resourceKey = {
+      ...(entry.resourceKey || {}),
+      packageId: parsed.packageId || pick(entry.resourceKey, "packageId") || "",
+      type: parsed.type || pick(entry.resourceKey, "type") || "",
+      id: parsed.id || "",
+      variant: parsed.variant || pick(entry.resourceKey, "variant") || ""
+    };
+  }
   markBuildProfileDirty();
   if (renderFeedback) {
     render();
   } else {
-    renderActions();
+    renderContextActions();
   }
 }
 
 async function saveBuildProfileDraft() {
   const profile = getBuildProfile();
   if (!profile) return;
+  setWorkspace("profile");
   state.writeState = { status: "running", action: "save-build-profile", error: "" };
   state.lastActionMessage = "正在保存 Global Resource Build Profile...";
+  state.profileFieldHighlight = "";
   render();
   try {
     const payload = await postJson(API.saveBuildProfile, { profile });
@@ -657,6 +764,7 @@ async function saveBuildProfileDraft() {
   } catch (error) {
     state.writeState = { status: "error", action: "save-build-profile", error: error.message };
     state.lastActionMessage = `Profile 保存失败：${formatValidationSummary(error.data) || error.message}`;
+    state.profileFieldHighlight = inferProfileValidationField(error.data);
     if (error.data) {
       state.buildProfilePayload = error.data;
       state.buildProfileDraft = structuredCloneCompat(pick(error.data, "profile") || profile);
@@ -805,6 +913,11 @@ async function applyWriteResponse(payload, fallbackSelection) {
 async function selectResource(resourceKey) {
   state.selectedResourceKey = resourceKey;
   state.inspectState = { id: "", status: "idle", payload: null, error: "" };
+  const filtered = sortResourceItems(getFilteredItems(getNormalizedItems()));
+  const treeRoot = indexResourceTree(buildResourceTree(filtered));
+  const nodeId = findTreeNodeIdForItem(treeRoot, resourceKey);
+  state.selectedTreeNodeId = nodeId;
+  ensureTreeExpansionForNode(nodeId, treeRoot);
   render();
   await loadInspectForSelection();
 }
@@ -896,10 +1009,11 @@ function renderLoading() {
   el.statusStrip.innerHTML = statusChip("服务", "读取中", "pending");
   el.resourceSummary.textContent = "正在读取资源管理器...";
   el.checkedSummary.textContent = "已勾选 0 个资源";
+  el.resourceTree.innerHTML = emptyBlock("正在读取目录…");
   el.resourceList.innerHTML = emptyBlock("正在读取资源项");
-  el.previewTitle.textContent = "资源摘要";
-  el.previewSubtitle.textContent = "等待资源库数据";
-  el.previewBody.innerHTML = "";
+  el.browsePanelTitle.textContent = "当前选择";
+  el.browsePanelSubtitle.textContent = "等待资源库数据";
+  el.browseContextBody.innerHTML = "";
   el.planSummary.textContent = "正在读取 resource plan...";
   el.planGrid.innerHTML = "";
   el.buildProfileSummary.textContent = "正在读取 Global Resource Build Profile...";
@@ -911,14 +1025,125 @@ function renderLoading() {
 function render() {
   renderPackageSelect();
   renderStatus();
+  renderWorkspaceNav();
   renderImportPresetOptions();
   renderFilters();
   renderBrowser();
-  renderPreview();
-  renderPlan();
+  renderBrowseContext();
   renderBuildProfile();
+  renderPlan();
+  renderBuildWorkspace();
   renderInspector();
-  renderActions();
+  renderDebugPicker();
+  renderRawJson();
+  renderContextActions();
+}
+
+function setWorkspace(workspace) {
+  if (!WORKSPACES.includes(workspace)) return;
+  state.activeWorkspace = workspace;
+  for (const view of el.workspaceViews) {
+    if (!view) continue;
+    const active = view.dataset.workspace === workspace;
+    view.classList.toggle("active", active);
+    view.hidden = !active;
+  }
+  for (const button of el.workspaceNavButtons) {
+    button.classList.toggle("active", button.dataset.workspace === workspace);
+  }
+  renderWorkspaceNav();
+}
+
+function renderWorkspaceNav() {
+  const dirty = state.buildProfileDirty ? " *" : "";
+  for (const button of el.workspaceNavButtons) {
+    if (button.dataset.workspace === "profile" && state.buildProfileDirty) {
+      button.setAttribute("title", "有未保存的 Profile 草稿");
+    } else {
+      button.removeAttribute("title");
+    }
+  }
+  if (el.saveBuildProfileButton) {
+    el.saveBuildProfileButton.textContent = state.buildProfileDirty ? "保存 Profile *" : "保存 Profile";
+  }
+}
+
+function handleContextActionClick(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  const action = button.dataset.action;
+  if (action === "view-debug") {
+    setWorkspace("debug");
+    render();
+    return;
+  }
+  if (action === "open-profile") {
+    setWorkspace("profile");
+    render();
+    return;
+  }
+  if (action === "add-profile") {
+    addSelectedToBuildProfile();
+    return;
+  }
+  if (action === "remove-profile") {
+    removeSelectedFromBuildProfile();
+    return;
+  }
+  if (action === "revert-profile") {
+    revertSelectedBuildProfileDraft();
+    return;
+  }
+  if (action === "batch-add-profile") {
+    addCheckedToBuildProfile();
+    return;
+  }
+  if (action === "batch-remove-profile") {
+    removeCheckedFromBuildProfile();
+  }
+}
+
+function showUnityWorkbenchGuidance() {
+  window.alert(UNITY_WORKBENCH_GUIDANCE);
+}
+
+async function copyBuildReport() {
+  const plan = getBundlePlan();
+  const profile = getBuildProfile();
+  const report = {
+    package: state.packageRelative,
+    profileSaved: !state.buildProfileDirty,
+    bundlePlan: plan,
+    validation: pick(state.buildProfilePayload, "validation"),
+    diagnostics: [
+      ...asArray(pick(pick(state.buildProfilePayload, "validation"), "issues")),
+      ...asArray(pick(plan, "diagnostics"))
+    ],
+    unityWorkbench: UNITY_WORKBENCH_GUIDANCE
+  };
+  await copyText(JSON.stringify(report, null, 2), "已复制 Build Report");
+}
+
+function revertSelectedBuildProfileDraft() {
+  const item = getSelectedItem();
+  const saved = item ? findSavedBuildProfileEntryForItem(item) : null;
+  const profile = getBuildProfile();
+  if (!item || !profile || !Array.isArray(profile.entries)) return;
+  const draftEntry = findDraftBuildProfileEntryForItem(item);
+  if (!draftEntry) return;
+  if (saved) {
+    const index = profile.entries.findIndex(entry => profileEntryMatchesItem(entry, item));
+    if (index >= 0) profile.entries[index] = structuredCloneCompat(saved);
+  } else {
+    profile.entries = profile.entries.filter(entry => !profileEntryMatchesItem(entry, item));
+  }
+  markBuildProfileDirty();
+  state.lastActionMessage = saved ? "已还原当前资源为已保存 Profile 字段。" : "已从草稿移除当前资源。";
+  render();
+}
+
+function capitalize(value) {
+  return String(value || "").charAt(0).toUpperCase() + String(value || "").slice(1);
 }
 
 function renderPackageSelect() {
@@ -969,74 +1194,508 @@ function renderFilters() {
   setSelectOptions(el.runtimeFilter, buildOptions(items, "runtimeAvailability"), state.filters.runtimeAvailability);
   setSelectOptions(el.tagFilter, buildTagOptions(items), state.filters.tag);
   applyFilterControls();
+  renderFilterQuickBar();
+  renderActiveFiltersBar();
+}
+
+function resetFilters() {
+  state.filters = { ...FILTER_DEFAULTS };
+  state.quickFilter = "";
+  state.selectedTreeNodeId = getTreeRootId();
+  applyFilterControls();
+}
+
+function applyQuickFilter(preset) {
+  if (preset === "all") {
+    resetFilters();
+    return;
+  }
+  resetFilters();
+  state.quickFilter = preset;
+  if (preset === "needsProfile") {
+    state.filters.profileMembership = "notInProfile";
+    state.filters.runtimeReady = "runtimeReady";
+  } else if (preset === "profileDraft") {
+    state.filters.profileMembership = "all";
+  } else if (preset === "runtimeReady") {
+    state.filters.runtimeReady = "runtimeReady";
+  } else if (preset === "hasDiagnostics") {
+    state.filters.onlyDiagnostics = true;
+  }
+  applyFilterControls();
+}
+
+function clearFilterKey(key) {
+  state.quickFilter = "";
+  if (key === "search") state.filters.search = "";
+  else if (key === "quickFilter") state.quickFilter = "";
+  else if (key in FILTER_DEFAULTS) state.filters[key] = FILTER_DEFAULTS[key];
+  applyFilterControls();
+}
+
+function renderFilterQuickBar() {
+  document.querySelectorAll(".filter-quick-bar [data-quick-filter]").forEach(button => {
+    button.classList.toggle("active", button.dataset.quickFilter === (state.quickFilter || "all"));
+  });
+}
+
+function getActiveFilterLabels() {
+  const labels = [];
+  if (state.quickFilter && state.quickFilter !== "all") {
+    const quickLabels = {
+      needsProfile: "待加入 Profile",
+      profileDraft: "Profile 草稿变更",
+      runtimeReady: "Runtime 候选",
+      hasDiagnostics: "有诊断"
+    };
+    labels.push({ key: "quickFilter", text: quickLabels[state.quickFilter] || state.quickFilter });
+  }
+  if (state.filters.search.trim()) labels.push({ key: "search", text: `搜索: ${state.filters.search.trim()}` });
+  if (state.filters.kind !== "all") labels.push({ key: "kind", text: `类型: ${state.filters.kind}` });
+  if (state.filters.usage !== "all") labels.push({ key: "usage", text: `用途: ${state.filters.usage}` });
+  if (state.filters.providerId !== "all") labels.push({ key: "providerId", text: `来源: ${state.filters.providerId}` });
+  if (state.filters.sourceKind !== "all") labels.push({ key: "sourceKind", text: `源: ${state.filters.sourceKind}` });
+  if (state.filters.importStatus !== "all") labels.push({ key: "importStatus", text: `导入: ${state.filters.importStatus}` });
+  if (state.filters.runtimeAvailability !== "all") labels.push({ key: "runtimeAvailability", text: `运行时: ${state.filters.runtimeAvailability}` });
+  if (state.filters.profileMembership !== "all") labels.push({ key: "profileMembership", text: `Profile: ${formatProfileStatusLabel(state.filters.profileMembership)}` });
+  if (state.filters.runtimeReady !== "all") labels.push({ key: "runtimeReady", text: state.filters.runtimeReady === "runtimeReady" ? "Runtime 候选" : "非 Runtime 候选" });
+  if (state.filters.tag !== "all") labels.push({ key: "tag", text: `标签: ${state.filters.tag}` });
+  if (state.filters.onlyReferenced) labels.push({ key: "onlyReferenced", text: "已引用" });
+  if (state.filters.onlyOrphan) labels.push({ key: "onlyOrphan", text: "orphan" });
+  if (state.filters.onlyRuntimeLoadable) labels.push({ key: "onlyRuntimeLoadable", text: "可加载" });
+  if (state.filters.onlyDiagnostics) labels.push({ key: "onlyDiagnostics", text: "有诊断" });
+  return labels;
+}
+
+function renderActiveFiltersBar() {
+  const labels = getActiveFilterLabels();
+  const advancedCount = countAdvancedFiltersActive();
+  if (advancedCount > 0) {
+    el.advancedFilterBadge.textContent = String(advancedCount);
+    el.advancedFilterBadge.classList.remove("hidden");
+    if (el.advancedFilters && !el.advancedFilters.open) {
+      el.advancedFilters.open = true;
+    }
+  } else {
+    el.advancedFilterBadge.classList.add("hidden");
+  }
+
+  if (labels.length === 0) {
+    el.activeFiltersBar.classList.add("hidden");
+    el.activeFiltersBar.innerHTML = "";
+    return;
+  }
+
+  el.activeFiltersBar.classList.remove("hidden");
+  el.activeFiltersBar.innerHTML = `
+    <span class="active-filters-label">已启用</span>
+    ${labels.map(label => `<button type="button" class="filter-chip active removable" data-clear-filter="${escapeHtml(label.key)}">${escapeHtml(label.text)} ×</button>`).join("")}
+    <button type="button" class="filter-chip secondary-chip" data-clear-filter="__all__">清除全部</button>`;
+}
+
+function countAdvancedFiltersActive() {
+  let count = 0;
+  if (state.filters.usage !== "all") count++;
+  if (state.filters.sourceKind !== "all") count++;
+  if (state.filters.importStatus !== "all") count++;
+  if (state.filters.runtimeAvailability !== "all") count++;
+  if (state.filters.runtimeReady !== "all") count++;
+  if (state.filters.tag !== "all") count++;
+  if (state.filters.onlyReferenced) count++;
+  if (state.filters.onlyOrphan) count++;
+  if (state.filters.onlyRuntimeLoadable) count++;
+  if (state.filters.onlyDiagnostics) count++;
+  return count;
+}
+
+function formatProfileStatusLabel(status) {
+  const labels = {
+    notInProfile: "未入 Profile",
+    saved: "已保存",
+    draftOnly: "草稿新增",
+    removedInDraft: "草稿移除",
+    modifiedInDraft: "草稿已改",
+    inProfile: "已在 Profile"
+  };
+  return labels[status] || status || "-";
+}
+
+function formatRuntimeLabel(value) {
+  const text = String(value || "");
+  if (text === "RuntimeLoadable") return "可加载";
+  if (text === "NotRuntimeLoadable") return "不可加载";
+  if (text === "Unknown") return "未知";
+  return text || "-";
+}
+
+function sortResourceItems(items) {
+  const sorted = [...items];
+  if (state.resourceSort === "diagnostics") {
+    sorted.sort((a, b) => b.diagnosticCount - a.diagnosticCount || compareText(a.displayName, b.displayName));
+    return sorted;
+  }
+  if (state.resourceSort === "references") {
+    sorted.sort((a, b) => b.referenceCount - a.referenceCount || compareText(a.displayName, b.displayName));
+    return sorted;
+  }
+  if (state.resourceSort === "profile") {
+    sorted.sort((a, b) => {
+      const left = PROFILE_STATUS_ORDER[getBuildProfileStatus(a)] ?? 0;
+      const right = PROFILE_STATUS_ORDER[getBuildProfileStatus(b)] ?? 0;
+      return left - right || compareText(a.displayName, b.displayName);
+    });
+    return sorted;
+  }
+  sorted.sort((a, b) => compareText(a.displayName || a.stableId, b.displayName || b.stableId));
+  return sorted;
+}
+
+function getTreeRootId() {
+  return state.treeGroupMode === "taxonomy" ? "tax::__root__" : "path::__root__";
+}
+
+function getResourcePathSegments(item) {
+  const raw = stringValue(item.sourcePath) || stringValue(item.unityAssetPath) || "";
+  const normalized = raw.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!normalized) return ["(未分类路径)"];
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0) return ["(未分类路径)"];
+  const last = parts[parts.length - 1];
+  if (/\.[a-z0-9]{1,8}$/i.test(last) && parts.length > 1) {
+    return parts.slice(0, -1);
+  }
+  return parts;
+}
+
+function createTreeNode(id, label, kind, itemKeys = []) {
+  return { id, label, kind, itemKeys: [...itemKeys], children: [] };
+}
+
+function buildResourceTree(items) {
+  if (state.treeGroupMode === "taxonomy") {
+    return buildTaxonomyTree(items);
+  }
+  return buildPathTree(items);
+}
+
+function buildPathTree(items) {
+  const root = createTreeNode(getTreeRootId(), "全部资源", "root");
+  const folderMap = new Map([[root.id, root]]);
+
+  for (const item of items) {
+    const segments = getResourcePathSegments(item);
+    let parent = root;
+    let pathSoFar = "";
+    for (const segment of segments) {
+      pathSoFar = pathSoFar ? `${pathSoFar}/${segment}` : segment;
+      const id = `path::${pathSoFar}`;
+      let node = folderMap.get(id);
+      if (!node) {
+        node = createTreeNode(id, segment, "folder");
+        parent.children.push(node);
+        folderMap.set(id, node);
+      }
+      parent = node;
+    }
+    parent.itemKeys.push(item.key);
+  }
+
+  sortTreeChildren(root);
+  return root;
+}
+
+function buildTaxonomyTree(items) {
+  const root = createTreeNode(getTreeRootId(), "全部资源", "root");
+  const providerMap = new Map();
+
+  for (const item of items) {
+    const providerId = item.providerId || "unknown";
+    const kind = item.kind || "unknown";
+    const usage = item.usage || "-";
+    let provider = providerMap.get(providerId);
+    if (!provider) {
+      provider = createTreeNode(`tax::${providerId}`, providerId, "provider");
+      root.children.push(provider);
+      providerMap.set(providerId, provider);
+    }
+    let kindNode = provider.children.find(child => child.label === kind);
+    if (!kindNode) {
+      kindNode = createTreeNode(`tax::${providerId}::${kind}`, kind, "kind");
+      provider.children.push(kindNode);
+    }
+    let usageNode = kindNode.children.find(child => child.label === usage);
+    if (!usageNode) {
+      usageNode = createTreeNode(`tax::${providerId}::${kind}::${usage}`, usage, "usage");
+      kindNode.children.push(usageNode);
+    }
+    usageNode.itemKeys.push(item.key);
+  }
+
+  sortTreeChildren(root);
+  return root;
+}
+
+function sortTreeChildren(node) {
+  node.children.sort((a, b) => compareText(a.label, b.label));
+  for (const child of node.children) sortTreeChildren(child);
+}
+
+function indexResourceTree(root) {
+  const nodeKeys = new Map();
+  function walk(node) {
+    const keys = new Set(node.itemKeys || []);
+    for (const child of node.children) {
+      walk(child);
+      const childKeys = nodeKeys.get(child.id);
+      if (childKeys) {
+        for (const key of childKeys) keys.add(key);
+      }
+    }
+    nodeKeys.set(node.id, keys);
+    node.count = keys.size;
+    return keys;
+  }
+  walk(root);
+  state.treeNodeKeys = nodeKeys;
+  return root;
+}
+
+function getTreeScopedItems(items) {
+  const rootId = getTreeRootId();
+  if (!state.selectedTreeNodeId || state.selectedTreeNodeId === rootId) return items;
+  const keys = state.treeNodeKeys.get(state.selectedTreeNodeId);
+  if (!keys || keys.size === 0) return items;
+  return items.filter(item => keys.has(item.key));
+}
+
+function findTreeNode(root, nodeId) {
+  if (root.id === nodeId) return root;
+  for (const child of root.children) {
+    const found = findTreeNode(child, nodeId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findTreeNodeIdForItem(root, itemKey) {
+  function walk(node) {
+    for (const child of node.children) {
+      const childHit = walk(child);
+      if (childHit) return childHit;
+    }
+    if ((node.itemKeys || []).includes(itemKey)) return node.id;
+    return "";
+  }
+  return walk(root) || root.id;
+}
+
+function ensureTreeExpansionForNode(nodeId, root) {
+  if (!nodeId || nodeId === root.id) {
+    state.expandedTreeNodes.add(root.id);
+    return;
+  }
+  if (state.treeGroupMode === "path") {
+    state.expandedTreeNodes.add("path::__root__");
+    if (nodeId === "path::__root__") return;
+    const parts = nodeId.replace(/^path::/, "").split("/");
+    let pathSoFar = "";
+    for (const part of parts) {
+      pathSoFar = pathSoFar ? `${pathSoFar}/${part}` : part;
+      state.expandedTreeNodes.add(`path::${pathSoFar}`);
+    }
+    return;
+  }
+  state.expandedTreeNodes.add("tax::__root__");
+  const rest = nodeId.replace(/^tax::/, "");
+  const parts = rest.split("::");
+  if (parts.length >= 1) state.expandedTreeNodes.add(`tax::${parts[0]}`);
+  if (parts.length >= 2) state.expandedTreeNodes.add(`tax::${parts[0]}::${parts[1]}`);
+  if (parts.length >= 3) state.expandedTreeNodes.add(nodeId);
+}
+
+function ensureDefaultTreeExpansion(root) {
+  if (state.expandedTreeNodes.size > 0) return;
+  state.expandedTreeNodes.add(root.id);
+  for (const child of root.children) {
+    state.expandedTreeNodes.add(child.id);
+  }
+}
+
+function expandAllTreeNodes() {
+  for (const nodeId of state.treeNodeKeys.keys()) {
+    state.expandedTreeNodes.add(nodeId);
+  }
+}
+
+function getTreeNodeLabel(node) {
+  if (node.kind === "provider") return `来源 · ${node.label}`;
+  if (node.kind === "kind") return `类型 · ${node.label}`;
+  if (node.kind === "usage") return `用途 · ${node.label}`;
+  return node.label;
+}
+
+function renderResourceTree(root, filteredCount) {
+  ensureDefaultTreeExpansion(root);
+  if (state.selectedResourceKey) {
+    const nodeId = findTreeNodeIdForItem(root, state.selectedResourceKey);
+    state.selectedTreeNodeId = state.selectedTreeNodeId || nodeId;
+    ensureTreeExpansionForNode(nodeId, root);
+  }
+  if (!state.selectedTreeNodeId) {
+    state.selectedTreeNodeId = root.id;
+  }
+
+  el.resourceTree.innerHTML = renderTreeNodeHtml(root, 0);
+  el.treeGroupModeSelect.value = state.treeGroupMode;
+
+  const selectedNode = findTreeNode(root, state.selectedTreeNodeId) || root;
+  const scopedCount = getTreeScopedItems(sortResourceItems(getFilteredItems(getNormalizedItems()))).length;
+  el.resourceListHeading.textContent = `${getTreeNodeLabel(selectedNode)} · ${scopedCount} 项`;
+}
+
+function renderTreeNodeHtml(node, depth) {
+  const hasChildren = node.children.length > 0;
+  const expanded = state.expandedTreeNodes.has(node.id);
+  const selected = state.selectedTreeNodeId === node.id;
+  const count = node.count ?? (node.itemKeys?.length || 0);
+  const diagCount = countDiagnosticsInTreeNode(node);
+  const childrenHtml = hasChildren && expanded
+    ? node.children.map(child => renderTreeNodeHtml(child, depth + 1)).join("")
+    : "";
+
+  return `
+    <div class="tree-node" role="treeitem" aria-expanded="${hasChildren ? expanded : undefined}" data-depth="${depth}">
+      <div class="tree-node-row${selected ? " active" : ""}" data-tree-node-id="${escapeHtml(node.id)}">
+        <button type="button" class="tree-toggle${hasChildren ? "" : " spacer"}" data-tree-toggle="${escapeHtml(node.id)}"${hasChildren ? ` aria-label="${expanded ? "折叠" : "展开"}"` : " tabindex=\"-1\" aria-hidden=\"true\""}>
+          ${hasChildren ? (expanded ? "▾" : "▸") : ""}
+        </button>
+        <button type="button" class="tree-label" data-tree-select="${escapeHtml(node.id)}">
+          <span class="tree-icon" aria-hidden="true">${treeNodeIcon(node)}</span>
+          <span class="tree-text" title="${escapeHtml(getTreeNodeLabel(node))}">${escapeHtml(getTreeNodeLabel(node))}</span>
+          <span class="tree-count">${count}</span>
+          ${diagCount > 0 ? `<span class="tree-diag">${diagCount}</span>` : ""}
+        </button>
+      </div>
+      ${childrenHtml ? `<div class="tree-children" role="group">${childrenHtml}</div>` : ""}
+    </div>`;
+}
+
+function treeNodeIcon(node) {
+  if (node.kind === "root") return "⌂";
+  if (node.kind === "provider") return "◎";
+  if (node.kind === "kind") return "▣";
+  if (node.kind === "usage") return "◦";
+  return "▣";
+}
+
+function countDiagnosticsInTreeNode(node) {
+  const keys = state.treeNodeKeys.get(node.id);
+  if (!keys || keys.size === 0) return 0;
+  const byKey = new Map(getNormalizedItems().map(item => [item.key, item]));
+  let total = 0;
+  for (const key of keys) {
+    total += byKey.get(key)?.diagnosticCount || 0;
+  }
+  return total;
+}
+
+function handleResourceTreeClick(event) {
+  const toggle = event.target.closest("[data-tree-toggle]");
+  if (toggle) {
+    const nodeId = toggle.dataset.treeToggle;
+    if (state.expandedTreeNodes.has(nodeId)) state.expandedTreeNodes.delete(nodeId);
+    else state.expandedTreeNodes.add(nodeId);
+    renderBrowser();
+    return;
+  }
+  const select = event.target.closest("[data-tree-select]");
+  if (!select) return;
+  state.selectedTreeNodeId = select.dataset.treeSelect;
+  renderBrowser();
+  renderBrowseContext();
 }
 
 function renderBrowser() {
   const allItems = getNormalizedItems();
-  const filtered = getFilteredItems(allItems);
+  const filtered = sortResourceItems(getFilteredItems(allItems));
+  const treeRoot = indexResourceTree(buildResourceTree(filtered));
+  const scoped = getTreeScopedItems(filtered);
   const selectedKey = state.selectedResourceKey;
   const diagnosticsCount = getAllDiagnostics().length;
   pruneCheckedResources(allItems);
-  const visibleChecked = filtered.filter(item => state.checkedResourceKeys.has(item.key)).length;
+  const visibleChecked = scoped.filter(item => state.checkedResourceKeys.has(item.key)).length;
 
   el.resourceSummary.textContent = allItems.length === 0
     ? "没有读取到 Authoring Resource Manager API 数据。"
-    : `显示 ${filtered.length} / ${allItems.length} 个资源项，${diagnosticsCount} 条诊断；当前可见已勾选 ${visibleChecked} 个`;
-  el.checkedSummary.textContent = `已勾选 ${state.checkedResourceKeys.size} 个资源；选择可见只作用当前 filtered/rendered list`;
-  el.selectVisibleButton.disabled = filtered.length === 0;
+    : `${filtered.length} / ${allItems.length} 资源 · ${scoped.length} 当前目录 · ${diagnosticsCount} 诊断`;
+  el.checkedSummary.textContent = `已勾选 ${state.checkedResourceKeys.size} · 当前目录 ${visibleChecked} 可见`;
+  el.selectVisibleButton.disabled = scoped.length === 0;
   el.clearCheckedButton.disabled = state.checkedResourceKeys.size === 0;
 
   if (allItems.length === 0) {
+    el.resourceTree.innerHTML = emptyBlock("暂无目录");
     el.resourceList.innerHTML = emptyBlock("未读取到资源项。请确认 Authoring 服务已启动，并且至少一个 provider 可用。");
     return;
   }
+
+  renderResourceTree(treeRoot, filtered.length);
+
   if (filtered.length === 0) {
     el.resourceList.innerHTML = emptyBlock("没有符合当前筛选条件的资源项。");
     return;
   }
+  if (scoped.length === 0) {
+    el.resourceList.innerHTML = emptyBlock("当前目录下没有资源，请选择其他目录节点。");
+    return;
+  }
 
-  el.resourceList.innerHTML = filtered.map(item => {
+  el.resourceList.innerHTML = scoped.map(item => {
     const active = item.key === selectedKey ? " active" : "";
     const checked = state.checkedResourceKeys.has(item.key);
     const profileStatus = getBuildProfileStatus(item);
+    const profileLabel = formatProfileStatusLabel(profileStatus);
+    const runtimeLabel = formatRuntimeLabel(item.runtimeAvailability);
+    const deliveryState = getDeliveryEntryState(item, findDraftBuildProfileEntryForItem(item));
+    const displayName = item.displayName || item.stableId || item.resourceKey || "resource";
+    const identity = item.stableId || item.resourceKey || item.libraryItemId || "-";
+    const typeLine = `${item.kind || "unknown"} · ${item.usage || "-"}`;
+    const provider = item.providerId || "provider";
+    const runtimeTone = toneForRuntime(item.runtimeAvailability);
+    const profileTone = toneForBuildProfileStatus(profileStatus);
+    const diagWarn = item.diagnosticCount > 0 ? " has-diagnostics" : "";
     return `
-      <article class="resource-row${active}${checked ? " checked" : ""}" role="option" aria-selected="${item.key === selectedKey}">
-        <label class="resource-check" title="勾选资源用于批量 Build Profile 草稿操作">
+      <article class="resource-row${active}${checked ? " checked" : ""}${diagWarn}" role="option" aria-selected="${item.key === selectedKey}">
+        <label class="resource-check" title="勾选用于批量 Profile 操作">
           <input type="checkbox" data-check-resource-key="${escapeHtml(item.key)}"${checked ? " checked" : ""}>
           <span>选择</span>
         </label>
         <button class="resource-row-main" type="button" data-resource-key="${escapeHtml(item.key)}">
-          <span class="resource-row-head">
-            <strong>${escapeHtml(item.displayName || item.stableId || item.resourceKey || "resource")}</strong>
-            <span>${escapeHtml(item.stableId || item.resourceKey || item.libraryItemId || "-")}</span>
-          </span>
-          <span class="resource-row-meta">
-            ${smallBadge(item.kind || "unknown", "neutral")}
-            ${smallBadge(item.usage || "-", "neutral")}
-            ${smallBadge(item.providerId || "provider", "info")}
-            ${smallBadge(item.sourceKind || "Unknown", "info")}
-          </span>
-          <span class="resource-row-meta">
-            ${smallBadge(item.importStatus || "Unknown", toneForImportStatus(item.importStatus))}
-            ${smallBadge(item.runtimeAvailability || "Unknown", toneForRuntime(item.runtimeAvailability))}
-            ${smallBadge(profileStatus, toneForBuildProfileStatus(profileStatus))}
-            ${isRuntimeReadyCandidate(item) ? smallBadge("runtime-ready", "ok") : smallBadge("not-runtime-ready", "neutral")}
-          </span>
-          <span class="resource-row-foot">
-            <span>引用 ${item.referenceCount}</span>
-            <span>诊断 ${item.diagnosticCount}</span>
-          </span>
+          <div class="resource-row-top">
+            <strong class="resource-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</strong>
+            <span class="resource-inline-metrics">
+              ${item.referenceCount > 0 ? `<span class="metric-pill" title="引用">引 ${item.referenceCount}</span>` : ""}
+              ${item.diagnosticCount > 0 ? `<span class="metric-pill warn" title="诊断">诊 ${item.diagnosticCount}</span>` : ""}
+            </span>
+          </div>
+          <div class="resource-row-sub">${escapeHtml(typeLine)} · ${escapeHtml(provider)}</div>
+          <div class="resource-row-badges">
+            <span class="status-pill ${profileTone}" title="Profile 状态">${escapeHtml(profileLabel)}</span>
+            <span class="status-pill ${runtimeTone}" title="运行时">${escapeHtml(runtimeLabel)}</span>
+            <span class="status-pill neutral" title="交付结果">${escapeHtml(deliveryState.label)}</span>
+          </div>
+          <div class="resource-row-id" title="${escapeHtml(identity)}">${escapeHtml(identity)}</div>
         </button>
       </article>`;
   }).join("");
 }
 
 function selectVisibleResources() {
-  const visibleItems = getFilteredItems(getNormalizedItems());
+  const filtered = sortResourceItems(getFilteredItems(getNormalizedItems()));
+  const visibleItems = getTreeScopedItems(filtered);
   for (const item of visibleItems) {
     state.checkedResourceKeys.add(item.key);
   }
-  state.lastActionMessage = `已选择当前可见 ${visibleItems.length} 个资源；不会包含隐藏或筛选外资源。`;
+  state.lastActionMessage = `已选择当前目录可见 ${visibleItems.length} 个资源。`;
   render();
 }
 
@@ -1061,95 +1720,76 @@ function getCheckedItems() {
   return Array.from(state.checkedResourceKeys).map(key => byKey.get(key)).filter(Boolean);
 }
 
-function renderPreview() {
+function renderBrowseContext() {
   const item = getSelectedItem();
+  const checkedCount = state.checkedResourceKeys.size;
+
   if (!item) {
-    renderLibraryOverview();
+    el.browsePanelTitle.textContent = "资源概览";
+    el.browsePanelSubtitle.textContent = "点击左侧列表选择资源";
+    const items = getNormalizedItems();
+    const needsProfile = items.filter(entry => getBuildProfileStatus(entry) === "notInProfile" && isRuntimeReadyCandidate(entry)).length;
+    el.browseContextBody.innerHTML = `
+      <div class="browse-overview-grid">
+        ${metric("全部资源", items.length)}
+        ${metric("待加入 Profile", needsProfile)}
+        ${metric("有诊断", items.filter(entry => entry.diagnosticCount > 0).length)}
+        ${metric("Profile", state.buildProfileDirty ? "草稿未保存" : "已同步")}
+      </div>
+      <p class="profile-hint workflow-hint">推荐流程：筛选候选 → 加入 Profile → 保存 → Unity 构建 → Offline 验证</p>
+      <p class="profile-hint">常用筛选：「待加入 Profile」可快速列出 runtime-ready 且未入 Profile 的资源。</p>`;
+    el.browseBatchBar.classList.add("hidden");
+    el.browseBatchBar.innerHTML = "";
     return;
   }
 
-  el.previewTitle.textContent = item.displayName || item.libraryItemId || "资源详情";
-  el.previewSubtitle.textContent = `${item.kind || "unknown"} / ${item.usage || "-"} / ${item.runtimeAvailability || "Unknown"}`;
+  const profileStatus = getBuildProfileStatus(item);
+  const profileLabel = formatProfileStatusLabel(profileStatus);
+  const deliveryState = getDeliveryEntryState(item, findDraftBuildProfileEntryForItem(item));
+  const inProfile = Boolean(findDraftBuildProfileEntryForItem(item));
+  el.browsePanelTitle.textContent = item.displayName || item.libraryItemId || "资源";
+  el.browsePanelSubtitle.textContent = `${item.kind || "unknown"} · ${item.usage || "-"} · ${deliveryState.label}`;
 
-  const preview = item.preview || {};
-  const hasPreviewMetadata = Boolean(
-    preview.thumbnailResourceKey
-    || preview.previewMeshResourceKey
-    || preview.previewCameraPresetId
-    || preview.previewPoseId
-    || preview.thumbnailUrl
-    || preview.thumbnailPath
-  );
-  const previewLabel = hasPreviewMetadata
-    ? renderKeyValueList([
-      ["缩略图资源键", preview.thumbnailResourceKey || preview.thumbnailUrl || preview.thumbnailPath || "-"],
-      ["预览 mesh", preview.previewMeshResourceKey || "-"],
-      ["相机 preset", preview.previewCameraPresetId || "-"],
-      ["预览姿势", preview.previewPoseId || "-"]
-    ])
-    : `<p class="empty-inline">未生成预览</p>`;
+  const nextStep = !inProfile
+    ? "下一步：加入 Profile，并在 Profile 工作区配置交付方式。"
+    : state.buildProfileDirty
+      ? "下一步：保存 Profile，再到 Build 工作区确认 Bundle Plan。"
+      : "下一步：到 Build 查看 Bundle Plan，或去 Unity 构建。";
 
-  el.previewBody.innerHTML = `
-    <div class="preview-stage">
-      <div class="preview-icon" aria-hidden="true">${escapeHtml(getKindInitial(item.kind))}</div>
-      <div>
-        <h3>${escapeHtml(kindTitle(item.kind))}</h3>
-        ${previewLabel}
-      </div>
+  el.browseContextBody.innerHTML = `
+    <div class="browse-status-strip">
+      <span class="status-pill ${toneForBuildProfileStatus(profileStatus)}">${escapeHtml(profileLabel)}</span>
+      <span class="status-pill ${toneForRuntime(item.runtimeAvailability)}">${escapeHtml(formatRuntimeLabel(item.runtimeAvailability))}</span>
+      <span class="status-pill ${deliveryState.tone}">${escapeHtml(deliveryState.label)}</span>
     </div>
-    <div class="summary-grid">
+    <div class="browse-overview-grid">
       ${metric("引用", item.referenceCount)}
       ${metric("诊断", item.diagnosticCount)}
-      ${metric("导入状态", item.importStatus || "Unknown")}
-      ${metric("运行时", item.runtimeAvailability || "Unknown")}
+      ${metric("provider", item.providerId || "-")}
+      ${metric("导入", item.importStatus || "-")}
     </div>
-    <div class="detail-card">
-      <h3>轻量摘要</h3>
+    <div class="detail-card compact-card identity-card">
+      <h3>资源身份</h3>
       ${renderKeyValueList([
-        ["libraryItemId", item.libraryItemId || "-"],
-        ["stableId", item.stableId || "-"],
         ["resourceKey", item.resourceKey || "-"],
+        ["stableId", item.stableId || "-"],
         ["sourcePath", item.sourcePath || "-"],
-        ["unityAssetPath", item.unityAssetPath || "-"],
-        ["tags", item.tags.length > 0 ? item.tags.join(", ") : "-"]
+        ["unityAssetPath", item.unityAssetPath || "-"]
       ])}
-    </div>`;
-}
-
-function renderLibraryOverview() {
-  const items = getNormalizedItems();
-  const byKind = countBy(items, "kind");
-  const byProvider = countBy(items, "providerId");
-  const byRuntime = countBy(items, "runtimeAvailability");
-  const providers = getProviders();
-
-  el.previewTitle.textContent = "全局资源摘要";
-  el.previewSubtitle.textContent = "资源管理器提供统一资源视图；角色包、动画、音频和其他编辑器只引用这里的资源项";
-  el.previewBody.innerHTML = `
-    <div class="summary-grid">
-      ${metric("资源项", items.length)}
-      ${metric("运行时可用", items.filter(isRuntimeLoadable).length)}
-      ${metric("已引用", items.filter(item => item.referenceCount > 0).length)}
-      ${metric("有诊断", items.filter(item => item.diagnosticCount > 0).length)}
     </div>
-    <div class="split-lists">
-      <div class="detail-card">
-        <h3>provider 状态</h3>
-        ${providers.length > 0 ? renderProviderList(providers) : emptyBlock("暂无 provider 数据")}
-      </div>
-      <div class="detail-card">
-        <h3>provider 分布</h3>
-        ${renderCountList(byProvider, "暂无 provider 数据")}
-      </div>
-      <div class="detail-card">
-        <h3>kind 分布</h3>
-        ${renderCountList(byKind, "暂无 kind 数据")}
-      </div>
-      <div class="detail-card">
-        <h3>runtime availability 分布</h3>
-        ${renderCountList(byRuntime, "暂无 runtime availability 数据")}
-      </div>
-    </div>`;
+    <p class="profile-hint workflow-hint">${escapeHtml(nextStep)}</p>
+    <p class="profile-hint">完整 Inspector / JSON 请打开 Debug 工作区。</p>`;
+
+  if (checkedCount > 0) {
+    el.browseBatchBar.classList.remove("hidden");
+    el.browseBatchBar.innerHTML = `
+      <span class="batch-bar-label">已选择 ${checkedCount} 个资源</span>
+      <button type="button" data-action="batch-add-profile" class="secondary">批量加入 Profile</button>
+      <button type="button" data-action="batch-remove-profile" class="secondary">批量移出 Profile</button>`;
+  } else {
+    el.browseBatchBar.classList.add("hidden");
+    el.browseBatchBar.innerHTML = "";
+  }
 }
 
 function renderPlan() {
@@ -1179,17 +1819,67 @@ function renderPlan() {
     </article>`).join("") || emptyBlock(plan ? "resource plan 没有资源分组" : "未生成 resource plan") ;
 }
 
-function renderBuildProfile() {
-  const profile = getBuildProfile();
-  const entries = getBuildProfileEntries();
+function renderBuildWorkspace() {
   const plan = getBundlePlan();
   const bundles = asArray(pick(plan, "bundles"));
   const diagnostics = [
     ...asArray(pick(pick(state.buildProfilePayload, "validation"), "issues")),
     ...asArray(pick(plan, "diagnostics"))
   ];
+  const dirtyHint = state.buildProfileDirty
+    ? "当前有未保存草稿；Bundle Plan 仍来自已保存 Profile，保存后刷新。"
+    : "Bundle Plan 来自已保存 Profile。Web UI 不构建 AssetBundle，也不写 StreamingAssets。";
+
+  el.bundlePlanSummary.textContent = dirtyHint;
+  el.buildChecklist.innerHTML = renderBuildChecklist();
+  el.bundlePlanContent.innerHTML = `
+    <div class="summary-grid">
+      ${metric("bundles", bundles.length)}
+      ${metric("external", asArray(pick(plan, "externalEntries")).length)}
+      ${metric("excluded", asArray(pick(plan, "excludedEntries")).length)}
+      ${metric("diagnostics", diagnostics.length)}
+    </div>
+    ${renderBundlePlanSummary(bundles)}`;
+  el.buildDiagnostics.innerHTML = `
+    <div class="detail-card">
+      <h3>构建诊断</h3>
+      ${renderDiagnosticsList(diagnostics)}
+    </div>
+    <p class="profile-hint">${escapeHtml(UNITY_WORKBENCH_GUIDANCE)}</p>`;
+}
+
+function renderBuildChecklist() {
+  const plan = getBundlePlan();
+  const bundles = asArray(pick(plan, "bundles"));
+  const diagnostics = [
+    ...asArray(pick(pick(state.buildProfilePayload, "validation"), "issues")),
+    ...asArray(pick(plan, "diagnostics"))
+  ];
+  const hasErrors = diagnostics.some(d => getSeverity(d) === "Error");
+  const items = [
+    { label: "Profile saved", ok: !state.buildProfileDirty && Boolean(getBuildProfile()) },
+    { label: "Bundle Plan valid", ok: Boolean(plan) && !hasErrors },
+    { label: "Catalog exists", ok: bundles.length > 0, hint: "预览：saved profile 已规划 bundle" },
+    { label: "Preload groups exists", ok: bundles.some(b => asArray(pick(b, "preloadGroups")).length > 0), hint: "由 Unity Workbench 生成" },
+    { label: "Bundle exists", ok: false, hint: "在 Unity StreamingAssets 中验证" },
+    { label: "Build report no errors", ok: !hasErrors }
+  ];
+  return `<ul class="build-checklist-list">${items.map(item => `
+    <li class="${item.ok ? "ok" : "pending"}">
+      <span>${item.ok ? "✓" : "○"}</span>
+      <div>
+        <strong>${escapeHtml(item.label)}</strong>
+        ${item.hint ? `<small>${escapeHtml(item.hint)}</small>` : ""}
+      </div>
+    </li>`).join("")}</ul>`;
+}
+
+function renderBuildProfile() {
+  const profile = getBuildProfile();
+  const entries = getBuildProfileEntries();
   const selected = getSelectedItem();
   const selectedEntry = selected ? findBuildProfileEntryForItem(selected) : null;
+  const checkedCount = state.checkedResourceKeys.size;
 
   if (!profile) {
     el.buildProfileSummary.textContent = "没有读取到 Global Resource Build Profile API。";
@@ -1198,86 +1888,118 @@ function renderBuildProfile() {
   }
 
   const dirtySuffix = state.buildProfileDirty ? "，草稿未保存" : "";
-  el.buildProfileSummary.textContent = `${entries.length} 个 profile entry，${bundles.length} 个 bundle，${diagnostics.length} 条构建诊断${dirtySuffix}`;
   const profileStateCounts = countBuildProfileStates(getNormalizedItems());
+  el.buildProfileSummary.textContent = `${entries.length} 个 profile entry${dirtySuffix} · 在 Browse 选择资源后在此编辑交付意图`;
+
+  if (checkedCount > 0) {
+    el.profileBatchBar.classList.remove("hidden");
+    el.profileBatchBar.innerHTML = `
+      <span class="batch-bar-label">已选择 ${checkedCount} 个资源 · 批量字段编辑</span>
+      ${renderBuildProfileBatchEditor()}`;
+  } else {
+    el.profileBatchBar.classList.add("hidden");
+    el.profileBatchBar.innerHTML = "";
+  }
+
   el.buildProfileContent.innerHTML = `
-    <div class="summary-grid">
-      ${metric("profile entries", entries.length)}
-      ${metric("bundles", bundles.length)}
-      ${metric("external", asArray(pick(plan, "externalEntries")).length)}
-      ${metric("excluded", asArray(pick(plan, "excludedEntries")).length)}
-    </div>
     <div class="profile-state-strip">
       ${["notInProfile", "saved", "draftOnly", "removedInDraft", "modifiedInDraft"].map(status => smallBadge(`${status} ${profileStateCounts[status] || 0}`, toneForBuildProfileStatus(status))).join("")}
     </div>
     <div class="profile-editor-grid">
-      <div class="detail-card">
-        <h3>当前选择</h3>
-        ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("选择左侧资源后编辑构建意图")}
+      <div class="detail-card profile-steps-card">
+        ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("请先在 Browse 工作区选择一个资源，或从 Browse 点击「加入 Profile」跳转至此。")}
       </div>
-      <div class="detail-card">
-        <h3>批量字段编辑</h3>
-        ${renderBuildProfileBatchEditor()}
-      </div>
-      <div class="detail-card">
-        <h3>Bundle Plan saved-profile preview</h3>
-        <p class="profile-hint">${state.buildProfileDirty ? "当前有未保存草稿；Bundle Plan 仍来自已保存 Profile，保存后刷新。" : "Bundle Plan 来自已保存 Profile。Web UI 不构建 AssetBundle，也不写 StreamingAssets。"}</p>
-        ${renderBundlePlanSummary(bundles)}
-      </div>
-    </div>
-    <div class="detail-card">
-      <h3>构建诊断</h3>
-      ${renderDiagnosticsList(diagnostics)}
     </div>`;
 }
 
 function renderBuildProfileEditor(item, entry) {
   const inProfile = Boolean(entry);
   const draft = entry || buildProfileEntryFromItem(item);
+  const deliveryMode = pick(draft, "deliveryMode") || "internal";
+  const isInternal = deliveryMode === "internal";
+  const resourceKeyId = stringValue(pick(pick(draft, "resourceKey"), "id"));
+  const keyValid = isValidProfileResourceKeyId(resourceKeyId);
+  const deliveryState = getDeliveryEntryState(item, entry);
+  const highlight = state.profileFieldHighlight;
+  const saveStatus = getBuildProfileStatus(item);
+
   return `
     <div class="profile-status-line">
+      ${smallBadge(deliveryState.label, deliveryState.tone)}
+      ${smallBadge(saveStatus, toneForBuildProfileStatus(saveStatus))}
       ${smallBadge(inProfile ? "inProfile" : "notInProfile", inProfile ? "ok" : "warn")}
-      ${smallBadge(getBuildProfileStatus(item), toneForBuildProfileStatus(getBuildProfileStatus(item)))}
     </div>
-    ${renderKeyValueList([
-      ["resourceKey", formatProfileResourceKey(pick(draft, "resourceKey")) || item.resourceKey || "-"],
-      ["sourceProvider", stringValue(pick(pick(draft, "source"), "providerId")) || item.providerId || "-"],
-      ["unityGuid", pick(pick(draft, "source"), "unityGuid") || item.unityGuid || "-"]
-    ])}
-    <div class="profile-form">
-      <label>
-        <span>delivery mode</span>
-        <select data-profile-field="deliveryMode" ${inProfile ? "" : "disabled"}>
-          ${selectOptions(["internal", "external", "editorOnly", "excluded"], pick(draft, "deliveryMode") || "internal")}
-        </select>
+    <section class="profile-step${highlight === "resourceKey" ? " field-highlight" : ""}">
+      <h3>Step 1 · 资源身份</h3>
+      <label class="profile-field-inline">
+        <span>ResourceKey.id</span>
+        <input data-profile-field="resourceKeyId" value="${escapeHtml(resourceKeyId)}" ${inProfile ? "" : "disabled"}>
+        <small class="${keyValid ? "field-ok" : "field-error"}">${keyValid ? "格式有效" : "无效字符：仅允许 a-z、0-9、.、_、-"}</small>
       </label>
-      <label>
-        <span>override mode</span>
-        <select data-profile-field="bundleOverrideMode" ${inProfile ? "" : "disabled"}>
-          ${selectOptions(["none", "forceBundle", "forceStandalone", "forceExternal", "exclude"], pick(draft, "bundleOverrideMode") || "none")}
-        </select>
-      </label>
-      <label>
-        <span>override value</span>
-        <input data-profile-field="bundleOverrideValue" value="${escapeHtml(pick(draft, "bundleOverrideValue") || "")}" ${inProfile ? "" : "disabled"}>
-      </label>
-      <label>
-        <span>bundle group hint</span>
-        <input data-profile-field="bundleGroupHint" value="${escapeHtml(pick(draft, "bundleGroupHint") || pick(draft, "bundleRule") || "")}" ${inProfile ? "" : "disabled"}>
-      </label>
-      <label>
-        <span>bundle rule</span>
-        <input data-profile-field="bundleRule" value="${escapeHtml(pick(draft, "bundleRule") || "")}" ${inProfile ? "" : "disabled"}>
-      </label>
-      <label>
-        <span>preload groups</span>
-        <input data-profile-field="preloadGroups" value="${escapeHtml(asArray(pick(draft, "preloadGroups")).join(", "))}" ${inProfile ? "" : "disabled"}>
-      </label>
-      <label>
-        <span>labels</span>
-        <input data-profile-field="labels" value="${escapeHtml(asArray(pick(draft, "labels")).join(", "))}" ${inProfile ? "" : "disabled"}>
-      </label>
-    </div>`;
+      ${renderKeyValueList([
+        ["type", stringValue(pick(pick(draft, "resourceKey"), "type")) || item.kind || "-"],
+        ["packageId", stringValue(pick(pick(draft, "resourceKey"), "packageId")) || "-"],
+        ["source provider", stringValue(pick(pick(draft, "source"), "providerId")) || item.providerId || "-"],
+        ["unityGuid / assetPath", `${pick(pick(draft, "source"), "unityGuid") || item.unityGuid || "-"} / ${item.unityAssetPath || "-"}`]
+      ])}
+    </section>
+    <section class="profile-step${highlight === "deliveryMode" ? " field-highlight" : ""}">
+      <h3>Step 2 · 交付模式</h3>
+      <div class="profile-form">
+        <label>
+          <span>delivery mode</span>
+          <select data-profile-field="deliveryMode" ${inProfile ? "" : "disabled"}>
+            ${selectOptions(["internal", "external", "editorOnly", "excluded"], deliveryMode)}
+          </select>
+        </label>
+        <label>
+          <span>override mode</span>
+          <select data-profile-field="bundleOverrideMode" ${inProfile ? "" : "disabled"}>
+            ${selectOptions(["none", "forceBundle", "forceStandalone", "forceExternal", "exclude"], pick(draft, "bundleOverrideMode") || "none")}
+          </select>
+        </label>
+        <label>
+          <span>override value</span>
+          <input data-profile-field="bundleOverrideValue" value="${escapeHtml(pick(draft, "bundleOverrideValue") || "")}" ${inProfile ? "" : "disabled"}>
+        </label>
+      </div>
+    </section>
+    <section class="profile-step${highlight === "bundleRule" ? " field-highlight" : ""}">
+      <h3>Step 3 · Bundle 归属</h3>
+      ${isInternal ? `
+        <div class="profile-form">
+          <label>
+            <span>bundle rule</span>
+            <input data-profile-field="bundleRule" value="${escapeHtml(pick(draft, "bundleRule") || "")}" ${inProfile ? "" : "disabled"}>
+          </label>
+          <label>
+            <span>bundle group hint</span>
+            <input data-profile-field="bundleGroupHint" value="${escapeHtml(pick(draft, "bundleGroupHint") || "")}" ${inProfile ? "" : "disabled"}>
+          </label>
+          <label>
+            <span>labels</span>
+            <input data-profile-field="labels" value="${escapeHtml(asArray(pick(draft, "labels")).join(", "))}" ${inProfile ? "" : "disabled"}>
+          </label>
+        </div>` : `<p class="profile-hint">deliveryMode 为 ${escapeHtml(deliveryMode)} 时不使用 internal bundle rule。</p>`}
+    </section>
+    <section class="profile-step">
+      <h3>Step 4 · Preload</h3>
+      <div class="profile-form">
+        <label>
+          <span>preload groups</span>
+          <input data-profile-field="preloadGroups" value="${escapeHtml(asArray(pick(draft, "preloadGroups")).join(", "))}" ${inProfile ? "" : "disabled"}>
+        </label>
+      </div>
+      <p class="profile-hint">fail policy 由 Resource Plan 分组决定；此处只声明 preload 意图。</p>
+    </section>
+    <section class="profile-step">
+      <h3>Step 5 · 保存状态</h3>
+      ${renderKeyValueList([
+        ["profile state", saveStatus],
+        ["delivery outcome", deliveryState.label],
+        ["full resourceKey", formatProfileResourceKey(pick(draft, "resourceKey")) || item.resourceKey || "-"]
+      ])}
+    </section>`;
 }
 
 function renderBuildProfileBatchEditor() {
@@ -1351,6 +2073,38 @@ function renderInspector() {
     ? `<div class="notice warn">${escapeHtml(state.inspectState.error)}</div>`
     : "";
   el.inspectorContent.innerHTML = notice + renderInspectorTab(state.activeTab, item, detail);
+  renderRawJson();
+}
+
+function renderDebugPicker() {
+  const items = getFilteredItems(getNormalizedItems()).slice(0, 40);
+  const selectedKey = state.selectedResourceKey;
+  el.debugPickerSummary.textContent = items.length === 0
+    ? "Browse 工作区暂无可见资源"
+    : `显示 ${items.length} 个可见资源（与 Browse 筛选同步）`;
+  if (items.length === 0) {
+    el.debugResourcePicker.innerHTML = emptyBlock("请先在 Browse 中加载资源");
+    return;
+  }
+  el.debugResourcePicker.innerHTML = items.map(item => `
+    <button type="button" class="debug-picker-item${item.key === selectedKey ? " active" : ""}" data-resource-key="${escapeHtml(item.key)}">
+      <strong>${escapeHtml(item.displayName || item.stableId || "resource")}</strong>
+      <span>${escapeHtml(item.kind || "-")} · ${escapeHtml(getBuildProfileStatus(item))}</span>
+    </button>`).join("");
+}
+
+function renderRawJson() {
+  const item = getSelectedItem();
+  const detail = item ? getCurrentDetail(item) : null;
+  const payload = item
+    ? { item: item.raw, inspect: detail, buildProfile: findBuildProfileEntryForItem(item) }
+    : {
+      package: state.packageRelative,
+      resources: getNormalizedItems().map(resource => resource.raw),
+      resourcePlan: state.resourcePlanPayload,
+      buildProfile: getBuildProfile()
+    };
+  el.rawJsonContent.innerHTML = renderJsonBlock(payload);
 }
 
 function renderInspectorTab(tab, item, detail) {
@@ -1377,10 +2131,7 @@ function renderOverviewTab(item) {
         ["import status", item.importStatus || "-"],
         ["runtime availability", item.runtimeAvailability || "-"]
       ])}
-    </section>
-    <section class="inspector-section">
-      <h3>原始 item JSON</h3>
-      ${renderJsonBlock(item.raw)}
+      <p class="profile-hint">完整 JSON 见下方 Raw JSON（默认折叠）。</p>
     </section>`;
 }
 
@@ -1511,7 +2262,7 @@ function renderDiagnosticsTab(detail) {
     </section>`;
 }
 
-function renderActions() {
+function renderContextActions() {
   const item = getSelectedItem();
   const preset = getSelectedImportPreset();
   const connected = Boolean(state.resourcesPayload);
@@ -1521,39 +2272,66 @@ function renderActions() {
   const checkedItems = getCheckedItems();
   const checkedAddable = checkedItems.some(checkedItem => !findDraftBuildProfileEntryForItem(checkedItem));
   const checkedRemovable = checkedItems.some(checkedItem => Boolean(findDraftBuildProfileEntryForItem(checkedItem)));
+
   el.importResourceButton.disabled = !connected || writeBusy;
   el.importFolderButton.disabled = !connected || writeBusy;
   el.reimportResourceButton.disabled = !connected || !item || writeBusy;
   el.replaceSourceButton.disabled = !connected || !item || writeBusy;
-  el.addToBuildProfileButton.disabled = !profileReady || !item || Boolean(profileEntry) || writeBusy;
-  el.removeFromBuildProfileButton.disabled = !profileReady || !item || !profileEntry || writeBusy;
-  el.batchAddToBuildProfileButton.disabled = !profileReady || checkedItems.length === 0 || !checkedAddable || writeBusy;
-  el.batchRemoveFromBuildProfileButton.disabled = !profileReady || checkedItems.length === 0 || !checkedRemovable || writeBusy;
   el.saveBuildProfileButton.disabled = !profileReady || writeBusy;
-  el.deleteResourceButton.disabled = true;
-  el.editTagsButton.disabled = true;
-  el.importResourceButton.title = connected ? `导入一个${preset.label}资源` : "Authoring 资源 API 未连接";
-  el.importFolderButton.title = connected ? `批量导入文件夹中的${preset.label}资源` : "Authoring 资源 API 未连接";
-  el.reimportResourceButton.title = item ? "重新计算当前资源的导入状态和哈希" : "先选择一个资源项";
-  el.replaceSourceButton.title = item ? "替换当前资源源文件，并保留 stableId/resourceKey" : "先选择一个资源项";
-  el.addToBuildProfileButton.title = profileEntry ? "当前资源已在构建 Profile 中" : "把当前资源加入 Global Resource Build Profile";
-  el.removeFromBuildProfileButton.title = profileEntry ? "从 Global Resource Build Profile 移除当前资源" : "当前资源不在构建 Profile 中";
-  el.batchAddToBuildProfileButton.title = checkedItems.length > 0 ? `把 ${checkedItems.length} 个已勾选资源加入 Build Profile 草稿` : "先显式勾选资源";
-  el.batchRemoveFromBuildProfileButton.title = checkedItems.length > 0 ? `从 Build Profile 草稿移出 ${checkedItems.length} 个已勾选资源` : "先显式勾选资源";
   el.saveBuildProfileButton.title = "通过 Authoring API 校验并保存 Global Resource Build Profile";
+
+  el.browseContextActions.innerHTML = item ? `
+    <button type="button" data-action="add-profile" class="primary-action"${profileEntry || !profileReady || writeBusy ? " disabled" : ""}>加入 Profile</button>
+    <button type="button" data-action="open-profile" class="primary-action secondary-action"${!profileReady || writeBusy ? " disabled" : ""}>编辑 Profile</button>
+    <button type="button" data-action="view-debug" class="secondary">Debug 详情</button>
+    <button type="button" data-action="remove-profile" class="secondary"${!profileEntry || writeBusy ? " disabled" : ""}>移出</button>
+  ` : `<span class="action-group-label">← 请先在左侧列表选择资源</span>`;
+
+  el.profileContextActions.innerHTML = `
+    <span class="action-group-label">Profile 操作</span>
+    <button type="button" data-action="add-profile"${!item || profileEntry || !profileReady || writeBusy ? " disabled" : ""}>加入 Profile</button>
+    <button type="button" data-action="remove-profile"${!item || !profileEntry || writeBusy ? " disabled" : ""}>移出 Profile</button>
+    <button type="button" data-action="revert-profile" class="secondary"${!item || writeBusy ? " disabled" : ""}>还原当前资源草稿</button>
+  `;
+
   if (state.writeState.status === "running") {
     el.writeActionStatus.textContent = "写入中：正在通过 Authoring API 更新资源库。";
   } else if (state.writeState.status === "error") {
     el.writeActionStatus.textContent = `写入失败：${state.writeState.error}`;
   } else if (item) {
-    el.writeActionStatus.textContent = `导入类型：${preset.label}；当前目标：${item.displayName || getResourceWriteId(item)}；构建 Profile：${getBuildProfileStatus(item)}；已勾选 ${checkedItems.length}。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；目标：${item.displayName || getResourceWriteId(item)}；Profile：${getBuildProfileStatus(item)}。`;
   } else {
-    el.writeActionStatus.textContent = `导入类型：${preset.label}；支持单文件、文件夹和 Build Profile 草稿批量加入/移出。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}。`;
   }
+
   el.copyDetailJsonButton.disabled = false;
   el.copyDiagnosticsJsonButton.disabled = false;
   el.copyDetailJsonButton.title = item ? "复制当前资源 inspect/fallback 详情" : "复制当前资源库摘要";
   el.copyDiagnosticsJsonButton.title = item ? "复制当前资源诊断" : "复制当前资源库全部诊断";
+
+  void checkedAddable;
+  void checkedRemovable;
+}
+
+function getDeliveryEntryState(item, entry) {
+  const mode = entry ? pick(entry, "deliveryMode") : "notInProfile";
+  if (!entry) return { label: "not in profile", tone: "neutral" };
+  if (mode === "external") return { label: "external", tone: "warn" };
+  if (mode === "editorOnly") return { label: "editor only", tone: "info" };
+  if (mode === "excluded") return { label: "excluded", tone: "error" };
+  const override = pick(entry, "bundleOverrideMode");
+  if (override === "exclude") return { label: "excluded", tone: "error" };
+  if (override === "forceExternal") return { label: "external", tone: "warn" };
+  return { label: "will build", tone: "ok" };
+}
+
+function inferProfileValidationField(payload) {
+  const issues = asArray(pick(pick(payload, "validation"), "issues"));
+  const message = issues.map(issue => String(pick(issue, "message") || pick(issue, "code") || "")).join(" ").toLowerCase();
+  if (message.includes("resourcekey") || message.includes("invalid characters")) return "resourceKey";
+  if (message.includes("bundle rule")) return "bundleRule";
+  if (message.includes("delivery")) return "deliveryMode";
+  return "";
 }
 
 function renderImportPresetOptions() {
@@ -1937,6 +2715,10 @@ function normalizeItem(raw, index) {
 function getFilteredItems(items) {
   const search = state.filters.search.trim().toLowerCase();
   return items.filter(item => {
+    if (state.quickFilter === "profileDraft") {
+      const status = getBuildProfileStatus(item);
+      if (!["draftOnly", "modifiedInDraft", "removedInDraft"].includes(status)) return false;
+    }
     if (state.filters.kind !== "all" && item.kind !== state.filters.kind) return false;
     if (state.filters.usage !== "all" && item.usage !== state.filters.usage) return false;
     if (state.filters.providerId !== "all" && item.providerId !== state.filters.providerId) return false;
@@ -2267,6 +3049,8 @@ function applyFilterControls() {
   el.searchInput.value = state.filters.search;
   el.profileMembershipFilter.value = state.filters.profileMembership;
   el.runtimeReadyFilter.value = state.filters.runtimeReady;
+  el.resourceSortSelect.value = state.resourceSort;
+  el.treeGroupModeSelect.value = state.treeGroupMode;
   el.onlyReferenced.checked = state.filters.onlyReferenced;
   el.onlyOrphan.checked = state.filters.onlyOrphan;
   el.onlyRuntimeLoadable.checked = state.filters.onlyRuntimeLoadable;

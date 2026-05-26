@@ -29,6 +29,14 @@ Runtime
 
 The Resource Manager is the current editor for `global_resource_build_profile.json`. The Bundle Plan shown in the web UI is a preview from the saved profile; it does not build AssetBundles or write generated `StreamingAssets` artifacts.
 
+UI 工作区（已完成 `RESOURCE_MANAGER_WORKFLOW_UI_REORG_01`）：
+
+```text
+Browse / Profile / Build / Debug 四工作区；详见 Docs/Tasks/RESOURCE_MANAGER_WORKFLOW_UI_REORG_01.md
+```
+
+顶栏保留全局操作；底部常驻操作栏已移除。后续在本地 Player 流程稳定前，不要扩展删除资源、标签编辑、Online 模式或新 provider。
+
 Save validation rejects invalid profile drafts. Common causes:
 
 - `ResourceKey id contains invalid characters.` The generated or edited resource key must be a runtime key such as `ui.start_screen.button.normal`, not a provider id, `resourceId`, path, or value containing characters such as `:`, `|`, whitespace or slashes.

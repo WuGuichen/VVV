@@ -78,6 +78,11 @@ Editor mode is currently a permissive authoring/dev mode. It is not proof that t
 
 These are the urgent fixes before expanding the system:
 
+0. Resource Manager information architecture must be reorganized around the local Player workflow.
+   - See `Docs/Tasks/RESOURCE_MANAGER_WORKFLOW_UI_REORG_01.md`.
+   - The active workflow is `Browse -> Profile -> Build -> Debug`, not one large same-priority screen.
+   - The web UI remains an authoring and diagnostics surface; Unity Workbench remains the AssetBundle build surface.
+
 1. Resource Manager Profile entry generation must be deterministic and valid.
    - `ResourceKey.id` must use only lowercase letters, digits, `.`, `_`, `-`.
    - It must be a runtime key, not `resourceId`, provider id, file path, or display label.
@@ -123,4 +128,3 @@ The minimum acceptable result is:
 7. Preload group loads at least one resource.
 8. Direct `IResourceManager.Load<T>(ResourceKey)` succeeds.
 9. Releasing preload group / handles returns debug snapshot loaded count to the expected value.
-
