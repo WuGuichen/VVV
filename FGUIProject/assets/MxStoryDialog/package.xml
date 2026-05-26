@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<packageDescription id="mxstory0">
+  <resources>
+    <component id="stdlg0" name="StoryDialogPanel.xml" path="/" exported="true"/>
+    <component id="stdbtn" name="StoryDialogButton.xml" path="/Components/"/>
+  </resources>
+  <publish name=""/>
+</packageDescription>

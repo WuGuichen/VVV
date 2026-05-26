@@ -31,6 +31,7 @@ namespace MxFramework.UI.FairyGui
             ComponentNameExpression = string.Empty;
             ViewModelTypeExpression = string.Empty;
             Layer = MxUiLayer.Panel;
+            AdditionalUsings = Array.Empty<string>();
             ControlBindPaths = Array.Empty<MxFairyGuiControlBindPathSpec>();
             ControlNameExpressions = Array.Empty<MxFairyGuiCodeExpressionSpec>();
             LocalizedTexts = Array.Empty<MxFairyGuiLocalizedTextBinding>();
@@ -56,6 +57,7 @@ namespace MxFramework.UI.FairyGui
         public string ComponentNameExpression { get; set; }
         public string ViewModelTypeExpression { get; set; }
         public MxUiLayer Layer { get; set; }
+        public IReadOnlyList<string> AdditionalUsings { get; set; }
         public IReadOnlyList<MxFairyGuiControlBindPathSpec> ControlBindPaths { get; set; }
         public IReadOnlyList<MxFairyGuiCodeExpressionSpec> ControlNameExpressions { get; set; }
         public IReadOnlyList<MxFairyGuiLocalizedTextBinding> LocalizedTexts { get; set; }
@@ -265,6 +267,7 @@ namespace MxFramework.UI.FairyGui
             builder.AppendLine("using MxFramework.Resources;");
             builder.AppendLine("using MxFramework.UI;");
             builder.AppendLine("using MxFramework.UI.FairyGui;");
+            AppendAdditionalUsings(builder, spec.AdditionalUsings);
             builder.AppendLine();
             builder.AppendLine("namespace " + spec.NamespaceName);
             builder.AppendLine("{");
@@ -376,6 +379,31 @@ namespace MxFramework.UI.FairyGui
             builder.AppendLine("    }");
             builder.AppendLine("}");
             return builder.ToString();
+        }
+
+        private static void AppendAdditionalUsings(StringBuilder builder, IReadOnlyList<string> namespaces)
+        {
+            if (namespaces == null)
+                return;
+
+            var seen = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "MxFramework.Resources",
+                "MxFramework.UI",
+                "MxFramework.UI.FairyGui"
+            };
+
+            for (int i = 0; i < namespaces.Count; i++)
+            {
+                string value = namespaces[i] ?? string.Empty;
+                value = value.Trim();
+                if (value.Length == 0 || !seen.Add(value))
+                    continue;
+
+                builder.Append("using ");
+                builder.Append(value);
+                builder.AppendLine(";");
+            }
         }
 
         private static MxFairyGuiLocalizedTextBinding[] CopyLocalizedTexts(IReadOnlyList<MxFairyGuiLocalizedTextBinding> localizedTexts)

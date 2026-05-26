@@ -6,6 +6,8 @@ const MENU_CREATE_SMOKE = "wgameframework.agent.createSmoke";
 const MENU_PUBLISH_SMOKE = "wgameframework.agent.publishSmoke";
 const MENU_CREATE_RUNTIME_HUD = "wgameframework.agent.createRuntimeHud";
 const MENU_PUBLISH_RUNTIME_HUD = "wgameframework.agent.publishRuntimeHud";
+const MENU_CREATE_STORY_DIALOG = "wgameframework.agent.createStoryDialog";
+const MENU_PUBLISH_STORY_DIALOG = "wgameframework.agent.publishStoryDialog";
 const MENU_REFRESH = "wgameframework.agent.refresh";
 
 const SMOKE_PACKAGE = {
@@ -116,6 +118,78 @@ const RUNTIME_HUD_PACKAGE = {
     ]
 };
 
+const STORY_DIALOG_PACKAGE = {
+    name: "MxStoryDialog",
+    id: "mxstory0",
+    componentName: "StoryDialogPanel",
+    componentId: "stdlg0",
+    files: [
+        {
+            path: "package.xml",
+            content: `<?xml version="1.0" encoding="utf-8"?>
+<packageDescription id="mxstory0">
+  <resources>
+    <component id="stdlg0" name="StoryDialogPanel.xml" path="/" exported="true"/>
+    <component id="stdbtn" name="StoryDialogButton.xml" path="/Components/"/>
+  </resources>
+  <publish name=""/>
+</packageDescription>
+`
+        },
+        {
+            path: "StoryDialogPanel.xml",
+            content: `<?xml version="1.0" encoding="utf-8"?>
+<component size="720,420" opaque="false">
+  <displayList>
+    <graph id="n0_stdlg" name="panelBg" xy="0,0" size="720,420" type="rect" fillColor="#dd101820" corner="10,10,10,10"/>
+    <graph id="n1_stdlg" name="headerBg" xy="20,18" size="680,54" type="rect" fillColor="#ff203647" corner="8,8,8,8"/>
+    <text id="n2_stdlg" name="title" xy="36,28" size="360,30" fontSize="24" color="#ffffff" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Story"/>
+    <text id="n3_stdlg" name="phase" xy="420,29" size="260,28" fontSize="18" color="#8ee6ff" align="right" vAlign="middle" autoSize="none" singleLine="true" text="Ready"/>
+    <graph id="n4_stdlg" name="dialogueBg" xy="28,96" size="664,112" type="rect" fillColor="#dd243040" corner="8,8,8,8"/>
+    <text id="n5_stdlg" name="dialogueText" xy="48,116" size="624,72" fontSize="22" color="#fff1c8" align="left" vAlign="middle" autoSize="none" text="Dialogue text"/>
+    <graph id="n6_stdlg" name="choiceBg" xy="28,232" size="664,58" type="rect" fillColor="#dd182c26" corner="8,8,8,8"/>
+    <text id="n7_stdlg" name="choiceText" xy="48,246" size="624,30" fontSize="19" color="#dbffe5" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Choice"/>
+    <text id="n8_stdlg" name="signalText" xy="40,314" size="240,24" fontSize="16" color="#b7d6ff" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Signal 0"/>
+    <text id="n9_stdlg" name="eventLog" xy="40,342" size="640,32" fontSize="13" color="#d7dde5" align="left" vAlign="top" autoSize="none" text="Events"/>
+    <component id="n10_stdlg" name="btnContinue" src="stdbtn" fileName="Components/StoryDialogButton.xml" xy="408,362">
+      <Button title="Continue"/>
+    </component>
+    <component id="n11_stdlg" name="btnChoice" src="stdbtn" fileName="Components/StoryDialogButton.xml" xy="556,362">
+      <Button title="Select"/>
+    </component>
+  </displayList>
+</component>
+`
+        },
+        {
+            path: "Components/StoryDialogButton.xml",
+            content: `<?xml version="1.0" encoding="utf-8"?>
+<component size="128,40" extention="Button" initName="btn">
+  <controller name="button" pages="0,up,1,down,2,over,3,selectedOver" selected="0"/>
+  <displayList>
+    <graph id="n0_stdb" name="up" xy="0,0" size="128,40" type="rect" fillColor="#ff326f83" corner="8,8,8,8">
+      <gearDisplay controller="button" pages="0"/>
+      <relation target="" sidePair="width-width,height-height"/>
+    </graph>
+    <graph id="n1_stdb" name="over" xy="0,0" size="128,40" type="rect" fillColor="#ff418ba4" corner="8,8,8,8">
+      <gearDisplay controller="button" pages="2"/>
+      <relation target="" sidePair="width-width,height-height"/>
+    </graph>
+    <graph id="n2_stdb" name="down" xy="0,0" size="128,40" type="rect" fillColor="#ff25566a" corner="8,8,8,8">
+      <gearDisplay controller="button" pages="1,3"/>
+      <relation target="" sidePair="width-width,height-height"/>
+    </graph>
+    <text id="n3_stdb" name="title" xy="0,0" size="128,40" fontSize="17" color="#ffffff" align="center" vAlign="middle" autoSize="none" singleLine="true" bold="true" autoClearText="true" text="Button">
+      <relation target="" sidePair="width-width,height-height"/>
+    </text>
+  </displayList>
+  <Button/>
+</component>
+`
+        }
+    ]
+};
+
 function combinePath(left, right) {
     return System.IO.Path.Combine(left, right);
 }
@@ -168,6 +242,10 @@ function ensureRuntimeHudPackage() {
     ensurePackage(RUNTIME_HUD_PACKAGE);
 }
 
+function ensureStoryDialogPackage() {
+    ensurePackage(STORY_DIALOG_PACKAGE);
+}
+
 async function publishPackage(descriptor) {
     const project = FairyEditor.App.project;
     if (!project || !project.opened)
@@ -206,6 +284,10 @@ async function publishRuntimeHudPackage() {
     await publishPackage(RUNTIME_HUD_PACKAGE);
 }
 
+async function publishStoryDialogPackage() {
+    await publishPackage(STORY_DIALOG_PACKAGE);
+}
+
 async function runBatchCommand(done, arg) {
     const command = arg || "";
     try {
@@ -217,6 +299,10 @@ async function runBatchCommand(done, arg) {
             ensureRuntimeHudPackage();
         } else if (command === "publish-runtime-hud") {
             await publishRuntimeHudPackage();
+        } else if (command === "create-story-dialog") {
+            ensureStoryDialogPackage();
+        } else if (command === "publish-story-dialog") {
+            await publishStoryDialogPackage();
         } else if (command === "refresh") {
             FairyEditor.App.RefreshProject();
         } else {
@@ -251,6 +337,8 @@ function installMenu() {
     menu.AddItem("Publish Smoke Package", MENU_PUBLISH_SMOKE, () => runGuarded(publishSmokePackage));
     menu.AddItem("Create/Repair Runtime HUD Package", MENU_CREATE_RUNTIME_HUD, () => runGuarded(ensureRuntimeHudPackage));
     menu.AddItem("Publish Runtime HUD Package", MENU_PUBLISH_RUNTIME_HUD, () => runGuarded(publishRuntimeHudPackage));
+    menu.AddItem("Create/Repair Story Dialog Package", MENU_CREATE_STORY_DIALOG, () => runGuarded(ensureStoryDialogPackage));
+    menu.AddItem("Publish Story Dialog Package", MENU_PUBLISH_STORY_DIALOG, () => runGuarded(publishStoryDialogPackage));
     menu.AddItem("Refresh Project", MENU_REFRESH, () => runGuarded(() => FairyEditor.App.RefreshProject()));
 }
 
