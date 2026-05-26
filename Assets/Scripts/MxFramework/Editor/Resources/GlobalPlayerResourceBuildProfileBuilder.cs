@@ -719,7 +719,7 @@ namespace MxFramework.Editor
             return (key.packageId ?? string.Empty) + ":" + GetTypeId(key) + ":" + (key.id ?? string.Empty) + ":" + (key.variant ?? string.Empty);
         }
 
-        private static string CreateReportText(GlobalResourceBuildReport report)
+        public static string CreateReportText(GlobalResourceBuildReport report)
         {
             if (report == null || report.Issues.Count == 0)
                 return "Global resource build profile report has no issues.";

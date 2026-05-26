@@ -277,6 +277,7 @@
 | Resource Manager Build Profile 编辑 | ✅ v0.7.0 | 加入构建 Profile / 移出构建 Profile / 保存 Profile | Tools/MxFramework.ResourceLibrary |
 | Bundle Plan 预览 | ✅ v0.7.0 | `/api/authoring/resources/bundle-plan` / `GlobalResourceBundlePlanner` | Authoring.Cli + Authoring.Core |
 | Global Player Resource Catalog Build | ✅ v0.7.0 | `MxFramework/Resources/Validate Global Resource Build Profile` / `Build Global Player Resource Catalog` | Editor + Resources.Unity |
+| Global AssetBundle Builder Workbench | ✅ v0.7.1 | `MxFramework/Resources/Open Global AssetBundle Builder` / `GlobalAssetBundleBuilderWorkbench` | Editor + Resources.Unity |
 | Runtime Demo Resource Binding | ✅ v0.6.7 | `RuntimeVerticalSliceRunner.ResourceWarmupSummary` / resource binding diagnostics | Demo + Resources |
 | Preload Group / Scene Warmup | ✅ v0.6.8 | `ResourcePreloadService` / `ResourcePreloadPlan.MaxConcurrentLoads` / progress + cancellation | Resources |
 | Story preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` produces `ResourcePreloadPlan` without loading | Story.ResourcesBridge + Resources |
@@ -290,8 +291,8 @@
 → 接口：`Interfaces/Resources.md`
 → 设计：`RESOURCE_MANAGEMENT_SYSTEM.md`
 → 测试：`Tests/Resources/`、`Tests/Config/ModPackageCatalogTests.cs`
-→ 当前全局资源构建已覆盖 Profile 加入/保存、Bundle Plan 预览、Unity 菜单校验和生成本地 Player catalog / preload groups / bundle dependencies / build report。
-→ **不含**: 通用 AssetBundle Builder 产品化工作台、增量/差分热更、CDN 发布、签名/加密、断点续传、YooAsset 接入或 Addressables 默认依赖。
+→ 当前全局资源构建已覆盖 Profile 加入/保存、Bundle Plan 预览、Global AssetBundle Builder 工作台、Unity 菜单校验和生成本地 Player catalog / preload groups / bundle dependencies / build report。
+→ **不含**: 增量/差分热更、CDN 发布、签名/加密、断点续传、YooAsset 接入或 Addressables 默认依赖。
 
 ---
 
