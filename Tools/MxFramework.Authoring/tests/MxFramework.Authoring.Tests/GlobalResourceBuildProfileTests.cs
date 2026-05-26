@@ -20,10 +20,14 @@ internal static class GlobalResourceBuildProfileTests
         UnknownCompression_IsError();
         UnknownPlanningIntent_IsError();
         ForceBundleWithoutValue_IsError();
+        MissingBundleRule_IsError();
+        UnassignedInternalEntry_IsError();
+        ExternalEntryDoesNotSatisfyBundleRule_IsError();
         EmptyPreloadGroup_IsError();
         RequiredDomainPlanMissing_IsError();
         AuthoringResourceProvider_ProjectsProfileEntriesAndDiagnostics();
         BundlePlanner_UsesBundleRulesAndStableDependencyOutput();
+        BundlePlanner_DoesNotCreateImplicitBundlesFromHints();
         BundlePlanner_OverridePrecedenceSeparatesOutputs();
         BundlePlanner_ExternalProviderInternalSelectionIsDiagnostic();
         BundlePlanner_LegacyEditorOnlyAndRuntimeFlagsDoNotEnterInternalBundles();
@@ -123,6 +127,36 @@ internal static class GlobalResourceBuildProfileTests
         Require(HasCode(report, GlobalResourceBuildProfileValidationCodes.BundleOverrideValueRequired), "forceBundle without bundleOverrideValue should be reported.");
     }
 
+    private static void MissingBundleRule_IsError()
+    {
+        GlobalResourceBuildProfile profile = CreateValidProfile();
+        profile.Entries[0].BundleRule = "ui.missing";
+
+        GlobalResourceBuildProfileValidationReport report = GlobalResourceBuildProfileValidator.Validate(profile);
+        Require(HasCode(report, GlobalResourceBuildProfileValidationCodes.BundleRuleMissing), "Missing bundle rule should be reported.");
+    }
+
+    private static void UnassignedInternalEntry_IsError()
+    {
+        GlobalResourceBuildProfile profile = CreateValidProfile();
+        profile.Entries[0].BundleRule = string.Empty;
+        profile.Entries[0].Labels.Clear();
+
+        GlobalResourceBuildProfileValidationReport report = GlobalResourceBuildProfileValidator.Validate(profile);
+        Require(HasCode(report, GlobalResourceBuildProfileValidationCodes.RuntimeBundleRuleRequired), "Unassigned internal runtime resource should require a bundle rule.");
+    }
+
+    private static void ExternalEntryDoesNotSatisfyBundleRule_IsError()
+    {
+        GlobalResourceBuildProfile profile = CreateValidProfile();
+        profile.Entries[0].DeliveryMode = GlobalResourceBuildProfileDeliveryModes.External;
+
+        GlobalResourceBuildProfileValidationReport report = GlobalResourceBuildProfileValidator.Validate(profile);
+
+        Require(HasCode(report, GlobalResourceBuildProfileValidationCodes.ExternalEntryBundleRuleIgnored), "External entry with bundle rule should warn that the rule is ignored.");
+        Require(HasCode(report, GlobalResourceBuildProfileValidationCodes.BundleRuleEmpty), "External entry should not make a declared internal bundle non-empty.");
+    }
+
     private static void EmptyPreloadGroup_IsError()
     {
         GlobalResourceBuildProfile profile = CreateValidProfile();
@@ -205,8 +239,15 @@ internal static class GlobalResourceBuildProfileTests
                 UnityGuid = "22222222222222222222222222222222"
             },
             Labels = { "domain.shared" },
+            BundleRule = "shared.core",
             BundleGroupHint = "shared.core",
             ProviderData = { ["sizeBytes"] = "50" }
+        });
+        profile.BundleRules.Add(new GlobalResourceBuildProfileBundleRule
+        {
+            Id = "shared.core",
+            BundleName = "global.shared.core",
+            MatchLabels = { "bundle.shared.core" }
         });
 
         GlobalResourceBundlePlan plan = new GlobalResourceBundlePlanner().Plan(profile);
@@ -217,6 +258,21 @@ internal static class GlobalResourceBuildProfileTests
         Require(plan.Bundles[1].IncludedResourceKeys[0] == ":Prefab:ui.startup.panel:", "Bundle entries should be sorted by resource key.");
         Require(plan.Bundles[1].DependencyBundleNames.Count == 1 && plan.Bundles[1].DependencyBundleNames[0] == "global.shared.core", "Cross-bundle dependency should be emitted.");
         Require(plan.Bundles[0].EstimatedSizeBytes == 50, "Estimated size should be collected from metadata.");
+    }
+
+    private static void BundlePlanner_DoesNotCreateImplicitBundlesFromHints()
+    {
+        GlobalResourceBuildProfile profile = CreateValidProfile();
+        profile.RequiredDomainPlanKeys.Clear();
+        profile.BundleRules.Clear();
+        profile.Entries[0].BundleRule = string.Empty;
+        profile.Entries[0].BundleGroupHint = "ui.startup";
+
+        GlobalResourceBundlePlan plan = new GlobalResourceBundlePlanner().Plan(profile);
+
+        Require(plan.Bundles.Count == 0, "Planner should not create implicit bundles from bundleGroupHint.");
+        Require(plan.ExcludedEntries.Count == 1, "Unassigned internal resources should stay out of internal bundle output.");
+        Require(plan.Diagnostics.Exists(diagnostic => diagnostic.Code == GlobalResourceBundlePlannerDiagnosticCodes.BundleRuleMissing), "Unassigned internal resources should report a missing bundle rule diagnostic.");
     }
 
     private static void BundlePlanner_OverridePrecedenceSeparatesOutputs()
@@ -252,7 +308,7 @@ internal static class GlobalResourceBuildProfileTests
 
         GlobalResourceBundlePlan plan = new GlobalResourceBundlePlanner().Plan(profile);
 
-        Require(plan.Bundles.Count == 0, "External provider should not produce an internal bundle by default.");
+        Require(!plan.Bundles.Any(bundle => bundle.Entries.Count > 0), "External provider should not produce an internal bundle entry by default.");
         Require(plan.ExternalEntries.Count == 1, "External provider selected for internal output should be routed to external entries.");
         Require(plan.Diagnostics.Exists(diagnostic => diagnostic.Code == GlobalResourceBundlePlannerDiagnosticCodes.ExternalProviderSelectedForInternalBundle), "External provider internal selection should be diagnostic.");
     }
@@ -269,7 +325,7 @@ internal static class GlobalResourceBuildProfileTests
 
         GlobalResourceBundlePlan plan = new GlobalResourceBundlePlanner().Plan(profile);
 
-        Require(plan.Bundles.Count == 0, "Legacy editor-only and non-runtime flags should not enter internal bundle output.");
+        Require(!plan.Bundles.Any(bundle => bundle.Entries.Count > 0), "Legacy editor-only and non-runtime flags should not enter internal bundle output.");
         Require(plan.ExcludedEntries.Count == 2, "Legacy editor-only and non-runtime flags should become excluded entries.");
     }
 
@@ -283,7 +339,7 @@ internal static class GlobalResourceBuildProfileTests
 
         GlobalResourceBundlePlan plan = new GlobalResourceBundlePlanner().Plan(profile);
 
-        Require(plan.Bundles.Count == 1 && plan.Bundles[0].BundleName == "global.manual.internal", "forceBundle should override deliveryMode external.");
+        Require(plan.Bundles.Exists(bundle => bundle.BundleName == "global.manual.internal"), "forceBundle should override deliveryMode external.");
         Require(plan.ExternalEntries.Count == 0, "forceBundle-overridden external delivery should not remain external.");
     }
 
@@ -301,7 +357,14 @@ internal static class GlobalResourceBuildProfileTests
                 UnityGuid = "22222222222222222222222222222222"
             },
             Labels = { "domain.shared" },
+            BundleRule = "shared.core",
             BundleGroupHint = "shared.core"
+        });
+        profile.BundleRules.Add(new GlobalResourceBuildProfileBundleRule
+        {
+            Id = "shared.core",
+            BundleName = "global.shared.core",
+            MatchLabels = { "bundle.shared.core" }
         });
         profile.Entries[0].Dependencies.Add(new GlobalResourceBuildProfileResourceKey { Id = "shared.atlas", Type = "Texture2D" });
 

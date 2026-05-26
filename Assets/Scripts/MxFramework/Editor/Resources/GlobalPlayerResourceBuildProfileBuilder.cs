@@ -216,12 +216,47 @@ namespace MxFramework.Editor
                 for (int entryIndex = 0; entryIndex < plan.Entries.Count; entryIndex++)
                 {
                     GlobalResourceResolvedEntry entry = plan.Entries[entryIndex];
-                    if (entry.RuntimeLoadable && RuleMatchesEntry(rule, entry, plan.Profile.packageId))
+                    if (entry.RuntimeLoadable && ShouldUseDeclaredBundleRules(entry.Entry) && RuleMatchesEntry(rule, entry, plan.Profile.packageId))
                         bundle.Entries.Add(entry);
                 }
 
                 plan.Bundles.Add(bundle);
             }
+
+            for (int entryIndex = 0; entryIndex < plan.Entries.Count; entryIndex++)
+            {
+                GlobalResourceResolvedEntry entry = plan.Entries[entryIndex];
+                if (!entry.RuntimeLoadable || !IsForcedInternalBundle(entry.Entry))
+                    continue;
+
+                var rule = new GlobalResourceBuildProfileBundleRuleDocument
+                {
+                    bundleName = GetForcedBundleName(entry.Entry),
+                    compression = "lz4",
+                    buildTarget = "ActiveBuildTarget",
+                    includeDependencies = true,
+                    allowEmpty = false
+                };
+                rule.id = "override." + SanitizeBundleSegment(rule.bundleName);
+                GlobalResourceBuildBundle bundle = FindBundleByName(plan.Bundles, rule.bundleName);
+                if (bundle == null)
+                {
+                    bundle = new GlobalResourceBuildBundle(rule, entry.SourcePath + ".bundleOverrideMode");
+                    plan.Bundles.Add(bundle);
+                }
+                bundle.Entries.Add(entry);
+            }
+        }
+
+        private static GlobalResourceBuildBundle FindBundleByName(List<GlobalResourceBuildBundle> bundles, string bundleName)
+        {
+            for (int i = 0; i < bundles.Count; i++)
+            {
+                if (string.Equals(bundles[i].BundleName, bundleName, StringComparison.Ordinal))
+                    return bundles[i];
+            }
+
+            return null;
         }
 
         private static void ValidatePlan(GlobalResourceBuildPlan plan)
@@ -272,8 +307,10 @@ namespace MxFramework.Editor
             for (int i = 0; i < plan.Entries.Count; i++)
             {
                 GlobalResourceResolvedEntry entry = plan.Entries[i];
-                if (entry.RuntimeLoadable && !string.IsNullOrWhiteSpace(entry.Entry.bundleRule) && !ruleIds.Contains(entry.Entry.bundleRule))
+                if (entry.RuntimeLoadable && ShouldUseDeclaredBundleRules(entry.Entry) && !string.IsNullOrWhiteSpace(entry.Entry.bundleRule) && !ruleIds.Contains(entry.Entry.bundleRule))
                     plan.Report.AddError("BundleRuleMissing", "Runtime-loadable entry references a missing bundle rule.", entry.SourcePath + ".bundleRule", entry.ResourceKeyText);
+                if (entry.RuntimeLoadable && ShouldUseDeclaredBundleRules(entry.Entry) && string.IsNullOrWhiteSpace(entry.Entry.bundleRule) && !MatchesAnyBundleRule(plan, entry))
+                    plan.Report.AddError("BundleRuleRequired", "Runtime-loadable internal entry must be assigned to a defined bundle rule.", entry.SourcePath + ".bundleRule", entry.ResourceKeyText);
             }
 
             ReportStaleBundles(plan, activeBuildTarget);
@@ -583,6 +620,92 @@ namespace MxFramework.Editor
             return false;
         }
 
+        private static bool MatchesAnyBundleRule(GlobalResourceBuildPlan plan, GlobalResourceResolvedEntry entry)
+        {
+            GlobalResourceBuildProfileBundleRuleDocument[] rules = plan.Profile.bundleRules ?? Array.Empty<GlobalResourceBuildProfileBundleRuleDocument>();
+            for (int i = 0; i < rules.Length; i++)
+            {
+                if (rules[i] != null && RuleMatchesEntry(rules[i], entry, plan.Profile.packageId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool ShouldUseDeclaredBundleRules(GlobalResourceBuildProfileEntryDocument entry)
+        {
+            if (entry == null)
+                return false;
+            if (entry.editorOnly || !entry.runtimeLoadable)
+                return false;
+            if (IsForcedInternalBundle(entry))
+                return false;
+
+            string overrideMode = string.IsNullOrWhiteSpace(entry.bundleOverrideMode) ? "none" : entry.bundleOverrideMode;
+            if (string.Equals(overrideMode, "forceExternal", StringComparison.Ordinal) ||
+                string.Equals(overrideMode, "exclude", StringComparison.Ordinal))
+                return false;
+
+            string deliveryMode = string.IsNullOrWhiteSpace(entry.deliveryMode) ? "internal" : entry.deliveryMode;
+            return string.Equals(deliveryMode, "internal", StringComparison.Ordinal);
+        }
+
+        private static bool IsForcedInternalBundle(GlobalResourceBuildProfileEntryDocument entry)
+        {
+            if (entry == null)
+                return false;
+
+            return string.Equals(entry.bundleOverrideMode, "forceStandalone", StringComparison.Ordinal) ||
+                string.Equals(entry.bundleOverrideMode, "forceBundle", StringComparison.Ordinal);
+        }
+
+        private static string GetForcedBundleName(GlobalResourceBuildProfileEntryDocument entry)
+        {
+            if (string.Equals(entry.bundleOverrideMode, "forceStandalone", StringComparison.Ordinal))
+            {
+                return !string.IsNullOrWhiteSpace(entry.bundleOverrideValue)
+                    ? SanitizeBundleName(entry.bundleOverrideValue)
+                    : "global.standalone." + SanitizeBundleSegment(entry.resourceKey != null ? entry.resourceKey.id : string.Empty);
+            }
+
+            return SanitizeBundleName(entry.bundleOverrideValue);
+        }
+
+        private static string SanitizeBundleName(string value)
+        {
+            string sanitized = SanitizeBundleSegment(value);
+            return string.IsNullOrWhiteSpace(sanitized) ? "global.misc" : sanitized;
+        }
+
+        private static string SanitizeBundleSegment(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "misc";
+
+            var builder = new System.Text.StringBuilder(value.Length);
+            bool lastWasSeparator = false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = char.ToLowerInvariant(value[i]);
+                bool allowed = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+                if (allowed)
+                {
+                    builder.Append(c);
+                    lastWasSeparator = false;
+                    continue;
+                }
+
+                if ((c == '.' || c == '_' || c == '-' || char.IsWhiteSpace(c)) && !lastWasSeparator)
+                {
+                    builder.Append('.');
+                    lastWasSeparator = true;
+                }
+            }
+
+            string result = builder.ToString().Trim('.');
+            return string.IsNullOrWhiteSpace(result) ? "misc" : result;
+        }
+
         private static bool ResourceKeysEqual(ResourceKeyDto left, ResourceKeyDto right, string defaultPackageId)
         {
             return string.Equals(left.id, right.id, StringComparison.Ordinal)
@@ -889,6 +1012,10 @@ namespace MxFramework.Editor
             public GlobalResourceBuildProfileEntrySourceDocument source;
             public string[] labels;
             public string bundleRule;
+            public string deliveryMode = "internal";
+            public string bundleOverrideMode = "none";
+            public string bundleOverrideValue;
+            public string bundleGroupHint;
             public string[] preloadGroups;
             public ResourceKeyDto[] dependencies;
             public Dictionary<string, string> providerData;

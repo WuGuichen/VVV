@@ -48,14 +48,18 @@ This is the path to make reliable first. Other routes are secondary until this p
 
 1. Start Resource Manager from Editor Hub or `Tools/MxFramework.ResourceLibrary/start-resource-library.*`.
 2. Inspect providers and diagnostics before editing.
-3. Choose runtime-ready or intended internal resources.
-4. Click `加入构建 Profile` or batch add selected resources.
-5. Check generated `ResourceKey.id`, `deliveryMode`, `bundleRule`, `bundleGroupHint`, `preloadGroups`, and `labels`.
-6. Click `保存 Profile`.
-7. Open Unity menu `MxFramework/Resources/Open Global AssetBundle Builder`.
-8. Click `Refresh / Validate Profile`.
-9. Click `Build Global Player Resource Catalog`.
-10. In Play Mode, use `GlobalResourceRuntimeMode.Offline` and the generated preload group id.
+3. In Profile, define the Bundle first. A Bundle is a `bundleRules[]` entry with `id`, `bundleName`, compression, build target and dependency policy.
+4. In Browse, choose runtime-ready or intended internal resources.
+5. Assign selected resources to an existing Bundle. This writes `entries[].bundleRule = bundleRules[].id`.
+6. Edit `deliveryMode`, `preloadGroups` and `labels` as needed. `preloadGroups` are runtime loading timing, not physical bundle layout.
+7. Click `保存 Profile`.
+8. In Build, preview the saved Bundle Plan and confirm it shows the same Bundles that Unity will build.
+9. Open Unity menu `MxFramework/Resources/Open Global AssetBundle Builder`.
+10. Click `Refresh / Validate Profile`.
+11. Click `Build Global Player Resource Catalog`.
+12. In Play Mode, use `GlobalResourceRuntimeMode.Offline` and the generated preload group id.
+
+`bundleGroupHint` is only a suggestion field. The web Bundle Plan and Unity builder must not create implicit bundles from it. If there is no predefined Bundle and no explicit internal override, an internal runtime-loadable entry is not buildable.
 
 ## Runtime Flow
 
@@ -96,6 +100,8 @@ These are the urgent fixes before expanding the system:
 3. Profile and Bundle Plan need one obvious "can build" state.
    - A profile entry should visibly say whether it will become internal bundle content, external runtime content, editor-only content, or excluded content.
    - Bundle rules that select zero internal entries should be obvious before save/build.
+   - Bundle Plan must only list predefined Bundle rules plus explicit internal override bundles; it must not invent bundles from `bundleGroupHint`, preload groups or domain labels.
+   - A missing `entries[].bundleRule` or a reference to an unknown Bundle id is a save/build error for internal runtime-loadable entries.
 
 4. CharacterTest should use Offline mode for real resource path testing.
    - `Editor` mode can remain a loose dev mode.
@@ -120,11 +126,14 @@ Do not add these until the main path is reliable:
 The minimum acceptable result is:
 
 1. Add one real Unity asset in Resource Manager.
-2. Save Profile without validation errors.
-3. Build in Global AssetBundle Builder Workbench without errors.
-4. Generated catalog contains the expected `ResourceKey`.
-5. Generated bundle file exists for the active build target.
-6. Runtime Offline mode initializes with catalog count greater than zero.
-7. Preload group loads at least one resource.
-8. Direct `IResourceManager.Load<T>(ResourceKey)` succeeds.
-9. Releasing preload group / handles returns debug snapshot loaded count to the expected value.
+2. Define one Bundle in Profile.
+3. Assign the asset to that Bundle.
+4. Save Profile without validation errors.
+5. Build page Bundle Plan shows that Bundle and the assigned resource.
+6. Build in Global AssetBundle Builder Workbench without errors.
+7. Generated catalog contains the expected `ResourceKey`.
+8. Generated bundle file exists for the active build target.
+9. Runtime Offline mode initializes with catalog count greater than zero.
+10. Preload group loads at least one resource.
+11. Direct `IResourceManager.Load<T>(ResourceKey)` succeeds.
+12. Releasing preload group / handles returns debug snapshot loaded count to the expected value.

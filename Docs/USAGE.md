@@ -1833,16 +1833,21 @@ Tools/MxFramework.ResourceLibrary/start-resource-library.sh
 常用流程：
 
 1. 打开 Resource Manager，确认 provider 状态、资源列表、运行时计划和诊断。
-2. 选择一个资源项，点击“加入构建 Profile”，把它加入 `Global Resource Build Profile` 草稿。
-3. 在右侧 Build Profile 面板编辑 `delivery mode`、`override mode`、`bundle group hint`、`bundle rule`、`preload groups` 和 `labels`。
-4. 点击“保存 Profile”。保存会通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
-5. 点击“查看构建 Profile”或查看 Build Profile 面板中的 Bundle Planner 摘要，预览内部 bundle、资源数量、依赖和诊断。
+2. 在 Profile 工作区先“新建 Bundle”。Bundle 对应 `global_resource_build_profile.json` 里的 `bundleRules[]`。
+3. 在 Browse 勾选资源，选择目标 Bundle 后点击“批量加入 Bundle”；单个资源也可以点击“加入到 Bundle”。资源归属写入 `entries[].bundleRule`。
+4. 在 Profile 工作区查看 Bundle 成员表，必要时移出或移动资源，并编辑 `deliveryMode`、`preloadGroups` 和 `labels`。
+5. 点击“保存 Profile”。保存会通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
+6. 在 Build 工作区查看 Bundle Plan 摘要，预览内部 bundle、成员资源、依赖和诊断。
+
+`preloadGroups` 是加载时机和失败策略，不是物理分包。`bundleGroupHint` 只是建议字段，Web Bundle Plan 和 Unity Builder 都不会再用它临时生成隐式 Bundle。
 
 Resource Manager 的 Bundle Plan 是预览和诊断面：它不会构建 AssetBundle，也不会写 `StreamingAssets` 产物。真正生成 Player 运行时 catalog / bundle / preload group 仍走 Unity Editor Global AssetBundle Builder 工作台或低层构建菜单。
 
 保存失败时优先检查 Profile 草稿字段：
 
 - `ResourceKey id contains invalid characters.` 表示 `resourceKey.id` 不是合法运行时 key。应使用类似 `ui.start_screen.button.normal` 的稳定 runtime key，不能使用带 provider 前缀的 `resourceId`、文件路径、包含 `:` / `|` / 空白 / 斜杠的字符串。
+- `Runtime-loadable internal entry must be assigned to a defined bundle rule or use forceStandalone.` 表示 internal 运行时资源没有归属到任何已定义 Bundle。先新建 Bundle，再从下拉框选择。
+- `Runtime-loadable entry references a missing bundle rule.` 表示 `entries[].bundleRule` 指向的 Bundle id 不存在于 `bundleRules[]`。
 - `Bundle rule is ignored for external, editor-only or excluded entries.` 表示该 entry 的 `deliveryMode` 是 `external`、`editorOnly` 或 `excluded`，但仍填了 `bundleRule`。这类资源不应进入内部 AssetBundle，除非明确改成 `internal` 或使用强制内部 override；否则清空 `bundleRule` / bundle hints。
 
 ### 13.2 Global Resource Build Profile

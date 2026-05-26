@@ -8,13 +8,19 @@
       "resourceKey": {
         "id": "ui.start_screen.button.normal",
         "type": "Texture2D",
+        "typeId": "",
         "variant": "",
         "packageId": "mxframework.samples"
       },
       "source": {
         "providerId": "unityAssetDatabase",
         "unityAssetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
-        "unityGuid": "9b7cb3348a06dee46ba153871343231b"
+        "unityGuid": "9b7cb3348a06dee46ba153871343231b",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {}
       },
       "labels": [
         "package.mxframework.samples",
@@ -24,6 +30,10 @@
         "warmup.demo.player_smoke"
       ],
       "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
       "preloadGroups": [
         "boot.base"
       ],
@@ -33,29 +43,2700 @@
       },
       "runtimeLoadable": true,
       "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.model.body",
+        "type": "GameObject",
+        "typeId": "GameObject",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "characterPackage",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "char.iron_vanguard.model.body",
+        "externalSourcePath": "resources/models/skeleton.glb",
+        "generatedAssetId": "",
+        "providerData": {
+          "packageId": "iron_vanguard",
+          "localId": "model.body",
+          "variant": "default",
+          "sourceFormat": "glb",
+          "relativePath": "resources/models/skeleton.glb",
+          "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+          "targetPathPolicy": "generatedCharacterPackage",
+          "targetRelativePath": "resources/models/skeleton.glb"
+        }
+      },
+      "labels": [
+        "domain.model",
+        "bundle.spawn.critical"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "spawn.critical",
+      "preloadGroups": [
+        "SpawnCritical"
+      ],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.weapon.shield.model",
+        "type": "GameObject",
+        "typeId": "GameObject",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "characterPackage",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "char.iron_vanguard.weapon.shield.model",
+        "externalSourcePath": "resources/models/kite_shield.glb",
+        "generatedAssetId": "",
+        "providerData": {
+          "packageId": "iron_vanguard",
+          "localId": "weapon.shield.model",
+          "variant": "default",
+          "sourceFormat": "glb",
+          "relativePath": "resources/models/kite_shield.glb",
+          "contentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
+          "targetPathPolicy": "generatedCharacterPackage",
+          "targetRelativePath": "resources/models/kite_shield.glb"
+        }
+      },
+      "labels": [
+        "domain.model",
+        "bundle.equipment.initial"
+      ],
+      "bundleRule": "equipment.initial",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "equipment.initial",
+      "preloadGroups": [
+        "EquipmentInitial"
+      ],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.weapon.sword.model",
+        "type": "GameObject",
+        "typeId": "GameObject",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "characterPackage",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "char.iron_vanguard.weapon.sword.model",
+        "externalSourcePath": "resources/models/katana.glb",
+        "generatedAssetId": "",
+        "providerData": {
+          "packageId": "iron_vanguard",
+          "localId": "weapon.sword.model",
+          "variant": "default",
+          "sourceFormat": "glb",
+          "relativePath": "resources/models/katana.glb",
+          "contentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+          "targetPathPolicy": "generatedCharacterPackage",
+          "targetRelativePath": "resources/models/katana.glb"
+        }
+      },
+      "labels": [
+        "domain.model",
+        "bundle.equipment.initial"
+      ],
+      "bundleRule": "equipment.initial",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "equipment.initial",
+      "preloadGroups": [
+        "EquipmentInitial"
+      ],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.anim.combat",
+        "type": "AnimationClip",
+        "typeId": "AnimationClip",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "characterPackage",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "char.iron_vanguard.anim.combat",
+        "externalSourcePath": "resources/animations/combat.glb",
+        "generatedAssetId": "",
+        "providerData": {
+          "packageId": "iron_vanguard",
+          "localId": "anim.combat",
+          "variant": "default",
+          "sourceFormat": "glb",
+          "relativePath": "resources/animations/combat.glb",
+          "contentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+          "targetPathPolicy": "generatedCharacterPackage",
+          "targetRelativePath": "resources/animations/combat.glb"
+        }
+      },
+      "labels": [
+        "domain.animation",
+        "bundle.animation.warmup"
+      ],
+      "bundleRule": "animation.warmup",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "animation.warmup",
+      "preloadGroups": [
+        "AnimationWarmup"
+      ],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.anim.locomotion",
+        "type": "AnimationClip",
+        "typeId": "AnimationClip",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "characterPackage",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "char.iron_vanguard.anim.locomotion",
+        "externalSourcePath": "resources/animations/locomotion.glb",
+        "generatedAssetId": "",
+        "providerData": {
+          "packageId": "iron_vanguard",
+          "localId": "anim.locomotion",
+          "variant": "default",
+          "sourceFormat": "glb",
+          "relativePath": "resources/animations/locomotion.glb",
+          "contentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+          "targetPathPolicy": "generatedCharacterPackage",
+          "targetRelativePath": "resources/animations/locomotion.glb"
+        }
+      },
+      "labels": [
+        "domain.animation",
+        "bundle.animation.warmup"
+      ],
+      "bundleRule": "animation.warmup",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "animation.warmup",
+      "preloadGroups": [
+        "AnimationWarmup"
+      ],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.icon.archive_book",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.icon.archive_book",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_archive_book.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "vfx.status_aura.burn",
+        "type": "model",
+        "typeId": "model",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "vfx.status_aura.burn",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Burn.prefab",
+          "assetType": "GameObject",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.anim.combat",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+          "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/combat.glb",
+          "unityAssetGuid": "",
+          "unityMainObjectType": "",
+          "importerKind": "unity-gltf",
+          "importStatus": "PendingUnityImport",
+          "packageResourceKey": "char.iron_vanguard.anim.combat",
+          "stableId": "charpkg.iron_vanguard.resource.anim.combat",
+          "sourceRelativePath": "resources/animations/combat.glb",
+          "sourceFormat": "glb",
+          "usage": "animationClipGroup",
+          "declaredContentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+          "contentHash": "sha256:6d38d7df6abdf84743a4bbc3b0604938d40f5cc08d880d5fa689fa94f21d392b",
+          "requestedProviderId": "unityAsset",
+          "importHash": "sha256:758a8f74116327ad820713f505cb361e935b204222a3e30f4a00e79d295e30f5",
+          "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
+          "diagnosticCount": "0",
+          "generatedBy": "CharacterUnityImportBridge",
+          "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
+          "clipName": "char.iron_vanguard.anim.combat",
+          "subClipName": "char.iron_vanguard.anim.combat",
+          "subClipId": "char.iron_vanguard.anim.combat",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "UnityAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "excluded",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.icon.continue_hourglass",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.icon.continue_hourglass",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_continue_hourglass.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.separator.diamond_line",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.separator.diamond_line",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/separator_diamond_line.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.icon.exit_door",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.icon.exit_door",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_exit_door.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "audio.magic_effect.explosion_fire_1",
+        "type": "audio",
+        "typeId": "audio",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "audio.magic_effect.explosion_fire_1",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/explosion_fire_1.ogg",
+          "assetType": "AudioClip",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.audio"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "audio.magic_effect.explosion_lightning_3",
+        "type": "audio",
+        "typeId": "audio",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "audio.magic_effect.explosion_lightning_3",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/explosion_lightning_3.wav",
+          "assetType": "AudioClip",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.audio"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "art.weapon.katana.generic_01",
+        "type": "model",
+        "typeId": "model",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.weapon.katana.generic_01",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Weapons/Katana/Prefabs/Katana_Generic01.prefab",
+          "assetType": "GameObject",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.button.hover",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.button.hover",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_hover.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.weapon.sword.model",
+        "type": "model",
+        "typeId": "model",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
+          "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/katana.glb",
+          "unityAssetGuid": "",
+          "unityMainObjectType": "",
+          "importerKind": "unity-gltf",
+          "importStatus": "PendingUnityImport",
+          "packageResourceKey": "char.iron_vanguard.weapon.sword.model",
+          "stableId": "charpkg.iron_vanguard.resource.weapon.sword.model",
+          "sourceRelativePath": "resources/models/katana.glb",
+          "sourceFormat": "glb",
+          "usage": "weaponModel",
+          "declaredContentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+          "contentHash": "sha256:9e03dbe3456a4c550dbce7fe60f1de65c114e358a8dc6f47df44a1b356b14bb8",
+          "requestedProviderId": "unityAsset",
+          "importHash": "sha256:15eb3f7d25f9e92ab57c9c50da25ece992f7f46311845ead6988e89786df48d5",
+          "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "diagnosticCount": "0",
+          "generatedBy": "CharacterUnityImportBridge",
+          "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
+          "bindingKind": "UnityAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "excluded",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.weapon.shield.model",
+        "type": "model",
+        "typeId": "model",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+          "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/kite_shield.glb",
+          "unityAssetGuid": "",
+          "unityMainObjectType": "",
+          "importerKind": "unity-gltf",
+          "importStatus": "PendingUnityImport",
+          "packageResourceKey": "char.iron_vanguard.weapon.shield.model",
+          "stableId": "charpkg.iron_vanguard.resource.weapon.shield.model",
+          "sourceRelativePath": "resources/models/kite_shield.glb",
+          "sourceFormat": "glb",
+          "usage": "weaponModel",
+          "declaredContentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
+          "contentHash": "sha256:d7dc268ab1e513f8ac87d8579369d5393ab000b018fe8f0416b67852ef5b9476",
+          "requestedProviderId": "unityAsset",
+          "importHash": "sha256:9a9aaa9bfd63607296789ef5e339802c8846fd85e11ffe0515ae5a56c66e5f10",
+          "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "diagnosticCount": "0",
+          "generatedBy": "CharacterUnityImportBridge",
+          "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
+          "bindingKind": "UnityAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "excluded",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "vfx.status_aura.lightning",
+        "type": "model",
+        "typeId": "model",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "vfx.status_aura.lightning",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Lightning.prefab",
+          "assetType": "GameObject",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.anim.locomotion",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+          "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/animations/locomotion.glb",
+          "unityAssetGuid": "",
+          "unityMainObjectType": "",
+          "importerKind": "unity-gltf",
+          "importStatus": "PendingUnityImport",
+          "packageResourceKey": "char.iron_vanguard.anim.locomotion",
+          "stableId": "charpkg.iron_vanguard.resource.anim.locomotion",
+          "sourceRelativePath": "resources/animations/locomotion.glb",
+          "sourceFormat": "glb",
+          "usage": "animationClipGroup",
+          "declaredContentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+          "contentHash": "sha256:924e603fb27d3840116c947f81d046a0c1617994168fc69a10c2c6fc272c1701",
+          "requestedProviderId": "unityAsset",
+          "importHash": "sha256:6e8ebb6bd5643c417ba738d33bf96b70fe7612f1a0f2979fbd41e4aba669fd66",
+          "dependencyHash": "sha256:504aae4780ad5b5376ccf9d075c3c107dba9bebcc42723a7867a9f1252dcbb01",
+          "diagnosticCount": "0",
+          "generatedBy": "CharacterUnityImportBridge",
+          "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
+          "clipName": "char.iron_vanguard.anim.locomotion",
+          "subClipName": "char.iron_vanguard.anim.locomotion",
+          "subClipId": "char.iron_vanguard.anim.locomotion",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "UnityAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "excluded",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "audio.magic_effect.loop_fire_2",
+        "type": "audio",
+        "typeId": "audio",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "audio.magic_effect.loop_fire_2",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/loop_fire_2.ogg",
+          "assetType": "AudioClip",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.audio"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.model",
+        "type": "model",
+        "typeId": "model",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.model",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/Models/Skeleton.fbx",
+          "assetType": "GameObject",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.button.normal",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.button.normal",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/button_normal.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.preview.thumbnail",
+        "type": "Texture2D",
+        "typeId": "Texture2D",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "characterPackage",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "char.iron_vanguard.preview.thumbnail",
+        "externalSourcePath": "previews/thumbnail.png",
+        "generatedAssetId": "",
+        "providerData": {
+          "packageId": "iron_vanguard",
+          "localId": "preview.thumbnail",
+          "variant": "default",
+          "sourceFormat": "png",
+          "relativePath": "previews/thumbnail.png",
+          "contentHash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
+          "targetPathPolicy": "generatedCharacterPackage",
+          "targetRelativePath": "previews/thumbnail.png"
+        }
+      },
+      "labels": [
+        "domain.preview",
+        "bundle.ui.deferred"
+      ],
+      "bundleRule": "ui.deferred",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "ui.deferred",
+      "preloadGroups": [
+        "UiDeferred"
+      ],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "ui.start_screen.icon.settings_cog",
+        "type": "texture",
+        "typeId": "texture",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "ui.start_screen.icon.settings_cog",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/UI/MxFramework/Samples/StartScreen/Textures/icon_settings_cog.png",
+          "assetType": "Texture2D",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.texture"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.model.body",
+        "type": "model",
+        "typeId": "model",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
+          "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/resources/models/skeleton.glb",
+          "unityAssetGuid": "",
+          "unityMainObjectType": "",
+          "importerKind": "unity-gltf",
+          "importStatus": "PendingUnityImport",
+          "packageResourceKey": "char.iron_vanguard.model.body",
+          "stableId": "charpkg.iron_vanguard.resource.model.body",
+          "sourceRelativePath": "resources/models/skeleton.glb",
+          "sourceFormat": "glb",
+          "usage": "characterModel",
+          "declaredContentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+          "contentHash": "sha256:9c27168ce889c4d4830225b32460a7e435b1ba1a2418874d34dda24db495b815",
+          "requestedProviderId": "unityAsset",
+          "importHash": "sha256:5c6832b6fc25da56e06af2881ed9f5128d0743fecd3c0d61c047153013f7a548",
+          "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "diagnosticCount": "0",
+          "generatedBy": "CharacterUnityImportBridge",
+          "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
+          "bindingKind": "UnityAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "excluded",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "vfx.status_aura.smoke",
+        "type": "model",
+        "typeId": "model",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "vfx.status_aura.smoke",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Aura_Smoke.prefab",
+          "assetType": "GameObject",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_idle.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_idle",
+          "subClipName": "standing_idle",
+          "subClipId": "standing_idle",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_idle",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_idle",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_idle",
+          "subClipName": "standing_idle",
+          "subClipId": "standing_idle",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_idle.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_jump.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_jump",
+          "subClipName": "standing_jump",
+          "subClipId": "standing_jump",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_jump",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_jump",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_jump",
+          "subClipName": "standing_jump",
+          "subClipId": "standing_jump",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_jump_running.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_jump_running",
+          "subClipName": "standing_jump_running",
+          "subClipId": "standing_jump_running",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_jump_running",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_jump_running",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_jump_running",
+          "subClipName": "standing_jump_running",
+          "subClipId": "standing_jump_running",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_jump_running_landing.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_jump_running_landing",
+          "subClipName": "standing_jump_running_landing",
+          "subClipId": "standing_jump_running_landing",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_jump_running_landing",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_jump_running_landing",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_jump_running_landing",
+          "subClipName": "standing_jump_running_landing",
+          "subClipId": "standing_jump_running_landing",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_jump_running_landing.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_land_to_standing_idle.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_land_to_standing_idle",
+          "subClipName": "standing_land_to_standing_idle",
+          "subClipId": "standing_land_to_standing_idle",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_land_to_standing_idle",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_land_to_standing_idle",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_land_to_standing_idle",
+          "subClipName": "standing_land_to_standing_idle",
+          "subClipId": "standing_land_to_standing_idle",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_land_to_standing_idle.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_run_back.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_run_back",
+          "subClipName": "standing_run_back",
+          "subClipId": "standing_run_back",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_run_back",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_back",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_run_back",
+          "subClipName": "standing_run_back",
+          "subClipId": "standing_run_back",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_back.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_run_forward.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_run_forward",
+          "subClipName": "standing_run_forward",
+          "subClipId": "standing_run_forward",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_run_forward",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_forward",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_run_forward",
+          "subClipName": "standing_run_forward",
+          "subClipId": "standing_run_forward",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_forward.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_run_left.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_run_left",
+          "subClipName": "standing_run_left",
+          "subClipId": "standing_run_left",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_run_left",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_left",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_run_left",
+          "subClipName": "standing_run_left",
+          "subClipId": "standing_run_left",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_left.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_run_right.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_run_right",
+          "subClipName": "standing_run_right",
+          "subClipId": "standing_run_right",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_run_right",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_run_right",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_run_right",
+          "subClipName": "standing_run_right",
+          "subClipId": "standing_run_right",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_run_right.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_sprint_forward.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_sprint_forward",
+          "subClipName": "standing_sprint_forward",
+          "subClipId": "standing_sprint_forward",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_sprint_forward",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_sprint_forward",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_sprint_forward",
+          "subClipName": "standing_sprint_forward",
+          "subClipId": "standing_sprint_forward",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_sprint_forward.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_turn_left_90.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_turn_left_90",
+          "subClipName": "standing_turn_left_90",
+          "subClipId": "standing_turn_left_90",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_turn_left_90",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_turn_left_90",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_turn_left_90",
+          "subClipName": "standing_turn_left_90",
+          "subClipId": "standing_turn_left_90",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_left_90.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_turn_right_90.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_turn_right_90",
+          "subClipName": "standing_turn_right_90",
+          "subClipId": "standing_turn_right_90",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_turn_right_90",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_turn_right_90",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_turn_right_90",
+          "subClipName": "standing_turn_right_90",
+          "subClipId": "standing_turn_right_90",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_turn_right_90.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_walk_back.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_walk_back",
+          "subClipName": "standing_walk_back",
+          "subClipId": "standing_walk_back",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_walk_back",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_back",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_walk_back",
+          "subClipName": "standing_walk_back",
+          "subClipId": "standing_walk_back",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_back.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_walk_forward.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_walk_forward",
+          "subClipName": "standing_walk_forward",
+          "subClipId": "standing_walk_forward",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_walk_forward",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_forward",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_walk_forward",
+          "subClipName": "standing_walk_forward",
+          "subClipId": "standing_walk_forward",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_forward.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_walk_left.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_walk_left",
+          "subClipName": "standing_walk_left",
+          "subClipId": "standing_walk_left",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_walk_left",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_left",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_walk_left",
+          "subClipName": "standing_walk_left",
+          "subClipId": "standing_walk_left",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_left.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "unity.project.assets.art.mxframework.samples.characters.skeleton.animationclips.standing_walk_right.anim",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "Character · iron_vanguard 0.1.0"
+      },
+      "source": {
+        "providerId": "unityProjectAssets",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "sourceFormat": "anim",
+          "usage": "animationClip",
+          "clipName": "standing_walk_right",
+          "subClipName": "standing_walk_right",
+          "subClipId": "standing_walk_right",
+          "bindingKind": "UnityEditorOnlyAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly",
+          "preloadPolicy": "AnimationWarmup"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "ui.start_screen",
+      "deliveryMode": "internal",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.animation.standing_walk_right",
+        "type": "animation",
+        "typeId": "animation",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.animation.standing_walk_right",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim",
+          "usage": "animationClip",
+          "assetType": "AnimationClip",
+          "clipName": "standing_walk_right",
+          "subClipName": "standing_walk_right",
+          "subClipId": "standing_walk_right",
+          "preloadPolicy": "AnimationWarmup",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady",
+          "unityAssetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/AnimationClips/standing_walk_right.anim"
+        }
+      },
+      "labels": [
+        "domain.animation"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "vfx.status_aura.stun",
+        "type": "model",
+        "typeId": "model",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "vfx.status_aura.stun",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/VFX/MxFramework/Samples/StatusAuras/Prefabs/Stun.prefab",
+          "assetType": "GameObject",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.model"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "char.iron_vanguard.preview.thumbnail",
+        "type": "preview",
+        "typeId": "preview",
+        "variant": "default",
+        "packageId": "iron_vanguard"
+      },
+      "source": {
+        "providerId": "unityAssetDatabase",
+        "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+          "unityAssetPath": "Assets/MxFrameworkGenerated/CharacterPackages/iron_vanguard/previews/thumbnail.png",
+          "unityAssetGuid": "",
+          "unityMainObjectType": "",
+          "importerKind": "unity-texture",
+          "importStatus": "PendingUnityImport",
+          "packageResourceKey": "char.iron_vanguard.preview.thumbnail",
+          "stableId": "charpkg.iron_vanguard.resource.preview.thumbnail",
+          "sourceRelativePath": "previews/thumbnail.png",
+          "sourceFormat": "png",
+          "usage": "previewThumbnail",
+          "declaredContentHash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
+          "contentHash": "sha256:5442882e67f6bd03f05d5cdaf38b12ab53099e2fc002c17ff9d75fe74d917ad1",
+          "requestedProviderId": "unityAsset",
+          "importHash": "sha256:b50a049cac0a6eba23c245944e3b3113f09ebb79e35cbd1a81b22433e9a5ccff",
+          "dependencyHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "diagnosticCount": "0",
+          "generatedBy": "CharacterUnityImportBridge",
+          "sourcePackageHash": "sha256:a46f88c701698ec725c3178422b4090415eaa15e2d3f32fdc099f7d95b133082",
+          "bindingKind": "UnityAsset",
+          "runtimeAvailability": "EditorOnly",
+          "sourceLoadability": "EditorOnly"
+        }
+      },
+      "labels": [
+        "domain.preview"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "excluded",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": false,
+      "editorOnly": true
+    },
+    {
+      "resourceKey": {
+        "id": "art.character.skeleton.mask.upper_body",
+        "type": "avatarMask",
+        "typeId": "avatarMask",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "art.character.skeleton.mask.upper_body",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Art/MxFramework/Samples/Characters/Skeleton/Masks/SkeletonUpperBody.mask",
+          "assetType": "AvatarMask",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.avatar.mask"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
+    },
+    {
+      "resourceKey": {
+        "id": "audio.magic_effect.wind",
+        "type": "audio",
+        "typeId": "audio",
+        "variant": "",
+        "packageId": "mxframework.samples"
+      },
+      "source": {
+        "providerId": "runtimeCatalog",
+        "unityAssetPath": "",
+        "unityGuid": "",
+        "runtimeCatalogId": "",
+        "runtimeResourceKey": "audio.magic_effect.wind",
+        "externalSourcePath": "",
+        "generatedAssetId": "",
+        "providerData": {
+          "assetPath": "Assets/Audio/MxFramework/Samples/MagicEffects/wind.wav",
+          "assetType": "AudioClip",
+          "bindingKind": "ResourceManagerAsset",
+          "runtimeAvailability": "RuntimeReady",
+          "sourceLoadability": "RuntimeReady"
+        }
+      },
+      "labels": [
+        "domain.audio"
+      ],
+      "bundleRule": "",
+      "deliveryMode": "external",
+      "bundleOverrideMode": "none",
+      "bundleOverrideValue": "",
+      "bundleGroupHint": "",
+      "preloadGroups": [],
+      "dependencies": [],
+      "providerData": {},
+      "runtimeLoadable": true,
+      "editorOnly": false
     }
   ],
   "bundleRules": [
     {
       "id": "ui.start_screen",
       "bundleName": "global.ui.start_screen.assetbundle",
+      "explicitKeys": [],
       "matchLabels": [
         "bundle.ui.start_screen"
       ],
+      "matchDomains": [],
+      "matchPackageIds": [],
       "compression": "lz4",
       "buildTarget": "ActiveBuildTarget",
-      "includeDependencies": true
+      "includeDependencies": true,
+      "allowEmpty": false,
+      "providerData": {}
     }
   ],
   "preloadGroups": [
     {
       "id": "boot.base",
+      "explicitKeys": [],
       "labels": [
         "preload.boot.base"
       ],
-      "explicitKeys": [],
       "failFast": true,
-      "maxConcurrentLoads": 4
+      "maxConcurrentLoads": 4,
+      "allowEmpty": false,
+      "providerData": {}
     }
-  ]
+  ],
+  "requiredDomainPlanKeys": [],
+  "metadata": {}
 }

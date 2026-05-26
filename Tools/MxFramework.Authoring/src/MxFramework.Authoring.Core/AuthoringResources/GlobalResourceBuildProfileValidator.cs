@@ -40,6 +40,7 @@ namespace MxFramework.Authoring
         public const string RuntimeUnityGuidRequired = "globalResource.profile.runtimeUnityGuidRequired";
         public const string UnknownCompression = "globalResource.profile.unknownCompression";
         public const string RuntimeBundleRuleRequired = "globalResource.profile.runtimeBundleRuleRequired";
+        public const string BundleRuleMissing = "globalResource.profile.bundleRuleMissing";
         public const string BundleRuleEmpty = "globalResource.profile.bundleRuleEmpty";
         public const string PreloadGroupEmpty = "globalResource.profile.preloadGroupEmpty";
         public const string RequiredDomainPlanKeyMissing = "globalResource.profile.requiredDomainPlanKeyMissing";
@@ -82,6 +83,7 @@ namespace MxFramework.Authoring
                 return report;
             }
 
+            Dictionary<string, GlobalResourceBuildProfileBundleRule> rulesById = BuildRulesById(profile);
             var keys = new HashSet<string>(StringComparer.Ordinal);
             for (int i = 0; i < profile.Entries.Count; i++)
             {
@@ -138,12 +140,19 @@ namespace MxFramework.Authoring
                 }
 
                 if (runtimeLoadable &&
-                    string.IsNullOrWhiteSpace(entry.BundleRule) &&
-                    string.IsNullOrWhiteSpace(entry.BundleGroupHint) &&
-                    string.IsNullOrWhiteSpace(entry.BundleOverrideValue) &&
-                    !string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceStandalone, StringComparison.Ordinal))
+                    string.Equals(deliveryMode, GlobalResourceBuildProfileDeliveryModes.Internal, StringComparison.Ordinal) &&
+                    !forcedInternal &&
+                    !string.IsNullOrWhiteSpace(entry.BundleRule) &&
+                    !rulesById.ContainsKey(entry.BundleRule))
                 {
-                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.RuntimeBundleRuleRequired, "Runtime-loadable entry requires bundleRule, bundleGroupHint, bundleOverrideValue or forceStandalone.", sourcePath + ".bundleRule", displayKey);
+                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.BundleRuleMissing, "Runtime-loadable internal entry references a missing bundle rule.", sourcePath + ".bundleRule", displayKey);
+                }
+                else if (runtimeLoadable &&
+                    string.Equals(deliveryMode, GlobalResourceBuildProfileDeliveryModes.Internal, StringComparison.Ordinal) &&
+                    !forcedInternal &&
+                    !EntryMatchesAnyBundleRule(entry, profile, rulesById))
+                {
+                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.RuntimeBundleRuleRequired, "Runtime-loadable internal entry must be assigned to a defined bundle rule or use forceStandalone.", sourcePath + ".bundleRule", displayKey);
                 }
             }
 
@@ -152,6 +161,41 @@ namespace MxFramework.Authoring
             ValidateRequiredDomainPlanKeys(report, profile, keys);
 
             return report;
+        }
+
+        private static Dictionary<string, GlobalResourceBuildProfileBundleRule> BuildRulesById(GlobalResourceBuildProfile profile)
+        {
+            var result = new Dictionary<string, GlobalResourceBuildProfileBundleRule>(StringComparer.Ordinal);
+            if (profile == null || profile.BundleRules == null)
+                return result;
+
+            for (int i = 0; i < profile.BundleRules.Count; i++)
+            {
+                GlobalResourceBuildProfileBundleRule rule = profile.BundleRules[i];
+                if (rule == null || string.IsNullOrWhiteSpace(rule.Id) || result.ContainsKey(rule.Id))
+                    continue;
+
+                result.Add(rule.Id, rule);
+            }
+
+            return result;
+        }
+
+        private static bool EntryMatchesAnyBundleRule(GlobalResourceBuildProfileEntry entry, GlobalResourceBuildProfile profile, Dictionary<string, GlobalResourceBuildProfileBundleRule> rulesById)
+        {
+            if (entry == null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(entry.BundleRule) && rulesById.ContainsKey(entry.BundleRule))
+                return true;
+
+            foreach (GlobalResourceBuildProfileBundleRule rule in rulesById.Values)
+            {
+                if (RuleMatchesEntry(rule, entry, profile.PackageId))
+                    return true;
+            }
+
+            return false;
         }
 
         private static void ValidateBundleRules(GlobalResourceBuildProfileValidationReport report, GlobalResourceBuildProfile profile)
@@ -230,24 +274,48 @@ namespace MxFramework.Authoring
                 if (entry == null)
                     continue;
 
-                if (!string.IsNullOrWhiteSpace(rule.Id) && string.Equals(entry.BundleRule, rule.Id, StringComparison.Ordinal))
-                    return true;
-                if (ContainsAny(entry.Labels, rule.MatchLabels))
-                    return true;
-                if (Contains(rule.MatchPackageIds, EffectivePackageId(entry.ResourceKey, profile.PackageId)))
-                    return true;
-                if (ContainsAny(entry.Labels, PrefixValues("domain.", rule.MatchDomains)))
-                    return true;
+                if (!UsesDeclaredBundleRules(entry))
+                    continue;
 
-                string entryKey = CanonicalKey(entry.ResourceKey, profile.PackageId);
-                for (int keyIndex = 0; keyIndex < rule.ExplicitKeys.Count; keyIndex++)
-                {
-                    if (string.Equals(entryKey, CanonicalKey(rule.ExplicitKeys[keyIndex], profile.PackageId), StringComparison.Ordinal))
-                        return true;
-                }
+                if (RuleMatchesEntry(rule, entry, profile.PackageId))
+                    return true;
             }
 
             return false;
+        }
+
+        private static bool RuleMatchesEntry(GlobalResourceBuildProfileBundleRule rule, GlobalResourceBuildProfileEntry entry, string defaultPackageId)
+        {
+            if (!string.IsNullOrWhiteSpace(rule.Id) && string.Equals(entry.BundleRule, rule.Id, StringComparison.Ordinal))
+                return true;
+            if (ContainsAny(entry.Labels, rule.MatchLabels))
+                return true;
+            if (Contains(rule.MatchPackageIds, EffectivePackageId(entry.ResourceKey, defaultPackageId)))
+                return true;
+            if (ContainsAny(entry.Labels, PrefixValues("domain.", rule.MatchDomains)))
+                return true;
+
+            string entryKey = CanonicalKey(entry.ResourceKey, defaultPackageId);
+            if (rule.ExplicitKeys == null)
+                return false;
+
+            for (int keyIndex = 0; keyIndex < rule.ExplicitKeys.Count; keyIndex++)
+            {
+                if (string.Equals(entryKey, CanonicalKey(rule.ExplicitKeys[keyIndex], defaultPackageId), StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool UsesDeclaredBundleRules(GlobalResourceBuildProfileEntry entry)
+        {
+            if (!IsRuntimeLoadable(entry))
+                return false;
+
+            string overrideMode = EffectiveBundleOverrideMode(entry);
+            return !string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceBundle, StringComparison.Ordinal) &&
+                !string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceStandalone, StringComparison.Ordinal);
         }
 
         private static string CanonicalKey(GlobalResourceBuildProfileResourceKey key, string defaultPackageId)

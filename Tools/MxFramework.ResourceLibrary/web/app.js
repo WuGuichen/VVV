@@ -150,6 +150,8 @@ const state = {
   inspectState: { id: "", status: "idle", payload: null, error: "" },
   writeState: { status: "idle", action: "", error: "" },
   checkedResourceKeys: new Set(),
+  selectedBundleRuleId: "",
+  bundleMemberSearch: "",
   selectedImportPreset: "modelPreview",
   profileFieldHighlight: "",
   errors: [],
@@ -354,16 +356,31 @@ function bindEvents() {
   });
   for (const root of [el.buildProfileContent, el.profileBatchBar]) {
     root.addEventListener("click", event => {
+      const bundleButton = event.target.closest("[data-bundle-action]");
+      if (bundleButton) {
+        handleBundleProfileAction(bundleButton);
+        return;
+      }
       const applyButton = event.target.closest("[data-profile-batch-apply]");
       if (applyButton) applyBuildProfileBatchFields();
     });
     root.addEventListener("change", event => {
       const toggle = event.target.closest("[data-profile-batch-enabled]");
       if (toggle) syncBuildProfileBatchField(toggle.dataset.profileBatchEnabled, toggle.checked);
+      const bundleControl = event.target.closest("[data-bundle-field]");
+      if (bundleControl) updateSelectedBundleRuleField(bundleControl.dataset.bundleField, readControlValue(bundleControl), true);
       const control = event.target.closest("[data-profile-field]");
       if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, true);
     });
     root.addEventListener("input", event => {
+      const memberSearch = event.target.closest("[data-bundle-member-search]");
+      if (memberSearch) {
+        state.bundleMemberSearch = memberSearch.value;
+        renderBuildProfile();
+        return;
+      }
+      const bundleControl = event.target.closest("[data-bundle-field]");
+      if (bundleControl) updateSelectedBundleRuleField(bundleControl.dataset.bundleField, readControlValue(bundleControl), false);
       const control = event.target.closest("[data-profile-field]");
       if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, false);
     });
@@ -627,6 +644,130 @@ async function removeCheckedFromBuildProfile() {
   render();
 }
 
+function getActionBundleRuleId(button) {
+  const container = button.closest(".context-actions, .batch-bar, .bundle-actions, .bundle-members-toolbar") || document;
+  const select = container.querySelector("[data-bundle-action-select]");
+  return select?.value || state.selectedBundleRuleId || "";
+}
+
+function assignSelectedToBundle(bundleRuleId) {
+  const item = getSelectedItem();
+  if (!item) return;
+  const rule = ensureBundleRuleForAssignment(bundleRuleId);
+  if (!rule) return;
+  assignItemsToBundle([item], rule.id);
+}
+
+function assignCheckedToBundle(bundleRuleId) {
+  const items = getCheckedItems();
+  if (items.length === 0) {
+    state.lastActionMessage = "No checked resources to assign.";
+    render();
+    return;
+  }
+  const rule = ensureBundleRuleForAssignment(bundleRuleId);
+  if (!rule) return;
+  assignItemsToBundle(items, rule.id);
+}
+
+function clearCheckedBundleAssignments() {
+  const checkedItems = getCheckedItems();
+  if (checkedItems.length === 0) return;
+  let changed = 0;
+  for (const item of checkedItems) {
+    const entry = findDraftBuildProfileEntryForItem(item);
+    if (!entry || !entry.bundleRule) continue;
+    entry.bundleRule = "";
+    changed++;
+  }
+  if (changed > 0) markBuildProfileDirty();
+  state.lastActionMessage = changed > 0
+    ? `Cleared bundle assignment from ${changed} checked resource(s).`
+    : "Checked resources did not have bundle assignments.";
+  render();
+}
+
+function assignItemsToBundle(items, bundleRuleId) {
+  const profile = ensureBuildProfileDraft();
+  if (!profile || !bundleRuleId) return;
+  if (!Array.isArray(profile.entries)) profile.entries = [];
+  let changed = 0;
+  let added = 0;
+  for (const item of items) {
+    let entry = findDraftBuildProfileEntryForItem(item);
+    if (!entry) {
+      entry = buildDraftBuildProfileEntryForItem(item);
+      profile.entries.push(entry);
+      added++;
+    }
+    if (entry.bundleRule !== bundleRuleId || entry.deliveryMode !== "internal") {
+      entry.bundleRule = bundleRuleId;
+      entry.deliveryMode = "internal";
+      if (entry.bundleOverrideMode === "forceExternal" || entry.bundleOverrideMode === "exclude") {
+        entry.bundleOverrideMode = "none";
+      }
+      changed++;
+    }
+  }
+  if (changed > 0 || added > 0) markBuildProfileDirty();
+  state.selectedBundleRuleId = bundleRuleId;
+  state.lastActionMessage = `Assigned ${items.length} resource(s) to bundle ${bundleRuleId}; added ${added} new profile entr${added === 1 ? "y" : "ies"}.`;
+  setWorkspace("profile");
+  render();
+}
+
+function ensureBundleRuleForAssignment(bundleRuleId) {
+  const profile = ensureBuildProfileDraft();
+  if (!profile) return null;
+  if (!Array.isArray(profile.bundleRules)) profile.bundleRules = [];
+  let rule = findBundleRuleById(bundleRuleId);
+  if (rule) return rule;
+  if (bundleRuleId) {
+    state.lastActionMessage = `Bundle rule ${bundleRuleId} does not exist. Create it first.`;
+    render();
+    return null;
+  }
+  return createBundleRuleFromPrompt();
+}
+
+function createBundleRuleFromPrompt() {
+  const profile = ensureBuildProfileDraft();
+  if (!profile) return null;
+  const id = window.prompt("Bundle id, for example character.spawn or ui.start_screen", suggestBundleRuleId());
+  if (!id) return null;
+  const normalizedId = normalizeBundleRuleId(id);
+  if (!normalizedId) {
+    state.lastActionMessage = "Bundle id is invalid.";
+    render();
+    return null;
+  }
+  if (findBundleRuleById(normalizedId)) {
+    state.selectedBundleRuleId = normalizedId;
+    return findBundleRuleById(normalizedId);
+  }
+  const bundleNameDefault = `global.${normalizeBundleNameSegment(normalizedId)}.assetbundle`;
+  const bundleName = window.prompt("Bundle file name", bundleNameDefault) || bundleNameDefault;
+  const rule = {
+    id: normalizedId,
+    bundleName: normalizeBundleName(bundleName),
+    explicitKeys: [],
+    matchLabels: [],
+    matchDomains: [],
+    matchPackageIds: [],
+    compression: "lz4",
+    buildTarget: "ActiveBuildTarget",
+    includeDependencies: true,
+    allowEmpty: false,
+    providerData: {}
+  };
+  profile.bundleRules.push(rule);
+  state.selectedBundleRuleId = rule.id;
+  markBuildProfileDirty();
+  state.lastActionMessage = `Created bundle ${rule.id}.`;
+  render();
+  return rule;
+}
+
 function applyBuildProfileBatchFields() {
   const checkedItems = getCheckedItems();
   const batch = readBuildProfileBatchFields();
@@ -655,6 +796,13 @@ function applyBuildProfileBatchFields() {
       if (buildProfileBatchValuesEqual(entry[field.key], field.value)) continue;
       entry[field.key] = cloneBuildProfileBatchValue(field.value);
       entryChanged = true;
+    }
+    if (batch.some(field => field.key === "deliveryMode" && field.value !== "internal") && entry.bundleRule) {
+      entry.bundleRule = "";
+      entryChanged = true;
+    }
+    if (batch.some(field => field.key === "bundleRule" && field.value)) {
+      entry.deliveryMode = "internal";
     }
     applied++;
     if (entryChanged) changed++;
@@ -726,6 +874,10 @@ function updateSelectedBuildProfileField(field, value, renderFeedback) {
     if (entry.bundleOverrideMode === "forceBundle") {
       entry.bundleOverrideMode = "none";
     }
+  }
+  if (field === "bundleRule") {
+    entry.deliveryMode = "internal";
+    state.selectedBundleRuleId = value || state.selectedBundleRuleId;
   }
   if (field === "resourceKeyId") {
     const parsed = parseProfileResourceKey(value);
@@ -1069,6 +1221,11 @@ function renderWorkspaceNav() {
 }
 
 function handleContextActionClick(event) {
+  const bundleButton = event.target.closest("button[data-bundle-action]");
+  if (bundleButton && !bundleButton.disabled) {
+    handleBundleProfileAction(bundleButton);
+    return;
+  }
   const button = event.target.closest("button[data-action]");
   if (!button || button.disabled) return;
   const action = button.dataset.action;
@@ -1096,6 +1253,18 @@ function handleContextActionClick(event) {
   }
   if (action === "batch-add-profile") {
     addCheckedToBuildProfile();
+    return;
+  }
+  if (action === "assign-selected-bundle") {
+    assignSelectedToBundle(getActionBundleRuleId(button));
+    return;
+  }
+  if (action === "batch-assign-bundle") {
+    assignCheckedToBundle(getActionBundleRuleId(button));
+    return;
+  }
+  if (action === "batch-clear-bundle") {
+    clearCheckedBundleAssignments();
     return;
   }
   if (action === "batch-remove-profile") {
@@ -1784,6 +1953,9 @@ function renderBrowseContext() {
     el.browseBatchBar.classList.remove("hidden");
     el.browseBatchBar.innerHTML = `
       <span class="batch-bar-label">已选择 ${checkedCount} 个资源</span>
+      ${renderBundleActionSelect("checkedBundleTarget")}
+      <button type="button" data-action="batch-assign-bundle" class="primary-action">批量加入 Bundle</button>
+      <button type="button" data-action="batch-clear-bundle" class="secondary">批量移出 Bundle</button>
       <button type="button" data-action="batch-add-profile" class="secondary">批量加入 Profile</button>
       <button type="button" data-action="batch-remove-profile" class="secondary">批量移出 Profile</button>`;
   } else {
@@ -1880,6 +2052,7 @@ function renderBuildProfile() {
   const selected = getSelectedItem();
   const selectedEntry = selected ? findBuildProfileEntryForItem(selected) : null;
   const checkedCount = state.checkedResourceKeys.size;
+  const bundles = getBuildProfileBundleRules();
 
   if (!profile) {
     el.buildProfileSummary.textContent = "没有读取到 Global Resource Build Profile API。";
@@ -1889,12 +2062,17 @@ function renderBuildProfile() {
 
   const dirtySuffix = state.buildProfileDirty ? "，草稿未保存" : "";
   const profileStateCounts = countBuildProfileStates(getNormalizedItems());
-  el.buildProfileSummary.textContent = `${entries.length} 个 profile entry${dirtySuffix} · 在 Browse 选择资源后在此编辑交付意图`;
+  ensureSelectedBundleRuleId();
+  const selectedBundle = getSelectedBundleRule();
+  el.buildProfileSummary.textContent = `${bundles.length} 个 Bundle，${entries.length} 个 profile entry${dirtySuffix} · 先定义 Bundle，再把资源加入 Bundle`;
 
   if (checkedCount > 0) {
     el.profileBatchBar.classList.remove("hidden");
     el.profileBatchBar.innerHTML = `
-      <span class="batch-bar-label">已选择 ${checkedCount} 个资源 · 批量字段编辑</span>
+      <span class="batch-bar-label">已选择 ${checkedCount} 个资源 · 批量分包 / 字段编辑</span>
+      ${renderBundleActionSelect("profileCheckedBundleTarget")}
+      <button type="button" data-action="batch-assign-bundle" class="primary-action">批量加入 Bundle</button>
+      <button type="button" data-action="batch-clear-bundle" class="secondary">批量移出 Bundle</button>
       ${renderBuildProfileBatchEditor()}`;
   } else {
     el.profileBatchBar.classList.add("hidden");
@@ -1905,9 +2083,147 @@ function renderBuildProfile() {
     <div class="profile-state-strip">
       ${["notInProfile", "saved", "draftOnly", "removedInDraft", "modifiedInDraft"].map(status => smallBadge(`${status} ${profileStateCounts[status] || 0}`, toneForBuildProfileStatus(status))).join("")}
     </div>
-    <div class="profile-editor-grid">
-      <div class="detail-card profile-steps-card">
-        ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("请先在 Browse 工作区选择一个资源，或从 Browse 点击「加入 Profile」跳转至此。")}
+    <div class="bundle-profile-layout">
+      <aside class="bundle-list-panel">
+        <div class="bundle-panel-heading">
+          <div>
+            <h3>Bundle 定义</h3>
+            <p>${bundles.length} rules · ${countUnassignedInternalEntries()} unassigned</p>
+          </div>
+          <button type="button" data-bundle-action="create-bundle" class="secondary">新建 Bundle</button>
+        </div>
+        <div class="bundle-rule-list">
+          ${bundles.length === 0 ? emptyBlock("还没有 Bundle。先新建 Bundle，再加入资源。") : bundles.map(rule => renderBundleRuleCard(rule)).join("")}
+        </div>
+      </aside>
+      <section class="bundle-members-panel">
+        ${selectedBundle ? renderBundleMembers(selectedBundle) : emptyBlock("选择或新建 Bundle 后管理成员资源。")}
+      </section>
+      <aside class="bundle-settings-panel">
+        ${selectedBundle ? renderBundleSettings(selectedBundle) : emptyBlock("Bundle 设置会在这里显示。")}
+      </aside>
+    </div>
+    <details class="profile-resource-editor">
+      <summary>当前资源 Profile 字段</summary>
+      <div class="profile-editor-grid">
+        <div class="detail-card profile-steps-card">
+          ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("请先在 Browse 工作区选择一个资源，或从 Browse 点击「加入到 Bundle」跳转至此。")}
+        </div>
+      </div>
+    </details>`;
+}
+
+function renderBundleRuleCard(rule) {
+  const stats = getBundleRuleStats(rule);
+  const active = rule.id === state.selectedBundleRuleId;
+  return `
+    <button type="button" class="bundle-rule-card${active ? " active" : ""}" data-bundle-action="select-bundle" data-bundle-rule-id="${escapeHtml(rule.id)}">
+      <strong>${escapeHtml(rule.id || "(missing id)")}</strong>
+      <span>${escapeHtml(rule.bundleName || "-")}</span>
+      <span class="bundle-rule-meta">${escapeHtml(rule.compression || "lz4")} · ${escapeHtml(rule.buildTarget || "ActiveBuildTarget")}</span>
+      <div class="bundle-card-metrics">
+        ${smallBadge(`${stats.internalCount} build`, stats.internalCount > 0 ? "ok" : "warn")}
+        ${smallBadge(`${stats.externalCount} skipped`, stats.externalCount > 0 ? "warn" : "muted")}
+        ${smallBadge(`${stats.missingUnityGuidCount} no guid`, stats.missingUnityGuidCount > 0 ? "error" : "muted")}
+        ${smallBadge(`${stats.diagnosticsCount} diag`, stats.diagnosticsCount > 0 ? "warn" : "muted")}
+      </div>
+    </button>`;
+}
+
+function renderBundleMembers(rule) {
+  const members = getBundleRuleMemberRows(rule);
+  const filtered = filterBundleMemberRows(members);
+  const stats = getBundleRuleStats(rule);
+  return `
+    <div class="bundle-members-heading">
+      <div>
+        <h3>${escapeHtml(rule.id)} 成员</h3>
+        <p>${filtered.length} / ${members.length} resources · ${stats.dependencyBundleNames.length > 0 ? `depends on ${stats.dependencyBundleNames.join(", ")}` : "no bundle dependencies"}</p>
+      </div>
+      <div class="bundle-members-toolbar">
+        <input data-bundle-member-search value="${escapeHtml(state.bundleMemberSearch)}" placeholder="搜索成员 resourceKey / path">
+        <button type="button" data-bundle-action="assign-checked-selected-bundle" class="secondary">添加已勾选资源</button>
+      </div>
+    </div>
+    <div class="bundle-member-table">
+      ${filtered.length === 0 ? emptyBlock("当前 Bundle 没有匹配成员。") : filtered.map(row => renderBundleMemberRow(row)).join("")}
+    </div>`;
+}
+
+function renderBundleMemberRow(row) {
+  const item = row.item;
+  const entry = row.entry;
+  return `
+    <article class="bundle-member-row">
+      <div class="bundle-member-main">
+        <strong>${escapeHtml(item?.displayName || pick(pick(entry, "resourceKey"), "id") || row.key)}</strong>
+        <span>${escapeHtml(formatProfileResourceKey(pick(entry, "resourceKey")) || row.key)}</span>
+      </div>
+      <span>${escapeHtml(pick(pick(entry, "resourceKey"), "type", "typeId") || item?.kind || "-")}</span>
+      <span>${escapeHtml(pick(pick(entry, "source"), "providerId") || item?.providerId || "-")}</span>
+      <span>${escapeHtml(item?.runtimeAvailability || pick(entry, "deliveryMode") || "-")}</span>
+      <span>${escapeHtml(asArray(pick(entry, "preloadGroups")).join(", ") || "-")}</span>
+      <span>${item ? item.referenceCount : 0} refs · ${item ? item.diagnosticCount : 0} diag</span>
+      <button type="button" class="secondary" data-bundle-action="remove-entry-bundle" data-entry-index="${row.index}">移出</button>
+    </article>`;
+}
+
+function renderBundleSettings(rule) {
+  const stats = getBundleRuleStats(rule);
+  return `
+    <div class="detail-card bundle-settings-card">
+      <h3>Bundle 设置</h3>
+      <div class="profile-form single-column">
+        <label>
+          <span>id</span>
+          <input data-bundle-field="id" value="${escapeHtml(rule.id || "")}">
+        </label>
+        <label>
+          <span>bundleName</span>
+          <input data-bundle-field="bundleName" value="${escapeHtml(rule.bundleName || "")}">
+        </label>
+        <label>
+          <span>compression</span>
+          <select data-bundle-field="compression">${selectOptions(["lz4", "uncompressed", "lzma"], rule.compression || "lz4")}</select>
+        </label>
+        <label>
+          <span>buildTarget</span>
+          <input data-bundle-field="buildTarget" value="${escapeHtml(rule.buildTarget || "ActiveBuildTarget")}">
+        </label>
+        <label class="inline-check">
+          <input type="checkbox" data-bundle-field="includeDependencies" ${rule.includeDependencies !== false ? "checked" : ""}>
+          <span>include dependencies</span>
+        </label>
+        <label class="inline-check">
+          <input type="checkbox" data-bundle-field="allowEmpty" ${rule.allowEmpty ? "checked" : ""}>
+          <span>allow empty</span>
+        </label>
+      </div>
+      <div class="summary-grid compact-summary">
+        ${metric("build", stats.internalCount)}
+        ${metric("skipped", stats.externalCount)}
+        ${metric("no guid", stats.missingUnityGuidCount)}
+        ${metric("diagnostics", stats.diagnosticsCount)}
+      </div>
+      <details class="advanced-filters">
+        <summary class="advanced-filters-summary">Advanced match rules</summary>
+        <div class="profile-form single-column">
+          <label>
+            <span>matchLabels</span>
+            <input data-bundle-field="matchLabels" value="${escapeHtml(asArray(rule.matchLabels).join(", "))}">
+          </label>
+          <label>
+            <span>matchDomains</span>
+            <input data-bundle-field="matchDomains" value="${escapeHtml(asArray(rule.matchDomains).join(", "))}">
+          </label>
+          <label>
+            <span>matchPackageIds</span>
+            <input data-bundle-field="matchPackageIds" value="${escapeHtml(asArray(rule.matchPackageIds).join(", "))}">
+          </label>
+        </div>
+      </details>
+      <div class="bundle-actions">
+        <button type="button" data-bundle-action="delete-selected-bundle" class="secondary">删除 Bundle 定义</button>
       </div>
     </div>`;
 }
@@ -1969,8 +2285,11 @@ function renderBuildProfileEditor(item, entry) {
       ${isInternal ? `
         <div class="profile-form">
           <label>
-            <span>bundle rule</span>
-            <input data-profile-field="bundleRule" value="${escapeHtml(pick(draft, "bundleRule") || "")}" ${inProfile ? "" : "disabled"}>
+            <span>bundle</span>
+            <select data-profile-field="bundleRule" ${inProfile ? "" : "disabled"}>
+              <option value="">未分配 Bundle</option>
+              ${getBuildProfileBundleRules().map(rule => `<option value="${escapeHtml(rule.id)}"${rule.id === pick(draft, "bundleRule") ? " selected" : ""}>${escapeHtml(rule.id)} · ${escapeHtml(rule.bundleName || "-")}</option>`).join("")}
+            </select>
           </label>
           <label>
             <span>bundle group hint</span>
@@ -2017,7 +2336,7 @@ function renderBuildProfileBatchEditor() {
       ${renderBuildProfileBatchField("deliveryMode", "delivery mode", "select", ["internal", "external", "editorOnly", "excluded"])}
       ${renderBuildProfileBatchField("bundleOverrideMode", "override mode", "select", ["none", "forceStandalone", "forceExternal", "exclude"])}
       ${renderBuildProfileBatchField("bundleGroupHint", "bundle group hint")}
-      ${renderBuildProfileBatchField("bundleRule", "bundle rule")}
+      ${renderBuildProfileBatchField("bundleRule", "bundle", "select", getBuildProfileBundleRules().map(rule => rule.id))}
       ${renderBuildProfileBatchField("preloadGroups", "preload groups")}
       ${renderBuildProfileBatchField("labels", "labels")}
     </div>
@@ -2038,13 +2357,29 @@ function renderBuildProfileBatchField(field, label, kind = "text", options = [])
     </label>`;
 }
 
+function renderBundleActionSelect(name) {
+  const bundles = getBuildProfileBundleRules();
+  const selected = state.selectedBundleRuleId || bundles[0]?.id || "";
+  return `
+    <select data-bundle-action-select="${escapeHtml(name)}" class="bundle-action-select">
+      <option value="">新建 Bundle...</option>
+      ${bundles.map(rule => `<option value="${escapeHtml(rule.id)}"${rule.id === selected ? " selected" : ""}>${escapeHtml(rule.id)} · ${escapeHtml(rule.bundleName || "-")}</option>`).join("")}
+    </select>`;
+}
+
 function renderBundlePlanSummary(bundles) {
   if (bundles.length === 0) return emptyBlock("Planner 尚未生成内部 bundle。");
   return `<div class="bundle-list">${bundles.slice(0, 8).map(bundle => `
     <article class="bundle-row">
-      <strong>${escapeHtml(pick(bundle, "bundleName") || "-")}</strong>
-      <span>${escapeHtml(pick(bundle, "compression") || "-")} · ${asArray(pick(bundle, "includedResourceKeys")).length} resources</span>
+      <div class="bundle-row-head">
+        <strong>${escapeHtml(pick(bundle, "bundleName") || "-")}</strong>
+        <span>${escapeHtml(pick(bundle, "compression") || "-")} · ${asArray(pick(bundle, "includedResourceKeys")).length} resources · rule ${escapeHtml(pick(bundle, "bundleRuleId") || "-")}</span>
+      </div>
       <small>${escapeHtml(asArray(pick(bundle, "dependencyBundleNames")).join(", ") || "no dependencies")}</small>
+      <ul class="bundle-plan-resources">
+        ${asArray(pick(bundle, "entries")).slice(0, 12).map(entry => `<li>${escapeHtml(pick(entry, "resourceKey") || pick(entry, "resourceId") || "-")}</li>`).join("")}
+      </ul>
+      ${asArray(pick(bundle, "entries")).length > 12 ? `<small>另有 ${asArray(pick(bundle, "entries")).length - 12} 项</small>` : ""}
     </article>`).join("")}</div>`;
 }
 
@@ -2281,7 +2616,9 @@ function renderContextActions() {
   el.saveBuildProfileButton.title = "通过 Authoring API 校验并保存 Global Resource Build Profile";
 
   el.browseContextActions.innerHTML = item ? `
-    <button type="button" data-action="add-profile" class="primary-action"${profileEntry || !profileReady || writeBusy ? " disabled" : ""}>加入 Profile</button>
+    ${renderBundleActionSelect("selectedBundleTarget")}
+    <button type="button" data-action="assign-selected-bundle" class="primary-action"${!profileReady || writeBusy ? " disabled" : ""}>加入到 Bundle</button>
+    <button type="button" data-action="add-profile" class="secondary"${profileEntry || !profileReady || writeBusy ? " disabled" : ""}>仅加入 Profile</button>
     <button type="button" data-action="open-profile" class="primary-action secondary-action"${!profileReady || writeBusy ? " disabled" : ""}>编辑 Profile</button>
     <button type="button" data-action="view-debug" class="secondary">Debug 详情</button>
     <button type="button" data-action="remove-profile" class="secondary"${!profileEntry || writeBusy ? " disabled" : ""}>移出</button>
@@ -2289,7 +2626,10 @@ function renderContextActions() {
 
   el.profileContextActions.innerHTML = `
     <span class="action-group-label">Profile 操作</span>
-    <button type="button" data-action="add-profile"${!item || profileEntry || !profileReady || writeBusy ? " disabled" : ""}>加入 Profile</button>
+    <button type="button" data-bundle-action="create-bundle" class="primary-action"${!profileReady || writeBusy ? " disabled" : ""}>新建 Bundle</button>
+    ${renderBundleActionSelect("profileSelectedBundleTarget")}
+    <button type="button" data-action="assign-selected-bundle"${!item || !profileReady || writeBusy ? " disabled" : ""}>当前资源加入 Bundle</button>
+    <button type="button" data-action="add-profile"${!item || profileEntry || !profileReady || writeBusy ? " disabled" : ""}>仅加入 Profile</button>
     <button type="button" data-action="remove-profile"${!item || !profileEntry || writeBusy ? " disabled" : ""}>移出 Profile</button>
     <button type="button" data-action="revert-profile" class="secondary"${!item || writeBusy ? " disabled" : ""}>还原当前资源草稿</button>
   `;
@@ -2322,6 +2662,11 @@ function getDeliveryEntryState(item, entry) {
   const override = pick(entry, "bundleOverrideMode");
   if (override === "exclude") return { label: "excluded", tone: "error" };
   if (override === "forceExternal") return { label: "external", tone: "warn" };
+  if (mode === "internal" && override !== "forceStandalone" && override !== "forceBundle") {
+    const ruleId = pick(entry, "bundleRule") || "";
+    if (!ruleId) return { label: "needs bundle", tone: "warn" };
+    if (!findBundleRuleById(ruleId)) return { label: "missing bundle", tone: "error" };
+  }
   return { label: "will build", tone: "ok" };
 }
 
@@ -2456,6 +2801,7 @@ function ensureBuildProfileDraft() {
     });
   }
   if (!Array.isArray(state.buildProfileDraft.entries)) state.buildProfileDraft.entries = [];
+  if (!Array.isArray(state.buildProfileDraft.bundleRules)) state.buildProfileDraft.bundleRules = [];
   return state.buildProfileDraft;
 }
 
@@ -2465,6 +2811,30 @@ function markBuildProfileDirty() {
 
 function getBuildProfileEntries() {
   return asArray(pick(getBuildProfile(), "entries"));
+}
+
+function getBuildProfileBundleRules() {
+  return asArray(pick(getBuildProfile(), "bundleRules")).filter(Boolean);
+}
+
+function findBundleRuleById(id) {
+  if (!id) return null;
+  return getBuildProfileBundleRules().find(rule => rule.id === id) || null;
+}
+
+function getSelectedBundleRule() {
+  return findBundleRuleById(state.selectedBundleRuleId) || getBuildProfileBundleRules()[0] || null;
+}
+
+function ensureSelectedBundleRuleId() {
+  const rules = getBuildProfileBundleRules();
+  if (rules.length === 0) {
+    state.selectedBundleRuleId = "";
+    return;
+  }
+  if (!state.selectedBundleRuleId || !rules.some(rule => rule.id === state.selectedBundleRuleId)) {
+    state.selectedBundleRuleId = rules[0].id || "";
+  }
 }
 
 function getSavedBuildProfileEntries() {
@@ -2545,8 +2915,8 @@ function buildProfileEntryFromItem(item) {
       externalSourcePath: stringValue(pick(authoring, "sourcePath")) || item.sourcePath || "",
       providerData
     },
-    labels: isInternalDelivery ? [domainLabel, `bundle.${bundleHint}`] : [domainLabel],
-    bundleRule: isInternalDelivery ? bundleHint : "",
+    labels: [domainLabel],
+    bundleRule: "",
     deliveryMode,
     bundleOverrideMode: "none",
     bundleOverrideValue: "",
@@ -2643,6 +3013,154 @@ function countBuildProfileStates(items) {
     counts[status] = (counts[status] || 0) + 1;
   }
   return counts;
+}
+
+function getBundleRuleMemberRows(rule) {
+  if (!rule) return [];
+  const items = getNormalizedItems();
+  return getDraftBuildProfileEntries()
+    .map((entry, index) => ({ entry, index, item: items.find(item => profileEntryMatchesItem(entry, item)) || null }))
+    .filter(row => pick(row.entry, "bundleRule") === rule.id)
+    .map(row => ({
+      ...row,
+      key: formatProfileResourceKey(pick(row.entry, "resourceKey")) || pick(pick(row.entry, "resourceKey"), "id") || String(row.index)
+    }));
+}
+
+function filterBundleMemberRows(rows) {
+  const needle = state.bundleMemberSearch.trim().toLowerCase();
+  if (!needle) return rows;
+  return rows.filter(row => {
+    const item = row.item;
+    const text = [
+      row.key,
+      item?.displayName,
+      item?.resourceKey,
+      item?.sourcePath,
+      item?.unityAssetPath,
+      pick(pick(row.entry, "source"), "unityAssetPath")
+    ].filter(Boolean).join(" ").toLowerCase();
+    return text.includes(needle);
+  });
+}
+
+function getBundleRuleStats(rule) {
+  const rows = getBundleRuleMemberRows(rule);
+  const planBundle = getBundlePlanBundleForRule(rule);
+  const externalCount = rows.filter(row => pick(row.entry, "deliveryMode") !== "internal").length;
+  const plannedInternalCount = asArray(pick(planBundle, "entries")).length;
+  const missingUnityGuidCount = rows.filter(row => {
+    const provider = pick(pick(row.entry, "source"), "providerId");
+    return provider === "unityAssetDatabase" && !pick(pick(row.entry, "source"), "unityGuid");
+  }).length;
+  const diagnosticsCount = rows.reduce((sum, row) => sum + (row.item?.diagnosticCount || 0), 0)
+    + asArray(pick(planBundle, "diagnostics")).length;
+  return {
+    memberCount: rows.length,
+    internalCount: Math.max(rows.length - externalCount, plannedInternalCount),
+    externalCount,
+    missingUnityGuidCount,
+    diagnosticsCount,
+    dependencyBundleNames: asArray(pick(planBundle, "dependencyBundleNames"))
+  };
+}
+
+function getBundlePlanBundleForRule(rule) {
+  if (!rule) return null;
+  const bundles = asArray(pick(getBundlePlan(), "bundles"));
+  return bundles.find(bundle => pick(bundle, "bundleRuleId") === rule.id || pick(bundle, "bundleName") === rule.bundleName) || null;
+}
+
+function countUnassignedInternalEntries() {
+  const rules = new Set(getBuildProfileBundleRules().map(rule => rule.id));
+  return getDraftBuildProfileEntries().filter(entry => {
+    const mode = pick(entry, "deliveryMode") || "internal";
+    const override = pick(entry, "bundleOverrideMode") || "none";
+    if (mode !== "internal") return false;
+    if (override === "forceStandalone" || override === "forceBundle") return false;
+    const bundleRule = pick(entry, "bundleRule") || "";
+    return !bundleRule || !rules.has(bundleRule);
+  }).length;
+}
+
+function handleBundleProfileAction(button) {
+  const action = button.dataset.bundleAction;
+  if (action === "create-bundle") {
+    createBundleRuleFromPrompt();
+    return;
+  }
+  if (action === "select-bundle") {
+    state.selectedBundleRuleId = button.dataset.bundleRuleId || "";
+    state.bundleMemberSearch = "";
+    render();
+    return;
+  }
+  if (action === "assign-checked-selected-bundle") {
+    assignCheckedToBundle(state.selectedBundleRuleId);
+    return;
+  }
+  if (action === "remove-entry-bundle") {
+    clearEntryBundleAssignment(Number(button.dataset.entryIndex));
+    return;
+  }
+  if (action === "delete-selected-bundle") {
+    deleteSelectedBundleRule();
+  }
+}
+
+function clearEntryBundleAssignment(index) {
+  const profile = getBuildProfile();
+  const entry = profile?.entries?.[index];
+  if (!entry) return;
+  entry.bundleRule = "";
+  markBuildProfileDirty();
+  state.lastActionMessage = "Removed resource from current Bundle.";
+  render();
+}
+
+function deleteSelectedBundleRule() {
+  const profile = getBuildProfile();
+  const id = state.selectedBundleRuleId;
+  if (!profile || !Array.isArray(profile.bundleRules) || !id) return;
+  if (!window.confirm(`Delete Bundle definition ${id}? Resource entries will keep no bundle assignment.`)) return;
+  profile.bundleRules = profile.bundleRules.filter(rule => rule.id !== id);
+  for (const entry of getDraftBuildProfileEntries()) {
+    if (entry.bundleRule === id) entry.bundleRule = "";
+  }
+  state.selectedBundleRuleId = "";
+  markBuildProfileDirty();
+  state.lastActionMessage = `Deleted Bundle ${id}.`;
+  render();
+}
+
+function updateSelectedBundleRuleField(field, value, renderFeedback) {
+  const rule = getSelectedBundleRule();
+  if (!rule) return;
+  const previousId = rule.id;
+  if (field === "id") {
+    const nextId = normalizeBundleRuleId(value);
+    if (!nextId) return;
+    rule.id = nextId;
+    for (const entry of getDraftBuildProfileEntries()) {
+      if (entry.bundleRule === previousId) entry.bundleRule = nextId;
+    }
+    state.selectedBundleRuleId = nextId;
+  } else if (["matchLabels", "matchDomains", "matchPackageIds"].includes(field)) {
+    rule[field] = splitCsv(value);
+  } else if (field === "includeDependencies" || field === "allowEmpty") {
+    rule[field] = Boolean(value);
+  } else if (field === "bundleName") {
+    rule.bundleName = normalizeBundleName(value);
+  } else {
+    rule[field] = value;
+  }
+  markBuildProfileDirty();
+  if (renderFeedback) render();
+}
+
+function readControlValue(control) {
+  if (control.type === "checkbox") return control.checked;
+  return control.value;
 }
 
 function toneForBuildProfileStatus(status) {
@@ -3362,6 +3880,43 @@ function splitCsv(value) {
     .split(",")
     .map(part => part.trim())
     .filter(Boolean);
+}
+
+function suggestBundleRuleId() {
+  const item = getSelectedItem();
+  const preload = item ? getRuntimePreloadGroupsForItem(item)[0] : "";
+  const basis = preload || item?.usage || item?.kind || "new.bundle";
+  return normalizeBundleRuleId(basis) || "new.bundle";
+}
+
+function normalizeBundleRuleId(value) {
+  return normalizeBundleNameSegment(value).replace(/^global\./, "").replace(/\.assetbundle$/, "");
+}
+
+function normalizeBundleName(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "global.misc.assetbundle";
+  return normalizeBundleNameSegment(raw);
+}
+
+function normalizeBundleNameSegment(value) {
+  const text = String(value || "").trim().toLowerCase();
+  let result = "";
+  let lastWasSeparator = false;
+  for (const char of text) {
+    const allowed = (char >= "a" && char <= "z") || (char >= "0" && char <= "9");
+    if (allowed) {
+      result += char;
+      lastWasSeparator = false;
+      continue;
+    }
+    if ((char === "." || char === "_" || char === "-" || /\s/.test(char)) && !lastWasSeparator) {
+      result += ".";
+      lastWasSeparator = true;
+    }
+  }
+  result = result.replace(/^\.+|\.+$/g, "");
+  return result || "misc";
 }
 
 function cssEscapeCompat(value) {

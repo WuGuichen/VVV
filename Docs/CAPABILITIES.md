@@ -274,8 +274,8 @@
 | Sample Catalog Builder | ✅ v0.6.5 | `SampleResourceCatalogBuilder` / `MxFramework/Samples/Generate Resource Catalog` | Editor + Resources |
 | Sample Player AssetBundle Catalog | ✅ v0.6.6 | `SamplePlayerResourceCatalogBuilder` / `MxFramework/Samples/Build Player Resource Catalog` | Editor + Resources.Unity |
 | Global Resource Build Profile | ✅ v0.7.0 | `global_resource_build_profile.json` / `GlobalResourceBuildProfileValidator` | Authoring.Core + Editor |
-| Resource Manager Build Profile 编辑 | ✅ v0.7.0 | 加入构建 Profile / 移出构建 Profile / 保存 Profile | Tools/MxFramework.ResourceLibrary |
-| Bundle Plan 预览 | ✅ v0.7.0 | `/api/authoring/resources/bundle-plan` / `GlobalResourceBundlePlanner` | Authoring.Cli + Authoring.Core |
+| Resource Manager Build Profile 编辑 | ✅ v0.7.0 | Bundle-first：定义 Bundle / 加入 Bundle / 移出 Bundle / 保存 Profile | Tools/MxFramework.ResourceLibrary |
+| Bundle Plan 预览 | ✅ v0.7.0 | `/api/authoring/resources/bundle-plan` / 只展示预定义 Bundle 和显式内部 override | Authoring.Cli + Authoring.Core |
 | Global Player Resource Catalog Build | ✅ v0.7.0 | `MxFramework/Resources/Validate Global Resource Build Profile` / `Build Global Player Resource Catalog` | Editor + Resources.Unity |
 | Global AssetBundle Builder Workbench | ✅ v0.7.1 | `MxFramework/Resources/Open Global AssetBundle Builder` / `GlobalAssetBundleBuilderWorkbench` | Editor + Resources.Unity |
 | Runtime Demo Resource Binding | ✅ v0.6.7 | `RuntimeVerticalSliceRunner.ResourceWarmupSummary` / resource binding diagnostics | Demo + Resources |

@@ -29,6 +29,19 @@ Runtime
 
 The Resource Manager is the current editor for `global_resource_build_profile.json`. The Bundle Plan shown in the web UI is a preview from the saved profile; it does not build AssetBundles or write generated `StreamingAssets` artifacts.
 
+Bundle-first rule:
+
+```text
+Define Bundle
+  -> assign resources to Bundle
+  -> save Profile
+  -> preview Bundle Plan
+  -> build in Unity Workbench
+  -> verify Offline Runtime
+```
+
+In JSON terms, a Bundle is a `bundleRules[]` item. A resource belongs to a Bundle when its `entries[].bundleRule` points to that rule id. `bundleGroupHint` is only a suggestion/legacy helper and must not create implicit bundles in the web preview or Unity build. `preloadGroups` describe runtime load timing; they are not physical bundle groups.
+
 UI 工作区（已完成 `RESOURCE_MANAGER_WORKFLOW_UI_REORG_01`）：
 
 ```text
@@ -40,19 +53,26 @@ Browse / Profile / Build / Debug 四工作区；详见 Docs/Tasks/RESOURCE_MANAG
 Save validation rejects invalid profile drafts. Common causes:
 
 - `ResourceKey id contains invalid characters.` The generated or edited resource key must be a runtime key such as `ui.start_screen.button.normal`, not a provider id, `resourceId`, path, or value containing characters such as `:`, `|`, whitespace or slashes.
+- `Runtime-loadable internal entry must be assigned to a defined bundle rule or use forceStandalone.` Internal Player resources must either select an existing Bundle, use an explicit internal override, or change delivery mode to external/editor-only/excluded.
+- `Runtime-loadable entry references a missing bundle rule.` The entry points to a Bundle id that is not present in `bundleRules[]`; create the Bundle first or choose an existing one from the dropdown.
 - `Bundle rule is ignored for external, editor-only or excluded entries.` Entries with `deliveryMode` set to `external`, `editorOnly` or `excluded` should not carry `bundleRule` unless an explicit internal override is intended. Clear `bundleRule` / bundle hints or change `deliveryMode` to `internal`.
 
-Resource Manager 已接入 Global Resource Build Profile 的第一段 authoring 流程：
+Resource Manager 已接入 Global Resource Build Profile 的 Bundle-first authoring 流程：
 
 - Build Profile 筛选：资源浏览器可按 `notInProfile`、`saved`、`draftOnly`、`removedInDraft`、`modifiedInDraft` 过滤，也可只看 runtime-ready candidates。
 - 显式多选：每个资源行都有独立 checkbox；“选择可见”只勾选当前 filtered/rendered list，不会包含隐藏、被筛掉或未来分页的资源。
-- “加入构建 Profile”：把当前选中资源加入 `GlobalResourceBuildProfile` 草稿。
+- “新建 Bundle”：在 `bundleRules[]` 中创建预定义 Bundle，设置 `id`、`bundleName`、`compression`、`buildTarget`、`includeDependencies` 和 `allowEmpty`。
+- “加入到 Bundle” / “批量加入 Bundle”：把资源加入 `GlobalResourceBuildProfile` 草稿，并把 `entry.bundleRule` 设置为已存在的 Bundle id。
+- “批量移出 Bundle”：只清空资源的 `entry.bundleRule`，不删除资源 entry。
+- “批量移动到 Bundle”：对已有 entry 再次执行“批量加入 Bundle”，会把资源归属改到目标 Bundle。
+- “加入构建 Profile”：只把当前选中资源加入 `GlobalResourceBuildProfile` 草稿，不自动分包；正式分包仍要选择 Bundle。
 - “移出构建 Profile”：从草稿中移除当前资源。
 - “批量加入” / “批量移出”：只处理已显式勾选的资源，并复用现有 Profile entry 匹配和构造语义。
 - “保存 Profile”：通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
-- Build Profile 面板：编辑 `delivery mode`、`override mode`、`override value`、`bundle group hint`、`bundle rule`、`preload groups` 和 `labels`。
-- Build Profile 批量字段编辑：只作用于已勾选且已有 draft profile entry 的资源；每个字段都要先显式勾选启用，空输入不会覆盖现有值。支持批量替换 `deliveryMode`、`bundleOverrideMode`、`bundleGroupHint`、`bundleRule`、`preloadGroups` 和 `labels`，其中 `preloadGroups` / `labels` 使用逗号分隔并替换整个数组。批量 `bundleOverrideMode` 只提供 `none`、`forceStandalone`、`forceExternal`、`exclude`，不批量编辑 `bundleOverrideValue`。
-- Bundle Plan：来自已保存 Profile 的预览输出，预览内部 bundle、资源数量、依赖 bundle 和诊断；草稿保存后刷新。
+- Profile 工作区：左侧 Bundle 列表，中间 Bundle 成员资源表，右侧 Bundle 设置；单资源字段编辑折叠在“当前资源 Profile 字段”里。
+- 单资源 Profile 编辑：`bundleRule` 使用 Bundle 下拉框，只显示已定义 Bundle；`bundleGroupHint` 只是建议字段。
+- Build Profile 批量字段编辑：只作用于已勾选且已有 draft profile entry 的资源；每个字段都要先显式勾选启用，空输入不会覆盖现有值。支持批量替换 `deliveryMode`、`bundleOverrideMode`、`bundleGroupHint`、`bundleRule`、`preloadGroups` 和 `labels`，其中 `preloadGroups` / `labels` 使用逗号分隔并替换整个数组。批量 `bundleOverrideMode` 只提供 `none`、`forceStandalone`、`forceExternal`、`exclude`，不批量编辑 `bundleOverrideValue`。当批量设置非 `internal` delivery mode 时会清空 `bundleRule`。
+- Bundle Plan：来自已保存 Profile 的预览输出，只展示 Unity Builder 也会构建的预定义 Bundle、资源数量、成员资源、依赖 bundle 和诊断；草稿保存后刷新。
 
 Build Profile 状态含义：
 
@@ -65,12 +85,12 @@ Build Profile 状态含义：
 典型流程：
 
 1. 启动 Resource Manager。
-2. 用 Build Profile / runtime-ready / provider / kind / search 等筛选器收窄候选资源。
-3. 勾选多个资源，或只选择一个资源查看 Overview / Runtime / Diagnostics。
-4. 点击“批量加入”或单资源“加入构建 Profile”，更新 Profile 草稿。
-5. 在 Build Profile 面板补充当前选中资源的 bundle 和 preload 意图；需要批量改字段时，先勾选资源和字段开关，再应用到已有 draft entries。
+2. 在 Profile 工作区点击“新建 Bundle”，先定义一个正式 Bundle。
+3. 在 Browse 用 Build Profile / runtime-ready / provider / kind / search 等筛选器收窄候选资源。
+4. 勾选多个资源后选择目标 Bundle，点击“批量加入 Bundle”；单资源也可以用“加入到 Bundle”。
+5. 回到 Profile 工作区查看 Bundle 成员表，必要时移出或移动资源，并编辑 delivery mode、preload groups 和 labels。
 6. 点击“保存 Profile”。
-7. 查看 Bundle Plan saved-profile preview 摘要，确认预览结果符合预期。
+7. 在 Build 工作区查看 Bundle Plan saved-profile preview，确认 Bundle 和成员资源符合预期。
 
 Bundle Plan 是预览面，Web UI 不构建 AssetBundle、不写 `StreamingAssets`。真正生成 Player 产物仍在 Unity 中执行：
 
@@ -79,7 +99,7 @@ MxFramework/Resources/Validate Global Resource Build Profile
 MxFramework/Resources/Build Global Player Resource Catalog
 ```
 
-当前已完成的是 Profile authoring、保存校验、Bundle Plan 预览和 Unity 菜单本地 Player 构建入口。未完成的是通用 AB Builder 工作台、批量/增量构建、远端热更 manifest、CDN 发布、签名、加密、断点续传和 YooAsset adapter。默认路线仍是 MxFramework Catalog + AssetBundleProvider / RemoteBundleProvider；YooAsset 不是默认路线，本仓库不做 adapter。
+当前已完成的是 Profile authoring、保存校验、Bundle-first Profile 编辑、Bundle Plan 预览、Global AssetBundle Builder Workbench 和 Unity 菜单本地 Player 构建入口。未完成的是批量/增量构建、远端热更 manifest、CDN 发布、签名、加密、断点续传和 YooAsset adapter。默认路线仍是 MxFramework Catalog + AssetBundleProvider / RemoteBundleProvider；YooAsset 不是默认路线，本仓库不做 adapter。
 
 ## 导入规则
 

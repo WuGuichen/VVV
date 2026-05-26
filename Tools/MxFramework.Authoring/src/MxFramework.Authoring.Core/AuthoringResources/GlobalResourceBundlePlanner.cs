@@ -72,6 +72,7 @@ namespace MxFramework.Authoring
         public const string ProfileMissing = "globalResource.bundlePlanner.profileMissing";
         public const string RequiredDomainPlanKeyMissing = "globalResource.bundlePlanner.requiredDomainPlanKeyMissing";
         public const string ExternalProviderSelectedForInternalBundle = "globalResource.bundlePlanner.externalProviderSelectedForInternalBundle";
+        public const string BundleRuleMissing = "globalResource.bundlePlanner.bundleRuleMissing";
         public const string BundleRuleEmpty = "globalResource.bundlePlanner.bundleRuleEmpty";
         public const string BundleSizeLimitExceeded = "globalResource.bundlePlanner.bundleSizeLimitExceeded";
     }
@@ -110,6 +111,7 @@ namespace MxFramework.Authoring
             Dictionary<string, GlobalResourceBuildProfileBundleRule> rulesById = BuildRulesById(profile);
             var bundleMap = new Dictionary<string, GlobalResourceBundlePlanBundle>(StringComparer.Ordinal);
             var entryBundleMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            AddDeclaredBundles(profile, bundleMap, rulesById, plan.BuildTarget);
 
             List<GlobalResourceBuildProfileEntry> entries = profile.Entries
                 .Where(entry => entry != null)
@@ -177,14 +179,31 @@ namespace MxFramework.Authoring
                     continue;
                 }
 
-                BundleChoice choice = ChooseBundle(entry, profile, rulesById, plan.BuildTarget);
-                planEntry.BundleName = choice.BundleName;
-                planEntry.BundleRuleId = choice.BundleRuleId;
-                planEntry.GroupHint = choice.GroupHint;
-                planEntry.Reason = choice.Reason;
-                GlobalResourceBundlePlanBundle bundle = GetOrCreateBundle(bundleMap, choice);
-                AddBundleEntry(bundle, planEntry);
-                entryBundleMap[planEntry.ResourceKey] = bundle.BundleName;
+                if (string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceStandalone, StringComparison.Ordinal) ||
+                    string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceBundle, StringComparison.Ordinal))
+                {
+                    BundleChoice forcedChoice = ChooseForcedBundle(entry, plan.BuildTarget);
+                    AddPlannedBundleEntry(planEntry, forcedChoice, bundleMap, entryBundleMap);
+                    continue;
+                }
+
+                List<BundleChoice> choices = FindMatchingBundles(entry, profile, rulesById, plan.BuildTarget);
+                if (choices.Count == 0)
+                {
+                    AddDiagnostic(
+                        plan.Diagnostics,
+                        IssueSeverity.Error,
+                        GlobalResourceBundlePlannerDiagnosticCodes.BundleRuleMissing,
+                        "Internal runtime resource is not assigned to a defined bundle rule.",
+                        planEntry.ResourceKey,
+                        string.Empty);
+                    planEntry.Reason = "missing-bundle-rule";
+                    plan.ExcludedEntries.Add(planEntry);
+                    continue;
+                }
+
+                for (int i = 0; i < choices.Count; i++)
+                    AddPlannedBundleEntry(planEntry, choices[i], bundleMap, entryBundleMap);
             }
 
             AddDependencyBundles(profile, bundleMap, entryBundleMap, rulesById);
@@ -275,10 +294,60 @@ namespace MxFramework.Authoring
             return planEntry;
         }
 
-        private static BundleChoice ChooseBundle(
-            GlobalResourceBuildProfileEntry entry,
+        private static void AddDeclaredBundles(
             GlobalResourceBuildProfile profile,
+            Dictionary<string, GlobalResourceBundlePlanBundle> bundleMap,
             Dictionary<string, GlobalResourceBuildProfileBundleRule> rulesById,
+            string defaultBuildTarget)
+        {
+            foreach (GlobalResourceBuildProfileBundleRule rule in rulesById.Values.OrderBy(rule => rule.Id, StringComparer.Ordinal))
+            {
+                BundleChoice choice = BundleChoiceFromRule(rule, rule.Id, rule.Id, defaultBuildTarget);
+                GetOrCreateBundle(bundleMap, choice);
+            }
+        }
+
+        private static void AddPlannedBundleEntry(
+            GlobalResourceBundlePlanEntry planEntry,
+            BundleChoice choice,
+            Dictionary<string, GlobalResourceBundlePlanBundle> bundleMap,
+            Dictionary<string, string> entryBundleMap)
+        {
+            var bundleEntry = ClonePlanEntry(planEntry);
+            bundleEntry.BundleName = choice.BundleName;
+            bundleEntry.BundleRuleId = choice.BundleRuleId;
+            bundleEntry.GroupHint = choice.GroupHint;
+            bundleEntry.Reason = choice.Reason;
+            GlobalResourceBundlePlanBundle bundle = GetOrCreateBundle(bundleMap, choice);
+            AddBundleEntry(bundle, bundleEntry);
+            if (!entryBundleMap.ContainsKey(bundleEntry.ResourceKey))
+                entryBundleMap.Add(bundleEntry.ResourceKey, bundle.BundleName);
+        }
+
+        private static GlobalResourceBundlePlanEntry ClonePlanEntry(GlobalResourceBundlePlanEntry entry)
+        {
+            return new GlobalResourceBundlePlanEntry
+            {
+                ResourceKey = entry.ResourceKey,
+                ResourceId = entry.ResourceId,
+                ResourceType = entry.ResourceType,
+                PackageId = entry.PackageId,
+                Variant = entry.Variant,
+                DeliveryMode = entry.DeliveryMode,
+                BundleOverrideMode = entry.BundleOverrideMode,
+                BundleName = entry.BundleName,
+                BundleRuleId = entry.BundleRuleId,
+                GroupHint = entry.GroupHint,
+                SourceProviderId = entry.SourceProviderId,
+                SourceUnityGuid = entry.SourceUnityGuid,
+                SourceUnityAssetPath = entry.SourceUnityAssetPath,
+                Reason = entry.Reason,
+                EstimatedSizeBytes = entry.EstimatedSizeBytes
+            };
+        }
+
+        private static BundleChoice ChooseForcedBundle(
+            GlobalResourceBuildProfileEntry entry,
             string defaultBuildTarget)
         {
             string overrideMode = EffectiveOverrideMode(entry);
@@ -290,31 +359,65 @@ namespace MxFramework.Authoring
                 return new BundleChoice(standaloneName, string.Empty, "standalone", "forceStandalone", defaultBuildTarget, "lz4");
             }
 
-            if (string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceBundle, StringComparison.Ordinal))
+            return new BundleChoice(SanitizeBundleName(entry.BundleOverrideValue), string.Empty, entry.BundleOverrideValue, "forceBundle", defaultBuildTarget, "lz4");
+        }
+
+        private static List<BundleChoice> FindMatchingBundles(
+            GlobalResourceBuildProfileEntry entry,
+            GlobalResourceBuildProfile profile,
+            Dictionary<string, GlobalResourceBuildProfileBundleRule> rulesById,
+            string defaultBuildTarget)
+        {
+            var choices = new List<BundleChoice>();
+            if (!string.IsNullOrWhiteSpace(entry.BundleRule))
             {
-                return new BundleChoice(SanitizeBundleName(entry.BundleOverrideValue), string.Empty, entry.BundleOverrideValue, "forceBundle", defaultBuildTarget, "lz4");
+                if (rulesById.TryGetValue(entry.BundleRule, out GlobalResourceBuildProfileBundleRule directRule))
+                    choices.Add(BundleChoiceFromRule(directRule, entry.BundleRule, entry.BundleRule, defaultBuildTarget));
+                return choices;
             }
 
-            string hint = FirstNonEmpty(entry.BundleOverrideValue, entry.BundleGroupHint, entry.BundleRule);
-            if (!string.IsNullOrWhiteSpace(entry.BundleRule) && rulesById.TryGetValue(entry.BundleRule, out GlobalResourceBuildProfileBundleRule rule))
+            foreach (GlobalResourceBuildProfileBundleRule rule in rulesById.Values.OrderBy(rule => rule.Id, StringComparer.Ordinal))
             {
-                string bundleName = !string.IsNullOrWhiteSpace(rule.BundleName) ? rule.BundleName : "global." + SanitizeBundleSegment(entry.BundleRule);
-                string buildTarget = !string.IsNullOrWhiteSpace(rule.BuildTarget) ? rule.BuildTarget : defaultBuildTarget;
-                string compression = !string.IsNullOrWhiteSpace(rule.Compression) ? rule.Compression : "lz4";
-                return new BundleChoice(bundleName, rule.Id, hint, "bundleRule", buildTarget, compression);
+                if (RuleMatchesEntry(rule, entry, profile.PackageId))
+                    choices.Add(BundleChoiceFromRule(rule, rule.Id, rule.Id, defaultBuildTarget));
             }
 
-            if (!string.IsNullOrWhiteSpace(hint))
-                return new BundleChoice("global." + SanitizeBundleSegment(hint), entry.BundleRule ?? string.Empty, hint, "groupHint", defaultBuildTarget, "lz4");
+            return choices;
+        }
 
-            string domain = FirstLabelWithPrefix(entry.Labels, "domain.");
-            if (!string.IsNullOrWhiteSpace(domain))
-                return new BundleChoice("global." + SanitizeBundleSegment(domain.Substring("domain.".Length)), string.Empty, domain, "domain", defaultBuildTarget, "lz4");
+        private static BundleChoice BundleChoiceFromRule(GlobalResourceBuildProfileBundleRule rule, string fallbackId, string groupHint, string defaultBuildTarget)
+        {
+            string ruleId = !string.IsNullOrWhiteSpace(rule.Id) ? rule.Id : fallbackId;
+            string bundleName = !string.IsNullOrWhiteSpace(rule.BundleName) ? rule.BundleName : "global." + SanitizeBundleSegment(ruleId);
+            string buildTarget = !string.IsNullOrWhiteSpace(rule.BuildTarget) ? rule.BuildTarget : defaultBuildTarget;
+            string compression = !string.IsNullOrWhiteSpace(rule.Compression) ? rule.Compression : "lz4";
+            return new BundleChoice(bundleName, ruleId, groupHint, "bundleRule", buildTarget, compression);
+        }
 
-            if (entry.PreloadGroups != null && entry.PreloadGroups.Count > 0 && !string.IsNullOrWhiteSpace(entry.PreloadGroups[0]))
-                return new BundleChoice("global." + SanitizeBundleSegment(entry.PreloadGroups[0]), string.Empty, entry.PreloadGroups[0], "preloadGroup", defaultBuildTarget, "lz4");
+        private static bool RuleMatchesEntry(GlobalResourceBuildProfileBundleRule rule, GlobalResourceBuildProfileEntry entry, string defaultPackageId)
+        {
+            if (rule == null || entry == null)
+                return false;
+            if (!string.IsNullOrWhiteSpace(rule.Id) && string.Equals(entry.BundleRule, rule.Id, StringComparison.Ordinal))
+                return true;
+            if (ContainsAny(entry.Labels, rule.MatchLabels))
+                return true;
+            if (Contains(rule.MatchPackageIds, EffectivePackageId(entry.ResourceKey, defaultPackageId)))
+                return true;
+            if (ContainsAny(entry.Labels, PrefixValues("domain.", rule.MatchDomains)))
+                return true;
 
-            return new BundleChoice("global.misc", string.Empty, "misc", "fallback", defaultBuildTarget, "lz4");
+            string entryKey = CanonicalKey(entry.ResourceKey, defaultPackageId);
+            if (rule.ExplicitKeys == null)
+                return false;
+
+            for (int i = 0; i < rule.ExplicitKeys.Count; i++)
+            {
+                if (string.Equals(entryKey, CanonicalKey(rule.ExplicitKeys[i], defaultPackageId), StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
         }
 
         private static GlobalResourceBundlePlanBundle GetOrCreateBundle(Dictionary<string, GlobalResourceBundlePlanBundle> bundleMap, BundleChoice choice)
@@ -384,7 +487,7 @@ namespace MxFramework.Authoring
                     continue;
 
                 string expectedName = !string.IsNullOrWhiteSpace(rule.BundleName) ? rule.BundleName : "global." + SanitizeBundleSegment(rule.Id);
-                if (!bundleMap.ContainsKey(expectedName))
+                if (!bundleMap.TryGetValue(expectedName, out GlobalResourceBundlePlanBundle bundle) || bundle.Entries.Count == 0)
                 {
                     AddDiagnostic(plan.Diagnostics, IssueSeverity.Warning, GlobalResourceBundlePlannerDiagnosticCodes.BundleRuleEmpty, "Bundle rule selects no internal bundle entries.", string.Empty, expectedName);
                 }
@@ -489,6 +592,14 @@ namespace MxFramework.Authoring
             return EffectivePackageId(key, defaultPackageId) + ":" + EffectiveType(key) + ":" + (key.Id ?? string.Empty) + ":" + (key.Variant ?? string.Empty);
         }
 
+        private static string CanonicalKey(GlobalResourceBuildProfileResourceKey key, string defaultPackageId)
+        {
+            if (key == null || string.IsNullOrWhiteSpace(key.Id) || string.IsNullOrWhiteSpace(EffectiveType(key)))
+                return string.Empty;
+
+            return EffectivePackageId(key, defaultPackageId) + "|" + EffectiveType(key) + "|" + key.Id + "|" + (key.Variant ?? string.Empty);
+        }
+
         private static string EffectiveType(GlobalResourceBuildProfileResourceKey key)
         {
             if (key == null)
@@ -503,6 +614,41 @@ namespace MxFramework.Authoring
                 return key.PackageId;
 
             return defaultPackageId ?? string.Empty;
+        }
+
+        private static bool Contains(List<string> values, string value)
+        {
+            if (values == null || string.IsNullOrWhiteSpace(value))
+                return false;
+
+            return values.Contains(value, StringComparer.Ordinal);
+        }
+
+        private static bool ContainsAny(List<string> left, IEnumerable<string> right)
+        {
+            if (left == null || right == null)
+                return false;
+
+            var set = new HashSet<string>(left.Where(value => !string.IsNullOrWhiteSpace(value)), StringComparer.Ordinal);
+            foreach (string value in right)
+            {
+                if (!string.IsNullOrWhiteSpace(value) && set.Contains(value))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static IEnumerable<string> PrefixValues(string prefix, List<string> values)
+        {
+            if (values == null)
+                yield break;
+
+            for (int i = 0; i < values.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(values[i]))
+                    yield return prefix + values[i];
+            }
         }
 
         private static string FirstNonEmpty(params string[] values)

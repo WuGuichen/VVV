@@ -36,6 +36,10 @@ assert(index.includes("importResourceButton") && index.includes("importFolderBut
 assert(index.includes("workspaceProfile") && index.includes("buildProfileContent") && index.includes("saveBuildProfileButton"), "profile workspace should expose build profile editor and save action");
 assert(index.includes("data-workspace=\"browse\"") && index.includes("data-workspace=\"profile\"") && index.includes("data-workspace=\"build\"") && index.includes("data-workspace=\"debug\""), "index should expose four primary workspaces");
 assert(app.includes('data-action="add-profile"') && app.includes('data-action="open-profile"'), "browse/profile contextual actions should use data-action hooks");
+assert(app.includes("bundle-profile-layout") && app.includes("renderBundleMembers") && app.includes("renderBundleSettings"), "profile workspace should expose bundle-first editor layout");
+assert(app.includes("bundle-rule-meta") && app.includes("bundle-plan-resources"), "bundle UI should expose build target/compression and expanded plan resources");
+assert(app.includes('data-bundle-action="create-bundle"') && app.includes("assignCheckedToBundle") && app.includes("getBuildProfileBundleRules"), "app should create bundles and assign checked resources to predefined bundle rules");
+assert(app.includes('data-action="batch-assign-bundle"') && app.includes('data-action="batch-clear-bundle"'), "batch actions should support assigning and removing bundle membership");
 assert(!index.includes("bottom-panel-container") && !index.includes("action-bar"), "persistent bottom action bar should be removed");
 assert(index.includes("profileMembershipFilter") && index.includes("runtimeReadyFilter"), "profile workflow should expose membership and runtime-ready filters");
 assert(index.includes("selectVisibleButton") && index.includes("clearCheckedButton") && index.includes("checkedSummary"), "resource browser should expose explicit multi-select controls");
@@ -58,6 +62,7 @@ assert(app.includes("activeWorkspace") && app.includes("setWorkspace") && app.in
 assert(app.includes("getDeliveryEntryState") && app.includes("will build"), "app should expose delivery outcome labels for profile entries");
 assert(app.includes("inferProfileValidationField") && app.includes("field-highlight"), "app should highlight profile fields on save validation failure");
 assert(app.includes("deliveryMode") && app.includes('entry.bundleRule = ""'), "non-internal delivery modes should clear bundle rule in draft edits");
+assert(app.includes("needs bundle") && app.includes("missing bundle"), "profile delivery state should surface missing bundle assignments");
 assert(app.includes("checkedResourceKeys: new Set()") && app.includes("selectVisibleResources") && app.includes("toggleCheckedResource"), "app should keep explicit checked resources separate from inspected resource selection");
 assert(app.includes("addCheckedToBuildProfile") && app.includes("removeCheckedFromBuildProfile"), "app should support batch add/remove of checked resources to the profile draft");
 assert(app.includes("applyBuildProfileBatchFields") && app.includes("data-profile-batch-enabled") && app.includes("data-profile-batch-field"), "app should support explicit opt-in batch field edits for checked draft profile entries");
@@ -86,6 +91,7 @@ assert(app.includes("navigator.clipboard.writeText"), "app should copy JSON thro
 assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("vite"), "app should remain vanilla DOM/fetch JavaScript");
 
 assert(styles.includes(".resource-browser") && styles.includes(".inspector-tabs") && styles.includes(".workspace-nav") && styles.includes(".import-preset-label") && styles.includes(".profile-workspace-panel"), "styles should cover browser, workspace nav, import preset, and profile workspace UI");
+assert(styles.includes(".bundle-rule-meta") && styles.includes(".bundle-plan-resources"), "styles should cover bundle-first metadata and plan resource lists");
 assert(styles.includes(".context-actions") && styles.includes(".batch-bar") && styles.includes(".build-checklist"), "styles should cover contextual actions and build checklist");
 assert(!styles.includes(".action-bar") && !styles.includes(".bottom-panel-container"), "styles should not retain persistent bottom action bar layout");
 assert(styles.includes(".selection-toolbar") && styles.includes(".resource-check") && styles.includes(".profile-state-strip"), "styles should cover multi-select and profile state feedback");
@@ -154,7 +160,7 @@ function runBuildProfileBatchBehaviorSmoke() {
   assert(entries[0].deliveryMode === "external" && entries[1].deliveryMode === "external", "deliveryMode should update checked draft entries");
   assert(entries[0].bundleOverrideMode === "forceBundle", "existing forceBundle should remain when batch override mode is not explicitly allowed");
   assert(entries[0].bundleGroupHint === "characters", "blank bundleGroupHint should not overwrite existing values");
-  assert(entries[0].bundleRule === "character", "disabled bundleRule should not overwrite existing values");
+  assert(entries[0].bundleRule === "" && entries[1].bundleRule === "", "external delivery should clear bundle assignment even when bundle field is disabled");
   assert(arrayEquals(entries[0].labels, ["runtime", "featured"]) && arrayEquals(entries[0].preloadGroups, ["warmup", "hero"]), "labels and preloadGroups should replace whole arrays from CSV");
 
   runtime.reset(entries, [{ key: "bundleOverrideMode", value: "forceExternal", enabled: true }], ["hero"]);

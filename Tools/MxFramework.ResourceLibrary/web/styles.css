@@ -1726,6 +1726,193 @@ code {
   gap: 12px;
 }
 
+.bundle-profile-layout {
+  min-height: 520px;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(420px, 1.5fr) minmax(300px, 0.95fr);
+  gap: 12px;
+}
+
+.bundle-list-panel,
+.bundle-members-panel,
+.bundle-settings-panel {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(13, 21, 37, 0.38);
+}
+
+.bundle-list-panel,
+.bundle-members-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.bundle-panel-heading,
+.bundle-members-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bundle-panel-heading p,
+.bundle-members-heading p {
+  margin-top: 2px;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.bundle-rule-list,
+.bundle-member-table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bundle-rule-card {
+  width: 100%;
+  min-height: auto;
+  padding: 10px;
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  justify-content: stretch;
+  border-color: var(--line);
+  background: rgba(7, 13, 24, 0.35);
+}
+
+.bundle-rule-card.active {
+  border-color: var(--accent);
+  background: var(--panel-active);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.bundle-rule-card strong,
+.bundle-rule-card span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bundle-rule-card span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.bundle-rule-meta {
+  color: var(--muted-2) !important;
+  font-size: 10px !important;
+  text-transform: uppercase;
+}
+
+.bundle-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bundle-members-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 360px;
+}
+
+.bundle-members-toolbar input {
+  flex: 1;
+}
+
+.bundle-member-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(80px, 0.6fr) minmax(120px, 0.75fr) minmax(100px, 0.65fr) minmax(130px, 0.9fr) minmax(90px, 0.65fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(7, 13, 24, 0.35);
+  font-size: 11px;
+}
+
+.bundle-member-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.bundle-member-main strong,
+.bundle-member-main span,
+.bundle-member-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bundle-member-main span,
+.bundle-member-row > span {
+  color: var(--muted);
+}
+
+.bundle-settings-card {
+  height: 100%;
+  overflow: auto;
+}
+
+.profile-form.single-column {
+  grid-template-columns: 1fr;
+}
+
+.inline-check {
+  flex-direction: row !important;
+  align-items: center;
+}
+
+.inline-check input {
+  width: 16px;
+  min-height: 16px;
+}
+
+.compact-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.bundle-action-select {
+  min-width: 180px;
+}
+
+.profile-resource-editor {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.profile-resource-editor summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.bundle-plan-resources {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
 .profile-status-line {
   display: flex;
   flex-wrap: wrap;
@@ -2199,6 +2386,14 @@ tr:last-child td {
   #workspaceBuild.active {
     grid-template-columns: 1fr;
   }
+
+  .bundle-profile-layout {
+    grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr);
+  }
+
+  .bundle-settings-panel {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 950px) {
@@ -2264,9 +2459,21 @@ tr:last-child td {
   }
 
   .profile-editor-grid,
+  .bundle-profile-layout,
   .profile-form,
   .profile-batch-form {
     grid-template-columns: 1fr;
+  }
+
+  .bundle-members-toolbar,
+  .bundle-member-row {
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .bundle-members-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .inspector-tabs {

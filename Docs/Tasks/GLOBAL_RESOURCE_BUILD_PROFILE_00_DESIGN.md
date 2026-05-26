@@ -62,7 +62,8 @@ Completed first slice:
 - Editor Hub can open the Resource Manager and resource plan/status views.
 - Resource Manager can show provider/resource diagnostics from the Authoring API.
 - Resource Manager can add or remove the selected item from `GlobalResourceBuildProfile`.
-- Resource Manager can edit delivery mode, bundle override intent, bundle group/rule hints, preload groups and labels.
+- Resource Manager can define Bundles first, then assign single or selected resources to those Bundles.
+- Resource Manager can edit delivery mode, bundle override intent, preload groups and labels.
 - Resource Manager can save the profile through the Authoring API validation gate.
 - Resource Manager can preview the Bundle Plan through `/api/authoring/resources/bundle-plan`.
 - Unity Editor exposes `MxFramework/Resources/Validate Global Resource Build Profile` and `MxFramework/Resources/Build Global Player Resource Catalog`.
@@ -254,15 +255,31 @@ For Unity source entries, `unityGuid` is the stable identity and `unityAssetPath
 
 ### Bundle Rule
 
-Bundle rules describe packaging intent. They should not duplicate resource keys one by one when labels can express the group.
+Bundle rules describe physical packaging intent. In the normal Resource Manager workflow, authors define a Bundle first in `bundleRules[]`, then assign resources to it by setting `entries[].bundleRule` to that rule id.
+
+This is the supported first-stage workflow:
+
+```text
+Define Bundle
+  -> assign resources by entries[].bundleRule
+  -> save Profile
+  -> preview Bundle Plan
+  -> build in Unity Workbench
+  -> verify Offline Runtime
+```
+
+No predefined Bundle means no formal physical bundle. `bundleGroupHint`, preload groups and domain labels may suggest a grouping, but they must not create implicit bundles in the web planner or Unity builder.
 
 Recommended rule inputs:
 
+- direct resource assignment through `entries[].bundleRule`;
 - explicit resource keys;
 - label match;
 - domain match;
 - package match;
 - generated domain plan input, such as CharacterResourcePlan.
+
+`explicitKeys`, `matchLabels`, `matchDomains` and `matchPackageIds` are advanced matching rules. They remain supported for authored rules, but they are not the ordinary UI path and should be folded under advanced controls.
 
 Recommended output:
 
@@ -286,7 +303,7 @@ Unknown compression values are validation errors.
 
 ### Preload Group
 
-Preload groups are runtime load plans, not bundles.
+Preload groups are runtime load plans, not bundles. They decide when and how resources are loaded, not which AssetBundle file contains those resources.
 
 They should compile to:
 
@@ -461,7 +478,8 @@ This build profile task integrates with the existing tool instead of creating an
 
 - resources from the global profile;
 - generated runtime catalog status;
-- bundle rule membership;
+- Bundle-first profile editing: Bundle list, Bundle member table, Bundle settings and single-resource Profile fields;
+- bundle rule membership through `entries[].bundleRule`;
 - preload group membership;
 - generated preload group status;
 - generated bundle dependency manifest status;
@@ -475,6 +493,8 @@ The Resource Manager save path is still authoring metadata only. It does not bui
 Save validation is intentionally strict because the profile is the source for runtime catalog generation. Common save failures:
 
 - `ResourceKey id contains invalid characters.` Profile entries must use a stable runtime resource key such as `ui.start_screen.button.normal`. They must not use provider-prefixed `resourceId` values, filesystem paths or keys containing `:`, `|`, whitespace or slashes.
+- `Runtime-loadable internal entry must be assigned to a defined bundle rule or use forceStandalone.` Internal Player resources must belong to an existing `bundleRules[]` rule, or opt into an explicit internal override such as `forceStandalone`.
+- `Runtime-loadable entry references a missing bundle rule.` The entry has `entries[].bundleRule`, but no matching `bundleRules[].id` exists.
 - `Bundle rule is ignored for external, editor-only or excluded entries.` External, editor-only and excluded entries are visible in Resource Manager for comparison and diagnostics, but they are not internal Player AssetBundle members. Such entries should clear `bundleRule` and bundle hints unless the author explicitly changes delivery back to an internal bundle mode.
 
 ## Character Flow Integration
