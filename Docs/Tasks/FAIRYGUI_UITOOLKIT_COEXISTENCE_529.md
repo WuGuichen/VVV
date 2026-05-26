@@ -42,7 +42,7 @@ FairyGUI ownership decisions.
 | Surface | Current files | Status |
 | --- | --- | --- |
 | Runtime Ability HUD | `FGUIProject/assets/MxRuntimeHud`, `Assets/Bundles/FGUI/MxRuntimeHud/`, `Assets/Scripts/MxFramework/Demo/FairyGUI/` | Productized through #527 as an opt-in player-facing HUD shell. |
-| Future Story dialog / choices | `Docs/Tasks/FAIRYGUI_STORY_UI_MIGRATION_READINESS_528.md` | Candidate after a dedicated implementation issue creates package, manifest, binder, shell and smoke path. |
+| Story dialog / choices | `FGUIProject/assets/MxStoryDialog`, `Assets/Scripts/MxFramework/Demo/FairyGUI/StoryRuntimeFairyGuiDialog*.cs` | #537 adds the first opt-in FairyGUI dialog/choice shell for the Story vertical slice. UI Toolkit fallback remains diagnostics/default scene surface. |
 | Future player-facing panels, popups and modals | none yet | Candidate only after a scoped issue defines ViewModel, commands, resources, manifest and validation. |
 
 ## Ownership Rules
@@ -79,9 +79,9 @@ Current candidates:
 
 - Runtime Ability HUD: #527 completed the reusable FairyGUI shell. UI Toolkit
   `MxRuntimeHudController` remains diagnostics/showcase.
-- Story dialog and choice UI: #528 defines readiness; #537 owns the future
-  FairyGUI package, manifest, binder, shell and smoke path before any UI
-  Toolkit Story surface is replaced.
+- Story dialog and choice UI: #537 owns the first opt-in FairyGUI
+  implementation for single-choice dialog/continue flow; full choice lists and
+  richer transition UX stay out of the coexistence cleanup scope.
 
 Current non-candidates:
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="720,420" opaque="false">
+  <displayList>
+    <graph id="n0_stdlg" name="panelBg" xy="0,0" size="720,420" type="rect" fillColor="#dd101820" corner="10,10,10,10"/>
+    <graph id="n1_stdlg" name="headerBg" xy="20,18" size="680,54" type="rect" fillColor="#ff203647" corner="8,8,8,8"/>
+    <text id="n2_stdlg" name="title" xy="36,28" size="360,30" fontSize="24" color="#ffffff" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Story"/>
+    <text id="n3_stdlg" name="phase" xy="420,29" size="260,28" fontSize="18" color="#8ee6ff" align="right" vAlign="middle" autoSize="none" singleLine="true" text="Ready"/>
+    <graph id="n4_stdlg" name="dialogueBg" xy="28,96" size="664,112" type="rect" fillColor="#dd243040" corner="8,8,8,8"/>
+    <text id="n5_stdlg" name="dialogueText" xy="48,116" size="624,72" fontSize="22" color="#fff1c8" align="left" vAlign="middle" autoSize="none" text="Dialogue text"/>
+    <graph id="n6_stdlg" name="choiceBg" xy="28,232" size="664,58" type="rect" fillColor="#dd182c26" corner="8,8,8,8"/>
+    <text id="n7_stdlg" name="choiceText" xy="48,246" size="624,30" fontSize="19" color="#dbffe5" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Choice"/>
+    <text id="n8_stdlg" name="signalText" xy="40,314" size="240,24" fontSize="16" color="#b7d6ff" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Signal 0"/>
+    <text id="n9_stdlg" name="eventLog" xy="40,342" size="640,32" fontSize="13" color="#d7dde5" align="left" vAlign="top" autoSize="none" text="Events"/>
+    <component id="n10_stdlg" name="btnContinue" src="stdbtn" fileName="Components/StoryDialogButton.xml" xy="408,362">
+      <Button title="Continue"/>
+    </component>
+    <component id="n11_stdlg" name="btnChoice" src="stdbtn" fileName="Components/StoryDialogButton.xml" xy="556,362">
+      <Button title="Select"/>
+    </component>
+  </displayList>
+</component>

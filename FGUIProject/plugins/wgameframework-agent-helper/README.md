@@ -8,6 +8,8 @@ Project-local FairyGUI Editor helper plugin.
 - `WGameFramework/Publish Smoke Package`
 - `WGameFramework/Create/Repair Runtime HUD Package`
 - `WGameFramework/Publish Runtime HUD Package`
+- `WGameFramework/Create/Repair Story Dialog Package`
+- `WGameFramework/Publish Story Dialog Package`
 - `WGameFramework/Refresh Project`
 
 Use this from FairyGUI Editor after opening `FGUIProject/FGUIProject.fairy`.
@@ -25,6 +27,8 @@ FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script create-smoke
 FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script publish-smoke
 FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script create-runtime-hud
 FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script publish-runtime-hud
+FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script create-story-dialog
+FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script publish-story-dialog
 FairyGUI-Editor -p /path/to/FGUIProject/FGUIProject.fairy -script refresh
 ```
 
@@ -43,6 +47,10 @@ The helper only targets framework-owned FairyGUI packages:
 - component: `RuntimeHudPanel`
 - bindable children: `title`, `mode`, `playerName`, `playerHp`, `enemyName`,
   `enemyHp`, `recentAction`, `btnStrike`, `btnReset`
+- source package: `FGUIProject/assets/MxStoryDialog`
+- component: `StoryDialogPanel`
+- bindable children: `title`, `phase`, `dialogueText`, `choiceText`,
+  `signalText`, `eventLog`, `btnContinue`, `btnChoice`
 - publish output: configured by `FGUIProject/settings/Publish.json`
 
 It intentionally does not create project-specific WGame UI, generated C# code,
