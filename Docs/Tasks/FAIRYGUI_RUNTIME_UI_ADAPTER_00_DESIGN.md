@@ -484,6 +484,14 @@ This document only.
 - Support one package / one component / one ViewModel binding.
 - Bridge resource loading through `MxFramework.Resources`.
 - No generated code required yet.
+- Current implementation status:
+  - `MxFramework.UI` noEngine core is implemented.
+  - `MxFramework.UI.FairyGUI` adapter prototype is implemented and isolated from core.
+  - FairyGUI Unity runtime is embedded under `Packages/com.fairygui.gui`.
+  - `FGUIProject/` exists as the framework-owned FairyGUI source project.
+  - `MxFguiSmoke` exists as the first minimal source package and publish output under `Assets/Bundles/FGUI/MxFguiSmoke`.
+  - `FGUIProject/plugins/wgameframework-agent-helper` provides project-local FairyGUI Editor commands to create/repair and publish the smoke package.
+  - #510 still needs the real navigator smoke test using the published package.
 
 ### M3: Runtime HUD Vertical Slice
 

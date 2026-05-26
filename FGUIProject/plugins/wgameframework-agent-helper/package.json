@@ -1,0 +1,10 @@
+{
+  "name": "wgameframework-agent-helper",
+  "displayName": "WGameFramework Agent Helper",
+  "description": "Project-local automation helpers for WGameFramework FairyGUI smoke packages.",
+  "version": "0.1.0",
+  "author": {
+    "name": "WGameFramework"
+  },
+  "main": "main.js"
+}

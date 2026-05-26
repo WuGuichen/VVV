@@ -2,11 +2,14 @@
 
 ## Scope
 
-This task creates the framework-owned FairyGUI authoring project scaffold only.
+This task created the framework-owned FairyGUI authoring project scaffold and
+was later extended on `main` with the first smoke package and project-local
+helper plugin.
 
 - `FGUIProject/` is the FairyGUI Editor source project and lives outside Unity `Assets`.
-- `FGUIProject/assets/` is intentionally empty until the first framework package is authored.
-- `Assets/Bundles/FGUI/` is reserved for FairyGUI Editor publish output and should not be hand-authored.
+- `FGUIProject/assets/` contains framework-owned FairyGUI source packages.
+- `Assets/Bundles/FGUI/` is FairyGUI Editor publish output and should not be hand-authored.
+- `FGUIProject/plugins/` contains project-local FairyGUI Editor helper plugins.
 
 ## Publish Settings
 
@@ -25,16 +28,50 @@ The publish path is relative to the FairyGUI project directory so the repository
 
 ## Current Non-Goals
 
-- No FairyGUI package or component is created in this scaffold.
-- No `*_fui.bytes`, atlas images, generated code, Common package, fonts, textures, WGame UI content, or FairyGUI Editor binaries are committed.
+- No atlas images, generated code, Common package, fonts, textures, WGame UI content, or FairyGUI Editor binaries are committed.
 - Issue #510 navigator smoke tests and the M4 generator are out of scope.
 
-## Next Manual Authoring Step
+## Current Smoke Package
 
-Open `FGUIProject/FGUIProject.fairy` in FairyGUI Editor and create the first smoke package manually:
+The first framework smoke package now exists:
 
-- package: `MxFguiSmoke`
-- component: `SmokePanel`
-- text object: `txtTitle`
+- source package: `FGUIProject/assets/MxFguiSmoke`
+- component source: `FGUIProject/assets/MxFguiSmoke/SmokePanel.xml`
+- bindable text object: `txtTitle`
+- published runtime package: `Assets/Bundles/FGUI/MxFguiSmoke/MxFguiSmoke_fui.bytes`
 
-Publishing that package should generate runtime files under `Assets/Bundles/FGUI/`; those generated files belong to a later task.
+`MxFguiSmoke_fui.bytes` is a FairyGUI publish output. It is checked in only as
+the minimal framework smoke asset needed to unblock real adapter validation.
+Do not hand-edit or synthesize this binary file.
+
+## Agent Helper Plugin
+
+The project now includes a FairyGUI Editor helper plugin:
+
+```text
+FGUIProject/plugins/wgameframework-agent-helper/
+```
+
+When `FGUIProject/FGUIProject.fairy` is open, it adds menu commands:
+
+```text
+WGameFramework/Create/Repair Smoke Package
+WGameFramework/Publish Smoke Package
+WGameFramework/Refresh Project
+```
+
+The plugin also exposes best-effort batch script commands:
+
+```bash
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-smoke
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-smoke
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script refresh
+```
+
+The local command-line script path has been unreliable so far, so the GUI menu
+workflow is the expected path until that is resolved.
+
+## Next Implementation Step
+
+Use the smoke package in #510 to validate `MxFairyGuiNavigator` with a real
+FairyGUI package/component asset, including ViewModel bind, close and release.
