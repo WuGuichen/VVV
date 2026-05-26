@@ -1,0 +1,29 @@
+{
+  "name": "com.fairygui.gui",
+  "version": "5.2.0",
+  "displayName": "FairyGUI",
+  "description": "Embedded local import of the official FairyGUI Unity runtime and editor package.",
+  "unity": "2023.2",
+  "documentationUrl": "https://github.com/fairygui/FairyGUI-unity",
+  "changelogUrl": "https://github.com/fairygui/FairyGUI-unity/releases/tag/5.2.0",
+  "licensesUrl": "https://github.com/fairygui/FairyGUI-unity/blob/5.2.0/LICENSE",
+  "dependencies": {
+    "com.unity.textmeshpro": "5.0.0",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.assetbundle": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
+    "com.unity.modules.unitywebrequesttexture": "1.0.0"
+  },
+  "keywords": [
+    "fairygui",
+    "ui",
+    "runtime"
+  ],
+  "author": {
+    "name": "FairyGUI",
+    "url": "https://www.fairygui.com/"
+  }
+}

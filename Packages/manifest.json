@@ -2,6 +2,7 @@
   "dependencies": {
     "com.boxqkrtm.ide.cursor": "file:com.boxqkrtm.ide.cursor",
     "com.coplaydev.unity-mcp": "file:com.coplaydev.unity-mcp",
+    "com.fairygui.gui": "file:com.fairygui.gui",
     "com.unity.cloud.gltfast": "6.19.0",
     "com.unity.inputsystem": "1.17.0",
     "com.unity.multiplayer.center": "1.0.0",
