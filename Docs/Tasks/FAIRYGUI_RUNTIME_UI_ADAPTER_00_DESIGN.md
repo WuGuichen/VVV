@@ -80,12 +80,15 @@ Assets/Scripts/MxFramework/UI/
   IMxUiNavigator.cs
   IMxUiCommandSink.cs
   MxUiLifecycle.cs
+  MxUiViewContract.cs
+  MxUiCommandDescriptor.cs
   MxUiOpenResult.cs
+  MxUiOpenOperation.cs
 ```
 
 职责：
 
-- 保存 UI 技术无关的 view id、descriptor、layer、lifecycle、navigator、command sink。
+- 保存 UI 技术无关的 view id、descriptor / contract、layer、lifecycle、navigator、command sink。
 - 承载 ViewModel / Command DTO 的推荐模式。
 - 提供可测试的窗口打开/关闭语义和错误结果。
 
@@ -155,14 +158,53 @@ public enum MxUiLayer
 
 public sealed class MxUiViewDescriptor
 {
-    public MxUiViewId Id { get; init; }
-    public string PackageKey { get; init; }
-    public string ComponentName { get; init; }
-    public MxUiLayer Layer { get; init; }
-    public bool Modal { get; init; }
-    public bool KeepAlive { get; init; }
-    public bool CloseOnSceneChange { get; init; }
-    public string InputScope { get; init; }
+    public MxUiViewDescriptor(
+        MxUiViewId id,
+        string packageKey,
+        string componentName,
+        MxUiLayer layer)
+    {
+        Id = id;
+        PackageKey = packageKey ?? string.Empty;
+        ComponentName = componentName ?? string.Empty;
+        Layer = layer;
+    }
+
+    public MxUiViewId Id { get; }
+    public string PackageKey { get; }
+    public string ComponentName { get; }
+    public MxUiLayer Layer { get; }
+    public bool Modal { get; set; }
+    public bool KeepAlive { get; set; }
+    public bool CloseOnSceneChange { get; set; }
+    public string InputScope { get; set; }
+}
+
+public sealed class MxUiViewContract
+{
+    public MxUiViewContract(MxUiViewDescriptor descriptor)
+    {
+        Descriptor = descriptor;
+        RequiredResources = Array.Empty<string>();
+        Commands = Array.Empty<MxUiCommandDescriptor>();
+        DiagnosticsTags = Array.Empty<string>();
+    }
+
+    public MxUiViewDescriptor Descriptor { get; }
+    public string ViewModelType { get; set; }
+    public IReadOnlyList<string> RequiredResources { get; set; }
+    public IReadOnlyList<MxUiCommandDescriptor> Commands { get; set; }
+    public IReadOnlyList<string> DiagnosticsTags { get; set; }
+}
+
+public sealed class MxUiCommandDescriptor
+{
+    public string CommandId { get; set; }
+    public string PayloadType { get; set; }
+    public string RiskLevel { get; set; }
+    public bool RequiresConfirmation { get; set; }
+    public bool IsReadOnly { get; set; }
+    public string Owner { get; set; }
 }
 
 public interface IMxUiView
@@ -182,10 +224,21 @@ public interface IMxUiView<in TViewModel> : IMxUiView
 public interface IMxUiNavigator
 {
     MxUiOpenResult Open<TArgs>(MxUiViewId id, TArgs args);
+    MxUiOpenOperation OpenAsync<TArgs>(MxUiViewId id, TArgs args);
     bool Close(MxUiViewId id);
     bool IsOpen(MxUiViewId id);
 }
 ```
+
+`MxUiViewDescriptor` is the minimal instantiation descriptor. `MxUiViewContract` is the machine-readable contract owned from M1 so M2/M4 do not need to revise the core shape immediately. Generated descriptors, JSON mirrors and validation reports should all derive from this contract.
+
+Open semantics:
+
+- `Open<TArgs>` is allowed only when all resources required by `MxUiViewContract.RequiredResources` are already available or the adapter can load them synchronously.
+- `OpenAsync<TArgs>` returns `MxUiOpenOperation`, a handle with stable status such as `Pending`, `Succeeded`, `Failed` and `Cancelled`.
+- `MxUiOpenResult` must carry a stable error code and diagnostic message for synchronous failures.
+- `MxUiOpenOperation` must expose the same result when completed, plus cancellation where the adapter can safely cancel pending loads.
+- M2 may implement `OpenAsync` with an immediately completed operation if the first prototype only supports preloaded synchronous resources, but the API shape must exist from M1.
 
 Typed arguments should be preferred over string arrays or object arrays:
 
@@ -266,7 +319,7 @@ Recommended mapping:
 | font | `ui.font.<fontId>` | optional |
 | package mapping | generated config or ScriptableObject adapter | adapter-only |
 
-The adapter should support both synchronous and asynchronous package creation only if the underlying resource provider supports it. If a provider is pending, the navigator should return a structured pending / failed result instead of silently showing a broken panel.
+The adapter should support both synchronous and asynchronous package creation only if the underlying resource provider supports it. If a provider is pending, synchronous `Open` must fail with a structured result such as `ResourcesPending`, while `OpenAsync` returns an `MxUiOpenOperation` that completes after package bytes, atlas textures and other required resources are ready. A broken or partially created panel is not an acceptable pending state.
 
 FairyGUI packages must be visible to Resource Manager / Global Resource Build Profile:
 
@@ -287,8 +340,12 @@ Generated/FairyGUI/
   FuiViewIds.cs
   FuiViewDescriptors.cs
   FuiBindings/
-    FuiRuntimeHudBinding.cs
-    FuiConfirmDialogBinding.cs
+    FuiRuntimeHudBinding.g.cs
+    FuiConfirmDialogBinding.g.cs
+
+Assets/Scripts/MxFramework/UI.FairyGUI/
+  RuntimeHudFairyGuiView.cs
+  ConfirmDialogFairyGuiView.cs
 ```
 
 Generator responsibilities:
@@ -296,9 +353,17 @@ Generator responsibilities:
 - read FairyGUI exported package metadata;
 - emit strongly typed component and child names;
 - emit view descriptors with package key, component name, layer and modal defaults;
-- optionally emit binder skeletons only when missing, preserving manual code;
+- emit `*.g.cs` binding files that may be overwritten;
 - never generate business logic;
 - never generate code into UI core.
+
+Stable generated/manual split:
+
+- generated `*.g.cs` files contain only child, controller, transition, resource and command-id binding metadata;
+- handwritten view / wrapper files own lifecycle, ViewModel mapping, command forwarding and error handling;
+- generated files may be deleted and regenerated at any time;
+- handwritten files may be edited by agents and humans;
+- if partial classes are used, generated partials and manual partials must be clearly separated by filename.
 
 Generated bindings should expose narrow methods:
 
@@ -327,9 +392,19 @@ Good:
 ```csharp
 public sealed class RuntimeHudViewModel
 {
-    public string Title { get; init; }
-    public IReadOnlyList<RuntimeHudActionViewModel> Actions { get; init; }
-    public IReadOnlyList<string> EventLog { get; init; }
+    public RuntimeHudViewModel(
+        string title,
+        IReadOnlyList<RuntimeHudActionViewModel> actions,
+        IReadOnlyList<string> eventLog)
+    {
+        Title = title ?? string.Empty;
+        Actions = actions ?? Array.Empty<RuntimeHudActionViewModel>();
+        EventLog = eventLog ?? Array.Empty<string>();
+    }
+
+    public string Title { get; }
+    public IReadOnlyList<RuntimeHudActionViewModel> Actions { get; }
+    public IReadOnlyList<string> EventLog { get; }
 }
 ```
 
