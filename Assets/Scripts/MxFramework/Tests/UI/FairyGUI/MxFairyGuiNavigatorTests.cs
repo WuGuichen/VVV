@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using MxFramework.Input;
 using MxFramework.Resources;
 using MxFramework.UI;
 using MxFramework.UI.FairyGui;
@@ -372,6 +373,237 @@ namespace MxFramework.Tests.UI.FairyGui
         }
 
         [Test]
+        public void Open_WhenDescriptorIsModal_PushesUiInputContextAndCloseReleasesScope()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var contexts = new InputContextStack();
+            contexts.Set(InputContext.Gameplay);
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                new DemoBinder(),
+                descriptor: descriptor,
+                inputBridge: new MxFairyGuiInputContextBridge(_ => contexts.Push(InputContext.UI)));
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("modal"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(InputContext.UI, contexts.ActiveContext);
+            Assert.IsFalse(contexts.IsContextEnabled(InputContext.Gameplay));
+
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.AreEqual(InputContext.Gameplay, contexts.ActiveContext);
+            Assert.IsTrue(contexts.IsContextEnabled(InputContext.Gameplay));
+        }
+
+        [Test]
+        public void Close_WhenModalIsKeepAlive_ReleasesInputScopeUntilReopened()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var contexts = new InputContextStack();
+            contexts.Set(InputContext.Gameplay);
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Modal)
+            {
+                Modal = true,
+                KeepAlive = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                new DemoBinder(),
+                descriptor: descriptor,
+                inputBridge: new MxFairyGuiInputContextBridge(_ => contexts.Push(InputContext.UI)));
+
+            MxUiOpenResult first = navigator.Open(ViewId, new DemoViewModel("first"));
+            Assert.IsTrue(navigator.Close(ViewId));
+
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.AreEqual(InputContext.Gameplay, contexts.ActiveContext);
+            Assert.IsTrue(navigator.IsCached(ViewId));
+
+            MxUiOpenResult second = navigator.Open(ViewId, new DemoViewModel("second"));
+
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreEqual(InputContext.UI, contexts.ActiveContext);
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.AreEqual(InputContext.Gameplay, contexts.ActiveContext);
+        }
+
+        [Test]
+        public void ModalCommandGate_BlocksLowerLayerCommandsWhenModalIsActive()
+        {
+            var layerHost = new FakeLayerHost();
+            var inner = new RecordingCommandSink();
+            var gate = new MxFairyGuiModalCommandGate(inner, layerHost);
+            var modalId = new MxUiViewId("ui.modal");
+            var hudId = new MxUiViewId("ui.hud");
+            layerHost.Show(new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true }, new FakeComponentHandle("ui.demo", "Modal"));
+
+            gate.Enqueue(new MxUiCommand(hudId, "hud.strike", null));
+            gate.Enqueue(new MxUiCommand(modalId, "modal.confirm", null));
+
+            Assert.AreEqual(1, gate.BlockedCount);
+            Assert.AreEqual(1, gate.ForwardedCount);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual("modal.confirm", inner.Last.CommandId);
+        }
+
+        [Test]
+        public void ModalCommandGate_ForwardsCommandsWhenNoModalIsActiveAndBlocksInvalidSourcesWhenModalIsActive()
+        {
+            var layerHost = new FakeLayerHost();
+            var inner = new RecordingCommandSink();
+            var gate = new MxFairyGuiModalCommandGate(inner, layerHost);
+            var modalId = new MxUiViewId("ui.modal");
+
+            gate.Enqueue(new MxUiCommand(new MxUiViewId("ui.hud"), "hud.strike", null));
+            layerHost.Show(new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true }, new FakeComponentHandle("ui.demo", "Modal"));
+            gate.Enqueue(new MxUiCommand(default, "invalid.source", null));
+
+            Assert.AreEqual(1, gate.ForwardedCount);
+            Assert.AreEqual(1, gate.BlockedCount);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual("hud.strike", inner.Last.CommandId);
+        }
+
+        [Test]
+        public void CancelCommandBridge_EnqueuesCancelForTopModalOnly()
+        {
+            var layerHost = new FakeLayerHost();
+            var inner = new RecordingCommandSink();
+            var bridge = new MxFairyGuiCancelCommandBridge(layerHost, inner);
+            var modalId = new MxUiViewId("ui.modal");
+
+            var cancel = new InputCommand(10, 1, InputIntent.Cancel, InputCommandPhase.Pressed);
+            bool withoutModal = bridge.ProcessCancel(cancel);
+            layerHost.Show(new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true }, new FakeComponentHandle("ui.demo", "Modal"));
+            bool withModal = bridge.ProcessCancel(cancel);
+
+            Assert.IsFalse(withoutModal);
+            Assert.IsTrue(withModal);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual(modalId, inner.Last.SourceViewId);
+            Assert.AreEqual(MxFairyGuiCommandIds.Cancel, inner.Last.CommandId);
+            Assert.IsInstanceOf<InputCommand>(inner.Last.Payload);
+        }
+
+        [Test]
+        public void Dispose_VisibleModal_ReleasesInputScopeOnce()
+        {
+            var layerHost = new FakeLayerHost();
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+
+            view.Show();
+            view.Dispose();
+            view.Dispose();
+
+            Assert.AreEqual(1, scope.DisposeCount);
+            Assert.AreEqual(1, handle.DisposeCount);
+            Assert.AreEqual(0, layerHost.ModalCount);
+        }
+
+        [Test]
+        public void Show_WhenLayerHostThrows_ReleasesInputScope()
+        {
+            var layerHost = new FakeLayerHost { ThrowOnShow = true };
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+
+            Assert.Throws<InvalidOperationException>(() => view.Show());
+            Assert.AreEqual(1, scope.DisposeCount);
+        }
+
+        [Test]
+        public void Hide_WhenLayerHostThrows_ReleasesInputScope()
+        {
+            var layerHost = new FakeLayerHost();
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+            view.Show();
+            layerHost.ThrowOnHide = true;
+
+            Assert.Throws<InvalidOperationException>(() => view.Hide());
+            Assert.AreEqual(1, scope.DisposeCount);
+        }
+
+        [Test]
+        public void Dispose_WhenLayerHostHideThrows_ReleasesInputScopeComponentAndPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            MxFairyGuiPackageLoadResult load = bridge.LoadPackage(new MxFairyGuiPackageDescriptor("ui.demo", PackageKey));
+            Assert.IsTrue(load.Success, load.Failure.Message);
+
+            var layerHost = new FakeLayerHost();
+            var host = new FakeFairyGuiHost();
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                load.Scope,
+                host,
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+            view.Show();
+            layerHost.ThrowOnHide = true;
+
+            Assert.Throws<InvalidOperationException>(() => view.Dispose());
+
+            Assert.AreEqual(1, scope.DisposeCount);
+            Assert.AreEqual(1, handle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
         public void Open_LayerHostRecordsStableLayerOrderIndependentOfOpenOrder()
         {
             var layerHost = new MxFairyGuiLayerHost();
@@ -529,7 +761,8 @@ namespace MxFramework.Tests.UI.FairyGui
             bool registerPackage = true,
             string viewModelType = null,
             MxUiViewDescriptor descriptor = null,
-            IMxFairyGuiLayerHost layerHost = null)
+            IMxFairyGuiLayerHost layerHost = null,
+            IMxFairyGuiInputContextBridge inputBridge = null)
         {
             var contracts = new MxUiViewContractRegistry();
             if (registerContract)
@@ -549,7 +782,7 @@ namespace MxFramework.Tests.UI.FairyGui
             if (binder != null)
                 bindings.Register(ViewId, binder);
 
-            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings, layerHost);
+            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings, layerHost, inputBridge);
         }
 
         private static MxFairyGuiNavigator CreateNavigator(
@@ -737,6 +970,8 @@ namespace MxFramework.Tests.UI.FairyGui
             private readonly List<MxUiLayer> _layerOrder = new List<MxUiLayer>();
             private readonly List<MxUiViewId> _modalStack = new List<MxUiViewId>();
 
+            public bool ThrowOnShow { get; set; }
+            public bool ThrowOnHide { get; set; }
             public int ShowCount { get; private set; }
             public int HideCount { get; private set; }
             public MxUiLayer LastShownLayer { get; private set; }
@@ -745,6 +980,9 @@ namespace MxFramework.Tests.UI.FairyGui
 
             public void Show(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
             {
+                if (ThrowOnShow)
+                    throw new InvalidOperationException("layer host failed");
+
                 ShowCount++;
                 LastShownLayer = descriptor.Layer;
                 if (!_layerOrder.Contains(descriptor.Layer))
@@ -761,11 +999,48 @@ namespace MxFramework.Tests.UI.FairyGui
 
             public void Hide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
             {
+                if (ThrowOnHide)
+                    throw new InvalidOperationException("layer host hide failed");
+
                 HideCount++;
                 if (descriptor.Modal)
                     _modalStack.Remove(descriptor.Id);
 
                 component.Hide();
+            }
+
+            public bool TryGetTopModal(out MxUiViewId viewId)
+            {
+                if (_modalStack.Count == 0)
+                {
+                    viewId = default;
+                    return false;
+                }
+
+                viewId = _modalStack[_modalStack.Count - 1];
+                return true;
+            }
+        }
+
+        private sealed class RecordingCommandSink : IMxUiCommandSink
+        {
+            public int Count { get; private set; }
+            public MxUiCommand Last { get; private set; }
+
+            public void Enqueue(MxUiCommand command)
+            {
+                Count++;
+                Last = command;
+            }
+        }
+
+        private sealed class RecordingScope : IDisposable
+        {
+            public int DisposeCount { get; private set; }
+
+            public void Dispose()
+            {
+                DisposeCount++;
             }
         }
 

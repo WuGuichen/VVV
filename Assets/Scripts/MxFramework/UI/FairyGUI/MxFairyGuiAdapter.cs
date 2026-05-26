@@ -25,6 +25,118 @@ namespace MxFramework.UI.FairyGui
     {
         void Show(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component);
         void Hide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component);
+        bool TryGetTopModal(out MxUiViewId viewId);
+    }
+
+    public interface IMxFairyGuiInputContextBridge
+    {
+        IDisposable Enter(MxUiViewDescriptor descriptor);
+    }
+
+    public sealed class MxFairyGuiNullInputContextBridge : IMxFairyGuiInputContextBridge
+    {
+        public static readonly MxFairyGuiNullInputContextBridge Instance = new MxFairyGuiNullInputContextBridge();
+
+        private MxFairyGuiNullInputContextBridge()
+        {
+        }
+
+        public IDisposable Enter(MxUiViewDescriptor descriptor)
+        {
+            return NullScope.Instance;
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new NullScope();
+
+            private NullScope()
+            {
+            }
+
+            public void Dispose()
+            {
+            }
+        }
+    }
+
+    public sealed class MxFairyGuiInputContextBridge : IMxFairyGuiInputContextBridge
+    {
+        private readonly Func<MxUiViewDescriptor, IDisposable> _enterModal;
+
+        public MxFairyGuiInputContextBridge(Func<MxUiViewDescriptor, IDisposable> enterModal)
+        {
+            _enterModal = enterModal ?? throw new ArgumentNullException(nameof(enterModal));
+        }
+
+        public IDisposable Enter(MxUiViewDescriptor descriptor)
+        {
+            if (descriptor == null || !descriptor.Modal)
+                return MxFairyGuiNullInputContextBridge.Instance.Enter(descriptor);
+
+            return _enterModal(descriptor) ?? MxFairyGuiNullInputContextBridge.Instance.Enter(descriptor);
+        }
+    }
+
+    public static class MxFairyGuiCommandIds
+    {
+        public const string Cancel = "ui.cancel";
+    }
+
+    public sealed class MxFairyGuiModalCommandGate : IMxUiCommandSink
+    {
+        private readonly IMxUiCommandSink _inner;
+        private readonly IMxFairyGuiLayerHost _layerHost;
+
+        public MxFairyGuiModalCommandGate(IMxUiCommandSink inner, IMxFairyGuiLayerHost layerHost)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _layerHost = layerHost ?? throw new ArgumentNullException(nameof(layerHost));
+        }
+
+        public int ForwardedCount { get; private set; }
+        public int BlockedCount { get; private set; }
+
+        public void Enqueue(MxUiCommand command)
+        {
+            MxUiViewId topModal;
+            if (_layerHost.TryGetTopModal(out topModal)
+                && (!command.SourceViewId.IsValid || command.SourceViewId != topModal))
+            {
+                BlockedCount++;
+                return;
+            }
+
+            ForwardedCount++;
+            _inner.Enqueue(command);
+        }
+    }
+
+    public sealed class MxFairyGuiCancelCommandBridge
+    {
+        private readonly IMxFairyGuiLayerHost _layerHost;
+        private readonly IMxUiCommandSink _commands;
+        private readonly string _commandId;
+
+        public MxFairyGuiCancelCommandBridge(
+            IMxFairyGuiLayerHost layerHost,
+            IMxUiCommandSink commands,
+            string commandId = MxFairyGuiCommandIds.Cancel)
+        {
+            _layerHost = layerHost ?? throw new ArgumentNullException(nameof(layerHost));
+            _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+            _commandId = string.IsNullOrWhiteSpace(commandId) ? MxFairyGuiCommandIds.Cancel : commandId;
+        }
+
+        public bool ProcessCancel(object payload = null)
+        {
+            MxUiViewId topModal;
+            if (!_layerHost.TryGetTopModal(out topModal))
+                return false;
+
+            _commands.Enqueue(new MxUiCommand(topModal, _commandId, payload));
+            return true;
+        }
     }
 
     public sealed class MxFairyGuiLayerHost : IMxFairyGuiLayerHost, IDisposable
@@ -75,6 +187,18 @@ namespace MxFramework.UI.FairyGui
                 _modalStack.Remove(descriptor.Id);
 
             component.Hide();
+        }
+
+        public bool TryGetTopModal(out MxUiViewId viewId)
+        {
+            if (_modalStack.Count == 0)
+            {
+                viewId = default;
+                return false;
+            }
+
+            viewId = _modalStack[_modalStack.Count - 1];
+            return true;
         }
 
         public void EnsureLayerRoots()
@@ -226,14 +350,17 @@ namespace MxFramework.UI.FairyGui
         private readonly MxFairyGuiPackageLoadScope _scope;
         private readonly IMxFairyGuiHost _host;
         private readonly IMxFairyGuiLayerHost _layerHost;
+        private readonly IMxFairyGuiInputContextBridge _inputBridge;
         private readonly MxUiLifecycle _lifecycle;
+        private IDisposable _inputScope;
 
         public MxFairyGuiView(
             MxUiViewDescriptor descriptor,
             IMxFairyGuiComponentHandle component,
             MxFairyGuiPackageLoadScope scope,
             IMxFairyGuiHost host,
-            IMxFairyGuiLayerHost layerHost)
+            IMxFairyGuiLayerHost layerHost,
+            IMxFairyGuiInputContextBridge inputBridge)
         {
             _descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
             Id = descriptor.Id;
@@ -241,6 +368,7 @@ namespace MxFramework.UI.FairyGui
             _scope = scope;
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _layerHost = layerHost ?? throw new ArgumentNullException(nameof(layerHost));
+            _inputBridge = inputBridge ?? MxFairyGuiNullInputContextBridge.Instance;
             _lifecycle = new MxUiLifecycle();
         }
 
@@ -259,7 +387,16 @@ namespace MxFramework.UI.FairyGui
             if (!_lifecycle.Show())
                 return;
 
-            _layerHost.Show(_descriptor, _component);
+            EnterInputScope();
+            try
+            {
+                _layerHost.Show(_descriptor, _component);
+            }
+            catch
+            {
+                ExitInputScope();
+                throw;
+            }
         }
 
         public void Hide()
@@ -267,7 +404,14 @@ namespace MxFramework.UI.FairyGui
             if (!_lifecycle.Hide())
                 return;
 
-            _layerHost.Hide(_descriptor, _component);
+            try
+            {
+                _layerHost.Hide(_descriptor, _component);
+            }
+            finally
+            {
+                ExitInputScope();
+            }
         }
 
         public void Dispose()
@@ -276,15 +420,36 @@ namespace MxFramework.UI.FairyGui
             if (!_lifecycle.Dispose())
                 return;
 
-            if (wasVisible)
-                _layerHost.Hide(_descriptor, _component);
-
-            _component.Dispose();
-            if (_scope != null)
+            try
             {
-                _scope.Release();
-                _host.ReleasePackage(_scope.PackageId);
+                if (wasVisible)
+                    _layerHost.Hide(_descriptor, _component);
             }
+            finally
+            {
+                ExitInputScope();
+                _component.Dispose();
+                if (_scope != null)
+                {
+                    _scope.Release();
+                    _host.ReleasePackage(_scope.PackageId);
+                }
+            }
+        }
+
+        private void EnterInputScope()
+        {
+            ExitInputScope();
+            _inputScope = _inputBridge.Enter(_descriptor);
+        }
+
+        private void ExitInputScope()
+        {
+            if (_inputScope == null)
+                return;
+
+            _inputScope.Dispose();
+            _inputScope = null;
         }
     }
 

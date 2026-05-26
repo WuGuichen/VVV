@@ -10,6 +10,7 @@ namespace MxFramework.UI.FairyGui
         private readonly MxFairyGuiResourceBridge _resources;
         private readonly IMxFairyGuiHost _host;
         private readonly IMxFairyGuiLayerHost _layerHost;
+        private readonly IMxFairyGuiInputContextBridge _inputBridge;
         private readonly MxFairyGuiViewBindingRegistry _bindings;
         private readonly System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView> _openViews =
             new System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView>();
@@ -22,13 +23,15 @@ namespace MxFramework.UI.FairyGui
             MxFairyGuiResourceBridge resources,
             IMxFairyGuiHost host,
             MxFairyGuiViewBindingRegistry bindings = null,
-            IMxFairyGuiLayerHost layerHost = null)
+            IMxFairyGuiLayerHost layerHost = null,
+            IMxFairyGuiInputContextBridge inputBridge = null)
         {
             _contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
             _packages = packages ?? throw new ArgumentNullException(nameof(packages));
             _resources = resources ?? throw new ArgumentNullException(nameof(resources));
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _layerHost = layerHost ?? new MxFairyGuiLayerHost();
+            _inputBridge = inputBridge ?? MxFairyGuiNullInputContextBridge.Instance;
             _bindings = bindings ?? new MxFairyGuiViewBindingRegistry();
         }
 
@@ -85,7 +88,7 @@ namespace MxFramework.UI.FairyGui
                     return FailAndRelease(scope, MxUiOpenErrorCode.ViewCreateFailed, failure);
                 }
 
-                var view = new MxFairyGuiView<TArgs>(contract.Descriptor, component, scope, _host, _layerHost);
+                var view = new MxFairyGuiView<TArgs>(contract.Descriptor, component, scope, _host, _layerHost, _inputBridge);
                 view.Bind(args);
                 view.Show();
                 _openViews.Add(id, view);
