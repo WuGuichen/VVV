@@ -84,19 +84,24 @@ Forbidden dependencies:
   required resources and ViewModel type pass validation.
 - `Show`, `Hide` and `Dispose` must be idempotent.
 - `Close` owns component disposal, package scope release and adapter package ref
-  release.
+  release for normal views.
+- FairyGUI M6 (#523) defines `KeepAlive` as hide-and-cache on close, with reopen
+  rebinding the same component without reloading package bytes.
+- FairyGUI M6 (#523) defines `CloseOnSceneChange` as disposal for matching open
+  and cached views, including keep-alive views.
 - Views must not retain resource handles outside their package load scope.
-- `KeepAlive`, `CloseOnSceneChange` and modal ownership are declared in
-  `MxUiViewDescriptor`, but broad behavior remains a follow-up hardening item.
+- Modal ownership is tracked by the FairyGUI layer host; input blocking,
+  focus and cancel/back behavior remain #524 scope.
 
 ### Layers and Windows
 
-- `MxUiLayer` is the cross-adapter ordering vocabulary.
+- `MxUiLayer` is the cross-adapter ordering vocabulary. FairyGUI M6 (#523)
+  implements explicit adapter-owned layer roots for the productized layers.
 - `Hud` is for always-on gameplay HUDs, `Panel` for normal full panels,
   `Popup` for transient non-blocking surfaces, `Modal` for blocking decisions,
   `Toast` for short feedback and `Debug` for development overlays.
-- FairyGUI must implement layer roots explicitly before broad migration; do not
-  rely on incidental child order under `GRoot`.
+- FairyGUI views must be attached under those layer roots; do not rely on
+  incidental child order under `GRoot`.
 
 ### Commands
 
