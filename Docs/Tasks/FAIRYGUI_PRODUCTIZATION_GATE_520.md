@@ -32,6 +32,10 @@ global UI manager.
 - The generated `RuntimeAbilitySliceFairyGuiHudManifest` feeds both
   `MxUiViewContract` and `MxFairyGuiPackageDescriptor`, removing hand-coded
   string drift from the demo composition.
+- FairyGUI M9 (#526) makes that generated manifest reproducible from
+  framework-owned source XML and spec metadata, with a noEngine stale-output
+  gate that reports `GeneratedDescriptorMismatch` when checked-in generated
+  code drifts.
 - The M4 manifest validator catches invalid schema, missing package source,
   missing package bytes, invalid package bytes header, catalog misses, missing
   exported components, missing component source, missing or renamed controls,
@@ -120,6 +124,9 @@ Forbidden dependencies:
   `*_fui.bytes` files are editor outputs and must be generated through
   FairyGUI Editor or the project helper plugin.
 - Validators must run before accepting package/component/control changes.
+- `Assets/Scripts/MxFramework/**/FairyGUI/Generated/**/*.g.cs` files are
+  generator-owned. Manual binders, ids, composition code, `FGUIProject/**` and
+  `Assets/Bundles/FGUI/**` must not be overwritten by the generator.
 
 ### Input and Focus
 
@@ -195,6 +202,7 @@ local gates for future changes:
 
 ```bash
 dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj
+dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj -- --check-generated
 dotnet build MxFramework.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
 dotnet build MxFramework.UI.FairyGUI.Manifest.csproj /nr:false -m:1 -v:minimal
 dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
