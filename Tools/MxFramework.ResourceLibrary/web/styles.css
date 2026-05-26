@@ -640,6 +640,29 @@ code {
   border-color: rgba(255, 255, 255, 0.05);
 }
 
+.selection-toolbar {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(7, 13, 24, 0.5);
+}
+
+.selection-toolbar button {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+
+.selection-toolbar span {
+  min-width: 0;
+  color: var(--muted-2);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
 /* Resource List */
 .resource-list {
   flex: 1;
@@ -654,9 +677,9 @@ code {
 .resource-row {
   width: 100%;
   min-height: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   text-align: left;
   border-radius: var(--radius);
@@ -694,6 +717,78 @@ code {
 
 .resource-row.active::before {
   width: 4px;
+}
+
+.resource-row.checked {
+  border-color: rgba(47, 194, 189, 0.35);
+}
+
+.resource-check {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 12px 0 0 10px;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 1;
+}
+
+.resource-check input {
+  appearance: none;
+  min-height: 16px;
+  width: 16px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: rgba(7, 13, 24, 0.8);
+  cursor: pointer;
+  position: relative;
+}
+
+.resource-check input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.resource-check input:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid var(--panel-dark);
+  border-bottom: 2px solid var(--panel-dark);
+  transform: rotate(-45deg);
+}
+
+.resource-row-main {
+  min-height: auto;
+  padding: 12px 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.resource-row-main:hover:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.resource-row-main:active:not(:disabled) {
+  transform: none;
 }
 
 .resource-row-head {
@@ -980,6 +1075,13 @@ code {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+.profile-state-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .profile-hint {

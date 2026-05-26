@@ -80,6 +80,26 @@
                   <span>runtime availability</span>
                   <select id="runtimeFilter"></select>
                 </label>
+                <label class="filter-field" for="profileMembershipFilter">
+                  <span>Build Profile</span>
+                  <select id="profileMembershipFilter">
+                    <option value="all">全部 Profile 状态</option>
+                    <option value="notInProfile">notInProfile</option>
+                    <option value="inProfile">saved 或 draft 中</option>
+                    <option value="saved">saved</option>
+                    <option value="draftOnly">draftOnly</option>
+                    <option value="removedInDraft">removedInDraft</option>
+                    <option value="modifiedInDraft">modifiedInDraft</option>
+                  </select>
+                </label>
+                <label class="filter-field" for="runtimeReadyFilter">
+                  <span>runtime-ready</span>
+                  <select id="runtimeReadyFilter">
+                    <option value="all">全部 Runtime 候选</option>
+                    <option value="runtimeReady">runtime-ready candidates</option>
+                    <option value="notRuntimeReady">not runtime-ready</option>
+                  </select>
+                </label>
                 <label class="filter-field" for="tagFilter">
                   <span>tag</span>
                   <select id="tagFilter"></select>
@@ -98,6 +118,11 @@
           </details>
         </div>
 
+        <div class="selection-toolbar" aria-label="资源多选操作">
+          <button id="selectVisibleButton" class="secondary" type="button">选择可见</button>
+          <button id="clearCheckedButton" class="secondary" type="button">清除勾选</button>
+          <span id="checkedSummary">已勾选 0 个资源</span>
+        </div>
         <div id="resourceList" class="resource-list" role="listbox" aria-label="资源列表"></div>
       </aside>
 
@@ -171,6 +196,8 @@
           <button id="replaceSourceButton" type="button" title="替换当前资源的源文件并保留资源身份">替换源</button>
           <button id="addToBuildProfileButton" type="button" title="加入 Global Resource Build Profile">加入构建 Profile</button>
           <button id="removeFromBuildProfileButton" type="button" title="从 Global Resource Build Profile 移除">移出构建 Profile</button>
+          <button id="batchAddToBuildProfileButton" type="button" title="批量加入已勾选资源到 Global Resource Build Profile">批量加入</button>
+          <button id="batchRemoveFromBuildProfileButton" type="button" title="批量移出已勾选资源">批量移出</button>
           <button id="saveBuildProfileButton" type="button" title="保存 Global Resource Build Profile">保存 Profile</button>
           <button id="deleteResourceButton" type="button" disabled title="等待 reference graph delete guard">删除资源</button>
           <button id="editTagsButton" type="button" disabled title="等待 tag update API gate">编辑标签</button>
