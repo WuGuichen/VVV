@@ -162,11 +162,16 @@ Forbidden dependencies:
 
 ### Coexistence
 
+- FairyGUI M12 (#529) freezes the coexistence policy in
+  `Docs/Tasks/FAIRYGUI_UITOOLKIT_COEXISTENCE_529.md`.
 - UI Toolkit Debug UI remains the default diagnostics surface.
-- UI Toolkit runtime showcase surfaces remain valid validation tools until a
-  FairyGUI issue explicitly replaces them.
+- UI Toolkit editor, showcase and validation surfaces remain valid by design
+  until a FairyGUI issue explicitly replaces a named player-facing surface.
 - Existing OnGUI fallback surfaces may remain as temporary diagnostics, but new
   formal runtime UI should target FairyGUI after the hardening issues are done.
+- Runtime scenes must not stack FairyGUI and UI Toolkit as two default player
+  HUDs. If both exist, one path is player-facing and the other is diagnostics or
+  opt-in validation.
 
 ## Migration Criteria
 
@@ -190,8 +195,9 @@ Initial candidate order:
 3. Story presentation UI, after focus/modal/localization hooks exist. #528
    defines the Story ViewModel, command, modal/focus and localization readiness
    gates before implementation.
-4. Debug surfaces only if the goal is player-facing diagnostics; otherwise keep
-   UI Toolkit Debug UI.
+4. Debug surfaces stay UI Toolkit unless a future issue explicitly targets
+   player-facing diagnostics. #529 keeps editor/debug/showcase surfaces out of
+   broad FairyGUI migration.
 
 ## Follow-Up Issues
 
@@ -205,7 +211,7 @@ The productization decision is accepted only with these follow-up issues tracked
 | P1 | #526 FairyGUI M9: generator pipeline and stale output gate | Generate manifests/contracts/binder skeletons from source packages and fail on stale checked-in output. |
 | P1 | #527 FairyGUI M10: Runtime HUD production shell | Promote the current MxRuntimeHud slice from demo proof to reusable HUD shell with smoke validation. |
 | P2 | #528 FairyGUI M11: Story UI migration readiness | Define Story dialog/choice/presentation requirements after modal/focus/localization exist; implementation must be a separate issue. |
-| P2 | #529 FairyGUI M12: UI Toolkit coexistence cleanup | Document which showcase/debug surfaces stay UI Toolkit and which receive FairyGUI replacements. |
+| P2 | #529 FairyGUI M12: UI Toolkit coexistence cleanup | Document which showcase/debug/editor surfaces stay UI Toolkit and require explicit replacement issues for migration candidates. |
 
 ## Validation
 

@@ -4,6 +4,12 @@
 
 本文定义 `MxFramework.UI.Toolkit` 的通用运行时 UI Toolkit 控件契约。该模块可以引用 Unity UI Toolkit，但不得引用 Gameplay、Combat 或具体游戏业务类型。
 
+FairyGUI productization 后，UI Toolkit 的定位是 Debug UI、Editor 工具、
+现有 showcase、runtime validation HUD 和轻量 diagnostics surface。正式
+player-facing runtime UI 优先使用 FairyGUI；迁移某个 UI Toolkit surface
+必须先有明确 issue、命名目标 surface 和验证门槛，不能因为 FairyGUI 已接入
+就默认替换。
+
 ## 模块边界
 
 - 代码入口：`Assets/Scripts/MxFramework/UI.Toolkit/Runtime/`
