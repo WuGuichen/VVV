@@ -535,7 +535,11 @@ dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
   `MxFairyGuiLocalizedTextBinding` 声明 text control 到 key 的映射。UI /
   FairyGUI 不直接依赖 `MxFramework.Config`，真实语言库只能在 composition
   root 适配成 `IMxUiTextProvider` 后注入。
-- 复杂 transition UX、Story UI 和 Debug UI 迁移还属于后续 product hardening，迁移 Story 或复杂 runtime panels 前必须先补齐对应 issue。
+- Story UI 迁移需先满足
+  `Docs/Tasks/FAIRYGUI_STORY_UI_MIGRATION_READINESS_528.md`：Story runtime
+  不依赖 FairyGUI，dialog / choice / continue 通过 ViewModel 和
+  `MxUiCommand` 表达，modal/focus/localization 有明确验证路径。
+- 复杂 transition UX 和 Debug UI 迁移还属于后续 product hardening，迁移复杂 runtime panels 前必须先补齐对应 issue。
 
 ### 6.5 Combat Physics Playground
 
@@ -1024,6 +1028,9 @@ Demo 代码入口：
 边界：
 
 - Story state authority stays in `StoryDirector` / `StoryRuntimeModule`。
+- FairyGUI Story UI 只能作为后续 presentation adapter 接入；迁移前必须
+  满足 `Docs/Tasks/FAIRYGUI_STORY_UI_MIGRATION_READINESS_528.md`，并保留
+  当前 UI Toolkit vertical slice 作为 diagnostics/fallback surface。
 - Gameplay effect uses `StoryGameplayEffectBridge` -> Gameplay `RuntimeCommandBuffer`; no direct buff grant/remove。
 - Runtime AI Planner projection is one-way Story -> Runtime AI Planner and never writes Story blackboard。
 - Scene / PanelSettings are generated through Unity Editor tooling; `.unity` and `.asset` YAML are not hand-authored。
