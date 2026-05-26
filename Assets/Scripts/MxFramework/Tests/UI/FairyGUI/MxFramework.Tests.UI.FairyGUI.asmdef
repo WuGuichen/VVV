@@ -7,6 +7,8 @@
         "MxFramework.Resources",
         "MxFramework.UI",
         "MxFramework.UI.FairyGUI",
+        "MxFramework.Demo",
+        "MxFramework.Demo.FairyGUI",
         "FairyGUI"
     ],
     "includePlatforms": [
