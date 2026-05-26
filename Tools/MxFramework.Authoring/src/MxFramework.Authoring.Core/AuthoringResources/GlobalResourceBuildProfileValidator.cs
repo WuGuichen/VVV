@@ -43,6 +43,10 @@ namespace MxFramework.Authoring
         public const string BundleRuleEmpty = "globalResource.profile.bundleRuleEmpty";
         public const string PreloadGroupEmpty = "globalResource.profile.preloadGroupEmpty";
         public const string RequiredDomainPlanKeyMissing = "globalResource.profile.requiredDomainPlanKeyMissing";
+        public const string UnknownDeliveryMode = "globalResource.profile.unknownDeliveryMode";
+        public const string UnknownBundleOverrideMode = "globalResource.profile.unknownBundleOverrideMode";
+        public const string BundleOverrideValueRequired = "globalResource.profile.bundleOverrideValueRequired";
+        public const string ExternalEntryBundleRuleIgnored = "globalResource.profile.externalEntryBundleRuleIgnored";
     }
 
     public static class GlobalResourceBuildProfileValidator
@@ -52,6 +56,21 @@ namespace MxFramework.Authoring
             "lz4",
             "uncompressed",
             "lzma"
+        };
+        private static readonly HashSet<string> SupportedDeliveryModes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            GlobalResourceBuildProfileDeliveryModes.Internal,
+            GlobalResourceBuildProfileDeliveryModes.External,
+            GlobalResourceBuildProfileDeliveryModes.EditorOnly,
+            GlobalResourceBuildProfileDeliveryModes.Excluded
+        };
+        private static readonly HashSet<string> SupportedBundleOverrideModes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            GlobalResourceBuildProfileBundleOverrideModes.None,
+            GlobalResourceBuildProfileBundleOverrideModes.ForceBundle,
+            GlobalResourceBuildProfileBundleOverrideModes.ForceStandalone,
+            GlobalResourceBuildProfileBundleOverrideModes.ForceExternal,
+            GlobalResourceBuildProfileBundleOverrideModes.Exclude
         };
 
         public static GlobalResourceBuildProfileValidationReport Validate(GlobalResourceBuildProfile profile)
@@ -81,15 +100,50 @@ namespace MxFramework.Authoring
                 if (entry == null)
                     continue;
 
-                bool runtimeLoadable = entry.RuntimeLoadable && !entry.EditorOnly;
+                string deliveryMode = EffectiveDeliveryMode(entry);
+                string overrideMode = EffectiveBundleOverrideMode(entry);
+                if (!SupportedDeliveryModes.Contains(deliveryMode))
+                {
+                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.UnknownDeliveryMode, "Unknown deliveryMode value '" + entry.DeliveryMode + "'.", sourcePath + ".deliveryMode", displayKey);
+                }
+
+                if (!SupportedBundleOverrideModes.Contains(overrideMode))
+                {
+                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.UnknownBundleOverrideMode, "Unknown bundleOverrideMode value '" + entry.BundleOverrideMode + "'.", sourcePath + ".bundleOverrideMode", displayKey);
+                }
+
+                if (string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceBundle, StringComparison.Ordinal) && string.IsNullOrWhiteSpace(entry.BundleOverrideValue))
+                {
+                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.BundleOverrideValueRequired, "forceBundle override requires bundleOverrideValue.", sourcePath + ".bundleOverrideValue", displayKey);
+                }
+
+                bool externalOrExcluded =
+                    string.Equals(deliveryMode, GlobalResourceBuildProfileDeliveryModes.External, StringComparison.Ordinal) ||
+                    string.Equals(deliveryMode, GlobalResourceBuildProfileDeliveryModes.Excluded, StringComparison.Ordinal) ||
+                    string.Equals(deliveryMode, GlobalResourceBuildProfileDeliveryModes.EditorOnly, StringComparison.Ordinal) ||
+                    string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceExternal, StringComparison.Ordinal) ||
+                    string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.Exclude, StringComparison.Ordinal);
+                bool forcedInternal =
+                    string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceBundle, StringComparison.Ordinal) ||
+                    string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceStandalone, StringComparison.Ordinal);
+                if (externalOrExcluded && !forcedInternal && !string.IsNullOrWhiteSpace(entry.BundleRule))
+                {
+                    Add(report, IssueSeverity.Warning, GlobalResourceBuildProfileValidationCodes.ExternalEntryBundleRuleIgnored, "Bundle rule is ignored for external, editor-only or excluded entries.", sourcePath + ".bundleRule", displayKey);
+                }
+
+                bool runtimeLoadable = IsRuntimeLoadable(entry);
                 if (runtimeLoadable && entry.Source != null && string.Equals(entry.Source.ProviderId, AuthoringResourceProviderIds.UnityAssetDatabase, StringComparison.Ordinal) && string.IsNullOrWhiteSpace(entry.Source.UnityGuid))
                 {
                     Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.RuntimeUnityGuidRequired, "Runtime-loadable Unity AssetDatabase entry requires unityGuid.", sourcePath + ".source.unityGuid", displayKey);
                 }
 
-                if (runtimeLoadable && string.IsNullOrWhiteSpace(entry.BundleRule))
+                if (runtimeLoadable &&
+                    string.IsNullOrWhiteSpace(entry.BundleRule) &&
+                    string.IsNullOrWhiteSpace(entry.BundleGroupHint) &&
+                    string.IsNullOrWhiteSpace(entry.BundleOverrideValue) &&
+                    !string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceStandalone, StringComparison.Ordinal))
                 {
-                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.RuntimeBundleRuleRequired, "Runtime-loadable entry requires bundleRule.", sourcePath + ".bundleRule", displayKey);
+                    Add(report, IssueSeverity.Error, GlobalResourceBuildProfileValidationCodes.RuntimeBundleRuleRequired, "Runtime-loadable entry requires bundleRule, bundleGroupHint, bundleOverrideValue or forceStandalone.", sourcePath + ".bundleRule", displayKey);
                 }
             }
 
@@ -226,6 +280,40 @@ namespace MxFramework.Authoring
                 return key.PackageId;
 
             return defaultPackageId ?? string.Empty;
+        }
+
+        private static string EffectiveDeliveryMode(GlobalResourceBuildProfileEntry entry)
+        {
+            if (entry == null)
+                return GlobalResourceBuildProfileDeliveryModes.Excluded;
+            if (entry.EditorOnly)
+                return GlobalResourceBuildProfileDeliveryModes.EditorOnly;
+            if (!entry.RuntimeLoadable)
+                return GlobalResourceBuildProfileDeliveryModes.Excluded;
+            if (!string.IsNullOrWhiteSpace(entry.DeliveryMode))
+                return entry.DeliveryMode;
+
+            return GlobalResourceBuildProfileDeliveryModes.Internal;
+        }
+
+        private static string EffectiveBundleOverrideMode(GlobalResourceBuildProfileEntry entry)
+        {
+            if (entry == null || string.IsNullOrWhiteSpace(entry.BundleOverrideMode))
+                return GlobalResourceBuildProfileBundleOverrideModes.None;
+
+            return entry.BundleOverrideMode;
+        }
+
+        private static bool IsRuntimeLoadable(GlobalResourceBuildProfileEntry entry)
+        {
+            if (entry == null || !entry.RuntimeLoadable || entry.EditorOnly)
+                return false;
+
+            string deliveryMode = EffectiveDeliveryMode(entry);
+            string overrideMode = EffectiveBundleOverrideMode(entry);
+            return string.Equals(deliveryMode, GlobalResourceBuildProfileDeliveryModes.Internal, StringComparison.Ordinal) &&
+                !string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.ForceExternal, StringComparison.Ordinal) &&
+                !string.Equals(overrideMode, GlobalResourceBuildProfileBundleOverrideModes.Exclude, StringComparison.Ordinal);
         }
 
         private static bool HasValidKeyCharacters(string value)

@@ -21,6 +21,10 @@ namespace MxFramework.Authoring
         public GlobalResourceBuildProfileEntrySource Source { get; set; } = new GlobalResourceBuildProfileEntrySource();
         public List<string> Labels { get; set; } = new List<string>();
         public string BundleRule { get; set; } = string.Empty;
+        public string DeliveryMode { get; set; } = GlobalResourceBuildProfileDeliveryModes.Internal;
+        public string BundleOverrideMode { get; set; } = GlobalResourceBuildProfileBundleOverrideModes.None;
+        public string BundleOverrideValue { get; set; } = string.Empty;
+        public string BundleGroupHint { get; set; } = string.Empty;
         public List<string> PreloadGroups { get; set; } = new List<string>();
         public List<GlobalResourceBuildProfileResourceKey> Dependencies { get; set; } = new List<GlobalResourceBuildProfileResourceKey>();
         public Dictionary<string, string> ProviderData { get; set; } = new Dictionary<string, string>();
@@ -73,5 +77,22 @@ namespace MxFramework.Authoring
         public int MaxConcurrentLoads { get; set; } = 4;
         public bool AllowEmpty { get; set; }
         public Dictionary<string, string> ProviderData { get; set; } = new Dictionary<string, string>();
+    }
+
+    public static class GlobalResourceBuildProfileDeliveryModes
+    {
+        public const string Internal = "internal";
+        public const string External = "external";
+        public const string EditorOnly = "editorOnly";
+        public const string Excluded = "excluded";
+    }
+
+    public static class GlobalResourceBuildProfileBundleOverrideModes
+    {
+        public const string None = "none";
+        public const string ForceBundle = "forceBundle";
+        public const string ForceStandalone = "forceStandalone";
+        public const string ForceExternal = "forceExternal";
+        public const string Exclude = "exclude";
     }
 }
