@@ -29,6 +29,16 @@ namespace MxFramework.UI
                 issues.Add("View id is required.");
             }
 
+            if (string.IsNullOrWhiteSpace(Descriptor.PackageKey))
+            {
+                issues.Add("View package key is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(Descriptor.ComponentName))
+            {
+                issues.Add("View component name is required.");
+            }
+
             if (Commands != null)
             {
                 var commandIds = new HashSet<string>(StringComparer.Ordinal);
@@ -37,7 +47,7 @@ namespace MxFramework.UI
                     MxUiCommandDescriptor command = Commands[i];
                     if (command == null || !command.IsValid())
                     {
-                        issues.Add("Command at index " + i + " must have a non-empty id.");
+                        issues.Add("Command at index " + i + " must have a non-empty id and coherent flags.");
                         continue;
                     }
 

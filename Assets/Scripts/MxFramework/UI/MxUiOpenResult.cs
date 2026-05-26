@@ -28,6 +28,11 @@ namespace MxFramework.UI
 
         public static MxUiOpenResult Opened(IMxUiView view)
         {
+            if (view == null)
+            {
+                return Fail(MxUiOpenErrorCode.ViewCreateFailed, "UI view is required for a successful open result.");
+            }
+
             return new MxUiOpenResult(true, MxUiOpenErrorCode.None, string.Empty, view);
         }
 

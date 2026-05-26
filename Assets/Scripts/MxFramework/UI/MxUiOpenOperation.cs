@@ -64,8 +64,8 @@ namespace MxFramework.UI
                 return false;
             }
 
-            Result = result;
-            Status = result.Success ? MxUiOpenOperationStatus.Succeeded : MxUiOpenOperationStatus.Failed;
+            Result = NormalizeResult(result);
+            Status = Result.Success ? MxUiOpenOperationStatus.Succeeded : MxUiOpenOperationStatus.Failed;
             Action<MxUiOpenResult> completed = _completed;
             _completed = null;
             if (completed != null)
@@ -74,6 +74,21 @@ namespace MxFramework.UI
             }
 
             return true;
+        }
+
+        private static MxUiOpenResult NormalizeResult(MxUiOpenResult result)
+        {
+            if (result.Success)
+            {
+                return result;
+            }
+
+            if (result.ErrorCode != MxUiOpenErrorCode.None)
+            {
+                return result;
+            }
+
+            return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "UI open operation completed with an invalid failure result.");
         }
 
         public bool Cancel(string message = "")

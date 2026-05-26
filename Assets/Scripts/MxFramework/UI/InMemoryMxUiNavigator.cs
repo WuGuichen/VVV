@@ -22,6 +22,7 @@ namespace MxFramework.UI
             IMxUiView view;
             if (_openViews.TryGetValue(id, out view))
             {
+                BindView(view, args);
                 view.Show();
                 return MxUiOpenResult.Opened(view);
             }
@@ -36,6 +37,7 @@ namespace MxFramework.UI
                 return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "UI view factory returned null: " + id + ".");
             }
 
+            BindView(view, args);
             view.Show();
             _openViews[id] = view;
             return MxUiOpenResult.Opened(view);
@@ -62,6 +64,15 @@ namespace MxFramework.UI
         public bool IsOpen(MxUiViewId id)
         {
             return _openViews.ContainsKey(id);
+        }
+
+        private static void BindView<TArgs>(IMxUiView view, TArgs args)
+        {
+            var typedView = view as IMxUiView<TArgs>;
+            if (typedView != null)
+            {
+                typedView.Bind(args);
+            }
         }
     }
 }

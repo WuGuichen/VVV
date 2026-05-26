@@ -19,7 +19,7 @@ namespace MxFramework.UI
 
         public bool IsValid()
         {
-            return !string.IsNullOrWhiteSpace(CommandId);
+            return !string.IsNullOrWhiteSpace(CommandId) && !(IsReadOnly && RequiresConfirmation);
         }
     }
 }

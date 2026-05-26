@@ -29,6 +29,21 @@ namespace MxFramework.Tests.UI
         }
 
         [Test]
+        public void Open_RegisteredFactoryReturningNullReturnsCreateFailed()
+        {
+            var registry = new InMemoryMxUiViewRegistry();
+            var id = new MxUiViewId("broken.factory");
+            registry.Register(id, () => null);
+            var navigator = new InMemoryMxUiNavigator(registry);
+
+            MxUiOpenResult result = navigator.Open(id, args: string.Empty);
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("factory returned null", result.Message);
+        }
+
+        [Test]
         public void Open_RegisteredViewShowsSynchronously()
         {
             var registry = new InMemoryMxUiViewRegistry();
@@ -42,6 +57,39 @@ namespace MxFramework.Tests.UI
             Assert.IsNotNull(result.View);
             Assert.AreEqual(MxUiLifecycleState.Visible, result.View.Lifecycle.State);
             Assert.IsTrue(navigator.IsOpen(id));
+        }
+
+        [Test]
+        public void Open_BindsArgsWhenViewImplementsTypedContract()
+        {
+            var registry = new InMemoryMxUiViewRegistry();
+            var id = new MxUiViewId("popup.confirm");
+            var view = new BindingView(id);
+            registry.Register(id, () => view);
+            var navigator = new InMemoryMxUiNavigator(registry);
+
+            MxUiOpenResult result = navigator.Open(id, new OpenArgs("delete"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(1, view.BindCount);
+            Assert.AreEqual("delete", view.LastArgs.Action);
+        }
+
+        [Test]
+        public void Open_RebindsArgsForAlreadyOpenTypedView()
+        {
+            var registry = new InMemoryMxUiViewRegistry();
+            var id = new MxUiViewId("popup.confirm");
+            var view = new BindingView(id);
+            registry.Register(id, () => view);
+            var navigator = new InMemoryMxUiNavigator(registry);
+
+            navigator.Open(id, new OpenArgs("first"));
+            MxUiOpenResult result = navigator.Open(id, new OpenArgs("second"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(2, view.BindCount);
+            Assert.AreEqual("second", view.LastArgs.Action);
         }
 
         [Test]
@@ -71,6 +119,29 @@ namespace MxFramework.Tests.UI
             Assert.AreEqual(MxUiOpenOperationStatus.Failed, operation.Status);
             Assert.IsFalse(operation.Result.Success);
             Assert.AreEqual(MxUiOpenErrorCode.ViewNotFound, operation.Result.ErrorCode);
+        }
+
+        [Test]
+        public void Opened_NullViewReturnsCreateFailed()
+        {
+            MxUiOpenResult result = MxUiOpenResult.Opened(null);
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            Assert.IsNull(result.View);
+        }
+
+        [Test]
+        public void Complete_DefaultResultNormalizesFailureErrorCode()
+        {
+            var operation = new MxUiOpenOperation();
+
+            bool completed = operation.Complete(default);
+
+            Assert.IsTrue(completed);
+            Assert.AreEqual(MxUiOpenOperationStatus.Failed, operation.Status);
+            Assert.IsFalse(operation.Result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, operation.Result.ErrorCode);
         }
 
         [Test]
@@ -109,6 +180,29 @@ namespace MxFramework.Tests.UI
             StringAssert.Contains("View id", validation.Errors[0]);
             StringAssert.Contains("Duplicate command id", validation.Errors[1]);
             StringAssert.Contains("non-empty id", validation.Errors[2]);
+        }
+
+        [Test]
+        public void Contract_RejectsMissingPackageComponentAndInvalidCommandFlags()
+        {
+            var contract = new MxUiViewContract(new MxUiViewDescriptor(new MxUiViewId("broken.view"), "", "", MxUiLayer.Panel));
+            contract.Commands = new[]
+            {
+                new MxUiCommandDescriptor
+                {
+                    CommandId = "settings.preview",
+                    IsReadOnly = true,
+                    RequiresConfirmation = true
+                }
+            };
+
+            MxUiContractValidationResult validation = contract.Validate();
+
+            Assert.IsFalse(validation.Success);
+            Assert.AreEqual(3, validation.Errors.Count);
+            StringAssert.Contains("package key", validation.Errors[0]);
+            StringAssert.Contains("component name", validation.Errors[1]);
+            StringAssert.Contains("coherent flags", validation.Errors[2]);
         }
 
         [Test]
@@ -155,6 +249,51 @@ namespace MxFramework.Tests.UI
 
             public MxUiViewId Id { get; }
             public MxUiLifecycle Lifecycle { get; }
+
+            public void Show()
+            {
+                Lifecycle.Show();
+            }
+
+            public void Hide()
+            {
+                Lifecycle.Hide();
+            }
+
+            public void Dispose()
+            {
+                Lifecycle.Dispose();
+            }
+        }
+
+        private readonly struct OpenArgs
+        {
+            public OpenArgs(string action)
+            {
+                Action = action;
+            }
+
+            public string Action { get; }
+        }
+
+        private sealed class BindingView : IMxUiView<OpenArgs>
+        {
+            public BindingView(MxUiViewId id)
+            {
+                Id = id;
+                Lifecycle = new MxUiLifecycle();
+            }
+
+            public MxUiViewId Id { get; }
+            public MxUiLifecycle Lifecycle { get; }
+            public int BindCount { get; private set; }
+            public OpenArgs LastArgs { get; private set; }
+
+            public void Bind(OpenArgs model)
+            {
+                BindCount++;
+                LastArgs = model;
+            }
 
             public void Show()
             {

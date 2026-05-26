@@ -39,7 +39,7 @@ namespace MxFramework.UI
             }
 
             view = factory();
-            return view != null;
+            return true;
         }
     }
 }
