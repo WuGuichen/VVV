@@ -81,6 +81,15 @@ Desktop.ini
 
 # Project-local runtime/build outputs
 Bundles/
+!Assets/Bundles/
+!Assets/Bundles/FGUI/
+!Assets/Bundles/FGUI/MxFguiSmoke/
+!Assets/Bundles/FGUI/MxFguiSmoke/**
+!Assets/Bundles/FGUI/MxRuntimeHud/
+!Assets/Bundles/FGUI/MxRuntimeHud/**
+!Assets/Bundles/FGUI/MxStoryDialog/
+!Assets/Bundles/FGUI/MxStoryDialog/**
+FGUIProject/.objs/
 dist/
 out/
 *.log

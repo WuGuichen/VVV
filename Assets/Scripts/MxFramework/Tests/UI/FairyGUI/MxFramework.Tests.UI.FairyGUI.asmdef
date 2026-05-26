@@ -4,9 +4,14 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
+        "MxFramework.Runtime",
         "MxFramework.Resources",
+        "MxFramework.Input",
         "MxFramework.UI",
         "MxFramework.UI.FairyGUI",
+        "MxFramework.UI.FairyGUI.Manifest",
+        "MxFramework.Demo",
+        "MxFramework.Demo.FairyGUI",
         "FairyGUI"
     ],
     "includePlatforms": [

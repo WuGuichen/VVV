@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<packageDescription id="mxrhud0">
+  <resources>
+    <component id="rhud0" name="RuntimeHudPanel.xml" path="/" exported="true"/>
+    <component id="rhudb" name="RuntimeHudButton.xml" path="/Components/"/>
+  </resources>
+  <publish name=""/>
+</packageDescription>

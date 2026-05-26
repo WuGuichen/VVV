@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="640,360" opaque="false">
+  <displayList>
+    <graph id="n0_rhud" name="panelBg" xy="0,0" size="640,360" type="rect" fillColor="#cc111820" corner="12,12,12,12"/>
+    <graph id="n1_rhud" name="headerBg" xy="16,16" size="608,54" type="rect" fillColor="#ff1f3342" corner="8,8,8,8"/>
+    <text id="n2_rhud" name="title" xy="32,24" size="360,30" fontSize="24" color="#ffffff" align="left" vAlign="middle" autoSize="none" singleLine="true" text="Runtime HUD"/>
+    <text id="n3_rhud" name="mode" xy="432,25" size="176,28" fontSize="18" color="#88d8ff" align="right" vAlign="middle" autoSize="none" singleLine="true" text="Ability Slice"/>
+    <graph id="n4_rhud" name="playerBg" xy="24,92" size="280,112" type="rect" fillColor="#dd183326" corner="8,8,8,8"/>
+    <text id="n5_rhud" name="playerName" xy="40,106" size="248,26" fontSize="20" color="#ffffff" autoSize="none" singleLine="true" text="Player"/>
+    <graph id="n6_rhud" name="playerHpTrack" xy="40,146" size="248,22" type="rect" fillColor="#ff243a34" corner="6,6,6,6"/>
+    <graph id="n7_rhud" name="playerHpFill" xy="42,148" size="196,18" type="rect" fillColor="#ff43d17a" corner="5,5,5,5"/>
+    <text id="n8_rhud" name="playerHp" xy="40,174" size="248,22" fontSize="16" color="#c9f7d8" align="right" autoSize="none" singleLine="true" text="HP 100/100"/>
+    <graph id="n9_rhud" name="enemyBg" xy="336,92" size="280,112" type="rect" fillColor="#dd351d24" corner="8,8,8,8"/>
+    <text id="n10_rhud" name="enemyName" xy="352,106" size="248,26" fontSize="20" color="#ffffff" autoSize="none" singleLine="true" text="Enemy"/>
+    <graph id="n11_rhud" name="enemyHpTrack" xy="352,146" size="248,22" type="rect" fillColor="#ff462b32" corner="6,6,6,6"/>
+    <graph id="n12_rhud" name="enemyHpFill" xy="354,148" size="150,18" type="rect" fillColor="#ffff667a" corner="5,5,5,5"/>
+    <text id="n13_rhud" name="enemyHp" xy="352,174" size="248,22" fontSize="16" color="#ffd0d8" align="right" autoSize="none" singleLine="true" text="HP 75/100"/>
+    <graph id="n14_rhud" name="actionBg" xy="24,228" size="592,48" type="rect" fillColor="#dd202a36" corner="8,8,8,8"/>
+    <text id="n15_rhud" name="recentAction" xy="40,240" size="560,24" fontSize="17" color="#f5e9b8" autoSize="none" singleLine="true" text="Recent action: ready"/>
+    <component id="n16_rhud" name="btnStrike" src="rhudb" fileName="Components/RuntimeHudButton.xml" xy="352,296">
+      <Button title="Strike"/>
+    </component>
+    <component id="n17_rhud" name="btnReset" src="rhudb" fileName="Components/RuntimeHudButton.xml" xy="496,296">
+      <Button title="Reset"/>
+    </component>
+  </displayList>
+</component>

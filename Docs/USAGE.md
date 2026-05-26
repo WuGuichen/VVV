@@ -496,6 +496,59 @@ RuntimeVerticalSliceSceneConfig asset
 6. Diagnostic View 可在 `Summary` / `Technical` 间切换，分区显示 Entity、Ability Events、AttributeChanged Events、Config Source、last cast failure 和 config errors；无错误时显示 `No runtime errors`。
 7. Mini Game Feedback 会显示 Player / Enemy HP 状态徽章、Buff 层数和剩余时间、技能按钮可用反馈，以及最近动作摘要。
 
+### 6.4.1 FairyGUI Runtime UI Adapter
+
+FairyGUI 是正式 runtime game UI 的 preferred adapter；UI Toolkit 继续承担 Debug UI、Editor 工具、现有 showcase 和轻量验证 surface。这个结论来自 M3 `MxRuntimeHud` 竖切和 M4 manifest/resource validation，不表示所有 UI 已经迁移。
+
+当前可用边界：
+
+- `MxFramework.UI` 是 noEngine UI core，保存 `MxUiViewId`、`MxUiViewContract`、`MxUiViewDescriptor`、`MxUiLayer`、`IMxUiNavigator`、`MxUiOpenResult` 和 `MxUiCommand`。
+- `MxFramework.UI.FairyGUI` 是 Unity/FairyGUI adapter，负责 package bytes 加载、package ref-count、component 创建、typed ViewModel binder 和 button -> `MxUiCommand` 映射。
+- `MxFramework.UI.FairyGUI.Manifest` 是 noEngine validation sidecar，可读取 framework-owned FairyGUI source XML、package bytes 和 `ResourceCatalog`，检查 schema、component、controls、commands 和 resource drift。
+- `FGUIProject/assets/MxRuntimeHud` 是当前已验证的 Runtime Ability HUD FairyGUI source package；发布输出是 `Assets/Bundles/FGUI/MxRuntimeHud/MxRuntimeHud_fui.bytes`。
+- `FGUIProject/assets/MxStoryDialog` 是 Story dialog / choice FairyGUI source package；发布输出是 `Assets/Bundles/FGUI/MxStoryDialog/MxStoryDialog_fui.bytes`。
+- `RuntimeAbilitySliceFairyGuiHudShell` 是当前 Runtime Ability HUD 的 FairyGUI 组合壳：复用生成 manifest、`MxFairyGuiNavigator`、resource bridge 和 `RuntimeAbilitySliceUiCommandSink`，通过 `Open` / `Refresh` / `Close` 驱动 HUD。
+- `StoryRuntimeFairyGuiDialogShell` 是 Story vertical slice 的 opt-in FairyGUI dialog 组合壳：ViewModel 来自 `StoryRuntimeVerticalSliceSnapshot`，按钮发出 `MxUiCommand` 后映射到 `StoryRuntimeCommandFactory.CompletePresentation` / `SelectChoice`。
+- UI Toolkit `MxRuntimeHudController` 继续作为 Ability Showcase / diagnostics surface。FairyGUI Runtime HUD 是正式玩家 HUD 方向，本切片不替换 UI Toolkit 诊断面板。
+
+本地校验：
+
+```bash
+dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj
+dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj -- --check-generated
+dotnet build MxFramework.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
+dotnet build MxFramework.UI.FairyGUI.Manifest.csproj /nr:false -m:1 -v:minimal
+dotnet build MxFramework.Demo.FairyGUI.csproj /nr:false -m:1 -v:minimal
+dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
+```
+
+约定：
+
+- FairyGUI view 只消费 ViewModel 并发出 `MxUiCommand`；不得直接读写 Gameplay、Combat、Story 的权威状态或全局单例。
+- `*_fui.bytes` 是 FairyGUI Editor publish output，不手写。需要重新发布时打开 `FGUIProject/FGUIProject.fairy`，使用 `WGameFramework/Publish Runtime HUD Package`、`WGameFramework/Publish Story Dialog Package` 等 helper 菜单。
+- 新 FairyGUI package 必须有 manifest 或 generator output，且至少通过 package source XML、component XML、package bytes header、catalog entry、required controls 和 command button 校验。
+- Runtime HUD manifest 生成输出可用
+  `dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj -- --write-runtime-hud-manifest`
+  刷新；Story dialog manifest 生成输出可用
+  `dotnet run --project Tools/MxFramework.NoEngineTests/FairyGUI.Manifest.Tests/FairyGUI.Manifest.Tests.csproj -- --write-story-dialog-manifest`
+  刷新。默认 noEngine suite 和 `--check-generated` 会在生成输出 stale 时失败。
+- 生成器只拥有 `Assets/Scripts/MxFramework/**/FairyGUI/Generated/**/*.g.cs`。不要用它覆盖手写 binder / ids / composition，也不要覆盖 `FGUIProject/**` 或 `Assets/Bundles/FGUI/**`。
+- Runtime HUD Shell 可作为 opt-in FairyGUI path 接入 Ability Slice；默认手测和诊断仍保留 UI Toolkit Showcase，避免双 HUD 和诊断能力倒退。
+- FairyGUI / UI Toolkit 共存策略见
+  `Docs/Tasks/FAIRYGUI_UITOOLKIT_COEXISTENCE_529.md`。Debug UI、Editor
+  工具、现有 showcase 和 validation HUD 默认继续使用 UI Toolkit；只有明确
+  issue 指定的 player-facing surface 才进入 FairyGUI 迁移。
+- Localization key 现在通过 UI core 的 `MxUiTextKey` / `MxUiLocaleId` /
+  `IMxUiTextProvider` 表达，FairyGUI manifest 使用
+  `MxFairyGuiLocalizedTextBinding` 声明 text control 到 key 的映射。UI /
+  FairyGUI 不直接依赖 `MxFramework.Config`，真实语言库只能在 composition
+  root 适配成 `IMxUiTextProvider` 后注入。
+- Story dialog / choice 的第一条 FairyGUI path 由 #537 落地：Story runtime
+  不依赖 FairyGUI，dialog / choice / continue 通过 ViewModel 和
+  `MxUiCommand` 表达；当前最小切片支持单个可用 choice，完整 choice list、
+  复杂 transition 和真实本地化库仍属后续 product hardening。
+- 复杂 transition UX 和 Debug UI 迁移还属于后续 product hardening，迁移复杂 runtime panels 前必须先补齐对应 issue。
+
 ### 6.5 Combat Physics Playground
 
 Combat Physics 的当前手测入口复用 `CombatAnimationPhysicsTest` 场景，用于验证自研 `CombatPhysicsWorld`、Combat Motion、统一 query、hit resolve 和场景反馈是否能形成可玩闭环。
@@ -657,6 +710,9 @@ Runtime Showcase 通用约定：
 - 配置项统一放在 `RuntimeVerticalSliceConfigWindow`；子 Runner 不应要求制作人手动挂载或单独配置。
 - Preview Target 使用 `MxPreviewSceneTargetProfile` 资产配置，运行前场景中不常驻 `SceneTargetConfig` 或 `MxPreviewSceneTarget`。
 - 默认 HUD 是单一紧凑面板；Preview Target legacy overlay 默认关闭，避免多个 HUD 在 Game 视图中堆叠。
+- Ability Slice 可同时存在 FairyGUI player HUD 和 UI Toolkit diagnostics
+  HUD 的代码路径，但场景默认不得把两者都当作 player HUD 打开。需要双开
+  时必须明确一个是 opt-in diagnostics/showcase。
 - Snapshot v0 不包含 JSON 序列化、编辑器 UI、Runtime Preview 协议或项目业务类型。
 
 ### 6.11 UI Camera 3D Validation
@@ -983,6 +1039,9 @@ Demo 代码入口：
 边界：
 
 - Story state authority stays in `StoryDirector` / `StoryRuntimeModule`。
+- FairyGUI Story UI 只能作为后续 presentation adapter 接入；迁移前必须
+  满足 `Docs/Tasks/FAIRYGUI_STORY_UI_MIGRATION_READINESS_528.md`，并保留
+  当前 UI Toolkit vertical slice 作为 diagnostics/fallback surface。
 - Gameplay effect uses `StoryGameplayEffectBridge` -> Gameplay `RuntimeCommandBuffer`; no direct buff grant/remove。
 - Runtime AI Planner projection is one-way Story -> Runtime AI Planner and never writes Story blackboard。
 - Scene / PanelSettings are generated through Unity Editor tooling; `.unity` and `.asset` YAML are not hand-authored。

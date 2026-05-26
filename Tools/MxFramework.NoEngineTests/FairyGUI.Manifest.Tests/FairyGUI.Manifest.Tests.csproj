@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>MxFramework.NoEngineTests.FairyGUI.Manifest</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Assets/Scripts/MxFramework/Resources/ResourceKey.cs" Link="MxFramework/Resources/ResourceKey.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/Resources/ResourceCatalog.cs" Link="MxFramework/Resources/ResourceCatalog.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/Resources/ResourceTypeIds.cs" Link="MxFramework/Resources/ResourceTypeIds.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiCommandDescriptor.cs" Link="MxFramework/UI/MxUiCommandDescriptor.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiLayer.cs" Link="MxFramework/UI/MxUiLayer.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiLocalization.cs" Link="MxFramework/UI/MxUiLocalization.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewContract.cs" Link="MxFramework/UI/MxUiViewContract.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewDescriptor.cs" Link="MxFramework/UI/MxUiViewDescriptor.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewId.cs" Link="MxFramework/UI/MxUiViewId.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifest.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifest.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestGenerator.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestGenerator.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestValidator.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestValidator.cs" />
+  </ItemGroup>
+</Project>

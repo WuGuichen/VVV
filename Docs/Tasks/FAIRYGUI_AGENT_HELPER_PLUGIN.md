@@ -15,6 +15,10 @@ The helper narrows that editor dependency to explicit commands:
 
 - create or repair the `MxFguiSmoke` package source
 - publish the `MxFguiSmoke` package
+- create or repair the `MxRuntimeHud` package source
+- publish the `MxRuntimeHud` package
+- create or repair the `MxStoryDialog` package source
+- publish the `MxStoryDialog` package
 - refresh the open FairyGUI project
 
 Current checked-in smoke output:
@@ -33,6 +37,10 @@ Open `FGUIProject/FGUIProject.fairy` in FairyGUI Editor, then use:
 ```text
 WGameFramework/Create/Repair Smoke Package
 WGameFramework/Publish Smoke Package
+WGameFramework/Create/Repair Runtime HUD Package
+WGameFramework/Publish Runtime HUD Package
+WGameFramework/Create/Repair Story Dialog Package
+WGameFramework/Publish Story Dialog Package
 WGameFramework/Refresh Project
 ```
 
@@ -48,9 +56,29 @@ The FairyGUI Editor executable currently used on this machine is:
 ```
 
 Use it to open `FGUIProject/FGUIProject.fairy`, then run the GUI menu commands
-listed above. The previously documented `-script` command-line form is not a
-verified plugin entry on this editor build; it only opens the editor welcome
-flow here.
+listed above.
+
+## Batch Entry
+
+The FairyGUI Editor GUI menu is the expected publish path for runtime package
+bytes. Do not handwrite `Assets/Bundles/FGUI/MxRuntimeHud/*_fui.bytes`; publish
+the source package through `WGameFramework/Publish Runtime HUD Package`.
+
+Some FairyGUI Editor builds may support batch script entry points:
+
+```bash
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-smoke
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-smoke
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-runtime-hud
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-runtime-hud
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script create-story-dialog
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script publish-story-dialog
+FairyGUI-Editor -p FGUIProject/FGUIProject.fairy -script refresh
+```
+
+The `-script` command-line form is not a verified plugin entry on this local
+editor build; it only opens the editor welcome flow here. Treat the GUI menu as
+the verified workflow unless the specific editor build proves batch execution.
 
 Observed local behavior:
 
@@ -63,12 +91,21 @@ Observed local behavior:
 
 ## Boundaries
 
-The helper is intentionally limited to framework smoke assets:
+The helper is intentionally limited to framework-owned FairyGUI assets:
 
 - source package: `FGUIProject/assets/MxFguiSmoke`
 - component: `SmokePanel`
 - bindable child: `txtTitle`
-- publish output: `Assets/Bundles/FGUI/MxFguiSmoke`
+- source package: `FGUIProject/assets/MxRuntimeHud`
+- component: `RuntimeHudPanel`
+- bindable children: `title`, `mode`, `playerName`, `playerHp`, `enemyName`,
+  `enemyHp`, `recentAction`, `btnStrike`, `btnReset`
+- source package: `FGUIProject/assets/MxStoryDialog`
+- component: `StoryDialogPanel`
+- bindable children: `title`, `phase`, `dialogueText`, `choiceText`,
+  `signalText`, `eventLog`, `btnContinue`, `btnChoice`
+- publish output: `Assets/Bundles/FGUI/MxFguiSmoke`,
+  `Assets/Bundles/FGUI/MxRuntimeHud` and `Assets/Bundles/FGUI/MxStoryDialog`
 
 It must not create WGame business UI, generated C# UI bindings, global UI
-manager code, fonts, images, or Story/HUD migration code.
+manager code, fonts, images, or app-specific Story/HUD migration code.

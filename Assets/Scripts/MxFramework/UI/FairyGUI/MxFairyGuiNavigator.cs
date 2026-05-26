@@ -9,8 +9,12 @@ namespace MxFramework.UI.FairyGui
         private readonly MxFairyGuiPackageCatalog _packages;
         private readonly MxFairyGuiResourceBridge _resources;
         private readonly IMxFairyGuiHost _host;
+        private readonly IMxFairyGuiLayerHost _layerHost;
+        private readonly IMxFairyGuiInputContextBridge _inputBridge;
         private readonly MxFairyGuiViewBindingRegistry _bindings;
         private readonly System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView> _openViews =
+            new System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView>();
+        private readonly System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView> _cachedViews =
             new System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView>();
 
         public MxFairyGuiNavigator(
@@ -18,12 +22,16 @@ namespace MxFramework.UI.FairyGui
             MxFairyGuiPackageCatalog packages,
             MxFairyGuiResourceBridge resources,
             IMxFairyGuiHost host,
-            MxFairyGuiViewBindingRegistry bindings = null)
+            MxFairyGuiViewBindingRegistry bindings = null,
+            IMxFairyGuiLayerHost layerHost = null,
+            IMxFairyGuiInputContextBridge inputBridge = null)
         {
             _contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
             _packages = packages ?? throw new ArgumentNullException(nameof(packages));
             _resources = resources ?? throw new ArgumentNullException(nameof(resources));
             _host = host ?? throw new ArgumentNullException(nameof(host));
+            _layerHost = layerHost ?? new MxFairyGuiLayerHost();
+            _inputBridge = inputBridge ?? MxFairyGuiNullInputContextBridge.Instance;
             _bindings = bindings ?? new MxFairyGuiViewBindingRegistry();
         }
 
@@ -41,27 +49,20 @@ namespace MxFramework.UI.FairyGui
                 return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, failure);
 
             IMxUiView existing;
-            if (_openViews.TryGetValue(id, out existing))
+            if (_cachedViews.TryGetValue(id, out existing))
             {
-                var typedExisting = existing as MxFairyGuiView<TArgs>;
-                if (typedExisting == null)
-                    return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "FairyGUI open args do not match existing view model type for: " + id + ".");
-
-                try
+                MxUiOpenResult cachedResult = RebindExistingView(id, args, existing);
+                if (cachedResult.Success)
                 {
-                    if (!_bindings.TryBind(id, typedExisting.Component, args, out failure))
-                        return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, failure);
-
-                    typedExisting.Bind(args);
-                }
-                catch (Exception ex)
-                {
-                    return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "FairyGUI view binding failed: " + ex.Message);
+                    _cachedViews.Remove(id);
+                    _openViews.Add(id, existing);
                 }
 
-                existing.Show();
-                return MxUiOpenResult.Opened(existing);
+                return cachedResult;
             }
+
+            if (_openViews.TryGetValue(id, out existing))
+                return RebindExistingView(id, args, existing);
 
             MxFairyGuiPackageDescriptor package;
             if (!_packages.TryGet(contract.Descriptor.PackageKey, out package))
@@ -87,7 +88,7 @@ namespace MxFramework.UI.FairyGui
                     return FailAndRelease(scope, MxUiOpenErrorCode.ViewCreateFailed, failure);
                 }
 
-                var view = new MxFairyGuiView<TArgs>(id, component, scope, _host);
+                var view = new MxFairyGuiView<TArgs>(contract.Descriptor, component, scope, _host, _layerHost, _inputBridge);
                 view.Bind(args);
                 view.Show();
                 _openViews.Add(id, view);
@@ -112,6 +113,14 @@ namespace MxFramework.UI.FairyGui
                 return false;
 
             _openViews.Remove(id);
+            MxUiViewContract contract;
+            if (_contracts.TryGet(id, out contract) && contract.Descriptor.KeepAlive)
+            {
+                view.Hide();
+                _cachedViews[id] = view;
+                return true;
+            }
+
             view.Dispose();
             return true;
         }
@@ -119,6 +128,68 @@ namespace MxFramework.UI.FairyGui
         public bool IsOpen(MxUiViewId id)
         {
             return _openViews.ContainsKey(id);
+        }
+
+        public bool IsCached(MxUiViewId id)
+        {
+            return _cachedViews.ContainsKey(id);
+        }
+
+        public int CloseSceneViews()
+        {
+            int closed = 0;
+            closed += CloseSceneViews(_openViews);
+            closed += CloseSceneViews(_cachedViews);
+            return closed;
+        }
+
+        private MxUiOpenResult RebindExistingView<TArgs>(MxUiViewId id, TArgs args, IMxUiView existing)
+        {
+            var typedExisting = existing as MxFairyGuiView<TArgs>;
+            if (typedExisting == null)
+                return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "FairyGUI open args do not match existing view model type for: " + id + ".");
+
+            string failure;
+            try
+            {
+                if (!_bindings.TryBind(id, typedExisting.Component, args, out failure))
+                    return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, failure);
+
+                typedExisting.Bind(args);
+            }
+            catch (Exception ex)
+            {
+                return MxUiOpenResult.Fail(MxUiOpenErrorCode.ViewCreateFailed, "FairyGUI view binding failed: " + ex.Message);
+            }
+
+            existing.Show();
+            return MxUiOpenResult.Opened(existing);
+        }
+
+        private int CloseSceneViews(System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView> views)
+        {
+            if (views.Count == 0)
+                return 0;
+
+            var ids = new System.Collections.Generic.List<MxUiViewId>(views.Keys);
+            int closed = 0;
+            for (int i = 0; i < ids.Count; i++)
+            {
+                MxUiViewId id = ids[i];
+                MxUiViewContract contract;
+                if (!_contracts.TryGet(id, out contract) || !contract.Descriptor.CloseOnSceneChange)
+                    continue;
+
+                IMxUiView view;
+                if (!views.TryGetValue(id, out view))
+                    continue;
+
+                views.Remove(id);
+                view.Dispose();
+                closed++;
+            }
+
+            return closed;
         }
 
         private MxUiOpenResult FailAndRelease(MxFairyGuiPackageLoadScope scope, MxUiOpenErrorCode code, string message)
