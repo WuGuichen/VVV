@@ -530,6 +530,10 @@ dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
   刷新；默认 noEngine suite 和 `--check-generated` 会在生成输出 stale 时失败。
 - 生成器只拥有 `Assets/Scripts/MxFramework/**/FairyGUI/Generated/**/*.g.cs`。不要用它覆盖手写 binder / ids / composition，也不要覆盖 `FGUIProject/**` 或 `Assets/Bundles/FGUI/**`。
 - Runtime HUD Shell 可作为 opt-in FairyGUI path 接入 Ability Slice；默认手测和诊断仍保留 UI Toolkit Showcase，避免双 HUD 和诊断能力倒退。
+- FairyGUI / UI Toolkit 共存策略见
+  `Docs/Tasks/FAIRYGUI_UITOOLKIT_COEXISTENCE_529.md`。Debug UI、Editor
+  工具、现有 showcase 和 validation HUD 默认继续使用 UI Toolkit；只有明确
+  issue 指定的 player-facing surface 才进入 FairyGUI 迁移。
 - Localization key 现在通过 UI core 的 `MxUiTextKey` / `MxUiLocaleId` /
   `IMxUiTextProvider` 表达，FairyGUI manifest 使用
   `MxFairyGuiLocalizedTextBinding` 声明 text control 到 key 的映射。UI /
@@ -538,7 +542,8 @@ dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
 - Story UI 迁移需先满足
   `Docs/Tasks/FAIRYGUI_STORY_UI_MIGRATION_READINESS_528.md`：Story runtime
   不依赖 FairyGUI，dialog / choice / continue 通过 ViewModel 和
-  `MxUiCommand` 表达，modal/focus/localization 有明确验证路径。
+  `MxUiCommand` 表达，modal/focus/localization 有明确验证路径；具体实现由
+  #537 负责。
 - 复杂 transition UX 和 Debug UI 迁移还属于后续 product hardening，迁移复杂 runtime panels 前必须先补齐对应 issue。
 
 ### 6.5 Combat Physics Playground
@@ -702,6 +707,9 @@ Runtime Showcase 通用约定：
 - 配置项统一放在 `RuntimeVerticalSliceConfigWindow`；子 Runner 不应要求制作人手动挂载或单独配置。
 - Preview Target 使用 `MxPreviewSceneTargetProfile` 资产配置，运行前场景中不常驻 `SceneTargetConfig` 或 `MxPreviewSceneTarget`。
 - 默认 HUD 是单一紧凑面板；Preview Target legacy overlay 默认关闭，避免多个 HUD 在 Game 视图中堆叠。
+- Ability Slice 可同时存在 FairyGUI player HUD 和 UI Toolkit diagnostics
+  HUD 的代码路径，但场景默认不得把两者都当作 player HUD 打开。需要双开
+  时必须明确一个是 opt-in diagnostics/showcase。
 - Snapshot v0 不包含 JSON 序列化、编辑器 UI、Runtime Preview 协议或项目业务类型。
 
 ### 6.11 UI Camera 3D Validation
