@@ -125,7 +125,8 @@ const state = {
   writeState: { status: "idle", action: "", error: "" },
   selectedImportPreset: "modelPreview",
   errors: [],
-  lastActionMessage: ""
+  lastActionMessage: "",
+  buildProfileDirty: false
 };
 
 const el = {};
@@ -345,9 +346,11 @@ async function loadBuildProfile() {
   try {
     state.buildProfilePayload = await fetchJson(API.buildProfile);
     state.buildProfileDraft = structuredCloneCompat(pick(state.buildProfilePayload, "profile") || {});
+    state.buildProfileDirty = false;
   } catch (error) {
     state.buildProfilePayload = null;
     state.buildProfileDraft = null;
+    state.buildProfileDirty = false;
     state.errors.push(apiError("Global Build Profile", error));
   }
 }
@@ -465,6 +468,7 @@ async function addSelectedToBuildProfile() {
   if (findBuildProfileEntryForItem(item)) return;
   if (!Array.isArray(profile.entries)) profile.entries = [];
   profile.entries.push(buildProfileEntryFromItem(item));
+  markBuildProfileDirty();
   state.lastActionMessage = "已加入构建 Profile 草稿，保存后生效。";
   render();
 }
@@ -475,6 +479,7 @@ async function removeSelectedFromBuildProfile() {
   if (!item || !profile || !Array.isArray(profile.entries)) return;
   const before = profile.entries.length;
   profile.entries = profile.entries.filter(entry => !profileEntryMatchesItem(entry, item));
+  if (before !== profile.entries.length) markBuildProfileDirty();
   state.lastActionMessage = before === profile.entries.length ? "当前资源不在构建 Profile 中。" : "已从构建 Profile 草稿移除，保存后生效。";
   render();
 }
@@ -488,6 +493,7 @@ function updateSelectedBuildProfileField(field, value) {
   } else {
     entry[field] = value;
   }
+  markBuildProfileDirty();
   renderActions();
 }
 
@@ -501,6 +507,7 @@ async function saveBuildProfileDraft() {
     const payload = await postJson(API.saveBuildProfile, { profile });
     state.buildProfilePayload = payload;
     state.buildProfileDraft = structuredCloneCompat(pick(payload, "profile") || profile);
+    state.buildProfileDirty = false;
     await loadBundlePlan();
     state.writeState = { status: "idle", action: "", error: "" };
     state.lastActionMessage = "Global Resource Build Profile 已保存。";
@@ -510,6 +517,7 @@ async function saveBuildProfileDraft() {
     if (error.data) {
       state.buildProfilePayload = error.data;
       state.buildProfileDraft = structuredCloneCompat(pick(error.data, "profile") || profile);
+      state.buildProfileDirty = true;
     }
     state.errors.push(apiError("保存 Global Build Profile", error));
   }
@@ -1000,7 +1008,8 @@ function renderBuildProfile() {
     return;
   }
 
-  el.buildProfileSummary.textContent = `${entries.length} 个 profile entry，${bundles.length} 个 bundle，${diagnostics.length} 条构建诊断`;
+  const dirtySuffix = state.buildProfileDirty ? "，草稿未保存" : "";
+  el.buildProfileSummary.textContent = `${entries.length} 个 profile entry，${bundles.length} 个 bundle，${diagnostics.length} 条构建诊断${dirtySuffix}`;
   el.buildProfileContent.innerHTML = `
     <div class="summary-grid">
       ${metric("profile entries", entries.length)}
@@ -1015,7 +1024,7 @@ function renderBuildProfile() {
       </div>
       <div class="detail-card">
         <h3>Planner 输出</h3>
-        <p class="profile-hint">Planner 输出来自已保存 Profile；草稿保存后刷新。</p>
+        <p class="profile-hint">${state.buildProfileDirty ? "当前有未保存草稿；Planner 输出仍来自已保存 Profile。" : "Planner 输出来自已保存 Profile；草稿保存后刷新。"}</p>
         ${renderBundlePlanSummary(bundles)}
       </div>
     </div>
@@ -1426,6 +1435,10 @@ function ensureBuildProfileDraft() {
   return state.buildProfileDraft;
 }
 
+function markBuildProfileDirty() {
+  state.buildProfileDirty = true;
+}
+
 function getBuildProfileEntries() {
   return asArray(pick(getBuildProfile(), "entries"));
 }
@@ -1441,12 +1454,13 @@ function findBuildProfileEntryForItem(item) {
 function profileEntryMatchesItem(entry, item) {
   const key = pick(entry, "resourceKey") || {};
   const source = pick(entry, "source") || {};
-  const entryId = stringValue(pick(key, "id"));
-  const entryType = stringValue(pick(key, "type", "typeId"));
+  const entryCanonical = normalizeProfileResourceKey(key);
+  const itemCanonical = normalizeProfileResourceKey(buildProfileResourceKeyFromItem(item));
+  if (entryCanonical && itemCanonical) return entryCanonical === itemCanonical;
+
+  const sourceRuntimeKey = stringValue(pick(source, "runtimeResourceKey", "providerResourceKey", "packageResourceKey"));
   return Boolean(
-    (entryId && [item.resourceKey, item.runtimeResourceKey, item.providerResourceKey, item.packageResourceKey, item.stableId, item.libraryItemId, item.resourceId].includes(entryId))
-    || (entryId && item.resourceKey && item.resourceKey.endsWith(`:${entryId}:`))
-    || (entryId && entryType && item.resourceKey === formatProfileResourceKey(key))
+    (sourceRuntimeKey && [item.resourceKey, item.runtimeResourceKey, item.providerResourceKey, item.packageResourceKey].includes(sourceRuntimeKey))
     || (source.unityGuid && item.unityGuid && source.unityGuid === item.unityGuid)
     || (source.unityAssetPath && item.unityAssetPath && source.unityAssetPath === item.unityAssetPath)
   );
@@ -1468,17 +1482,26 @@ function findBundlePlanEntryForItem(item) {
 
 function buildProfileEntryFromItem(item) {
   const resourceKey = buildProfileResourceKeyFromItem(item);
+  const detail = getCurrentDetail(item);
+  const authoring = pick(detail, "authoring") || {};
+  const runtime = pick(detail, "runtime") || {};
+  const authoringBindings = asArray(pick(authoring, "providerBindings"));
+  const primaryBinding = getPrimaryProviderBinding(authoringBindings.length > 0 ? authoringBindings : item.providerBindings);
+  const providerData = pick(runtime, "providerData") || pick(primaryBinding, "providerData") || item.metadata || {};
+  const preloadGroups = getRuntimePreloadGroupsForItem(item);
   const domainLabel = item.kind ? `domain.${normalizeLabelSegment(item.kind)}` : "domain.resource";
-  const bundleHint = item.usage ? normalizeLabelSegment(item.usage) : item.kind ? normalizeLabelSegment(item.kind) : "misc";
+  const bundleHint = preloadGroups.length > 0
+    ? normalizeLabelSegment(preloadGroups[0])
+    : item.usage ? normalizeLabelSegment(item.usage) : item.kind ? normalizeLabelSegment(item.kind) : "misc";
   return {
     resourceKey,
     source: {
       providerId: item.providerId || "unknown",
       unityAssetPath: item.unityAssetPath || "",
       unityGuid: item.unityGuid || "",
-      runtimeResourceKey: item.runtimeResourceKey || item.resourceKey || "",
-      externalSourcePath: item.sourcePath || "",
-      providerData: {}
+      runtimeResourceKey: stringValue(pick(runtime, "runtimeResourceKey", "resourceKey")) || item.runtimeResourceKey || item.resourceKey || "",
+      externalSourcePath: stringValue(pick(authoring, "sourcePath")) || item.sourcePath || "",
+      providerData
     },
     labels: [domainLabel, `bundle.${bundleHint}`],
     bundleRule: bundleHint,
@@ -1486,29 +1509,55 @@ function buildProfileEntryFromItem(item) {
     bundleOverrideMode: "none",
     bundleOverrideValue: "",
     bundleGroupHint: bundleHint,
-    preloadGroups: [],
+    preloadGroups,
     dependencies: [],
     providerData: {},
-    runtimeLoadable: isRuntimeLoadable(item),
+    runtimeLoadable: isRuntimeLoadable(item) || isRuntimeRequired(item),
     editorOnly: String(item.runtimeAvailability || "").toLowerCase().includes("editor")
   };
 }
 
 function buildProfileResourceKeyFromItem(item) {
+  const detail = getCurrentDetail(item);
+  const runtime = pick(detail, "runtime") || {};
+  const planResource = getPrimaryRuntimePlanResource(item);
+  const providerData = pick(runtime, "providerData") || item.metadata || {};
   const parsed = parseProfileResourceKey(item.resourceKey || item.runtimeResourceKey || item.providerResourceKey || item.packageResourceKey || "");
+  const type = stringValue(pick(planResource, "typeId", "type")) || parsed.type || stringValue(pick(runtime, "assetType")) || item.kind || "Object";
   return {
-    id: parsed.id || item.stableId || item.libraryItemId || item.resourceId,
-    type: item.kind || parsed.type || "Object",
-    typeId: "",
-    variant: parsed.variant,
-    packageId: parsed.packageId
+    id: stringValue(pick(planResource, "resourceKey", "id")) || stringValue(pick(runtime, "resourceKey", "runtimeResourceKey", "providerResourceKey", "packageResourceKey")) || parsed.id || item.stableId || item.libraryItemId || item.resourceId,
+    type,
+    typeId: type,
+    variant: stringValue(pick(planResource, "variant")) || parsed.variant || stringValue(pick(providerData, "variant")),
+    packageId: stringValue(pick(planResource, "packageId")) || parsed.packageId || stringValue(pick(providerData, "packageId")) || getSelectedPackageLabel()
   };
 }
 
 function inferDeliveryModeForItem(item) {
+  if (isRuntimeRequired(item)) return "internal";
   if (!isRuntimeLoadable(item)) return "excluded";
   if (["runtimeCatalog", "fmod", "externalImportStaging"].includes(item.providerId)) return "external";
   return "internal";
+}
+
+function getRuntimePreloadGroupsForItem(item) {
+  return Array.from(new Set(asArray(pick(getCurrentDetail(item), "plans"))
+    .map(plan => stringValue(pick(plan, "groupName", "group", "preloadPolicy")))
+    .filter(Boolean)));
+}
+
+function getPrimaryRuntimePlanResource(item) {
+  for (const plan of asArray(pick(getCurrentDetail(item), "plans"))) {
+    const resource = pick(plan, "resource") || plan;
+    if (pick(resource, "resourceKey", "id")) return resource;
+  }
+  return {};
+}
+
+function isRuntimeRequired(item) {
+  const detail = getCurrentDetail(item);
+  if (asArray(pick(detail, "plans")).some(plan => pick(plan, "required") === true)) return true;
+  return asArray(pick(detail, "references")).some(reference => pick(reference, "isRequiredAtRuntime") === true);
 }
 
 function getBuildProfileStatus(item) {
@@ -2103,6 +2152,20 @@ function formatProfileResourceKey(key) {
   const id = stringValue(pick(key, "id"));
   const variant = stringValue(pick(key, "variant"));
   return `${packageId}:${type}:${id}:${variant}`;
+}
+
+function normalizeProfileResourceKey(key) {
+  if (!key) return "";
+  const parsed = typeof key === "string" ? parseProfileResourceKey(key) : key;
+  const id = stringValue(pick(parsed, "id")).trim();
+  const type = stringValue(pick(parsed, "type", "typeId")).trim();
+  if (!id || !type) return "";
+  return [
+    stringValue(pick(parsed, "packageId")).trim(),
+    type,
+    id,
+    stringValue(pick(parsed, "variant")).trim()
+  ].join(":");
 }
 
 function parseProfileResourceKey(value) {
