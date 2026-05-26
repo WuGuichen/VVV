@@ -81,6 +81,8 @@ assert(readme.includes("服务未就绪") && readme.includes("inspect API"), "RE
 assert(readme.includes("选择可见") && readme.includes("notInProfile") && readme.includes("removedInDraft") && readme.includes("Bundle Plan 是预览面"), "README should document multi-select, draft state labels, and preview-only Bundle Plan behavior");
 assert(!readme.includes("YooAsset 是默认路线") && !readme.includes("Addressables"), "README should not claim a new default resource backend");
 
+runBuildProfileBatchBehaviorSmoke();
+
 console.log("ResourceLibrary smoke ok");
 
 function assert(condition, message) {
@@ -88,4 +90,167 @@ function assert(condition, message) {
     console.error(message);
     process.exit(1);
   }
+}
+
+function runBuildProfileBatchBehaviorSmoke() {
+  const runtime = buildAppBatchRuntime();
+  const entries = [
+    {
+      resourceKey: "pkg:Texture:hero:",
+      deliveryMode: "internal",
+      bundleOverrideMode: "forceBundle",
+      bundleGroupHint: "characters",
+      bundleRule: "character",
+      labels: ["old.label"],
+      preloadGroups: ["old.preload"]
+    },
+    {
+      resourceKey: "pkg:Audio:theme:",
+      deliveryMode: "internal",
+      bundleOverrideMode: "none",
+      bundleGroupHint: "music",
+      bundleRule: "audio",
+      labels: ["audio.old"],
+      preloadGroups: ["music.old"]
+    }
+  ];
+
+  runtime.reset(entries, [
+    { key: "deliveryMode", value: "external", enabled: true },
+    { key: "bundleOverrideMode", value: "forceBundle", enabled: true },
+    { key: "bundleGroupHint", value: "   ", enabled: true },
+    { key: "bundleRule", value: "should-not-apply", enabled: true, disabled: true },
+    { key: "labels", value: "runtime, featured,  ", enabled: true },
+    { key: "preloadGroups", value: "warmup, hero", enabled: true }
+  ]);
+  runtime.applyBuildProfileBatchFields();
+
+  assert(runtime.state.lastActionMessage.includes("已应用 2") && runtime.state.lastActionMessage.includes("跳过 1"), "checked draft entries should be applied and missing entries skipped");
+  assert(runtime.state.buildProfileDirty === true, "real batch edits should mark the profile dirty");
+  assert(entries[0].deliveryMode === "external" && entries[1].deliveryMode === "external", "deliveryMode should update checked draft entries");
+  assert(entries[0].bundleOverrideMode === "forceBundle", "existing forceBundle should remain when batch override mode is not explicitly allowed");
+  assert(entries[0].bundleGroupHint === "characters", "blank bundleGroupHint should not overwrite existing values");
+  assert(entries[0].bundleRule === "character", "disabled bundleRule should not overwrite existing values");
+  assert(arrayEquals(entries[0].labels, ["runtime", "featured"]) && arrayEquals(entries[0].preloadGroups, ["warmup", "hero"]), "labels and preloadGroups should replace whole arrays from CSV");
+
+  runtime.reset(entries, [{ key: "bundleOverrideMode", value: "forceExternal", enabled: true }], ["hero"]);
+  runtime.applyBuildProfileBatchFields();
+
+  assert(runtime.state.buildProfileDirty === true && entries[0].bundleOverrideMode === "forceExternal", "allowed batch override mode should explicitly replace existing forceBundle");
+
+  runtime.reset(entries, [
+    { key: "deliveryMode", value: "external", enabled: true },
+    { key: "bundleOverrideMode", value: "forceExternal", enabled: true },
+    { key: "labels", value: "runtime, featured", enabled: true },
+    { key: "preloadGroups", value: "warmup, hero", enabled: true }
+  ], ["hero"]);
+  runtime.applyBuildProfileBatchFields();
+
+  assert(runtime.state.lastActionMessage.includes("已应用 1") && runtime.state.buildProfileDirty === false, "no-op batches should apply to draft entries without marking them dirty");
+
+  runtime.reset(entries, []);
+  runtime.applyBuildProfileBatchFields();
+  assert(runtime.state.lastActionMessage.includes("没有启用可应用"), "disabled or blank-only batches should not overwrite and should report no applicable fields");
+}
+
+function buildAppBatchRuntime() {
+  const snippets = [
+    "applyBuildProfileBatchFields",
+    "readBuildProfileBatchFields",
+    "isAllowedBuildProfileBatchOverrideMode",
+    "buildProfileBatchValuesEqual",
+    "cloneBuildProfileBatchValue",
+    "splitCsv",
+    "cssEscapeCompat"
+  ].map(extractFunctionBlock).join("\n\n");
+  const createRuntime = Function("sandbox", `
+    const state = sandbox.state;
+    const el = sandbox.el;
+    const window = {};
+    const getCheckedItems = sandbox.getCheckedItems;
+    const findDraftBuildProfileEntryForItem = sandbox.findDraftBuildProfileEntryForItem;
+    const markBuildProfileDirty = sandbox.markBuildProfileDirty;
+    const render = sandbox.render;
+    ${snippets}
+    return { applyBuildProfileBatchFields };
+  `);
+
+  const state = { buildProfileDirty: false, lastActionMessage: "" };
+  const checkedCatalog = {
+    hero: { resourceKey: "pkg:Texture:hero:" },
+    theme: { resourceKey: "pkg:Audio:theme:" },
+    missing: { resourceKey: "pkg:Prefab:missing:" }
+  };
+  const sandbox = {
+    state,
+    el: { buildProfileContent: createBatchForm([]) },
+    checkedItems: [checkedCatalog.hero, checkedCatalog.theme, checkedCatalog.missing],
+    entries: [],
+    getCheckedItems() {
+      return sandbox.checkedItems;
+    },
+    findDraftBuildProfileEntryForItem(item) {
+      return sandbox.entries.find(entry => entry.resourceKey === item.resourceKey) || null;
+    },
+    markBuildProfileDirty() {
+      state.buildProfileDirty = true;
+    },
+    render() {}
+  };
+  const runtime = createRuntime(sandbox);
+  return {
+    state,
+    applyBuildProfileBatchFields: runtime.applyBuildProfileBatchFields,
+    reset(entries, fields, checkedKeys = ["hero", "theme", "missing"]) {
+      state.buildProfileDirty = false;
+      state.lastActionMessage = "";
+      sandbox.entries = entries;
+      sandbox.checkedItems = checkedKeys.map(key => checkedCatalog[key]);
+      sandbox.el.buildProfileContent = createBatchForm(fields);
+    }
+  };
+}
+
+function createBatchForm(fields) {
+  const controls = fields.map(field => ({
+    dataset: { profileBatchField: field.key },
+    value: field.value,
+    disabled: Boolean(field.disabled)
+  }));
+  const toggles = new Map(fields.map(field => [field.key, { checked: Boolean(field.enabled) }]));
+  return {
+    querySelectorAll(selector) {
+      return selector === "[data-profile-batch-field]" ? controls : [];
+    },
+    querySelector(selector) {
+      const fieldMatch = selector.match(/data-profile-batch-enabled="([^"]+)"/);
+      if (fieldMatch) return toggles.get(fieldMatch[1]) || null;
+      return null;
+    }
+  };
+}
+
+function extractFunctionBlock(name) {
+  const signature = `function ${name}`;
+  const start = app.indexOf(signature);
+  assert(start >= 0, `missing app function ${name}`);
+  const bodyStart = app.indexOf("{", start);
+  assert(bodyStart >= 0, `missing app function body ${name}`);
+  let depth = 0;
+  for (let index = bodyStart; index < app.length; index++) {
+    const char = app[index];
+    if (char === "{") depth++;
+    if (char === "}") {
+      depth--;
+      if (depth === 0) return app.slice(start, index + 1);
+    }
+  }
+  assert(false, `unterminated app function ${name}`);
+}
+
+function arrayEquals(left, right) {
+  return Array.isArray(left)
+    && Array.isArray(right)
+    && left.length === right.length
+    && left.every((value, index) => value === right[index]);
 }
