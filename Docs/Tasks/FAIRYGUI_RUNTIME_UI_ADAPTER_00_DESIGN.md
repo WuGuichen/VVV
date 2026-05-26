@@ -493,7 +493,7 @@ This document only.
 
 ### M4: Code Generation And Resource Validation
 
-- Add generator for view ids, descriptors and binding skeletons.
+- Add generator for view ids, descriptors, generated binding files and binding manifests.
 - Register FairyGUI package resources in Resource Manager / Global Resource Build Profile.
 - Add validation for missing package bytes / atlas / stale package mapping.
 
@@ -681,7 +681,7 @@ For the first implementation issue after this design:
 - `MxFramework.UI` compiles without UnityEngine, UnityEditor, UI Toolkit or FairyGUI references.
 - `MxFramework.UI.FairyGUI` is optional and isolated.
 - Runtime / Gameplay / Combat / Story core modules do not reference FairyGUI.
-- A typed `MxUiViewDescriptor` can open one FairyGUI-backed view.
+- A typed `MxUiViewContract` can validate and open one FairyGUI-backed view through its `MxUiViewDescriptor`.
 - The view can bind a UI-neutral ViewModel and emit a typed command.
 - Resource loading goes through an injected resource bridge, not direct `Resources.Load`.
 - Open / close / dispose removes callbacks and releases package references predictably.
