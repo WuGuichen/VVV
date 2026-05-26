@@ -206,7 +206,7 @@ namespace MxFramework.Editor
             _diagnosticRows.Clear();
             _diagnosticRows.Add(CreateDiagnosticHeader());
             IReadOnlyList<GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue> issues =
-                _plan?.Report?.Issues ?? Array.Empty<GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue>();
+                _plan?.Report?.Issues ?? (IReadOnlyList<GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue>)Array.Empty<GlobalPlayerResourceBuildProfileBuilder.GlobalResourceBuildIssue>();
             if (issues.Count == 0)
             {
                 _diagnosticRows.Add(CreateEmptyRow("No diagnostics."));
