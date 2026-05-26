@@ -273,6 +273,10 @@
 | Catalog 校验 | ✅ v0.5 | `ResourceCatalogValidator` / `ResourceCatalogEditorValidator` | Resources + Editor |
 | Sample Catalog Builder | ✅ v0.6.5 | `SampleResourceCatalogBuilder` / `MxFramework/Samples/Generate Resource Catalog` | Editor + Resources |
 | Sample Player AssetBundle Catalog | ✅ v0.6.6 | `SamplePlayerResourceCatalogBuilder` / `MxFramework/Samples/Build Player Resource Catalog` | Editor + Resources.Unity |
+| Global Resource Build Profile | ✅ v0.7.0 | `global_resource_build_profile.json` / `GlobalResourceBuildProfileValidator` | Authoring.Core + Editor |
+| Resource Manager Build Profile 编辑 | ✅ v0.7.0 | 加入构建 Profile / 移出构建 Profile / 保存 Profile | Tools/MxFramework.ResourceLibrary |
+| Bundle Plan 预览 | ✅ v0.7.0 | `/api/authoring/resources/bundle-plan` / `GlobalResourceBundlePlanner` | Authoring.Cli + Authoring.Core |
+| Global Player Resource Catalog Build | ✅ v0.7.0 | `MxFramework/Resources/Validate Global Resource Build Profile` / `Build Global Player Resource Catalog` | Editor + Resources.Unity |
 | Runtime Demo Resource Binding | ✅ v0.6.7 | `RuntimeVerticalSliceRunner.ResourceWarmupSummary` / resource binding diagnostics | Demo + Resources |
 | Preload Group / Scene Warmup | ✅ v0.6.8 | `ResourcePreloadService` / `ResourcePreloadPlan.MaxConcurrentLoads` / progress + cancellation | Resources |
 | Story preload plan bridge | ✅ v0.1 | `StoryResourcePreloadPlanBuilder` produces `ResourcePreloadPlan` without loading | Story.ResourcesBridge + Resources |
@@ -281,10 +285,13 @@
 | Remote Bundle Provider | ✅ v0.6.3 | `RemoteBundleProvider` / `providerData.url` / SHA-256 cache validation | Resources.Unity |
 | Runtime Samples Resource Chain | ✅ v0.6.4 | `RuntimeVerticalSliceSampleResourceTest` / `TempImportedResourceCatalog` / `ResourceKeyConfigProfile.CreateSample()` | Demo + Resources |
 | Addressables Adapter | Deferred / Optional | 独立 `MxFramework.Resources.Addressables`，仅在项目已采用 Addressables 时实现 | 不进入默认依赖 |
+| YooAsset Adapter | 不做 | YooAsset 不是 MxFramework 默认资源路线，本仓库不提供 adapter | 项目层自行决策 |
 
 → 接口：`Interfaces/Resources.md`
 → 设计：`RESOURCE_MANAGEMENT_SYSTEM.md`
 → 测试：`Tests/Resources/`、`Tests/Config/ModPackageCatalogTests.cs`
+→ 当前全局资源构建已覆盖 Profile 加入/保存、Bundle Plan 预览、Unity 菜单校验和生成本地 Player catalog / preload groups / bundle dependencies / build report。
+→ **不含**: 通用 AssetBundle Builder 产品化工作台、增量/差分热更、CDN 发布、签名/加密、断点续传、YooAsset 接入或 Addressables 默认依赖。
 
 ---
 

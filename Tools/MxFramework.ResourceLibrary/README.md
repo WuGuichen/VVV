@@ -8,6 +8,34 @@
 
 导入、重导和替换资源已经通过 Authoring API gate 开放；删除和标签编辑仍等待 reference graph delete guard 后再开放。
 
+## Build Profile / Bundle Plan
+
+Resource Manager 已接入 Global Resource Build Profile 的第一段 authoring 流程：
+
+- “加入构建 Profile”：把当前选中资源加入 `GlobalResourceBuildProfile` 草稿。
+- “移出构建 Profile”：从草稿中移除当前资源。
+- “保存 Profile”：通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
+- Build Profile 面板：编辑 `delivery mode`、`override mode`、`override value`、`bundle group hint`、`bundle rule`、`preload groups` 和 `labels`。
+- Bundle Planner：预览内部 bundle、资源数量、依赖 bundle 和诊断。
+
+典型流程：
+
+1. 启动 Resource Manager。
+2. 选择左侧资源项，确认 Overview / Runtime / Diagnostics 没有阻断问题。
+3. 点击“加入构建 Profile”。
+4. 在 Build Profile 面板补充 bundle 和 preload 意图。
+5. 点击“保存 Profile”。
+6. 查看 Bundle Planner 摘要，确认预览结果符合预期。
+
+Bundle Planner 是预览面，不写 AssetBundle、不写 `StreamingAssets`。真正生成 Player 产物仍在 Unity 中执行：
+
+```text
+MxFramework/Resources/Validate Global Resource Build Profile
+MxFramework/Resources/Build Global Player Resource Catalog
+```
+
+当前已完成的是 Profile authoring、保存校验、Bundle Plan 预览和 Unity 菜单本地 Player 构建入口。未完成的是通用 AB Builder 工作台、批量/增量构建、远端热更 manifest、CDN 发布、签名、加密、断点续传和 YooAsset adapter。默认路线仍是 MxFramework Catalog + AssetBundleProvider / RemoteBundleProvider；YooAsset 不是默认路线，本仓库不做 adapter。
+
 ## 导入规则
 
 资源管理器的导入面板先选择“导入类型”，再选择单个文件或文件夹。文件夹导入会先走 external import staging 预检：
