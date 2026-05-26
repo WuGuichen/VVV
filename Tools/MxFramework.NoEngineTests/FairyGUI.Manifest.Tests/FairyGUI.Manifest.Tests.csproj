@@ -16,6 +16,7 @@
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewDescriptor.cs" Link="MxFramework/UI/MxUiViewDescriptor.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewId.cs" Link="MxFramework/UI/MxUiViewId.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifest.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifest.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestGenerator.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestGenerator.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestValidator.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestValidator.cs" />
   </ItemGroup>
 </Project>

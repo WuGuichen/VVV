@@ -708,6 +708,7 @@ namespace MxFramework.UI.FairyGui
         ControlKindMismatch = 33,
         ManifestSchemaVersionMissing = 34,
         ManifestSchemaVersionUnsupported = 35,
-        CommandControlNotButton = 36
+        CommandControlNotButton = 36,
+        GeneratedDescriptorMismatch = 37
     }
 }
