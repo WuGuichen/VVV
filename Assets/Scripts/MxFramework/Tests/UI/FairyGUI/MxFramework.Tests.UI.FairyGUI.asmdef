@@ -4,6 +4,7 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
+        "MxFramework.Runtime",
         "MxFramework.Resources",
         "MxFramework.Input",
         "MxFramework.UI",
