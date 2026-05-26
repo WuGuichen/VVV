@@ -1804,6 +1804,65 @@ Provider 选择建议：
 
 Addressables 不是默认依赖。只有项目已经安装并决定使用 Addressables 时，才应新增独立 `MxFramework.Resources.Addressables` 适配层；业务代码仍然只接触 `ResourceKey`、`ResourceHandle<T>` 和 `IResourceManager.Release`。
 
+YooAsset 也不是 MxFramework 默认资源路线。本仓库当前不做 YooAsset adapter；如果具体项目选择 YooAsset，应在项目层把 YooAsset 的定位收敛到 provider / build backend，而不是让框架业务代码直接依赖 YooAsset API。
+
+### 13.1 Authoring Resource Manager / Editor Hub
+
+外部资源管理器是全局 Authoring Resource Manager，不是角色包私有资源库。默认 Iron Vanguard 路径只作为包筛选 / 消费者上下文。
+
+从 Editor Hub 启动：
+
+```bash
+Tools/MxFramework.EditorHub/start-editor-hub.sh
+```
+
+默认打开 `http://127.0.0.1:4873/Tools/MxFramework.EditorHub/web/`，在 Hub 中进入“资源管理器”或“资源管理器 / 资源计划状态”。也可以直接启动资源管理器：
+
+```bash
+Tools/MxFramework.ResourceLibrary/start-resource-library.sh
+```
+
+常用流程：
+
+1. 打开 Resource Manager，确认 provider 状态、资源列表、运行时计划和诊断。
+2. 选择一个资源项，点击“加入构建 Profile”，把它加入 `Global Resource Build Profile` 草稿。
+3. 在右侧 Build Profile 面板编辑 `delivery mode`、`override mode`、`bundle group hint`、`bundle rule`、`preload groups` 和 `labels`。
+4. 点击“保存 Profile”。保存会通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
+5. 点击“查看构建 Profile”或查看 Build Profile 面板中的 Bundle Planner 摘要，预览内部 bundle、资源数量、依赖和诊断。
+
+Resource Manager 的 Bundle Plan 是预览和诊断面：它不会构建 AssetBundle，也不会写 `StreamingAssets` 产物。真正生成 Player 运行时 catalog / bundle / preload group 仍走 Unity Editor 菜单。
+
+### 13.2 Global Resource Build Profile
+
+全局 Build Profile 是正式 Player 资源输出的 authoring authority。推荐路径：
+
+```text
+Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json
+```
+
+Unity 菜单：
+
+```text
+MxFramework/Resources/Validate Global Resource Build Profile
+MxFramework/Resources/Build Global Player Resource Catalog
+```
+
+`Validate` 只读取并校验 Profile，输出 entries、bundles 和错误诊断。`Build` 会基于 Profile 生成本地 Player 资源产物：
+
+- `Assets/StreamingAssets/MxFramework/Resources/global_runtime_catalog.json`
+- `Assets/StreamingAssets/MxFramework/Resources/global_preload_groups.json`
+- `Assets/StreamingAssets/MxFramework/Resources/global_bundle_dependencies.json`
+- `Assets/StreamingAssets/MxFramework/Resources/Bundles/<BuildTarget>/...`
+- `Assets/Config/MxFramework/ResourceBuildReports/global_resource_build_report.json`
+
+运行时可用 `GlobalResourceRuntimeBootstrap.CreateFromStreamingAssets(...)` 读取 generated catalog、bundle dependencies 和 preload groups，并注册 `AssetBundleProvider`。更底层时，也可以继续手动组合 `StreamingResourceCatalogLoader`、`AssetBundleProvider` 和 `GeneratedResourcePreloadGroupLoader`。
+
+当前边界：
+
+- 已完成：Resource Manager 加入/移出 Build Profile、保存 Profile、Bundle Plan 预览、Unity 菜单校验和本地 Player AssetBundle/catalog/preload/dependency/report 生成。
+- 未完成：通用 AB Builder 工作台、批量构建队列、增量/差分热更、CDN 发布、签名/加密、断点续传和多版本远端 manifest。
+- 默认路线：Catalog + AssetBundleProvider + RemoteBundleProvider + Preload + diagnostics。Addressables 仅可选，YooAsset 不作为默认路线且本仓库不做 adapter。
+
 Demo / 测试场景中的 UI、材质、图标、prefab 等运行时资源不应再放入 `Assets/Resources`。Runtime HUD 默认 `PanelSettings`、`GameplayShowcase.uxml`、`GameplayShowcase.uss` 已迁到 `Assets/UI/MxFramework/Showcase`，由 Runner、场景 bootstrap 或测试显式注入；纯调试材质优先运行时生成，不放入 `Resources`。
 
 UI Toolkit 可玩 Demo 必须显式绑定正式 `PanelSettings`、Runtime Theme、UXML 和 USS。验收时不能只检查 visual tree 节点存在，还要在 Play Mode 读取关键 `Label` / `Button` 的 `text` 与 `resolvedStyle.color`，确认文本非空且 alpha > 0。若 Unity Runtime Theme / USS 在当前版本下不稳定，Demo controller 必须在初始化后对关键 `Label` / `Button` 设置 font、font size、color 和 alignment 作为兜底。
