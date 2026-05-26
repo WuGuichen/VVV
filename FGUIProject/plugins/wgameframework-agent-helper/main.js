@@ -141,17 +141,22 @@ function installMenu() {
     menu.AddItem("Refresh Project", MENU_REFRESH, () => runGuarded(() => FairyEditor.App.RefreshProject()));
 }
 
-installMenu();
-
-export function onDestroy() {
+function onDestroy() {
     const root = FairyEditor.App.menu;
     root.RemoveItem(PLUGIN_MENU);
 }
 
-export function onRunBatchModeScript(done, arg) {
+function onRunBatchModeScript(done, arg) {
     runBatchCommand(done, arg).catch(err => {
         const message = err && err.stack ? err.stack : String(err);
         console.error(`[WGameFramework] ${message}`);
         done();
     });
 }
+
+installMenu();
+
+module.exports = {
+    onDestroy,
+    onRunBatchModeScript
+};
