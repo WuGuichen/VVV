@@ -58,6 +58,7 @@ namespace MxFramework.UI.FairyGui
             Layer = MxUiLayer.Panel;
             RequiredResources = Array.Empty<ResourceKey>();
             NamedControls = Array.Empty<MxFairyGuiNamedControl>();
+            LocalizedTexts = Array.Empty<MxFairyGuiLocalizedTextBinding>();
             Commands = Array.Empty<MxFairyGuiCommandBinding>();
         }
 
@@ -69,6 +70,7 @@ namespace MxFramework.UI.FairyGui
         public MxUiLayer Layer { get; set; }
         public IReadOnlyList<ResourceKey> RequiredResources { get; set; }
         public IReadOnlyList<MxFairyGuiNamedControl> NamedControls { get; set; }
+        public IReadOnlyList<MxFairyGuiLocalizedTextBinding> LocalizedTexts { get; set; }
         public IReadOnlyList<MxFairyGuiCommandBinding> Commands { get; set; }
     }
 
@@ -115,6 +117,31 @@ namespace MxFramework.UI.FairyGui
         public string ControlType { get; }
         public bool Required { get; }
         public string BindPath { get; }
+    }
+
+    public readonly struct MxFairyGuiLocalizedTextBinding
+    {
+        public MxFairyGuiLocalizedTextBinding(
+            string controlName,
+            string textKey,
+            string fallbackText = "",
+            bool required = true)
+        {
+            ControlName = controlName ?? string.Empty;
+            TextKey = textKey ?? string.Empty;
+            FallbackText = fallbackText ?? string.Empty;
+            Required = required;
+        }
+
+        public string ControlName { get; }
+        public string TextKey { get; }
+        public string FallbackText { get; }
+        public bool Required { get; }
+
+        public MxUiLocalizedTextRequest ToRequest()
+        {
+            return new MxUiLocalizedTextRequest(new MxUiTextKey(TextKey), FallbackText);
+        }
     }
 
     public readonly struct MxFairyGuiCommandBinding

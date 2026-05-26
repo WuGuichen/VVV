@@ -181,6 +181,7 @@ namespace MxFramework.UI.FairyGui
 
                 ValidateViewResources(view.RequiredResources, sourcePath, packageId, viewId, diagnostics);
                 Dictionary<string, string> controlTypes = ValidateNamedControls(view.NamedControls, sourcePath, packageId, viewId, diagnostics);
+                ValidateLocalizedTexts(view.LocalizedTexts, controlTypes, sourcePath, packageId, viewId, diagnostics);
                 ValidateCommands(view.Commands, controlTypes, sourcePath, packageId, viewId, diagnostics);
             }
         }
@@ -279,6 +280,7 @@ namespace MxFramework.UI.FairyGui
             }
 
             ValidateCommandControlSources(view.Commands, controlKinds, componentSourcePath, packageId, viewId, diagnostics);
+            ValidateLocalizedTextControlSources(view.LocalizedTexts, controlKinds, componentSourcePath, packageId, viewId, diagnostics);
         }
 
         private static void ValidateViewResources(
@@ -344,6 +346,46 @@ namespace MxFramework.UI.FairyGui
             return controlTypes;
         }
 
+        private static void ValidateLocalizedTexts(
+            IReadOnlyList<MxFairyGuiLocalizedTextBinding> bindings,
+            Dictionary<string, string> controlTypes,
+            string sourcePath,
+            string packageId,
+            string viewId,
+            List<MxFairyGuiManifestDiagnostic> diagnostics)
+        {
+            if (bindings == null)
+                return;
+
+            var controlNames = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                MxFairyGuiLocalizedTextBinding binding = bindings[i];
+                string field = "localizedTexts[" + i + "]";
+                if (string.IsNullOrWhiteSpace(binding.ControlName))
+                {
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationControlMissing, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, field + ".controlName", "FairyGUI localization binding control name is required.", viewId);
+                    continue;
+                }
+
+                if (!controlNames.Add(binding.ControlName))
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationDuplicate, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, field + ".controlName", "Duplicate FairyGUI localization binding control: " + binding.ControlName + ".", viewId);
+
+                if (binding.Required && string.IsNullOrWhiteSpace(binding.TextKey))
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationKeyMissing, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, field + ".textKey", "FairyGUI localization binding text key is required.", viewId);
+
+                string controlType;
+                if (!controlTypes.TryGetValue(binding.ControlName, out controlType))
+                {
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationControlUnknown, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, field + ".controlName", "FairyGUI localization binding references an unknown named control: " + binding.ControlName + ".", viewId);
+                    continue;
+                }
+
+                if (!IsTextControlKind(controlType))
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationControlNotText, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, field + ".controlName", "FairyGUI localization binding control must be text-like: " + binding.ControlName + ".", viewId);
+            }
+        }
+
         private static void ValidateCommands(
             IReadOnlyList<MxFairyGuiCommandBinding> commands,
             Dictionary<string, string> controlTypes,
@@ -406,6 +448,35 @@ namespace MxFramework.UI.FairyGui
                 {
                     AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.CommandControlNotButton, MxFairyGuiManifestDiagnosticTarget.Command, sourcePath, packageId, "commands[" + i + "].controlName", "FairyGUI command control source must be a button: " + command.ControlName + ".", viewId);
                 }
+            }
+        }
+
+        private static void ValidateLocalizedTextControlSources(
+            IReadOnlyList<MxFairyGuiLocalizedTextBinding> bindings,
+            Dictionary<string, string> actualControlKinds,
+            string sourcePath,
+            string packageId,
+            string viewId,
+            List<MxFairyGuiManifestDiagnostic> diagnostics)
+        {
+            if (bindings == null)
+                return;
+
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                MxFairyGuiLocalizedTextBinding binding = bindings[i];
+                if (string.IsNullOrWhiteSpace(binding.ControlName))
+                    continue;
+
+                string actualKind;
+                if (!actualControlKinds.TryGetValue(binding.ControlName, out actualKind))
+                {
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationControlUnknown, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, "localizedTexts[" + i + "].controlName", "FairyGUI localization binding control is missing from component source XML: " + binding.ControlName + ".", viewId);
+                    continue;
+                }
+
+                if (!IsTextControlKind(actualKind))
+                    AddError(diagnostics, MxFairyGuiManifestDiagnosticCode.LocalizationControlNotText, MxFairyGuiManifestDiagnosticTarget.Localization, sourcePath, packageId, "localizedTexts[" + i + "].controlName", "FairyGUI localization binding source control must be text-like: " + binding.ControlName + ".", viewId);
             }
         }
 
@@ -506,6 +577,14 @@ namespace MxFramework.UI.FairyGui
         {
             return string.Equals(controlType, "Button", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(controlType, "GButton", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsTextControlKind(string controlType)
+        {
+            return string.Equals(controlType, "Text", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(controlType, "GTextField", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(controlType, "GTextInput", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(controlType, "GLabel", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool HasFairyGuiHeader(string path)
@@ -667,11 +746,12 @@ namespace MxFramework.UI.FairyGui
         View = 2,
         Resource = 3,
         Control = 4,
-        Command = 5
+        Command = 5,
+        Localization = 6
     }
 
-        public enum MxFairyGuiManifestDiagnosticCode
-        {
+    public enum MxFairyGuiManifestDiagnosticCode
+    {
         ManifestMissing = 0,
         PackageMissing = 1,
         PackageIdMissing = 2,
@@ -709,6 +789,11 @@ namespace MxFramework.UI.FairyGui
         ManifestSchemaVersionMissing = 34,
         ManifestSchemaVersionUnsupported = 35,
         CommandControlNotButton = 36,
-        GeneratedDescriptorMismatch = 37
+        GeneratedDescriptorMismatch = 37,
+        LocalizationKeyMissing = 38,
+        LocalizationControlMissing = 39,
+        LocalizationControlUnknown = 40,
+        LocalizationControlNotText = 41,
+        LocalizationDuplicate = 42
     }
 }
