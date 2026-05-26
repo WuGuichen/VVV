@@ -28,6 +28,7 @@
           <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">打开 CharacterStudio</a>
           <button id="validateButton" type="button">运行资源验证</button>
           <button id="viewPlanButton" type="button">查看当前资源计划</button>
+          <button id="viewBuildProfileButton" type="button">查看构建 Profile</button>
         </div>
       </header>
 
@@ -120,6 +121,16 @@
           </div>
           <div id="planGrid" class="plan-grid"></div>
         </section>
+
+        <section id="buildProfilePanel" class="resource-plan-panel build-profile-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>全局构建 Profile</h2>
+              <p id="buildProfileSummary">尚未读取 Global Resource Build Profile</p>
+            </div>
+          </div>
+          <div id="buildProfileContent" class="build-profile-content"></div>
+        </section>
       </section>
 
       <aside class="inspector-panel" aria-label="资源检查器">
@@ -134,6 +145,7 @@
           <button type="button" data-tab="overview" class="active">Overview</button>
           <button type="button" data-tab="unity">Unity</button>
           <button type="button" data-tab="runtime">Runtime</button>
+          <button type="button" data-tab="build">Build</button>
           <button type="button" data-tab="references">References</button>
           <button type="button" data-tab="diagnostics">Diagnostics</button>
         </nav>
@@ -157,6 +169,9 @@
           <button id="importFolderButton" type="button" title="导入一个文件夹内的匹配资源">导入文件夹</button>
           <button id="reimportResourceButton" type="button" title="重新计算当前资源的导入状态">重导</button>
           <button id="replaceSourceButton" type="button" title="替换当前资源的源文件并保留资源身份">替换源</button>
+          <button id="addToBuildProfileButton" type="button" title="加入 Global Resource Build Profile">加入构建 Profile</button>
+          <button id="removeFromBuildProfileButton" type="button" title="从 Global Resource Build Profile 移除">移出构建 Profile</button>
+          <button id="saveBuildProfileButton" type="button" title="保存 Global Resource Build Profile">保存 Profile</button>
           <button id="deleteResourceButton" type="button" disabled title="等待 reference graph delete guard">删除资源</button>
           <button id="editTagsButton" type="button" disabled title="等待 tag update API gate">编辑标签</button>
           <span id="writeActionStatus" class="disabled-reason">已启用 import / reimport / replace-source；delete guard / tag update 仍锁定。</span>
