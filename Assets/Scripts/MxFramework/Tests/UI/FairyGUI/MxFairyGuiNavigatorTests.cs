@@ -344,6 +344,175 @@ namespace MxFramework.Tests.UI.FairyGui
             Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
         }
 
+        [Test]
+        public void Open_UsesLayerHostAndTracksModalOwnership()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var layerHost = new FakeLayerHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor, layerHost: layerHost);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("modal"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(1, layerHost.ShowCount);
+            Assert.AreEqual(0, layerHost.HideCount);
+            Assert.AreEqual(MxUiLayer.Modal, layerHost.LastShownLayer);
+            Assert.AreEqual(1, layerHost.ModalCount);
+            Assert.AreEqual(1, host.LastHandle.ShowCount);
+
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.AreEqual(1, layerHost.HideCount);
+            Assert.AreEqual(0, layerHost.ModalCount);
+        }
+
+        [Test]
+        public void Open_LayerHostRecordsStableLayerOrderIndependentOfOpenOrder()
+        {
+            var layerHost = new MxFairyGuiLayerHost();
+            try
+            {
+                layerHost.EnsureLayerRoots();
+
+                CollectionAssert.AreEqual(
+                    new[] { MxUiLayer.Background, MxUiLayer.Hud, MxUiLayer.Panel, MxUiLayer.Popup, MxUiLayer.Modal, MxUiLayer.Toast, MxUiLayer.Debug },
+                    layerHost.LayerOrder);
+                AssertRootExists(layerHost, MxUiLayer.Hud);
+                AssertRootExists(layerHost, MxUiLayer.Panel);
+                AssertRootExists(layerHost, MxUiLayer.Popup);
+                AssertRootExists(layerHost, MxUiLayer.Modal);
+                AssertRootExists(layerHost, MxUiLayer.Toast);
+                AssertRootExists(layerHost, MxUiLayer.Debug);
+            }
+            finally
+            {
+                layerHost.Dispose();
+            }
+        }
+
+        [Test]
+        public void Close_WhenDescriptorIsKeepAlive_HidesAndCachesWithoutReleasingPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                KeepAlive = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, binder, descriptor: descriptor);
+            MxUiOpenResult first = navigator.Open(ViewId, new DemoViewModel("first"));
+
+            bool closed = navigator.Close(ViewId);
+
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.IsTrue(closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsTrue(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.HideCount);
+            Assert.AreEqual(0, host.LastHandle.DisposeCount);
+            Assert.AreEqual(0, bridge.ReleasedScopeCount);
+            Assert.AreEqual(0, host.ReleasePackageCount);
+            Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+            MxUiOpenResult second = navigator.Open(ViewId, new DemoViewModel("second"));
+
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreSame(first.View, second.View);
+            Assert.IsTrue(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+            Assert.AreEqual(2, binder.BindCount);
+            Assert.AreEqual("second", binder.Last.Title);
+        }
+
+        [Test]
+        public void CloseSceneViews_DisposesOpenAndCachedSceneOwnedViews()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                KeepAlive = true,
+                CloseOnSceneChange = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("scene"));
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.IsTrue(navigator.IsCached(ViewId));
+
+            int closed = navigator.CloseSceneViews();
+
+            Assert.AreEqual(1, closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void CloseSceneViews_DisposesOpenSceneOwnedViews()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                CloseOnSceneChange = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("scene"));
+
+            int closed = navigator.CloseSceneViews();
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(1, closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void CloseSceneViews_IgnoresViewsWhenCloseOnSceneChangeIsFalse()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                KeepAlive = true,
+                CloseOnSceneChange = false
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("scene"));
+            Assert.IsTrue(navigator.Close(ViewId));
+
+            int closed = navigator.CloseSceneViews();
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(0, closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsTrue(navigator.IsCached(ViewId));
+            Assert.AreEqual(0, host.LastHandle.DisposeCount);
+            Assert.AreEqual(0, bridge.ReleasedScopeCount);
+            Assert.AreEqual(0, host.ReleasePackageCount);
+            Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
         private static readonly MxUiViewId ViewId = new MxUiViewId("ui.demo.main");
         private static readonly ResourceKey PackageKey = new ResourceKey("ui.demo.package", MxFairyGuiResourceTypeIds.PackageBytes);
         private static readonly ResourceCatalogEntry PackageEntry = Entry(PackageKey, "ui/demo.bytes");
@@ -358,12 +527,14 @@ namespace MxFramework.Tests.UI.FairyGui
             IMxFairyGuiViewBinder<DemoViewModel> binder,
             bool registerContract = true,
             bool registerPackage = true,
-            string viewModelType = null)
+            string viewModelType = null,
+            MxUiViewDescriptor descriptor = null,
+            IMxFairyGuiLayerHost layerHost = null)
         {
             var contracts = new MxUiViewContractRegistry();
             if (registerContract)
             {
-                var contract = new MxUiViewContract(new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel))
+                var contract = new MxUiViewContract(descriptor ?? new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel))
                 {
                     ViewModelType = viewModelType ?? typeof(DemoViewModel).FullName
                 };
@@ -378,7 +549,7 @@ namespace MxFramework.Tests.UI.FairyGui
             if (binder != null)
                 bindings.Register(ViewId, binder);
 
-            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings);
+            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings, layerHost);
         }
 
         private static MxFairyGuiNavigator CreateNavigator(
@@ -429,6 +600,14 @@ namespace MxFramework.Tests.UI.FairyGui
         private static ResourceCatalogEntry Entry(ResourceKey key, string address)
         {
             return new ResourceCatalogEntry(key.Id, key.TypeId, "memory", address, key.Variant, key.PackageId);
+        }
+
+        private static void AssertRootExists(MxFairyGuiLayerHost layerHost, MxUiLayer layer)
+        {
+            Fgui.GComponent root;
+            Assert.IsTrue(layerHost.TryGetLayerRoot(layer, out root));
+            Assert.IsNotNull(root);
+            Assert.AreEqual("MxFairyGuiLayer_" + layer, root.name);
         }
 
         private static void RemoveRealSmokePackageIfLoaded()
@@ -550,6 +729,43 @@ namespace MxFramework.Tests.UI.FairyGui
             public void ReleasePackage(string packageId)
             {
                 ReleasePackageCount++;
+            }
+        }
+
+        private sealed class FakeLayerHost : IMxFairyGuiLayerHost
+        {
+            private readonly List<MxUiLayer> _layerOrder = new List<MxUiLayer>();
+            private readonly List<MxUiViewId> _modalStack = new List<MxUiViewId>();
+
+            public int ShowCount { get; private set; }
+            public int HideCount { get; private set; }
+            public MxUiLayer LastShownLayer { get; private set; }
+            public int ModalCount => _modalStack.Count;
+            public IReadOnlyList<MxUiLayer> LayerOrder => _layerOrder;
+
+            public void Show(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+            {
+                ShowCount++;
+                LastShownLayer = descriptor.Layer;
+                if (!_layerOrder.Contains(descriptor.Layer))
+                {
+                    _layerOrder.Add(descriptor.Layer);
+                    _layerOrder.Sort((left, right) => ((int)left).CompareTo((int)right));
+                }
+
+                if (descriptor.Modal && !_modalStack.Contains(descriptor.Id))
+                    _modalStack.Add(descriptor.Id);
+
+                component.Show();
+            }
+
+            public void Hide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+            {
+                HideCount++;
+                if (descriptor.Modal)
+                    _modalStack.Remove(descriptor.Id);
+
+                component.Hide();
             }
         }
 

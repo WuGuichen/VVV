@@ -21,6 +21,126 @@ namespace MxFramework.UI.FairyGui
         void ReleasePackage(string packageId);
     }
 
+    public interface IMxFairyGuiLayerHost
+    {
+        void Show(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component);
+        void Hide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component);
+    }
+
+    public sealed class MxFairyGuiLayerHost : IMxFairyGuiLayerHost, IDisposable
+    {
+        private static readonly MxUiLayer[] ProductizedLayers =
+        {
+            MxUiLayer.Background,
+            MxUiLayer.Hud,
+            MxUiLayer.Panel,
+            MxUiLayer.Popup,
+            MxUiLayer.Modal,
+            MxUiLayer.Toast,
+            MxUiLayer.Debug
+        };
+
+        private readonly Dictionary<MxUiLayer, Fgui.GComponent> _layerRoots = new Dictionary<MxUiLayer, Fgui.GComponent>();
+        private readonly List<MxUiViewId> _modalStack = new List<MxUiViewId>();
+
+        public IReadOnlyList<MxUiViewId> ModalStack => _modalStack;
+        public IReadOnlyList<MxUiLayer> LayerOrder => ProductizedLayers;
+
+        public void Show(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+        {
+            if (descriptor == null || component == null)
+                return;
+
+            EnsureLayerRoots();
+            var concrete = component as MxFairyGuiComponentHandle;
+            if (concrete != null)
+            {
+                Fgui.GComponent layerRoot = _layerRoots[descriptor.Layer];
+                if (concrete.Component.parent != layerRoot)
+                    layerRoot.AddChild(concrete.Component);
+            }
+
+            if (descriptor.Modal && !_modalStack.Contains(descriptor.Id))
+                _modalStack.Add(descriptor.Id);
+
+            component.Show();
+        }
+
+        public void Hide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+        {
+            if (descriptor == null || component == null)
+                return;
+
+            if (descriptor.Modal)
+                _modalStack.Remove(descriptor.Id);
+
+            component.Hide();
+        }
+
+        public void EnsureLayerRoots()
+        {
+            for (int i = 0; i < ProductizedLayers.Length; i++)
+                EnsureLayerRoot(ProductizedLayers[i]);
+        }
+
+        public bool TryGetLayerRoot(MxUiLayer layer, out Fgui.GComponent root)
+        {
+            return _layerRoots.TryGetValue(layer, out root) && root != null && root.parent == Fgui.GRoot.inst;
+        }
+
+        public void Dispose()
+        {
+            foreach (KeyValuePair<MxUiLayer, Fgui.GComponent> entry in _layerRoots)
+            {
+                if (entry.Value != null)
+                    entry.Value.RemoveFromParent();
+            }
+
+            _layerRoots.Clear();
+            _modalStack.Clear();
+        }
+
+        private void EnsureLayerRoot(MxUiLayer layer)
+        {
+            Fgui.GComponent root;
+            if (_layerRoots.TryGetValue(layer, out root) && root.parent == Fgui.GRoot.inst)
+                return;
+
+            string rootName = "MxFairyGuiLayer_" + layer;
+            Fgui.GObject existing = Fgui.GRoot.inst.GetChild(rootName);
+            root = existing as Fgui.GComponent;
+            if (root != null)
+            {
+                _layerRoots[layer] = root;
+                return;
+            }
+
+            root = new Fgui.GComponent
+            {
+                name = rootName
+            };
+            root.SetSize(Fgui.GRoot.inst.width, Fgui.GRoot.inst.height);
+            _layerRoots[layer] = root;
+
+            InsertLayerRoot(root, layer);
+        }
+
+        private void InsertLayerRoot(Fgui.GComponent root, MxUiLayer layer)
+        {
+            int index = 0;
+            foreach (KeyValuePair<MxUiLayer, Fgui.GComponent> entry in _layerRoots)
+            {
+                if (entry.Value == root || entry.Value.parent != Fgui.GRoot.inst)
+                    continue;
+
+                if ((int)entry.Key < (int)layer)
+                    index++;
+            }
+
+            Fgui.GRoot.inst.AddChildAt(root, index);
+        }
+    }
+
     public interface IMxFairyGuiViewBinder<in TViewModel>
     {
         void Bind(IMxFairyGuiComponentHandle component, TViewModel viewModel);
@@ -101,21 +221,26 @@ namespace MxFramework.UI.FairyGui
 
     public sealed class MxFairyGuiView<TViewModel> : IMxUiView<TViewModel>
     {
+        private readonly MxUiViewDescriptor _descriptor;
         private readonly IMxFairyGuiComponentHandle _component;
         private readonly MxFairyGuiPackageLoadScope _scope;
         private readonly IMxFairyGuiHost _host;
+        private readonly IMxFairyGuiLayerHost _layerHost;
         private readonly MxUiLifecycle _lifecycle;
 
         public MxFairyGuiView(
-            MxUiViewId id,
+            MxUiViewDescriptor descriptor,
             IMxFairyGuiComponentHandle component,
             MxFairyGuiPackageLoadScope scope,
-            IMxFairyGuiHost host)
+            IMxFairyGuiHost host,
+            IMxFairyGuiLayerHost layerHost)
         {
-            Id = id;
+            _descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
+            Id = descriptor.Id;
             _component = component ?? throw new ArgumentNullException(nameof(component));
             _scope = scope;
             _host = host ?? throw new ArgumentNullException(nameof(host));
+            _layerHost = layerHost ?? throw new ArgumentNullException(nameof(layerHost));
             _lifecycle = new MxUiLifecycle();
         }
 
@@ -134,7 +259,7 @@ namespace MxFramework.UI.FairyGui
             if (!_lifecycle.Show())
                 return;
 
-            _component.Show();
+            _layerHost.Show(_descriptor, _component);
         }
 
         public void Hide()
@@ -142,13 +267,17 @@ namespace MxFramework.UI.FairyGui
             if (!_lifecycle.Hide())
                 return;
 
-            _component.Hide();
+            _layerHost.Hide(_descriptor, _component);
         }
 
         public void Dispose()
         {
+            bool wasVisible = _lifecycle.IsVisible;
             if (!_lifecycle.Dispose())
                 return;
+
+            if (wasVisible)
+                _layerHost.Hide(_descriptor, _component);
 
             _component.Dispose();
             if (_scope != null)
@@ -343,9 +472,6 @@ namespace MxFramework.UI.FairyGui
         {
             if (IsDisposed)
                 return;
-
-            if (_component.parent == null)
-                Fgui.GRoot.inst.AddChild(_component);
 
             _component.visible = true;
         }
