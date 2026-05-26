@@ -12,22 +12,34 @@
 
 Resource Manager 已接入 Global Resource Build Profile 的第一段 authoring 流程：
 
+- Build Profile 筛选：资源浏览器可按 `notInProfile`、`saved`、`draftOnly`、`removedInDraft`、`modifiedInDraft` 过滤，也可只看 runtime-ready candidates。
+- 显式多选：每个资源行都有独立 checkbox；“选择可见”只勾选当前 filtered/rendered list，不会包含隐藏、被筛掉或未来分页的资源。
 - “加入构建 Profile”：把当前选中资源加入 `GlobalResourceBuildProfile` 草稿。
 - “移出构建 Profile”：从草稿中移除当前资源。
+- “批量加入” / “批量移出”：只处理已显式勾选的资源，并复用现有 Profile entry 匹配和构造语义。
 - “保存 Profile”：通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
 - Build Profile 面板：编辑 `delivery mode`、`override mode`、`override value`、`bundle group hint`、`bundle rule`、`preload groups` 和 `labels`。
-- Bundle Planner：预览内部 bundle、资源数量、依赖 bundle 和诊断。
+- Bundle Plan：来自已保存 Profile 的预览输出，预览内部 bundle、资源数量、依赖 bundle 和诊断；草稿保存后刷新。
+
+Build Profile 状态含义：
+
+- `notInProfile`：既不在已保存 Profile，也不在当前草稿。
+- `saved`：已保存 Profile 和当前草稿都有该资源，字段未变化。
+- `draftOnly`：当前草稿新增，尚未保存。
+- `removedInDraft`：已保存 Profile 中存在，但当前草稿已移除，尚未保存。
+- `modifiedInDraft`：已保存 Profile 和当前草稿都有该资源，但草稿字段有变化。
 
 典型流程：
 
 1. 启动 Resource Manager。
-2. 选择左侧资源项，确认 Overview / Runtime / Diagnostics 没有阻断问题。
-3. 点击“加入构建 Profile”。
-4. 在 Build Profile 面板补充 bundle 和 preload 意图。
-5. 点击“保存 Profile”。
-6. 查看 Bundle Planner 摘要，确认预览结果符合预期。
+2. 用 Build Profile / runtime-ready / provider / kind / search 等筛选器收窄候选资源。
+3. 勾选多个资源，或只选择一个资源查看 Overview / Runtime / Diagnostics。
+4. 点击“批量加入”或单资源“加入构建 Profile”，更新 Profile 草稿。
+5. 在 Build Profile 面板补充当前选中资源的 bundle 和 preload 意图。
+6. 点击“保存 Profile”。
+7. 查看 Bundle Plan saved-profile preview 摘要，确认预览结果符合预期。
 
-Bundle Planner 是预览面，不写 AssetBundle、不写 `StreamingAssets`。真正生成 Player 产物仍在 Unity 中执行：
+Bundle Plan 是预览面，Web UI 不构建 AssetBundle、不写 `StreamingAssets`。真正生成 Player 产物仍在 Unity 中执行：
 
 ```text
 MxFramework/Resources/Validate Global Resource Build Profile

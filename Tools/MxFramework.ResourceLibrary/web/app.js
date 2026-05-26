@@ -102,6 +102,8 @@ const FILTER_DEFAULTS = {
   sourceKind: "all",
   importStatus: "all",
   runtimeAvailability: "all",
+  profileMembership: "all",
+  runtimeReady: "all",
   tag: "all",
   onlyReferenced: false,
   onlyOrphan: false,
@@ -123,6 +125,7 @@ const state = {
   inspectCache: new Map(),
   inspectState: { id: "", status: "idle", payload: null, error: "" },
   writeState: { status: "idle", action: "", error: "" },
+  checkedResourceKeys: new Set(),
   selectedImportPreset: "modelPreview",
   errors: [],
   lastActionMessage: "",
@@ -147,15 +150,17 @@ function cacheElements() {
     "serverStatus", "packageSelect", "refreshButton", "openCharacterStudioButton",
     "validateButton", "viewPlanButton", "viewBuildProfileButton", "statusStrip", "resourceSummary",
     "searchInput", "kindFilter", "usageFilter", "providerFilter", "sourceFilter", "importFilter",
-    "runtimeFilter", "tagFilter", "onlyReferenced", "onlyOrphan",
-    "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "resourceList",
+    "runtimeFilter", "profileMembershipFilter", "runtimeReadyFilter", "tagFilter", "onlyReferenced", "onlyOrphan",
+    "onlyRuntimeLoadable", "onlyDiagnostics", "clearFiltersButton", "selectVisibleButton",
+    "clearCheckedButton", "checkedSummary", "resourceList",
     "previewTitle", "previewSubtitle", "previewBody", "resourcePlanPanel",
     "planSummary", "planGrid", "buildProfilePanel", "buildProfileSummary",
     "buildProfileContent", "inspectorStatus", "inspectorContent",
     "resourceImportFileInput", "resourceImportFolderInput", "resourceReplaceFileInput",
     "importPresetSelect", "importResourceButton", "importFolderButton",
     "reimportResourceButton", "replaceSourceButton", "addToBuildProfileButton",
-    "removeFromBuildProfileButton", "saveBuildProfileButton", "deleteResourceButton",
+    "removeFromBuildProfileButton", "batchAddToBuildProfileButton",
+    "batchRemoveFromBuildProfileButton", "saveBuildProfileButton", "deleteResourceButton",
     "editTagsButton", "writeActionStatus", "copyDetailJsonButton",
     "copyDiagnosticsJsonButton", "copyStatus"
   ]) {
@@ -192,6 +197,8 @@ function bindEvents() {
     ["sourceFilter", "sourceKind", "change"],
     ["importFilter", "importStatus", "change"],
     ["runtimeFilter", "runtimeAvailability", "change"],
+    ["profileMembershipFilter", "profileMembership", "change"],
+    ["runtimeReadyFilter", "runtimeReady", "change"],
     ["tagFilter", "tag", "change"]
   ];
   for (const [elementId, key, eventName] of filterBindings) {
@@ -216,8 +223,19 @@ function bindEvents() {
     applyFilterControls();
     render();
   });
+  el.selectVisibleButton.addEventListener("click", selectVisibleResources);
+  el.clearCheckedButton.addEventListener("click", () => {
+    state.checkedResourceKeys.clear();
+    state.lastActionMessage = "已清除资源勾选。";
+    render();
+  });
 
   el.resourceList.addEventListener("click", event => {
+    const checkbox = event.target.closest("input[data-check-resource-key]");
+    if (checkbox) {
+      toggleCheckedResource(checkbox.dataset.checkResourceKey, checkbox.checked);
+      return;
+    }
     const button = event.target.closest("button[data-resource-key]");
     if (!button) return;
     selectResource(button.dataset.resourceKey);
@@ -253,14 +271,16 @@ function bindEvents() {
   el.reimportResourceButton.addEventListener("click", reimportSelectedResource);
   el.addToBuildProfileButton.addEventListener("click", addSelectedToBuildProfile);
   el.removeFromBuildProfileButton.addEventListener("click", removeSelectedFromBuildProfile);
+  el.batchAddToBuildProfileButton.addEventListener("click", addCheckedToBuildProfile);
+  el.batchRemoveFromBuildProfileButton.addEventListener("click", removeCheckedFromBuildProfile);
   el.saveBuildProfileButton.addEventListener("click", saveBuildProfileDraft);
   el.buildProfileContent.addEventListener("input", event => {
     const control = event.target.closest("[data-profile-field]");
-    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value);
+    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, false);
   });
   el.buildProfileContent.addEventListener("change", event => {
     const control = event.target.closest("[data-profile-field]");
-    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value);
+    if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, true);
   });
   el.resourceImportFileInput.addEventListener("change", event => importResourceFile(event.target.files?.[0]));
   el.resourceImportFolderInput.addEventListener("change", event => importResourceFolder(Array.from(event.target.files || [])));
@@ -465,9 +485,9 @@ async function addSelectedToBuildProfile() {
   const item = getSelectedItem();
   const profile = ensureBuildProfileDraft();
   if (!item || !profile) return;
-  if (findBuildProfileEntryForItem(item)) return;
+  if (findDraftBuildProfileEntryForItem(item)) return;
   if (!Array.isArray(profile.entries)) profile.entries = [];
-  profile.entries.push(buildProfileEntryFromItem(item));
+  profile.entries.push(buildDraftBuildProfileEntryForItem(item));
   markBuildProfileDirty();
   state.lastActionMessage = "已加入构建 Profile 草稿，保存后生效。";
   render();
@@ -484,9 +504,41 @@ async function removeSelectedFromBuildProfile() {
   render();
 }
 
-function updateSelectedBuildProfileField(field, value) {
+async function addCheckedToBuildProfile() {
+  const profile = ensureBuildProfileDraft();
+  const checkedItems = getCheckedItems();
+  if (!profile || checkedItems.length === 0) return;
+  if (!Array.isArray(profile.entries)) profile.entries = [];
+  let added = 0;
+  for (const item of checkedItems) {
+    if (findDraftBuildProfileEntryForItem(item)) continue;
+    profile.entries.push(buildDraftBuildProfileEntryForItem(item));
+    added++;
+  }
+  if (added > 0) markBuildProfileDirty();
+  state.lastActionMessage = added > 0
+    ? `已将 ${added} 个勾选资源加入 Build Profile 草稿，保存后生效。`
+    : "已勾选资源都已在 Build Profile 草稿中。";
+  render();
+}
+
+async function removeCheckedFromBuildProfile() {
+  const profile = getBuildProfile();
+  const checkedItems = getCheckedItems();
+  if (!profile || !Array.isArray(profile.entries) || checkedItems.length === 0) return;
+  const before = profile.entries.length;
+  profile.entries = profile.entries.filter(entry => !checkedItems.some(item => profileEntryMatchesItem(entry, item)));
+  const removed = before - profile.entries.length;
+  if (removed > 0) markBuildProfileDirty();
+  state.lastActionMessage = removed > 0
+    ? `已将 ${removed} 个勾选资源从 Build Profile 草稿移除，保存后生效。`
+    : "已勾选资源当前不在 Build Profile 草稿中。";
+  render();
+}
+
+function updateSelectedBuildProfileField(field, value, renderFeedback) {
   const item = getSelectedItem();
-  const entry = item ? findBuildProfileEntryForItem(item) : null;
+  const entry = item ? findDraftBuildProfileEntryForItem(item) : null;
   if (!entry) return;
   if (field === "labels" || field === "preloadGroups") {
     entry[field] = splitCsv(value);
@@ -494,7 +546,11 @@ function updateSelectedBuildProfileField(field, value) {
     entry[field] = value;
   }
   markBuildProfileDirty();
-  renderActions();
+  if (renderFeedback) {
+    render();
+  } else {
+    renderActions();
+  }
 }
 
 async function saveBuildProfileDraft() {
@@ -752,6 +808,7 @@ function renderLoading() {
   el.serverStatus.textContent = "正在连接 Authoring 服务...";
   el.statusStrip.innerHTML = statusChip("服务", "读取中", "pending");
   el.resourceSummary.textContent = "正在读取资源管理器...";
+  el.checkedSummary.textContent = "已勾选 0 个资源";
   el.resourceList.innerHTML = emptyBlock("正在读取资源项");
   el.previewTitle.textContent = "资源摘要";
   el.previewSubtitle.textContent = "等待资源库数据";
@@ -832,10 +889,15 @@ function renderBrowser() {
   const filtered = getFilteredItems(allItems);
   const selectedKey = state.selectedResourceKey;
   const diagnosticsCount = getAllDiagnostics().length;
+  pruneCheckedResources(allItems);
+  const visibleChecked = filtered.filter(item => state.checkedResourceKeys.has(item.key)).length;
 
   el.resourceSummary.textContent = allItems.length === 0
     ? "没有读取到 Authoring Resource Manager API 数据。"
-    : `显示 ${filtered.length} / ${allItems.length} 个资源项，${diagnosticsCount} 条诊断`;
+    : `显示 ${filtered.length} / ${allItems.length} 个资源项，${diagnosticsCount} 条诊断；当前可见已勾选 ${visibleChecked} 个`;
+  el.checkedSummary.textContent = `已勾选 ${state.checkedResourceKeys.size} 个资源；选择可见只作用当前 filtered/rendered list`;
+  el.selectVisibleButton.disabled = filtered.length === 0;
+  el.clearCheckedButton.disabled = state.checkedResourceKeys.size === 0;
 
   if (allItems.length === 0) {
     el.resourceList.innerHTML = emptyBlock("未读取到资源项。请确认 Authoring 服务已启动，并且至少一个 provider 可用。");
@@ -848,28 +910,68 @@ function renderBrowser() {
 
   el.resourceList.innerHTML = filtered.map(item => {
     const active = item.key === selectedKey ? " active" : "";
+    const checked = state.checkedResourceKeys.has(item.key);
+    const profileStatus = getBuildProfileStatus(item);
     return `
-      <button class="resource-row${active}" type="button" data-resource-key="${escapeHtml(item.key)}" role="option" aria-selected="${item.key === selectedKey}">
-        <span class="resource-row-head">
-          <strong>${escapeHtml(item.displayName || item.stableId || item.resourceKey || "resource")}</strong>
-          <span>${escapeHtml(item.stableId || item.resourceKey || item.libraryItemId || "-")}</span>
-        </span>
-        <span class="resource-row-meta">
-          ${smallBadge(item.kind || "unknown", "neutral")}
-          ${smallBadge(item.usage || "-", "neutral")}
-          ${smallBadge(item.providerId || "provider", "info")}
-          ${smallBadge(item.sourceKind || "Unknown", "info")}
-        </span>
-        <span class="resource-row-meta">
-          ${smallBadge(item.importStatus || "Unknown", toneForImportStatus(item.importStatus))}
-          ${smallBadge(item.runtimeAvailability || "Unknown", toneForRuntime(item.runtimeAvailability))}
-        </span>
-        <span class="resource-row-foot">
-          <span>引用 ${item.referenceCount}</span>
-          <span>诊断 ${item.diagnosticCount}</span>
-        </span>
-      </button>`;
+      <article class="resource-row${active}${checked ? " checked" : ""}" role="option" aria-selected="${item.key === selectedKey}">
+        <label class="resource-check" title="勾选资源用于批量 Build Profile 草稿操作">
+          <input type="checkbox" data-check-resource-key="${escapeHtml(item.key)}"${checked ? " checked" : ""}>
+          <span>选择</span>
+        </label>
+        <button class="resource-row-main" type="button" data-resource-key="${escapeHtml(item.key)}">
+          <span class="resource-row-head">
+            <strong>${escapeHtml(item.displayName || item.stableId || item.resourceKey || "resource")}</strong>
+            <span>${escapeHtml(item.stableId || item.resourceKey || item.libraryItemId || "-")}</span>
+          </span>
+          <span class="resource-row-meta">
+            ${smallBadge(item.kind || "unknown", "neutral")}
+            ${smallBadge(item.usage || "-", "neutral")}
+            ${smallBadge(item.providerId || "provider", "info")}
+            ${smallBadge(item.sourceKind || "Unknown", "info")}
+          </span>
+          <span class="resource-row-meta">
+            ${smallBadge(item.importStatus || "Unknown", toneForImportStatus(item.importStatus))}
+            ${smallBadge(item.runtimeAvailability || "Unknown", toneForRuntime(item.runtimeAvailability))}
+            ${smallBadge(profileStatus, toneForBuildProfileStatus(profileStatus))}
+            ${isRuntimeReadyCandidate(item) ? smallBadge("runtime-ready", "ok") : smallBadge("not-runtime-ready", "neutral")}
+          </span>
+          <span class="resource-row-foot">
+            <span>引用 ${item.referenceCount}</span>
+            <span>诊断 ${item.diagnosticCount}</span>
+          </span>
+        </button>
+      </article>`;
   }).join("");
+}
+
+function selectVisibleResources() {
+  const visibleItems = getFilteredItems(getNormalizedItems());
+  for (const item of visibleItems) {
+    state.checkedResourceKeys.add(item.key);
+  }
+  state.lastActionMessage = `已选择当前可见 ${visibleItems.length} 个资源；不会包含隐藏或筛选外资源。`;
+  render();
+}
+
+function toggleCheckedResource(key, checked) {
+  if (checked) {
+    state.checkedResourceKeys.add(key);
+  } else {
+    state.checkedResourceKeys.delete(key);
+  }
+  render();
+}
+
+function pruneCheckedResources(items) {
+  const valid = new Set(items.map(item => item.key));
+  for (const key of Array.from(state.checkedResourceKeys)) {
+    if (!valid.has(key)) state.checkedResourceKeys.delete(key);
+  }
+}
+
+function getCheckedItems() {
+  const byKey = new Map(getNormalizedItems().map(item => [item.key, item]));
+  return Array.from(state.checkedResourceKeys).map(key => byKey.get(key)).filter(Boolean);
 }
 
 function renderPreview() {
@@ -1010,6 +1112,7 @@ function renderBuildProfile() {
 
   const dirtySuffix = state.buildProfileDirty ? "，草稿未保存" : "";
   el.buildProfileSummary.textContent = `${entries.length} 个 profile entry，${bundles.length} 个 bundle，${diagnostics.length} 条构建诊断${dirtySuffix}`;
+  const profileStateCounts = countBuildProfileStates(getNormalizedItems());
   el.buildProfileContent.innerHTML = `
     <div class="summary-grid">
       ${metric("profile entries", entries.length)}
@@ -1017,14 +1120,17 @@ function renderBuildProfile() {
       ${metric("external", asArray(pick(plan, "externalEntries")).length)}
       ${metric("excluded", asArray(pick(plan, "excludedEntries")).length)}
     </div>
+    <div class="profile-state-strip">
+      ${["notInProfile", "saved", "draftOnly", "removedInDraft", "modifiedInDraft"].map(status => smallBadge(`${status} ${profileStateCounts[status] || 0}`, toneForBuildProfileStatus(status))).join("")}
+    </div>
     <div class="profile-editor-grid">
       <div class="detail-card">
         <h3>当前选择</h3>
         ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("选择左侧资源后编辑构建意图")}
       </div>
       <div class="detail-card">
-        <h3>Planner 输出</h3>
-        <p class="profile-hint">${state.buildProfileDirty ? "当前有未保存草稿；Planner 输出仍来自已保存 Profile。" : "Planner 输出来自已保存 Profile；草稿保存后刷新。"}</p>
+        <h3>Bundle Plan saved-profile preview</h3>
+        <p class="profile-hint">${state.buildProfileDirty ? "当前有未保存草稿；Bundle Plan 仍来自已保存 Profile，保存后刷新。" : "Bundle Plan 来自已保存 Profile。Web UI 不构建 AssetBundle，也不写 StreamingAssets。"}</p>
         ${renderBundlePlanSummary(bundles)}
       </div>
     </div>
@@ -1201,13 +1307,15 @@ function renderRuntimeTab(item, detail) {
 }
 
 function renderBuildTab(item) {
-  const entry = findBuildProfileEntryForItem(item);
+  const entry = findDraftBuildProfileEntryForItem(item);
+  const savedEntry = findSavedBuildProfileEntryForItem(item);
   const planEntry = findBundlePlanEntryForItem(item);
+  const profileStatus = getBuildProfileStatus(item);
   return `
     <section class="inspector-section">
       <h3>Global Build Profile</h3>
       ${entry ? renderKeyValueList([
-        ["status", getBuildProfileStatus(item)],
+        ["status", profileStatus],
         ["deliveryMode", pick(entry, "deliveryMode") || "internal"],
         ["bundleOverrideMode", pick(entry, "bundleOverrideMode") || "none"],
         ["bundleOverrideValue", pick(entry, "bundleOverrideValue") || "-"],
@@ -1215,6 +1323,10 @@ function renderBuildTab(item) {
         ["bundleRule", pick(entry, "bundleRule") || "-"],
         ["preloadGroups", asArray(pick(entry, "preloadGroups")).join(", ") || "-"],
         ["labels", asArray(pick(entry, "labels")).join(", ") || "-"]
+      ]) : savedEntry ? renderKeyValueList([
+        ["status", profileStatus],
+        ["saved deliveryMode", pick(savedEntry, "deliveryMode") || "internal"],
+        ["draft", "已从草稿移除，保存后生效"]
       ]) : emptyBlock("当前资源尚未加入 Global Resource Build Profile。")}
     </section>
     <section class="inspector-section">
@@ -1278,13 +1390,18 @@ function renderActions() {
   const connected = Boolean(state.resourcesPayload);
   const writeBusy = state.writeState.status === "running";
   const profileReady = Boolean(getBuildProfile());
-  const profileEntry = item ? findBuildProfileEntryForItem(item) : null;
+  const profileEntry = item ? findDraftBuildProfileEntryForItem(item) : null;
+  const checkedItems = getCheckedItems();
+  const checkedAddable = checkedItems.some(checkedItem => !findDraftBuildProfileEntryForItem(checkedItem));
+  const checkedRemovable = checkedItems.some(checkedItem => Boolean(findDraftBuildProfileEntryForItem(checkedItem)));
   el.importResourceButton.disabled = !connected || writeBusy;
   el.importFolderButton.disabled = !connected || writeBusy;
   el.reimportResourceButton.disabled = !connected || !item || writeBusy;
   el.replaceSourceButton.disabled = !connected || !item || writeBusy;
   el.addToBuildProfileButton.disabled = !profileReady || !item || Boolean(profileEntry) || writeBusy;
   el.removeFromBuildProfileButton.disabled = !profileReady || !item || !profileEntry || writeBusy;
+  el.batchAddToBuildProfileButton.disabled = !profileReady || checkedItems.length === 0 || !checkedAddable || writeBusy;
+  el.batchRemoveFromBuildProfileButton.disabled = !profileReady || checkedItems.length === 0 || !checkedRemovable || writeBusy;
   el.saveBuildProfileButton.disabled = !profileReady || writeBusy;
   el.deleteResourceButton.disabled = true;
   el.editTagsButton.disabled = true;
@@ -1294,15 +1411,17 @@ function renderActions() {
   el.replaceSourceButton.title = item ? "替换当前资源源文件，并保留 stableId/resourceKey" : "先选择一个资源项";
   el.addToBuildProfileButton.title = profileEntry ? "当前资源已在构建 Profile 中" : "把当前资源加入 Global Resource Build Profile";
   el.removeFromBuildProfileButton.title = profileEntry ? "从 Global Resource Build Profile 移除当前资源" : "当前资源不在构建 Profile 中";
+  el.batchAddToBuildProfileButton.title = checkedItems.length > 0 ? `把 ${checkedItems.length} 个已勾选资源加入 Build Profile 草稿` : "先显式勾选资源";
+  el.batchRemoveFromBuildProfileButton.title = checkedItems.length > 0 ? `从 Build Profile 草稿移出 ${checkedItems.length} 个已勾选资源` : "先显式勾选资源";
   el.saveBuildProfileButton.title = "通过 Authoring API 校验并保存 Global Resource Build Profile";
   if (state.writeState.status === "running") {
     el.writeActionStatus.textContent = "写入中：正在通过 Authoring API 更新资源库。";
   } else if (state.writeState.status === "error") {
     el.writeActionStatus.textContent = `写入失败：${state.writeState.error}`;
   } else if (item) {
-    el.writeActionStatus.textContent = `导入类型：${preset.label}；当前目标：${item.displayName || getResourceWriteId(item)}；构建 Profile：${profileEntry ? "已加入" : "未加入"}。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；当前目标：${item.displayName || getResourceWriteId(item)}；构建 Profile：${getBuildProfileStatus(item)}；已勾选 ${checkedItems.length}。`;
   } else {
-    el.writeActionStatus.textContent = `导入类型：${preset.label}；支持单文件、文件夹和构建 Profile 写入。`;
+    el.writeActionStatus.textContent = `导入类型：${preset.label}；支持单文件、文件夹和 Build Profile 草稿批量加入/移出。`;
   }
   el.copyDetailJsonButton.disabled = false;
   el.copyDiagnosticsJsonButton.disabled = false;
@@ -1443,12 +1562,28 @@ function getBuildProfileEntries() {
   return asArray(pick(getBuildProfile(), "entries"));
 }
 
+function getSavedBuildProfileEntries() {
+  return asArray(pick(pick(state.buildProfilePayload, "profile"), "entries"));
+}
+
+function getDraftBuildProfileEntries() {
+  return asArray(pick(state.buildProfileDraft, "entries"));
+}
+
 function getBundlePlan() {
   return pick(state.bundlePlanPayload, "plan") || null;
 }
 
 function findBuildProfileEntryForItem(item) {
-  return getBuildProfileEntries().find(entry => profileEntryMatchesItem(entry, item)) || null;
+  return findDraftBuildProfileEntryForItem(item);
+}
+
+function findDraftBuildProfileEntryForItem(item) {
+  return getDraftBuildProfileEntries().find(entry => profileEntryMatchesItem(entry, item)) || null;
+}
+
+function findSavedBuildProfileEntryForItem(item) {
+  return getSavedBuildProfileEntries().find(entry => profileEntryMatchesItem(entry, item)) || null;
 }
 
 function profileEntryMatchesItem(entry, item) {
@@ -1517,6 +1652,11 @@ function buildProfileEntryFromItem(item) {
   };
 }
 
+function buildDraftBuildProfileEntryForItem(item) {
+  const savedEntry = findSavedBuildProfileEntryForItem(item);
+  return savedEntry ? structuredCloneCompat(savedEntry) : buildProfileEntryFromItem(item);
+}
+
 function buildProfileResourceKeyFromItem(item) {
   const detail = getCurrentDetail(item);
   const runtime = pick(detail, "runtime") || {};
@@ -1561,20 +1701,40 @@ function isRuntimeRequired(item) {
 }
 
 function getBuildProfileStatus(item) {
-  const entry = findBuildProfileEntryForItem(item);
-  if (!entry) return "notInProfile";
-  const mode = pick(entry, "bundleOverrideMode") || "none";
-  const delivery = pick(entry, "deliveryMode") || "internal";
-  if (mode === "exclude" || delivery === "excluded") return "excluded";
-  if (mode === "forceExternal" || delivery === "external") return "external";
-  return "inProfile";
+  const savedEntry = findSavedBuildProfileEntryForItem(item);
+  const draftEntry = findDraftBuildProfileEntryForItem(item);
+  if (!savedEntry && !draftEntry) return "notInProfile";
+  if (!savedEntry && draftEntry) return "draftOnly";
+  if (savedEntry && !draftEntry) return "removedInDraft";
+  if (!profileEntriesEqual(savedEntry, draftEntry)) return "modifiedInDraft";
+  return "saved";
+}
+
+function countBuildProfileStates(items) {
+  const counts = {
+    notInProfile: 0,
+    saved: 0,
+    draftOnly: 0,
+    removedInDraft: 0,
+    modifiedInDraft: 0
+  };
+  for (const item of items) {
+    const status = getBuildProfileStatus(item);
+    counts[status] = (counts[status] || 0) + 1;
+  }
+  return counts;
 }
 
 function toneForBuildProfileStatus(status) {
-  if (status === "inProfile") return "ok";
-  if (status === "external" || status === "excluded") return "warn";
+  if (status === "saved") return "ok";
+  if (status === "draftOnly" || status === "modifiedInDraft") return "info";
+  if (status === "removedInDraft") return "warn";
   if (status === "conflict" || status === "missing") return "error";
   return "neutral";
+}
+
+function profileEntriesEqual(left, right) {
+  return stableJson(left || {}) === stableJson(right || {});
 }
 
 function normalizeItem(raw, index) {
@@ -1641,6 +1801,11 @@ function getFilteredItems(items) {
     if (state.filters.sourceKind !== "all" && item.sourceKind !== state.filters.sourceKind) return false;
     if (state.filters.importStatus !== "all" && item.importStatus !== state.filters.importStatus) return false;
     if (state.filters.runtimeAvailability !== "all" && item.runtimeAvailability !== state.filters.runtimeAvailability) return false;
+    const profileStatus = getBuildProfileStatus(item);
+    if (state.filters.profileMembership === "inProfile" && profileStatus === "notInProfile") return false;
+    if (!["all", "inProfile"].includes(state.filters.profileMembership) && profileStatus !== state.filters.profileMembership) return false;
+    if (state.filters.runtimeReady === "runtimeReady" && !isRuntimeReadyCandidate(item)) return false;
+    if (state.filters.runtimeReady === "notRuntimeReady" && isRuntimeReadyCandidate(item)) return false;
     if (state.filters.tag !== "all" && !item.tags.includes(state.filters.tag)) return false;
     if (state.filters.onlyReferenced && item.referenceCount === 0) return false;
     if (state.filters.onlyOrphan && !item.isOrphan) return false;
@@ -1673,10 +1838,21 @@ function getSelectedItem() {
 }
 
 function getCurrentDetail(item) {
-  if (state.inspectState.payload && state.inspectState.id) {
+  if (state.inspectState.payload && state.inspectState.id && inspectStateMatchesItem(item)) {
     return normalizeInspectPayload(state.inspectState.payload, item);
   }
   return buildFallbackInspect(item);
+}
+
+function inspectStateMatchesItem(item) {
+  const id = state.inspectState.id || "";
+  return Boolean(item && (
+    item.key === id
+    || item.libraryItemId === id
+    || item.stableId === id
+    || item.resourceKey === id
+    || item.resourceId === id
+  ));
 }
 
 function normalizeInspectPayload(payload, item) {
@@ -1857,6 +2033,16 @@ function isRuntimeLoadable(item) {
   return binding === "resourcemanagerasset" || binding === "audiocue" || binding === "audioeventdefinition";
 }
 
+function isRuntimeReadyCandidate(item) {
+  if (isRuntimeLoadable(item)) return true;
+  if (String(item.runtimeAvailability || "").toLowerCase() === "runtimeready") return true;
+  return item.providerBindings.some(binding => {
+    const runtimeKey = stringValue(pick(binding, "runtimeResourceKey"));
+    const bindingKind = String(pick(binding, "runtimeBindingKind", "bindingKind") || "").toLowerCase();
+    return Boolean(runtimeKey || bindingKind === "resourcemanagerasset" || bindingKind === "audiocue" || bindingKind === "audioeventdefinition");
+  });
+}
+
 function isOrphanCandidate(item) {
   if (String(item.importStatus).toLowerCase() === "orphancandidate") return true;
   if (item.allDiagnostics.some(d => String(pick(d, "code")).toLowerCase().includes("orphan"))) return true;
@@ -1929,12 +2115,16 @@ function selectToFilterKey(id) {
     sourceFilter: "sourceKind",
     importFilter: "importStatus",
     runtimeFilter: "runtimeAvailability",
+    profileMembershipFilter: "profileMembership",
+    runtimeReadyFilter: "runtimeReady",
     tagFilter: "tag"
   }[id] || "";
 }
 
 function applyFilterControls() {
   el.searchInput.value = state.filters.search;
+  el.profileMembershipFilter.value = state.filters.profileMembership;
+  el.runtimeReadyFilter.value = state.filters.runtimeReady;
   el.onlyReferenced.checked = state.filters.onlyReferenced;
   el.onlyOrphan.checked = state.filters.onlyOrphan;
   el.onlyRuntimeLoadable.checked = state.filters.onlyRuntimeLoadable;
@@ -2166,6 +2356,14 @@ function normalizeProfileResourceKey(key) {
     id,
     stringValue(pick(parsed, "variant")).trim()
   ].join(":");
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function parseProfileResourceKey(value) {
