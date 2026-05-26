@@ -1066,7 +1066,7 @@ code {
 
 .profile-editor-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1.1fr) minmax(220px, 0.9fr);
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
   gap: 12px;
 }
 
@@ -1113,6 +1113,51 @@ code {
 .profile-form input,
 .profile-form select {
   width: 100%;
+}
+
+.profile-batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.profile-batch-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.profile-batch-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.profile-batch-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.profile-batch-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.profile-batch-field input,
+.profile-batch-field select {
+  width: 100%;
+}
+
+.profile-batch-apply {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .bundle-list {
@@ -1665,7 +1710,8 @@ tr:last-child td {
   }
 
   .profile-editor-grid,
-  .profile-form {
+  .profile-form,
+  .profile-batch-form {
     grid-template-columns: 1fr;
   }
 

@@ -19,6 +19,7 @@ Resource Manager 已接入 Global Resource Build Profile 的第一段 authoring 
 - “批量加入” / “批量移出”：只处理已显式勾选的资源，并复用现有 Profile entry 匹配和构造语义。
 - “保存 Profile”：通过 Authoring API 校验后写入 `Assets/Config/MxFramework/ResourceProfiles/global_resource_build_profile.json`。
 - Build Profile 面板：编辑 `delivery mode`、`override mode`、`override value`、`bundle group hint`、`bundle rule`、`preload groups` 和 `labels`。
+- Build Profile 批量字段编辑：只作用于已勾选且已有 draft profile entry 的资源；每个字段都要先显式勾选启用，空输入不会覆盖现有值。支持批量替换 `deliveryMode`、`bundleOverrideMode`、`bundleGroupHint`、`bundleRule`、`preloadGroups` 和 `labels`，其中 `preloadGroups` / `labels` 使用逗号分隔并替换整个数组。批量 `bundleOverrideMode` 只提供 `none`、`forceStandalone`、`forceExternal`、`exclude`，不批量编辑 `bundleOverrideValue`。
 - Bundle Plan：来自已保存 Profile 的预览输出，预览内部 bundle、资源数量、依赖 bundle 和诊断；草稿保存后刷新。
 
 Build Profile 状态含义：
@@ -35,7 +36,7 @@ Build Profile 状态含义：
 2. 用 Build Profile / runtime-ready / provider / kind / search 等筛选器收窄候选资源。
 3. 勾选多个资源，或只选择一个资源查看 Overview / Runtime / Diagnostics。
 4. 点击“批量加入”或单资源“加入构建 Profile”，更新 Profile 草稿。
-5. 在 Build Profile 面板补充当前选中资源的 bundle 和 preload 意图。
+5. 在 Build Profile 面板补充当前选中资源的 bundle 和 preload 意图；需要批量改字段时，先勾选资源和字段开关，再应用到已有 draft entries。
 6. 点击“保存 Profile”。
 7. 查看 Bundle Plan saved-profile preview 摘要，确认预览结果符合预期。
 

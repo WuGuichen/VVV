@@ -274,6 +274,14 @@ function bindEvents() {
   el.batchAddToBuildProfileButton.addEventListener("click", addCheckedToBuildProfile);
   el.batchRemoveFromBuildProfileButton.addEventListener("click", removeCheckedFromBuildProfile);
   el.saveBuildProfileButton.addEventListener("click", saveBuildProfileDraft);
+  el.buildProfileContent.addEventListener("click", event => {
+    const applyButton = event.target.closest("[data-profile-batch-apply]");
+    if (applyButton) applyBuildProfileBatchFields();
+  });
+  el.buildProfileContent.addEventListener("change", event => {
+    const toggle = event.target.closest("[data-profile-batch-enabled]");
+    if (toggle) syncBuildProfileBatchField(toggle.dataset.profileBatchEnabled, toggle.checked);
+  });
   el.buildProfileContent.addEventListener("input", event => {
     const control = event.target.closest("[data-profile-field]");
     if (control) updateSelectedBuildProfileField(control.dataset.profileField, control.value, false);
@@ -534,6 +542,62 @@ async function removeCheckedFromBuildProfile() {
     ? `已将 ${removed} 个勾选资源从 Build Profile 草稿移除，保存后生效。`
     : "已勾选资源当前不在 Build Profile 草稿中。";
   render();
+}
+
+function applyBuildProfileBatchFields() {
+  const checkedItems = getCheckedItems();
+  const batch = readBuildProfileBatchFields();
+  if (checkedItems.length === 0) {
+    state.lastActionMessage = "未勾选资源，批量字段编辑未执行。";
+    render();
+    return;
+  }
+  if (batch.length === 0) {
+    state.lastActionMessage = "没有启用可应用的批量字段；空输入不会覆盖现有值。";
+    render();
+    return;
+  }
+
+  let applied = 0;
+  let skipped = 0;
+  for (const item of checkedItems) {
+    const entry = findDraftBuildProfileEntryForItem(item);
+    if (!entry) {
+      skipped++;
+      continue;
+    }
+    for (const field of batch) {
+      entry[field.key] = field.value;
+    }
+    applied++;
+  }
+
+  if (applied > 0) markBuildProfileDirty();
+  state.lastActionMessage = `批量字段编辑已应用 ${applied} 个 draft profile entry，跳过 ${skipped} 个未加入草稿的勾选资源。`;
+  render();
+}
+
+function readBuildProfileBatchFields() {
+  const fields = [];
+  const controls = Array.from(el.buildProfileContent.querySelectorAll("[data-profile-batch-field]"));
+  for (const control of controls) {
+    const key = control.dataset.profileBatchField;
+    const enabled = el.buildProfileContent.querySelector(`[data-profile-batch-enabled="${cssEscapeCompat(key)}"]`);
+    if (!enabled?.checked) continue;
+    const rawValue = String(control.value || "");
+    if (rawValue.trim() === "") continue;
+    const value = key === "labels" || key === "preloadGroups"
+      ? splitCsv(rawValue)
+      : rawValue.trim();
+    if (Array.isArray(value) && value.length === 0) continue;
+    fields.push({ key, value });
+  }
+  return fields;
+}
+
+function syncBuildProfileBatchField(field, enabled) {
+  const control = el.buildProfileContent.querySelector(`[data-profile-batch-field="${cssEscapeCompat(field)}"]`);
+  if (control) control.disabled = !enabled;
 }
 
 function updateSelectedBuildProfileField(field, value, renderFeedback) {
@@ -1129,6 +1193,10 @@ function renderBuildProfile() {
         ${selected ? renderBuildProfileEditor(selected, selectedEntry) : emptyBlock("选择左侧资源后编辑构建意图")}
       </div>
       <div class="detail-card">
+        <h3>批量字段编辑</h3>
+        ${renderBuildProfileBatchEditor()}
+      </div>
+      <div class="detail-card">
         <h3>Bundle Plan saved-profile preview</h3>
         <p class="profile-hint">${state.buildProfileDirty ? "当前有未保存草稿；Bundle Plan 仍来自已保存 Profile，保存后刷新。" : "Bundle Plan 来自已保存 Profile。Web UI 不构建 AssetBundle，也不写 StreamingAssets。"}</p>
         ${renderBundlePlanSummary(bundles)}
@@ -1187,6 +1255,42 @@ function renderBuildProfileEditor(item, entry) {
         <input data-profile-field="labels" value="${escapeHtml(asArray(pick(draft, "labels")).join(", "))}" ${inProfile ? "" : "disabled"}>
       </label>
     </div>`;
+}
+
+function renderBuildProfileBatchEditor() {
+  const checkedItems = getCheckedItems();
+  const editableCount = checkedItems.filter(item => findDraftBuildProfileEntryForItem(item)).length;
+  const skippedCount = checkedItems.length - editableCount;
+  return `
+    <p class="profile-hint">只作用于已勾选且已有 draft profile entry 的资源；未启用字段和空输入不会覆盖现有值。</p>
+    <div class="profile-batch-summary">
+      ${smallBadge(`checked ${checkedItems.length}`, checkedItems.length > 0 ? "info" : "warn")}
+      ${smallBadge(`editable ${editableCount}`, editableCount > 0 ? "ok" : "warn")}
+      ${smallBadge(`skipped ${skippedCount}`, skippedCount > 0 ? "warn" : "muted")}
+    </div>
+    <div class="profile-batch-form">
+      ${renderBuildProfileBatchField("deliveryMode", "delivery mode", "select", ["internal", "external", "editorOnly", "excluded"])}
+      ${renderBuildProfileBatchField("bundleOverrideMode", "override mode", "select", ["none", "forceStandalone", "forceExternal", "exclude"])}
+      ${renderBuildProfileBatchField("bundleGroupHint", "bundle group hint")}
+      ${renderBuildProfileBatchField("bundleRule", "bundle rule")}
+      ${renderBuildProfileBatchField("preloadGroups", "preload groups")}
+      ${renderBuildProfileBatchField("labels", "labels")}
+    </div>
+    <button class="profile-batch-apply" type="button" data-profile-batch-apply ${editableCount > 0 ? "" : "disabled"}>应用到已勾选 draft entries</button>`;
+}
+
+function renderBuildProfileBatchField(field, label, kind = "text", options = []) {
+  const control = kind === "select"
+    ? `<select data-profile-batch-field="${escapeHtml(field)}" disabled>${selectOptions(options, options[0] || "")}</select>`
+    : `<input data-profile-batch-field="${escapeHtml(field)}" value="" placeholder="留空不覆盖" disabled>`;
+  return `
+    <label class="profile-batch-field">
+      <span class="profile-batch-toggle">
+        <input type="checkbox" data-profile-batch-enabled="${escapeHtml(field)}">
+        <span>${escapeHtml(label)}</span>
+      </span>
+      ${control}
+    </label>`;
 }
 
 function renderBundlePlanSummary(bundles) {
@@ -2401,6 +2505,11 @@ function splitCsv(value) {
     .split(",")
     .map(part => part.trim())
     .filter(Boolean);
+}
+
+function cssEscapeCompat(value) {
+  if (window.CSS?.escape) return window.CSS.escape(value);
+  return String(value || "").replace(/"/g, "\\\"");
 }
 
 function normalizeLabelSegment(value) {
