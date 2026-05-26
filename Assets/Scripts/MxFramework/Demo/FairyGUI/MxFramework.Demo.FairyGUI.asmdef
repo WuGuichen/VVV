@@ -3,6 +3,7 @@
     "rootNamespace": "MxFramework.Demo.FairyGui",
     "references": [
         "FairyGUI",
+        "MxFramework.Runtime",
         "MxFramework.Resources",
         "MxFramework.UI",
         "MxFramework.UI.FairyGUI",
