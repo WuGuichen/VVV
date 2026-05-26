@@ -46,6 +46,9 @@ assert(app.includes("/api/authoring/resources/global-build-profile") && app.incl
 assert(app.includes("saveBuildProfileDraft") && app.includes("findBuildProfileEntryForItem") && app.includes("bundleOverrideMode"), "app should support profile membership and planner intent editing");
 assert(app.includes("checkedResourceKeys: new Set()") && app.includes("selectVisibleResources") && app.includes("toggleCheckedResource"), "app should keep explicit checked resources separate from inspected resource selection");
 assert(app.includes("addCheckedToBuildProfile") && app.includes("removeCheckedFromBuildProfile"), "app should support batch add/remove of checked resources to the profile draft");
+assert(app.includes("applyBuildProfileBatchFields") && app.includes("data-profile-batch-enabled") && app.includes("data-profile-batch-field"), "app should support explicit opt-in batch field edits for checked draft profile entries");
+assert(app.includes('renderBuildProfileBatchField("bundleOverrideMode", "override mode", "select", ["none", "forceStandalone", "forceExternal", "exclude"])'), "batch override mode should exclude forceBundle while preserving single-entry editing");
+assert(app.includes("splitCsv(rawValue)") && app.includes("Array.isArray(value) && value.length === 0"), "batch labels and preload groups should replace arrays through splitCsv and ignore empty parsed inputs");
 assert(app.includes("profileMembership") && app.includes("runtimeReady") && app.includes("isRuntimeReadyCandidate"), "app should filter by Build Profile membership and runtime-ready candidates");
 assert(app.includes("notInProfile") && app.includes("saved") && app.includes("draftOnly") && app.includes("removedInDraft") && app.includes("modifiedInDraft"), "app should expose draft-vs-saved Build Profile state labels");
 assert(app.includes("Bundle Plan 来自已保存 Profile") && app.includes("Web UI 不构建 AssetBundle，也不写 StreamingAssets"), "app should describe Bundle Plan as saved-profile preview only");
@@ -70,6 +73,7 @@ assert(!app.includes("React") && !app.includes("createRoot") && !app.includes("v
 
 assert(styles.includes(".resource-browser") && styles.includes(".inspector-tabs") && styles.includes(".action-bar") && styles.includes(".import-preset-label") && styles.includes(".build-profile-panel"), "styles should cover browser, inspector tabs, action bar, import preset, and build profile UI");
 assert(styles.includes(".selection-toolbar") && styles.includes(".resource-check") && styles.includes(".profile-state-strip"), "styles should cover multi-select and profile state feedback");
+assert(styles.includes(".profile-batch-form") && styles.includes(".profile-batch-toggle") && styles.includes(".profile-batch-apply"), "styles should cover build profile batch field editing controls");
 assert(styles.includes("@media"), "styles should include responsive rules");
 assert(launcher.includes("HEALTH_INSPECT_URL") && launcher.includes("is_resource_library_server_ready"), "launcher should require inspect API readiness");
 assert(windowsLauncher.includes("HEALTH_INSPECT_URL"), "Windows launcher should require inspect API readiness");
