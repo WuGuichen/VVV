@@ -7,6 +7,7 @@
         "MxFramework.Resources",
         "MxFramework.UI",
         "MxFramework.UI.FairyGUI",
+        "MxFramework.UI.FairyGUI.Manifest",
         "MxFramework.Demo",
         "MxFramework.Demo.FairyGUI",
         "FairyGUI"

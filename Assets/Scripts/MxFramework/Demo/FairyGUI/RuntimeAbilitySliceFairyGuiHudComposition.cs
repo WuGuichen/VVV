@@ -9,36 +9,12 @@ namespace MxFramework.Demo.FairyGui
     {
         public static MxUiViewContract CreateContract()
         {
-            return new MxUiViewContract(new MxUiViewDescriptor(
-                RuntimeAbilitySliceFairyGuiHudIds.ViewId,
-                RuntimeAbilitySliceFairyGuiHudIds.PackageId,
-                RuntimeAbilitySliceFairyGuiHudIds.ComponentName,
-                MxUiLayer.Hud))
-            {
-                ViewModelType = typeof(RuntimeAbilitySliceHudViewModel).FullName,
-                RequiredResources = new[] { RuntimeAbilitySliceFairyGuiHudIds.PackageBytesResourceId },
-                Commands = new[]
-                {
-                    new MxUiCommandDescriptor
-                    {
-                        CommandId = RuntimeAbilitySliceHudCommandIds.Strike,
-                        Owner = "RuntimeAbilitySlice"
-                    },
-                    new MxUiCommandDescriptor
-                    {
-                        CommandId = RuntimeAbilitySliceHudCommandIds.Reset,
-                        Owner = "RuntimeAbilitySlice"
-                    }
-                },
-                DiagnosticsTags = new[] { "demo", "fairygui", "runtime-ability-slice" }
-            };
+            return RuntimeAbilitySliceFairyGuiHudManifest.CreateViewContract();
         }
 
         public static MxFairyGuiPackageDescriptor CreatePackageDescriptor()
         {
-            return new MxFairyGuiPackageDescriptor(
-                RuntimeAbilitySliceFairyGuiHudIds.PackageId,
-                RuntimeAbilitySliceFairyGuiHudIds.PackageBytesKey);
+            return RuntimeAbilitySliceFairyGuiHudManifest.CreatePackageDescriptor();
         }
 
         public static MxFairyGuiNavigator CreateNavigator(

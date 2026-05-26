@@ -104,6 +104,24 @@ namespace MxFramework.Tests.UI.FairyGui
             }
         }
 
+        [Test]
+        public void GeneratedManifest_ValidatesPublishedRuntimeHudSourceAndProjectsContract()
+        {
+            MxFairyGuiManifest manifest = RuntimeAbilitySliceFairyGuiHudManifest.Create();
+            MxFairyGuiManifestValidationResult result = MxFairyGuiManifestValidator.ValidateSources(
+                manifest,
+                Directory.GetCurrentDirectory(),
+                CreateManagerCatalog(RuntimeAbilitySliceFairyGuiHudIds.PackageBytesKey, "fgui/MxRuntimeHud_fui.bytes"));
+
+            Assert.IsTrue(result.Success, FormatDiagnostics(result));
+
+            MxUiViewContract contract = RuntimeAbilitySliceFairyGuiHudManifest.CreateViewContract();
+            Assert.AreEqual(RuntimeAbilitySliceFairyGuiHudIds.ViewId, contract.Descriptor.Id);
+            Assert.AreEqual(RuntimeAbilitySliceFairyGuiHudIds.PackageId, contract.Descriptor.PackageKey);
+            Assert.AreEqual(RuntimeAbilitySliceFairyGuiHudIds.ComponentName, contract.Descriptor.ComponentName);
+            Assert.AreEqual(2, contract.Commands.Count);
+        }
+
         private static RuntimeAbilitySliceHudViewModel CreateViewModel()
         {
             var viewModel = new RuntimeAbilitySliceHudViewModel
@@ -171,8 +189,18 @@ namespace MxFramework.Tests.UI.FairyGui
         {
             var manager = new ResourceManager();
             manager.RegisterProvider(provider);
-            manager.AddCatalog(new ResourceCatalog("ui.runtimehud.test.catalog", string.Empty, entries));
+            manager.AddCatalog(CreateCatalog(entries));
             return manager;
+        }
+
+        private static ResourceCatalog CreateManagerCatalog(ResourceKey key, string address)
+        {
+            return CreateCatalog(Entry(key, address));
+        }
+
+        private static ResourceCatalog CreateCatalog(params ResourceCatalogEntry[] entries)
+        {
+            return new ResourceCatalog("ui.runtimehud.test.catalog", string.Empty, entries);
         }
 
         private static ResourceCatalogEntry Entry(ResourceKey key, string address)
@@ -184,6 +212,24 @@ namespace MxFramework.Tests.UI.FairyGui
         {
             if (Fgui.UIPackage.GetByName(RuntimeAbilitySliceFairyGuiHudIds.PackageId) != null)
                 Fgui.UIPackage.RemovePackage(RuntimeAbilitySliceFairyGuiHudIds.PackageId);
+        }
+
+        private static string FormatDiagnostics(MxFairyGuiManifestValidationResult result)
+        {
+            var lines = new System.Text.StringBuilder();
+            for (int i = 0; i < result.Diagnostics.Count; i++)
+            {
+                MxFairyGuiManifestDiagnostic diagnostic = result.Diagnostics[i];
+                lines.Append(diagnostic.Code)
+                    .Append(": ")
+                    .Append(diagnostic.SourcePath)
+                    .Append(" ")
+                    .Append(diagnostic.Field)
+                    .Append(" ")
+                    .AppendLine(diagnostic.Message);
+            }
+
+            return lines.ToString();
         }
 
         private sealed class RecordingCommandSink : IMxUiCommandSink
