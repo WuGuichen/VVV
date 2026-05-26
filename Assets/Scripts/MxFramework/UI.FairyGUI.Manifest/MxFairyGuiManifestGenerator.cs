@@ -33,6 +33,7 @@ namespace MxFramework.UI.FairyGui
             Layer = MxUiLayer.Panel;
             ControlBindPaths = Array.Empty<MxFairyGuiControlBindPathSpec>();
             ControlNameExpressions = Array.Empty<MxFairyGuiCodeExpressionSpec>();
+            LocalizedTexts = Array.Empty<MxFairyGuiLocalizedTextBinding>();
             Commands = Array.Empty<MxFairyGuiCommandBinding>();
             CommandIdExpressions = Array.Empty<MxFairyGuiCodeExpressionSpec>();
         }
@@ -57,6 +58,7 @@ namespace MxFramework.UI.FairyGui
         public MxUiLayer Layer { get; set; }
         public IReadOnlyList<MxFairyGuiControlBindPathSpec> ControlBindPaths { get; set; }
         public IReadOnlyList<MxFairyGuiCodeExpressionSpec> ControlNameExpressions { get; set; }
+        public IReadOnlyList<MxFairyGuiLocalizedTextBinding> LocalizedTexts { get; set; }
         public IReadOnlyList<MxFairyGuiCommandBinding> Commands { get; set; }
         public IReadOnlyList<MxFairyGuiCodeExpressionSpec> CommandIdExpressions { get; set; }
     }
@@ -185,6 +187,7 @@ namespace MxFramework.UI.FairyGui
                         Layer = spec.Layer,
                         RequiredResources = new[] { packageBytes },
                         NamedControls = namedControls.ToArray(),
+                        LocalizedTexts = CopyLocalizedTexts(spec.LocalizedTexts),
                         Commands = CopyCommands(spec.Commands)
                     }
                 }
@@ -317,6 +320,29 @@ namespace MxFramework.UI.FairyGui
             }
 
             builder.AppendLine("                        },");
+            builder.AppendLine("                        LocalizedTexts = new MxFairyGuiLocalizedTextBinding[]");
+            builder.AppendLine("                        {");
+            for (int i = 0; i < view.LocalizedTexts.Count; i++)
+            {
+                MxFairyGuiLocalizedTextBinding binding = view.LocalizedTexts[i];
+                builder.Append("                            new MxFairyGuiLocalizedTextBinding(");
+                builder.Append(ExpressionOrLiteral(FindExpression(spec.ControlNameExpressions, binding.ControlName), binding.ControlName));
+                builder.Append(", ");
+                builder.Append(Literal(binding.TextKey));
+                if (!string.IsNullOrEmpty(binding.FallbackText) || !binding.Required)
+                {
+                    builder.Append(", fallbackText: ");
+                    builder.Append(Literal(binding.FallbackText));
+                }
+
+                if (!binding.Required)
+                    builder.Append(", required: false");
+
+                builder.Append(")");
+                builder.AppendLine(i == view.LocalizedTexts.Count - 1 ? string.Empty : ",");
+            }
+
+            builder.AppendLine("                        },");
             builder.AppendLine("                        Commands = new[]");
             builder.AppendLine("                        {");
             for (int i = 0; i < view.Commands.Count; i++)
@@ -350,6 +376,18 @@ namespace MxFramework.UI.FairyGui
             builder.AppendLine("    }");
             builder.AppendLine("}");
             return builder.ToString();
+        }
+
+        private static MxFairyGuiLocalizedTextBinding[] CopyLocalizedTexts(IReadOnlyList<MxFairyGuiLocalizedTextBinding> localizedTexts)
+        {
+            if (localizedTexts == null || localizedTexts.Count == 0)
+                return Array.Empty<MxFairyGuiLocalizedTextBinding>();
+
+            var copy = new MxFairyGuiLocalizedTextBinding[localizedTexts.Count];
+            for (int i = 0; i < localizedTexts.Count; i++)
+                copy[i] = localizedTexts[i];
+
+            return copy;
         }
 
         private static MxFairyGuiCommandBinding[] CopyCommands(IReadOnlyList<MxFairyGuiCommandBinding> commands)

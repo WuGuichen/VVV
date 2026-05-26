@@ -47,6 +47,11 @@ namespace MxFramework.Demo.FairyGui
                             new MxFairyGuiNamedControl(RuntimeAbilitySliceFairyGuiHudIds.Strike, @"Button"),
                             new MxFairyGuiNamedControl(RuntimeAbilitySliceFairyGuiHudIds.Reset, @"Button")
                         },
+                        LocalizedTexts = new MxFairyGuiLocalizedTextBinding[]
+                        {
+                            new MxFairyGuiLocalizedTextBinding(RuntimeAbilitySliceFairyGuiHudIds.Title, @"ui.runtimehud.title", fallbackText: @"Runtime HUD"),
+                            new MxFairyGuiLocalizedTextBinding(RuntimeAbilitySliceFairyGuiHudIds.Mode, @"ui.runtimehud.mode", fallbackText: @"Mode")
+                        },
                         Commands = new[]
                         {
                             new MxFairyGuiCommandBinding(RuntimeAbilitySliceHudCommandIds.Strike, RuntimeAbilitySliceFairyGuiHudIds.Strike),

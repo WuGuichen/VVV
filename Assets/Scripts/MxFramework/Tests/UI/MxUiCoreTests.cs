@@ -239,6 +239,49 @@ namespace MxFramework.Tests.UI
             Assert.AreEqual("inventory.open", sink.LastCommand.CommandId);
         }
 
+        [Test]
+        public void LocalizationRequest_UsesProviderNeutralKeyLocaleAndRevision()
+        {
+            var provider = new RecordingTextProvider(new MxUiLocaleId("en-US"));
+            provider.Register(new MxUiTextKey("ui.runtimehud.title"), "Runtime HUD");
+
+            bool found = provider.TryGetText(
+                new MxUiLocalizedTextRequest(new MxUiTextKey("ui.runtimehud.title"), "Fallback"),
+                out string text);
+
+            Assert.IsTrue(found);
+            Assert.AreEqual("Runtime HUD", text);
+            Assert.AreEqual(new MxUiLocaleId("en-US"), provider.CurrentLocale);
+            Assert.AreEqual(1L, provider.Revision);
+        }
+
+        [Test]
+        public void LocalizationIds_NormalizeNullAndCompareOrdinal()
+        {
+            Assert.IsFalse(default(MxUiTextKey).IsValid);
+            Assert.IsFalse(new MxUiTextKey(" ").IsValid);
+            Assert.IsTrue(new MxUiTextKey("ui.title").IsValid);
+            Assert.AreEqual(new MxUiTextKey("ui.title"), new MxUiTextKey("ui.title"));
+            Assert.AreNotEqual(new MxUiTextKey("ui.title"), new MxUiTextKey("UI.TITLE"));
+
+            Assert.IsFalse(default(MxUiLocaleId).IsValid);
+            Assert.IsTrue(new MxUiLocaleId("zh-CN").IsValid);
+            Assert.AreEqual(new MxUiLocaleId("zh-CN"), new MxUiLocaleId("zh-CN"));
+            Assert.AreNotEqual(new MxUiLocaleId("zh-CN"), new MxUiLocaleId("zh-cn"));
+        }
+
+        [Test]
+        public void NullTextProvider_UsesFallbackWithoutGlobalLookup()
+        {
+            bool found = MxUiNullTextProvider.Instance.TryGetText(
+                new MxUiLocalizedTextRequest(new MxUiTextKey("missing.key"), "Fallback Text"),
+                out string text);
+
+            Assert.IsTrue(found);
+            Assert.AreEqual("Fallback Text", text);
+            Assert.AreEqual(0L, MxUiNullTextProvider.Instance.Revision);
+        }
+
         private sealed class FakeView : IMxUiView
         {
             public FakeView(MxUiViewId id)
@@ -318,6 +361,35 @@ namespace MxFramework.Tests.UI
             public void Enqueue(MxUiCommand command)
             {
                 LastCommand = command;
+            }
+        }
+
+        private sealed class RecordingTextProvider : IMxUiTextProvider
+        {
+            private readonly System.Collections.Generic.Dictionary<MxUiTextKey, string> _texts =
+                new System.Collections.Generic.Dictionary<MxUiTextKey, string>();
+
+            public RecordingTextProvider(MxUiLocaleId locale)
+            {
+                CurrentLocale = locale;
+            }
+
+            public MxUiLocaleId CurrentLocale { get; }
+            public long Revision { get; private set; }
+
+            public void Register(MxUiTextKey key, string text)
+            {
+                _texts[key] = text ?? string.Empty;
+                Revision++;
+            }
+
+            public bool TryGetText(MxUiLocalizedTextRequest request, out string text)
+            {
+                if (_texts.TryGetValue(request.Key, out text))
+                    return true;
+
+                text = request.FallbackText ?? string.Empty;
+                return !string.IsNullOrEmpty(text);
             }
         }
     }

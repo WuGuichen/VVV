@@ -530,7 +530,12 @@ dotnet build MxFramework.Tests.UI.FairyGUI.csproj /nr:false -m:1 -v:minimal
   刷新；默认 noEngine suite 和 `--check-generated` 会在生成输出 stale 时失败。
 - 生成器只拥有 `Assets/Scripts/MxFramework/**/FairyGUI/Generated/**/*.g.cs`。不要用它覆盖手写 binder / ids / composition，也不要覆盖 `FGUIProject/**` 或 `Assets/Bundles/FGUI/**`。
 - Runtime HUD Shell 可作为 opt-in FairyGUI path 接入 Ability Slice；默认手测和诊断仍保留 UI Toolkit Showcase，避免双 HUD 和诊断能力倒退。
-- Localization、复杂 transition UX、Story UI 和 Debug UI 迁移还属于后续 product hardening，迁移 Story 或复杂 runtime panels 前必须先补齐对应 issue。
+- Localization key 现在通过 UI core 的 `MxUiTextKey` / `MxUiLocaleId` /
+  `IMxUiTextProvider` 表达，FairyGUI manifest 使用
+  `MxFairyGuiLocalizedTextBinding` 声明 text control 到 key 的映射。UI /
+  FairyGUI 不直接依赖 `MxFramework.Config`，真实语言库只能在 composition
+  root 适配成 `IMxUiTextProvider` 后注入。
+- 复杂 transition UX、Story UI 和 Debug UI 迁移还属于后续 product hardening，迁移 Story 或复杂 runtime panels 前必须先补齐对应 issue。
 
 ### 6.5 Combat Physics Playground
 

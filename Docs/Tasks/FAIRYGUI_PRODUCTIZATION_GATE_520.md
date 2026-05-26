@@ -143,10 +143,16 @@ Forbidden dependencies:
 
 ### Localization
 
-- Binders may assign text from ViewModels today.
-- Productized localization hooks are not yet implemented. Views must not fetch
-  text from global localization singletons; a localization provider/binding
-  contract is required before migrating text-heavy UI.
+- Binders may assign literal text from ViewModels today.
+- FairyGUI M8 (#525) defines provider-neutral UI text contracts:
+  `MxUiTextKey`, `MxUiLocaleId`, `MxUiLocalizedTextRequest`,
+  `IMxUiTextProvider` and `MxUiNullTextProvider`.
+- FairyGUI manifests may declare `LocalizedTexts` through
+  `MxFairyGuiLocalizedTextBinding`; generator output and noEngine validators
+  keep those keys visible and drift-checked.
+- Views must not fetch text from Config or global localization singletons.
+  Config localization can be adapted only from composition by wrapping it behind
+  `IMxUiTextProvider`.
 
 ### Transitions
 

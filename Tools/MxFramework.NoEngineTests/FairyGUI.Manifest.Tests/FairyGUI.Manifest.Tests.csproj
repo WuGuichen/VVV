@@ -12,6 +12,7 @@
     <Compile Include="../../../Assets/Scripts/MxFramework/Resources/ResourceTypeIds.cs" Link="MxFramework/Resources/ResourceTypeIds.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiCommandDescriptor.cs" Link="MxFramework/UI/MxUiCommandDescriptor.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiLayer.cs" Link="MxFramework/UI/MxUiLayer.cs" />
+    <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiLocalization.cs" Link="MxFramework/UI/MxUiLocalization.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewContract.cs" Link="MxFramework/UI/MxUiViewContract.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewDescriptor.cs" Link="MxFramework/UI/MxUiViewDescriptor.cs" />
     <Compile Include="../../../Assets/Scripts/MxFramework/UI/MxUiViewId.cs" Link="MxFramework/UI/MxUiViewId.cs" />
