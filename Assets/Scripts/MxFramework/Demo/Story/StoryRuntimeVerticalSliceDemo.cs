@@ -257,7 +257,9 @@ namespace MxFramework.Demo.Story
         {
             StoryDirectorSnapshot story = _storyDirector.CreateSnapshot();
             bool waiting = TryGetWaitingPresentation(story, out StoryBeatInstanceSnapshot waitingBeat);
-            bool hasChoice = TryGetFirstEnabledChoice(story, out StoryBeatInstanceSnapshot choiceBeat, out StoryChoiceView choice);
+            StoryRuntimeVerticalSliceChoiceSnapshot[] choices = CollectChoiceSnapshots(
+                story,
+                out StoryRuntimeVerticalSliceChoiceSnapshot firstEnabledChoice);
             StoryGraphRuntimeStatus graphStatus = GetGraphStatus(story);
             return new StoryRuntimeVerticalSliceSnapshot(
                 CurrentFrame,
@@ -265,10 +267,10 @@ namespace MxFramework.Demo.Story
                 graphStatus,
                 waiting ? waitingBeat.BeatInstanceId : 0,
                 waiting ? waitingBeat.PendingPresentationStepId : 0,
-                hasChoice ? choiceBeat.BeatInstanceId : 0,
-                hasChoice ? choice.ChoiceId : 0,
+                firstEnabledChoice.BeatInstanceId,
+                firstEnabledChoice.ChoiceId,
                 ResolveDialogueText(story),
-                hasChoice ? ResolveText(choice.LabelTextKey) : string.Empty,
+                firstEnabledChoice.Text,
                 SignalValue,
                 ComputeHash(),
                 _saveStatus,
@@ -276,6 +278,7 @@ namespace MxFramework.Demo.Story
                 FormatAiFacts(),
                 _resourcePreloadPlan != null ? _resourcePreloadPlan.GroupId : string.Empty,
                 _gameplayBridgeDiagnostics.CreateSnapshot().EnqueuedCommandCount,
+                choices,
                 _eventLog.ToArray());
         }
 
@@ -585,16 +588,14 @@ namespace MxFramework.Demo.Story
             out StoryBeatInstanceSnapshot beat,
             out StoryChoiceView choice)
         {
-            Span<StoryChoiceView> choices = stackalloc StoryChoiceView[4];
             for (int i = 0; i < snapshot.ActiveBeatInstances.Count; i++)
             {
                 StoryBeatInstanceSnapshot candidate = snapshot.ActiveBeatInstances[i];
                 if (!candidate.IsAwaitingChoice)
                     continue;
 
-                int required = _storyDirector.GetChoices(candidate.BeatInstanceId, candidate.AwaitingChoiceSetId, choices);
-                int count = Math.Min(required, choices.Length);
-                for (int choiceIndex = 0; choiceIndex < count; choiceIndex++)
+                StoryChoiceView[] choices = GetChoiceViews(candidate);
+                for (int choiceIndex = 0; choiceIndex < choices.Length; choiceIndex++)
                 {
                     if (!choices[choiceIndex].Enabled)
                         continue;
@@ -608,6 +609,69 @@ namespace MxFramework.Demo.Story
             beat = null;
             choice = default;
             return false;
+        }
+
+        private StoryRuntimeVerticalSliceChoiceSnapshot[] CollectChoiceSnapshots(
+            StoryDirectorSnapshot snapshot,
+            out StoryRuntimeVerticalSliceChoiceSnapshot firstEnabledChoice)
+        {
+            var results = new List<StoryRuntimeVerticalSliceChoiceSnapshot>();
+            bool foundEnabled = false;
+            firstEnabledChoice = default;
+
+            for (int i = 0; i < snapshot.ActiveBeatInstances.Count; i++)
+            {
+                StoryBeatInstanceSnapshot beat = snapshot.ActiveBeatInstances[i];
+                if (!beat.IsAwaitingChoice)
+                    continue;
+
+                StoryChoiceView[] choices = GetChoiceViews(beat);
+                for (int choiceIndex = 0; choiceIndex < choices.Length; choiceIndex++)
+                {
+                    StoryChoiceView choice = choices[choiceIndex];
+                    var choiceSnapshot = new StoryRuntimeVerticalSliceChoiceSnapshot(
+                        beat.GraphId,
+                        beat.BeatInstanceId,
+                        choice.ChoiceId,
+                        choice.LabelTextKey,
+                        ResolveText(choice.LabelTextKey),
+                        choice.Enabled);
+                    results.Add(choiceSnapshot);
+
+                    if (!foundEnabled && choice.Enabled)
+                    {
+                        firstEnabledChoice = choiceSnapshot;
+                        foundEnabled = true;
+                    }
+                }
+            }
+
+            return results.ToArray();
+        }
+
+        private StoryChoiceView[] GetChoiceViews(StoryBeatInstanceSnapshot beat)
+        {
+            Span<StoryChoiceView> initial = stackalloc StoryChoiceView[8];
+            int required = _storyDirector.GetChoices(beat.BeatInstanceId, beat.AwaitingChoiceSetId, initial);
+            if (required <= 0)
+                return Array.Empty<StoryChoiceView>();
+
+            if (required <= initial.Length)
+            {
+                var choices = new StoryChoiceView[required];
+                initial.Slice(0, required).CopyTo(choices);
+                return choices;
+            }
+
+            var expanded = new StoryChoiceView[required];
+            int expandedRequired = _storyDirector.GetChoices(beat.BeatInstanceId, beat.AwaitingChoiceSetId, expanded);
+            int count = Math.Min(expandedRequired, expanded.Length);
+            if (count == expanded.Length)
+                return expanded;
+
+            var trimmed = new StoryChoiceView[count];
+            Array.Copy(expanded, trimmed, count);
+            return trimmed;
         }
 
         private static StoryGraphRuntimeStatus GetGraphStatus(StoryDirectorSnapshot snapshot)
@@ -849,6 +913,32 @@ namespace MxFramework.Demo.Story
         }
     }
 
+    public readonly struct StoryRuntimeVerticalSliceChoiceSnapshot
+    {
+        public StoryRuntimeVerticalSliceChoiceSnapshot(
+            int graphId,
+            int beatInstanceId,
+            int choiceId,
+            int labelTextKey,
+            string text,
+            bool enabled)
+        {
+            GraphId = graphId;
+            BeatInstanceId = beatInstanceId;
+            ChoiceId = choiceId;
+            LabelTextKey = labelTextKey;
+            Text = text ?? string.Empty;
+            Enabled = enabled;
+        }
+
+        public int GraphId { get; }
+        public int BeatInstanceId { get; }
+        public int ChoiceId { get; }
+        public int LabelTextKey { get; }
+        public string Text { get; }
+        public bool Enabled { get; }
+    }
+
     public readonly struct StoryRuntimeVerticalSliceSnapshot
     {
         public StoryRuntimeVerticalSliceSnapshot(
@@ -869,6 +959,47 @@ namespace MxFramework.Demo.Story
             string preloadGroupId,
             int gameplayCommandCount,
             string[] eventLog)
+            : this(
+                frame,
+                nextFrame,
+                graphStatus,
+                waitingBeatInstanceId,
+                waitingStepId,
+                choiceBeatInstanceId,
+                choiceId,
+                dialogueText,
+                choiceText,
+                signalValue,
+                hash,
+                saveStatus,
+                replayStatus,
+                aiFacts,
+                preloadGroupId,
+                gameplayCommandCount,
+                CreateLegacyChoices(graphStatus, choiceBeatInstanceId, choiceId, choiceText),
+                eventLog)
+        {
+        }
+
+        public StoryRuntimeVerticalSliceSnapshot(
+            RuntimeFrame frame,
+            long nextFrame,
+            StoryGraphRuntimeStatus graphStatus,
+            int waitingBeatInstanceId,
+            int waitingStepId,
+            int choiceBeatInstanceId,
+            int choiceId,
+            string dialogueText,
+            string choiceText,
+            int signalValue,
+            long hash,
+            string saveStatus,
+            string replayStatus,
+            string aiFacts,
+            string preloadGroupId,
+            int gameplayCommandCount,
+            IReadOnlyList<StoryRuntimeVerticalSliceChoiceSnapshot> choices,
+            string[] eventLog)
         {
             Frame = frame;
             NextFrame = nextFrame;
@@ -886,6 +1017,7 @@ namespace MxFramework.Demo.Story
             AiFacts = aiFacts ?? string.Empty;
             PreloadGroupId = preloadGroupId ?? string.Empty;
             GameplayCommandCount = gameplayCommandCount;
+            Choices = choices ?? Array.Empty<StoryRuntimeVerticalSliceChoiceSnapshot>();
             EventLog = eventLog ?? Array.Empty<string>();
         }
 
@@ -905,8 +1037,30 @@ namespace MxFramework.Demo.Story
         public string AiFacts { get; }
         public string PreloadGroupId { get; }
         public int GameplayCommandCount { get; }
+        public IReadOnlyList<StoryRuntimeVerticalSliceChoiceSnapshot> Choices { get; }
         public IReadOnlyList<string> EventLog { get; }
         public bool IsWaitingForPresentation => WaitingBeatInstanceId > 0 && WaitingStepId > 0;
         public bool HasChoice => ChoiceBeatInstanceId > 0 && ChoiceId > 0;
+
+        private static IReadOnlyList<StoryRuntimeVerticalSliceChoiceSnapshot> CreateLegacyChoices(
+            StoryGraphRuntimeStatus graphStatus,
+            int choiceBeatInstanceId,
+            int choiceId,
+            string choiceText)
+        {
+            if (choiceBeatInstanceId <= 0 || choiceId <= 0)
+                return Array.Empty<StoryRuntimeVerticalSliceChoiceSnapshot>();
+
+            return new[]
+            {
+                new StoryRuntimeVerticalSliceChoiceSnapshot(
+                    StoryRuntimeVerticalSliceDemo.GraphId,
+                    choiceBeatInstanceId,
+                    choiceId,
+                    0,
+                    choiceText,
+                    enabled: graphStatus != StoryGraphRuntimeStatus.Completed)
+            };
+        }
     }
 }

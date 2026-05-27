@@ -9,6 +9,7 @@ namespace MxFramework.Demo.FairyGui
         public const string ViewIdValue = "ui.story.dialog";
         public const string PackageId = "MxStoryDialog";
         public const string ComponentName = "StoryDialogPanel";
+        public const string ChoiceButtonComponentName = "StoryDialogButton";
         public const string PackageBytesResourceId = "ui.fairygui.storydialog.fui";
 
         public const string Title = "title";
@@ -19,6 +20,7 @@ namespace MxFramework.Demo.FairyGui
         public const string EventLog = "eventLog";
         public const string Continue = "btnContinue";
         public const string Choice = "btnChoice";
+        public const string ChoiceItemPrefix = "btnChoice__";
 
         public static MxUiViewId ViewId => new MxUiViewId(ViewIdValue);
 

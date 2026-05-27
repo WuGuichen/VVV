@@ -60,6 +60,33 @@ namespace MxFramework.Demo.Story
         public object Payload { get; }
     }
 
+    public readonly struct StoryRuntimeVerticalSliceChoiceViewModel
+    {
+        public StoryRuntimeVerticalSliceChoiceViewModel(
+            int graphId,
+            int beatInstanceId,
+            int choiceId,
+            string text,
+            MxUiLocalizedTextRequest localizedText,
+            StoryRuntimeVerticalSliceUiCommandDescriptor command)
+        {
+            GraphId = graphId;
+            BeatInstanceId = beatInstanceId;
+            ChoiceId = choiceId;
+            Text = text ?? string.Empty;
+            LocalizedText = localizedText;
+            Command = command;
+        }
+
+        public int GraphId { get; }
+        public int BeatInstanceId { get; }
+        public int ChoiceId { get; }
+        public string Text { get; }
+        public MxUiLocalizedTextRequest LocalizedText { get; }
+        public StoryRuntimeVerticalSliceUiCommandDescriptor Command { get; }
+        public bool Enabled => Command.Enabled;
+    }
+
     public sealed class StoryRuntimeVerticalSliceFairyGuiViewModel
     {
         public string Title { get; set; }
@@ -69,6 +96,8 @@ namespace MxFramework.Demo.Story
         public MxUiLocalizedTextRequest DialogueLocalizedText { get; set; }
         public string ChoiceText { get; set; }
         public MxUiLocalizedTextRequest ChoiceLocalizedText { get; set; }
+        public IReadOnlyList<StoryRuntimeVerticalSliceChoiceViewModel> Choices { get; set; } =
+            Array.Empty<StoryRuntimeVerticalSliceChoiceViewModel>();
         public string SignalText { get; set; }
         public string EventLogText { get; set; }
         public IReadOnlyList<StoryRuntimeVerticalSliceUiCommandDescriptor> Commands { get; set; } =
@@ -82,7 +111,14 @@ namespace MxFramework.Demo.Story
             int graphId = StoryRuntimeVerticalSliceDemo.GraphId)
         {
             string dialogue = NonEmpty(snapshot.DialogueText, "Story is waiting for a trigger.");
-            string choice = NonEmpty(snapshot.ChoiceText, "No choice available.");
+            IReadOnlyList<StoryRuntimeVerticalSliceChoiceViewModel> choices = BuildChoices(snapshot, graphId);
+            StoryRuntimeVerticalSliceChoiceViewModel primaryChoice = ResolvePrimaryChoice(choices);
+            string choice = NonEmpty(primaryChoice.Text, NonEmpty(snapshot.ChoiceText, "No choice available."));
+            MxUiLocalizedTextRequest choiceText = primaryChoice.ChoiceId > 0
+                ? primaryChoice.LocalizedText
+                : new MxUiLocalizedTextRequest(
+                    new MxUiTextKey("story.choice." + (snapshot.ChoiceId > 0 ? snapshot.ChoiceId.ToString() : "none")),
+                    choice);
 
             return new StoryRuntimeVerticalSliceFairyGuiViewModel
             {
@@ -94,18 +130,18 @@ namespace MxFramework.Demo.Story
                     new MxUiTextKey("story.text." + (snapshot.WaitingStepId > 0 ? snapshot.WaitingStepId.ToString() : "dialogue")),
                     dialogue),
                 ChoiceText = choice,
-                ChoiceLocalizedText = new MxUiLocalizedTextRequest(
-                    new MxUiTextKey("story.choice." + (snapshot.ChoiceId > 0 ? snapshot.ChoiceId.ToString() : "none")),
-                    choice),
+                ChoiceLocalizedText = choiceText,
+                Choices = choices,
                 SignalText = "Signal " + snapshot.SignalValue + " / commands " + snapshot.GameplayCommandCount,
                 EventLogText = FormatEventLog(snapshot.EventLog),
-                Commands = BuildCommands(snapshot, graphId)
+                Commands = BuildCommands(snapshot, graphId, primaryChoice)
             };
         }
 
         private static IReadOnlyList<StoryRuntimeVerticalSliceUiCommandDescriptor> BuildCommands(
             StoryRuntimeVerticalSliceSnapshot snapshot,
-            int graphId)
+            int graphId,
+            StoryRuntimeVerticalSliceChoiceViewModel primaryChoice)
         {
             return new[]
             {
@@ -118,16 +154,70 @@ namespace MxFramework.Demo.Story
                         snapshot.WaitingBeatInstanceId,
                         snapshot.WaitingStepId,
                         "story.fairygui.presentation.complete")),
-                new StoryRuntimeVerticalSliceUiCommandDescriptor(
-                    StoryRuntimeVerticalSliceUiCommandIds.SelectChoice,
-                    NonEmpty(snapshot.ChoiceText, "Select"),
-                    snapshot.HasChoice,
-                    new StoryRuntimeVerticalSliceSelectChoicePayload(
-                        graphId,
-                        snapshot.ChoiceBeatInstanceId,
-                        snapshot.ChoiceId,
-                        "story.fairygui.choice.select"))
+                primaryChoice.ChoiceId > 0
+                    ? primaryChoice.Command
+                    : new StoryRuntimeVerticalSliceUiCommandDescriptor(
+                        StoryRuntimeVerticalSliceUiCommandIds.SelectChoice,
+                        NonEmpty(snapshot.ChoiceText, "Select"),
+                        snapshot.HasChoice,
+                        new StoryRuntimeVerticalSliceSelectChoicePayload(
+                            graphId,
+                            snapshot.ChoiceBeatInstanceId,
+                            snapshot.ChoiceId,
+                            "story.fairygui.choice.select"))
             };
+        }
+
+        private static IReadOnlyList<StoryRuntimeVerticalSliceChoiceViewModel> BuildChoices(
+            StoryRuntimeVerticalSliceSnapshot snapshot,
+            int graphId)
+        {
+            if (snapshot.Choices == null || snapshot.Choices.Count == 0)
+                return Array.Empty<StoryRuntimeVerticalSliceChoiceViewModel>();
+
+            var choices = new StoryRuntimeVerticalSliceChoiceViewModel[snapshot.Choices.Count];
+            for (int i = 0; i < snapshot.Choices.Count; i++)
+            {
+                StoryRuntimeVerticalSliceChoiceSnapshot choice = snapshot.Choices[i];
+                string text = NonEmpty(choice.Text, "Choice " + choice.ChoiceId);
+                var localizedText = new MxUiLocalizedTextRequest(
+                    new MxUiTextKey("story.choice." + (choice.ChoiceId > 0 ? choice.ChoiceId.ToString() : "none")),
+                    text);
+                var payload = new StoryRuntimeVerticalSliceSelectChoicePayload(
+                    choice.GraphId > 0 ? choice.GraphId : graphId,
+                    choice.BeatInstanceId,
+                    choice.ChoiceId,
+                    "story.fairygui.choice.select");
+                var command = new StoryRuntimeVerticalSliceUiCommandDescriptor(
+                    StoryRuntimeVerticalSliceUiCommandIds.SelectChoice,
+                    text,
+                    choice.Enabled,
+                    payload);
+                choices[i] = new StoryRuntimeVerticalSliceChoiceViewModel(
+                    choice.GraphId > 0 ? choice.GraphId : graphId,
+                    choice.BeatInstanceId,
+                    choice.ChoiceId,
+                    text,
+                    localizedText,
+                    command);
+            }
+
+            return choices;
+        }
+
+        private static StoryRuntimeVerticalSliceChoiceViewModel ResolvePrimaryChoice(
+            IReadOnlyList<StoryRuntimeVerticalSliceChoiceViewModel> choices)
+        {
+            if (choices == null || choices.Count == 0)
+                return default;
+
+            for (int i = 0; i < choices.Count; i++)
+            {
+                if (choices[i].Enabled)
+                    return choices[i];
+            }
+
+            return choices[0];
         }
 
         private static string ResolvePhase(StoryRuntimeVerticalSliceSnapshot snapshot)

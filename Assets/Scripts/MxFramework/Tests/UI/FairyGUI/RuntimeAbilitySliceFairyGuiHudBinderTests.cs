@@ -2,8 +2,10 @@ using System.Collections.Generic;
 using System.IO;
 using MxFramework.Demo;
 using MxFramework.Demo.FairyGui;
+using MxFramework.Demo.Story;
 using MxFramework.Resources;
 using MxFramework.Runtime;
+using MxFramework.Story.Runtime;
 using MxFramework.UI;
 using MxFramework.UI.FairyGui;
 using NUnit.Framework;
@@ -284,6 +286,96 @@ namespace MxFramework.Tests.UI.FairyGui
         }
 
         [Test]
+        public void ProductRuntimeShell_OpenRefreshCommandAndClose_CoversRuntimeHudAndStoryDialog()
+        {
+            RemoveRuntimeHudPackageIfLoaded();
+            RemoveStoryDialogPackageIfLoaded();
+
+            ResourceManager manager = CreatePublishedProductRuntimeManager();
+            var hudTarget = new RecordingHudCommandTarget();
+            var storyTarget = new RecordingStoryCommandTarget(new RuntimeFrame(12));
+            MxFairyGuiProductRuntimeShell shell =
+                MxFairyGuiProductRuntimeComposition.CreateShell(manager, hudTarget, storyTarget);
+            MxFairyGuiRuntimeCatalog catalog = MxFairyGuiProductRuntimeComposition.CreateCatalog(
+                new RecordingCommandSink(),
+                new RecordingCommandSink());
+
+            try
+            {
+                MxFairyGuiRuntimeCatalogDiagnostics diagnostics = catalog.CreateDiagnostics(manager);
+                Assert.IsTrue(diagnostics.Success);
+                Assert.AreEqual(2, diagnostics.ViewCount);
+                Assert.AreEqual(2, diagnostics.PackageCount);
+                Assert.AreEqual(2, diagnostics.ResourceKeyCount);
+
+                ResourcePreloadPlan preloadPlan = catalog.CreatePreloadPlan("fairygui.product.shell.smoke");
+                Assert.AreEqual("fairygui.product.shell.smoke", preloadPlan.GroupId);
+                Assert.AreEqual(2, preloadPlan.ExplicitKeys.Count);
+
+                MxUiOpenResult hudOpen = shell.RuntimeHud.Open(CreateViewModel());
+                Assert.IsTrue(hudOpen.Success, hudOpen.Message);
+                Assert.IsTrue(shell.RuntimeHud.IsOpen);
+
+                var hudView = hudOpen.View as MxFairyGuiView<RuntimeAbilitySliceHudViewModel>;
+                Assert.IsNotNull(hudView);
+                var hudHandle = hudView.Component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(hudHandle);
+                Fgui.GComponent hudRoot = hudHandle.Component;
+                Assert.AreEqual("Ability HUD", Text(hudRoot, RuntimeAbilitySliceFairyGuiHudIds.Title));
+
+                RuntimeAbilitySliceHudViewModel refreshedHud = CreateViewModel();
+                refreshedHud.Title = "Ability HUD Product Smoke";
+                MxUiOpenResult hudRefresh = shell.RuntimeHud.Refresh(refreshedHud);
+                Assert.IsTrue(hudRefresh.Success, hudRefresh.Message);
+                Assert.AreSame(hudOpen.View, hudRefresh.View);
+                Assert.AreEqual("Ability HUD Product Smoke", Text(hudRoot, RuntimeAbilitySliceFairyGuiHudIds.Title));
+
+                Button(hudRoot, RuntimeAbilitySliceFairyGuiHudIds.Strike).onClick.Call();
+                Assert.AreEqual(RuntimeAbilitySliceHudCommandIds.Strike, shell.RuntimeHud.LastCommand.CommandId);
+                Assert.AreEqual(RuntimeAbilitySliceHudManualCommand.Strike, hudTarget.LastCommand);
+                Assert.AreEqual(1, shell.RuntimeHud.AcceptedCommandCount);
+
+                MxUiOpenResult storyOpen = shell.StoryDialog.Open(CreateStoryWaitingViewModel());
+                Assert.IsTrue(storyOpen.Success, storyOpen.Message);
+                Assert.IsTrue(shell.StoryDialog.IsOpen);
+
+                var storyView = storyOpen.View as MxFairyGuiView<StoryRuntimeVerticalSliceFairyGuiViewModel>;
+                Assert.IsNotNull(storyView);
+                var storyHandle = storyView.Component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(storyHandle);
+                Fgui.GComponent storyRoot = storyHandle.Component;
+                Assert.AreEqual("Presentation waiting", DialogText(storyRoot, StoryRuntimeFairyGuiDialogIds.Phase));
+
+                Button(storyRoot, StoryRuntimeFairyGuiDialogIds.Continue).onClick.Call();
+                Assert.AreEqual(StoryRuntimeCommandIds.CompletePresentation, storyTarget.Last.CommandId);
+                Assert.AreEqual(1, shell.StoryDialog.AcceptedCommandCount);
+
+                MxUiOpenResult storyRefresh = shell.StoryDialog.Refresh(CreateStoryChoiceViewModel());
+                Assert.IsTrue(storyRefresh.Success, storyRefresh.Message);
+                Assert.AreSame(storyOpen.View, storyRefresh.View);
+                Assert.AreEqual("Choice available", DialogText(storyRoot, StoryRuntimeFairyGuiDialogIds.Phase));
+
+                Button(storyRoot, StoryRuntimeFairyGuiDialogIds.Choice).onClick.Call();
+                Assert.AreEqual(StoryRuntimeCommandIds.SelectChoice, storyTarget.Last.CommandId);
+                Assert.AreEqual(2, shell.StoryDialog.AcceptedCommandCount);
+
+                Assert.AreEqual(2, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.IsTrue(shell.CloseAll());
+                Assert.IsFalse(shell.RuntimeHud.IsOpen);
+                Assert.IsFalse(shell.StoryDialog.IsOpen);
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.IsNull(Fgui.UIPackage.GetByName(RuntimeAbilitySliceFairyGuiHudIds.PackageId));
+                Assert.IsNull(Fgui.UIPackage.GetByName(StoryRuntimeFairyGuiDialogIds.PackageId));
+            }
+            finally
+            {
+                shell.CloseAll();
+                RemoveRuntimeHudPackageIfLoaded();
+                RemoveStoryDialogPackageIfLoaded();
+            }
+        }
+
+        [Test]
         public void GeneratedManifest_ValidatesPublishedRuntimeHudSourceAndProjectsContract()
         {
             MxFairyGuiManifest manifest = RuntimeAbilitySliceFairyGuiHudManifest.Create();
@@ -347,6 +439,54 @@ namespace MxFramework.Tests.UI.FairyGui
             return viewModel;
         }
 
+        private static StoryRuntimeVerticalSliceFairyGuiViewModel CreateStoryWaitingViewModel()
+        {
+            var snapshot = new StoryRuntimeVerticalSliceSnapshot(
+                new RuntimeFrame(1),
+                2,
+                MxFramework.Story.StoryGraphRuntimeStatus.Active,
+                11,
+                22,
+                0,
+                0,
+                "The signal is unstable.",
+                string.Empty,
+                1,
+                10,
+                "not saved",
+                "not replayed",
+                "facts",
+                "preload",
+                2,
+                new[] { "triggered" });
+
+            return StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(snapshot, 100);
+        }
+
+        private static StoryRuntimeVerticalSliceFairyGuiViewModel CreateStoryChoiceViewModel()
+        {
+            var snapshot = new StoryRuntimeVerticalSliceSnapshot(
+                new RuntimeFrame(2),
+                3,
+                MxFramework.Story.StoryGraphRuntimeStatus.Active,
+                0,
+                0,
+                11,
+                33,
+                "The signal is unstable.",
+                "Stabilize signal",
+                1,
+                10,
+                "not saved",
+                "not replayed",
+                "facts",
+                "preload",
+                2,
+                new[] { "presentation complete", "choice available" });
+
+            return StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(snapshot, 100);
+        }
+
         private static Fgui.GComponent CreateHudRoot()
         {
             var root = new Fgui.GComponent();
@@ -382,6 +522,11 @@ namespace MxFramework.Tests.UI.FairyGui
             return root.GetChild(name).asButton;
         }
 
+        private static string DialogText(Fgui.GComponent root, string name)
+        {
+            return root.GetChild(name).asTextField.text;
+        }
+
         private static ResourceManager CreateManager(MemoryResourceProvider provider, params ResourceCatalogEntry[] entries)
         {
             var manager = new ResourceManager();
@@ -399,6 +544,23 @@ namespace MxFramework.Tests.UI.FairyGui
             return CreateManager(
                 new MemoryResourceProvider().Register("fgui/MxRuntimeHud_fui.bytes", packageBytes),
                 Entry(RuntimeAbilitySliceFairyGuiHudIds.PackageBytesKey, "fgui/MxRuntimeHud_fui.bytes"));
+        }
+
+        private static ResourceManager CreatePublishedProductRuntimeManager()
+        {
+            byte[] runtimeHudPackageBytes = File.ReadAllBytes(Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Assets/Bundles/FGUI/MxRuntimeHud/MxRuntimeHud_fui.bytes"));
+            byte[] storyDialogPackageBytes = File.ReadAllBytes(Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Assets/Bundles/FGUI/MxStoryDialog/MxStoryDialog_fui.bytes"));
+
+            return CreateManager(
+                new MemoryResourceProvider()
+                    .Register("fgui/MxRuntimeHud_fui.bytes", runtimeHudPackageBytes)
+                    .Register("fgui/MxStoryDialog_fui.bytes", storyDialogPackageBytes),
+                Entry(RuntimeAbilitySliceFairyGuiHudIds.PackageBytesKey, "fgui/MxRuntimeHud_fui.bytes"),
+                Entry(StoryRuntimeFairyGuiDialogIds.PackageBytesKey, "fgui/MxStoryDialog_fui.bytes"));
         }
 
         private static ResourceCatalog CreateManagerCatalog(ResourceKey key, string address)
@@ -429,6 +591,12 @@ namespace MxFramework.Tests.UI.FairyGui
         {
             if (Fgui.UIPackage.GetByName(RuntimeAbilitySliceFairyGuiHudIds.PackageId) != null)
                 Fgui.UIPackage.RemovePackage(RuntimeAbilitySliceFairyGuiHudIds.PackageId);
+        }
+
+        private static void RemoveStoryDialogPackageIfLoaded()
+        {
+            if (Fgui.UIPackage.GetByName(StoryRuntimeFairyGuiDialogIds.PackageId) != null)
+                Fgui.UIPackage.RemovePackage(StoryRuntimeFairyGuiDialogIds.PackageId);
         }
 
         private static string FormatDiagnostics(MxFairyGuiManifestValidationResult result)
@@ -483,6 +651,23 @@ namespace MxFramework.Tests.UI.FairyGui
                     commandId: (int)command,
                     targetId: 0,
                     traceId: "fairygui-hud-shell-test"));
+            }
+        }
+
+        private sealed class RecordingStoryCommandTarget : IStoryRuntimeVerticalSliceUiCommandTarget
+        {
+            public RecordingStoryCommandTarget(RuntimeFrame frame)
+            {
+                CurrentCommandFrame = frame;
+            }
+
+            public RuntimeFrame CurrentCommandFrame { get; }
+            public RuntimeCommand Last { get; private set; }
+
+            public RuntimeCommandValidationResult EnqueueStoryCommand(RuntimeCommand command)
+            {
+                Last = command;
+                return RuntimeCommandValidationResult.Accepted(command);
             }
         }
     }
