@@ -160,7 +160,7 @@ InitializeOnLoad playModeStateChanged
   - Play Mode HUD 显示 `Authoring Preview: CombatActionAuthoringAsset / CombatSceneBindingAsset`、`ActionId=400001`、`TraceId=7` 和 `validation: 通过`。
   - 运行 Trace / Resolve 后场景显示 trace / hit 表现，event log 出现 `WeaponTrace generated` 与 `HitResolve: Damage`，Enemy HP 从 600 降到 490。
   - 停止 Play 后 scene 文件无 SVN 修改，临时 preview runner 未保存进场景。
-- 未修改任务禁止的本地未跟踪 Action / Binding asset、`.claude`、`.gitnexus`、`Tools/*.py`。
+- 未修改任务禁止的本地未跟踪 Action / Binding asset、`.claude`、`Tools/*.py`。
 
 ## 提交边界
 
@@ -168,4 +168,4 @@ InitializeOnLoad playModeStateChanged
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py`
+- `.claude` / `Tools/*.py`

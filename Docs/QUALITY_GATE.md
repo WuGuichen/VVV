@@ -162,7 +162,7 @@ check-source-comment-for-migrated-files
 
 发布或提交前必须确认：
 
-- `git status` 中没有意外的 `Library/`、`Temp/`、`Logs/`、`UserSettings/`、`.gitnexus/`、`.codex/`。
+- `git status` 中没有意外的 `Library/`、`Temp/`、`Logs/`、`UserSettings/`、`.codex/`。
 - 新增 `.meta` 文件与资产文件同时提交。
 - 文档版本号已更新。
 - `MIGRATION.md` 的批次状态与代码一致。

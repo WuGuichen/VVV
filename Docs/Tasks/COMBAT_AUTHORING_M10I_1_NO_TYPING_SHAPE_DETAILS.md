@@ -120,7 +120,7 @@
 - 修正 timeline 刷新时清空当前 selection 的问题，确保 Shape 详情不会被 delayed refresh 立即清掉。
 - Unity Console error 检查：0 error。
 - Authoring EditMode tests：11/11 passed。
-- GitNexus detect-changes：low risk，affected processes 0。
+- 影响面检查完成。
 
 ## 提交边界
 
@@ -128,4 +128,4 @@
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py`
+- `.claude` / `Tools/*.py`

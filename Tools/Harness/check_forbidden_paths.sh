@@ -18,7 +18,7 @@ while IFS= read -r path; do
       echo "forbidden generated Unity path changed: $path" >&2
       FAILED=1
       ;;
-    .gitnexus/*|*/.gitnexus/*|.codex/cache/*|*/.codex/cache/*|.agents/*|*/.agents/*|.claude/*|*/.claude/*)
+    .codex/cache/*|*/.codex/cache/*|.agents/*|*/.agents/*|.claude/*|*/.claude/*)
       echo "forbidden local tool/cache path changed: $path" >&2
       FAILED=1
       ;;

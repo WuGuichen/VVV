@@ -78,7 +78,7 @@ Unity EditMode: MxFramework.Tests.Ability.RuntimeAbilitySliceDiagnosticViewModel
 Unity EditMode: MxFramework.Tests.Ability.RuntimeAbilitySliceMiniGameFeedbackTests
 UI.Toolkit boundary static check
 Unity Console: 0 compile error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Notes

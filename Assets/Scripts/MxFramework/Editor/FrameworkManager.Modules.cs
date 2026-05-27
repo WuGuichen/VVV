@@ -66,7 +66,7 @@ namespace MxFramework.Editor
             _validationLabel.style.display = DisplayStyle.None;
             scroll.Add(_validationLabel);
 
-            var note = new Label("Phase 8.0 只验证模块 asmdef 是否存在。依赖图、GitNexus 和沙盒检查会在后续阶段接入。");
+            var note = new Label("Phase 8.0 只验证模块 asmdef 是否存在。依赖图和沙盒检查会在后续阶段接入。");
             note.style.whiteSpace = WhiteSpace.Normal;
             note.style.marginTop = 12;
             note.style.fontSize = 11;

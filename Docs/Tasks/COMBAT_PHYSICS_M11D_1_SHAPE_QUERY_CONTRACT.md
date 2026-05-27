@@ -148,4 +148,4 @@ Docs/Tasks/COMBAT_PHYSICS_M11D_1_SHAPE_QUERY_CONTRACT.md
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py`
+- `.claude` / `Tools/*.py`

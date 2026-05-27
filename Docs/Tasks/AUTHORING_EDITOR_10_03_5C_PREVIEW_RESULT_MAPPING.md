@@ -63,7 +63,7 @@ Docs/CAPABILITIES.md
 dotnet build WGameFramework.sln --no-restore -v minimal
 Unity EditMode: MxFramework.Tests.Preview
 Unity Console: 0 compile error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Notes
@@ -160,7 +160,7 @@ Preview E can consume:
 - `dotnet build WGameFramework.sln --no-restore -v minimal` passed with 0 warnings / 0 errors.
 - Unity MCP EditMode `MxFramework.Tests.Preview` passed: 17 total, 17 passed, 0 failed.
 - Unity Console compile errors: 0 after refresh and test run.
-- `Tools/GitNexus/gitnexus.sh detect-changes` passed; report showed low risk. It observed unrelated pre-existing worktree changes, but no command failure.
+- `git diff --stat && git diff --check` passed; 影响面检查完成；观察到无关的既有工作区改动，但命令未失败.
 
 ### Remaining Risks / Follow-Up
 

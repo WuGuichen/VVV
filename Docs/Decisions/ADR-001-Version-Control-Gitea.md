@@ -6,7 +6,7 @@ Status: Accepted
 
 ## Context
 
-MxFramework is a Unity framework project with Git LFS assets, local Unity validation, GitNexus analysis, and AI-assisted development. Direct local edits against `main` make it too easy for humans or agents to bypass task definition, review, and validation.
+MxFramework is a Unity framework project with Git LFS assets, local Unity validation, manual impact analysis, and AI-assisted development. Direct local edits against `main` make it too easy for humans or agents to bypass task definition, review, and validation.
 
 The project also mirrors non-LFS Git content to GitHub, but GitHub is not the authoritative location for LFS assets, permissions, issue triage, or local automation.
 
@@ -47,5 +47,4 @@ GitHub `github` remains a non-LFS Git mirror only. It does not replace Gitea rev
 ## References
 
 - `Docs/WORKFLOW.md`
-- `Docs/GITNEXUS.md`
 - `.gitea/PULL_REQUEST_TEMPLATE.md`

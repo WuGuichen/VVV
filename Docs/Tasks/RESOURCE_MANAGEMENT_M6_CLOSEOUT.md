@@ -80,7 +80,7 @@ Unity EditMode: MxFramework.Tests.Resources.ResourcePreloadServiceTests, 5/5 pas
 Unity EditMode: MxFramework.Tests.Resources.ResourceManagerTests, 15/15 passed
 Unity EditMode: MxFramework.Tests.Resources.RemoteBundleProviderTests, 4/4 passed
 Unity EditMode: MxFramework.Tests.Resources, 40/40 passed
-GitNexus detect-changes: risk low
+影响面检查完成
 ```
 
 ## 后续建议

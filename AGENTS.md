@@ -52,7 +52,7 @@
 
 - 先读 `Docs/PROJECT_INDEX.md` 和 `Docs/README.md`，再按任务类型读取 `Docs/WORKFLOW.md` 指定的专项文档。
 - 涉及游戏功能、小游戏 / Demo / Runtime Showcase 时，先读 `Docs/AGENT_GAME_CREATION_GUIDE.md` 并写 API 复用计划。
-- 涉及代码影响面或提交前，按 `Docs/GITNEXUS.md` 使用 GitNexus 辅助分析。
+- 涉及代码影响面或提交前，使用 `git diff`、`rg`、源码阅读和相关测试做影响面分析。
 - 常规开发从 Gitea Issue 开始，只有 `status/agent-ready` 的 Issue 才允许 Agent 执行。
 - Issue 是 Agent Spec，分支是 Agent sandbox，PR 是交付物和审计记录。
 - 每个可验收阶段单独 Git 提交；分支、PR 和推送模式见 `Docs/WORKFLOW.md`。
@@ -60,14 +60,6 @@
 ## Git 推送模式
 
 统一见 `Docs/WORKFLOW.md`。简述：`origin` 是 NAS Gitea 主仓库和默认推送目标；`github` 是跳过 LFS 上传的非 LFS Git 镜像；SVN 仅作可选备份。
-
-## GitNexus
-
-本项目已接入 GitNexus；具体规则统一维护在 `Docs/GITNEXUS.md`，其他文档不重复定义命令细节。
-
-- 修改核心符号、公共 API 或跨模块依赖前，按 `Docs/GITNEXUS.md` 做影响面分析。
-- GitNexus 输出用于辅助判断风险，不替代编译、测试和人工边界检查。
-- 如果索引提示过期，必须先重新分析再依赖结果。
 
 ## 文档入口
 
@@ -81,12 +73,11 @@
 | `Docs/INTERFACES.md` | 接口文档入口和依赖矩阵 |
 | `Docs/API_STANDARDS.md` | API 命名、兼容、性能规范 |
 | `Docs/WORKFLOW.md` | 项目日常开发、验收、提交和推送流程 |
-| `Docs/GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查 |
 | `Docs/Decisions/` | ADR 架构和流程决策记录 |
 | `Docs/AGENT_GAME_CREATION_GUIDE.md` | Agent 基于框架开发游戏功能 / 小游戏 / Demo / Runtime Showcase 的强制规范 |
 | `Docs/QUALITY_GATE.md` | 验收标准 |
 | `Docs/ROADMAP.md` | 阶段路线 |
-| `Docs/Tasks/` | 可执行任务拆分 |
+| `Docs/Tasks/` | 历史任务归档和验收证据；不作为当前事实源 |
 
 ## 提交前检查
 

@@ -100,7 +100,7 @@ Assets/UI/MxFramework/Breakout/
 - `dotnet build MxFramework.Tests.csproj --no-restore` 通过。
 - Unity 刷新后 Console 无 Breakout 编译错误。
 - 当前仓库缺少 Breakout 场景资产；补齐场景前不以 Play Mode 入口作为当前验收条件。
-- `Tools/GitNexus/gitnexus.sh detect-changes` 风险符合 Demo 范围。
+- `git diff --stat && git diff --check` 风险符合 Demo 范围。
 - 更新 `Docs/CAPABILITIES.md` 和 `Docs/README.md` 的 Demo 入口。
 
 ## 当前实现

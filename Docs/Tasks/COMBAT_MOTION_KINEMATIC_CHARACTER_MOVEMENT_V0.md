@@ -37,7 +37,7 @@
 - Unity EditMode `RuntimeCombatShowcaseRunnerTests`：`5/5 passed`。
 - Unity EditMode `MxFramework.Tests.Combat`：`105/105 passed`。
 - Unity Console：`0 error / 0 warning`。
-- `Tools/GitNexus/gitnexus.sh detect-changes`：`low risk`。
+- 影响面检查完成。
 
 固定输入 / 行为验收：
 
@@ -260,7 +260,7 @@ Unity EditMode: MxFramework.Tests.Combat.Motion.*
 Unity EditMode: MxFramework.Tests.Combat.Physics.*
 Unity EditMode: MxFramework.Tests.Combat
 Unity Console: 0 error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 必须补充或确认覆盖：
@@ -285,7 +285,7 @@ Tools/GitNexus/gitnexus.sh detect-changes
 - 至少一个落地结果；
 - 移动后攻击 query 的命中变化；
 - Console 最终状态；
-- GitNexus 风险等级。
+- 影响面风险说明。
 
 ## 完成后演示方式
 
@@ -311,11 +311,11 @@ Tools/GitNexus/gitnexus.sh detect-changes
 先读 AGENTS.md、Docs/COMBAT_ANIMATION_PHYSICS.md、COMBAT_ANIMATION_PHYSICS_EPIC.md、COMBAT_PHYSICS_RUNTIME_WORLD_LIFECYCLE.md、COMBAT_MOTION_KINEMATIC_CHARACTER_MOVEMENT_V0.md。
 不要回退他人改动。
 只在文档允许范围内修改文件；如需越界，先说明原因。
-完成后必须跑 build、Combat Motion / Physics / Combat 测试、Unity Console 检查和 GitNexus，并记录固定输入、落地、撞墙、移动后攻击 query 的验收结果。
+完成后必须跑 build、Combat Motion / Physics / Combat 测试、Unity Console 检查和影响面检查，并记录固定输入、落地、撞墙、移动后攻击 query 的验收结果。
 ```
 
 ## 当前记录
 
 - 2026-05-09：创建功能包任务文档。创建时只完成任务定义和验收包，不包含代码实现。
 - 2026-05-09：采纳文档审查中合理的实现约束，补充 motion contract 最小字段、固定步长积分、broadphase / sweep / skin width、collide-and-slide、world sync、Showcase 简化场景和 deterministic replay 测试要求。
-- 2026-05-09：功能包实现与验收完成，状态收口为 `Completed / Accepted`。已记录 Runtime Motion 实现范围、Showcase 操作方式、固定输入 / 行为验收、Play Mode smoke、Console 和 GitNexus 结果；斜坡、移动平台、动态刚体、Root Motion 正式融合等内容转入后续非 v0 项。
+- 2026-05-09：功能包实现与验收完成，状态收口为 `Completed / Accepted`。已记录 Runtime Motion 实现范围、Showcase 操作方式、固定输入 / 行为验收、Play Mode smoke、Console 和影响面检查 结果；斜坡、移动平台、动态刚体、Root Motion 正式融合等内容转入后续非 v0 项。

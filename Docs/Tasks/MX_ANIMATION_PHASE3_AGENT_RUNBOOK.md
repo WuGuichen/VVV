@@ -79,7 +79,7 @@ Use the narrowest sufficient matrix, but do not skip boundary checks for public 
 | Combat adapter | `dotnet build MxFramework.Combat.csproj --no-restore -v minimal`; Combat adapter tests; verify Combat does not read Unity pose |
 | Editor tool | Editor focused tests; Unity Console error check; use Unity Editor / Unity MCP / Editor API for serialized assets |
 | Scene or Playable demo | Unity MCP or batchmode Play Mode check; scene opens and plays without manual wiring; Console has no new runtime errors |
-| Cross-module or public API | GitNexus impact analysis; update `Docs/Interfaces/Animation.md` and related usage docs |
+| Cross-module or public API | manual impact analysis; update `Docs/Interfaces/Animation.md` and related usage docs |
 
 Useful boundary scans:
 

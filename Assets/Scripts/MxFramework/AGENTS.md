@@ -77,4 +77,4 @@ Editor / Demo / Tests 位于最外层
 - 修改公共类型、核心管线或跨模块依赖前，先查调用点和测试覆盖。
 - 修改 Buff / Modifier / Attribute 行为时，至少检查对应 `Tests/` 子目录。
 - 改动 Preview 或 Editor 时，确认 Runtime asmdef 没有新增 Editor 依赖。
-- 提交前回到仓库根，按 `Docs/GITNEXUS.md` 执行 GitNexus 影响面检查。
+- 提交前回到仓库根，使用 `git diff`、`rg`、源码阅读和相关测试做影响面检查。

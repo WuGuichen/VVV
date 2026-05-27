@@ -127,7 +127,7 @@ IsKeyboardEventFromEditableField(...)
   - Duplicate 后数量为 2，原 `trackId=1`，副本 `trackId=2`。
   - Delete 当前副本后数量为 1。
   - Undo 后数量恢复为 2。
-- GitNexus detect-changes：low risk，affected processes 0。
+- 影响面检查完成。
 
 ## 提交边界
 
@@ -135,4 +135,4 @@ IsKeyboardEventFromEditableField(...)
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py`
+- `.claude` / `Tools/*.py`

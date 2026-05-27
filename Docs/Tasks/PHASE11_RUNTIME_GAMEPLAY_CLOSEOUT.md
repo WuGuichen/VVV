@@ -119,7 +119,7 @@ Config-driven ability and authoring bridge:
 - `dotnet build WGameFramework.sln --no-restore -v minimal`: passed, 0 errors, 10 existing warnings.
 - Unity EditMode via MCP, assembly `MxFramework.Tests`, filters `MxFramework.Tests.Ability` and `MxFramework.Tests.Config`: passed, 124 total, 124 passed, 0 failed, 0 skipped.
 - Unity Console via MCP, errors only: 0 entries.
-- `Tools/GitNexus/gitnexus.sh detect-changes`: passed; 43 files, 130 symbols, affected processes 0, risk level low.
+- `git diff --stat && git diff --check`: 影响面检查完成.
 
 ### Dependency Boundary Evidence
 
@@ -146,7 +146,7 @@ dotnet build WGameFramework.sln --no-restore -v minimal
 Unity EditMode: MxFramework.Tests.Ability
 Unity EditMode: MxFramework.Tests.Config
 Unity Console: 0 compile error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Notes

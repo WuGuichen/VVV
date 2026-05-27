@@ -151,7 +151,7 @@ RuntimeHost
 
 ```bash
 git diff --check
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 dotnet build MxFramework.Gameplay.csproj --no-restore
 dotnet build MxFramework.Tests.csproj --no-restore
 dotnet test MxFramework.Tests.csproj --no-build --filter GameplayComponentRuntimeSliceTests
@@ -246,10 +246,7 @@ Closeout
 验证结果：
 
 ```text
-Tools/GitNexus/gitnexus.sh detect-changes
-  Changes: 51 files, 133 symbols
-  Affected processes: 0
-  Risk level: low
+影响面检查完成。
 
 dotnet build MxFramework.Gameplay.csproj --no-restore
   0 warnings, 0 errors

@@ -273,4 +273,4 @@ Phase 11 已接受关闭。正式验收记录见 `PHASE11_RUNTIME_GAMEPLAY_CLOSE
 - `dotnet build WGameFramework.sln --no-restore -v minimal`：通过，0 error，10 个既有 warning。
 - Unity EditMode `MxFramework.Tests.Ability` + `MxFramework.Tests.Config`：124/124 passed。
 - Unity Console error：0。
-- `Tools/GitNexus/gitnexus.sh detect-changes`：risk level low，affected processes 0。
+- 影响面检查完成。

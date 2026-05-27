@@ -9,10 +9,9 @@ Date: 2026-05-13
 - Daily development should use Spec Issue -> Agent Branch -> PR -> checks -> owner review -> merge main.
 - Task levels S0-S3 control workflow weight so small documentation changes do not require the full Agent Control Plane.
 - `status/in-progress` is reserved for human work; `status/agent-running` is for agent execution; `status/ready-to-merge` replaces ambiguous issue-level `status/approved`.
-- GitNexus is preferred for impact analysis; if unavailable, the PR must document substitute `git diff` / `rg` / source / test analysis.
-- Default Context Pack uses `AGENTS.md`, `Docs/PROJECT_INDEX.md`, issue-specified docs / ADRs, relevant interfaces, source, and tests; full `WORKFLOW.md` / `GITNEXUS.md` reads are section-specific.
+- Impact analysis is handled with `git diff`, `rg`, source reading, and relevant tests.
+- Default Context Pack uses `AGENTS.md`, `Docs/PROJECT_INDEX.md`, issue-specified active docs / ADRs, relevant interfaces, source, and tests; completed `Docs/Tasks/` files are archive evidence and are read only when explicitly referenced or needed for historical tracing.
 - `Docs/WORKFLOW.md` is the workflow authority.
-- `Docs/GITNEXUS.md` is the GitNexus authority.
 - `Docs/Decisions/ADR-001-Version-Control-Gitea.md` records the Gitea primary repository decision.
 - `Docs/Decisions/ADR-002-Gitea-Agent-Control-Plane.md` records the Agent Control Plane decision.
 

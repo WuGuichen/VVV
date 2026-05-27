@@ -63,7 +63,7 @@ If implementation requires changing Config.Runtime, Gameplay, Buffs, or Attribut
 dotnet build WGameFramework.sln --no-restore -v minimal
 Unity EditMode: MxFramework.Tests.Preview
 Unity Console: 0 compile error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Notes
@@ -120,7 +120,7 @@ ScenePreviewWorld: patch rejected source=preview-invalid-v1 reason=...
 - `dotnet build WGameFramework.sln --no-restore -v minimal` passed with 0 warnings / 0 errors.
 - Unity MCP EditMode `MxFramework.Tests` passed: 345 total, 345 passed, 0 failed, 0 skipped.
 - Unity Console compile errors: none observed after the EditMode run. The console retained test-runner `IgnoreFailingMessages:true` exception entries, but no C# compile errors.
-- `Tools/GitNexus/gitnexus.sh detect-changes` passed; output recorded impacted symbols and did not report a command failure.
+- `git diff --stat && git diff --check` passed; output recorded impacted symbols and did not report a command failure.
 
 ### Remaining Risks / Follow-Up
 

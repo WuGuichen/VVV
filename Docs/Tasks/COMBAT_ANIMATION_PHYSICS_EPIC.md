@@ -399,7 +399,7 @@ SVN 是主版本控制，不要使用 git 提交。
 本任务只允许修改任务文档声明的文件范围；如确需越界，先说明原因。
 Runtime Core 不引用 UnityEditor；Combat Core 默认不引用 UnityEngine。
 完成后运行相关测试或说明无法运行的原因。
-提交前运行 Tools/GitNexus/gitnexus.sh detect-changes，并确认 svn status 只包含本任务文件。
+提交前运行 git diff --stat && git diff --check，并确认 svn status 只包含本任务文件。
 ```
 
 ## 提交策略
@@ -437,7 +437,7 @@ Add combat physics query contracts
 
 本轮已完成两个 closeout 校准任务：
 
-1. `COMBAT_PHYSICS_HIT_QUERY_DEBUG_VISUALIZATION.md`：已补 Play Mode 演示、HUD count、marker 同步、Console / GitNexus 验收记录，状态 `Accepted / Closed`。
+1. `COMBAT_PHYSICS_HIT_QUERY_DEBUG_VISUALIZATION.md`：已补 Play Mode 演示、HUD count、marker 同步、Console / 影响面验收记录，状态 `Accepted / Closed`。
 2. `COMBAT_PHYSICS_RUNTIME_WORLD_LIFECYCLE.md`：已补 lifecycle 测试门槛、stats / revision、snapshot / copy 隔离、规模测试记录，状态 `Accepted / Closed`。
 
 下一步已具体化为 `Combat Motion v1：Capsule Character Proxy / Narrow Phase`。任务文档：`Docs/Tasks/COMBAT_MOTION_V1_CAPSULE_CHARACTER_PROXY.md`。
@@ -470,7 +470,7 @@ M10 已经把 Authoring 到 Play Mode Showcase 的最小闭环打通。若优先
 
 - 运行时新增 `MxFramework.Combat.Motion`，覆盖固定帧基础移动、重力、跳跃、grounded、静态 AABB 阻挡、墙 / 天花板响应和 Motion -> `CombatPhysicsWorld` body position 同步。
 - `Assets/Scenes/CombatAnimationPhysicsTest.unity` 已挂载 `RuntimeCombatShowcase`、Player / Enemy marker 和 Motion obstacle，可 Play 验证跑、跳、落地、撞墙、移动后 Probe / Attack。
-- 验收：`dotnet build WGameFramework.sln --no-restore -v minimal` 0 warning / 0 error；Unity EditMode `MxFramework.Tests.Combat` 105/105；Play Mode smoke 中 Enemy HP `600 -> 490`，query `hit=1`；Console 0 error / 0 warning；GitNexus low risk。任务文档：`Docs/Tasks/COMBAT_MOTION_KINEMATIC_CHARACTER_MOVEMENT_V0.md`。
+- 验收：`dotnet build WGameFramework.sln --no-restore -v minimal` 0 warning / 0 error；Unity EditMode `MxFramework.Tests.Combat` 105/105；Play Mode smoke 中 Enemy HP `600 -> 490`，query `hit=1`；Console 0 error / 0 warning；影响面检查通过。任务文档：`Docs/Tasks/COMBAT_MOTION_KINEMATIC_CHARACTER_MOVEMENT_V0.md`。
 
 `Combat Motion v1：Capsule Character Proxy / Narrow Phase` 已完成并验收，任务文档：`Docs/Tasks/COMBAT_MOTION_V1_CAPSULE_CHARACTER_PROXY.md`。
 

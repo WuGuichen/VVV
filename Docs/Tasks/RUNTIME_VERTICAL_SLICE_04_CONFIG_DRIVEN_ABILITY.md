@@ -352,7 +352,7 @@ RuntimeAbilitySlice_ConfigDriven_MatchesHardcodedDamage
 - 提交前运行：
 
 ```bash
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 - SVN 提交信息建议：

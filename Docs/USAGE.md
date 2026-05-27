@@ -3446,7 +3446,7 @@ AI agent 进入项目后应按这个顺序读取：
 1. Unity 编译无错误。
 2. 相关 EditMode / PlayMode 测试通过，或说明无法运行原因。
 3. `git status` 只包含本次相关文件。
-4. 按 `Docs/GITNEXUS.md` 运行 GitNexus 影响面检查。
+4. 使用 `git diff`、`rg`、源码阅读和相关测试做影响面检查。
 5. 如果本次涉及配置表，打开 `MxFramework > Framework Manager > 编辑模式 > 配置工作台`，点击 `提交前检查`，优先查看 `Temp/MxFrameworkReports/Config/config_precommit.txt`。
 
 当前已覆盖的关键测试：

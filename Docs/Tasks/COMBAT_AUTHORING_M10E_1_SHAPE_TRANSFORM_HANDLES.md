@@ -117,4 +117,4 @@ heightRaw: Capsule 使用
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py` 等本地辅助文件
+- `.claude` / `Tools/*.py` 等本地辅助文件

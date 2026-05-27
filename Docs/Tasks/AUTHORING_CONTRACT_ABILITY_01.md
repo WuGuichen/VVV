@@ -141,7 +141,7 @@ MxFramework.Tests.Config
 影响面检查：
 
 ```bash
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Prompt
@@ -182,7 +182,7 @@ Tools/GitNexus/gitnexus.sh detect-changes
 - Unity MCP EditMode `MxFramework.Tests.Config`：99/99 通过。
 - Unity MCP EditMode `MxFramework.Tests.Ability`：25/25 通过。
 - Unity EditMode batchmode：子代理首次尝试时因已有 Unity 实例打开同一个 WGameFramework 工程，batchmode 报错 `Multiple Unity instances cannot open the same project`；随后已改用当前 Unity MCP 实例完成测试。
-- `Tools/GitNexus/gitnexus.sh detect-changes`：通过，Risk level low。
+- 影响面检查完成。
 
 剩余风险：
 

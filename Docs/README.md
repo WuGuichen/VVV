@@ -1,6 +1,6 @@
 # MxFramework 文档索引
 
-> 版本 0.6.56 | 2026-05-25
+> 版本 0.6.59 | 2026-05-27
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -16,6 +16,7 @@
 | **排查运行时状态和调试面板** | → `Guides/OBSERVABILITY_DEBUGGING_GUIDE.md`（Debug UI、日志、timeline、hot reload、commands 和 Simulation Harness） |
 | **让 agent 基于框架制作小游戏 / Demo** | → `AGENT_GAME_CREATION_GUIDE.md`（API 复用计划、标准分层、禁用项和验收清单） |
 | **创作 Rendering pass / SharedRT / 材质绑定 / Volume 请求 / Demo 验证** | → `RENDERING_AUTHORING_GUIDE.md`（Rendering authoring 唯一入口） |
+| **追溯已完成任务的历史证据** | → `Tasks/README.md`（任务归档读取规则） |
 | **选读哪个文档** | → 本文件下方「职责表」 |
 
 ---
@@ -42,7 +43,6 @@
 | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程实现方案：模块拆分、目录、CLI、Tauri 编辑器、Unity Importer 和测试矩阵。 |
 | `API_STANDARDS.md` | API 命名、兼容性、GC、Unity 依赖标准。 |
 | `WORKFLOW.md` | 项目日常开发、验收、提交和推送流程。 |
-| `GITNEXUS.md` | GitNexus 接入、影响面分析和提交前辅助检查。 |
 | `../Tools/GiteaGithubSync/README.md` | Gitea Issue / PR 元数据手动镜像到 GitHub 的脚本说明。 |
 | `Decisions/` | ADR 决策记录，保存架构、流程和版本控制等正式决策。 |
 | `Progress/CurrentStatus.md` | 当前项目流程、主仓库和下一步运营状态。 |
@@ -51,10 +51,21 @@
 | `ROADMAP.md` | 分阶段建设路线和完成定义（按 Phase 组织）。 |
 | `MIGRATION.md` | 从 WGame 迁移了哪些代码、怎么改的。 |
 | `Guides/OBSERVABILITY_DEBUGGING_GUIDE.md` | 如何接入和排查 Debug UI、日志、timeline、performance counters、Simulation Harness、hot reload、input adapter 和 command gate。 |
+| `Tasks/README.md` | 已完成任务文档的归档定位、读取规则和维护规则。 |
+
+---
+
+## 任务文档归档
+
+`Docs/Tasks/` 是历史任务规格、拆分和验收证据库，不作为当前能力、公共 API、流程或质量门禁的事实源。Agent 默认不读取 `Docs/Tasks/`；只有 Gitea Issue 明确引用、需要追溯历史原因，或需要参考同类任务拆分时才读取。
+
+当前事实优先看 `CAPABILITIES.md`、`INTERFACES.md`、`Interfaces/*.md`、`WORKFLOW.md`、`QUALITY_GATE.md`、源码和测试。任务完成后，仍然有效的结论应回写到这些当前权威文档，任务文件本身不持续追更。
 
 ---
 
 ## 编辑器 / 外部工具
+
+本节中列出的 `Tasks/*` 仅作为历史任务参考；当前功能事实优先看对应系统文档、接口文档、源码和测试。
 
 | 文档 | 回答的问题 |
 |------|------------|
@@ -131,9 +142,11 @@
 
 ---
 
-## 当前 P0 Goal
+## 历史任务索引
 
-| Goal | 说明 |
+以下条目是历史重点任务和 closeout 线索，不表示当前 P0 计划。当前事实仍以能力、接口、工作流、质量门禁、源码和测试为准。
+
+| 任务 | 说明 |
 |------|------|
 | `Tasks/PHASE13_OBSERVABILITY_AND_DEVELOPER_WORKFLOW.md` | Phase 13 Observability and Developer Workflow：Issue #178-#187，已覆盖只读 Debug UI core registry、UI Toolkit overlay shell、RuntimeHost / Logging / Resources / Gameplay / Combat source adapters、event timeline、entity watch、performance counters、Simulation Harness batch reports、Config Runtime patch hot reload、Debug UI input adapter、command gate 和调试指南；明确 Debug UI 状态不进入 Replay / SaveState / Runtime hash。 |
 | `Tasks/RUNTIME_DEBUG_UI_FRAMEWORK_01_DESIGN.md` | Runtime Debug UI Framework 01：Issue #85 通用运行时调试界面框架设计，规划 source registry、snapshot aggregation、Hidden / Collapsed / Expanded UX、DebugUI noEngine core / Toolkit / Input 拆分和 M1-M5 实施切片。 |
@@ -224,7 +237,6 @@
 | `Interfaces/*.md` | 各模块对外公开哪些类型和方法 | 修改公共 API 前 |
 | `API_STANDARDS.md` | API 如何命名、如何演进、如何避免隐藏耦合 | 新增公共类型前 |
 | `WORKFLOW.md` | 日常开发、验收、提交和推送如何执行 | 项目工作流变化 |
-| `GITNEXUS.md` | GitNexus 如何接入、何时检查、输出如何使用 | GitNexus 工作流变化 |
 | `Decisions/*.md` | 已接受的架构、流程和版本控制决策 | 重要决策接受或变更 |
 | `Progress/*.md` | 当前进度、流程状态和合并后摘要 | PR 合并后或状态变化 |
 | `QUALITY_GATE.md` | 什么算做完、如何验收 | 新增测试或发布要求 |
@@ -236,7 +248,7 @@
 | `MIGRATION.md` | 每批迁移了什么、从哪里来、怎么改过 | 每次迁移后 |
 | `ROADMAP.md` | 先做什么、后做什么、每阶段产物是什么 | 阶段计划变化 |
 | 审计文档 | WGame 数据分析结果 | 审计完成后 |
-| `Tasks/*.md` | 具体任务/子需求的设计稿（已完成的只做历史参考） | 不再实时同步 -> 看 CAPABILITIES.md |
+| `Tasks/*.md` | 已完成任务规格、拆分和验收证据归档 | 不再实时同步 -> 当前事实看 CAPABILITIES / INTERFACES / WORKFLOW / QUALITY_GATE |
 
 ---
 
@@ -252,6 +264,8 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.59 | 2026-05-27 | 降级 `Docs/Tasks/` 为历史任务归档：新增 `Docs/Tasks/README.md`，明确默认 Context Pack 不读取已完成任务文档，当前事实以能力、接口、流程、质量门禁、源码和测试为准。 |
+| 0.6.58 | 2026-05-27 | 移除旧代码索引工具项目接入：删除独立工作流文档、仓库封装脚本和索引配置，当前流程改为 `git diff` / `rg` / 源码阅读 / 相关测试做影响面分析。 |
 | 0.6.57 | 2026-05-25 | 文档同步：`INTERFACES.md` 模块表新增 Character Action 和 Character Runtime Spawn；`CAPABILITIES.md` 新增 §1.8.1 Character Action 能力清单（12 行，全标记 🟡 未集成）；`ROADMAP.md` 新增 Phase 16 Character Action Layer；`USAGE.md` 新增 §15.6 使用示例；ADR-003 状态更新为 Accepted；`README.md` 同步新增 Character Action 和 Character Runtime Spawn 入口。 |
 | 0.6.56 | 2026-05-25 | 新增 `RENDERING_AUTHORING_GUIDE.md` 作为 Rendering authoring 唯一入口，并同步 Phase 15.1-15.8 当前状态：MaterialBindingHub、RenderDataPublisher、GameplayRenderingBridge、VolumeBlender arbitration/diagnostics 和 Demo Showcase 已落地；runtime URP Volume object application 仍为后续工作 |
 | 0.6.55 | 2026-05-24 | 新增 Story S6 外部 authoring CLI：`Tools/MxFrameworkStoryAuthoring/story_authoring.py` 支持 Markdown Story Outline v1 import、deterministic `.story.json` draft、Story.Config handoff validate、结构化 diagnostics 和基础 fixtures/tests；Authoring AI Assist、Yarn/Ink/Articy 仍 deferred |
@@ -277,12 +291,12 @@
 | 0.6.35 | 2026-05-13 | 新增 Gameplay Component Playable + Combat Bridge 规划文档，明确 Playable 场景升级、Combat bridge source-of-truth 边界和后续 implementation slices |
 | 0.6.34 | 2026-05-13 | 新增 Gameplay Component Buff / Modifier v0，支持 component-native buff/modifier state、过期 buff cleanup、schema-backed hash 和 SaveState |
 | 0.6.33 | 2026-05-13 | 收口 Agent Control Plane 文档：统一 WGameFramework / MxFramework 命名，明确人工/Agent 状态标签语义，将 `status/approved` 改为 `status/ready-to-merge`，并要求备份恢复测试包含 Git LFS 拉取验证 |
-| 0.6.32 | 2026-05-13 | 调整 Agent Control Plane 可执行性：新增 S0-S3 任务等级，补齐 `status/spec-draft`，精简默认 Context Pack，允许 GitNexus 失败时替代影响面分析，并把 Harness 检查脚本化列为后续任务 |
+| 0.6.32 | 2026-05-13 | 调整 Agent Control Plane 可执行性：新增 S0-S3 任务等级，补齐 `status/spec-draft`，精简默认 Context Pack，允许外部影响面工具失败时替代分析，并把 Harness 检查脚本化列为后续任务 |
 | 0.6.31 | 2026-05-13 | 将 Gitea 流程升级为 Agent Control Plane：新增 `PROJECT_INDEX.md`、`Progress/CurrentStatus.md` 和 ADR-002，Issue/PR 模板加入 Context Pack 与 Agent Session 审计 |
 | 0.6.30 | 2026-05-13 | 将开发流程升级为 Gitea Issue / Branch / PR 驱动，新增 `.gitea` Issue/PR 模板和 `Docs/Decisions/ADR-001-Version-Control-Gitea.md` |
 | 0.6.29 | 2026-05-13 | 明确以后开发流程以 NAS Gitea `origin` 为主仓库和协作源，GitHub 仅作为非 LFS Git 镜像 |
 | 0.6.28 | 2026-05-13 | 新增 `WORKFLOW.md` 作为项目日常开发、验证、提交和推送的统一入口，并让 `AGENTS.md` 等文档引用该入口 |
-| 0.6.27 | 2026-05-13 | 新增 `GITNEXUS.md` 作为 GitNexus 唯一工作流入口，收束散落的接入、影响面分析和提交前检查规则 |
+| 0.6.27 | 2026-05-13 | 新增旧代码索引工具工作流入口，收束散落的接入、影响面分析和提交前检查规则 |
 | 0.6.26 | 2026-05-13 | 记录 Git 推送模式：`origin` 为 NAS Gitea 主 remote，`github` 为跳过 LFS 上传的 GitHub 镜像 remote，使用 deploy key 和 `pre-push` 防护 |
 | 0.6.25 | 2026-05-12 | 新增 Gameplay Component Ability Targeting v0，支持 generation-safe request target、team/lifecycle/tag/status filter 和 request cast |
 | 0.6.24 | 2026-05-12 | 新增 Gameplay Component Ability Command Bridge v0，支持 component entity 通过 `CastComponentAbility` 执行 self attribute delta ability |

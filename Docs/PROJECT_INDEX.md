@@ -6,11 +6,11 @@ This file is the token-budget entrypoint for agents. It points to the smallest s
 
 1. `AGENTS.md`
 2. `Docs/README.md`
-3. Issue-specified docs and ADRs
+3. Issue-specified active docs and ADRs
 4. Relevant `Docs/Interfaces/*.md`
 5. Relevant source and tests
 
-`Docs/WORKFLOW.md` and `Docs/GITNEXUS.md` are authoritative, but ordinary implementation tasks do not need to read them in full. Read the relevant sections only when workflow, branch, PR, Harness, GitNexus, or Agent behavior is unclear.
+`Docs/WORKFLOW.md` is authoritative for daily development, validation, branch, PR, Harness, and Agent behavior. Ordinary implementation tasks do not need to read it in full; read the relevant sections only when workflow details are unclear.
 
 ## Control Plane
 
@@ -27,15 +27,14 @@ This file is the token-budget entrypoint for agents. It points to the smallest s
 - `Temp/`
 - `Logs/`
 - `UserSettings/`
-- `.gitnexus/`
 - `.codex/cache/`
+- `Docs/Tasks/` unless the issue explicitly references a task file
 - `Assets/Plugins/`
 - third-party package internals
 
 ## Main Workflow Docs
 
 - `Docs/WORKFLOW.md`: daily development, Gitea control plane, PR, harness, backup.
-- `Docs/GITNEXUS.md`: code intelligence, impact analysis, index maintenance.
 - `Docs/AGENT_GAME_CREATION_GUIDE.md`: game feature, playable demo, runtime showcase rules.
 - `Docs/QUALITY_GATE.md`: validation and acceptance expectations.
 - `Docs/RENDERING_PIPELINE.md`: current URP project baseline and rendering validation rules.

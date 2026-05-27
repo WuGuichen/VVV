@@ -342,7 +342,7 @@ Scene / Config / Assets
 - 涉及 Combat 时覆盖 hit / miss / movement collision / explain report。
 - Playable Demo 必须至少进行一次 Unity Play Mode 或 Unity MCP 级别的 smoke 验证；无法运行时，不得宣称 playable 完成。
 
-提交前按 `Docs/GITNEXUS.md` 执行 GitNexus 影响面检查；本文不重复维护 GitNexus 命令细节。
+提交前使用 `git diff`、`rg`、源码阅读和相关测试做影响面检查。
 
 能自动跑测试时，优先跑最小相关测试集；不能跑时，在最终回复中说明原因。
 

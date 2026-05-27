@@ -50,7 +50,7 @@ MxFramework.Editor (asmdef)
 - 已提供 Config Workbench v0：配置源选择、Schema 查看、字段结构、引用规则、行数、源预览、自动健康检测、问题明细、当前源校验和 AI 上下文导出。
 - Buff 创作流程不再放在 Unity Editor 内部维护；当前统一转向外部 Authoring Editor。
 - Framework Manager 已拆分为窗口壳、模块/验证、配置工作台、运行模式、工具入口和 UI helper 文件；新增入口默认通过 `FrameworkManagerToolRegistry` 注册，避免继续扩大单个窗口文件。
-- 暂不包含 GraphView、模块 sandbox、GitNexus Health Check、完整配置资产编辑器或真实 Mod 包导出；GitNexus 工作流规则见 `GITNEXUS.md`。
+- 暂不包含 GraphView、模块 sandbox、完整配置资产编辑器或真实 Mod 包导出。
 
 ### Config Workbench Layout
 
@@ -206,9 +206,8 @@ MxFramework.Editor (asmdef)
 ┌────────────────────────────────────────────────────────┐
 │  Framework Settings                                     │
 ├────────────────────────────────────────────────────────┤
-│  GitNexus Workflow:   Docs/GITNEXUS.md                 │
-│  CLI wrapper:         Tools/GitNexus/gitnexus.sh       │
-│  Auto-index on save:  [ ]                              │
+│  Impact Review:      git diff / rg / tests             │
+│  Auto-index on save:  n/a                              │
 │                                                        │
 │  Coupling Rules:                                        │
 │  [✓] No circular dependencies                          │
@@ -588,6 +587,6 @@ public static class MxEditorUtils
 
 ---
 
-## 6. GitNexus 关系
+## 6. 依赖图关系
 
-Unity Editor 不维护独立 GitNexus 接入规范。GitNexus 的命令、检查时机和 Agent 规则统一见 `GITNEXUS.md`；Editor 后续如果提供 GraphView / Health Check，只作为该文档工作流的可视化入口。
+Unity Editor 当前不维护独立代码知识图谱接入。后续如果提供 GraphView / Health Check，应作为编辑器可视化能力单独设计，不绑定外部索引工具。

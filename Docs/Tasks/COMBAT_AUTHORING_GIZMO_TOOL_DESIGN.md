@@ -707,7 +707,7 @@ MxFramework.Combat.Authoring.Tests
 每个实现阶段提交前至少执行：
 
 ```text
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 Unity MCP compile / console check
 相关 EditMode tests
 ```

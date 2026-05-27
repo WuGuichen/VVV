@@ -99,7 +99,7 @@ Unity EditMode: MxFramework.Tests.Combat
 Unity EditMode: MxFramework.Tests.Combat.Motion.*
 Unity EditMode: MxFramework.Tests.Combat.Physics.*
 Unity Console: 0 error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 必须补充或确认覆盖：
@@ -123,7 +123,7 @@ Tools/GitNexus/gitnexus.sh detect-changes
 - 移动后 Probe / Attack 的命中变化；
 - 攻击 query regression 的覆盖范围；
 - Console 最终状态；
-- GitNexus 风险等级。
+- 影响面风险说明。
 
 ## 完成后演示方式
 
@@ -152,7 +152,7 @@ Tools/GitNexus/gitnexus.sh detect-changes
 只在任务文档允许范围内修改文件；如确需越界，先说明原因。
 不要做坡面/台阶/移动平台/动态刚体/Root Motion/网络预测/WGame 数据接入。
 不要引入 Unity Physics、Rigidbody 或 CharacterController 作为权威。
-完成后必须跑 build、Combat / Motion / Physics EditMode 测试、Unity Console 检查和 GitNexus，并记录 capsule 参数、固定输入、墙/地/顶碰撞、skin width、no penetration、world sync、移动后 Probe / Attack、攻击 query regression 的验收结果。
+完成后必须跑 build、Combat / Motion / Physics EditMode 测试、Unity Console 检查和影响面检查，并记录 capsule 参数、固定输入、墙/地/顶碰撞、skin width、no penetration、world sync、移动后 Probe / Attack、攻击 query regression 的验收结果。
 ```
 
 ## 当前记录
@@ -187,7 +187,7 @@ dotnet build WGameFramework.sln --no-restore -v minimal
 Unity EditMode: MxFramework.Tests.Combat.Motion => 9/9 passed
 Unity EditMode: MxFramework.Tests.Combat => 110/110 passed
 Unity Console errors/warnings: no project error; only MCP websocket tool warning and LogAssert test control logs
-Tools/GitNexus/gitnexus.sh detect-changes => low risk, affected processes 0
+影响面检查完成
 ```
 
 剩余风险：

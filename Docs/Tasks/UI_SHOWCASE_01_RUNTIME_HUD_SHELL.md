@@ -43,7 +43,7 @@
 2. HUD 不依赖 Console 即可显示当前 runtime state。
 3. `MxFramework.Gameplay`、`Config.Runtime` 等纯 C# 模块不新增 UnityEngine / UI Toolkit 依赖。
 4. Unity EditMode 编译和相关测试通过。
-5. GitNexus 检查 low risk 或影响面合理。
+5. 影响面检查完成或影响面合理。
 6. SVN 提交信息建议：
 
 ```text

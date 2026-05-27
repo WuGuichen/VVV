@@ -322,7 +322,7 @@ MxFramework.Tests.Ability.AbilitySliceTests
 提交前运行：
 
 ```bash
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## 完成定义

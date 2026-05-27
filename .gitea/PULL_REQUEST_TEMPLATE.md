@@ -66,6 +66,6 @@ What should the reviewer pay special attention to?
 ## Agent Checklist
 
 - [ ] Work was done on a task branch, not `main`.
-- [ ] GitNexus impact / detect-changes was checked where relevant.
+- [ ] Impact was checked with `git diff`, source review, and relevant tests.
 - [ ] No unrelated files were changed.
 - [ ] Agent did not merge this PR.

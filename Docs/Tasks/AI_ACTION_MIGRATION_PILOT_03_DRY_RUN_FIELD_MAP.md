@@ -70,7 +70,7 @@ If production types feel premature, keep most of the implementation as internal 
 dotnet build WGameFramework.sln --no-restore -v minimal
 Unity EditMode: MxFramework.Tests.Config
 Unity Console: 0 compile error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Notes
@@ -128,6 +128,5 @@ dotnet /usr/local/share/dotnet/sdk/9.0.306/Roslyn/bincore/csc.dll @Library/Bee/a
 Unity EditMode: MxFramework.Tests.Config.AIActionDryRunFieldMapTests
   Result: Blocked by unrelated compile error in Assets/Scripts/MxFramework/Preview/Runtime/ScenePreviewWorld.cs.
 
-Tools/GitNexus/gitnexus.sh detect-changes
-  Result: Passed, risk level low. Report includes broad pre-existing dirty workspace changes.
+影响面检查完成。Report includes broad pre-existing dirty workspace changes.
 ```

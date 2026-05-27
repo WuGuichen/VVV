@@ -232,7 +232,7 @@ Config Change: changed abilities=N, buffs=N, modifiers=N, rebuilt=N, failed=N
 
 - 任务状态改为 `✅ 已完成（rXXXX）`。
 - 自动化测试通过。
-- GitNexus 检查 low risk 或影响面合理。
+- 影响面检查完成或影响面合理。
 - SVN 提交信息建议：
 
 ```text

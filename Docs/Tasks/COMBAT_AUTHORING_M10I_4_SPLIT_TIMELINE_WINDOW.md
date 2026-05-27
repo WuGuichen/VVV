@@ -140,7 +140,7 @@ CombatAuthoringWindowMode.Timeline
   - Inspector 添加 Hitbox 后 Timeline 同步 Action、row 和 selection。
   - Inspector 复制 Shape 后 Timeline row 同步增加，Action hitboxes 为 2。
   - 共享 Frame 设置为 7 后，两窗口 slider 均同步为 7。
-- GitNexus detect-changes：low risk，affected processes 0。
+- 影响面检查完成。
 
 ## 提交边界
 
@@ -148,4 +148,4 @@ CombatAuthoringWindowMode.Timeline
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py`
+- `.claude` / `Tools/*.py`

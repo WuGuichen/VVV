@@ -111,7 +111,7 @@ TimelineDragMode: None / Move / ResizeStart / ResizeEnd
   - Undo 后回到 `3-6`。
 - Unity Console error 检查：0 error。
 - Authoring EditMode tests：11/11 passed。
-- GitNexus detect-changes：low risk，affected processes 0。
+- 影响面检查完成。
 
 ## 提交边界
 
@@ -119,4 +119,4 @@ TimelineDragMode: None / Move / ResizeStart / ResizeEnd
 
 - `Assets/CombatActionAuthoringAsset.asset`
 - `Assets/CombatSceneBindingAsset.asset`
-- `.claude` / `.gitnexus` / `Tools/*.py`
+- `.claude` / `Tools/*.py`

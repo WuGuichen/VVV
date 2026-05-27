@@ -56,8 +56,8 @@ Play Mode 验收记录：
   - 通过，105 / 105 passed，0 failed，0 skipped，用时 5.029s。
 - Unity Console
   - 通过，0 error，0 warning。
-- `Tools/GitNexus/gitnexus.sh detect-changes`
-  - low risk；41 files / 130 symbols；Affected processes 0。
+- `git diff --stat && git diff --check`
+  - 影响面检查完成。
 
 剩余风险：
 
@@ -187,7 +187,7 @@ dotnet build WGameFramework.sln --no-restore -v minimal
 Unity EditMode: MxFramework.Tests.Combat.Physics.*
 Unity EditMode: MxFramework.Tests.Combat
 Unity Console: 0 error
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 建议补充：
@@ -203,7 +203,7 @@ Tools/GitNexus/gitnexus.sh detect-changes
 - 目标命中或未命中的原因；
 - HUD 显示的四个 count；
 - Console 最终状态；
-- GitNexus 风险等级。
+- 影响面风险说明。
 
 ## 完成后演示方式
 
@@ -235,11 +235,11 @@ Tools/GitNexus/gitnexus.sh detect-changes
 先读 AGENTS.md、COMBAT_PHYSICS_HIT_QUERY_DEBUG_VISUALIZATION.md、COMBAT_PHYSICS_M11D_2_BROADPHASE_V0.md。
 不要回退他人改动。
 只在文档允许范围内修改文件；如需越界，先说明原因。
-完成后必须跑 build、Combat 测试、Unity Console 检查和 GitNexus，并记录演示步骤。
+完成后必须跑 build、Combat 测试、Unity Console 检查和影响面检查，并记录演示步骤。
 ```
 
 ## 当前记录
 
 - 2026-05-09：创建功能包任务文档。
 - 2026-05-09：文档校准发现 explain / debug report 数据链路已存在，状态从 `Ready for dispatch` 调整为 `Implemented / Closeout pending`。下一步补 Play Mode 可视化与验收记录。
-- 2026-05-09：正式 closeout 完成，build / Unity Combat EditMode / Play Mode query explain / Console / GitNexus 均通过，状态收口为 `Accepted / Closed`。
+- 2026-05-09：正式 closeout 完成，build / Unity Combat EditMode / Play Mode query explain / Console / 影响面检查均通过，状态收口为 `Accepted / Closed`。

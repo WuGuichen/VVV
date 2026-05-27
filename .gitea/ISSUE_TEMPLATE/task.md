@@ -61,7 +61,6 @@ Forbidden reading scope:
 - `Library/`
 - `Temp/`
 - `Logs/`
-- `.gitnexus/`
 - `.codex/cache/`
 - 
 

@@ -60,7 +60,7 @@ Docs/CAPABILITIES.md
 dotnet build WGameFramework.sln --no-restore -v minimal
 Authoring Core / Editor tests relevant to preview API
 Manual local UI smoke if available
-Tools/GitNexus/gitnexus.sh detect-changes
+git diff --stat && git diff --check
 ```
 
 ## Dispatch Notes

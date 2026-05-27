@@ -37,7 +37,6 @@ Likely modules or files:
 
 - `AGENTS.md`
 - `Docs/WORKFLOW.md`
-- `Docs/GITNEXUS.md`
 - 
 
 ## Context Pack
@@ -51,7 +50,6 @@ Forbidden reading scope:
 - `Library/`
 - `Temp/`
 - `Logs/`
-- `.gitnexus/`
 - `.codex/cache/`
 - 
 

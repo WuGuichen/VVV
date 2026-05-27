@@ -53,9 +53,7 @@ FGUIProject/.objs/
 **/.svn/
 **/.git/
 
-# Local code intelligence and agent/tool caches
-.gitnexus/
-**/.gitnexus/
+# Local agent/tool caches
 .agents/
 .claude/
 .codex/
@@ -93,7 +91,6 @@ FGUIProject/.objs/
 dist/
 out/
 *.log
-start-gitnexus-ui.sh
 /package.json
 
 # Embedded Unity packages may contain source folders named Build.
