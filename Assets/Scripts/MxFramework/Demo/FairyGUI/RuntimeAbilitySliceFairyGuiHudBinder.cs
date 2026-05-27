@@ -8,16 +8,28 @@ namespace MxFramework.Demo.FairyGui
     public sealed class RuntimeAbilitySliceFairyGuiHudBinder : IMxFairyGuiViewBinder<RuntimeAbilitySliceHudViewModel>
     {
         private readonly IMxUiCommandSink _commandSink;
+        private readonly IMxUiTextProvider _textProvider;
         private readonly MxUiViewId _viewId;
 
-        public RuntimeAbilitySliceFairyGuiHudBinder(IMxUiCommandSink commandSink)
-            : this(commandSink, RuntimeAbilitySliceFairyGuiHudIds.ViewId)
+        public RuntimeAbilitySliceFairyGuiHudBinder(
+            IMxUiCommandSink commandSink,
+            IMxUiTextProvider textProvider = null)
+            : this(commandSink, textProvider, RuntimeAbilitySliceFairyGuiHudIds.ViewId)
         {
         }
 
         public RuntimeAbilitySliceFairyGuiHudBinder(IMxUiCommandSink commandSink, MxUiViewId viewId)
+            : this(commandSink, null, viewId)
+        {
+        }
+
+        public RuntimeAbilitySliceFairyGuiHudBinder(
+            IMxUiCommandSink commandSink,
+            IMxUiTextProvider textProvider,
+            MxUiViewId viewId)
         {
             _commandSink = commandSink;
+            _textProvider = textProvider ?? MxUiNullTextProvider.Instance;
             _viewId = viewId;
         }
 
@@ -33,8 +45,8 @@ namespace MxFramework.Demo.FairyGui
             viewModel = viewModel ?? new RuntimeAbilitySliceHudViewModel();
             Fgui.GComponent root = handle.Component;
 
-            SetText(root, RuntimeAbilitySliceFairyGuiHudIds.Title, viewModel.Title);
-            SetText(root, RuntimeAbilitySliceFairyGuiHudIds.Mode, viewModel.ModeName);
+            SetText(root, RuntimeAbilitySliceFairyGuiHudIds.Title, Resolve("ui.runtimehud.title", viewModel.Title, "Runtime HUD"));
+            SetText(root, RuntimeAbilitySliceFairyGuiHudIds.Mode, Resolve("ui.runtimehud.mode", viewModel.ModeName, "Mode"));
             SetText(root, RuntimeAbilitySliceFairyGuiHudIds.PlayerName, NonEmpty(viewModel.Player.DisplayName, "Player"));
             SetText(root, RuntimeAbilitySliceFairyGuiHudIds.PlayerHp, FormatHp(viewModel.Player));
             SetText(root, RuntimeAbilitySliceFairyGuiHudIds.EnemyName, NonEmpty(viewModel.Enemy.DisplayName, "Enemy"));
@@ -42,6 +54,13 @@ namespace MxFramework.Demo.FairyGui
             SetText(root, RuntimeAbilitySliceFairyGuiHudIds.RecentAction, viewModel.Feedback.RecentActionText);
             BindButton(root, RuntimeAbilitySliceFairyGuiHudIds.Strike, RuntimeAbilitySliceHudCommandIds.Strike, "Strike", viewModel);
             BindButton(root, RuntimeAbilitySliceFairyGuiHudIds.Reset, RuntimeAbilitySliceHudCommandIds.Reset, "Reset", viewModel);
+            MxFairyGuiFocusNavigation.Configure(
+                root,
+                new MxFairyGuiFocusNavigationMetadata(
+                    _viewId,
+                    RuntimeAbilitySliceFairyGuiHudIds.Strike,
+                    new[] { RuntimeAbilitySliceFairyGuiHudIds.Strike, RuntimeAbilitySliceFairyGuiHudIds.Reset }));
+            MxFairyGuiFocusNavigation.RequestDefaultFocus(root);
         }
 
         private void BindButton(
@@ -64,6 +83,16 @@ namespace MxFramework.Demo.FairyGui
         private void Enqueue(string commandId)
         {
             _commandSink?.Enqueue(new MxUiCommand(_viewId, commandId, null));
+        }
+
+        private string Resolve(string key, string fallback, string defaultFallback)
+        {
+            string fallbackText = string.IsNullOrEmpty(fallback) ? defaultFallback : fallback;
+            var request = new MxUiLocalizedTextRequest(new MxUiTextKey(key), fallbackText);
+            if (_textProvider.TryGetText(request, out string text))
+                return text;
+
+            return fallbackText ?? string.Empty;
         }
 
         private static RuntimeAbilitySliceHudCommandDescriptor FindCommand(
