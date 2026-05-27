@@ -17,14 +17,19 @@ namespace MxFramework.Demo.FairyGui
             return RuntimeAbilitySliceFairyGuiHudManifest.CreatePackageDescriptor();
         }
 
-        public static MxFairyGuiRuntimeCatalog CreateCatalog(IMxUiCommandSink commandSink)
+        public static MxFairyGuiRuntimeCatalog CreateCatalog(
+            IMxUiCommandSink commandSink,
+            IMxUiTextProvider textProvider = null)
         {
             var catalog = new MxFairyGuiRuntimeCatalog();
-            Register(catalog, commandSink);
+            Register(catalog, commandSink, textProvider);
             return catalog;
         }
 
-        public static void Register(MxFairyGuiRuntimeCatalog catalog, IMxUiCommandSink commandSink)
+        public static void Register(
+            MxFairyGuiRuntimeCatalog catalog,
+            IMxUiCommandSink commandSink,
+            IMxUiTextProvider textProvider = null)
         {
             if (catalog == null)
                 throw new ArgumentNullException(nameof(catalog));
@@ -32,7 +37,7 @@ namespace MxFramework.Demo.FairyGui
             catalog.Register(new MxFairyGuiRuntimeViewRegistration<RuntimeAbilitySliceHudViewModel>(
                 CreateContract(),
                 CreatePackageDescriptor(),
-                new RuntimeAbilitySliceFairyGuiHudBinder(commandSink)));
+                new RuntimeAbilitySliceFairyGuiHudBinder(commandSink, textProvider)));
         }
 
         public static MxFairyGuiNavigator CreateNavigator(
@@ -40,17 +45,20 @@ namespace MxFramework.Demo.FairyGui
             IMxUiCommandSink commandSink,
             IMxFairyGuiHost host = null,
             IMxFairyGuiLayerHost layerHost = null,
-            IMxFairyGuiInputContextBridge inputBridge = null)
+            IMxFairyGuiInputContextBridge inputBridge = null,
+            IMxFairyGuiViewTransitionController transitionController = null,
+            IMxUiTextProvider textProvider = null)
         {
             if (resourceManager == null)
                 throw new ArgumentNullException(nameof(resourceManager));
 
             return MxFairyGuiRuntimeShellComposition.CreateNavigator(
                 resourceManager,
-                CreateCatalog(commandSink),
+                CreateCatalog(commandSink, textProvider),
                 host,
                 layerHost,
-                inputBridge);
+                inputBridge,
+                transitionController);
         }
 
         public static RuntimeAbilitySliceFairyGuiHudShell CreateShell(
@@ -58,10 +66,12 @@ namespace MxFramework.Demo.FairyGui
             IRuntimeAbilitySliceHudCommandTarget commandTarget,
             IMxFairyGuiHost host = null,
             IMxFairyGuiLayerHost layerHost = null,
-            IMxFairyGuiInputContextBridge inputBridge = null)
+            IMxFairyGuiInputContextBridge inputBridge = null,
+            IMxFairyGuiViewTransitionController transitionController = null,
+            IMxUiTextProvider textProvider = null)
         {
             var commandSink = new RuntimeAbilitySliceUiCommandSink(commandTarget);
-            MxFairyGuiNavigator navigator = CreateNavigator(resourceManager, commandSink, host, layerHost, inputBridge);
+            MxFairyGuiNavigator navigator = CreateNavigator(resourceManager, commandSink, host, layerHost, inputBridge, transitionController, textProvider);
             return new RuntimeAbilitySliceFairyGuiHudShell(new RuntimeAbilitySliceFairyGuiHudController(navigator), commandSink);
         }
     }

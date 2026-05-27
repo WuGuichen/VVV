@@ -86,6 +86,328 @@ namespace MxFramework.UI.FairyGui
         public const string Cancel = "ui.cancel";
     }
 
+    public enum MxFairyGuiFocusNavigationIntent
+    {
+        Next,
+        Previous,
+        Submit,
+        Cancel
+    }
+
+    public enum MxFairyGuiTransitionCloseReason
+    {
+        Hide,
+        Dispose,
+        ShowFailed
+    }
+
+    public interface IMxFairyGuiViewTransitionController
+    {
+        void PlayShow(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component);
+        void PlayHide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component);
+        void Cancel(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component, MxFairyGuiTransitionCloseReason reason);
+    }
+
+    public sealed class MxFairyGuiNullViewTransitionController : IMxFairyGuiViewTransitionController
+    {
+        public static readonly MxFairyGuiNullViewTransitionController Instance = new MxFairyGuiNullViewTransitionController();
+
+        private MxFairyGuiNullViewTransitionController()
+        {
+        }
+
+        public void PlayShow(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+        {
+        }
+
+        public void PlayHide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+        {
+        }
+
+        public void Cancel(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component, MxFairyGuiTransitionCloseReason reason)
+        {
+        }
+    }
+
+    public sealed class MxFairyGuiViewTransitionController : IMxFairyGuiViewTransitionController
+    {
+        public const string DefaultShowTransitionName = "show";
+        public const string DefaultHideTransitionName = "hide";
+
+        private readonly string _showTransitionName;
+        private readonly string _hideTransitionName;
+        private readonly Dictionary<IMxFairyGuiComponentHandle, Fgui.Transition> _activeTransitions =
+            new Dictionary<IMxFairyGuiComponentHandle, Fgui.Transition>();
+
+        public MxFairyGuiViewTransitionController(
+            string showTransitionName = DefaultShowTransitionName,
+            string hideTransitionName = DefaultHideTransitionName)
+        {
+            _showTransitionName = string.IsNullOrWhiteSpace(showTransitionName) ? DefaultShowTransitionName : showTransitionName;
+            _hideTransitionName = string.IsNullOrWhiteSpace(hideTransitionName) ? DefaultHideTransitionName : hideTransitionName;
+        }
+
+        public void PlayShow(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+        {
+            Play(component, _showTransitionName);
+        }
+
+        public void PlayHide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+        {
+            Play(component, _hideTransitionName);
+        }
+
+        public void Cancel(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component, MxFairyGuiTransitionCloseReason reason)
+        {
+            Fgui.Transition active;
+            if (component == null || !_activeTransitions.TryGetValue(component, out active))
+                return;
+
+            _activeTransitions.Remove(component);
+            if (active != null && active.playing)
+                active.Stop(false, false);
+        }
+
+        private void Play(IMxFairyGuiComponentHandle component, string transitionName)
+        {
+            if (component == null || component.IsDisposed || string.IsNullOrWhiteSpace(transitionName))
+                return;
+
+            Cancel(null, component, MxFairyGuiTransitionCloseReason.Hide);
+
+            var concrete = component as MxFairyGuiComponentHandle;
+            if (concrete == null)
+                return;
+
+            Fgui.Transition transition = concrete.Component.GetTransition(transitionName);
+            if (transition == null)
+                return;
+
+            _activeTransitions[component] = transition;
+            transition.Play(() => _activeTransitions.Remove(component));
+        }
+    }
+
+    public sealed class MxFairyGuiFocusNavigationMetadata
+    {
+        private readonly List<string> _orderedChildNames;
+
+        public MxFairyGuiFocusNavigationMetadata(
+            MxUiViewId viewId,
+            string defaultChildName,
+            IEnumerable<string> orderedChildNames,
+            bool wrap = true)
+        {
+            if (!viewId.IsValid)
+                throw new ArgumentException("Focus navigation view id is required.", nameof(viewId));
+
+            ViewId = viewId;
+            DefaultChildName = defaultChildName ?? string.Empty;
+            Wrap = wrap;
+            _orderedChildNames = new List<string>();
+            if (orderedChildNames != null)
+            {
+                foreach (string childName in orderedChildNames)
+                {
+                    if (!string.IsNullOrWhiteSpace(childName) && !_orderedChildNames.Contains(childName))
+                        _orderedChildNames.Add(childName);
+                }
+            }
+        }
+
+        public MxUiViewId ViewId { get; }
+        public string DefaultChildName { get; }
+        public bool Wrap { get; }
+        public IReadOnlyList<string> OrderedChildNames => _orderedChildNames;
+    }
+
+    public static class MxFairyGuiFocusNavigation
+    {
+        private static readonly Dictionary<Fgui.GComponent, MxFairyGuiFocusNavigationMetadata> MetadataByRoot =
+            new Dictionary<Fgui.GComponent, MxFairyGuiFocusNavigationMetadata>();
+
+        public static void Configure(Fgui.GComponent root, MxFairyGuiFocusNavigationMetadata metadata)
+        {
+            if (root == null)
+                throw new ArgumentNullException(nameof(root));
+
+            if (metadata == null)
+                throw new ArgumentNullException(nameof(metadata));
+
+            MetadataByRoot[root] = metadata;
+            for (int i = 0; i < metadata.OrderedChildNames.Count; i++)
+            {
+                Fgui.GObject child = root.GetChild(metadata.OrderedChildNames[i]);
+                if (child == null)
+                    continue;
+
+                child.focusable = true;
+                child.tabStop = true;
+            }
+        }
+
+        public static void Clear(Fgui.GComponent root)
+        {
+            if (root != null)
+                MetadataByRoot.Remove(root);
+        }
+
+        public static bool RequestDefaultFocus(Fgui.GComponent root)
+        {
+            MxFairyGuiFocusNavigationMetadata metadata;
+            if (!TryGetMetadata(root, out metadata))
+                return false;
+
+            Fgui.GObject target = FindFocusable(root, metadata.DefaultChildName);
+            if (target == null)
+                target = FindFocusable(root, metadata.OrderedChildNames);
+
+            if (target == null)
+                return false;
+
+            target.RequestFocus(true);
+            return true;
+        }
+
+        public static bool MoveNext(Fgui.GComponent root)
+        {
+            return Move(root, 1);
+        }
+
+        public static bool MovePrevious(Fgui.GComponent root)
+        {
+            return Move(root, -1);
+        }
+
+        public static bool Submit(Fgui.GComponent root)
+        {
+            if (root == null)
+                return false;
+
+            Fgui.GObject focused = FindFocused(root);
+            Fgui.GButton button = focused != null ? focused.asButton : null;
+            if (button == null || !button.enabled)
+                return false;
+
+            button.onClick.Call();
+            return true;
+        }
+
+        private static bool Move(Fgui.GComponent root, int direction)
+        {
+            MxFairyGuiFocusNavigationMetadata metadata;
+            if (!TryGetMetadata(root, out metadata))
+                return false;
+
+            if (metadata.OrderedChildNames.Count == 0)
+                return RequestDefaultFocus(root);
+
+            int currentIndex = IndexOf(root, metadata, FindFocused(root));
+            if (currentIndex < 0)
+                currentIndex = direction < 0 ? metadata.OrderedChildNames.Count : -1;
+
+            for (int step = 1; step <= metadata.OrderedChildNames.Count; step++)
+            {
+                int index = currentIndex + direction * step;
+                if (metadata.Wrap)
+                    index = WrapIndex(index, metadata.OrderedChildNames.Count);
+                else if (index < 0 || index >= metadata.OrderedChildNames.Count)
+                    return false;
+
+                Fgui.GObject target = FindFocusable(root, metadata.OrderedChildNames[index]);
+                if (target == null)
+                    continue;
+
+                target.RequestFocus(true);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetMetadata(Fgui.GComponent root, out MxFairyGuiFocusNavigationMetadata metadata)
+        {
+            if (root == null)
+            {
+                metadata = null;
+                return false;
+            }
+
+            return MetadataByRoot.TryGetValue(root, out metadata);
+        }
+
+        private static int IndexOf(
+            Fgui.GComponent root,
+            MxFairyGuiFocusNavigationMetadata metadata,
+            Fgui.GObject focused)
+        {
+            if (focused == null)
+                return -1;
+
+            for (int i = 0; i < metadata.OrderedChildNames.Count; i++)
+            {
+                Fgui.GObject child = root.GetChild(metadata.OrderedChildNames[i]);
+                if (child == focused)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private static Fgui.GObject FindFocusable(Fgui.GComponent root, IReadOnlyList<string> names)
+        {
+            for (int i = 0; i < names.Count; i++)
+            {
+                Fgui.GObject target = FindFocusable(root, names[i]);
+                if (target != null)
+                    return target;
+            }
+
+            return null;
+        }
+
+        private static Fgui.GObject FindFocusable(Fgui.GComponent root, string childName)
+        {
+            if (root == null || string.IsNullOrWhiteSpace(childName))
+                return null;
+
+            Fgui.GObject child = root.GetChild(childName);
+            if (child == null || !child.visible || !child.enabled || !child.focusable)
+                return null;
+
+            return child;
+        }
+
+        private static Fgui.GObject FindFocused(Fgui.GComponent root)
+        {
+            if (root == null)
+                return null;
+
+            for (int i = 0; i < root.numChildren; i++)
+            {
+                Fgui.GObject child = root.GetChildAt(i);
+                if (child != null && child.focused)
+                    return child;
+            }
+
+            return null;
+        }
+
+        private static int WrapIndex(int index, int count)
+        {
+            if (count <= 0)
+                return 0;
+
+            while (index < 0)
+                index += count;
+
+            while (index >= count)
+                index -= count;
+
+            return index;
+        }
+    }
+
     public sealed class MxFairyGuiModalCommandGate : IMxUiCommandSink
     {
         private readonly IMxUiCommandSink _inner;
@@ -713,7 +1035,8 @@ namespace MxFramework.UI.FairyGui
             MxFairyGuiRuntimeCatalog catalog,
             IMxFairyGuiHost host = null,
             IMxFairyGuiLayerHost layerHost = null,
-            IMxFairyGuiInputContextBridge inputBridge = null)
+            IMxFairyGuiInputContextBridge inputBridge = null,
+            IMxFairyGuiViewTransitionController transitionController = null)
         {
             if (resourceManager == null)
                 throw new ArgumentNullException(nameof(resourceManager));
@@ -734,7 +1057,8 @@ namespace MxFramework.UI.FairyGui
                 host ?? new MxFairyGuiHost(),
                 bindings,
                 layerHost,
-                inputBridge);
+                inputBridge,
+                transitionController);
         }
     }
 
@@ -746,6 +1070,7 @@ namespace MxFramework.UI.FairyGui
         private readonly IMxFairyGuiHost _host;
         private readonly IMxFairyGuiLayerHost _layerHost;
         private readonly IMxFairyGuiInputContextBridge _inputBridge;
+        private readonly IMxFairyGuiViewTransitionController _transitionController;
         private readonly MxUiLifecycle _lifecycle;
         private IDisposable _inputScope;
 
@@ -755,7 +1080,8 @@ namespace MxFramework.UI.FairyGui
             MxFairyGuiPackageLoadScope scope,
             IMxFairyGuiHost host,
             IMxFairyGuiLayerHost layerHost,
-            IMxFairyGuiInputContextBridge inputBridge)
+            IMxFairyGuiInputContextBridge inputBridge,
+            IMxFairyGuiViewTransitionController transitionController = null)
         {
             _descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
             Id = descriptor.Id;
@@ -764,6 +1090,7 @@ namespace MxFramework.UI.FairyGui
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _layerHost = layerHost ?? throw new ArgumentNullException(nameof(layerHost));
             _inputBridge = inputBridge ?? MxFairyGuiNullInputContextBridge.Instance;
+            _transitionController = transitionController ?? MxFairyGuiNullViewTransitionController.Instance;
             _lifecycle = new MxUiLifecycle();
         }
 
@@ -786,9 +1113,19 @@ namespace MxFramework.UI.FairyGui
             try
             {
                 _layerHost.Show(_descriptor, _component);
+                _transitionController.PlayShow(_descriptor, _component);
             }
             catch
             {
+                _transitionController.Cancel(_descriptor, _component, MxFairyGuiTransitionCloseReason.ShowFailed);
+                try
+                {
+                    _layerHost.Hide(_descriptor, _component);
+                }
+                catch
+                {
+                }
+
                 ExitInputScope();
                 throw;
             }
@@ -801,6 +1138,8 @@ namespace MxFramework.UI.FairyGui
 
             try
             {
+                _transitionController.Cancel(_descriptor, _component, MxFairyGuiTransitionCloseReason.Hide);
+                _transitionController.PlayHide(_descriptor, _component);
                 _layerHost.Hide(_descriptor, _component);
             }
             finally
@@ -817,6 +1156,7 @@ namespace MxFramework.UI.FairyGui
 
             try
             {
+                _transitionController.Cancel(_descriptor, _component, MxFairyGuiTransitionCloseReason.Dispose);
                 if (wasVisible)
                     _layerHost.Hide(_descriptor, _component);
             }
@@ -1051,6 +1391,7 @@ namespace MxFramework.UI.FairyGui
                 return;
 
             IsDisposed = true;
+            MxFairyGuiFocusNavigation.Clear(_component);
             _component.RemoveFromParent();
             _component.Dispose();
         }

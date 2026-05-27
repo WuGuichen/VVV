@@ -1,4 +1,5 @@
 using System;
+using Fgui = global::FairyGUI;
 using MxFramework.UI;
 
 namespace MxFramework.UI.FairyGui
@@ -11,6 +12,7 @@ namespace MxFramework.UI.FairyGui
         private readonly IMxFairyGuiHost _host;
         private readonly IMxFairyGuiLayerHost _layerHost;
         private readonly IMxFairyGuiInputContextBridge _inputBridge;
+        private readonly IMxFairyGuiViewTransitionController _transitionController;
         private readonly MxFairyGuiViewBindingRegistry _bindings;
         private readonly System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView> _openViews =
             new System.Collections.Generic.Dictionary<MxUiViewId, IMxUiView>();
@@ -24,7 +26,8 @@ namespace MxFramework.UI.FairyGui
             IMxFairyGuiHost host,
             MxFairyGuiViewBindingRegistry bindings = null,
             IMxFairyGuiLayerHost layerHost = null,
-            IMxFairyGuiInputContextBridge inputBridge = null)
+            IMxFairyGuiInputContextBridge inputBridge = null,
+            IMxFairyGuiViewTransitionController transitionController = null)
         {
             _contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
             _packages = packages ?? throw new ArgumentNullException(nameof(packages));
@@ -32,6 +35,7 @@ namespace MxFramework.UI.FairyGui
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _layerHost = layerHost ?? new MxFairyGuiLayerHost();
             _inputBridge = inputBridge ?? MxFairyGuiNullInputContextBridge.Instance;
+            _transitionController = transitionController ?? MxFairyGuiNullViewTransitionController.Instance;
             _bindings = bindings ?? new MxFairyGuiViewBindingRegistry();
         }
 
@@ -88,7 +92,14 @@ namespace MxFramework.UI.FairyGui
                     return FailAndRelease(scope, MxUiOpenErrorCode.ViewCreateFailed, failure);
                 }
 
-                var view = new MxFairyGuiView<TArgs>(contract.Descriptor, component, scope, _host, _layerHost, _inputBridge);
+                var view = new MxFairyGuiView<TArgs>(
+                    contract.Descriptor,
+                    component,
+                    scope,
+                    _host,
+                    _layerHost,
+                    _inputBridge,
+                    _transitionController);
                 view.Bind(args);
                 view.Show();
                 _openViews.Add(id, view);
@@ -133,6 +144,11 @@ namespace MxFramework.UI.FairyGui
         public bool IsCached(MxUiViewId id)
         {
             return _cachedViews.ContainsKey(id);
+        }
+
+        public bool TryGetOpenView(MxUiViewId id, out IMxUiView view)
+        {
+            return _openViews.TryGetValue(id, out view);
         }
 
         public int CloseSceneViews()
@@ -223,6 +239,64 @@ namespace MxFramework.UI.FairyGui
             failure = "FairyGUI view model type does not match open args for: " + contract.Descriptor.Id + ". Expected "
                 + contractType + ", got " + argsType.FullName + ".";
             return false;
+        }
+    }
+
+    public sealed class MxFairyGuiFocusInputBridge
+    {
+        private readonly MxFairyGuiNavigator _navigator;
+        private readonly IMxFairyGuiLayerHost _layerHost;
+        private readonly MxFairyGuiCancelCommandBridge _cancelBridge;
+
+        public MxFairyGuiFocusInputBridge(
+            MxFairyGuiNavigator navigator,
+            IMxFairyGuiLayerHost layerHost,
+            MxFairyGuiCancelCommandBridge cancelBridge = null)
+        {
+            _navigator = navigator ?? throw new ArgumentNullException(nameof(navigator));
+            _layerHost = layerHost ?? throw new ArgumentNullException(nameof(layerHost));
+            _cancelBridge = cancelBridge;
+        }
+
+        public bool Process(MxUiViewId viewId, MxFairyGuiFocusNavigationIntent intent, object payload = null)
+        {
+            if (intent == MxFairyGuiFocusNavigationIntent.Cancel)
+                return _cancelBridge != null && _cancelBridge.ProcessCancel(payload);
+
+            MxUiViewId topModal;
+            if (_layerHost.TryGetTopModal(out topModal) && viewId != topModal)
+                return false;
+
+            IMxUiView view;
+            if (!_navigator.TryGetOpenView(viewId, out view))
+                return false;
+
+            Fgui.GComponent root = TryGetRoot(view);
+            if (root == null)
+                return false;
+
+            switch (intent)
+            {
+                case MxFairyGuiFocusNavigationIntent.Next:
+                    return MxFairyGuiFocusNavigation.MoveNext(root);
+                case MxFairyGuiFocusNavigationIntent.Previous:
+                    return MxFairyGuiFocusNavigation.MovePrevious(root);
+                case MxFairyGuiFocusNavigationIntent.Submit:
+                    return MxFairyGuiFocusNavigation.Submit(root);
+                default:
+                    return false;
+            }
+        }
+
+        private static Fgui.GComponent TryGetRoot(IMxUiView view)
+        {
+            Type viewType = view.GetType();
+            if (!viewType.IsGenericType || viewType.GetGenericTypeDefinition() != typeof(MxFairyGuiView<>))
+                return null;
+
+            object component = viewType.GetProperty("Component")?.GetValue(view, null);
+            var handle = component as MxFairyGuiComponentHandle;
+            return handle != null ? handle.Component : null;
         }
     }
 }

@@ -50,6 +50,13 @@ namespace MxFramework.Demo.FairyGui
             SetText(root, StoryRuntimeFairyGuiDialogIds.EventLog, viewModel.EventLogText);
             BindButton(root, StoryRuntimeFairyGuiDialogIds.Continue, StoryRuntimeVerticalSliceUiCommandIds.CompletePresentation, "Continue", viewModel);
             BindButton(root, StoryRuntimeFairyGuiDialogIds.Choice, StoryRuntimeVerticalSliceUiCommandIds.SelectChoice, "Select", viewModel);
+            MxFairyGuiFocusNavigation.Configure(
+                root,
+                new MxFairyGuiFocusNavigationMetadata(
+                    _viewId,
+                    StoryRuntimeFairyGuiDialogIds.Continue,
+                    new[] { StoryRuntimeFairyGuiDialogIds.Continue, StoryRuntimeFairyGuiDialogIds.Choice }));
+            MxFairyGuiFocusNavigation.RequestDefaultFocus(root);
         }
 
         private void BindButton(
@@ -78,6 +85,9 @@ namespace MxFramework.Demo.FairyGui
         {
             if (request.IsValid && _textProvider.TryGetText(request, out string text))
                 return text;
+
+            if (request.IsValid && !string.IsNullOrEmpty(request.FallbackText))
+                return request.FallbackText;
 
             return fallback ?? string.Empty;
         }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using MxFramework.Demo;
 using MxFramework.Demo.FairyGui;
@@ -64,6 +65,62 @@ namespace MxFramework.Tests.UI.FairyGui
         }
 
         [Test]
+        public void Bind_CompatibilityConstructor_UsesSuppliedViewId()
+        {
+            Fgui.GComponent root = CreateHudRoot();
+            var sink = new RecordingCommandSink();
+            var customViewId = new MxUiViewId("ui.runtimehud.compat");
+            using (var handle = new MxFairyGuiComponentHandle(
+                RuntimeAbilitySliceFairyGuiHudIds.PackageId,
+                RuntimeAbilitySliceFairyGuiHudIds.ComponentName,
+                root))
+            {
+                var binder = new RuntimeAbilitySliceFairyGuiHudBinder(sink, customViewId);
+                binder.Bind(handle, CreateViewModel());
+
+                Button(root, RuntimeAbilitySliceFairyGuiHudIds.Strike).onClick.Call();
+
+                Assert.AreEqual(1, sink.Count);
+                Assert.AreEqual(customViewId, sink.Last.SourceViewId);
+            }
+        }
+
+        [Test]
+        public void Bind_ConfiguresFocusNavigationForFrameworkInputBridge()
+        {
+            Fgui.GComponent root = CreateHudRoot();
+            var sink = new RecordingCommandSink();
+            using (var handle = new MxFairyGuiComponentHandle(
+                RuntimeAbilitySliceFairyGuiHudIds.PackageId,
+                RuntimeAbilitySliceFairyGuiHudIds.ComponentName,
+                root))
+            {
+                RuntimeAbilitySliceHudViewModel viewModel = CreateViewModel();
+                viewModel.Commands = new[]
+                {
+                    new RuntimeAbilitySliceHudCommandDescriptor(RuntimeAbilitySliceHudCommandIds.Strike, "Strike", true),
+                    new RuntimeAbilitySliceHudCommandDescriptor(RuntimeAbilitySliceHudCommandIds.Reset, "Reset", true)
+                };
+
+                var binder = new RuntimeAbilitySliceFairyGuiHudBinder(sink);
+                binder.Bind(handle, viewModel);
+
+                Assert.IsTrue(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Strike).focusable);
+                Assert.IsTrue(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Reset).focusable);
+                Assert.IsTrue(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Strike).focused);
+
+                Assert.IsTrue(MxFairyGuiFocusNavigation.MoveNext(root));
+                Assert.IsTrue(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Reset).focused);
+                Assert.IsTrue(MxFairyGuiFocusNavigation.MovePrevious(root));
+                Assert.IsTrue(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Strike).focused);
+
+                Assert.IsTrue(MxFairyGuiFocusNavigation.Submit(root));
+                Assert.AreEqual(1, sink.Count);
+                Assert.AreEqual(RuntimeAbilitySliceHudCommandIds.Strike, sink.Last.CommandId);
+            }
+        }
+
+        [Test]
         public void Open_WithPublishedRuntimeHudPackage_LoadsBindsAndReleases()
         {
             RemoveRuntimeHudPackageIfLoaded();
@@ -82,6 +139,16 @@ namespace MxFramework.Tests.UI.FairyGui
                 Entry(RuntimeAbilitySliceFairyGuiHudIds.PackageBytesKey, "fgui/MxRuntimeHud_fui.bytes"));
             var sink = new RecordingCommandSink();
             MxFairyGuiNavigator navigator = RuntimeAbilitySliceFairyGuiHudComposition.CreateNavigator(manager, sink);
+            MxFairyGuiNavigator compatibilityNavigator = RuntimeAbilitySliceFairyGuiHudComposition.CreateNavigator(
+                manager,
+                sink,
+                null);
+            Assert.IsNotNull(compatibilityNavigator);
+            RuntimeAbilitySliceFairyGuiHudShell compatibilityShell = RuntimeAbilitySliceFairyGuiHudComposition.CreateShell(
+                manager,
+                new RecordingHudCommandTarget(),
+                null);
+            Assert.IsNotNull(compatibilityShell);
 
             try
             {
@@ -165,6 +232,58 @@ namespace MxFramework.Tests.UI.FairyGui
         }
 
         [Test]
+        public void Shell_Refresh_RebindsRuntimeHudWithInjectedLocalizationProvider()
+        {
+            RemoveRuntimeHudPackageIfLoaded();
+
+            ResourceManager manager = CreatePublishedRuntimeHudManager();
+            var target = new RecordingHudCommandTarget();
+            Dictionary<string, string> localization = CreateLocalization(
+                ("en-US", "ui.runtimehud.title", "Ability HUD"),
+                ("en-US", "ui.runtimehud.mode", "Config Driven"),
+                ("zh-CN", "ui.runtimehud.title", "能力 HUD"),
+                ("zh-CN", "ui.runtimehud.mode", "配置驱动"));
+            var textProvider = new MxDelegateUiTextProvider(
+                (MxUiTextKey key, MxUiLocaleId locale, out string text) => localization.TryGetValue(locale.Value + "|" + key.Value, out text),
+                new MxUiLocaleId("en-US"));
+            RuntimeAbilitySliceFairyGuiHudShell shell = RuntimeAbilitySliceFairyGuiHudComposition.CreateShell(
+                manager,
+                target,
+                textProvider: textProvider);
+
+            try
+            {
+                MxUiOpenResult firstResult = shell.Open(CreateViewModel());
+
+                Assert.IsTrue(firstResult.Success, firstResult.Message);
+                var view = firstResult.View as MxFairyGuiView<RuntimeAbilitySliceHudViewModel>;
+                Assert.IsNotNull(view);
+                var handle = view.Component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(handle);
+                Fgui.GComponent root = handle.Component;
+                Assert.AreEqual("Ability HUD", Text(root, RuntimeAbilitySliceFairyGuiHudIds.Title));
+                Assert.AreEqual("Config Driven", Text(root, RuntimeAbilitySliceFairyGuiHudIds.Mode));
+
+                textProvider.SetLocale(new MxUiLocaleId("zh-CN"));
+                MxUiOpenResult refreshResult = shell.Refresh(CreateViewModel());
+
+                Assert.IsTrue(refreshResult.Success, refreshResult.Message);
+                Assert.AreSame(firstResult.View, refreshResult.View);
+                Assert.AreEqual("能力 HUD", Text(root, RuntimeAbilitySliceFairyGuiHudIds.Title));
+                Assert.AreEqual("配置驱动", Text(root, RuntimeAbilitySliceFairyGuiHudIds.Mode));
+                Assert.AreEqual(new MxUiLocaleId("zh-CN"), textProvider.CurrentLocale);
+                Assert.Greater(textProvider.Revision, 1L);
+            }
+            finally
+            {
+                if (shell.IsOpen)
+                    shell.Close();
+
+                RemoveRuntimeHudPackageIfLoaded();
+            }
+        }
+
+        [Test]
         public void GeneratedManifest_ValidatesPublishedRuntimeHudSourceAndProjectsContract()
         {
             MxFairyGuiManifest manifest = RuntimeAbilitySliceFairyGuiHudManifest.Create();
@@ -180,6 +299,24 @@ namespace MxFramework.Tests.UI.FairyGui
             Assert.AreEqual(RuntimeAbilitySliceFairyGuiHudIds.PackageId, contract.Descriptor.PackageKey);
             Assert.AreEqual(RuntimeAbilitySliceFairyGuiHudIds.ComponentName, contract.Descriptor.ComponentName);
             Assert.AreEqual(2, contract.Commands.Count);
+        }
+
+        [Test]
+        public void FocusNavigation_MovePreviousWithoutCurrentFocus_StartsFromLastEntry()
+        {
+            Fgui.GComponent root = CreateHudRoot();
+            MxFairyGuiFocusNavigation.Configure(
+                root,
+                new MxFairyGuiFocusNavigationMetadata(
+                    RuntimeAbilitySliceFairyGuiHudIds.ViewId,
+                    RuntimeAbilitySliceFairyGuiHudIds.Strike,
+                    new[] { RuntimeAbilitySliceFairyGuiHudIds.Strike, RuntimeAbilitySliceFairyGuiHudIds.Reset }));
+
+            Assert.IsFalse(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Strike).focused);
+            Assert.IsFalse(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Reset).focused);
+
+            Assert.IsTrue(MxFairyGuiFocusNavigation.MovePrevious(root));
+            Assert.IsTrue(Button(root, RuntimeAbilitySliceFairyGuiHudIds.Reset).focused);
         }
 
         private static RuntimeAbilitySliceHudViewModel CreateViewModel()
@@ -277,6 +414,15 @@ namespace MxFramework.Tests.UI.FairyGui
         private static ResourceCatalogEntry Entry(ResourceKey key, string address)
         {
             return new ResourceCatalogEntry(key.Id, key.TypeId, "memory", address, key.Variant, key.PackageId);
+        }
+
+        private static Dictionary<string, string> CreateLocalization(params (string Locale, string Key, string Text)[] entries)
+        {
+            var table = new Dictionary<string, string>();
+            for (int i = 0; i < entries.Length; i++)
+                table[entries[i].Locale + "|" + entries[i].Key] = entries[i].Text;
+
+            return table;
         }
 
         private static void RemoveRuntimeHudPackageIfLoaded()
