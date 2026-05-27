@@ -1,23 +1,41 @@
 # MxFramework Project Index
 
-This file is the token-budget entrypoint for agents. It points to the smallest set of authoritative docs needed before reading source code.
+> Status: Current
+>
+> Agent token-budget entrypoint. Read the smallest useful context pack first, then jump to source and tests.
 
-## Read Order
+## Default Context Pack
+
+Read this pack before ordinary framework work:
 
 1. `AGENTS.md`
 2. `Docs/README.md`
-3. Issue-specified active docs and ADRs
-4. Relevant `Docs/Interfaces/*.md`
-5. Relevant source and tests
+3. The active Gitea Issue, PR comment, or user request
+4. `Docs/CAPABILITIES.md` only when checking current supported capabilities
+5. `Docs/INTERFACES.md` and the relevant `Docs/Interfaces/*.md` for modules being touched
+6. Relevant source files and tests
 
-`Docs/WORKFLOW.md` is authoritative for daily development, validation, branch, PR, Harness, and Agent behavior. Ordinary implementation tasks do not need to read it in full; read the relevant sections only when workflow details are unclear.
+Do not read all design, guide, workflow, or task documents by default.
+
+## Conditional Packs
+
+| Task shape | Add these docs |
+|------------|----------------|
+| Workflow, branch, PR, validation, harness, or repository delivery | `Docs/WORKFLOW.md`, `Docs/QUALITY_GATE.md` |
+| Public API, module boundary, dependency direction, naming, compatibility, or GC behavior | `Docs/API_STANDARDS.md`, `Docs/INTERFACES.md`, relevant `Docs/Interfaces/*.md` |
+| Game feature, playable demo, runtime showcase, scene verification, input/UI/save/replay extension | `Docs/AGENT_GAME_CREATION_GUIDE.md`, then relevant module interfaces |
+| Rendering pass, SharedRT, material binding, camera global, Volume request, URP Feature, or rendering demo | `Docs/RENDERING_AUTHORING_GUIDE.md`, `Docs/Interfaces/Rendering.md`, then design docs only if needed |
+| Runtime host, lifecycle, command buffer, replay, save state, app/scene flow | `Docs/Interfaces/Runtime.md`, `Docs/Interfaces/AppFlow.md`, `Docs/RUNTIME_FOUNDATION_SYSTEM.md` |
+| Resource manager, catalog, locator, package, build profile, or resource workflow | `Docs/RESOURCE_SYSTEM_WORKFLOW.md`, `Docs/Interfaces/Resources.md`, relevant resource design docs only if needed |
+| Debug UI, diagnostics, logging, timeline, hot reload, simulation harness troubleshooting | `Docs/Guides/OBSERVABILITY_DEBUGGING_GUIDE.md`, `Docs/Interfaces/Diagnostics.md`, `Docs/Interfaces/DebugUI.md` |
+| Historical decision, old task evidence, regression archaeology, or Issue-linked task file | `Docs/Decisions/*.md` or `Docs/Tasks/README.md` plus the referenced task file |
 
 ## Control Plane
 
 - Gitea Issue = Agent Spec
 - Gitea labels = Agent queue state
 - Gitea branch = Agent sandbox
-- Gitea PR = Agent delivery and audit record
+- Gitea PR = delivery and audit record
 - Gitea Actions / Runner = Harness
 - `Docs/Decisions/` = accepted project decisions
 
@@ -28,16 +46,20 @@ This file is the token-budget entrypoint for agents. It points to the smallest s
 - `Logs/`
 - `UserSettings/`
 - `.codex/cache/`
-- `Docs/Tasks/` unless the issue explicitly references a task file
+- `Docs/Tasks/`
+- `Docs/Progress/`
 - `Assets/Plugins/`
 - third-party package internals
 
-## Main Workflow Docs
+Read these only when the active Issue, PR, error, or user request explicitly points there.
 
-- `Docs/WORKFLOW.md`: daily development, Gitea control plane, PR, harness, backup.
-- `Docs/AGENT_GAME_CREATION_GUIDE.md`: game feature, playable demo, runtime showcase rules.
-- `Docs/QUALITY_GATE.md`: validation and acceptance expectations.
-- `Docs/RENDERING_PIPELINE.md`: current URP project baseline and rendering validation rules.
-- `Docs/RENDERING_FRAMEWORK_DESIGN.md`: Rendering framework bus, URP feature entry, context, SharedRT, and bridge boundaries.
-- `Docs/RENDERING_AUTHORING_GUIDE.md`: single authoring entry for Rendering shader globals, camera globals, SharedRT, pass/provider, material binding, publisher, VolumeBlender, demo, and diagnostics rules.
-- `Tools/GiteaGithubSync/README.md`: manual Gitea Issue / PR metadata mirror to GitHub.
+## Conflict Rule
+
+Use the status model in `Docs/README.md`:
+
+1. Source and tests are the implementation truth.
+2. Current docs define maintained project facts.
+3. Guide docs explain current usage and troubleshooting.
+4. Design docs explain intent, but do not override current API docs.
+5. ADRs preserve accepted decisions.
+6. Archive and Draft docs are never current facts unless promoted into Current / Guide / Design / ADR docs.

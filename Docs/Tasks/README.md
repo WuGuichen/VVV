@@ -1,5 +1,7 @@
 # Task Archive
 
+> Status: Archive
+>
 `Docs/Tasks/` stores historical task specs, implementation slices, closeout notes, and validation evidence.
 
 These files are **not** the current source of truth for framework capabilities, public APIs, workflows, or validation policy.
