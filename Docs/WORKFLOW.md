@@ -257,7 +257,7 @@ Packages/第三方插件
 
 | 改动范围 | 最低验证 |
 | --- | --- |
-| 纯文档 / 流程 | `git diff --check`，必要时手动影响面分析 |
+| 纯文档 / 流程 | `Tools/Harness/run_lightweight_checks.sh`；必要时手动影响面分析 |
 | 纯 C# Core / Runtime | 相关 EditMode / dotnet 测试，结合 `git diff` / `rg` 做影响面确认 |
 | 公共 API / 跨模块依赖 | 手动影响面分析、相关模块测试，接口文档同步 |
 | Unity Editor / Scene / Asset | Unity Console 无 error；资产与 `.meta` 成对；必要时用 Unity MCP / Editor 菜单生成 |
@@ -299,6 +299,7 @@ Harness 检查项后续应落成脚本，并由 Gitea Actions 调用：
 
 ```text
 Tools/Harness/check_generated_files.sh
+Tools/Harness/check_docs_health.py
 Tools/Harness/check_unity_meta.py
 Tools/Harness/check_pr_docs.py
 Tools/Harness/check_public_api_changes.py
@@ -350,7 +351,7 @@ git diff --check
 
 - Unity 相关改动：确认 Console 无 error；能自动测试时优先跑相关 EditMode / PlayMode 测试。
 - 配置相关改动：运行配置校验或导出提交前报告。
-- 文档相关改动：运行 `git diff --check`。
+- 文档相关改动：运行 `Tools/Harness/run_lightweight_checks.sh`。
 
 确认只提交本任务文件：
 

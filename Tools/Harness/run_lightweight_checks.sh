@@ -35,6 +35,7 @@ done < <(find "$SCRIPT_DIR" -maxdepth 1 -type f -name '*.sh' | sort)
 
 "$SCRIPT_DIR/check_forbidden_paths.sh" "$CHANGED_PATHS_FILE" || FAILED=1
 "$SCRIPT_DIR/check_unity_meta.py" "$CHANGED_PATHS_FILE" || FAILED=1
+"$SCRIPT_DIR/check_docs_health.py" "$CHANGED_PATHS_FILE" || FAILED=1
 
 if [ -n "$MERGE_BASE" ]; then
   git diff --check "$MERGE_BASE"...HEAD || FAILED=1

@@ -26,6 +26,9 @@ HARNESS_BASE_REF=main Tools/Harness/run_lightweight_checks.sh
   project files.
 - `check_unity_meta.py`: fails when changed files under `Assets/` introduce
   Unity assets without matching `.meta` files.
+- `check_docs_health.py`: validates changed docs for standard `Status` headers,
+  checks the documentation entrypoints, and blocks removed code-index terms
+  from returning to live docs or agent instructions.
 - `bash -n`: validates the Harness shell scripts themselves.
 - `git diff --check`: runs against the committed range from the merge base to
   `HEAD`, then separately checks unstaged and staged local changes.

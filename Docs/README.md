@@ -2,7 +2,7 @@
 
 > Status: Current
 >
-> 版本 0.6.62 | 2026-05-27
+> 版本 0.6.63 | 2026-05-27
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -144,10 +144,10 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.63 | 2026-05-27 | 新增 `Tools/Harness/check_docs_health.py` 并接入轻量 Harness，检查文档 `Status`、入口文件一致性和旧代码索引词回流。 |
 | 0.6.62 | 2026-05-27 | 给核心 Current / Guide / Design / Draft / Archive 文档补显式 `Status` 头，并把 `ROADMAP.md`、`Progress/CurrentStatus.md`、迁移和 WGame 审计类文档降为规划或归档视角。 |
 | 0.6.61 | 2026-05-27 | 优化 `PROJECT_INDEX.md`：改为 Default Context Pack、Conditional Packs 和 Conflict Rule，明确 Agent 默认读取边界和按任务追加文档。 |
 | 0.6.60 | 2026-05-27 | 瘦身 `README.md`：移除长任务清单和长版本表，新增文档状态分层，明确 Current / Guide / Design / ADR / Archive / Draft 的使用规则。 |
 | 0.6.59 | 2026-05-27 | 降级 `Docs/Tasks/` 为历史任务归档：新增 `Docs/Tasks/README.md`，明确默认 Context Pack 不读取已完成任务文档，当前事实以能力、接口、流程、质量门禁、源码和测试为准。 |
-| 0.6.58 | 2026-05-27 | 移除旧代码索引工具项目接入：删除独立工作流文档、仓库封装脚本和索引配置，当前流程改为 `git diff` / `rg` / 源码阅读 / 相关测试做影响面分析。 |
 
 旧版本历史保留在 Git 历史中；当前入口只维护最近变更。
