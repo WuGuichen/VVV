@@ -745,6 +745,68 @@ namespace MxFramework.Tests.UI.FairyGui
             Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
         }
 
+        [Test]
+        public void RuntimeCatalog_CreateNavigator_RegistersSelectedViewsWithoutGlobalManager()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            catalog.Register(CreateDemoRegistration(binder));
+
+            MxFairyGuiNavigator navigator = MxFairyGuiRuntimeShellComposition.CreateNavigator(manager, catalog, host);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("catalog"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.IsTrue(navigator.IsOpen(ViewId));
+            Assert.AreEqual(1, catalog.ViewCount);
+            Assert.AreEqual(1, catalog.PackageCount);
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+            Assert.AreEqual(1, binder.BindCount);
+            Assert.AreEqual("catalog", binder.Last.Title);
+        }
+
+        [Test]
+        public void RuntimeCatalog_DiagnosticsReportMissingPackageBytes()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider());
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            catalog.Register(CreateDemoRegistration(new DemoBinder()));
+
+            MxFairyGuiRuntimeCatalogDiagnostics diagnostics = catalog.CreateDiagnostics(manager);
+
+            Assert.IsFalse(diagnostics.Success);
+            Assert.AreEqual(1, diagnostics.ViewCount);
+            Assert.AreEqual(1, diagnostics.PackageCount);
+            Assert.AreEqual(1, diagnostics.ResourceKeyCount);
+            Assert.AreEqual(1, diagnostics.MissingPackageCount);
+            Assert.AreEqual("MissingPackageBytes", diagnostics.Issues[0].Code);
+        }
+
+        [Test]
+        public void RuntimePreloadSurface_PreloadsCatalogKeysAndReleasesGroup()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            catalog.Register(CreateDemoRegistration(new DemoBinder()));
+            using (var preload = new MxFairyGuiRuntimePreloadSurface(new ResourcePreloadService(manager)))
+            {
+                IResourceOperation<ResourcePreloadResult> operation = preload.Preload(catalog, "ui.demo.preload");
+
+                Assert.IsTrue(operation.IsDone);
+                MxFairyGuiRuntimePreloadDiagnostics diagnostics = preload.CreateDiagnostics();
+                Assert.IsTrue(diagnostics.Success);
+                Assert.AreEqual("ui.demo.preload", diagnostics.GroupId);
+                Assert.AreEqual(1, diagnostics.RequestedCount);
+                Assert.AreEqual(1, diagnostics.LoadedCount);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+                preload.Release();
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            }
+        }
+
         private static readonly MxUiViewId ViewId = new MxUiViewId("ui.demo.main");
         private static readonly ResourceKey PackageKey = new ResourceKey("ui.demo.package", MxFairyGuiResourceTypeIds.PackageBytes);
         private static readonly ResourceCatalogEntry PackageEntry = Entry(PackageKey, "ui/demo.bytes");
@@ -800,6 +862,19 @@ namespace MxFramework.Tests.UI.FairyGui
             packages.Register(new MxFairyGuiPackageDescriptor("ui.demo", PackageKey));
 
             return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings);
+        }
+
+        private static IMxFairyGuiRuntimeViewRegistration CreateDemoRegistration(IMxFairyGuiViewBinder<DemoViewModel> binder)
+        {
+            var contract = new MxUiViewContract(new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel))
+            {
+                ViewModelType = typeof(DemoViewModel).FullName
+            };
+
+            return new MxFairyGuiRuntimeViewRegistration<DemoViewModel>(
+                contract,
+                new MxFairyGuiPackageDescriptor("ui.demo", PackageKey),
+                binder);
         }
 
         private static MxFairyGuiNavigator CreateRealSmokeNavigator(

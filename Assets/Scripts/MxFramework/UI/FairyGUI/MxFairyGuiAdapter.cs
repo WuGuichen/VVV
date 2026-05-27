@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Threading;
 using Fgui = global::FairyGUI;
+using MxFramework.Resources;
 using MxFramework.UI;
 
 namespace MxFramework.UI.FairyGui
@@ -340,6 +343,398 @@ namespace MxFramework.UI.FairyGui
             binder.Bind(component, viewModel);
             failure = string.Empty;
             return true;
+        }
+    }
+
+    public interface IMxFairyGuiRuntimeViewRegistration
+    {
+        MxUiViewId ViewId { get; }
+        MxUiViewContract Contract { get; }
+        MxFairyGuiPackageDescriptor Package { get; }
+        void ApplyTo(
+            MxUiViewContractRegistry contracts,
+            MxFairyGuiPackageCatalog packages,
+            MxFairyGuiViewBindingRegistry bindings);
+    }
+
+    public sealed class MxFairyGuiRuntimeViewRegistration<TViewModel> : IMxFairyGuiRuntimeViewRegistration
+    {
+        private readonly IMxFairyGuiViewBinder<TViewModel> _binder;
+
+        public MxFairyGuiRuntimeViewRegistration(
+            MxUiViewContract contract,
+            MxFairyGuiPackageDescriptor package,
+            IMxFairyGuiViewBinder<TViewModel> binder)
+        {
+            Contract = contract ?? throw new ArgumentNullException(nameof(contract));
+            Package = package ?? throw new ArgumentNullException(nameof(package));
+            _binder = binder ?? throw new ArgumentNullException(nameof(binder));
+        }
+
+        public MxUiViewId ViewId => Contract.Descriptor.Id;
+        public MxUiViewContract Contract { get; }
+        public MxFairyGuiPackageDescriptor Package { get; }
+
+        public void ApplyTo(
+            MxUiViewContractRegistry contracts,
+            MxFairyGuiPackageCatalog packages,
+            MxFairyGuiViewBindingRegistry bindings)
+        {
+            if (contracts == null)
+                throw new ArgumentNullException(nameof(contracts));
+
+            if (packages == null)
+                throw new ArgumentNullException(nameof(packages));
+
+            if (bindings == null)
+                throw new ArgumentNullException(nameof(bindings));
+
+            contracts.Register(Contract);
+            if (!packages.TryGet(Package.PackageId, out _))
+                packages.Register(Package);
+
+            bindings.Register(ViewId, _binder);
+        }
+    }
+
+    public sealed class MxFairyGuiRuntimeCatalog
+    {
+        private readonly List<IMxFairyGuiRuntimeViewRegistration> _registrations =
+            new List<IMxFairyGuiRuntimeViewRegistration>();
+        private readonly Dictionary<MxUiViewId, IMxFairyGuiRuntimeViewRegistration> _byViewId =
+            new Dictionary<MxUiViewId, IMxFairyGuiRuntimeViewRegistration>();
+        private readonly Dictionary<string, MxFairyGuiPackageDescriptor> _packages =
+            new Dictionary<string, MxFairyGuiPackageDescriptor>(StringComparer.Ordinal);
+
+        public int ViewCount => _registrations.Count;
+        public int PackageCount => _packages.Count;
+        public IReadOnlyList<IMxFairyGuiRuntimeViewRegistration> Registrations => _registrations;
+
+        public void Register(IMxFairyGuiRuntimeViewRegistration registration)
+        {
+            if (registration == null)
+                throw new ArgumentNullException(nameof(registration));
+
+            if (!registration.ViewId.IsValid)
+                throw new ArgumentException("FairyGUI runtime view id is required.", nameof(registration));
+
+            if (_byViewId.ContainsKey(registration.ViewId))
+                throw new ArgumentException("FairyGUI runtime view is already registered: " + registration.ViewId + ".", nameof(registration));
+
+            if (registration.Package == null || string.IsNullOrWhiteSpace(registration.Package.PackageId))
+                throw new ArgumentException("FairyGUI runtime package descriptor is required.", nameof(registration));
+
+            string descriptorPackageId = registration.Contract.Descriptor.PackageKey;
+            if (!string.Equals(descriptorPackageId, registration.Package.PackageId, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "FairyGUI runtime view package does not match descriptor package key for: " + registration.ViewId + ".",
+                    nameof(registration));
+            }
+
+            MxFairyGuiPackageDescriptor existingPackage;
+            if (_packages.TryGetValue(registration.Package.PackageId, out existingPackage)
+                && !existingPackage.PackageBytesKey.Equals(registration.Package.PackageBytesKey))
+            {
+                throw new ArgumentException(
+                    "FairyGUI runtime package bytes key conflicts for: " + registration.Package.PackageId + ".",
+                    nameof(registration));
+            }
+
+            _registrations.Add(registration);
+            _byViewId.Add(registration.ViewId, registration);
+            if (existingPackage == null)
+                _packages.Add(registration.Package.PackageId, registration.Package);
+        }
+
+        public bool TryGet(MxUiViewId viewId, out IMxFairyGuiRuntimeViewRegistration registration)
+        {
+            return _byViewId.TryGetValue(viewId, out registration);
+        }
+
+        public IReadOnlyList<MxFairyGuiPackageDescriptor> ListPackages()
+        {
+            if (_packages.Count == 0)
+                return Array.Empty<MxFairyGuiPackageDescriptor>();
+
+            var packages = new List<MxFairyGuiPackageDescriptor>(_packages.Values);
+            packages.Sort((left, right) => string.Compare(left.PackageId, right.PackageId, StringComparison.Ordinal));
+            return new ReadOnlyCollection<MxFairyGuiPackageDescriptor>(packages);
+        }
+
+        public IReadOnlyList<ResourceKey> CollectPreloadKeys()
+        {
+            var keys = new List<ResourceKey>();
+            var unique = new HashSet<ResourceKey>();
+            IReadOnlyList<MxFairyGuiPackageDescriptor> packages = ListPackages();
+            for (int i = 0; i < packages.Count; i++)
+            {
+                AddKey(packages[i].PackageBytesKey, keys, unique);
+                for (int j = 0; j < packages[i].Resources.Count; j++)
+                    AddKey(packages[i].Resources[j].Key, keys, unique);
+            }
+
+            return new ReadOnlyCollection<ResourceKey>(keys);
+        }
+
+        public ResourcePreloadPlan CreatePreloadPlan(
+            string groupId = "mx.fairygui.runtime",
+            bool failFast = true,
+            int maxConcurrentLoads = 1)
+        {
+            return new ResourcePreloadPlan(groupId, CollectPreloadKeys(), null, failFast, maxConcurrentLoads);
+        }
+
+        public MxFairyGuiRuntimeCatalogDiagnostics CreateDiagnostics(IResourceManager resourceManager = null)
+        {
+            var issues = new List<MxFairyGuiRuntimeCatalogIssue>();
+            IReadOnlyList<MxFairyGuiPackageDescriptor> packages = ListPackages();
+            int resourceKeyCount = 0;
+            int missingPackageCount = 0;
+            int missingResourceCount = 0;
+
+            for (int i = 0; i < packages.Count; i++)
+            {
+                MxFairyGuiPackageDescriptor package = packages[i];
+                resourceKeyCount++;
+                if (!package.PackageBytesKey.IsValid)
+                {
+                    issues.Add(MxFairyGuiRuntimeCatalogIssue.Error(
+                        "InvalidPackageBytesKey",
+                        default,
+                        "Package bytes key is invalid for package: " + package.PackageId + "."));
+                }
+                else if (resourceManager != null && !resourceManager.Contains(package.PackageBytesKey))
+                {
+                    missingPackageCount++;
+                    issues.Add(MxFairyGuiRuntimeCatalogIssue.Error(
+                        "MissingPackageBytes",
+                        package.PackageBytesKey,
+                        "Package bytes are not registered for package: " + package.PackageId + "."));
+                }
+
+                for (int j = 0; j < package.Resources.Count; j++)
+                {
+                    MxFairyGuiPackageResourceDescriptor resource = package.Resources[j];
+                    resourceKeyCount++;
+                    if (!resource.Key.IsValid)
+                    {
+                        issues.Add(MxFairyGuiRuntimeCatalogIssue.Error(
+                            "InvalidPackageResourceKey",
+                            default,
+                            "Package resource key is invalid for package: " + package.PackageId + "."));
+                        continue;
+                    }
+
+                    if (resource.Required && resourceManager != null && !resourceManager.Contains(resource.Key))
+                    {
+                        missingResourceCount++;
+                        issues.Add(MxFairyGuiRuntimeCatalogIssue.Error(
+                            "MissingPackageResource",
+                            resource.Key,
+                            "Required package resource is not registered for package: " + package.PackageId + "."));
+                    }
+                }
+            }
+
+            ResourceDebugSnapshot resourceSnapshot = resourceManager != null
+                ? resourceManager.CreateDebugSnapshot()
+                : null;
+
+            return new MxFairyGuiRuntimeCatalogDiagnostics(
+                ViewCount,
+                PackageCount,
+                resourceKeyCount,
+                missingPackageCount,
+                missingResourceCount,
+                issues,
+                resourceSnapshot);
+        }
+
+        private static void AddKey(ResourceKey key, List<ResourceKey> keys, HashSet<ResourceKey> unique)
+        {
+            if (!key.IsValid || !unique.Add(key))
+                return;
+
+            keys.Add(key);
+        }
+    }
+
+    public readonly struct MxFairyGuiRuntimeCatalogIssue
+    {
+        public MxFairyGuiRuntimeCatalogIssue(string code, ResourceKey key, string message, bool isError)
+        {
+            Code = code ?? string.Empty;
+            Key = key;
+            Message = message ?? string.Empty;
+            IsError = isError;
+        }
+
+        public string Code { get; }
+        public ResourceKey Key { get; }
+        public string Message { get; }
+        public bool IsError { get; }
+
+        public static MxFairyGuiRuntimeCatalogIssue Error(string code, ResourceKey key, string message)
+        {
+            return new MxFairyGuiRuntimeCatalogIssue(code, key, message, true);
+        }
+    }
+
+    public sealed class MxFairyGuiRuntimeCatalogDiagnostics
+    {
+        private readonly IReadOnlyList<MxFairyGuiRuntimeCatalogIssue> _issues;
+
+        public MxFairyGuiRuntimeCatalogDiagnostics(
+            int viewCount,
+            int packageCount,
+            int resourceKeyCount,
+            int missingPackageCount,
+            int missingResourceCount,
+            IReadOnlyList<MxFairyGuiRuntimeCatalogIssue> issues,
+            ResourceDebugSnapshot resourceSnapshot)
+        {
+            ViewCount = viewCount < 0 ? 0 : viewCount;
+            PackageCount = packageCount < 0 ? 0 : packageCount;
+            ResourceKeyCount = resourceKeyCount < 0 ? 0 : resourceKeyCount;
+            MissingPackageCount = missingPackageCount < 0 ? 0 : missingPackageCount;
+            MissingResourceCount = missingResourceCount < 0 ? 0 : missingResourceCount;
+            _issues = issues ?? Array.Empty<MxFairyGuiRuntimeCatalogIssue>();
+            ResourceSnapshot = resourceSnapshot;
+        }
+
+        public int ViewCount { get; }
+        public int PackageCount { get; }
+        public int ResourceKeyCount { get; }
+        public int MissingPackageCount { get; }
+        public int MissingResourceCount { get; }
+        public IReadOnlyList<MxFairyGuiRuntimeCatalogIssue> Issues => _issues;
+        public ResourceDebugSnapshot ResourceSnapshot { get; }
+        public bool Success => MissingPackageCount == 0 && MissingResourceCount == 0 && Issues.Count == 0;
+    }
+
+    public sealed class MxFairyGuiRuntimePreloadSurface : IDisposable
+    {
+        private readonly IResourcePreloadService _preloadService;
+        private IResourceOperation<ResourcePreloadResult> _operation;
+        private ResourcePreloadResult _lastResult;
+
+        public MxFairyGuiRuntimePreloadSurface(IResourcePreloadService preloadService)
+        {
+            _preloadService = preloadService ?? throw new ArgumentNullException(nameof(preloadService));
+        }
+
+        public IResourceOperation<ResourcePreloadResult> Operation => _operation;
+        public ResourcePreloadResult LastResult => _lastResult;
+        public bool IsPreloading => _operation != null && !_operation.IsDone;
+        public bool HasResult => _lastResult != null;
+
+        public IResourceOperation<ResourcePreloadResult> Preload(
+            MxFairyGuiRuntimeCatalog catalog,
+            string groupId = "mx.fairygui.runtime",
+            bool failFast = true,
+            int maxConcurrentLoads = 1,
+            CancellationToken cancellationToken = default)
+        {
+            if (catalog == null)
+                throw new ArgumentNullException(nameof(catalog));
+
+            Release();
+            _operation = _preloadService.PreloadAsync(catalog.CreatePreloadPlan(groupId, failFast, maxConcurrentLoads), cancellationToken);
+            CaptureResultIfDone();
+            return _operation;
+        }
+
+        public MxFairyGuiRuntimePreloadDiagnostics CreateDiagnostics()
+        {
+            CaptureResultIfDone();
+            return new MxFairyGuiRuntimePreloadDiagnostics(_operation, _lastResult);
+        }
+
+        public void Release()
+        {
+            if (_operation != null && !_operation.IsDone)
+                _operation.Cancel();
+
+            CaptureResultIfDone();
+            if (_lastResult != null && _lastResult.Handle != null)
+                _preloadService.ReleaseGroup(_lastResult.Handle);
+
+            _operation = null;
+            _lastResult = null;
+        }
+
+        public void Dispose()
+        {
+            Release();
+        }
+
+        private void CaptureResultIfDone()
+        {
+            if (_operation == null || !_operation.IsDone)
+                return;
+
+            ResourceLoadResult<ResourcePreloadResult> result = _operation.Result;
+            if (result.Success)
+                _lastResult = result.Value;
+        }
+    }
+
+    public sealed class MxFairyGuiRuntimePreloadDiagnostics
+    {
+        public MxFairyGuiRuntimePreloadDiagnostics(
+            IResourceOperation<ResourcePreloadResult> operation,
+            ResourcePreloadResult result)
+        {
+            IsRunning = operation != null && !operation.IsDone;
+            IsCancelled = operation != null && operation.IsCancelled;
+            Progress = operation != null ? operation.Progress : 0f;
+            GroupId = result != null ? result.GroupId : string.Empty;
+            RequestedCount = result != null ? result.RequestedCount : 0;
+            LoadedCount = result != null ? result.LoadedCount : 0;
+            FailedCount = result != null ? result.FailedCount : 0;
+            Success = result != null && result.Success;
+        }
+
+        public bool IsRunning { get; }
+        public bool IsCancelled { get; }
+        public float Progress { get; }
+        public string GroupId { get; }
+        public int RequestedCount { get; }
+        public int LoadedCount { get; }
+        public int FailedCount { get; }
+        public bool Success { get; }
+    }
+
+    public static class MxFairyGuiRuntimeShellComposition
+    {
+        public static MxFairyGuiNavigator CreateNavigator(
+            IResourceManager resourceManager,
+            MxFairyGuiRuntimeCatalog catalog,
+            IMxFairyGuiHost host = null,
+            IMxFairyGuiLayerHost layerHost = null,
+            IMxFairyGuiInputContextBridge inputBridge = null)
+        {
+            if (resourceManager == null)
+                throw new ArgumentNullException(nameof(resourceManager));
+
+            if (catalog == null)
+                throw new ArgumentNullException(nameof(catalog));
+
+            var contracts = new MxUiViewContractRegistry();
+            var packages = new MxFairyGuiPackageCatalog();
+            var bindings = new MxFairyGuiViewBindingRegistry();
+            for (int i = 0; i < catalog.Registrations.Count; i++)
+                catalog.Registrations[i].ApplyTo(contracts, packages, bindings);
+
+            return new MxFairyGuiNavigator(
+                contracts,
+                packages,
+                new MxFairyGuiResourceBridge(resourceManager),
+                host ?? new MxFairyGuiHost(),
+                bindings,
+                layerHost,
+                inputBridge);
         }
     }
 
