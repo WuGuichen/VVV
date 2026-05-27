@@ -8,6 +8,8 @@
         "MxFramework.Resources",
         "MxFramework.Input",
         "MxFramework.UI",
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime",
         "MxFramework.UI.FairyGUI",
         "MxFramework.UI.FairyGUI.Manifest",
         "MxFramework.Demo",
