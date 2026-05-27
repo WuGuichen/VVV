@@ -18,6 +18,29 @@ namespace MxFramework.Demo.FairyGui
             return StoryRuntimeFairyGuiDialogManifest.CreatePackageDescriptor();
         }
 
+        public static MxFairyGuiRuntimeCatalog CreateCatalog(
+            IMxUiCommandSink commandSink,
+            IMxUiTextProvider textProvider = null)
+        {
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            Register(catalog, commandSink, textProvider);
+            return catalog;
+        }
+
+        public static void Register(
+            MxFairyGuiRuntimeCatalog catalog,
+            IMxUiCommandSink commandSink,
+            IMxUiTextProvider textProvider = null)
+        {
+            if (catalog == null)
+                throw new ArgumentNullException(nameof(catalog));
+
+            catalog.Register(new MxFairyGuiRuntimeViewRegistration<StoryRuntimeVerticalSliceFairyGuiViewModel>(
+                CreateContract(),
+                CreatePackageDescriptor(),
+                new StoryRuntimeFairyGuiDialogBinder(commandSink, textProvider)));
+        }
+
         public static MxFairyGuiNavigator CreateNavigator(
             IResourceManager resourceManager,
             IMxUiCommandSink commandSink,
@@ -29,23 +52,10 @@ namespace MxFramework.Demo.FairyGui
             if (resourceManager == null)
                 throw new ArgumentNullException(nameof(resourceManager));
 
-            var contracts = new MxUiViewContractRegistry();
-            contracts.Register(CreateContract());
-
-            var packages = new MxFairyGuiPackageCatalog();
-            packages.Register(CreatePackageDescriptor());
-
-            var bindings = new MxFairyGuiViewBindingRegistry();
-            bindings.Register(
-                StoryRuntimeFairyGuiDialogIds.ViewId,
-                new StoryRuntimeFairyGuiDialogBinder(commandSink, textProvider));
-
-            return new MxFairyGuiNavigator(
-                contracts,
-                packages,
-                new MxFairyGuiResourceBridge(resourceManager),
-                host ?? new MxFairyGuiHost(),
-                bindings,
+            return MxFairyGuiRuntimeShellComposition.CreateNavigator(
+                resourceManager,
+                CreateCatalog(commandSink, textProvider),
+                host,
                 layerHost,
                 inputBridge);
         }

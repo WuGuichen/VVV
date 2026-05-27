@@ -22,6 +22,8 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
             StoryDialogManifestProjection_FeedsViewContract();
             StoryDialogManifestGenerator_ProducesCurrentManifestMetadata();
             StoryDialogGeneratedManifest_IsCurrent();
+            ManifestBatchCheck_CoversRuntimeHudAndStoryDialog();
+            ManifestReviewReport_IsDeterministicAndCoversBatchTargets();
             RuntimeHudGeneratedManifest_MismatchDiagnostic();
             LocalizationBindings_ValidateTextControlsAndRequests();
             LocalizationBindings_ReportMissingKeyAndNonTextControl();
@@ -41,32 +43,54 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
             string command = args[0] ?? string.Empty;
             if (string.Equals(command, "--write-runtime-hud-manifest", StringComparison.Ordinal))
             {
-                MxFairyGuiManifestGenerationResult result = GenerateRuntimeHudManifestSource();
-                Require(result.Success, "Runtime HUD manifest generation should not produce errors.");
-                File.WriteAllText(RuntimeHudGeneratedManifestPath(), result.SourceText);
-                Console.WriteLine("Regenerated " + RuntimeHudGeneratedManifestPath());
+                ManifestTarget target = FindTarget("runtime-hud");
+                WriteGeneratedManifest(target);
                 return 0;
             }
 
             if (string.Equals(command, "--write-story-dialog-manifest", StringComparison.Ordinal))
             {
-                MxFairyGuiManifestGenerationResult result = GenerateStoryDialogManifestSource();
-                Require(result.Success, "Story dialog manifest generation should not produce errors.");
-                File.WriteAllText(StoryDialogGeneratedManifestPath(), result.SourceText);
-                Console.WriteLine("Regenerated " + StoryDialogGeneratedManifestPath());
+                ManifestTarget target = FindTarget("story-dialog");
+                WriteGeneratedManifest(target);
+                return 0;
+            }
+
+            if (string.Equals(command, "--write-manifests", StringComparison.Ordinal))
+            {
+                ManifestTarget[] targets = CreateManifestTargets();
+                for (int i = 0; i < targets.Length; i++)
+                    WriteGeneratedManifest(targets[i]);
                 return 0;
             }
 
             if (string.Equals(command, "--check-generated", StringComparison.Ordinal))
             {
-                RuntimeHudGeneratedManifest_IsCurrent();
-                StoryDialogGeneratedManifest_IsCurrent();
-                Console.WriteLine("FairyGUI generated manifest output is current.");
+                MxFairyGuiManifestGenerationBatchResult result = GenerateManifestBatch(validateGeneratedOutput: true);
+                Require(result.Success, "FairyGUI generated manifest batch is not current.\n" + MxFairyGuiManifestGenerator.GenerateReviewReport(result));
+                Console.WriteLine("FairyGUI generated manifest output is current for " + result.Items.Count + " targets.");
+                return 0;
+            }
+
+            if (string.Equals(command, "--review-report", StringComparison.Ordinal))
+            {
+                MxFairyGuiManifestGenerationBatchResult result = GenerateManifestBatch(validateGeneratedOutput: true);
+                string report = MxFairyGuiManifestGenerator.GenerateReviewReport(result);
+                if (args.Length > 1)
+                {
+                    File.WriteAllText(args[1], report);
+                    Console.WriteLine("Wrote FairyGUI manifest review report: " + args[1]);
+                }
+                else
+                {
+                    Console.Write(report);
+                }
+
+                Require(result.Success, "FairyGUI manifest review report contains errors.");
                 return 0;
             }
 
             Console.Error.WriteLine("Unknown FairyGUI manifest test command: " + command);
-            Console.Error.WriteLine("Supported commands: --check-generated, --write-runtime-hud-manifest, --write-story-dialog-manifest");
+            Console.Error.WriteLine("Supported commands: --check-generated, --review-report [path], --write-manifests, --write-runtime-hud-manifest, --write-story-dialog-manifest");
             return 2;
         }
 
@@ -167,32 +191,40 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
 
         private static void StoryDialogGeneratedManifest_IsCurrent()
         {
-            MxFairyGuiManifestGenerationResult result = GenerateStoryDialogManifestSource();
-            Require(result.Success, "Story dialog generator should pass before stale comparison.");
-
-            string generatedPath = StoryDialogGeneratedManifestPath();
-            string current = File.ReadAllText(generatedPath);
-            MxFairyGuiManifestValidationResult staleResult = MxFairyGuiManifestGenerator.ValidateGeneratedOutput(
-                current,
-                result.SourceText,
-                generatedPath);
-
-            Require(staleResult.Success, "checked-in Story dialog generated manifest is stale; run --write-story-dialog-manifest.");
+            RequireGeneratedManifestCurrent(FindTarget("story-dialog"), "--write-story-dialog-manifest");
         }
 
         private static void RuntimeHudGeneratedManifest_IsCurrent()
         {
-            MxFairyGuiManifestGenerationResult result = GenerateRuntimeHudManifestSource();
-            Require(result.Success, "Runtime HUD generator should pass before stale comparison.");
+            RequireGeneratedManifestCurrent(FindTarget("runtime-hud"), "--write-runtime-hud-manifest");
+        }
 
-            string generatedPath = RuntimeHudGeneratedManifestPath();
-            string current = File.ReadAllText(generatedPath);
-            MxFairyGuiManifestValidationResult staleResult = MxFairyGuiManifestGenerator.ValidateGeneratedOutput(
-                current,
-                result.SourceText,
-                generatedPath);
+        private static void ManifestBatchCheck_CoversRuntimeHudAndStoryDialog()
+        {
+            MxFairyGuiManifestGenerationBatchResult result = GenerateManifestBatch(validateGeneratedOutput: true);
 
-            Require(staleResult.Success, "checked-in Runtime HUD generated manifest is stale; run --write-runtime-hud-manifest.");
+            Require(result.Success, "batch manifest check should pass for current checked-in generated sources.");
+            Require(result.Items.Count == 2, "batch manifest check should cover Runtime HUD and Story Dialog.");
+            Require(result.Diagnostics.Count == 0, "batch manifest check should not produce diagnostics for current targets.");
+            Require(result.Items[0].Generation.Manifest.Packages[0].PackageId == "MxRuntimeHud", "first batch item should be Runtime HUD.");
+            Require(result.Items[0].Generation.Manifest.Views[0].ViewId == new MxUiViewId("ui.runtimehud.main"), "Runtime HUD batch item should carry its view id.");
+            Require(result.Items[1].Generation.Manifest.Packages[0].PackageId == "MxStoryDialog", "second batch item should be Story Dialog.");
+            Require(result.Items[1].Generation.Manifest.Views[0].ViewId == new MxUiViewId("ui.story.dialog"), "Story Dialog batch item should carry its view id.");
+        }
+
+        private static void ManifestReviewReport_IsDeterministicAndCoversBatchTargets()
+        {
+            MxFairyGuiManifestGenerationBatchResult result = GenerateManifestBatch(validateGeneratedOutput: true);
+            string first = MxFairyGuiManifestGenerator.GenerateReviewReport(result);
+            string second = MxFairyGuiManifestGenerator.GenerateReviewReport(result);
+
+            Require(string.Equals(first, second, StringComparison.Ordinal), "manifest review report should be deterministic for the same batch result.");
+            Require(first.Contains("FairyGUI Manifest Review Report"), "manifest review report should include a stable title.");
+            Require(first.Contains("items: 2"), "manifest review report should include target count.");
+            Require(first.Contains("name: runtime-hud"), "manifest review report should include Runtime HUD.");
+            Require(first.Contains("name: story-dialog"), "manifest review report should include Story Dialog.");
+            Require(first.Contains("view[0]: ui.runtimehud.main -> MxRuntimeHud/RuntimeHudPanel"), "manifest review report should include Runtime HUD view mapping.");
+            Require(first.Contains("view[0]: ui.story.dialog -> MxStoryDialog/StoryDialogPanel"), "manifest review report should include Story Dialog view mapping.");
         }
 
         private static void LocalizationBindings_ValidateTextControlsAndRequests()
@@ -641,6 +673,78 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
             return MxFairyGuiManifestGenerator.Generate(CreateStoryDialogGenerationSpec(), FindRepositoryRoot());
         }
 
+        private static MxFairyGuiManifestGenerationBatchResult GenerateManifestBatch(bool validateGeneratedOutput)
+        {
+            ManifestTarget[] targets = CreateManifestTargets();
+            var items = new MxFairyGuiManifestGenerationBatchItem[targets.Length];
+            for (int i = 0; i < targets.Length; i++)
+            {
+                items[i] = new MxFairyGuiManifestGenerationBatchItem(
+                    targets[i].Name,
+                    targets[i].Spec,
+                    targets[i].GeneratedSourcePath);
+            }
+
+            return MxFairyGuiManifestGenerator.GenerateBatch(
+                items,
+                FindRepositoryRoot(),
+                validateGeneratedOutput);
+        }
+
+        private static ManifestTarget[] CreateManifestTargets()
+        {
+            return new[]
+            {
+                new ManifestTarget(
+                    "runtime-hud",
+                    CreateRuntimeHudGenerationSpec(),
+                    RuntimeHudGeneratedManifestPath()),
+                new ManifestTarget(
+                    "story-dialog",
+                    CreateStoryDialogGenerationSpec(),
+                    StoryDialogGeneratedManifestPath())
+            };
+        }
+
+        private static ManifestTarget FindTarget(string name)
+        {
+            ManifestTarget[] targets = CreateManifestTargets();
+            for (int i = 0; i < targets.Length; i++)
+            {
+                if (string.Equals(targets[i].Name, name, StringComparison.Ordinal))
+                    return targets[i];
+            }
+
+            throw new InvalidOperationException("FairyGUI manifest target was not found: " + name + ".");
+        }
+
+        private static void WriteGeneratedManifest(ManifestTarget target)
+        {
+            MxFairyGuiManifestGenerationResult result = MxFairyGuiManifestGenerator.Generate(target.Spec, FindRepositoryRoot());
+            Require(result.Success, target.Name + " manifest generation should not produce errors.");
+            File.WriteAllText(ResolveGeneratedPath(target), result.SourceText);
+            Console.WriteLine("Regenerated " + target.GeneratedSourcePath);
+        }
+
+        private static void RequireGeneratedManifestCurrent(ManifestTarget target, string writeCommand)
+        {
+            MxFairyGuiManifestGenerationResult result = MxFairyGuiManifestGenerator.Generate(target.Spec, FindRepositoryRoot());
+            Require(result.Success, target.Name + " generator should pass before stale comparison.");
+
+            string current = File.ReadAllText(ResolveGeneratedPath(target));
+            MxFairyGuiManifestValidationResult staleResult = MxFairyGuiManifestGenerator.ValidateGeneratedOutput(
+                current,
+                result.SourceText,
+                target.GeneratedSourcePath);
+
+            Require(staleResult.Success, "checked-in " + target.Name + " generated manifest is stale; run " + writeCommand + ".");
+        }
+
+        private static string ResolveGeneratedPath(ManifestTarget target)
+        {
+            return Path.Combine(FindRepositoryRoot(), target.GeneratedSourcePath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
         private static MxFairyGuiManifestGenerationSpec CreateRuntimeHudGenerationSpec()
         {
             return new MxFairyGuiManifestGenerationSpec
@@ -705,15 +809,7 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
 
         private static string RuntimeHudGeneratedManifestPath()
         {
-            return Path.Combine(
-                FindRepositoryRoot(),
-                "Assets",
-                "Scripts",
-                "MxFramework",
-                "Demo",
-                "FairyGUI",
-                "Generated",
-                "RuntimeAbilitySliceFairyGuiHudManifest.g.cs");
+            return "Assets/Scripts/MxFramework/Demo/FairyGUI/Generated/RuntimeAbilitySliceFairyGuiHudManifest.g.cs";
         }
 
         private static MxFairyGuiManifestGenerationSpec CreateStoryDialogGenerationSpec()
@@ -778,15 +874,7 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
 
         private static string StoryDialogGeneratedManifestPath()
         {
-            return Path.Combine(
-                FindRepositoryRoot(),
-                "Assets",
-                "Scripts",
-                "MxFramework",
-                "Demo",
-                "FairyGUI",
-                "Generated",
-                "StoryRuntimeFairyGuiDialogManifest.g.cs");
+            return "Assets/Scripts/MxFramework/Demo/FairyGUI/Generated/StoryRuntimeFairyGuiDialogManifest.g.cs";
         }
 
         private static string FindRepositoryRoot()
@@ -818,6 +906,23 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
         {
             if (!condition)
                 throw new InvalidOperationException(message);
+        }
+
+        private readonly struct ManifestTarget
+        {
+            public ManifestTarget(
+                string name,
+                MxFairyGuiManifestGenerationSpec spec,
+                string generatedSourcePath)
+            {
+                Name = name ?? string.Empty;
+                Spec = spec;
+                GeneratedSourcePath = generatedSourcePath ?? string.Empty;
+            }
+
+            public string Name { get; }
+            public MxFairyGuiManifestGenerationSpec Spec { get; }
+            public string GeneratedSourcePath { get; }
         }
     }
 }

@@ -122,6 +122,77 @@ namespace MxFramework.UI.FairyGui
         }
     }
 
+    public sealed class MxFairyGuiManifestGenerationBatchItem
+    {
+        public MxFairyGuiManifestGenerationBatchItem(
+            string name,
+            MxFairyGuiManifestGenerationSpec spec,
+            string generatedSourcePath)
+        {
+            Name = name ?? string.Empty;
+            Spec = spec;
+            GeneratedSourcePath = generatedSourcePath ?? string.Empty;
+        }
+
+        public string Name { get; }
+        public MxFairyGuiManifestGenerationSpec Spec { get; }
+        public string GeneratedSourcePath { get; }
+    }
+
+    public sealed class MxFairyGuiManifestGenerationBatchItemResult
+    {
+        public MxFairyGuiManifestGenerationBatchItemResult(
+            MxFairyGuiManifestGenerationBatchItem item,
+            MxFairyGuiManifestGenerationResult generation,
+            MxFairyGuiManifestValidationResult generatedOutputValidation)
+        {
+            Item = item;
+            Generation = generation;
+            GeneratedOutputValidation = generatedOutputValidation;
+        }
+
+        public MxFairyGuiManifestGenerationBatchItem Item { get; }
+        public MxFairyGuiManifestGenerationResult Generation { get; }
+        public MxFairyGuiManifestValidationResult GeneratedOutputValidation { get; }
+        public bool Success => Generation != null
+            && Generation.Success
+            && (GeneratedOutputValidation == null || GeneratedOutputValidation.Success);
+        public bool GeneratedOutputCurrent => GeneratedOutputValidation != null && GeneratedOutputValidation.Success;
+    }
+
+    public sealed class MxFairyGuiManifestGenerationBatchResult
+    {
+        public MxFairyGuiManifestGenerationBatchResult(
+            IReadOnlyList<MxFairyGuiManifestGenerationBatchItemResult> items,
+            IReadOnlyList<MxFairyGuiManifestDiagnostic> diagnostics)
+        {
+            Items = items == null
+                ? Array.Empty<MxFairyGuiManifestGenerationBatchItemResult>()
+                : new ReadOnlyCollection<MxFairyGuiManifestGenerationBatchItemResult>(new List<MxFairyGuiManifestGenerationBatchItemResult>(items));
+            Diagnostics = diagnostics == null
+                ? Array.Empty<MxFairyGuiManifestDiagnostic>()
+                : new ReadOnlyCollection<MxFairyGuiManifestDiagnostic>(new List<MxFairyGuiManifestDiagnostic>(diagnostics));
+        }
+
+        public IReadOnlyList<MxFairyGuiManifestGenerationBatchItemResult> Items { get; }
+        public IReadOnlyList<MxFairyGuiManifestDiagnostic> Diagnostics { get; }
+        public bool Success => ErrorCount == 0;
+        public int ErrorCount => CountSeverity(MxFairyGuiManifestDiagnosticSeverity.Error);
+        public int WarningCount => CountSeverity(MxFairyGuiManifestDiagnosticSeverity.Warning);
+
+        private int CountSeverity(MxFairyGuiManifestDiagnosticSeverity severity)
+        {
+            int count = 0;
+            for (int i = 0; i < Diagnostics.Count; i++)
+            {
+                if (Diagnostics[i].Severity == severity)
+                    count++;
+            }
+
+            return count;
+        }
+    }
+
     public static class MxFairyGuiManifestGenerator
     {
         public static MxFairyGuiManifestGenerationResult Generate(
@@ -221,6 +292,91 @@ namespace MxFramework.UI.FairyGui
             return new MxFairyGuiManifestValidationResult(diagnostics);
         }
 
+        public static MxFairyGuiManifestGenerationBatchResult GenerateBatch(
+            IReadOnlyList<MxFairyGuiManifestGenerationBatchItem> items,
+            string projectRootPath,
+            bool validateGeneratedOutput)
+        {
+            var results = new List<MxFairyGuiManifestGenerationBatchItemResult>();
+            var diagnostics = new List<MxFairyGuiManifestDiagnostic>();
+            IReadOnlyList<MxFairyGuiManifestGenerationBatchItem> batchItems = items ?? Array.Empty<MxFairyGuiManifestGenerationBatchItem>();
+            for (int i = 0; i < batchItems.Count; i++)
+            {
+                MxFairyGuiManifestGenerationBatchItem item = batchItems[i];
+                if (item == null)
+                {
+                    diagnostics.Add(MxFairyGuiManifestDiagnostic.Error(
+                        MxFairyGuiManifestDiagnosticCode.ManifestMissing,
+                        MxFairyGuiManifestDiagnosticTarget.Manifest,
+                        "batchItems[" + i + "]",
+                        string.Empty,
+                        string.Empty,
+                        string.Empty,
+                        "FairyGUI manifest generation batch item is required."));
+                    continue;
+                }
+
+                MxFairyGuiManifestGenerationResult generation = Generate(item.Spec, projectRootPath);
+                diagnostics.AddRange(generation.Diagnostics);
+
+                MxFairyGuiManifestValidationResult generatedValidation = null;
+                if (validateGeneratedOutput)
+                {
+                    generatedValidation = ValidateGeneratedOutputForItem(item, generation.SourceText, projectRootPath);
+                    diagnostics.AddRange(generatedValidation.Diagnostics);
+                }
+
+                results.Add(new MxFairyGuiManifestGenerationBatchItemResult(item, generation, generatedValidation));
+            }
+
+            return new MxFairyGuiManifestGenerationBatchResult(results, diagnostics);
+        }
+
+        public static string GenerateReviewReport(MxFairyGuiManifestGenerationBatchResult result)
+        {
+            var builder = new StringBuilder();
+            MxFairyGuiManifestGenerationBatchResult batchResult = result
+                ?? new MxFairyGuiManifestGenerationBatchResult(
+                    Array.Empty<MxFairyGuiManifestGenerationBatchItemResult>(),
+                    new[]
+                    {
+                        MxFairyGuiManifestDiagnostic.Error(
+                            MxFairyGuiManifestDiagnosticCode.ManifestMissing,
+                            MxFairyGuiManifestDiagnosticTarget.Manifest,
+                            string.Empty,
+                            string.Empty,
+                            string.Empty,
+                            string.Empty,
+                            "FairyGUI manifest generation batch result is required.")
+                    });
+
+            builder.AppendLine("FairyGUI Manifest Review Report");
+            builder.AppendLine("schemaVersion: " + MxFairyGuiManifest.CurrentSchemaVersion);
+            builder.AppendLine("status: " + (batchResult.Success ? "ok" : "failed"));
+            builder.AppendLine("items: " + batchResult.Items.Count);
+            builder.AppendLine("errors: " + batchResult.ErrorCount);
+            builder.AppendLine("warnings: " + batchResult.WarningCount);
+            builder.AppendLine();
+            builder.AppendLine("Targets");
+            for (int i = 0; i < batchResult.Items.Count; i++)
+            {
+                AppendReviewReportItem(builder, batchResult.Items[i]);
+            }
+
+            builder.AppendLine("Diagnostics");
+            if (batchResult.Diagnostics.Count == 0)
+            {
+                builder.AppendLine("- none");
+            }
+            else
+            {
+                for (int i = 0; i < batchResult.Diagnostics.Count; i++)
+                    AppendReviewReportDiagnostic(builder, batchResult.Diagnostics[i]);
+            }
+
+            return builder.ToString();
+        }
+
         private static List<MxFairyGuiGeneratedControl> ReadGeneratedControls(
             MxFairyGuiManifestGenerationSpec spec,
             string projectRootPath,
@@ -258,6 +414,107 @@ namespace MxFramework.UI.FairyGui
             }
 
             return controls;
+        }
+
+        private static MxFairyGuiManifestValidationResult ValidateGeneratedOutputForItem(
+            MxFairyGuiManifestGenerationBatchItem item,
+            string expectedSource,
+            string projectRootPath)
+        {
+            string generatedPath = item.GeneratedSourcePath ?? string.Empty;
+            string absolutePath = ResolvePath(projectRootPath, generatedPath);
+            try
+            {
+                string currentSource = File.ReadAllText(absolutePath);
+                return ValidateGeneratedOutput(currentSource, expectedSource, generatedPath);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return new MxFairyGuiManifestValidationResult(new[]
+                {
+                    MxFairyGuiManifestDiagnostic.Error(
+                        MxFairyGuiManifestDiagnosticCode.GeneratedDescriptorMismatch,
+                        MxFairyGuiManifestDiagnosticTarget.Manifest,
+                        generatedPath,
+                        item.Spec != null ? item.Spec.PackageId : string.Empty,
+                        item.Spec != null ? item.Spec.ViewId : string.Empty,
+                        "generatedSource",
+                        "Generated FairyGUI manifest output could not be read: " + ex.Message)
+                });
+            }
+        }
+
+        private static void AppendReviewReportItem(
+            StringBuilder builder,
+            MxFairyGuiManifestGenerationBatchItemResult result)
+        {
+            MxFairyGuiManifestGenerationBatchItem item = result.Item;
+            MxFairyGuiManifest manifest = result.Generation.Manifest;
+            IReadOnlyList<MxFairyGuiManifestPackage> packages = manifest.Packages ?? Array.Empty<MxFairyGuiManifestPackage>();
+            IReadOnlyList<MxFairyGuiManifestView> views = manifest.Views ?? Array.Empty<MxFairyGuiManifestView>();
+            int controlCount = 0;
+            int localizedTextCount = 0;
+            int commandCount = 0;
+            for (int i = 0; i < views.Count; i++)
+            {
+                MxFairyGuiManifestView view = views[i];
+                if (view == null)
+                    continue;
+
+                controlCount += view.NamedControls != null ? view.NamedControls.Count : 0;
+                localizedTextCount += view.LocalizedTexts != null ? view.LocalizedTexts.Count : 0;
+                commandCount += view.Commands != null ? view.Commands.Count : 0;
+            }
+
+            builder.Append("- name: ");
+            builder.AppendLine(item.Name);
+            builder.AppendLine("  status: " + (result.Success ? "ok" : "failed"));
+            builder.AppendLine("  generatedSourcePath: " + item.GeneratedSourcePath);
+            builder.AppendLine("  generatedOutputCurrent: " + (result.GeneratedOutputValidation == null ? "not-checked" : (result.GeneratedOutputCurrent ? "true" : "false")));
+            builder.AppendLine("  packageCount: " + packages.Count);
+            builder.AppendLine("  viewCount: " + views.Count);
+            builder.AppendLine("  controlCount: " + controlCount);
+            builder.AppendLine("  localizedTextCount: " + localizedTextCount);
+            builder.AppendLine("  commandCount: " + commandCount);
+            for (int i = 0; i < packages.Count; i++)
+            {
+                MxFairyGuiManifestPackage package = packages[i];
+                if (package == null)
+                    continue;
+
+                builder.AppendLine("  package[" + i + "]: " + package.PackageId + " -> " + package.PackageBytesPath);
+            }
+
+            for (int i = 0; i < views.Count; i++)
+            {
+                MxFairyGuiManifestView view = views[i];
+                if (view == null)
+                    continue;
+
+                builder.AppendLine("  view[" + i + "]: " + view.ViewId.Value + " -> " + view.PackageId + "/" + view.ComponentName);
+            }
+        }
+
+        private static void AppendReviewReportDiagnostic(
+            StringBuilder builder,
+            MxFairyGuiManifestDiagnostic diagnostic)
+        {
+            builder.Append("- ");
+            builder.Append(diagnostic.Severity);
+            builder.Append(" ");
+            builder.Append(diagnostic.Code);
+            builder.Append(" target=");
+            builder.Append(diagnostic.Target);
+            builder.Append(" package=");
+            builder.Append(diagnostic.PackageId);
+            builder.Append(" view=");
+            builder.Append(diagnostic.ViewId);
+            builder.Append(" field=");
+            builder.Append(diagnostic.Field);
+            builder.Append(" source=");
+            builder.Append(diagnostic.SourcePath);
+            builder.Append(" message=");
+            builder.AppendLine(diagnostic.Message);
         }
 
         private static string GenerateSource(MxFairyGuiManifestGenerationSpec spec, MxFairyGuiManifest manifest)
