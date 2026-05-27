@@ -1,4 +1,8 @@
 using System;
+using MxFramework.DebugUI;
+using MxFramework.DebugUI.Adapters;
+using MxFramework.Diagnostics;
+using MxFramework.Resources;
 using MxFramework.Resources.Unity;
 using MxFramework.Runtime;
 using MxFramework.Story;
@@ -61,6 +65,19 @@ namespace MxFramework.Demo.CharacterTest
         public RuntimeFrame CurrentFrame => _clock.CurrentFrame;
         public double ElapsedSeconds => _elapsedSeconds;
         public StoryDirectorSnapshot StorySnapshot => _storyDirector.CreateSnapshot();
+
+        public FrameworkDebugSourceRegistry CreateDebugSourceRegistry(Func<bool> isPausedProvider = null)
+        {
+            ThrowIfDisposed();
+
+            var registry = new FrameworkDebugSourceRegistry();
+            registry.Register(new RuntimeHostDebugSource(_host, "RuntimeHost"));
+            if (_resources?.ResourceManager != null)
+                registry.Register(new ResourceDebugSource(_resources.ResourceManager, "Resources"));
+            registry.Register(new CharacterTestStoryDebugSource(_storyModule, "Story"));
+            registry.Register(new CharacterTestSliceDebugSource(this, isPausedProvider, "CharacterTest"));
+            return registry;
+        }
 
         public void Tick(double deltaTime)
         {

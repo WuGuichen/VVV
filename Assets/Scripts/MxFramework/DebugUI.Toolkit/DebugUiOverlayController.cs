@@ -10,6 +10,13 @@ namespace MxFramework.DebugUI.Toolkit
     [AddComponentMenu("MxFramework/Debug UI/Debug UI Overlay Controller")]
     public sealed class DebugUiOverlayController : MonoBehaviour
     {
+        private const string DefaultStoryPanelSettingsPath =
+            "Assets/UI/MxFramework/Story/StoryRuntimeVerticalSlicePanelSettings.asset";
+        private const string DefaultGameplayPanelSettingsPath =
+            "Assets/UI/MxFramework/GameplayComponentRuntime/GameplayComponentRuntimePanelSettings.asset";
+        private const string DefaultCombatAnimationPanelSettingsPath =
+            "Assets/UI/MxFramework/CombatAnimationPanelSettings.asset";
+
         [SerializeField] private UIDocument _document;
         [SerializeField] private PanelSettings _panelSettings;
         [SerializeField] private DebugUiVisibility _visibility = DebugUiVisibility.Collapsed;
@@ -134,7 +141,7 @@ namespace MxFramework.DebugUI.Toolkit
                 _document = GetComponent<UIDocument>() ?? gameObject.AddComponent<UIDocument>();
 
             if (_document.panelSettings == null)
-                _document.panelSettings = _panelSettings != null ? _panelSettings : ScriptableObject.CreateInstance<PanelSettings>();
+                _document.panelSettings = ResolvePanelSettings();
 
             VisualElement root = _document.rootVisualElement;
             if (root == null || ReferenceEquals(root, _boundRoot))
@@ -204,6 +211,42 @@ namespace MxFramework.DebugUI.Toolkit
             panel.style.width = 560;
             panel.style.maxWidth = 560;
             panel.style.maxHeight = 650;
+        }
+
+        private PanelSettings ResolvePanelSettings()
+        {
+            if (_panelSettings != null)
+                return _panelSettings;
+
+            PanelSettings defaultPanelSettings = LoadDefaultPanelSettings();
+            if (defaultPanelSettings != null)
+                return defaultPanelSettings;
+
+            Debug.LogWarning(
+                "Debug UI overlay has no PanelSettings configured and no default debug PanelSettings asset was found. " +
+                "Falling back to a temporary PanelSettings; UI Toolkit text may not render correctly.",
+                this);
+            return ScriptableObject.CreateInstance<PanelSettings>();
+        }
+
+        private static PanelSettings LoadDefaultPanelSettings()
+        {
+#if UNITY_EDITOR
+            PanelSettings panelSettings = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(
+                DefaultStoryPanelSettingsPath);
+            if (panelSettings != null)
+                return panelSettings;
+
+            panelSettings = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(
+                DefaultGameplayPanelSettingsPath);
+            if (panelSettings != null)
+                return panelSettings;
+
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>(
+                DefaultCombatAnimationPanelSettingsPath);
+#else
+            return null;
+#endif
         }
     }
 }

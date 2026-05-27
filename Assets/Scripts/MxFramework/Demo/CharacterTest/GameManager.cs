@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using MxFramework.DebugUI;
 using MxFramework.Resources.Unity;
 using MxFramework.Runtime;
 using MxFramework.Runtime.Unity;
 using MxFramework.Story.Runtime;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace MxFramework.Demo.CharacterTest
 {
@@ -33,6 +35,11 @@ namespace MxFramework.Demo.CharacterTest
         [SerializeField] private GlobalResourceRuntimeMode _resourceMode = GlobalResourceRuntimeMode.Editor;
         [SerializeField] private string _baseResourcePreloadGroupId = "SpawnCritical";
         [SerializeField] private string _resourcesLogColor = "#F4D03F";
+        [SerializeField] private bool _enableDebugUi = true;
+        [SerializeField] private PanelSettings _debugPanelSettings;
+        [SerializeField] private DebugUiVisibility _debugUiInitialVisibility = DebugUiVisibility.Collapsed;
+        [SerializeField] private bool _debugUiShowOnStart = true;
+        [SerializeField] private int _debugUiInitialTabIndex;
 
         private const string StoryDebugTargetName = "CharacterTest Story";
         private const string StoryEditorDebugRegistryTypeName =
@@ -44,6 +51,7 @@ namespace MxFramework.Demo.CharacterTest
         private bool _paused;
         private int _previousTargetFrameRate;
         private bool _hasPreviousTargetFrameRate;
+        private CharacterTestDebugUiHost _debugUiHost;
 
         public bool IsPaused => _paused;
         public GameSlice Slice => _slice;
@@ -66,14 +74,16 @@ namespace MxFramework.Demo.CharacterTest
             });
             LogResourceRuntimeBootstrap(resources);
             _slice = new GameSlice(_logger, storyContent, resources, _baseResourcePreloadGroupId);
-            RegisterStoryDebugTarget();
             _paused = _startPaused;
+            RegisterStoryDebugTarget();
+            ConfigureDebugUi();
             _logBuffer.Clear().Append("GameSlice created. startPaused=").Append(_startPaused);
             _logger.Info("GameManager", _logBuffer);
         }
 
         private void OnDisable()
         {
+            ReleaseDebugUi();
             UnregisterStoryDebugTarget();
             DisposeSlice();
             RestoreTargetFrameRate();
@@ -81,6 +91,7 @@ namespace MxFramework.Demo.CharacterTest
 
         private void OnDestroy()
         {
+            ReleaseDebugUi();
             UnregisterStoryDebugTarget();
             DisposeSlice();
         }
@@ -220,6 +231,33 @@ namespace MxFramework.Demo.CharacterTest
                 null);
             unregister?.Invoke(null, new object[] { StoryDebugTargetName });
 #endif
+        }
+
+        private void ConfigureDebugUi()
+        {
+            if (!_enableDebugUi || _slice == null)
+                return;
+
+            _debugUiHost = GetComponent<CharacterTestDebugUiHost>();
+            if (_debugUiHost == null)
+                _debugUiHost = gameObject.AddComponent<CharacterTestDebugUiHost>();
+
+            _debugUiHost.Configure(
+                _slice,
+                () => _paused,
+                _debugPanelSettings,
+                _debugUiInitialVisibility,
+                _debugUiShowOnStart);
+            _logger?.Info("GameManager", "Debug UI overlay configured.");
+        }
+
+        private void ReleaseDebugUi()
+        {
+            if (_debugUiHost == null)
+                return;
+
+            _debugUiHost.Release();
+            _debugUiHost = null;
         }
 
         private void DisposeSlice()
