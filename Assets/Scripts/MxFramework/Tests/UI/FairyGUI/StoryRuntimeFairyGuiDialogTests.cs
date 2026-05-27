@@ -38,7 +38,33 @@ namespace MxFramework.Tests.UI.FairyGui
                 Assert.AreEqual("Choice available", choice.Phase);
                 Assert.IsFalse(Find(choice, StoryRuntimeVerticalSliceUiCommandIds.CompletePresentation).Enabled);
                 Assert.IsTrue(Find(choice, StoryRuntimeVerticalSliceUiCommandIds.SelectChoice).Enabled);
+                Assert.AreEqual(1, choice.Choices.Count);
+                Assert.AreEqual(StoryRuntimeVerticalSliceDemo.StabilizeChoiceId, choice.Choices[0].ChoiceId);
             }
+        }
+
+        [Test]
+        public void Build_FromStorySnapshot_ExposesStableChoiceListAndLegacyPrimaryChoice()
+        {
+            StoryRuntimeVerticalSliceFairyGuiViewModel viewModel =
+                StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(CreateMultiChoiceSnapshot(), 100);
+
+            Assert.AreEqual("Choice available", viewModel.Phase);
+            Assert.AreEqual("Trace signal", viewModel.ChoiceText);
+            Assert.AreEqual(3, viewModel.Choices.Count);
+            Assert.AreEqual("Trace signal", viewModel.Choices[0].Text);
+            Assert.IsTrue(viewModel.Choices[0].Enabled);
+            Assert.AreEqual("Ignore signal", viewModel.Choices[1].Text);
+            Assert.IsFalse(viewModel.Choices[1].Enabled);
+            Assert.AreEqual("Force bridge", viewModel.Choices[2].Text);
+
+            var payload = (StoryRuntimeVerticalSliceSelectChoicePayload)viewModel.Choices[2].Command.Payload;
+            Assert.AreEqual(100, payload.GraphId);
+            Assert.AreEqual(11, payload.BeatInstanceId);
+            Assert.AreEqual(55, payload.ChoiceId);
+            Assert.AreEqual(44, ((StoryRuntimeVerticalSliceSelectChoicePayload)Find(
+                viewModel,
+                StoryRuntimeVerticalSliceUiCommandIds.SelectChoice).Payload).ChoiceId);
         }
 
         [Test]
@@ -63,6 +89,67 @@ namespace MxFramework.Tests.UI.FairyGui
                 Assert.IsFalse(Button(root, StoryRuntimeFairyGuiDialogIds.Continue).enabled);
                 Assert.AreEqual("Stabilize signal", Button(root, StoryRuntimeFairyGuiDialogIds.Choice).text);
                 Assert.IsTrue(Button(root, StoryRuntimeFairyGuiDialogIds.Choice).enabled);
+            }
+        }
+
+        [Test]
+        public void Bind_WithMultipleChoices_CreatesChoiceListAndSkipsDisabledChoice()
+        {
+            Fgui.GComponent root = CreateDialogRoot();
+            var sink = new RecordingUiCommandSink();
+            using (var handle = new MxFairyGuiComponentHandle(
+                StoryRuntimeFairyGuiDialogIds.PackageId,
+                StoryRuntimeFairyGuiDialogIds.ComponentName,
+                root))
+            {
+                var binder = new StoryRuntimeFairyGuiDialogBinder(sink);
+
+                binder.Bind(handle, CreateMultiChoiceViewModel());
+
+                Assert.AreEqual("Trace signal", Button(root, StoryRuntimeFairyGuiDialogIds.Choice).text);
+                Assert.IsTrue(Button(root, StoryRuntimeFairyGuiDialogIds.Choice).enabled);
+                Assert.AreEqual("Ignore signal", Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 1).text);
+                Assert.IsFalse(Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 1).enabled);
+                Assert.AreEqual("Force bridge", Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 2).text);
+                Assert.IsTrue(Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 2).enabled);
+                Assert.IsFalse(Object(root, StoryRuntimeFairyGuiDialogIds.ChoiceText).visible);
+                Assert.LessOrEqual(
+                    Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 2).y +
+                    Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 2).height,
+                    Object(root, StoryRuntimeFairyGuiDialogIds.SignalText).y);
+                Assert.GreaterOrEqual(Object(root, StoryRuntimeFairyGuiDialogIds.Continue).y, 374f);
+
+                Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 1).onClick.Call();
+                Assert.AreEqual(0, sink.Count);
+
+                Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 2).onClick.Call();
+                Assert.AreEqual(1, sink.Count);
+                Assert.AreEqual(StoryRuntimeVerticalSliceUiCommandIds.SelectChoice, sink.Last.CommandId);
+                var payload = (StoryRuntimeVerticalSliceSelectChoicePayload)sink.Last.Payload;
+                Assert.AreEqual(100, payload.GraphId);
+                Assert.AreEqual(11, payload.BeatInstanceId);
+                Assert.AreEqual(55, payload.ChoiceId);
+            }
+        }
+
+        [Test]
+        public void Bind_WithManyChoices_KeepsChoiceListInsideBoundedStoryArea()
+        {
+            Fgui.GComponent root = CreateDialogRoot();
+            using (var handle = new MxFairyGuiComponentHandle(
+                StoryRuntimeFairyGuiDialogIds.PackageId,
+                StoryRuntimeFairyGuiDialogIds.ComponentName,
+                root))
+            {
+                var binder = new StoryRuntimeFairyGuiDialogBinder(new RecordingUiCommandSink());
+
+                binder.Bind(handle, CreateManyChoiceViewModel(6));
+
+                Fgui.GButton last = Button(root, StoryRuntimeFairyGuiDialogIds.ChoiceItemPrefix + 5);
+                Assert.IsNotNull(last);
+                Assert.LessOrEqual(last.y + last.height, Object(root, StoryRuntimeFairyGuiDialogIds.SignalText).y);
+                Assert.Greater(last.height, 0f);
+                Assert.Less(last.height, 22f);
             }
         }
 
@@ -347,6 +434,76 @@ namespace MxFramework.Tests.UI.FairyGui
             return StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(snapshot, 100);
         }
 
+        private static StoryRuntimeVerticalSliceFairyGuiViewModel CreateMultiChoiceViewModel()
+        {
+            return StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(CreateMultiChoiceSnapshot(), 100);
+        }
+
+        private static StoryRuntimeVerticalSliceFairyGuiViewModel CreateManyChoiceViewModel(int count)
+        {
+            var choices = new StoryRuntimeVerticalSliceChoiceSnapshot[count];
+            for (int i = 0; i < choices.Length; i++)
+            {
+                choices[i] = new StoryRuntimeVerticalSliceChoiceSnapshot(
+                    100,
+                    11,
+                    4400 + i,
+                    5400 + i,
+                    "Choice " + i,
+                    enabled: true);
+            }
+
+            var snapshot = new StoryRuntimeVerticalSliceSnapshot(
+                new RuntimeFrame(2),
+                3,
+                MxFramework.Story.StoryGraphRuntimeStatus.Active,
+                0,
+                0,
+                11,
+                4400,
+                "The signal is unstable.",
+                "Choice 0",
+                1,
+                10,
+                "not saved",
+                "not replayed",
+                "facts",
+                "preload",
+                2,
+                choices,
+                new[] { "presentation complete", "choices available" });
+
+            return StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(snapshot, 100);
+        }
+
+        private static StoryRuntimeVerticalSliceSnapshot CreateMultiChoiceSnapshot()
+        {
+            return new StoryRuntimeVerticalSliceSnapshot(
+                new RuntimeFrame(2),
+                3,
+                MxFramework.Story.StoryGraphRuntimeStatus.Active,
+                0,
+                0,
+                11,
+                44,
+                "The signal is unstable.",
+                "Trace signal",
+                1,
+                10,
+                "not saved",
+                "not replayed",
+                "facts",
+                "preload",
+                2,
+                new[]
+                {
+                    new StoryRuntimeVerticalSliceChoiceSnapshot(100, 11, 44, 4401, "Trace signal", true),
+                    new StoryRuntimeVerticalSliceChoiceSnapshot(100, 11, 45, 4402, "Ignore signal", false),
+                    new StoryRuntimeVerticalSliceChoiceSnapshot(100, 11, 55, 4403, "Force bridge", true)
+                },
+                new[] { "presentation complete", "choices available" });
+        }
+
         private static StoryRuntimeVerticalSliceUiCommandDescriptor Find(
             StoryRuntimeVerticalSliceFairyGuiViewModel viewModel,
             string commandId)
@@ -394,6 +551,11 @@ namespace MxFramework.Tests.UI.FairyGui
         private static Fgui.GButton Button(Fgui.GComponent root, string name)
         {
             return root.GetChild(name).asButton;
+        }
+
+        private static Fgui.GObject Object(Fgui.GComponent root, string name)
+        {
+            return root.GetChild(name);
         }
 
         private static ResourceManager CreateManager(MemoryResourceProvider provider, params ResourceCatalogEntry[] entries)

@@ -534,6 +534,34 @@ MxFairyGuiNavigator navigator = MxFairyGuiRuntimeShellComposition.CreateNavigato
     new MxFairyGuiViewTransitionController());
 ```
 
+产品化 opt-in shell：
+
+```csharp
+MxFairyGuiProductRuntimeShell shell = MxFairyGuiProductRuntimeComposition.CreateShell(
+    resourceManager,
+    abilityHudCommandTarget,
+    storyDialogCommandTarget,
+    layerHost: layerHost,
+    inputBridge: inputBridge,
+    textProvider: textProvider);
+
+shell.RuntimeHud.Open(RuntimeAbilitySliceHudViewModelBuilder.Build(abilityRunner));
+shell.StoryDialog.Open(StoryRuntimeVerticalSliceFairyGuiViewModelBuilder.Build(storySnapshot));
+```
+
+`MxFairyGuiProductRuntimeComposition` 只注册当前场景显式 opt-in 的
+Runtime Ability HUD 和 Story Dialog。它复用 generated manifest、
+package bytes `ResourceKey`、typed binder、`MxUiCommand` sink、local catalog
+diagnostics 和 preload plan；不会创建全局 UIManager，也不会自动发现或接管其他
+UI surface。组合根可以先调用 `CreateCatalog(...).CreateDiagnostics(...)`
+和 `CreatePreloadPlan(...)`，再按场景需要 open / refresh / close 各 view。
+
+Runtime Ability HUD 与 Story Dialog 当前是 FairyGUI formal runtime path；
+UI Toolkit `MxRuntimeHudController`、Story vertical-slice UXML、Debug UI overlay
+和 Editor 工具仍是 diagnostics / showcase / fallback surface。场景不得把
+FairyGUI HUD 与 UI Toolkit HUD 同时当作默认玩家 HUD；如果两者共存，必须把
+一个声明为 opt-in diagnostics 或 fallback。
+
 本地校验：
 
 ```bash
