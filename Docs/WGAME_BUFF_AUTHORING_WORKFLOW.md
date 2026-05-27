@@ -1,5 +1,9 @@
 # WGame Buff 创作流水线
 
+> Status: Archive
+>
+> Scope: Legacy WGame authoring workflow reference. Current authoring workflow facts live in `AUTHORING_WORKFLOW.md` and current tool docs.
+
 ## 目标
 
 Buff 编辑器的操作逻辑必须同时满足两件事：

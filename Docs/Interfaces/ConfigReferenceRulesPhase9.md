@@ -1,5 +1,7 @@
 # Phase 9 Config Reference Rules — AIAction Config 篇
 
+> Status: Archive
+>
 > **本文涉及的 AI 概念属于 AIAction Config 域**：即旧 WGame 的 AI 行为配置引用规则（`AIActionIndex`、`AIActionGraph`、`AIConfig`、`TbCharacterAI` 等之间的跨源引用关系）。
 > 不包含 Runtime AI Planner、Authoring AI Assist 或 Development Agent。
 

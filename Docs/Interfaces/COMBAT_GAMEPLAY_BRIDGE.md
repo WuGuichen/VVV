@@ -1,6 +1,8 @@
 # Combat Gameplay Bridge Interface
 
-> Status: Issue #25 adds the noEngine ID mapping layer used by later Combat -> Gameplay hit resolution bridge work.
+> Status: Current
+>
+> Scope: Issue #25 adds the noEngine ID mapping layer used by later Combat -> Gameplay hit resolution bridge work.
 
 ## Scope
 

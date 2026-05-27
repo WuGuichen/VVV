@@ -2,7 +2,8 @@
 
 > **本文涉及的 AI 概念属于 AIAction Config 域**（GOAPWorldKey/GOAPCompareType/GOAPEffectType 等 AI 行为配置枚举的审计）。详见 `Docs/INTERFACES.md` 的 AI Terminology 章节。
 
-> Status: Frozen for Phase 9 closeout input
+> Status: Archive
+> Archived state: Frozen for Phase 9 closeout input
 > Owner: Framework Producer / Codex Review
 > Last Verified: 2026-05-09
 >

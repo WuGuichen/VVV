@@ -1,5 +1,7 @@
 # MxAnimation System Showcase
 
+> Status: Guide
+>
 MxAnimation System Showcase 是动画系统第二、三阶段能力的可视化手测入口。它不是新的运行时核心，只负责把已有能力编排到同一个可观察场景中。
 
 ## 入口

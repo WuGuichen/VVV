@@ -1,5 +1,7 @@
 # MxFramework API 规范
 
+> Status: Current
+>
 > 版本 0.3.0 | 2026-05-05
 >
 > 本文档约束公共 API 的形态，避免框架在迁移过程中变成 WGame 私有实现的复制品。
@@ -132,4 +134,3 @@ void Tick(float deltaTime);
 - `MIGRATION.md`：如果来自 WGame，记录来源和适配。
 - `QUALITY_GATE.md`：新增必要测试项。
 - XML 注释：公共接口、事件、异常、分配行为。
-

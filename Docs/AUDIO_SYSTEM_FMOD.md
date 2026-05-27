@@ -1,8 +1,9 @@
 # Audio System FMOD Design
 
-> 状态：M1 Implemented / M2 Runtime Scaffold Verified
-> 日期：2026-05-10
-> 目标：为 MxFramework 设计一套可测试、可替换、可诊断的音频系统，并以 FMOD 作为 Unity 运行时首选后端。
+> Status: Design
+> Implementation state: M1 Implemented / M2 Runtime Scaffold Verified
+> Date: 2026-05-10
+> Goal: 为 MxFramework 设计一套可测试、可替换、可诊断的音频系统，并以 FMOD 作为 Unity 运行时首选后端。
 
 ## 1. 结论先行
 

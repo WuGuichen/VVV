@@ -1,5 +1,7 @@
 # MxFramework Agent Game Feature Guide
 
+> Status: Guide
+>
 > 版本 0.1.0 | 2026-05-11
 >
 > 本文是 agent 基于 MxFramework 开发游戏功能、小游戏、Playable Demo、Runtime Showcase 和场景验证时的强制执行规范。核心目标是：任何游戏功能都先映射到框架已有能力和接口，再决定是否补扩展点，避免绕过框架重新造系统。Playable 只是其中一种交付等级，不是本文的唯一目标。

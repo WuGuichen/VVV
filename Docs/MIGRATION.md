@@ -1,5 +1,7 @@
 # MxFramework 迁移记录
 
+> Status: Archive
+>
 > 从 WGame（/Users/vincent/Documents/WGame/Client）提取代码到 MxFramework 的完整记录。
 
 ## 迁移策略

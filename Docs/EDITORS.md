@@ -1,5 +1,7 @@
 # MxFramework 编辑器规范
 
+> Status: Guide
+>
 > 版本 0.3.0 | 2026-05-05
 > 
 > 定义 Unity Editor 中所有编辑器工具的需求和接口。

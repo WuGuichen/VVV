@@ -2,7 +2,7 @@
 
 > Version 0.1 | 2026-05-25
 >
-> Status: Current authoring guide for Phase 15.1-15.8 Rendering infrastructure.
+> Status: Current
 >
 > Scope: Authoring rules for shader globals, camera globals, SharedRT keys, render passes/providers, material bindings, render data publishing, VolumeBlender request diagnostics, demo showcase validation, and the rendering report bundle convention.
 

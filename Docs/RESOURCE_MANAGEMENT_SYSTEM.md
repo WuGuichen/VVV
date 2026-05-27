@@ -1,9 +1,10 @@
 # Resource Management System
 
-> 状态：M6C Implemented / M6D Deferred
-> 日期：2026-05-10
-> 负责人：Framework
-> 目标：为 MxFramework 增加可测试、可替换、可诊断的资源管理系统，统一配置、Demo、Runtime Preview、Mod Package 和项目层资源加载入口。
+> Status: Design
+> Implementation state: M6C Implemented / M6D Deferred
+> Date: 2026-05-10
+> Owner: Framework
+> Goal: 为 MxFramework 增加可测试、可替换、可诊断的资源管理系统，统一配置、Demo、Runtime Preview、Mod Package 和项目层资源加载入口。
 
 ## 1. 结论先行
 

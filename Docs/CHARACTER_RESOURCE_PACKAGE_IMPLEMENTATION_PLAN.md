@@ -1,8 +1,8 @@
 # Character Resource Package 实现方案
 
-> 状态：草案
-> 对应方案：`Docs/CHARACTER_RESOURCE_PACKAGE_AUTHORING.md`
-> 范围：工程目录、模块拆分、核心 DTO、CLI、外部 3D 编辑器、Unity Importer、Runtime Spawn 接入和验证计划
+> Status: Draft
+> Design: `Docs/CHARACTER_RESOURCE_PACKAGE_AUTHORING.md`
+> Scope: 工程目录、模块拆分、核心 DTO、CLI、外部 3D 编辑器、Unity Importer、Runtime Spawn 接入和验证计划
 
 ## 目标
 

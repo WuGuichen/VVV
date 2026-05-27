@@ -2,7 +2,9 @@
 
 > Version 0.2 | 2026-05-25
 >
-> Status: Current through Phase 15.8 infrastructure and demo showcase. VolumeBlender includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
+> Status: Current
+>
+> Implementation state: Current through Phase 15.8 infrastructure and demo showcase. VolumeBlender includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
 > Scope: Public API shape for `MxFramework.Rendering` through Phase 15.8 demo showcase. Feature-specific shader APIs are out of scope.
 

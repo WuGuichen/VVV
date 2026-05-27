@@ -1,8 +1,9 @@
 # Runtime Foundation System
 
-> 版本：0.1
-> 日期：2026-05-10
-> 状态：Planning
+> Status: Design
+> Version: 0.1
+> Date: 2026-05-10
+> Planning state: Runtime foundation roadmap.
 > 目标：把 MxFramework 从“模块可用”推进到“可承载真实游戏主循环、回放和存档”的运行时底座。
 
 ## 背景
@@ -203,4 +204,3 @@ External Input / Test Script / Preview RPC
 - Runtime Showcase 能从保存点恢复属性、Buff、Modifier、Ability 状态。
 - Preview Server 可以复用 Host 而不是手写一套运行时装配。
 - SaveState 版本不匹配时返回结构化错误，不静默吞掉字段。
-

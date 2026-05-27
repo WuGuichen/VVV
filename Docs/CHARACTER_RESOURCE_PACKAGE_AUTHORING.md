@@ -1,9 +1,9 @@
 # Character Resource Package 角色创作方案
 
-> 状态：草案
-> 范围：角色资源包、外部 3D 装配编辑器、Authoring Compiler、Unity 导入桥、Runtime Spawn 垂直切片
-> 目标读者：框架开发者、工具开发者、技术策划
-> 工程落地：`Docs/CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md`
+> Status: Draft
+> Scope: 角色资源包、外部 3D 装配编辑器、Authoring Compiler、Unity 导入桥、Runtime Spawn 垂直切片
+> Audience: 框架开发者、工具开发者、技术策划
+> Implementation plan: `Docs/CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md`
 
 ## 结论
 

@@ -1,6 +1,7 @@
 # WGame 数据关系审计
 
-> Status: Frozen for Phase 9 closeout input
+> Status: Archive
+> Archived state: Frozen for Phase 9 closeout input
 > Owner: Framework Producer / Codex Review
 > Last Verified: 2026-05-09
 >

@@ -1,5 +1,9 @@
 # MxFramework 路线图
 
+> Status: Design
+>
+> Authority: Roadmap and phase planning only. Current capabilities and API facts live in `CAPABILITIES.md`, `INTERFACES.md`, `Docs/Interfaces/*.md`, source, and tests.
+>
 > 版本 0.6.41 | 2026-05-25
 >
 > 路线图按“先稳定边界，再迁移实现，再做工具化”的顺序推进。

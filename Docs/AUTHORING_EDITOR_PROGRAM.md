@@ -1,5 +1,7 @@
 # 外部主创编辑器规划
 
+> Status: Design
+>
 ## 顶层目标
 
 WGameFramework 的内容编辑体系最终要同时满足：

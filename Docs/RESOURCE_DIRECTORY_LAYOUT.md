@@ -1,6 +1,7 @@
 # Resource Directory Layout
 
-> Status: Draft for Issue #63
+> Status: Draft
+> Context: Issue #63
 > Scope: directory, naming, catalog, and follow-up boundaries for sample resources.
 
 This document turns the current temporary imported resources into an executable directory and naming policy. It is documentation only: Issue #63 does not move assets, rewrite import settings, generate Catalog entries, or change runtime code.

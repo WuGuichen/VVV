@@ -1,6 +1,8 @@
 # Observability Debugging Guide
 
-> Status: v0.1 | Date: 2026-05-18 | Scope: Phase 13 Issues #178-#187
+> Status: Guide
+>
+> Version: v0.1 | Date: 2026-05-18 | Scope: Phase 13 Issues #178-#187
 
 This guide shows the implemented path for inspecting runtime state through Debug UI, Diagnostics, Config Runtime hot reload and Simulation Harness reports. Debug UI is an observation surface by default: overlay visibility, refresh state and snapshots do not enter Replay, SaveState or Runtime hash.
 

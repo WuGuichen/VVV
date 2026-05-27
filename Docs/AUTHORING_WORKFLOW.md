@@ -1,5 +1,7 @@
 # Authoring Workflow 规范
 
+> Status: Guide
+>
 ## 目标
 
 Authoring Workflow 是一套可移植的配置创作协议，不是 Unity Editor 专属界面。

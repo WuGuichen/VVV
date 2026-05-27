@@ -2,7 +2,9 @@
 
 > Version 0.2 | 2026-05-25
 >
-> Status: Current through Phase 15.8 infrastructure and demo showcase. VolumeBlender includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
+> Status: Design
+>
+> Implementation state: Current through Phase 15.8 infrastructure and demo showcase. VolumeBlender includes request arbitration and diagnostics; runtime URP Volume object application remains a follow-up integration step.
 >
 > Scope: Rendering system orchestration for URP-facing framework code through Phase 15.8 demo showcase. Runtime Volume object application and feature-specific production shader slices remain follow-up tasks.
 

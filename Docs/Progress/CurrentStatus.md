@@ -1,6 +1,10 @@
 # Current Status
 
-Date: 2026-05-13
+> Status: Archive
+>
+> Snapshot date: 2026-05-13
+>
+> This file is a historical operational snapshot. Current workflow facts live in `Docs/WORKFLOW.md` and `Docs/PROJECT_INDEX.md`.
 
 ## Workflow State
 

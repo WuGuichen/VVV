@@ -28,6 +28,7 @@ Do not read all design, guide, workflow, or task documents by default.
 | Runtime host, lifecycle, command buffer, replay, save state, app/scene flow | `Docs/Interfaces/Runtime.md`, `Docs/Interfaces/AppFlow.md`, `Docs/RUNTIME_FOUNDATION_SYSTEM.md` |
 | Resource manager, catalog, locator, package, build profile, or resource workflow | `Docs/RESOURCE_SYSTEM_WORKFLOW.md`, `Docs/Interfaces/Resources.md`, relevant resource design docs only if needed |
 | Debug UI, diagnostics, logging, timeline, hot reload, simulation harness troubleshooting | `Docs/Guides/OBSERVABILITY_DEBUGGING_GUIDE.md`, `Docs/Interfaces/Diagnostics.md`, `Docs/Interfaces/DebugUI.md` |
+| Roadmap, phase planning, or stale status triage | `Docs/ROADMAP.md`, then current source / capability / interface docs to verify facts |
 | Historical decision, old task evidence, regression archaeology, or Issue-linked task file | `Docs/Decisions/*.md` or `Docs/Tasks/README.md` plus the referenced task file |
 
 ## Control Plane

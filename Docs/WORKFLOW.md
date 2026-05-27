@@ -1,5 +1,7 @@
 # WGameFramework / MxFramework 工作流
 
+> Status: Current
+>
 > 当前状态：以 NAS Gitea `origin` 为主仓库、任务入口和协作源；GitHub `github` 只作为非 LFS Git 镜像；SVN 只作为可选备份。
 
 MxFramework 是 WGameFramework 仓库中的通用框架代号。

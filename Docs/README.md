@@ -1,6 +1,8 @@
 # MxFramework 文档索引
 
-> 版本 0.6.61 | 2026-05-27
+> Status: Current
+>
+> 版本 0.6.62 | 2026-05-27
 >
 > 本目录定义框架的长期设计、接口边界、开发流程和验收标准。
 
@@ -48,6 +50,7 @@
 | Current | `QUALITY_GATE.md` | 完成定义、验证要求和质量门禁。 |
 | Current | `API_STANDARDS.md` | API 命名、兼容性、GC 和 Unity 依赖标准。 |
 | Current | `RESOURCE_SYSTEM_WORKFLOW.md` | 当前资源系统主工作流。 |
+| Current | `RENDERING_PIPELINE.md` | Unity 渲染管线、URP asset 和示例场景/材质基线。 |
 | Current | `RENDERING_AUTHORING_GUIDE.md` | Rendering authoring 当前唯一入口。 |
 
 ---
@@ -65,13 +68,14 @@
 | Design | `ARCHITECTURE.md` | 架构契约、依赖方向、生命周期和错误处理。 |
 | Design | `RUNTIME_FOUNDATION_SYSTEM.md` | Runtime Host、Frame/Command/Replay、SaveState 设计。 |
 | Design | `RESOURCE_MANAGEMENT_SYSTEM.md` | 资源管理系统设计、加载契约和阶段切片。 |
-| Design | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、ResourceKey 命名和 Catalog 归档规则。 |
-| Design | `RENDERING_PIPELINE.md` | Unity 渲染管线基线和场景/材质验证规则。 |
 | Design | `RENDERING_FRAMEWORK_DESIGN.md` | Rendering 总线、URP Feature、Context、SharedRT 和 Bridge 边界。 |
 | Design | `COMBAT_ANIMATION_PHYSICS.md` | 动作战斗确定性动画 / 物理协作方案。 |
-| Design | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包创作管线。 |
-| Design | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程落地方案。 |
 | Design | `AUTHORING_EDITOR_PROGRAM.md` | 外部主创编辑器总规划。 |
+| Design | `ROADMAP.md` | 阶段规划和方向，不作为当前能力或 API 事实源。 |
+| Draft | `RESOURCE_DIRECTORY_LAYOUT.md` | 资源正式目录、ResourceKey 命名和 Catalog 归档草案。 |
+| Draft | `CHARACTER_RESOURCE_PACKAGE_AUTHORING.md` | 角色资源包创作管线草案。 |
+| Draft | `CHARACTER_RESOURCE_PACKAGE_IMPLEMENTATION_PLAN.md` | 角色资源包工程落地草案。 |
+| Draft | `DESIGN_ATTRIBUTE_AI_SYSTEM.md` | 属性与 Runtime AI Planner 联动讨论草案。 |
 | Guide | `AUTHORING_EDITOR_USAGE.md` | Buff 外部编辑器用法和限制。 |
 | Guide | `AUTHORING_WORKFLOW.md` | 创作流程跨 Unity / Mod Editor / Authoring AI Assist / CLI 协作。 |
 | Guide | `EDITORS.md` | Unity Editor 工具规范。 |
@@ -118,6 +122,8 @@
 | Archive | `Progress/CurrentStatus.md` | 当前运营状态快照和下一步；不承载模块事实。 |
 | Archive | `MIGRATION.md` | 从 WGame 迁移了哪些代码、如何适配。 |
 | Archive | `WGAME_*_AUDIT.md` | WGame 数据审计结果和迁移依据。 |
+| Archive | `WGAME_TABLE_FIELD_INDEX.md` | WGame 表字段索引快照。 |
+| Archive | `WGAME_BUFF_AUTHORING_WORKFLOW.md` | 旧 WGame Buff 创作心智模型参考。 |
 | Archive | `CONFIG_FORMAT_STRATEGY.md` | 配置格式策略与 Phase 9 契约输入。 |
 | Archive | `Interfaces/ConfigSchemaSeeds.md` | Phase 9 首批 Schema 种子清单。 |
 | Archive | `Interfaces/ConfigReferenceRulesPhase9.md` | Phase 9 引用规则白名单。 |
@@ -138,10 +144,10 @@
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| 0.6.62 | 2026-05-27 | 给核心 Current / Guide / Design / Draft / Archive 文档补显式 `Status` 头，并把 `ROADMAP.md`、`Progress/CurrentStatus.md`、迁移和 WGame 审计类文档降为规划或归档视角。 |
 | 0.6.61 | 2026-05-27 | 优化 `PROJECT_INDEX.md`：改为 Default Context Pack、Conditional Packs 和 Conflict Rule，明确 Agent 默认读取边界和按任务追加文档。 |
 | 0.6.60 | 2026-05-27 | 瘦身 `README.md`：移除长任务清单和长版本表，新增文档状态分层，明确 Current / Guide / Design / ADR / Archive / Draft 的使用规则。 |
 | 0.6.59 | 2026-05-27 | 降级 `Docs/Tasks/` 为历史任务归档：新增 `Docs/Tasks/README.md`，明确默认 Context Pack 不读取已完成任务文档，当前事实以能力、接口、流程、质量门禁、源码和测试为准。 |
 | 0.6.58 | 2026-05-27 | 移除旧代码索引工具项目接入：删除独立工作流文档、仓库封装脚本和索引配置，当前流程改为 `git diff` / `rg` / 源码阅读 / 相关测试做影响面分析。 |
-| 0.6.57 | 2026-05-25 | 文档同步：`INTERFACES.md` 模块表新增 Character Action 和 Character Runtime Spawn；`CAPABILITIES.md` 新增 Character Action 能力清单；`ROADMAP.md` 新增 Phase 16 Character Action Layer。 |
 
 旧版本历史保留在 Git 历史中；当前入口只维护最近变更。

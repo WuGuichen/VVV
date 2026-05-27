@@ -1,6 +1,8 @@
 # MxFramework Rendering Pipeline
 
-> Status: Current project baseline | 2026-05-25
+> Status: Current
+>
+> Date: 2026-05-25
 >
 > Scope: Unity project rendering pipeline, URP assets, and documentation rules for framework demos and sample content.
 

@@ -1,6 +1,7 @@
 # Resource System Workflow
 
-> Status: current working contract for the resource system.
+> Status: Current
+> Scope: Current working contract for the resource system.
 > Goal: make one working path clear before adding more providers, editors, or build features.
 
 ## Current Main Path

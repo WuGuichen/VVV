@@ -1,5 +1,7 @@
 # Config Schema Seeds — AIAction Config 篇
 
+> Status: Archive
+>
 > **本文涉及的 AI 概念属于 AIAction Config 域**：即旧 WGame 的 AI 行为配置数据迁移（`AIActionIndex`/`AIActionGraph`/`AIConfig`/`AIConfigDefense`/`AIGoals`/`TbCharacterAI`）。
 > 不包含 Runtime AI Planner、Authoring AI Assist 或 Development Agent。
 

@@ -1,5 +1,7 @@
 # Config Demo
 
+> Status: Guide
+>
 WGameFramework 内置 Demo 只用于验证框架能力，不代表任何真实游戏数据，也不作为项目数据迁移来源。
 
 ## 目标
