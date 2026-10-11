@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Gameplay.Triggers.Unity",
+    "rootNamespace": "MxFramework.Gameplay.Triggers.Unity",
+    "references": [
+        "MxFramework.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Gameplay.Triggers.Config"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

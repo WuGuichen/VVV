@@ -1,0 +1,89 @@
+#pragma kernel ClearCounts
+#pragma kernel Classify
+#pragma kernel FinalizeArguments
+
+// Immutable records and group descriptors are uploaded only after layout invalidation.
+struct ClassificationRecord
+{
+    float4 centerRadius;
+    float4 extentsDistance;
+    float4 policy;
+    uint4 groups;
+};
+StructuredBuffer<ClassificationRecord> _Records;
+StructuredBuffer<uint4> _Groups; // visible offset, reserved population, tier, padding
+StructuredBuffer<uint4> _Commands; // group, offset within group, capacity, padding
+RWStructuredBuffer<uint> _Counts;
+RWStructuredBuffer<uint> _History;
+RWStructuredBuffer<uint> _VisibleIndices;
+RWBuffer<uint> _Arguments;
+float4 _Planes[6];
+float4x4 _View;
+float4 _Camera; // position, orthographic flag
+float _ProjectionScale;
+int _RecordCount;
+int _GroupCount;
+int _CommandCount;
+
+[numthreads(64, 1, 1)]
+void ClearCounts(uint id : SV_DispatchThreadID)
+{
+    if (id < (uint)_GroupCount) _Counts[id] = 0;
+}
+
+uint SelectTier(float height, float high, float medium, uint previous, float hysteresis)
+{
+    if (!isfinite(height) || height < 0 || !(high > medium) || !(medium > 0)) return 0;
+    float h = clamp(hysteresis, 0, 0.49);
+    if (previous > 2) return height >= high ? 0 : height >= medium ? 1 : 2;
+    if (previous == 0) return height >= high * (1 - h) ? 0 : height >= medium * (1 - h) ? 1 : 2;
+    if (previous == 1) return height >= high * (1 + h) ? 0 : height >= medium * (1 - h) ? 1 : 2;
+    return height >= high * (1 + h) ? 0 : height >= medium * (1 + h) ? 1 : 2;
+}
+
+[numthreads(64, 1, 1)]
+void Classify(uint id : SV_DispatchThreadID)
+{
+    if (id >= (uint)_RecordCount) return;
+    ClassificationRecord record = _Records[id];
+    float3 center = record.centerRadius.xyz;
+    float3 extents = record.extentsDistance.xyz; // Includes the same world-space wind padding.
+    [unroll] for (uint plane = 0; plane < 6; plane++)
+        if (dot(_Planes[plane].xyz, center) + _Planes[plane].w
+            + dot(abs(_Planes[plane].xyz), extents) < 0) return;
+    float3 closestDelta = max(abs(center - _Camera.xyz) - extents, 0);
+    if (dot(closestDelta, closestDelta) > record.extentsDistance.w * record.extentsDistance.w) return;
+
+    uint tier = 0;
+    if (record.groups.w != 0)
+    {
+        float radius = record.centerRadius.w;
+        float height = -1;
+        if (radius > 0 && isfinite(radius) && _ProjectionScale > 0 && isfinite(_ProjectionScale))
+        {
+            float depth = -mul(_View, float4(center, 1)).z;
+            if (_Camera.w != 0) height = radius * _ProjectionScale;
+            else if (isfinite(depth) && depth > radius) height = radius * _ProjectionScale / (depth - radius);
+        }
+        tier = SelectTier(height, record.policy.x, record.policy.y, _History[id], record.policy.z);
+    }
+    _History[id] = tier; // Invisible records retain their independent camera history.
+    uint group = tier == 0 ? record.groups.x : tier == 1 ? record.groups.y : record.groups.z;
+    uint slot;
+    InterlockedAdd(_Counts[group], 1, slot);
+    // Reservation counts every record that can select this exact mesh/material/tier.
+    // It is a capacity proof; visibility never allocates or drops overflow records.
+    _VisibleIndices[_Groups[group].x + slot] = id;
+}
+
+[numthreads(64, 1, 1)]
+void FinalizeArguments(uint id : SV_DispatchThreadID)
+{
+    if (id >= (uint)_CommandCount) return;
+    uint4 command = _Commands[id];
+    uint count = _Counts[command.x];
+    uint instances = count > command.y ? min(count - command.y, command.z) : 0;
+    // The C# path admits this kernel only when the native indexed ABI is 20 bytes.
+    // The other four native fields were initialized from IndirectDrawIndexedArgs.
+    _Arguments[id * 5 + 1] = instances;
+}

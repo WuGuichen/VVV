@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework Buff v2 Workbench</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">BF</div>
+        <div>
+          <h1>Buff v2 Workbench</h1>
+          <p id="serverStatus">正在连接 Authoring 服务...</p>
+        </div>
+      </div>
+
+      <div class="toolbar" aria-label="Buff v2 Workbench 工具栏">
+        <label class="field" for="packageSelect">
+          <span>Buff 包</span>
+          <select id="packageSelect"></select>
+        </label>
+        <button id="reloadButton" type="button">刷新</button>
+        <button id="saveButton" type="button">保存</button>
+        <span id="saveHint" class="action-hint" aria-live="polite"></span>
+        <button id="validateButton" type="button">校验</button>
+        <button id="compileButton" type="button">编译预览</button>
+        <button id="importButton" type="button">导入 Generated</button>
+        <a class="button" href="/Tools/MxFramework.EditorHub/web/">返回 EditorHub</a>
+      </div>
+    </header>
+
+    <section id="statusStrip" class="status-strip" aria-label="Buff 包状态"></section>
+
+    <main class="workspace">
+      <aside class="list-panel" aria-label="Buff 和 Aura 列表">
+        <div class="panel-heading">
+          <div>
+            <h2>定义</h2>
+            <p id="listSummary">尚未读取 Buff 包</p>
+          </div>
+        </div>
+        <nav id="definitionList" class="definition-list"></nav>
+      </aside>
+
+      <section class="editor-panel" aria-label="Buff 编辑表单">
+        <div class="panel-heading">
+          <div>
+            <h2 id="editorTitle">未选择定义</h2>
+            <p id="editorSubtitle">选择左侧 Buff 或 Aura 后编辑</p>
+          </div>
+        </div>
+        <div id="editorContent" class="editor-content"></div>
+      </section>
+
+      <aside class="inspector-panel" aria-label="诊断和导入计划">
+        <section class="panel-card">
+          <div class="panel-heading compact">
+            <div>
+              <h2>改动审查</h2>
+              <p id="diffSummary">尚未读取 diff</p>
+            </div>
+            <button id="discardAllButton" type="button">放弃全部</button>
+          </div>
+          <div id="diffList" class="diff-list"></div>
+        </section>
+
+        <section class="panel-card">
+          <div class="panel-heading compact">
+            <div>
+              <h2>诊断</h2>
+              <p id="diagnosticsSummary">尚未运行校验</p>
+            </div>
+            <button id="copyDiagnosticsButton" type="button">复制</button>
+          </div>
+          <div id="diagnosticsList" class="diagnostics-list"></div>
+        </section>
+
+        <section class="panel-card">
+          <div class="panel-heading compact">
+            <div>
+              <h2>编译输出</h2>
+              <p id="compileSummary">尚未编译</p>
+            </div>
+          </div>
+          <div id="compilePreview" class="compile-preview"></div>
+        </section>
+
+        <section class="panel-card">
+          <div class="panel-heading compact">
+            <div>
+              <h2>导入计划</h2>
+              <p id="importSummary">导入只读取已保存的 Ready 包</p>
+            </div>
+          </div>
+          <div id="importPlan" class="import-plan"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

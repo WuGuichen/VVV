@@ -1,0 +1,27 @@
+{
+    "name": "MxFramework.Network.UnityTransport",
+    "rootNamespace": "MxFramework.Network.UnityTransport",
+    "references": [
+        "MxFramework.Runtime",
+        "MxFramework.Network",
+        "Unity.Networking.Transport",
+        "Unity.Collections"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "MXFRAMEWORK_UNITY_TRANSPORT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.transport",
+            "expression": "6.5.0",
+            "define": "MXFRAMEWORK_UNITY_TRANSPORT"
+        }
+    ],
+    "noEngineReferences": false
+}

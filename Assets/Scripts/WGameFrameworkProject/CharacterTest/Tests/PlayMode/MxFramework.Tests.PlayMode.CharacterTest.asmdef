@@ -1,0 +1,66 @@
+{
+    "name": "MxFramework.Tests.PlayMode.CharacterTest",
+    "rootNamespace": "MxFramework.Tests.PlayMode.CharacterTest",
+    "references": [
+        "UnityEngine.TestRunner",
+        "MxFramework.Audio",
+        "MxFramework.Animation",
+        "MxFramework.Animation.Unity",
+        "MxFramework.Character.Application",
+        "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Character.RuntimeSpawn.Unity",
+        "MxFramework.Combat",
+        "MxFramework.Config",
+        "MxFramework.Core",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Gameplay.Triggers.CombatBridge",
+        "MxFramework.Input",
+        "Unity.InputSystem",
+        "MxFramework.Resources",
+        "MxFramework.Resources.Unity",
+        "MxFramework.Runtime",
+        "MxFramework.Network",
+        "MxFramework.Story",
+        "MxFramework.Vfx",
+        "MxFramework.UI",
+        "MxFramework.UI.FairyGUI",
+        "FairyGUI",
+        "MxFramework.Game.CharacterTest",
+        "MxFramework.Audio.Config",
+        "MxFramework.Audio.Physical",
+        "MxFramework.Audio.Physical.Config",
+        "MxFramework.CharacterAction",
+        "MxFramework.Items",
+        "MxFramework.Items.Runtime",
+        "MxFramework.Items.Acquisition"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "MXFRAMEWORK_FMOD",
+        "MXFRAMEWORK_FAIRYGUI",
+        "MXFRAMEWORK_UNITY_TRANSPORT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.fairygui.gui",
+            "expression": "5.2.0",
+            "define": "MXFRAMEWORK_FAIRYGUI"
+        },
+        {
+            "name": "com.unity.transport",
+            "expression": "6.5.0",
+            "define": "MXFRAMEWORK_UNITY_TRANSPORT"
+        }
+    ],
+    "noEngineReferences": false
+}

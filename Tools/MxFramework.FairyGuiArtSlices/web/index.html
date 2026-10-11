@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UI 切图资源库</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <h1>UI 切图资源库</h1>
+        <p id="statusText">正在加载 UI 资源库...</p>
+      </div>
+      <div class="toolbar">
+        <section class="summary-strip" id="summaryStrip" aria-label="资源库摘要"></section>
+        <span id="editorStateBadge" class="state-badge clean">干净</span>
+        <label class="field-inline">
+          <span>资源库</span>
+          <select id="packageSelect"></select>
+        </label>
+        <button id="refreshButton" class="secondary-button icon-text-button" type="button" title="刷新资源库">
+          <span aria-hidden="true">↻</span><span>刷新</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="panel slice-pane">
+        <div class="list-header">
+          <div>
+            <h2>资源</h2>
+            <span id="sliceResultText">0 个资源</span>
+          </div>
+          <button id="openCreateButton" class="icon-button" type="button" title="新增资源" aria-label="新增资源">+</button>
+        </div>
+        <div class="filter-grid">
+          <input id="searchInput" type="search" placeholder="搜索名称、ID、路径或标签">
+          <div class="filter-row">
+            <select id="categoryFilter">
+              <option value="">全部分类</option>
+            </select>
+            <button id="clearFiltersButton" class="secondary-button compact" type="button">清除</button>
+          </div>
+        </div>
+        <div id="sliceList" class="slice-list"></div>
+      </aside>
+
+      <section class="panel preview-panel">
+        <div class="panel-title preview-title">
+          <div class="title-stack">
+            <h2 id="sliceTitle">未选择资源</h2>
+            <span id="sliceBadge" class="badge">-</span>
+          </div>
+          <div class="panel-actions preview-actions">
+            <div class="segmented-control compact-segment" aria-label="预览缩放模式">
+              <button id="previewFitButton" type="button" class="selected" title="适应预览区">适应</button>
+              <button id="previewActualButton" type="button" title="按实际像素显示">1:1</button>
+            </div>
+            <button id="checkerToggleButton" class="secondary-button icon-button" type="button" title="切换透明棋盘格" aria-label="切换透明棋盘格">▦</button>
+            <button id="openReplaceButton" class="secondary-button" type="button">替换 PNG</button>
+          </div>
+        </div>
+
+        <div id="previewFrame" class="preview-frame">
+          <img id="slicePreview" alt="当前资源预览">
+          <div id="scale9Overlay" class="scale9-overlay" hidden>
+            <button class="scale9-line vertical left" type="button" data-scale9-edge="left" title="拖动九宫格左边界"></button>
+            <button class="scale9-line vertical right" type="button" data-scale9-edge="right" title="拖动九宫格右边界"></button>
+            <button class="scale9-line horizontal top" type="button" data-scale9-edge="top" title="拖动九宫格上边界"></button>
+            <button class="scale9-line horizontal bottom" type="button" data-scale9-edge="bottom" title="拖动九宫格下边界"></button>
+            <span class="scale9-label">可拉伸区域</span>
+          </div>
+        </div>
+
+        <div id="sliceIssueSummary" class="issue-summary"></div>
+        <dl class="metadata-grid">
+          <div>
+            <dt>resourceId</dt>
+            <dd><span id="sliceIdText" class="metadata-code">-</span><button class="copy-button" type="button" data-copy-target="sliceIdText" title="复制 resourceId">复制</button></dd>
+          </div>
+          <div>
+            <dt>category</dt>
+            <dd id="resourceIdText">-</dd>
+          </div>
+          <div class="metadata-wide">
+            <dt>relativePath</dt>
+            <dd><span id="sourcePathText" class="metadata-code">-</span><button class="copy-button" type="button" data-copy-target="sourcePathText" title="复制路径">复制</button></dd>
+          </div>
+          <div class="metadata-wide metadata-secondary">
+            <dt>Catalog Hash</dt>
+            <dd><span id="catalogHashText" class="metadata-code">-</span><button class="copy-button" type="button" data-copy-target="catalogHashText" title="复制 Catalog Hash">复制</button></dd>
+          </div>
+        </dl>
+
+        <details id="preflightDetails" class="inline-details">
+          <summary><span>使用与替换预检</span><span id="preflightCount" class="badge">0</span></summary>
+          <div id="preflightList" class="preflight-list"></div>
+        </details>
+      </section>
+
+      <section class="panel editor-panel">
+        <div class="panel-title inspector-header">
+          <h2>属性检查器</h2>
+          <span id="editStatusText" class="state-note saved">已保存</span>
+        </div>
+        <div class="inspector-tabs" role="tablist" aria-label="资源属性">
+          <button type="button" class="selected" data-inspector-tab="basic" role="tab">基础信息</button>
+          <button type="button" data-inspector-tab="fairygui" role="tab">FairyGUI</button>
+          <button type="button" data-inspector-tab="replacement" role="tab">替换约束</button>
+        </div>
+        <div class="inspector-body">
+          <section class="inspector-tab-panel" data-inspector-panel="basic">
+            <div class="form-grid">
+              <label><span>分类</span><select id="categoryInput"></select></label>
+              <label><span>显示名称</span><input id="displayNameInput" type="text"></label>
+              <label class="wide"><span>描述</span><textarea id="descriptionInput" rows="6"></textarea></label>
+              <label class="wide"><span>标签</span><input id="tagsInput" type="text" placeholder="用逗号分隔标签"></label>
+            </div>
+          </section>
+
+          <section class="inspector-tab-panel" data-inspector-panel="fairygui" hidden>
+            <div class="form-grid">
+              <label class="wide"><span>使用策略</span><select id="usagePolicyInput"></select></label>
+              <label><span>设计宽度</span><input id="designWidthInput" type="number" min="0"></label>
+              <label><span>设计高度</span><input id="designHeightInput" type="number" min="0"></label>
+              <label class="scale9-field"><span>九宫格 X</span><input id="scale9XInput" type="number" min="0"></label>
+              <label class="scale9-field"><span>九宫格 Y</span><input id="scale9YInput" type="number" min="0"></label>
+              <label class="scale9-field"><span>九宫格宽度</span><input id="scale9WidthInput" type="number" min="0"></label>
+              <label class="scale9-field"><span>九宫格高度</span><input id="scale9HeightInput" type="number" min="0"></label>
+            </div>
+            <div class="constraint-grid single-column">
+              <label><input id="preserveAspectInput" type="checkbox"><span>使用时保持比例</span></label>
+            </div>
+            <p class="field-hint">NineSlice 模式下可直接拖动预览图上的四条边界线。</p>
+            <section class="inspector-subsection integration-section">
+              <div class="subsection-title">
+                <h3>FairyGUI 接入</h3>
+                <span id="integrationStatusBadge" class="badge">未生成</span>
+              </div>
+              <label class="integration-package-field">
+                <span>目标包</span>
+                <select id="integrationPackageSelect"></select>
+              </label>
+              <button id="generateIntegrationPlanButton" class="wide-command" type="button">生成接入计划</button>
+              <div id="integrationPlanOutput" class="integration-plan-output"></div>
+              <div class="integration-actions">
+                <button id="copyIntegrationRecipeButton" class="secondary-button" type="button" disabled>复制配方</button>
+                <button id="downloadIntegrationJsonButton" class="secondary-button" type="button" disabled>下载 JSON</button>
+                <button id="downloadIntegrationMarkdownButton" class="secondary-button" type="button" disabled>下载 Markdown</button>
+              </div>
+            </section>
+          </section>
+
+          <section class="inspector-tab-panel" data-inspector-panel="replacement" hidden>
+            <div class="constraint-grid single-column">
+              <label><input id="requireAlphaInput" type="checkbox"><span>需要 Alpha 通道</span></label>
+              <label><input id="requireNonOpaqueInput" type="checkbox"><span>需要非全不透明 Alpha</span></label>
+              <label><input id="requireSameSizeInput" type="checkbox"><span>替换时保持相同像素尺寸</span></label>
+              <label><input id="allowStretchInput" type="checkbox"><span>允许拉伸</span></label>
+              <label><input id="replaceTogetherInput" type="checkbox"><span>同组资源一起替换</span></label>
+            </div>
+            <div class="form-grid compact-grid">
+              <label><span>最小宽度</span><input id="minWidthInput" type="number" min="0"></label>
+              <label><span>最小高度</span><input id="minHeightInput" type="number" min="0"></label>
+            </div>
+          </section>
+        </div>
+        <footer class="inspector-footer">
+          <button id="discardButton" class="secondary-button" type="button" disabled>放弃</button>
+          <button id="saveButton" type="button" disabled>保存更改</button>
+        </footer>
+      </section>
+    </section>
+
+    <details id="diagnosticDrawer" class="diagnostic-drawer">
+      <summary>
+        <span class="diagnostic-summary-title">诊断</span>
+        <span id="diagnosticCount" class="badge">0</span>
+        <span class="diagnostic-summary-hint">展开查看资源库问题</span>
+      </summary>
+      <div class="diagnostic-content">
+        <div class="segmented-control" id="diagnosticScopeControl">
+          <button type="button" data-scope="selected" class="selected">当前资源</button>
+          <button type="button" data-scope="all">全部资源</button>
+        </div>
+        <div id="diagnosticsList" class="diagnostics-list"></div>
+      </div>
+    </details>
+  </main>
+
+  <div id="replacementBackdrop" class="drawer-backdrop" hidden></div>
+  <aside id="replacementDrawer" class="operation-drawer" aria-hidden="true" aria-labelledby="replacementDrawerTitle" inert hidden>
+    <header class="drawer-header">
+      <div><span class="drawer-eyebrow">当前资源</span><h2 id="replacementDrawerTitle">替换 PNG</h2></div>
+      <button id="closeReplacementButton" class="icon-button secondary-button" type="button" title="关闭" aria-label="关闭">×</button>
+    </header>
+    <div class="drawer-body">
+      <label id="replacementDropZone" class="drop-zone prominent">
+        <input id="replacementInput" type="file" accept="image/png">
+        <strong id="replacementFileName">选择或拖入 PNG</strong>
+        <span id="replacementFileMeta">先选择候选文件，再预览替换计划</span>
+      </label>
+      <section class="drawer-section">
+        <h3>执行计划</h3>
+        <div id="planOutput" class="plan-output"></div>
+      </section>
+    </div>
+    <footer class="drawer-footer">
+      <button id="planReplaceButton" class="secondary-button" type="button">预览计划</button>
+      <button id="replaceButton" type="button" disabled>替换 PNG</button>
+    </footer>
+  </aside>
+
+  <div id="createBackdrop" class="drawer-backdrop" hidden></div>
+  <aside id="createDrawer" class="operation-drawer wide-drawer" aria-hidden="true" aria-labelledby="createDrawerTitle" inert hidden>
+    <header class="drawer-header">
+      <div><span class="drawer-eyebrow">手工资源库</span><h2 id="createDrawerTitle">新增 UI 切图</h2></div>
+      <button id="closeCreateButton" class="icon-button secondary-button" type="button" title="关闭" aria-label="关闭">×</button>
+    </header>
+    <div class="drawer-body">
+      <label id="createDropZone" class="drop-zone prominent file-first">
+        <input id="createFileInput" type="file" accept="image/png">
+        <strong id="createFileName">第一步：选择或拖入 PNG</strong>
+        <span id="createFileMeta">选择图片后会自动填写尺寸、路径和基础约束</span>
+      </label>
+
+      <section class="drawer-section">
+        <h3>资源身份</h3>
+        <div class="form-grid">
+          <label><span>resourceId</span><input id="createResourceIdInput" type="text" placeholder="ui.button.primary.base"></label>
+          <label><span>relativePath</span><input id="createRelativePathInput" type="text" placeholder="images/buttons/button_primary_240x64.png"></label>
+          <label><span>显示名称</span><input id="createDisplayNameInput" type="text" placeholder="主按钮底图"></label>
+          <label><span>分类</span><select id="createCategoryInput"></select></label>
+          <label class="wide"><span>描述</span><textarea id="createDescriptionInput" rows="3" placeholder="说明用途、视觉边界和替换注意事项"></textarea></label>
+          <label class="wide"><span>标签</span><input id="createTagsInput" type="text" placeholder="button, primary"></label>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <h3>FairyGUI 建议</h3>
+        <div class="form-grid">
+          <label class="wide"><span>使用策略</span><select id="createPolicyInput"></select></label>
+          <label><span>设计宽度</span><input id="createDesignWidthInput" type="number" min="1"></label>
+          <label><span>设计高度</span><input id="createDesignHeightInput" type="number" min="1"></label>
+          <label class="create-nine-slice-field"><span>九宫格 X</span><input id="createScale9XInput" type="number" min="0"></label>
+          <label class="create-nine-slice-field"><span>九宫格 Y</span><input id="createScale9YInput" type="number" min="0"></label>
+          <label class="create-nine-slice-field"><span>九宫格宽度</span><input id="createScale9WidthInput" type="number" min="1"></label>
+          <label class="create-nine-slice-field"><span>九宫格高度</span><input id="createScale9HeightInput" type="number" min="1"></label>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <h3>替换约束</h3>
+        <div class="constraint-grid create-constraint-grid">
+          <label><input id="createRequireAlphaInput" type="checkbox"><span>需要 Alpha 通道</span></label>
+          <label><input id="createRequireNonOpaqueInput" type="checkbox"><span>需要透明像素</span></label>
+          <label><input id="createRequireSameSizeInput" type="checkbox" checked><span>替换时同像素尺寸</span></label>
+          <label><input id="createAllowStretchInput" type="checkbox" checked><span>允许拉伸</span></label>
+          <label><input id="createReplaceTogetherInput" type="checkbox"><span>整组替换</span></label>
+        </div>
+        <div class="form-grid compact-grid">
+          <label><span>最小宽度</span><input id="createMinWidthInput" type="number" min="0"></label>
+          <label><span>最小高度</span><input id="createMinHeightInput" type="number" min="0"></label>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <h3>执行计划</h3>
+        <div id="createPlanOutput" class="plan-output"></div>
+      </section>
+    </div>
+    <footer class="drawer-footer">
+      <button id="planCreateButton" class="secondary-button" type="button">预览计划</button>
+      <button id="createResourceButton" type="button" disabled>创建资源</button>
+    </footer>
+  </aside>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="./app.js"></script>
+</body>
+</html>

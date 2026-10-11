@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.CharacterAction",
+    "rootNamespace": "MxFramework.CharacterAction",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Combat",
+        "MxFramework.Gameplay",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

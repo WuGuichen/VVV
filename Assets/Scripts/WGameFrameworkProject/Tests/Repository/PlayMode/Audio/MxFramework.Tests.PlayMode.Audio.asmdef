@@ -1,0 +1,27 @@
+{
+    "name": "MxFramework.Tests.PlayMode.Audio",
+    "rootNamespace": "MxFramework.Tests.PlayMode.Audio",
+    "references": [
+        "UnityEngine.TestRunner",
+        "MxFramework.Audio",
+        "MxFramework.Audio.Config",
+        "MxFramework.Audio.FMOD",
+        "MxFramework.Demo",
+        "FMODUnity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "MXFRAMEWORK_FMOD"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

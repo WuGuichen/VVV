@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Items.Loot",
+    "rootNamespace": "MxFramework.Items",
+    "references": [
+        "MxFramework.Items",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

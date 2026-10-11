@@ -1,0 +1,24 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/UI/MxFramework/ApplicationBoot/ApplicationBootValidation.uss" />
+    <ui:VisualElement name="application-boot-root" class="application-boot application-boot--boot">
+        <ui:Label name="application-boot-title" text="Application Boot Validation" class="application-boot__title" />
+        <ui:Label name="application-boot-state" text="Boot" class="application-boot__state" />
+        <ui:VisualElement class="application-boot__facts">
+            <ui:Label name="application-boot-attempt" text="Attempt 0" />
+            <ui:Label name="application-boot-plan" text="Plan -" />
+            <ui:Label name="application-boot-run" text="Run -" />
+            <ui:Label name="application-boot-phase" text="Phase None" />
+            <ui:Label name="application-boot-step" text="Step -" />
+            <ui:Label name="application-boot-progress" text="Forward 0%  Rollback 0%" />
+            <ui:Label name="application-boot-error" text="No error" class="application-boot__error" />
+            <ui:Label name="application-boot-live" text="Live revision 0  session no" />
+            <ui:Label name="application-boot-lifecycle" text="Lifecycle Idle" />
+            <ui:Label name="application-boot-retirement" text="Retirement occupied 0  failed 0" />
+        </ui:VisualElement>
+        <ui:VisualElement class="application-boot__actions">
+            <ui:Button name="application-boot-start" text="Start" />
+            <ui:Button name="application-boot-retry" text="Retry" />
+            <ui:Button name="application-boot-cancel" text="Cancel" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,42 @@
+{
+    "name": "MxFramework.Demo.Editor",
+    "rootNamespace": "MxFramework.Demo",
+    "references": [
+        "MxFramework.Demo",
+        "MxFramework.Demo.FairyGUI",
+        "MxFramework.Core",
+        "MxFramework.Core.Unity",
+        "MxFramework.Events",
+        "MxFramework.Attributes",
+        "MxFramework.Modifiers",
+        "MxFramework.Combat",
+        "MxFramework.Runtime.Unity",
+        "MxFramework.Input",
+        "MxFramework.Resources",
+        "MxFramework.Editor",
+        "MxFramework.Rendering",
+        "FMODUnity",
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "MXFRAMEWORK_FMOD",
+        "MXFRAMEWORK_FAIRYGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.fairygui.gui",
+            "expression": "5.2.0",
+            "define": "MXFRAMEWORK_FAIRYGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

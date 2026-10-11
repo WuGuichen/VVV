@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://specs.mxframework.io/schemas/character-weapon-slots-v1.0.json",
+  "title": "CharacterWeaponSlots",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "weaponSlots"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["1.0.0"] },
+    "weaponSlots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slotId", "attachSocketId", "allowedWeaponTypes"],
+        "properties": {
+          "slotId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+          "attachSocketId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+          "allowedWeaponTypes": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "enum": ["SwordSingle", "GreatSword", "Shield", "Bow", "Dagger"] }
+          },
+          "defaultWeaponId": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

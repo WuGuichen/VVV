@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.UI.ConfigBridge",
+    "rootNamespace": "MxFramework.UI.ConfigBridge",
+    "references": [
+        "MxFramework.Config",
+        "MxFramework.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

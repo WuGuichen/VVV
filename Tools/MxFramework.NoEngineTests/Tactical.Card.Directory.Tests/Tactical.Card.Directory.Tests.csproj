@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><NuGetAudit>false</NuGetAudit></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/TacticalCards/TacticalCardQuery.cs" Link="TacticalCardQuery.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/TacticalCards/TacticalCardDirectoryProjection.cs" Link="TacticalCardDirectoryProjection.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/CombatDesign/CombatDesignCatalogProjection.cs" Link="CombatDesignCatalogProjection.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/CombatDesign/CombatDesignComponentCatalog.cs" Link="CombatDesignComponentCatalog.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Cli/TacticalCardAssemblyLoadContext.cs" Link="TacticalCardAssemblyLoadContext.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Cli/TacticalCardQueryCommands.cs" Link="TacticalCardQueryCommands.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Cli/TacticalCardDirectoryCommands.cs" Link="TacticalCardDirectoryCommands.cs" />
+  </ItemGroup>
+</Project>

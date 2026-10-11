@@ -1,0 +1,22 @@
+{
+    "name": "MxFramework.Story.Editor",
+    "rootNamespace": "MxFramework.Story.Editor",
+    "references": [
+        "MxFramework.Diagnostics",
+        "MxFramework.DebugUI",
+        "MxFramework.Runtime",
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

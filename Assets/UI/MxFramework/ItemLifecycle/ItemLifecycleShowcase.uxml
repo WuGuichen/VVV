@@ -1,0 +1,97 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/MxFramework/ItemLifecycle/ItemLifecycleShowcase.uss?fileID=7433441132597879392&amp;guid=0c568970bd6e040e0bc7b9d8269e2f33&amp;type=3#ItemLifecycleShowcase" />
+    <ui:VisualElement name="item-lifecycle-root" class="item-root">
+        <ui:VisualElement class="top-bar">
+            <ui:Label class="showcase-title" text="Item Lifecycle Showcase" />
+            <ui:VisualElement class="top-stats">
+                <ui:Label class="stat-name" text="Frame" />
+                <ui:Label name="frame-label" class="stat-value" text="Frame 0" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement class="main-grid">
+            <ui:VisualElement class="left-column">
+                <ui:VisualElement class="section">
+                    <ui:Label class="section-title" text="Controls" />
+                    <ui:VisualElement class="button-grid">
+                        <ui:Button name="open-button" class="command-button primary-button" text="Open Loot" />
+                        <ui:Button name="pickup-button" class="command-button" text="Pickup" />
+                        <ui:Button name="equip-button" class="command-button" text="Equip" />
+                        <ui:Button name="unequip-button" class="command-button" text="Unequip" />
+                        <ui:Button name="save-button" class="command-button" text="Save" />
+                        <ui:Button name="load-button" class="command-button" text="Load" />
+                        <ui:Button name="hash-button" class="command-button" text="Hash" />
+                        <ui:Button name="reset-button" class="command-button danger-button" text="Reset" />
+                    </ui:VisualElement>
+                    <ui:Label class="section-subtitle" text="Move" />
+                    <ui:VisualElement class="move-pad">
+                        <ui:VisualElement class="move-row">
+                            <ui:VisualElement class="move-spacer" />
+                            <ui:Button name="move-up-button" class="command-button move-button" text="+Z" />
+                            <ui:VisualElement class="move-spacer" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="move-row">
+                            <ui:Button name="move-left-button" class="command-button move-button" text="-X" />
+                            <ui:Button name="move-down-button" class="command-button move-button" text="-Z" />
+                            <ui:Button name="move-right-button" class="command-button move-button" text="+X" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:VisualElement class="section">
+                    <ui:Label class="section-title" text="Authority State" />
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Position" />
+                        <ui:Label name="position-label" class="stat-value" text="0,0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="World Items" />
+                        <ui:Label name="world-count-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Target Slot" />
+                        <ui:Label name="target-slot-label" class="stat-value" text="Main Hand" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Equipment" />
+                        <ui:Label name="equipment-label" class="stat-value equipment-summary" text="None" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row tall-row">
+                        <ui:Label class="stat-name" text="Hash" />
+                        <ui:Label name="hash-label" class="stat-value hash-text" text="0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Save" />
+                        <ui:Label name="save-label" class="stat-value" text="No save" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Compare" />
+                        <ui:Label name="hash-status-label" class="stat-value" text="No comparison" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="center-column">
+                <ui:VisualElement class="section grow-section">
+                    <ui:Label class="section-title" text="World Items" />
+                    <ui:VisualElement name="world-list" class="list-panel" />
+                </ui:VisualElement>
+                <ui:VisualElement class="section grow-section">
+                    <ui:Label class="section-title" text="Loot Log" />
+                    <ui:VisualElement name="log-list" class="list-panel" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="right-column">
+                <ui:VisualElement class="section grow-section inventory-section">
+                    <ui:Label class="section-title" text="Inventory" />
+                    <ui:VisualElement name="inventory-grid" class="slot-grid" />
+                </ui:VisualElement>
+                <ui:VisualElement class="section equipment-section">
+                    <ui:Label class="section-title" text="Equipment Container" />
+                    <ui:VisualElement name="equipment-grid" class="slot-grid equipment-grid" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

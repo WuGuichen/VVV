@@ -1,0 +1,50 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="tetris-root" class="tetris-root">
+        <ui:VisualElement class="tetris-header">
+            <ui:Label class="tetris-title" text="Tetris Runtime Demo" />
+            <ui:Label name="state-label" class="state-pill" text="Running" />
+        </ui:VisualElement>
+        <ui:VisualElement name="tetris-shell" class="tetris-shell">
+            <ui:VisualElement name="board-wrap" class="board-wrap">
+                <ui:VisualElement name="tetris-board" class="tetris-board" />
+            </ui:VisualElement>
+            <ui:VisualElement name="side-panel" class="side-panel">
+                <ui:VisualElement class="stat-grid">
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Score" />
+                        <ui:Label name="score-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Lines" />
+                        <ui:Label name="lines-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Locked" />
+                        <ui:Label name="locked-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Frame" />
+                        <ui:Label name="frame-label" class="stat-value" text="Frame 0" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Gravity" />
+                        <ui:Label name="gravity-label" class="stat-value" text="1.00s / row" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="stat-row">
+                        <ui:Label class="stat-name" text="Replay" />
+                        <ui:Label name="replay-label" class="stat-value" text="0" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="button-row">
+                    <ui:Button name="pause-button" class="demo-button" text="Pause" />
+                    <ui:Button name="reset-button" class="demo-button danger-button last-button" text="Reset" />
+                </ui:VisualElement>
+                <ui:Button name="hard-drop-button" class="demo-button hard-drop-button" text="Hard Drop" />
+                <ui:VisualElement class="hash-panel">
+                    <ui:Label class="hash-title" text="Runtime Hash" />
+                    <ui:Label name="hash-label" class="hash-value" text="0" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,32 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+  <ui:VisualElement name="mxanimation-showcase-hud" class="showcase-root">
+    <ui:VisualElement class="showcase-header">
+      <ui:Label name="title" class="showcase-title" text="MxAnimation System Showcase" />
+      <ui:Label name="mode" class="showcase-mode" text="Mode" />
+      <ui:Label name="controls" class="showcase-controls" text="Controls" />
+    </ui:VisualElement>
+    <ui:VisualElement class="showcase-grid">
+      <ui:VisualElement class="showcase-card">
+        <ui:Label class="card-title" text="Runtime Playback" />
+        <ui:Label name="locomotion" class="card-line" text="1D Locomotion" />
+        <ui:Label name="directional" class="card-line" text="2D Directional" />
+        <ui:Label name="layer" class="card-line" text="Layer + Mask" />
+        <ui:Label name="override" class="card-line" text="Mod/Fallback" />
+      </ui:VisualElement>
+      <ui:VisualElement class="showcase-card">
+        <ui:Label class="card-title" text="Validation Pipeline" />
+        <ui:Label name="package" class="card-line" text="Package" />
+        <ui:Label name="compatibility" class="card-line" text="Compatibility" />
+        <ui:Label name="bake" class="card-line" text="Bake" />
+        <ui:Label name="cache" class="card-line" text="Cache" />
+      </ui:VisualElement>
+      <ui:VisualElement class="showcase-card">
+        <ui:Label class="card-title" text="Live Diagnostics" />
+        <ui:Label name="resources" class="card-line" text="Resources" />
+        <ui:Label name="bridge" class="card-line" text="Bridge" />
+        <ui:Label name="error" class="card-error" text="" />
+        <ui:VisualElement name="events" class="event-list" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

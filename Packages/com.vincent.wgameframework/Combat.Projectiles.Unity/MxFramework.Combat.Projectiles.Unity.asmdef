@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.Combat.Projectiles.Unity",
+    "rootNamespace": "MxFramework.Combat.Projectiles.Unity",
+    "references": [
+        "MxFramework.Combat",
+        "MxFramework.Core",
+        "MxFramework.Resources",
+        "MxFramework.Runtime",
+        "MxFramework.Vfx",
+        "MxFramework.Vfx.Unity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

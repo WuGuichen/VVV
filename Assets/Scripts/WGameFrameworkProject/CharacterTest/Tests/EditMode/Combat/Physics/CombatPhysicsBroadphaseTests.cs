@@ -1,0 +1,743 @@
+using System;
+using System.Collections.Generic;
+using MxFramework.Combat.Core;
+using MxFramework.Combat.Physics;
+using MxFramework.Core.Math;
+using NUnit.Framework;
+
+namespace MxFramework.Tests.Combat.Physics
+{
+    public sealed class CombatPhysicsBroadphaseTests
+    {
+        [Test]
+        public void Broadphase_ReducesCandidatesButMatchesFullScanOracle()
+        {
+            CombatPhysicsWorld world = CreateLineWorld(120, spacing: 8);
+            var query = new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(78), -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.FromInt(82), Fix64.One, Fix64.One));
+            var oracle = new List<CombatQueryResult>();
+            var broadphase = new List<CombatQueryResult>();
+
+            world.QueryAabb(query, oracle);
+            world.Query(CombatPhysicsQuery.From(query), broadphase);
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(CombatPhysicsQuery.From(query));
+
+            AssertResultsEqual(oracle, broadphase);
+            Assert.Less(report.CandidateCount, world.ColliderCount);
+            Assert.Less(report.PostFilterCandidateCount, world.ColliderCount);
+            Assert.GreaterOrEqual(report.BroadphaseRawCandidateCount, report.BroadphaseCandidateCount);
+            Assert.AreEqual(report.CandidateCount, report.BroadphaseCandidateCount);
+            Assert.AreEqual(report.HitCount, broadphase.Count);
+        }
+
+        [Test]
+        public void Broadphase_AllQueryShapesMatchFullScanOracle()
+        {
+            CombatPhysicsWorld world = CreateLineWorld(30, spacing: 3);
+
+            AssertMatchesOracle(world, new CombatRayQuery(
+                Header(CombatQueryKind.Ray),
+                new FixVector3(Fix64.FromInt(-2), Fix64.Zero, Fix64.Zero),
+                UnitX,
+                Fix64.FromInt(18)));
+            AssertMatchesOracle(world, new CombatSphereQuery(
+                Header(CombatQueryKind.Sphere),
+                new FixVector3(Fix64.FromInt(15), Fix64.Zero, Fix64.Zero),
+                Fix64.FromInt(4)));
+            AssertMatchesOracle(world, new CombatCapsuleQuery(
+                Header(CombatQueryKind.Capsule),
+                new FixVector3(Fix64.FromInt(4), Fix64.Zero, Fix64.Zero),
+                new FixVector3(Fix64.FromInt(16), Fix64.Zero, Fix64.Zero),
+                Fix64.Half));
+            AssertMatchesOracle(world, new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(8), -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.FromInt(17), Fix64.One, Fix64.One)));
+            AssertMatchesOracle(world, new CombatSectorQuery(
+                Header(CombatQueryKind.Sector),
+                new FixVector3(Fix64.FromInt(10), Fix64.Zero, Fix64.Zero),
+                UnitX,
+                Fix64.FromInt(12),
+                Fix64.Zero));
+        }
+
+        [Test]
+        public void Broadphase_RegistrationOrderDoesNotAffectCandidatesOrHits()
+        {
+            CombatPhysicsWorld forward = CreateGridWorld(reverseRegistration: false);
+            CombatPhysicsWorld reverse = CreateGridWorld(reverseRegistration: true);
+            var query = new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(-2), -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.FromInt(38), Fix64.One, Fix64.One));
+            var forwardHits = new List<CombatQueryResult>();
+            var reverseHits = new List<CombatQueryResult>();
+
+            forward.Query(CombatPhysicsQuery.From(query), forwardHits);
+            reverse.Query(CombatPhysicsQuery.From(query), reverseHits);
+            CombatPhysicsQueryDebugReport forwardReport = forward.ExplainQuery(CombatPhysicsQuery.From(query));
+            CombatPhysicsQueryDebugReport reverseReport = reverse.ExplainQuery(CombatPhysicsQuery.From(query));
+
+            AssertResultsEqual(forwardHits, reverseHits);
+            Assert.AreEqual(forwardReport.CandidateCount, reverseReport.CandidateCount);
+            Assert.AreEqual(forwardReport.Rows.Count, reverseReport.Rows.Count);
+            for (int i = 0; i < forwardReport.Rows.Count; i++)
+            {
+                Assert.AreEqual(forwardReport.Rows[i].EntityId, reverseReport.Rows[i].EntityId);
+                Assert.AreEqual(forwardReport.Rows[i].BodyId, reverseReport.Rows[i].BodyId);
+                Assert.AreEqual(forwardReport.Rows[i].ColliderId, reverseReport.Rows[i].ColliderId);
+                Assert.AreEqual(forwardReport.Rows[i].Status, reverseReport.Rows[i].Status);
+            }
+        }
+
+        [Test]
+        public void Broadphase_QueryBatchRemainsStable()
+        {
+            CombatPhysicsWorld forward = CreateGridWorld(reverseRegistration: false);
+            CombatPhysicsWorld reverse = CreateGridWorld(reverseRegistration: true);
+            var queries = new[]
+            {
+                CombatPhysicsQuery.From(new CombatAabbQuery(
+                    Header(CombatQueryKind.Aabb, queryId: 20, sourceOrder: 20),
+                    new FixVector3(Fix64.FromInt(10), -Fix64.One, -Fix64.One),
+                    new FixVector3(Fix64.FromInt(24), Fix64.One, Fix64.One))),
+                CombatPhysicsQuery.From(new CombatSphereQuery(
+                    Header(CombatQueryKind.Sphere, queryId: 10, sourceOrder: 10),
+                    new FixVector3(Fix64.FromInt(16), Fix64.Zero, Fix64.Zero),
+                    Fix64.FromInt(6))),
+                CombatPhysicsQuery.From(new CombatObbQuery(
+                    Header(CombatQueryKind.Obb, queryId: 30, sourceOrder: 30),
+                    new FixVector3(Fix64.FromInt(16), Fix64.Zero, Fix64.Zero),
+                    new FixVector3(Fix64.FromInt(6), Fix64.One, Fix64.One),
+                    UnitX,
+                    new FixVector3(Fix64.Zero, Fix64.FromInt(2), Fix64.Zero),
+                    new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.FromInt(3)))),
+            };
+            var forwardResults = new List<CombatPhysicsQueryBatchResult>();
+            var reverseResults = new List<CombatPhysicsQueryBatchResult>();
+
+            forward.QueryBatch(new CombatPhysicsQueryBatch(queries), forwardResults);
+            reverse.QueryBatch(new CombatPhysicsQueryBatch(queries), reverseResults);
+
+            Assert.AreEqual(3, forwardResults.Count);
+            Assert.AreEqual(10, forwardResults[0].Query.Header.SourceOrder);
+            Assert.AreEqual(30, forwardResults[2].Query.Header.SourceOrder);
+            AssertBatchResultsEqual(forwardResults, reverseResults);
+            Assert.Less(forwardResults[0].DebugReport.CandidateCount, forward.ColliderCount);
+            Assert.Less(forwardResults[1].DebugReport.CandidateCount, forward.ColliderCount);
+            Assert.Less(forwardResults[2].DebugReport.CandidateCount, forward.ColliderCount);
+            Assert.IsFalse(forwardResults[2].IsUnsupported);
+        }
+
+        [Test]
+        public void Broadphase_QueryDoesNotAllocateAfterScratchWarmup()
+        {
+            CombatPhysicsWorld world = CreateMixedColliderWorld();
+            var query = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(-4), Fix64.FromInt(-6), Fix64.FromInt(-2)),
+                new FixVector3(Fix64.FromInt(28), Fix64.FromInt(6), Fix64.FromInt(2))));
+            var hits = new List<CombatQueryResult>(world.ColliderCount);
+
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            world.Query(query, hits);
+            Assert.AreEqual(world.ColliderCount, hits.Count);
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                hits.Clear();
+                world.Query(query, hits);
+            }
+
+            long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocatedBytes);
+        }
+
+        [Test]
+        public void Broadphase_PublicQuerySortDoesNotAllocateAfterScratchWarmup()
+        {
+            CombatPhysicsWorld world = CreateMixedColliderWorld();
+            var query = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(-4), Fix64.FromInt(-6), Fix64.FromInt(-2)),
+                new FixVector3(Fix64.FromInt(28), Fix64.FromInt(6), Fix64.FromInt(2))));
+            var hits = new List<CombatQueryResult>(world.ColliderCount);
+
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            world.Query(query, hits);
+            Assert.AreEqual(world.ColliderCount, hits.Count);
+            Assert.IsTrue(ResultsAreSorted(hits));
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                hits.Clear();
+                world.Query(query, hits);
+                if (!ResultsAreSorted(hits))
+                {
+                    Assert.Fail("Public combat query results must remain sorted.");
+                }
+            }
+
+            long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocatedBytes);
+        }
+
+        [Test]
+        public void Broadphase_MovedBodiesDoNotAllocateAfterScratchWarmup()
+        {
+            var movingBodyId = new CombatBodyId(900);
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            for (int i = 0; i < 32; i++)
+            {
+                RegisterBodyWithAabb(world, entity: i + 1, body: i + 1, collider: 1, layer: 1, x: i * 2, halfSize: 1);
+            }
+
+            RegisterBodyWithAabb(world, entity: 900, body: movingBodyId.Value, collider: 1, layer: 1, x: 0, halfSize: 1);
+            var hits = new List<CombatQueryResult>(world.ColliderCount);
+            var query = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(-2), -Fix64.FromInt(2), -Fix64.FromInt(2)),
+                new FixVector3(Fix64.FromInt(66), Fix64.FromInt(2), Fix64.FromInt(2))));
+
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                Assert.Greater(MoveAndQueryBroadphase(world, movingBodyId, query, hits, i), 0);
+            }
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                if (MoveAndQueryBroadphase(world, movingBodyId, query, hits, i) == 0)
+                {
+                    Assert.Fail("Moving body query should keep returning hits.");
+                }
+            }
+
+            long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocatedBytes);
+        }
+
+        [Test]
+        public void Broadphase_RepeatedMovedBodyUpdatesUseLatestPositionWithoutAllocating()
+        {
+            var movingBodyId = new CombatBodyId(901);
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabb(world, entity: 901, body: movingBodyId.Value, collider: 1, layer: 1, x: 0, halfSize: 1);
+            var hits = new List<CombatQueryResult>(world.ColliderCount);
+            var finalQuery = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(7), -Fix64.FromInt(2), -Fix64.FromInt(2)),
+                new FixVector3(Fix64.FromInt(10), Fix64.FromInt(2), Fix64.FromInt(2))));
+
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                Assert.AreEqual(1, MoveRepeatedlyAndQueryBroadphase(world, movingBodyId, finalQuery, hits, i));
+            }
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                if (MoveRepeatedlyAndQueryBroadphase(world, movingBodyId, finalQuery, hits, i) != 1)
+                {
+                    Assert.Fail("Repeated body updates before one query must use the latest moved body position.");
+                }
+            }
+
+            long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocatedBytes);
+        }
+
+        [Test]
+        public void Broadphase_EmptyCellRecyclingDoesNotAllocateWhenBodyCrossesCells()
+        {
+            var movingBodyId = new CombatBodyId(902);
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabb(world, entity: 902, body: movingBodyId.Value, collider: 1, layer: 1, x: 0, halfSize: 1);
+            var hits = new List<CombatQueryResult>(1);
+
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                int x = (i & 1) == 0 ? 0 : 48;
+                Assert.AreEqual(1, MoveIsolatedBodyAcrossCellsAndQuery(world, movingBodyId, hits, x));
+                Assert.AreEqual(movingBodyId, hits[0].TargetBodyId);
+            }
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 64; i++)
+            {
+                int x = (i & 1) == 0 ? 0 : 48;
+                if (MoveIsolatedBodyAcrossCellsAndQuery(world, movingBodyId, hits, x) != 1)
+                {
+                    Assert.Fail("Cross-cell moved body query should keep returning the current body.");
+                }
+
+                Assert.AreEqual(movingBodyId, hits[0].TargetBodyId);
+            }
+
+            long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocatedBytes);
+        }
+
+        [Test]
+        public void Broadphase_IndexUpdatesWhenBodyMoves()
+        {
+            var bodyId = new CombatBodyId(2);
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabb(world, entity: 2, body: bodyId.Value, collider: 1, layer: 1, x: 0);
+            var oldQuery = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(-Fix64.One, -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.One, Fix64.One, Fix64.One)));
+            var newQuery = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(9), -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.FromInt(11), Fix64.One, Fix64.One)));
+            var hits = new List<CombatQueryResult>();
+
+            world.Query(oldQuery, hits);
+            Assert.AreEqual(1, hits.Count);
+
+            world.SetBodyPosition(bodyId, new FixVector3(Fix64.FromInt(10), Fix64.Zero, Fix64.Zero));
+            hits.Clear();
+            world.Query(oldQuery, hits);
+            Assert.AreEqual(0, hits.Count);
+
+            world.Query(newQuery, hits);
+            Assert.AreEqual(1, hits.Count);
+            Assert.AreEqual(2, hits[0].TargetEntityId.Value);
+        }
+
+        [Test]
+        public void Broadphase_ExplainQueryConsumesMovedBodyWithoutLeavingStaleIndex()
+        {
+            var bodyId = new CombatBodyId(2);
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabb(world, entity: 2, body: bodyId.Value, collider: 1, layer: 1, x: 0);
+            var oldQuery = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(-Fix64.One, -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.One, Fix64.One, Fix64.One)));
+            var newQuery = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(9), -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.FromInt(11), Fix64.One, Fix64.One)));
+            var hits = new List<CombatQueryResult>();
+
+            world.Query(oldQuery, hits);
+            Assert.AreEqual(1, hits.Count);
+
+            world.SetBodyPosition(bodyId, new FixVector3(Fix64.FromInt(10), Fix64.Zero, Fix64.Zero));
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(newQuery);
+            Assert.AreEqual(1, report.HitCount);
+
+            hits.Clear();
+            world.Query(oldQuery, hits);
+            Assert.AreEqual(0, hits.Count);
+
+            hits.Clear();
+            world.Query(newQuery, hits);
+            Assert.AreEqual(1, hits.Count);
+            Assert.AreEqual(2, hits[0].TargetEntityId.Value);
+        }
+
+        [Test]
+        public void Broadphase_ObbUsesConservativeAabbWithoutDroppingRotatedHit()
+        {
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabbAt(world, entity: 2, body: 2, collider: 1, layer: 1, x: Fix64.One, y: Fix64.One, z: Fix64.Zero, halfSize: Fix64.Half);
+            RegisterBodyWithAabbAt(world, entity: 3, body: 3, collider: 1, layer: 1, x: Fix64.FromInt(6), y: Fix64.FromInt(6), z: Fix64.Zero, halfSize: Fix64.Half);
+            var query = CombatPhysicsQuery.From(new CombatObbQuery(
+                Header(CombatQueryKind.Obb),
+                FixVector3.Zero,
+                new FixVector3(Fix64.FromInt(2), Fix64.Half, Fix64.One),
+                new FixVector3(Fix64.One, Fix64.One, Fix64.Zero),
+                new FixVector3(-Fix64.One, Fix64.One, Fix64.Zero),
+                new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.FromInt(2))));
+            var hits = new List<CombatQueryResult>();
+
+            world.Query(query, hits);
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(query);
+
+            Assert.AreEqual(1, hits.Count);
+            Assert.AreEqual(2, hits[0].TargetEntityId.Value);
+            Assert.IsFalse(report.IsUnsupported);
+            Assert.AreEqual(1, report.HitCount);
+            Assert.GreaterOrEqual(report.BroadphaseCandidateCount, report.HitCount);
+            Assert.Greater(report.BroadphaseCellCount, 1);
+        }
+
+        [Test]
+        public void Broadphase_ReportSeparatesRawDedupFilterAndHits()
+        {
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabb(world, entity: 1, body: 1, collider: 1, layer: 1, x: 0, halfSize: 2);
+            RegisterBodyWithAabb(world, entity: 2, body: 2, collider: 1, layer: 1, x: 0, halfSize: 1);
+            RegisterBodyWithAabb(world, entity: 3, body: 3, collider: 1, layer: 2, x: 0, halfSize: 1);
+            RegisterBodyWithAabb(world, entity: 4, body: 4, collider: 1, layer: 1, x: 20, halfSize: 1);
+            var query = new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(Fix64.FromInt(-1), -Fix64.One, -Fix64.One),
+                new FixVector3(Fix64.FromInt(1), Fix64.One, Fix64.One));
+
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(CombatPhysicsQuery.From(query));
+
+            Assert.Greater(report.BroadphaseRawCandidateCount, report.BroadphaseCandidateCount);
+            Assert.AreEqual(3, report.BroadphaseCandidateCount);
+            Assert.AreEqual(1, report.FilteredSourceCount);
+            Assert.AreEqual(1, report.FilteredLayerCount);
+            Assert.AreEqual(1, report.PostFilterCandidateCount);
+            Assert.AreEqual(1, report.HitCount);
+            Assert.Greater(report.BroadphaseCellCount, 1);
+        }
+
+        [Test]
+        public void Broadphase_ReportProvidesReadableSummaryAndCandidateReasons()
+        {
+            CombatPhysicsWorld world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            RegisterBodyWithAabb(world, entity: 1, body: 1, collider: 1, layer: 1, x: 0, halfSize: 1);
+            RegisterBodyWithAabb(world, entity: 2, body: 2, collider: 1, layer: 1, x: 2, halfSize: 1);
+            RegisterBodyWithAabb(world, entity: 3, body: 3, collider: 1, layer: 2, x: 1, halfSize: 1);
+            RegisterBodyWithAabb(world, entity: 4, body: 4, collider: 1, layer: 1, x: -2, halfSize: 1);
+            RegisterBodyWithAabb(world, entity: 5, body: 5, collider: 1, layer: 1, x: 20, halfSize: 1);
+            var query = new CombatSectorQuery(
+                Header(CombatQueryKind.Sector),
+                FixVector3.Zero,
+                UnitX,
+                Fix64.FromInt(3),
+                Fix64.Zero);
+
+            CombatPhysicsQueryDebugReport report = world.ExplainQuery(CombatPhysicsQuery.From(query));
+
+            Assert.AreEqual(4, report.CandidateCount);
+            Assert.Greater(report.BroadphaseRawCandidateCount, report.BroadphaseCandidateCount);
+            Assert.Greater(report.BroadphaseDuplicateCandidateCount, 0);
+            Assert.Greater(report.BroadphaseDeduplicationPermille, 0);
+            Assert.AreEqual(1, report.FilteredSourceCount);
+            Assert.AreEqual(1, report.FilteredLayerCount);
+            Assert.AreEqual(2, report.FilteredCandidateCount);
+            Assert.AreEqual(2, report.NarrowphaseCandidateCount);
+            Assert.AreEqual(1, report.HitCount);
+            Assert.AreEqual(1, report.MissCount);
+
+            Assert.AreEqual(4, report.SummaryLines.Count);
+            StringAssert.Contains("shape=Sector", report.SummaryLines[0]);
+            StringAssert.Contains("raw=", report.SummaryLines[1]);
+            StringAssert.Contains("dedup=", report.SummaryLines[1]);
+            StringAssert.Contains("source=1", report.SummaryLines[2]);
+            StringAssert.Contains("layer=1", report.SummaryLines[2]);
+            StringAssert.Contains("hit=1", report.SummaryLines[3]);
+            StringAssert.Contains("miss=1", report.SummaryLines[3]);
+
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.FilteredSource, report.Rows[0].Status);
+            Assert.AreEqual("filtered-source", report.Rows[0].StatusToken);
+            Assert.AreEqual("source entity excluded", report.Rows[0].StatusReason);
+            Assert.IsTrue(report.Rows[0].WasFiltered);
+            Assert.IsFalse(report.Rows[0].EnteredNarrowphase);
+            StringAssert.Contains("candidate[0] entity=1", report.Rows[0].Label);
+            StringAssert.Contains("status=filtered-source", report.Rows[0].Label);
+
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.Hit, report.Rows[1].Status);
+            Assert.IsTrue(report.Rows[1].EnteredNarrowphase);
+            Assert.AreEqual("narrowphase accepted candidate", report.Rows[1].StatusReason);
+
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.FilteredLayer, report.Rows[2].Status);
+            Assert.AreEqual("layer mask rejected candidate", report.Rows[2].StatusReason);
+
+            Assert.AreEqual(CombatPhysicsQueryDebugRowStatus.Miss, report.Rows[3].Status);
+            Assert.IsTrue(report.Rows[3].EnteredNarrowphase);
+            Assert.AreEqual("narrowphase rejected candidate", report.Rows[3].StatusReason);
+            StringAssert.Contains("status=miss", report.Rows[3].Label);
+        }
+
+        private static void AssertMatchesOracle(CombatPhysicsWorld world, CombatRayQuery query)
+        {
+            var oracle = new List<CombatQueryResult>();
+            var broadphase = new List<CombatQueryResult>();
+            world.QueryRay(query, oracle);
+            world.Query(CombatPhysicsQuery.From(query), broadphase);
+            AssertResultsEqual(oracle, broadphase);
+        }
+
+        private static void AssertMatchesOracle(CombatPhysicsWorld world, CombatSphereQuery query)
+        {
+            var oracle = new List<CombatQueryResult>();
+            var broadphase = new List<CombatQueryResult>();
+            world.QuerySphere(query, oracle);
+            world.Query(CombatPhysicsQuery.From(query), broadphase);
+            AssertResultsEqual(oracle, broadphase);
+        }
+
+        private static void AssertMatchesOracle(CombatPhysicsWorld world, CombatCapsuleQuery query)
+        {
+            var oracle = new List<CombatQueryResult>();
+            var broadphase = new List<CombatQueryResult>();
+            world.QueryCapsule(query, oracle);
+            world.Query(CombatPhysicsQuery.From(query), broadphase);
+            AssertResultsEqual(oracle, broadphase);
+        }
+
+        private static void AssertMatchesOracle(CombatPhysicsWorld world, CombatAabbQuery query)
+        {
+            var oracle = new List<CombatQueryResult>();
+            var broadphase = new List<CombatQueryResult>();
+            world.QueryAabb(query, oracle);
+            world.Query(CombatPhysicsQuery.From(query), broadphase);
+            AssertResultsEqual(oracle, broadphase);
+        }
+
+        private static void AssertMatchesOracle(CombatPhysicsWorld world, CombatSectorQuery query)
+        {
+            var oracle = new List<CombatQueryResult>();
+            var broadphase = new List<CombatQueryResult>();
+            world.QuerySector(query, oracle);
+            world.Query(CombatPhysicsQuery.From(query), broadphase);
+            AssertResultsEqual(oracle, broadphase);
+        }
+
+        private static CombatPhysicsWorld CreateLineWorld(int count, int spacing)
+        {
+            var world = new CombatPhysicsWorld();
+            for (int i = 0; i < count; i++)
+            {
+                RegisterBodyWithAabb(world, entity: i + 2, body: i + 2, collider: 1, layer: 1, x: i * spacing);
+            }
+
+            return world;
+        }
+
+        private static CombatPhysicsWorld CreateGridWorld(bool reverseRegistration)
+        {
+            var world = new CombatPhysicsWorld();
+            if (reverseRegistration)
+            {
+                for (int i = 19; i >= 0; i--)
+                {
+                    RegisterBodyWithAabb(world, entity: i + 2, body: i + 2, collider: 1, layer: 1, x: i * 2);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < 20; i++)
+                {
+                    RegisterBodyWithAabb(world, entity: i + 2, body: i + 2, collider: 1, layer: 1, x: i * 2);
+                }
+            }
+
+            return world;
+        }
+
+        private static CombatPhysicsWorld CreateMixedColliderWorld()
+        {
+            var world = new CombatPhysicsWorld(new CombatPhysicsBroadphaseConfig(Fix64.One));
+            for (int i = 0; i < 12; i++)
+            {
+                int entity = 10 + i;
+                int body = 10 + i;
+                world.UpsertBody(new CombatPhysicsBody(
+                    new CombatEntityId(entity),
+                    new CombatBodyId(body),
+                    new FixVector3(Fix64.FromInt(i * 2), Fix64.Zero, Fix64.Zero)));
+                world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+                    new CombatBodyId(body),
+                    new CombatColliderId(1),
+                    1,
+                    new FixVector3(-Fix64.Half, -Fix64.Half, -Fix64.Half),
+                    new FixVector3(Fix64.Half, Fix64.Half, Fix64.Half)));
+            }
+
+            for (int i = 0; i < 12; i++)
+            {
+                int entity = 40 + i;
+                int body = 40 + i;
+                world.UpsertBody(new CombatPhysicsBody(
+                    new CombatEntityId(entity),
+                    new CombatBodyId(body),
+                    new FixVector3(Fix64.FromInt(i * 2), Fix64.FromInt(3), Fix64.Zero)));
+                world.UpsertSphereCollider(new CombatPhysicsSphereCollider(
+                    new CombatBodyId(body),
+                    new CombatColliderId(1),
+                    1,
+                    FixVector3.Zero,
+                    Fix64.Half));
+            }
+
+            for (int i = 0; i < 12; i++)
+            {
+                int entity = 70 + i;
+                int body = 70 + i;
+                world.UpsertBody(new CombatPhysicsBody(
+                    new CombatEntityId(entity),
+                    new CombatBodyId(body),
+                    new FixVector3(Fix64.FromInt(i * 2), Fix64.FromInt(-3), Fix64.Zero)));
+                world.UpsertCapsuleCollider(new CombatPhysicsCapsuleCollider(
+                    new CombatBodyId(body),
+                    new CombatColliderId(1),
+                    1,
+                    new FixVector3(-Fix64.Half, Fix64.Zero, Fix64.Zero),
+                    new FixVector3(Fix64.Half, Fix64.Zero, Fix64.Zero),
+                    Fix64.Half));
+            }
+
+            return world;
+        }
+
+        private static int MoveAndQueryBroadphase(
+            CombatPhysicsWorld world,
+            CombatBodyId movingBodyId,
+            CombatPhysicsQuery query,
+            List<CombatQueryResult> hits,
+            int index)
+        {
+            hits.Clear();
+            world.SetBodyPosition(
+                movingBodyId,
+                new FixVector3(Fix64.FromRatio(index % 32, 2), Fix64.Zero, Fix64.Zero));
+            world.Query(query, hits);
+            return hits.Count;
+        }
+
+        private static int MoveRepeatedlyAndQueryBroadphase(
+            CombatPhysicsWorld world,
+            CombatBodyId movingBodyId,
+            CombatPhysicsQuery query,
+            List<CombatQueryResult> hits,
+            int index)
+        {
+            int finalX = 8 + (index & 1);
+            hits.Clear();
+            world.SetBodyPosition(
+                movingBodyId,
+                new FixVector3(Fix64.FromInt(2), Fix64.Zero, Fix64.Zero));
+            world.SetBodyPosition(
+                movingBodyId,
+                new FixVector3(Fix64.FromInt(4), Fix64.Zero, Fix64.Zero));
+            world.SetBodyPosition(
+                movingBodyId,
+                new FixVector3(Fix64.FromInt(finalX), Fix64.Zero, Fix64.Zero));
+            world.Query(query, hits);
+            return hits.Count;
+        }
+
+        private static int MoveIsolatedBodyAcrossCellsAndQuery(
+            CombatPhysicsWorld world,
+            CombatBodyId movingBodyId,
+            List<CombatQueryResult> hits,
+            int x)
+        {
+            hits.Clear();
+            Fix64 centerX = Fix64.FromInt(x);
+            world.SetBodyPosition(movingBodyId, new FixVector3(centerX, Fix64.Zero, Fix64.Zero));
+            var query = CombatPhysicsQuery.From(new CombatAabbQuery(
+                Header(CombatQueryKind.Aabb),
+                new FixVector3(centerX - Fix64.FromInt(2), -Fix64.FromInt(2), -Fix64.FromInt(2)),
+                new FixVector3(centerX + Fix64.FromInt(2), Fix64.FromInt(2), Fix64.FromInt(2))));
+            world.Query(query, hits);
+            return hits.Count;
+        }
+
+        private static bool ResultsAreSorted(IReadOnlyList<CombatQueryResult> hits)
+        {
+            for (int i = 1; i < hits.Count; i++)
+            {
+                if (CombatQueryResultComparer.Instance.Compare(hits[i - 1], hits[i]) > 0)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static void RegisterBodyWithAabb(
+            CombatPhysicsWorld world,
+            int entity,
+            int body,
+            int collider,
+            int layer,
+            int x,
+            int halfSize = 1)
+        {
+            world.UpsertBody(new CombatPhysicsBody(
+                new CombatEntityId(entity),
+                new CombatBodyId(body),
+                new FixVector3(Fix64.FromInt(x), Fix64.Zero, Fix64.Zero)));
+            world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+                new CombatBodyId(body),
+                new CombatColliderId(collider),
+                layer,
+                new FixVector3(-Fix64.FromInt(halfSize), -Fix64.Half, -Fix64.Half),
+                new FixVector3(Fix64.FromInt(halfSize), Fix64.Half, Fix64.Half)));
+        }
+
+        private static void RegisterBodyWithAabbAt(
+            CombatPhysicsWorld world,
+            int entity,
+            int body,
+            int collider,
+            int layer,
+            Fix64 x,
+            Fix64 y,
+            Fix64 z,
+            Fix64 halfSize)
+        {
+            world.UpsertBody(new CombatPhysicsBody(
+                new CombatEntityId(entity),
+                new CombatBodyId(body),
+                new FixVector3(x, y, z)));
+            world.UpsertAabbCollider(new CombatPhysicsAabbCollider(
+                new CombatBodyId(body),
+                new CombatColliderId(collider),
+                layer,
+                new FixVector3(-halfSize, -halfSize, -halfSize),
+                new FixVector3(halfSize, halfSize, halfSize)));
+        }
+
+        private static void AssertBatchResultsEqual(
+            IReadOnlyList<CombatPhysicsQueryBatchResult> expected,
+            IReadOnlyList<CombatPhysicsQueryBatchResult> actual)
+        {
+            Assert.AreEqual(expected.Count, actual.Count);
+            for (int i = 0; i < expected.Count; i++)
+            {
+                Assert.AreEqual(expected[i].Query, actual[i].Query);
+                Assert.AreEqual(expected[i].HitCount, actual[i].HitCount);
+                AssertResultsEqual(expected[i].Hits, actual[i].Hits);
+            }
+        }
+
+        private static void AssertResultsEqual(
+            IReadOnlyList<CombatQueryResult> expected,
+            IReadOnlyList<CombatQueryResult> actual)
+        {
+            Assert.AreEqual(expected.Count, actual.Count);
+            for (int i = 0; i < expected.Count; i++)
+            {
+                Assert.AreEqual(expected[i], actual[i]);
+            }
+        }
+
+        private static FixVector3 UnitX => new FixVector3(Fix64.One, Fix64.Zero, Fix64.Zero);
+
+        private static CombatQueryHeader Header(
+            CombatQueryKind kind,
+            int queryId = 1,
+            int sourceOrder = 7)
+        {
+            return new CombatQueryHeader(
+                queryId,
+                kind,
+                new CombatEntityId(1),
+                traceId: 5,
+                actionId: 6,
+                sourceOrder,
+                CombatPhysicsLayerMask.FromLayer(1));
+        }
+    }
+}

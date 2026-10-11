@@ -1,0 +1,10 @@
+{
+  "name": "com.fmod.fmodstudio",
+  "displayName": "FMOD Studio Unity Integration",
+  "version": "2.3.19",
+  "unity": "6000.0",
+  "description": "Project-local FMOD Studio Unity Integration package used by WGameFramework consumers.",
+  "author": {
+    "name": "Firelight Technologies"
+  }
+}

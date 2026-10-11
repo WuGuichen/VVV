@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.VoiceInput.Unity",
+    "rootNamespace": "MxFramework.VoiceInput.Unity",
+    "references": [
+        "MxFramework.Runtime",
+        "MxFramework.VoiceInput"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

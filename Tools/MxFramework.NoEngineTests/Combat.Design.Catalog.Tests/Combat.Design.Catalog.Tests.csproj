@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/CombatDesign/CombatDesignCatalogProjection.cs" Link="CombatDesignCatalogProjection.cs" />
+    <Compile Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/CombatDesign/CombatDesignComponentCatalog.cs" Link="CombatDesignComponentCatalog.cs" />
+  </ItemGroup>
+</Project>

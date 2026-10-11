@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Character.Cloth.Magica.Unity",
+    "rootNamespace": "MxFramework.CharacterCloth.Magica.Unity",
+    "references": [
+        "MxFramework.Character.Cloth",
+        "MagicaClothV2"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "MAGICACLOTH2"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

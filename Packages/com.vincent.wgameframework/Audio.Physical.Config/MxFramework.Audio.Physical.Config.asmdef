@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Audio.Physical.Config",
+    "rootNamespace": "MxFramework.Audio.Physical.Config",
+    "references": [
+        "MxFramework.Audio",
+        "MxFramework.Audio.Physical"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

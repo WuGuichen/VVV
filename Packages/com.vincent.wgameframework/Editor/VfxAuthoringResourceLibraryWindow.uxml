@@ -1,0 +1,904 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <ui:VisualElement class="vfx-window">
+        <ui:VisualElement class="topbar">
+            <ui:Label text="✦  MxFramework / VFX 创作工作台" class="breadcrumb" />
+            <ui:VisualElement class="mode-switch">
+                <ui:Button name="library-mode" text="资源库" tooltip="浏览发布效果、配方与基础单元" class="mode-button" />
+                <ui:Button name="creative-mode" text="创作实验室" tooltip="从创作简报生成受控候选" class="mode-button" />
+            </ui:VisualElement>
+            <ui:VisualElement name="studio-mode-switch" class="studio-mode-switch topbar-studio-switch">
+                <ui:Button name="manual-studio-mode" text="手动组装" class="mode-button" />
+                <ui:Button name="source-import-studio-mode" text="+ 添加素材" class="mode-button source-import-mode-button" />
+                <ui:Button name="agent-studio-mode" text="Development Agent 创作" class="mode-button" />
+            </ui:VisualElement>
+            <ui:Button name="creative-reset" text="新建通用简报" tooltip="清空当前 Development Agent 简报" class="secondary-action topbar-creative-action" />
+            <ui:VisualElement class="top-spacer" />
+            <ui:Label name="coverage-badge" text="严格覆盖" class="badge badge--good" />
+            <ui:Label name="production-coverage-badge" text="Production 0/0" class="badge badge--production" />
+            <ui:Label name="diagnostic-badge" text="0 条诊断" class="badge" />
+            <ui:Button name="reload" text="↻ 刷新" tooltip="重新加载语义目录、报告与缩略图证据" class="toolbar-action" />
+            <ui:Button name="thumbnails" text="生成缩略图" tooltip="重新生成全部 VFX 缩略图" class="toolbar-action" />
+            <ui:Button name="showcase" text="打开展示场景" tooltip="打开 VFX Showcase 验收场景" class="toolbar-action" />
+            <ui:Button name="authoring-boundary-help" text="?" tooltip="制作边界：工作台只制作、预览并烘焙独立 VFX；技能与动作通过稳定 ResourceKey 选择和预览 VFX。" class="toolbar-action boundary-help-button" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="library-workspace" class="workspace library-workspace">
+            <ui:VisualElement class="sidebar">
+                <ui:Label text="VFX 资源库" class="section-title" />
+                <ui:Label text="语义资产与复用证据" class="section-subtitle" />
+                <uie:ToolbarSearchField name="search" class="search" />
+                <ui:Label text="筛选" class="micro-title" />
+                <ui:DropdownField name="role-filter" label="角色" class="filter" />
+                <ui:DropdownField name="theme-filter" label="主题" class="filter" />
+                <ui:DropdownField name="backend-filter" label="后端" class="filter" />
+                <ui:DropdownField name="review-filter" label="评审" class="filter" />
+                <ui:Label text="语义分组" class="micro-title groups-title" />
+                <ui:ScrollView name="category-host" class="categories" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="center-pane" class="center-pane">
+                <ui:VisualElement class="content-header">
+                    <ui:Label name="center-title" text="发布效果" class="pane-title" />
+                    <ui:Label name="center-subtitle" text="大图卡片 · 双击打开资源" class="subtle" />
+                </ui:VisualElement>
+                <ui:ListView name="effect-grid" class="effect-grid" selection-type="None" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="inspector-pane">
+                <ui:VisualElement class="preview-toolbar">
+                    <ui:Button name="play" text="▶" tooltip="播放" class="icon-button" />
+                    <ui:Button name="pause" text="Ⅱ" tooltip="暂停" class="icon-button" />
+                    <ui:Button name="stop" text="■" tooltip="停止并清空" class="icon-button" />
+                    <ui:Button name="restart" text="↻" tooltip="从头重新播放" class="icon-button" />
+                    <ui:Label name="playback-status" text="已停止" class="playback-status stopped" />
+                    <ui:Toggle name="loop" label="循环" value="true" />
+                    <ui:Slider name="speed" label="速度" low-value="0.1" high-value="2" value="1" />
+                    <ui:DropdownField name="fallback-mode" choices="原始,Graph,降级" index="0" />
+                </ui:VisualElement>
+                <ui:VisualElement name="preview-host" class="preview-host" />
+                <ui:VisualElement class="selection-header">
+                    <ui:VisualElement class="selection-copy">
+                        <ui:Label name="selection-title" text="请选择资源" class="selection-title" />
+                        <ui:Label name="selection-id" class="subtle" />
+                    </ui:VisualElement>
+                    <ui:Label name="review-status" class="review-pill" />
+                </ui:VisualElement>
+                <ui:VisualElement class="tabs">
+                    <ui:Button text="概览" class="vfx-tab" />
+                    <ui:Button text="组合" class="vfx-tab active" />
+                    <ui:Button text="参数" class="vfx-tab" />
+                    <ui:Button text="依赖" class="vfx-tab" />
+                    <ui:Button text="评审" class="vfx-tab" />
+                </ui:VisualElement>
+                <ui:ScrollView name="tab-content" mode="Vertical" horizontal-scroller-visibility="Hidden" class="tab-content" />
+                <ui:VisualElement class="actions">
+                    <ui:Button name="open-prefab" text="打开资源" />
+                    <ui:Button name="open-showcase" text="打开展示场景" />
+                    <ui:Button name="impact-analysis" text="复制影响分析" />
+                </ui:VisualElement>
+                <ui:VisualElement class="actions">
+                    <ui:Button name="save-draft" text="保存语义目录草稿" class="draft" />
+                    <ui:Button name="apply-change" text="应用语义目录变更" class="primary" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="creative-workspace" class="creative-workspace">
+            <ui:VisualElement name="manual-studio-workspace" class="manual-workspace">
+                <ui:VisualElement class="manual-draft-toolbar">
+                    <ui:VisualElement name="composition-draft-current" class="manual-draft-current" tooltip="点击打开草稿浏览器">
+                        <ui:VisualElement class="manual-draft-current-copy">
+                            <ui:Label name="composition-draft-current-name" text="尚未选择草稿" class="manual-draft-current-name" />
+                            <ui:Label name="composition-draft-current-id" text="创建或打开一个 Composition Draft" class="manual-draft-current-id" />
+                            <ui:Label name="composition-draft-current-meta" text="" class="manual-draft-current-meta" />
+                        </ui:VisualElement>
+                        <ui:Label text="⌄" class="manual-draft-current-chevron" />
+                    </ui:VisualElement>
+                    <ui:Button name="composition-draft-browser-open" text="切换草稿" tooltip="搜索并切换项目内的 VFX 草稿" class="draft-browser-open" />
+                    <ui:Button name="composition-new" text="新建" tooltip="创建空白 Composition Draft" />
+                    <ui:Button name="composition-import-source-prefab" text="+ 添加素材" tooltip="从已索引的 Piloto Prefab 添加草稿本地 Compound Element" class="add-material-button" />
+                    <ui:Button name="composition-open" text="打开" tooltip="从 Compositions 目录选择 JSON 草稿" />
+                    <ui:Button name="composition-save" text="保存草稿" class="draft" />
+                    <ui:Button name="composition-delete" text="删除草稿" tooltip="删除当前 Composition Draft 与本机恢复日志；不会删除 Candidate、Prefab 或已发布资源" class="destructive" />
+                    <ui:Button name="composition-remap" text="重映射…" tooltip="检查 Source/Profile stale，并只应用稳定 ID 可证明的映射" />
+                    <ui:VisualElement class="manual-draft-toolbar-spacer" />
+                    <ui:VisualElement class="composition-state-strip">
+                        <ui:Label name="composition-draft-save-state" text="草稿 尚未保存" class="composition-state-badge state-neutral" />
+                        <ui:Label name="composition-prefab-sync-state" text="Prefab 未导出" class="composition-state-badge state-neutral" />
+                        <ui:Label name="composition-publication-state" text="未发布" class="composition-state-badge state-neutral" />
+                    </ui:VisualElement>
+                    <ui:Label name="composition-save-status" text="尚未保存" class="composition-save-status" />
+                </ui:VisualElement>
+                <ui:VisualElement class="manual-body">
+                    <ui:VisualElement class="manual-palette creative-panel">
+                        <ui:VisualElement class="panel-heading-row">
+                            <ui:VisualElement class="panel-heading-copy">
+                                <ui:Label text="原材料 Element" class="panel-title" />
+                                <ui:Label name="element-summary" text="等待加载精选目录" class="panel-subtitle" />
+                            </ui:VisualElement>
+                            <ui:Label name="element-visible-count" text="0 项" class="count-pill" />
+                        </ui:VisualElement>
+                        <uie:ToolbarSearchField name="element-search" class="search element-search" />
+                        <ui:DropdownField name="element-source-filter" label="来源" class="source-filter" />
+                        <ui:VisualElement class="element-filter-grid">
+                            <ui:VisualElement class="element-filter-row">
+                                <ui:DropdownField name="element-role-filter" label="职责" class="compact-filter" />
+                                <ui:DropdownField name="element-theme-filter" label="主题" class="compact-filter" />
+                                <ui:DropdownField name="element-family-filter" label="家族" class="compact-filter" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="element-filter-row">
+                                <ui:DropdownField name="element-anchor-filter" label="Anchor" class="compact-filter" />
+                                <ui:DropdownField name="element-quality-filter" label="质量档" class="compact-filter" />
+                                <ui:DropdownField name="element-package-filter" label="Package" class="compact-filter" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="element-filter-row">
+                                <ui:DropdownField name="element-shape-filter" label="形态" class="compact-filter" />
+                                <ui:DropdownField name="element-lifecycle-filter" label="时序" class="compact-filter" />
+                                <ui:DropdownField name="element-extraction-filter" label="提取" class="compact-filter" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                        <ui:Foldout text="更多分类" value="false" class="element-taxonomy-foldout">
+                            <ui:VisualElement class="element-filter-row">
+                                <ui:DropdownField name="element-use-case-filter" label="用途" class="compact-filter" />
+                                <ui:DropdownField name="element-motion-filter" label="运动" class="compact-filter" />
+                                <ui:DropdownField name="element-timing-filter" label="节奏" class="compact-filter" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="element-filter-row">
+                                <ui:DropdownField name="element-space-filter" label="模拟空间" class="compact-filter" />
+                                <ui:DropdownField name="element-renderer-filter" label="渲染" class="compact-filter" />
+                                <ui:DropdownField name="element-budget-filter" label="预算" class="compact-filter" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="element-filter-row">
+                                <ui:DropdownField name="element-granularity-filter" label="粒度" class="compact-filter" />
+                            </ui:VisualElement>
+                        </ui:Foldout>
+                        <ui:VisualElement name="element-index-unavailable" class="element-index-unavailable">
+                            <ui:Label name="element-index-unavailable-status" text="版本化 Element 仍可浏览；深度操作需要 Source Index。" class="element-index-unavailable-status" />
+                            <ui:Button name="element-index-rebuild" text="重建 Source Index" class="primary" />
+                        </ui:VisualElement>
+                        <ui:ListView name="element-list" class="element-list element-card-grid" selection-type="None" />
+                        <ui:Label name="element-detail" text="请选择 Element" class="element-detail" />
+                        <ui:Foldout name="element-semantic-editor" text="编辑组件信息（职责 / 主题 / 挂点）" tooltip="展开后可修正自动识别的组件语义；不会修改 Piloto 源资源" value="false" class="element-semantic-editor">
+                            <ui:DropdownField name="element-semantic-member" label="成员组件" class="semantic-field" />
+                            <ui:TextField name="element-semantic-name" label="卡片展示名" tooltip="直接控制素材卡片和 Layer Stack 中显示的中文名称" class="semantic-field" />
+                            <ui:TextField name="element-semantic-member-name" label="成员名称" tooltip="组件策展名称；不会重命名 Piloto 源 GameObject" class="semantic-field" />
+                            <ui:VisualElement class="semantic-field-row">
+                                <ui:DropdownField name="element-semantic-role-primary" label="主要职责" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-role-secondary" label="辅助职责" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-role-tertiary" label="细节职责" class="semantic-field semantic-third" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="semantic-field-row">
+                                <ui:DropdownField name="element-semantic-theme" label="主题" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-family" label="效果家族" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-shape" label="形态" class="semantic-field semantic-third" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="semantic-field-row">
+                                <ui:DropdownField name="element-semantic-use-case-primary" label="主要用途" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-use-case-secondary" label="辅助用途" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-anchor" label="挂点" class="semantic-field semantic-third" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="semantic-field-row">
+                                <ui:DropdownField name="element-semantic-timing" label="节奏阶段" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-motion" label="运动方式" class="semantic-field semantic-third" />
+                                <ui:DropdownField name="element-semantic-quality" label="质量档" class="semantic-field semantic-third" />
+                            </ui:VisualElement>
+                            <ui:Label name="element-semantic-technical" text="技术事实" class="semantic-technical" />
+                            <ui:VisualElement class="semantic-toggle-row">
+                                <ui:Toggle name="element-semantic-preferred" label="设为首选代表" />
+                                <ui:Toggle name="element-semantic-deprecated" label="弃用此组件" />
+                            </ui:VisualElement>
+                            <ui:TextField name="element-semantic-note" label="策展备注" multiline="true" class="semantic-field semantic-note" />
+                            <ui:Label name="element-semantic-status" text="选择 Element 后可修正自动识别结果。" class="semantic-status" />
+                            <ui:VisualElement class="semantic-action-row">
+                                <ui:Button name="element-semantic-reset" text="恢复自动识别" tooltip="清空语义覆盖，但保留已有 Primitive 映射" />
+                                <ui:Button name="element-semantic-save" text="保存并刷新" class="primary" />
+                            </ui:VisualElement>
+                        </ui:Foldout>
+                        <ui:Button name="element-show-equivalents" text="显示等价来源" tooltip="查看被技术指纹折叠的其他 Piloto 源组件" />
+                        <ui:Foldout text="原材料管理" value="false" class="source-admin">
+                            <ui:Button name="element-rescan" text="重建全量 Source Index" />
+                            <ui:Button name="element-curate" text="重建精选与完整去重索引" />
+                            <ui:Button name="element-generate-previews" text="生成固定种子多时间点预览" />
+                            <ui:Button name="element-generate-samples" text="生成通用示例草稿" />
+                        </ui:Foldout>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="manual-preview-pane creative-panel">
+                        <ui:VisualElement class="composition-toolbar">
+                            <ui:VisualElement class="panel-heading-copy preview-heading">
+                                <ui:Label text="隔离组合预览" class="panel-title" />
+                                <ui:Label text="seed 17 · 源资产只读" class="panel-subtitle" />
+                            </ui:VisualElement>
+                            <ui:Label name="composition-playback-status" text="已停止" class="playback-status stopped" />
+                            <ui:VisualElement class="preview-toolbar-spacer" />
+                            <ui:VisualElement class="preview-environment-group">
+                                <ui:DropdownField name="composition-loop-mode" label="主体循环" class="toolbar-field environment-field loop-environment-field" />
+                                <ui:DropdownField name="composition-background" label="背景" class="toolbar-field environment-field" />
+                                <ui:DropdownField name="composition-post-processing" label="观感" tooltip="原始材质用于检查素材；游戏观感启用 URP Bloom、ACES Tonemapping、FXAA 与 Dithering" class="toolbar-field environment-field look-environment-field" />
+                                <ui:DropdownField name="composition-camera" label="镜头" class="toolbar-field environment-field" />
+                                <ui:Slider name="composition-speed" label="速度" low-value="0.1" high-value="2" value="1" class="speed-field" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="preview-spatial-inline">
+                                <ui:Label text="空间" class="preview-inline-label" />
+                                <ui:Toggle name="composition-grid" label="网格" value="true" />
+                                <uie:Vector3Field name="composition-root-position" label="根" class="root-position-field root-position-inline" />
+                                <ui:Button name="composition-root-reset" text="归零" tooltip="将预览根节点恢复到世界原点" />
+                                <ui:Button name="composition-frame" text="适配镜头" tooltip="将全部可见层居中到相机" />
+                                <ui:VisualElement class="legacy-camera-preset-bindings">
+                                    <ui:Button name="composition-camera-perspective" text="透视" />
+                                    <ui:Button name="composition-camera-top" text="俯视" />
+                                    <ui:Button name="composition-camera-front" text="正面" />
+                                    <ui:Button name="composition-camera-side" text="侧面" />
+                                </ui:VisualElement>
+                            </ui:VisualElement>
+                            <ui:Button name="composition-reset-layout" text="还原布局" tooltip="恢复预览、Layer Stack 和折叠面板的默认布局" class="preview-layout-button" />
+                            <ui:Button name="composition-maximize-preview" text="最大化预览" tooltip="隐藏素材库、Inspector 和 Layer Stack，仅保留中央预览" class="preview-layout-button primary" />
+                        </ui:VisualElement>
+                        <ui:DropdownField name="composition-stage" label="生命周期阶段" style="display: none;" />
+                        <ui:VisualElement class="composition-control-row">
+                        <ui:VisualElement name="composition-phase-summary-strip" class="phase-summary-strip">
+                            <ui:Label text="生命周期" class="phase-summary-title" />
+                            <ui:Button name="composition-phase-summary-all" text="完整预览" tooltip="按 Build → Loop → Complete 的完整生命周期预览" class="phase-summary-item phase-summary-all" />
+                            <ui:Button name="composition-phase-summary-build" text="构建 · 自动 0 帧" tooltip="Build：实例首次出现" class="phase-summary-item phase-summary-build" />
+                            <ui:Button name="composition-phase-summary-rebuild" text="重建 · 自动 0 帧" tooltip="Rebuild：已有实例重新激活" class="phase-summary-item phase-summary-rebuild" />
+                            <ui:Button name="composition-phase-summary-loop" text="循环 · 自动 1 帧" tooltip="Loop：效果主体播放段" class="phase-summary-item phase-summary-loop" />
+                            <ui:Button name="composition-phase-summary-complete" text="完成 · 自动 0 帧" tooltip="Complete：自然完成退出" class="phase-summary-item phase-summary-complete" />
+                            <ui:Button name="composition-phase-summary-dissipate" text="消散 · 自动 0 帧" tooltip="Dissipate：主动消散退出" class="phase-summary-item phase-summary-dissipate" />
+                            <ui:VisualElement name="composition-phase-duration-editor" class="phase-duration-editor" style="display: none;">
+                                <ui:Label name="composition-phase-duration-name" text="构建长度" class="phase-duration-label" />
+                                <uie:IntegerField name="composition-phase-duration-frames" value="1" class="phase-duration-field" />
+                                <ui:Label text="帧" class="phase-duration-unit" />
+                                <ui:Button name="composition-phase-duration-auto" text="自动" tooltip="恢复为按当前阶段所有启用 Layer 的最晚结束帧自动计算" class="phase-duration-auto" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                        <ui:VisualElement class="composition-transport">
+                            <ui:VisualElement class="transport-group lifecycle-action-group">
+                                <ui:Label text="生命周期动作" class="transport-group-title" />
+                                <ui:Button name="composition-play-first" text="首次进入" tooltip="Build → Loop" class="transport-action build-action" />
+                                <ui:Button name="composition-trigger-rebuild" text="重新激活" tooltip="Rebuild → Loop" class="transport-action rebuild-action" />
+                                <ui:Button name="composition-stop-complete" text="自然完成" tooltip="停止 Loop 并播放 Complete" class="transport-action complete-action" />
+                                <ui:Button name="composition-stop-dissipate" text="主动消散" tooltip="停止 Loop 并播放 Dissipate" class="transport-action dissipate-action" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="transport-divider" />
+                            <ui:VisualElement class="transport-group playback-control-group">
+                                <ui:Label text="播放" class="transport-group-title" />
+                                <ui:Button name="composition-play" text="▶" tooltip="继续播放" class="icon-button" />
+                                <ui:Button name="composition-pause" text="Ⅱ" tooltip="暂停在当前帧" class="icon-button" />
+                                <ui:Button name="composition-stop" text="■" tooltip="停止并清空预览" class="icon-button playback-active" />
+                                <ui:Button name="composition-restart" text="↻" tooltip="当前模式从头重播" class="icon-button" />
+                            </ui:VisualElement>
+                            <ui:Toggle name="composition-live-refresh" label="实时" value="true" tooltip="关闭后暂停 VFX 仿真、角色动画采样和持续重绘，并保留当前帧" class="transport-toggle" />
+                            <ui:Toggle name="composition-loop" label="循环" value="true" class="transport-toggle" />
+                            <ui:VisualElement class="transport-spacer" />
+                            <ui:VisualElement class="transport-group comparison-control-group">
+                                <ui:Toggle name="composition-ab" label="A/B 对比" value="false" />
+                                <ui:Button name="composition-set-a" text="记录 A" tooltip="保存当前草稿快照为 A 对比基线" />
+                            </ui:VisualElement>
+                            <ui:Button name="character-preview-context-toggle" text="角色挂载：关闭" tooltip="打开角色挂载预览配置；角色只用于预览，不进入 Candidate Prefab" class="character-preview-context-toggle" />
+                        </ui:VisualElement>
+                        </ui:VisualElement>
+                        <ui:VisualElement name="character-preview-context" class="character-preview-context">
+                            <ui:VisualElement class="character-preview-target-row">
+                                <ui:DropdownField name="character-preview-edit-target" label="编辑目标" class="character-preview-field" />
+                                <ui:Label name="character-preview-active-phase" text="当前生效：Build" class="character-preview-phase-badge" />
+                                <ui:Label name="character-preview-override-summary" text="继承共享默认" class="character-preview-override-summary" />
+                                <ui:Button name="character-preview-reset-phase" text="恢复本阶段默认" tooltip="删除当前阶段的全部角色预览覆盖，重新继承共享默认值" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="character-preview-row character-preview-primary">
+                                <ui:DropdownField name="character-preview-mode" label="预览模式" class="character-preview-field" />
+                                <ui:DropdownField name="character-preview-character" label="角色" class="character-preview-field character-preview-wide" />
+                                <ui:DropdownField name="character-preview-pose" label="快速姿势" class="character-preview-field" />
+                                <ui:DropdownField name="character-preview-animation" label="具体动画" class="character-preview-field character-preview-wide" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="character-preview-row character-preview-secondary">
+                                <ui:DropdownField name="character-preview-socket" label="挂载 Socket" class="character-preview-field character-preview-wide" />
+                                <ui:Toggle name="character-preview-animation-loop" label="动画循环" value="true" />
+                                <ui:Slider name="character-preview-animation-speed" label="动画速度" low-value="0.1" high-value="2" value="1" class="character-preview-speed" />
+                                <ui:Button name="character-preview-restart" text="重播角色与 VFX" tooltip="角色动画与 VFX 一起从第 0 帧重新播放" />
+                                <ui:Toggle name="character-preview-visible" label="显示角色" value="true" />
+                                <ui:Toggle name="character-preview-socket-axes" label="Socket 坐标轴" value="true" />
+                            </ui:VisualElement>
+                            <ui:Label name="character-preview-status" text="纯 VFX 模式 · 角色上下文不会进入 Candidate Prefab" class="character-preview-status" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="composition-preview-host" class="composition-preview-host">
+                            <ui:VisualElement name="composition-preview-empty" class="preview-empty-state">
+                                <ui:Label text="✦" class="preview-empty-icon" />
+                                <ui:Label text="从左侧双击或拖入 Element" class="preview-empty-title" />
+                                <ui:Label text="单击小窗 · S 添加/移除试放 · A 切换合成 · 双击加入" class="preview-empty-copy" />
+                            </ui:VisualElement>
+                            <ui:VisualElement name="composition-temporary-element" class="temporary-element-banner">
+                                <ui:Label text="临时试放" class="temporary-element-kicker" />
+                                <ui:Label name="composition-temporary-element-name" text="尚未选择组件" class="temporary-element-name" />
+                                <ui:Label name="composition-temporary-element-mode" text="与 Layer Stack 一起 · A 切换" class="temporary-element-mode" />
+                                <ui:Label text="未写入草稿" class="temporary-element-safe" />
+                                <ui:Button name="composition-temporary-element-restart" text="重播" tooltip="只重新播放临时组件" />
+                                <ui:Button name="composition-temporary-element-clear" text="移除" tooltip="从当前预览移除临时组件，不修改 Layer Stack" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                        <ui:VisualElement name="composition-layer-splitter" class="composition-layer-splitter">
+                            <ui:VisualElement class="composition-layer-splitter-handle" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="composition-layer-region" class="composition-layer-region">
+                        <ui:VisualElement class="composition-timeline-row">
+                            <ui:Label name="composition-current-time" text="第 0 / 240 帧" class="time-readout" />
+                            <ui:Slider name="composition-time" low-value="0" high-value="1" value="0" class="composition-timeline" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="timeline-ruler">
+                            <ui:Label name="timeline-tick-0" text="0" /><ui:Label name="timeline-tick-1" text="60" /><ui:Label name="timeline-tick-2" text="120" /><ui:Label name="timeline-tick-3" text="180" /><ui:Label name="timeline-tick-4" text="240" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="layer-toolbar">
+                            <ui:Label text="Layer Stack" class="panel-title" />
+                            <ui:Label name="composition-layer-count" text="0 层" class="count-pill" />
+                            <ui:Label name="layer-current-frame" text="F 000 / 240" tooltip="当前预览帧 / 时间轴总帧数（60 FPS）" class="current-frame-pill" />
+                            <ui:VisualElement class="transport-spacer" />
+                            <ui:Button name="composition-ab-action" text="A/B 对比" class="layer-primary-action" />
+                            <ui:Button name="composition-bake" text="烘焙并发布" tooltip="保存草稿，原位更新稳定 Prefab，并把唯一 Resource Key 发布到资源目录；发布后状态为待验收" class="primary layer-primary-action" />
+                            <ui:Button name="composition-bake-production" text="烘焙为正式资源" tooltip="保存并烘焙当前草稿，明确确认后直接发布为 Production + Ready" class="layer-primary-action" />
+                            <ui:VisualElement class="layer-toolbar-divider" />
+                            <ui:Button name="layer-up" text="↑" tooltip="上移" />
+                            <ui:Button name="layer-down" text="↓" tooltip="下移" />
+                            <ui:Button name="layer-copy" text="复制" tooltip="复制当前 Layer（Ctrl+C），不会立即生成副本" />
+                            <ui:Button name="layer-paste" text="粘贴" tooltip="粘贴到当前草稿和生命周期阶段（Ctrl+V）" />
+                            <ui:Button name="layer-remove" text="删除" />
+                            <ui:Button name="layer-solo" text="Solo" />
+                            <ui:Button name="layer-frame-timeline" text="适配" tooltip="根据当前 Layer 自动适配时间轴" />
+                            <ui:Button name="layer-undo" text="撤销" />
+                            <ui:Button name="layer-redo" text="重做" />
+                            <ui:Button name="composition-collapse-layers" text="收起" tooltip="收起或展开 Layer Stack" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="layer-table-header">
+                            <ui:Label text="操作" class="layer-col-controls" />
+                            <ui:Label text="预览" class="layer-col-preview" />
+                            <ui:Label text="Layer" class="layer-col-name" />
+                            <ui:Label text="职责" class="layer-col-role" />
+                            <ui:Label text="时间轴（帧 @ 60 FPS）· 拖动移动 / 右端缩放" class="layer-col-timeline" />
+                            <ui:Label text="帧范围" class="layer-col-range" />
+                            <ui:Label text="预算" class="layer-col-number" />
+                            <ui:Label text="状态" class="layer-col-status" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="layer-list-host">
+                            <ui:ListView name="composition-layer-list" class="composition-layer-list" selection-type="Single" />
+                            <ui:Label name="layer-stack-empty" text="Layer Stack 为空 · 从左侧拖入或双击 Element" class="layer-empty-state" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="composition-budget-row">
+                            <ui:Label name="composition-budget-label" text="总预算 0 / 200" />
+                            <ui:ProgressBar name="composition-budget" low-value="0" high-value="200" value="0" class="composition-budget" />
+                        </ui:VisualElement>
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="manual-inspector creative-panel">
+                        <ui:VisualElement class="inspector-tabs">
+                            <ui:Button name="composition-tab" text="组合" class="inspector-tab active" />
+                            <ui:Button name="layer-inspector-tab" text="Layer Inspector" class="inspector-tab" />
+                        </ui:VisualElement>
+                        <ui:ScrollView name="composition-overview" class="manual-inspector-scroll">
+                            <ui:Label text="组合摘要" class="inspector-section-title" />
+                            <ui:VisualElement class="summary-card">
+                                <ui:Label name="composition-summary-name" text="未命名 VFX 组合" class="summary-title" />
+                                <ui:VisualElement class="summary-row"><ui:Label text="生命周期" /><ui:Label name="composition-summary-lifecycle" text="—" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="预算（估计）" /><ui:Label name="composition-summary-budget" text="0 / 200" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="诊断" /><ui:Label name="composition-summary-diagnostics" text="0 个问题" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="来源" /><ui:Label text="手动组装 · Piloto 源资产只读" /></ui:VisualElement>
+                            </ui:VisualElement>
+                            <ui:TextField name="composition-name" label="名称" class="studio-field" />
+                            <ui:TextField name="composition-brief" label="创作简报" multiline="true" class="studio-field inspector-brief" />
+                            <ui:Foldout text="高级信息" value="false" class="inspector-foldout">
+                                <ui:Label text="Draft ID 由系统自动生成，创建后不可修改。" class="phase-summary-hint" />
+                                <ui:TextField name="composition-draft-id" label="唯一 ID" class="studio-field" />
+                                <ui:Button name="composition-copy-draft-id" text="复制 Draft ID" class="draft-id-copy-button" />
+                            </ui:Foldout>
+                            <ui:Foldout text="五阶段总长度（只读总览）" value="true" class="inspector-foldout">
+                                <ui:VisualElement class="summary-row"><ui:Label text="Build" /><ui:Label name="phase-build-summary" text="自动 · 0 帧" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="Rebuild" /><ui:Label name="phase-rebuild-summary" text="自动 · 0 帧" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="Loop" /><ui:Label name="phase-loop-summary" text="自动 · 1 帧" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="Complete" /><ui:Label name="phase-complete-summary" text="自动 · 0 帧" /></ui:VisualElement>
+                                <ui:VisualElement class="summary-row"><ui:Label text="Dissipate" /><ui:Label name="phase-dissipate-summary" text="自动 · 0 帧" /></ui:VisualElement>
+                                <ui:Label text="在预览顶部选择具体阶段后可直接编辑总帧数。" class="phase-summary-hint" />
+                            </ui:Foldout>
+                        </ui:ScrollView>
+                        <ui:ScrollView name="layer-inspector" mode="Vertical" horizontal-scroller-visibility="Hidden" class="manual-inspector-scroll">
+                            <ui:Label name="layer-selected-title" text="请选择一个 Layer" class="inspector-section-title" />
+                            <ui:VisualElement class="layer-identity-row">
+                                <ui:DropdownField name="layer-stage" label="生命周期阶段" class="studio-field" />
+                                <ui:TextField name="layer-group" label="分组" class="studio-field" />
+                            </ui:VisualElement>
+                            <ui:Toggle name="layer-enabled" label="启用此 Layer" value="true" class="studio-toggle" />
+                            <ui:Foldout text="变换" value="true" class="inspector-foldout">
+                                <uie:Vector3Field name="layer-position" label="位置" class="studio-field" />
+                                <uie:Vector3Field name="layer-rotation" label="旋转" class="studio-field" />
+                                <uie:Vector3Field name="layer-scale" label="缩放" class="studio-field" />
+                            </ui:Foldout>
+                            <ui:VisualElement class="semantic-inspector-tabs">
+                                <ui:Button name="semantic-tab" text="语义" class="semantic-inspector-tab active" />
+                                <ui:Button name="semantic-members-tab" text="成员" class="semantic-inspector-tab" />
+                                <ui:Button name="semantic-raw-tab" text="原始" class="semantic-inspector-tab" />
+                                <ui:Button name="semantic-diff-tab" text="差异" class="semantic-inspector-tab" />
+                            </ui:VisualElement>
+
+                            <ui:VisualElement name="semantic-panel" class="semantic-inspector-page">
+                                <ui:VisualElement class="semantic-edit-scope">
+                                    <ui:DropdownField name="semantic-edit-scope" label="属性编辑目标" class="studio-field" />
+                                    <ui:Label name="semantic-edit-scope-summary" text="Layer 主控：所有跟随成员继承这里的属性值。" class="semantic-contract-note" />
+                                </ui:VisualElement>
+                                <ui:Foldout text="时间与节奏" value="true" class="inspector-foldout semantic-group timing">
+                                    <ui:DropdownField name="semantic-retime-mode" label="重定时方式" class="studio-field" />
+                                    <uie:IntegerField name="semantic-start-frame" label="Layer 起始帧" class="studio-field" />
+                                    <ui:DropdownField name="semantic-visual-start-mode" label="视觉起点" class="studio-field" />
+                                    <uie:IntegerField name="semantic-manual-lead-in" label="手动前导（帧）" class="studio-field" />
+                                    <ui:Label name="semantic-visual-start-summary" text="源前导空白：待分析" class="semantic-contract-note" />
+                                    <ui:SliderInt name="semantic-target-frames" label="目标艺术长度" low-value="1" high-value="600" value="1" class="studio-field semantic-timing-slider" />
+                                    <ui:Label name="semantic-target-frames-error" class="semantic-field-error" />
+                                    <ui:Label name="semantic-playback-source-length" text="源内容长度：待分析" class="semantic-contract-note" />
+                                    <ui:DropdownField name="semantic-window-end-policy" label="窗口结束策略" class="studio-field" />
+                                    <ui:SliderInt name="semantic-dissipate-frames" label="消散预留" low-value="0" high-value="120" value="0" class="studio-field semantic-timing-slider" />
+                                    <ui:Slider name="semantic-material-time-scale" label="材质局部时间" low-value="0.25" high-value="4" value="1" class="studio-field" tooltip="仅对已确认 Shader Profile 的局部时间绑定生效；1 表示保持 Profile 编译结果。" />
+                                    <ui:VisualElement name="semantic-segment-grid" class="semantic-segment-grid">
+                                        <ui:ProgressBar name="semantic-preroll-frames" title="Pre-roll · 0 帧" low-value="0" high-value="600" class="semantic-derived-timing" />
+                                        <ui:ProgressBar name="semantic-entry-frames" title="淡入 · 0 帧" low-value="0" high-value="600" class="semantic-derived-timing" />
+                                        <ui:ProgressBar name="semantic-body-frames" title="主体 · 1 帧" low-value="0" high-value="600" value="1" class="semantic-derived-timing" />
+                                        <ui:SliderInt name="semantic-minimum-body-frames" label="最短主体" low-value="1" high-value="600" value="1" class="studio-field semantic-timing-slider" tooltip="创作者定义的主体压缩下限；源 Prefab 时长只用于建议，不再强制成为下限。" />
+                                        <ui:ProgressBar name="semantic-exit-frames" title="淡出 · 0 帧" low-value="0" high-value="600" class="semantic-derived-timing" />
+                                        <ui:ProgressBar name="semantic-cleanup-frames" title="清理 · 0 帧" low-value="0" high-value="600" class="semantic-derived-timing" />
+                                        <ui:ProgressBar name="semantic-cycle-frames" title="周期 · 0 帧" low-value="0" high-value="600" class="semantic-derived-timing" />
+                                    </ui:VisualElement>
+                                    <ui:Label name="semantic-minimum-length" text="最短艺术长度：1 帧" class="semantic-contract-note" />
+                                    <ui:VisualElement name="semantic-time-segment-bar" class="semantic-time-segment-bar">
+                                        <ui:VisualElement name="semantic-segment-preroll" class="semantic-time-segment preroll" />
+                                        <ui:VisualElement name="semantic-segment-entry" class="semantic-time-segment entry" />
+                                        <ui:VisualElement name="semantic-segment-body" class="semantic-time-segment body" />
+                                        <ui:VisualElement name="semantic-segment-exit" class="semantic-time-segment exit" />
+                                        <ui:VisualElement name="semantic-segment-cleanup" class="semantic-time-segment cleanup" />
+                                    </ui:VisualElement>
+                                </ui:Foldout>
+                                <ui:Foldout text="曲线轨道" value="true" class="inspector-foldout semantic-group">
+                                    <ui:DropdownField name="semantic-curve-property" label="属性" class="studio-field" />
+                                    <ui:Label name="semantic-curve-domain" text="Opacity · Particle Lifetime 0–100%" class="semantic-contract-note" />
+                                    <ui:VisualElement class="semantic-curve-command-row">
+                                        <ui:DropdownField name="semantic-curve-operation" label="运算" class="studio-field semantic-curve-operation" />
+                                        <ui:Button name="semantic-curve-reset" text="恢复" tooltip="移除此属性的曲线覆盖，恢复源曲线" />
+                                    </ui:VisualElement>
+                                    <uie:CurveField name="semantic-curve-editor" label="修改层" class="studio-field semantic-curve-editor" />
+                                    <ui:Foldout name="semantic-minmax-editor" text="完整 MinMaxCurve 模式" value="false" class="semantic-minmax-editor">
+                                        <ui:Label text="仅在需要精确替换 Unity 原模式时使用；默认曲线层仍是非破坏编辑。" class="semantic-contract-note" />
+                                        <ui:DropdownField name="semantic-minmax-mode" label="模式" class="studio-field" />
+                                        <uie:FloatField name="semantic-minmax-multiplier" label="Curve Multiplier" value="1" class="studio-field" />
+                                        <ui:VisualElement name="semantic-minmax-constants" class="semantic-field-row">
+                                            <uie:FloatField name="semantic-minmax-constant-min" label="Min" class="studio-field semantic-half" />
+                                            <uie:FloatField name="semantic-minmax-constant-max" label="Max" class="studio-field semantic-half" />
+                                        </ui:VisualElement>
+                                        <uie:CurveField name="semantic-minmax-curve-min" label="Min Curve" class="semantic-curve-editor" />
+                                        <uie:CurveField name="semantic-minmax-curve-max" label="Max / Curve" class="semantic-curve-editor" />
+                                        <ui:VisualElement class="semantic-inline-actions">
+                                            <ui:Button name="semantic-minmax-use-source" text="载入源模式" />
+                                            <ui:Button name="semantic-minmax-apply" text="精确替换" class="primary" />
+                                            <ui:Button name="semantic-minmax-clear" text="退出精确替换" />
+                                        </ui:VisualElement>
+                                    </ui:Foldout>
+                                    <ui:VisualElement name="semantic-curve-track" class="semantic-curve-track" />
+                                    <ui:VisualElement class="semantic-curve-legend">
+                                        <ui:Label text="— 源曲线" class="curve-source" />
+                                        <ui:Label text="— 修改层" class="curve-semantic" />
+                                        <ui:Label text="— 最终曲线" class="curve-final" />
+                                    </ui:VisualElement>
+                                </ui:Foldout>
+                                <ui:Foldout text="外观" value="true" class="inspector-foldout semantic-group appearance">
+                                    <ui:Slider name="semantic-opacity" label="整体可见度" low-value="0" high-value="1" value="1" class="studio-field" />
+                                    <uie:ColorField name="semantic-primary-color" label="主色" value="#FFFFFFFF" hdr="true" class="studio-field" />
+                                    <uie:ColorField name="semantic-secondary-color" label="辅色" value="#FFFFFFFF" hdr="true" class="studio-field" />
+                                    <uie:ColorField name="semantic-detail-color" label="细节色" value="#FFFFFFFF" hdr="true" class="studio-field" />
+                                    <uie:ColorField name="semantic-emission-color" label="发光颜色" value="#FFFFFFFF" hdr="true" class="studio-field" />
+                                    <ui:Slider name="semantic-emission-ev" label="发光强度 EV" low-value="-4" high-value="4" value="0" class="studio-field" />
+                                    <ui:Foldout name="semantic-gradient-editor" text="粒子生命周期 Gradient（精确模式）" value="false" class="semantic-minmax-editor">
+                                        <ui:Label text="保留 Color / Two Colors / Gradient / Two Gradients / Random Color 原模式和 Alpha Keys。" class="semantic-contract-note" />
+                                        <ui:DropdownField name="semantic-gradient-mode" label="模式" class="studio-field" />
+                                        <ui:VisualElement name="semantic-gradient-colors" class="semantic-field-row">
+                                            <uie:ColorField name="semantic-gradient-color-min" label="Min Color" value="#FFFFFFFF" hdr="true" class="studio-field semantic-half" />
+                                            <uie:ColorField name="semantic-gradient-color-max" label="Max / Color" value="#FFFFFFFF" hdr="true" class="studio-field semantic-half" />
+                                        </ui:VisualElement>
+                                        <uie:GradientField name="semantic-gradient-min" label="Min Gradient" class="studio-field" />
+                                        <uie:GradientField name="semantic-gradient-max" label="Max / Gradient" class="studio-field" />
+                                        <ui:VisualElement class="semantic-inline-actions">
+                                            <ui:Button name="semantic-gradient-use-source" text="载入源模式" />
+                                            <ui:Button name="semantic-gradient-apply" text="精确替换" class="primary" />
+                                            <ui:Button name="semantic-gradient-clear" text="退出精确替换" />
+                                        </ui:VisualElement>
+                                    </ui:Foldout>
+                                </ui:Foldout>
+                                <ui:Foldout text="发射" value="false" class="inspector-foldout semantic-group emission">
+                                    <ui:Slider name="semantic-emission-density" label="发射密度" low-value="0" high-value="3" value="1" class="studio-field" />
+                                    <ui:Slider name="semantic-burst-scale" label="Burst 规模" low-value="0" high-value="3" value="1" class="studio-field" />
+                                    <ui:VisualElement class="semantic-field-row">
+                                        <uie:IntegerField name="semantic-emission-window-start" label="发射起点（帧）" class="studio-field semantic-half" />
+                                        <uie:IntegerField name="semantic-emission-window-end" label="发射终点（帧）" class="studio-field semantic-half" />
+                                    </ui:VisualElement>
+                                    <uie:IntegerField name="semantic-capacity" label="容量上限（0=自动）" class="studio-field" />
+                                </ui:Foldout>
+                                <ui:Foldout text="运动" value="false" class="inspector-foldout semantic-group motion">
+                                    <ui:Slider name="semantic-motion-speed" label="运动速度" low-value="0" high-value="4" value="1" class="studio-field" />
+                                    <uie:FloatField name="semantic-travel-range" label="目标行程（米，0=保持）" class="studio-field" />
+                                    <ui:Slider name="semantic-gravity" label="世界重力" low-value="-3" high-value="3" value="1" class="studio-field" />
+                                    <uie:Vector3Field name="semantic-local-gravity" label="局部重力" class="studio-field" />
+                                    <uie:Vector3Field name="semantic-force-vector" label="世界持续受力" class="studio-field" />
+                                    <ui:Slider name="semantic-drag" label="阻尼" low-value="0" high-value="4" value="0" class="studio-field" />
+                                    <uie:Vector3Field name="semantic-rotation-speed" label="旋转速度（度/秒）" class="studio-field" />
+                                    <ui:Slider name="semantic-noise-strength" label="Noise 强度" low-value="0" high-value="4" value="1" class="studio-field" />
+                                    <ui:Slider name="semantic-noise-frequency" label="Noise 频率" low-value="0" high-value="4" value="1" class="studio-field" />
+                                </ui:Foldout>
+                                <ui:Foldout text="形态" value="false" class="inspector-foldout semantic-group shape">
+                                    <ui:Slider name="semantic-composition-scale" label="整体构图大小" low-value="0.05" high-value="4" value="1" class="studio-field" />
+                                    <ui:Slider name="semantic-particle-size" label="粒子尺寸" low-value="0.05" high-value="4" value="1" class="studio-field" />
+                                    <ui:Slider name="semantic-emitter-scale" label="发射区域" low-value="0.05" high-value="4" value="1" class="studio-field" />
+                                    <ui:Slider name="semantic-shape-radius" label="半径倍率" low-value="0" high-value="4" value="1" class="studio-field" />
+                                    <uie:FloatField name="semantic-shape-angle" label="锥角偏移（度）" class="studio-field" />
+                                    <uie:FloatField name="semantic-shape-arc" label="弧度偏移（度）" class="studio-field" />
+                                    <ui:Slider name="semantic-direction-spread" label="方向扩散增量" low-value="-1" high-value="1" value="0" class="studio-field" />
+                                </ui:Foldout>
+                                <ui:Foldout text="渲染" value="false" class="inspector-foldout semantic-group render">
+                                    <ui:DropdownField name="semantic-render-mode" label="渲染模式" class="studio-field" />
+                                    <ui:DropdownField name="semantic-render-alignment" label="对齐空间" class="studio-field" />
+                                    <ui:DropdownField name="semantic-render-sort-mode" label="粒子排序" class="studio-field" />
+                                    <uie:Vector3Field name="semantic-render-pivot" label="渲染枢轴" class="studio-field" />
+                                    <uie:FloatField name="semantic-render-min-size" label="屏幕最小尺寸" class="studio-field" />
+                                    <uie:FloatField name="semantic-render-max-size" label="屏幕最大尺寸" class="studio-field" />
+                                    <uie:ObjectField name="semantic-render-material" label="材质" class="studio-field" />
+                                    <uie:ObjectField name="semantic-render-mesh" label="Mesh" class="studio-field" />
+                                    <ui:Foldout text="Shader 贴图槽" value="false" class="inspector-foldout semantic-render-textures">
+                                        <uie:ObjectField name="semantic-texture-main" label="主贴图" class="studio-field" />
+                                        <uie:ObjectField name="semantic-texture-mask" label="遮罩贴图" class="studio-field" />
+                                        <uie:ObjectField name="semantic-texture-noise" label="噪声贴图" class="studio-field" />
+                                        <uie:ObjectField name="semantic-texture-ramp" label="渐变贴图" class="studio-field" />
+                                        <uie:ObjectField name="semantic-texture-normal" label="法线贴图" class="studio-field" />
+                                        <uie:ObjectField name="semantic-texture-flipbook" label="Flipbook 贴图" class="studio-field" />
+                                        <ui:Label name="semantic-texture-contract" text="仅已确认 Shader Profile 声明的槽位可编辑；修改会创建可追踪派生材质。" class="semantic-contract-note" />
+                                    </ui:Foldout>
+                                    <uie:IntegerField name="semantic-render-queue" label="渲染队列（0=保持）" class="studio-field" />
+                                    <ui:DropdownField name="semantic-render-cull" label="剔除模式" class="studio-field" />
+                                    <ui:Toggle name="semantic-render-zwrite" label="深度写入（Profile 支持时）" class="studio-field" />
+                                    <ui:DropdownField name="semantic-render-src-blend" label="源混合" class="studio-field" />
+                                    <ui:DropdownField name="semantic-render-dst-blend" label="目标混合" class="studio-field" />
+                                    <uie:IntegerField name="semantic-sorting-offset" label="排序偏移" class="studio-field" />
+                                    <ui:Slider name="semantic-flipbook-speed" label="Flipbook 速度" low-value="0.05" high-value="4" value="1" class="studio-field" />
+                                    <uie:IntegerField name="semantic-flipbook-cycles" label="Flipbook 周期数（0=保持）" class="studio-field" />
+                                </ui:Foldout>
+                                <ui:VisualElement class="semantic-inline-actions">
+                                    <ui:Button name="semantic-reset-source" text="恢复源值" />
+                                    <ui:Toggle name="semantic-experimental" label="Experimental" />
+                                </ui:VisualElement>
+                            </ui:VisualElement>
+
+                            <ui:VisualElement name="semantic-members-panel" class="semantic-inspector-page">
+                                <ui:Label text="复合成员参与" class="inspector-section-title" />
+                                <ui:Label name="semantic-member-summary" text="按成员设置总状态与常用语义属性。" class="semantic-contract-note semantic-member-summary" />
+                                <ui:ScrollView name="semantic-member-matrix" mode="Vertical" horizontal-scroller-visibility="Hidden" class="semantic-member-matrix" />
+                                <ui:Label text="逐属性检查" class="inspector-section-title semantic-member-detail-title" />
+                                <ui:DropdownField name="semantic-member-property" label="语义属性" class="studio-field semantic-member-property" />
+                                <ui:ListView name="semantic-member-list" class="semantic-member-list" selection-type="Single" />
+                                <ui:Label name="semantic-profile-coverage" text="Profile 覆盖：尚未解析。" class="semantic-profile-coverage" />
+                                <ui:Label name="semantic-profile-impact" text="尚未分析共享 Profile 影响。" class="semantic-contract-note" />
+                                <ui:VisualElement class="semantic-profile-actions">
+                                    <ui:Button name="semantic-copy-profile-gap" text="复制缺口报告" tooltip="复制确定性 JSON；不写 Profile，也不改变评审状态。" />
+                                    <ui:Button name="semantic-confirm-profile" text="发布为共享 Profile…" tooltip="可选：将当前自动分析的绑定发布为仓库共享规则；Candidate 烘焙不依赖此操作。" class="primary" />
+                                </ui:VisualElement>
+                                <ui:Foldout text="逐属性能力矩阵" value="false" class="semantic-capability-foldout">
+                                    <ui:Label name="semantic-property-capability-summary" text="尚未分析当前编辑目标。" class="semantic-contract-note" />
+                                    <ui:ListView name="semantic-property-capability-list" class="semantic-property-capability-list" selection-type="None" />
+                                </ui:Foldout>
+                            </ui:VisualElement>
+
+                            <ui:VisualElement name="semantic-raw-panel" class="semantic-inspector-page">
+                                <ui:Label text="Unity 原始字段（只读）" class="inspector-section-title" />
+                                <ui:Label text="保留 MinMaxCurve、Gradient、模块、Shader/Custom Data 和 Vertex Stream 的真实模式。" class="semantic-contract-note" />
+                                <ui:ListView name="semantic-raw-list" class="semantic-raw-list" selection-type="None" />
+                                <ui:TextField name="semantic-raw-json" label="选中成员快照" multiline="true" is-read-only="true" class="semantic-raw-json" />
+                            </ui:VisualElement>
+
+                            <ui:VisualElement name="semantic-diff-panel" class="semantic-inspector-page">
+                                <ui:Label text="语义 → Unity 字段审计链" class="inspector-section-title" />
+                                <ui:Label name="semantic-compile-hash" text="Compile hash：—" class="semantic-contract-note" />
+                                <ui:ListView name="semantic-diff-list" class="semantic-diff-list" selection-type="None" />
+                                <ui:Label name="semantic-compile-diagnostics" text="尚未编译。" class="creative-status" />
+                            </ui:VisualElement>
+
+                            <ui:VisualElement name="legacy-v2-layer-controls" style="display: none;">
+                                <uie:FloatField name="layer-start-offset" label="旧开始秒" />
+                                <ui:Slider name="layer-playback-speed" low-value="0.05" high-value="3" value="1" />
+                                <ui:Slider name="layer-emission" low-value="0" high-value="3" value="1" />
+                                <ui:Slider name="layer-lifetime" low-value="0.05" high-value="3" value="1" />
+                                <ui:Slider name="layer-size" low-value="0.05" high-value="3" value="1" />
+                                <uie:ColorField name="layer-tint" value="#FFFFFFFF" />
+                                <uie:IntegerField name="layer-sorting-order" />
+                            </ui:VisualElement>
+                        </ui:ScrollView>
+                        <ui:Label name="composition-diagnostics" text="尚未创建草稿" class="creative-status manual-diagnostics" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="element-quick-preview" class="element-quick-preview" focusable="true">
+                    <ui:VisualElement name="element-quick-preview-drag" class="element-quick-preview-header">
+                        <ui:VisualElement class="element-quick-preview-copy">
+                            <ui:Label name="element-quick-preview-title" text="Element 快速预览" class="element-quick-preview-title" />
+                            <ui:Label name="element-quick-preview-meta" text="独立预览 · S 试放 · A 切换合成" class="element-quick-preview-meta" />
+                        </ui:VisualElement>
+                        <ui:Label name="element-quick-preview-status" text="播放中" class="playback-status playing" />
+                        <ui:Button name="element-quick-preview-close" text="×" tooltip="关闭快速预览（Esc）" class="element-quick-preview-close" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="element-quick-preview-host" class="element-quick-preview-host" />
+                    <ui:VisualElement class="element-quick-preview-controls">
+                        <ui:Button name="element-quick-preview-play" text="▶" tooltip="播放（Space）" class="icon-button" />
+                        <ui:Button name="element-quick-preview-pause" text="Ⅱ" tooltip="暂停（Space）" class="icon-button" />
+                        <ui:Button name="element-quick-preview-restart" text="↻" tooltip="重新播放（R）" class="icon-button" />
+                        <ui:Button name="element-quick-preview-step" text="下一帧" tooltip="暂停并前进 1 帧（→）" />
+                        <ui:Toggle name="element-quick-preview-loop" label="循环" value="true" />
+                        <ui:Button name="element-quick-preview-frame" text="居中" tooltip="按当前可见主体重新居中并取景" />
+                        <ui:Button name="element-quick-preview-set-icon" text="截为图标" tooltip="将当前帧和当前镜头保存为项目内可提交的持久 Element 图标" class="element-quick-preview-set-icon" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="composition-draft-browser-overlay" class="draft-browser-overlay" focusable="true">
+                    <ui:VisualElement name="composition-draft-browser-panel" class="draft-browser-panel">
+                        <ui:VisualElement class="draft-browser-header">
+                            <ui:VisualElement class="draft-browser-heading-copy">
+                                <ui:Label text="VFX 草稿" class="draft-browser-title" />
+                                <ui:Label text="按最近修改排序；名称、ID、Effect 与 Brief 均可检索" class="draft-browser-subtitle" />
+                            </ui:VisualElement>
+                            <ui:Label name="composition-draft-browser-count" text="0 个草稿" class="count-pill draft-browser-count" />
+                            <ui:Button name="composition-draft-browser-close" text="×" tooltip="关闭草稿浏览器（Esc）" class="draft-browser-close" />
+                        </ui:VisualElement>
+                        <uie:ToolbarSearchField name="composition-draft-browser-search" class="draft-browser-search" />
+                        <ui:ListView name="composition-draft-browser-list" fixed-item-height="92" selection-type="Single" class="draft-browser-list" />
+                        <ui:Label name="composition-draft-browser-empty" text="没有匹配的草稿" class="draft-browser-empty" />
+                        <ui:VisualElement class="draft-browser-footer">
+                            <ui:Label text="单击草稿即可切换；当前草稿有未保存修改时会先请求确认。" class="draft-browser-footer-copy" />
+                            <ui:Button name="composition-draft-browser-import" text="从文件导入…" tooltip="从 Compositions 目录外选择 JSON 草稿" />
+                            <ui:Button name="composition-draft-browser-create" text="新建空白草稿" class="primary" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="source-prefab-import-workspace" class="source-prefab-import-workspace" focusable="true">
+                <ui:VisualElement class="source-prefab-import-context">
+                    <ui:Label text="目标草稿：" class="source-prefab-import-context-label" />
+                    <ui:Label name="source-prefab-import-draft" text="尚未选择草稿" class="source-prefab-import-draft" />
+                    <ui:Button name="source-prefab-import-back" text="← 返回手动组装" class="source-prefab-import-back" />
+                    <ui:Label name="source-prefab-import-dirty" text="已保存" class="source-prefab-import-dirty" />
+                    <ui:VisualElement class="source-prefab-import-context-spacer" />
+                    <ui:Label name="source-prefab-import-index-status" text="Source Index：未加载" class="source-prefab-import-index-status" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="source-prefab-import-body">
+                    <ui:VisualElement class="source-prefab-import-left source-prefab-import-column">
+                        <ui:Label text="选择源 Prefab" class="source-prefab-import-column-title" />
+                        <ui:VisualElement class="source-prefab-import-browser">
+                            <ui:VisualElement name="source-prefab-import-folder-panel" class="source-prefab-import-folder-panel">
+                                <ui:VisualElement class="source-prefab-import-folder-header">
+                                    <ui:Label text="实际文件夹" class="source-prefab-import-folder-title" />
+                                    <ui:Button name="source-prefab-import-folder-collapse" text="收起" tooltip="收起或展开实际文件夹目录树" class="source-prefab-import-folder-collapse" />
+                                </ui:VisualElement>
+                                <ui:VisualElement name="source-prefab-import-folder-tree-host" class="source-prefab-import-folder-tree-host" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="source-prefab-import-results">
+                                <uie:ToolbarSearchField name="source-prefab-import-search" class="source-prefab-import-search" />
+                                <ui:VisualElement class="source-prefab-import-source-tabs">
+                                    <ui:Button name="source-prefab-import-source-all" text="全部素材" class="source-prefab-import-source-tab selected" />
+                                    <ui:Button name="source-prefab-import-source-favorite" text="已收藏" class="source-prefab-import-source-tab" />
+                                    <ui:Button name="source-prefab-import-source-recent" text="最近使用" class="source-prefab-import-source-tab" />
+                                </ui:VisualElement>
+                                <ui:VisualElement class="source-prefab-import-filters">
+                                    <ui:DropdownField name="source-prefab-import-theme" label="主题" class="source-prefab-import-filter" />
+                                    <ui:DropdownField name="source-prefab-import-family" label="家族" class="source-prefab-import-filter" />
+                                </ui:VisualElement>
+                                <ui:VisualElement class="source-prefab-import-filters">
+                                    <ui:DropdownField name="source-prefab-import-role" label="职责" class="source-prefab-import-filter" />
+                                    <ui:DropdownField name="source-prefab-import-quality" label="质量档" class="source-prefab-import-filter" />
+                                </ui:VisualElement>
+                                <ui:VisualElement name="source-prefab-import-drop" class="source-prefab-import-drop">
+                                    <ui:Label text="拖入 Project 中的 Piloto Prefab" class="source-prefab-import-drop-title" />
+                                    <ui:Label text="只接受 Source Index 中已有的单个 Prefab" class="source-prefab-import-drop-note" />
+                                </ui:VisualElement>
+                                <ui:Button name="source-prefab-import-use-selection" text="使用当前选中 Prefab" class="source-prefab-import-use-selection" />
+                                <ui:ListView name="source-prefab-import-list" fixed-item-height="76" selection-type="Single" class="source-prefab-import-list" />
+                                <ui:Label name="source-prefab-import-empty" text="没有匹配的已索引 Prefab" class="source-prefab-import-empty" />
+                                <ui:Label name="source-prefab-import-count" text="显示 0 / 0 · 虚拟列表" class="source-prefab-import-count" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="source-prefab-import-center source-prefab-import-column">
+                        <ui:Label text="同步双预览" class="source-prefab-import-column-title" />
+                        <ui:VisualElement name="source-prefab-import-preview-host" class="source-prefab-import-preview-host source-prefab-import-dual-preview">
+                            <ui:VisualElement class="source-prefab-import-preview-pane">
+                                <ui:Label text="完整源效果（只读）" class="source-prefab-import-preview-label" />
+                                <ui:VisualElement name="source-prefab-import-source-preview-host" class="source-prefab-import-preview-canvas-host" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="source-prefab-import-preview-pane">
+                                <ui:VisualElement class="source-prefab-import-preview-title-row">
+                                    <ui:Label text="最终选中子集" class="source-prefab-import-preview-label" />
+                                    <ui:Toggle name="source-prefab-import-derived-solo" label="Solo 当前成员" tooltip="仅在右侧临时预览当前树节点；SubEmitter 会保留完整依赖组，不改变最终选中集合或保存内容" class="source-prefab-import-derived-solo" />
+                                </ui:VisualElement>
+                                <ui:VisualElement name="source-prefab-import-derived-preview-host" class="source-prefab-import-preview-canvas-host">
+                                    <ui:Label name="source-prefab-import-derived-empty" text="尚未选择成员" class="source-prefab-import-preview-empty" />
+                                </ui:VisualElement>
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                        <ui:VisualElement class="source-prefab-import-transport">
+                            <ui:Button name="source-prefab-import-play" text="▶ 播放" tooltip="播放" />
+                            <ui:Button name="source-prefab-import-pause" text="Ⅱ 暂停" tooltip="暂停" />
+                            <ui:Button name="source-prefab-import-step" text="逐帧" tooltip="暂停并前进 1 帧" />
+                            <ui:Button name="source-prefab-import-restart" text="↻ 重播" tooltip="重新播放" />
+                            <ui:Button name="source-prefab-import-frame" text="◎ 镜头居中" />
+                            <ui:Toggle name="source-prefab-import-loop" label="循环" value="true" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="source-prefab-import-timeline-row">
+                            <ui:Label name="source-prefab-import-frame-label" text="Frame 0 / 0" class="source-prefab-import-frame-label" />
+                            <ui:Slider name="source-prefab-import-timeline" low-value="0" high-value="1" value="0" class="source-prefab-import-timeline" />
+                            <ui:DropdownField name="source-prefab-import-speed" class="source-prefab-import-speed" />
+                            <ui:DropdownField name="source-prefab-import-background" label="背景" class="source-prefab-import-background" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="source-prefab-import-motion-row">
+                            <ui:DropdownField name="source-prefab-import-motion-mode" label="运动" class="source-prefab-import-motion-mode" />
+                            <ui:Slider name="source-prefab-import-motion-direction" label="方向°" low-value="0" high-value="360" value="0" class="source-prefab-import-motion-slider" />
+                            <ui:Slider name="source-prefab-import-motion-distance" label="距离" low-value="0.5" high-value="30" value="8" class="source-prefab-import-motion-slider" />
+                            <ui:Slider name="source-prefab-import-motion-speed" label="速度" low-value="0.1" high-value="20" value="4" class="source-prefab-import-motion-slider" />
+                            <ui:Slider name="source-prefab-import-motion-height" label="高度" low-value="0" high-value="15" value="3" class="source-prefab-import-motion-slider" />
+                            <ui:DropdownField name="source-prefab-import-motion-camera" label="镜头" class="source-prefab-import-motion-camera" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="source-prefab-import-members-header">
+                            <ui:Label text="挑选 ParticleSystem 成员" class="source-prefab-import-section-title" />
+                            <ui:Label name="source-prefab-import-members-count" text="0" class="count-pill" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="source-prefab-import-member-actions">
+                            <ui:Button name="source-prefab-import-member-all" text="全选" />
+                            <ui:Button name="source-prefab-import-member-clear" text="清空" />
+                            <ui:Button name="source-prefab-import-member-branch" text="选择层级分支" tooltip="选择当前树节点及其全部后代" />
+                            <ui:Button name="source-prefab-import-member-group" text="仅选当前依赖组" tooltip="只保留当前节点所属的完整 SubEmitter 依赖组" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="source-prefab-import-member-tree-host" class="source-prefab-import-member-tree-host" />
+                    </ui:VisualElement>
+
+                    <ui:ScrollView class="source-prefab-import-right source-prefab-import-column" mode="Vertical" horizontal-scroller-visibility="Hidden">
+                        <ui:Label text="校验与导入" class="source-prefab-import-column-title" />
+                        <ui:VisualElement class="source-prefab-import-selection-header">
+                            <ui:VisualElement name="source-prefab-import-selection-icon" class="source-prefab-import-selection-icon" />
+                            <ui:VisualElement class="source-prefab-import-heading-copy">
+                                <ui:Label name="source-prefab-import-name" text="选择一个 Prefab" class="source-prefab-import-selection-name" />
+                                <ui:Label name="source-prefab-import-path" text="等待选择" class="source-prefab-import-path" />
+                            </ui:VisualElement>
+                            <ui:Button name="source-prefab-import-favorite" text="☆" tooltip="收藏源 Prefab" class="source-prefab-import-favorite" />
+                        </ui:VisualElement>
+                        <ui:Label name="source-prefab-import-meta" text="成员 — · 预估 — 帧" class="source-prefab-import-meta" />
+                        <ui:VisualElement class="source-prefab-import-validation">
+                            <ui:Label name="source-prefab-import-validation-index" text="○ Source Index 身份" class="source-prefab-import-validation-item" />
+                            <ui:Label name="source-prefab-import-validation-hash" text="○ Prefab 与依赖 Hash" class="source-prefab-import-validation-item" />
+                            <ui:Label name="source-prefab-import-validation-members" text="○ 成员身份与顺序" class="source-prefab-import-validation-item" />
+                            <ui:Label name="source-prefab-import-validation-subemitters" text="○ SubEmitter 引用" class="source-prefab-import-validation-item" />
+                        </ui:VisualElement>
+                        <ui:Label name="source-prefab-import-state" text="未分析" class="source-prefab-import-state" />
+                        <ui:Label name="source-prefab-import-diagnostics" text="请选择左侧 Prefab，或从 Project 拖入。" class="source-prefab-import-diagnostics" />
+                        <ui:VisualElement class="source-prefab-import-existing">
+                            <ui:VisualElement class="source-prefab-import-existing-heading">
+                                <ui:Label text="当前 Prefab 已有全局素材" class="source-prefab-import-existing-title" />
+                                <ui:Label name="source-prefab-import-existing-count" text="0" class="source-prefab-import-existing-count" />
+                            </ui:VisualElement>
+                            <ui:ListView name="source-prefab-import-existing-list" class="source-prefab-import-existing-list" />
+                            <ui:Label name="source-prefab-import-existing-empty" text="当前 Prefab 尚未创建全局素材" class="source-prefab-import-existing-empty" />
+                        </ui:VisualElement>
+                        <ui:Foldout text="导入后的语义" value="true" class="source-prefab-import-semantics">
+                            <ui:TextField name="source-prefab-import-display-name" label="卡片展示名" max-length="32" />
+                            <ui:TextField name="source-prefab-import-source-name" label="源 Prefab 名称" />
+                            <ui:Label text="展示名写入全局派生素材库；源 Prefab 始终只读。" class="source-prefab-import-semantic-note" />
+                        </ui:Foldout>
+                        <ui:Button name="source-prefab-import-rebuild" text="重建 Source Index 并重新分析" class="source-prefab-import-maintenance" />
+                        <ui:Button name="source-prefab-import-update-evidence" text="更新素材证据" class="source-prefab-import-maintenance" />
+                    </ui:ScrollView>
+                </ui:VisualElement>
+
+                <ui:VisualElement class="source-prefab-import-footer">
+                    <ui:Label text="默认创建全局素材，不修改 Layer Stack" class="source-prefab-import-footer-note" />
+                    <ui:VisualElement class="source-prefab-import-footer-spacer" />
+                    <ui:Button name="source-prefab-import-cancel" text="取消  Esc" />
+                    <ui:Button name="source-prefab-import-add-layer" text="创建并加入当前阶段" />
+                    <ui:Button name="source-prefab-import-add" text="创建全局素材  Enter" class="primary" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="agent-studio-workspace" class="creative-body">
+                <ui:ScrollView class="creative-brief-pane creative-panel">
+                    <ui:Label text="创作简报" class="panel-title" />
+                    <ui:Label text="定义目标与约束；这里不直接写 Unity 资产。" class="panel-subtitle" />
+                    <ui:TextField name="brief-name" label="任务名称" class="studio-field" />
+                    <ui:TextField name="brief-target-effect" label="目标 Effect ID" class="studio-field" />
+                    <ui:TextField name="brief-intent" label="视觉意图" multiline="true" class="studio-field brief-intent" />
+                    <ui:DropdownField name="brief-lifecycle" label="生命周期" class="studio-field" />
+                    <ui:DropdownField name="style-profile" label="风格配置" class="studio-field" />
+                    <ui:DropdownField name="generation-provider" label="素材提供器" class="studio-field" />
+                    <ui:DropdownField name="certified-template" label="认证模板" class="studio-field" />
+                    <ui:DropdownField name="quality-profile" label="质量档" class="studio-field" />
+                    <ui:TextField name="reference-package" label="参考包" class="studio-field" />
+                    <ui:VisualElement class="reference-pack-box">
+                        <ui:Label text="本机质量参考包" class="contract-title" />
+                        <ui:Label name="reference-pack-status" text="尚未连接" class="reference-pack-status" />
+                        <ui:Label name="reference-pack-detail" text="授权可复用 · 来源与派生关系受 hash 约束" class="contract-note" />
+                        <ui:VisualElement class="reference-pack-actions">
+                            <ui:Button name="reference-pack-connect" text="连接授权源库" tooltip="选择本机 Piloto Studio 文件夹；路径只写入 Temp" />
+                            <ui:Button name="reference-pack-rescan" text="重新扫描" tooltip="重新生成稳定 manifest；内容变化会使旧任务失效" />
+                            <ui:Button name="reference-pack-open" text="打开源目录" />
+                            <ui:Button name="reference-pack-browse" text="浏览与提取" tooltip="打开授权源效果结构、A/B 预览和 Primitive 提取工作台" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:Toggle name="explore-primitive" label="允许提出新基础单元" value="true" class="studio-toggle" />
+                    <ui:Toggle name="require-fallback" label="必须提供粒子系统降级方案（当前未接入）" value="false" class="studio-toggle" />
+                    <ui:VisualElement class="contract-box">
+                        <ui:Label text="固定评测合同" class="contract-title" />
+                        <ui:Label name="quality-contract" text="等待质量档" class="contract-value" />
+                        <ui:Label name="quality-contract-detail" text="固定评测合同由版本化质量档提供" class="contract-note" />
+                    </ui:VisualElement>
+                    <ui:Label name="creative-provider-status" class="provenance-line" />
+                    <ui:Label name="creative-catalog-hash" class="provenance-line" />
+                </ui:ScrollView>
+
+                <ui:VisualElement class="creative-candidate-pane creative-panel">
+                    <ui:VisualElement class="candidate-toolbar">
+                        <ui:VisualElement>
+                            <ui:Label text="六方向候选" class="panel-title" />
+                            <ui:Label text="首轮 · 同一创作简报、种子与质量档" class="panel-subtitle" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="compare-controls">
+                            <ui:Button name="compare-play" text="▶" tooltip="动态同步比较尚未接入" class="icon-button" />
+                            <ui:Button name="compare-pause" text="Ⅱ" tooltip="动态同步比较尚未接入" class="icon-button" />
+                            <ui:Button name="compare-restart" text="↻" tooltip="动态同步比较尚未接入" class="icon-button" />
+                            <ui:Toggle name="compare-loop" label="循环" value="false" />
+                            <ui:Slider name="compare-speed" label="速度" low-value="0.25" high-value="2" value="1" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:Label name="compare-status" class="compare-status" />
+                    <ui:ScrollView class="candidate-scroll">
+                        <ui:VisualElement name="candidate-host" class="candidate-grid" />
+                    </ui:ScrollView>
+                    <ui:ScrollView name="candidate-detail-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden" class="candidate-detail-box">
+                        <ui:Label text="当前候选" class="micro-title" />
+                        <ui:Label name="candidate-detail" class="candidate-detail" />
+                    </ui:ScrollView>
+                    <ui:VisualElement class="creative-command-bar">
+                        <ui:Button name="creative-generate" text="创建 Agent 任务" tooltip="创建稳定任务包；Development Agent 将通过 Unity MCP 创作真实候选" class="primary" />
+                        <ui:Button name="creative-copy-agent" text="复制 Agent 指令" tooltip="复制包含任务文件绝对路径的标准执行指令" />
+                        <ui:Button name="creative-refresh-agent" text="刷新 Agent 结果" tooltip="重新读取 progress、receipt 和捕获证据" />
+                        <ui:Button name="creative-cancel" text="请求取消" tooltip="写入协作式取消请求，不伪造 Agent 已停止" />
+                        <ui:Button name="creative-quality-evidence" text="生成质量证据" tooltip="基于固定 Core 回执运行正式捕获矩阵；没有目标平台性能提供器时报告保持未测量并阻断晋升" />
+                        <ui:Button name="creative-clean" text="清理本地会话" tooltip="仅清理受控临时目录" class="danger-quiet" />
+                        <ui:Button name="creative-open-plan" text="打开任务目录" />
+                    </ui:VisualElement>
+                    <ui:Label name="creative-status" class="creative-status" />
+                    <ui:Label name="creative-plan-path" class="creative-plan-path" />
+                </ui:VisualElement>
+
+                <ui:ScrollView class="creative-review-pane creative-panel">
+                    <ui:Label text="复用建议" class="panel-title" />
+                    <ui:Label text="优先级：已就绪发布效果 → 配方 → 基础单元 → 基础单元缺口简报" class="panel-subtitle" />
+                    <ui:Label name="reuse-gate" class="reuse-gate" />
+                    <ui:VisualElement name="reuse-host" class="reuse-host" />
+
+                    <ui:Label text="复用缺口队列" class="panel-title section-gap" />
+                    <ui:Label text="尚无已就绪 Effect / Recipe / Primitive 复用入口的角色。" class="panel-subtitle" />
+                    <ui:VisualElement name="reuse-gap-host" class="reuse-gap-host" />
+
+                    <ui:Label text="评测解释" class="panel-title section-gap" />
+                    <ui:VisualElement class="evaluation-box">
+                        <ui:Label text="硬门禁" class="evaluation-title" />
+                        <ui:Label name="hard-gate-summary" text="版本化硬门禁由所选质量档提供" class="evaluation-copy" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="evaluation-box">
+                        <ui:Label text="视觉排序（建议，不是审批）" class="evaluation-title" />
+                        <ui:Label text="简报匹配 25 · 可读性 20 · 节奏 20 · 空间运动 15 · 材质色彩 10 · 完成度 10" class="evaluation-copy" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="evaluation-box">
+                        <ui:Label text="晋升边界" class="evaluation-title" />
+                        <ui:Label text="候选始终从草稿开始；自动流程最高只能提出待评审。已就绪状态必须由授权 VFX / 技术美术明确审批。" class="evaluation-copy" />
+                    </ui:VisualElement>
+                    <ui:Toggle name="creative-human-played" label="已人工运行检查当前候选" value="false" class="studio-toggle" />
+                    <ui:Button name="creative-promote" text="晋升所选候选为待评审" tooltip="需要真实播放、显式确认和一次性内存授权；永远不会写为已就绪" class="promote-action" />
+                </ui:ScrollView>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>

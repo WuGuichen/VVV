@@ -1,0 +1,17 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/MxFramework/CameraUi3DValidation/UiCamera3DValidation.uss" />
+    <ui:VisualElement name="ui-camera-validation-root" class="ui-camera-validation-root">
+        <ui:VisualElement class="hud-panel">
+            <ui:Label name="title-label" class="title-label" text="UI Camera 3D Validation" />
+            <ui:Label name="status-label" class="status-label" text="Waiting for camera stack" />
+            <ui:Label name="stack-label" class="detail-label" text="Stack pending" />
+            <ui:Label name="mask-label" class="detail-label mask-label" text="Layer masks pending" />
+            <ui:Label name="frame-label" class="detail-label frame-label" text="Frame 0" />
+            <ui:Label name="object-label" class="detail-label object-label" text="3D UI object pending" />
+            <ui:VisualElement class="button-row">
+                <ui:Button name="rebind-button" class="demo-button primary-button" text="Rebind" />
+                <ui:Button name="spin-button" class="demo-button" text="Pause Spin" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

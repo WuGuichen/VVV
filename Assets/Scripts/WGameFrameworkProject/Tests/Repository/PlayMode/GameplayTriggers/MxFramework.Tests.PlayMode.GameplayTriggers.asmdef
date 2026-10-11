@@ -1,0 +1,32 @@
+{
+    "name": "MxFramework.Tests.PlayMode.GameplayTriggers",
+    "rootNamespace": "MxFramework.Tests.PlayMode.GameplayTriggers",
+    "references": [
+        "UnityEngine.TestRunner",
+        "Unity.InputSystem",
+        "Unity.InputSystem.TestFramework",
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Input",
+        "MxFramework.Demo",
+        "MxFramework.UI.Toolkit",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Gameplay.Triggers.Config",
+        "MxFramework.Gameplay.Triggers.Unity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "MXFRAMEWORK_FMOD"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

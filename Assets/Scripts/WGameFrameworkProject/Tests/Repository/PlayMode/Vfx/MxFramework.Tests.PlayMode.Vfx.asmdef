@@ -1,0 +1,22 @@
+{
+    "name": "MxFramework.Tests.PlayMode.Vfx",
+    "rootNamespace": "MxFramework.Tests.PlayMode.Vfx",
+    "references": [
+        "UnityEngine.TestRunner",
+        "MxFramework.Vfx",
+        "MxFramework.Vfx.Unity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

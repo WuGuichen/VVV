@@ -1,0 +1,21 @@
+{
+    "name": "MxFramework.Tests.CharacterCloth.Magica.Editor",
+    "rootNamespace": "MxFramework.Tests.CharacterCloth.Magica.Editor",
+    "references": [
+        "UnityEditor.TestRunner",
+        "UnityEngine.TestRunner",
+        "MagicaClothV2",
+        "MxFramework.Editor",
+        "MxFramework.Character.Cloth.Magica.Unity",
+        "MxFramework.Character.Cloth.Magica.Unity.Editor"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll", "Newtonsoft.Json.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS", "MAGICACLOTH2"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

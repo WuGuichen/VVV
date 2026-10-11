@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Application.PlatformBridge",
+    "rootNamespace": "MxFramework.ApplicationStartup.PlatformBridge",
+    "references": [
+        "MxFramework.Application",
+        "MxFramework.Platform"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

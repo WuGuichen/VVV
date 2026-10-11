@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Settings.Input",
+    "rootNamespace": "MxFramework.Settings.Input",
+    "references": [
+        "MxFramework.Settings",
+        "MxFramework.Input"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,16 @@
+{
+  "name": "MxFramework.ResourceMapping.Authoring",
+  "rootNamespace": "MxFramework.ResourceMapping.Authoring",
+  "references": [],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

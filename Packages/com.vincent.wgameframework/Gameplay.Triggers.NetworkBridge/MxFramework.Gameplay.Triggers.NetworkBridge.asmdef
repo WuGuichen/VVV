@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Gameplay.Triggers.NetworkBridge",
+    "rootNamespace": "MxFramework.Gameplay.Triggers.NetworkBridge",
+    "references": [
+        "MxFramework.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Network"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

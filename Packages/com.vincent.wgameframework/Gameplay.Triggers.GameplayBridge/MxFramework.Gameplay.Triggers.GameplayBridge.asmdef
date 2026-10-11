@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Gameplay.Triggers.GameplayBridge",
+    "rootNamespace": "MxFramework.Gameplay.Triggers.GameplayBridge",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

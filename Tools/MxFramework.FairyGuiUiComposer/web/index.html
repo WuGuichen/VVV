@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FairyGUI 语义 UI Composer</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">UI</div>
+        <div>
+          <h1>FairyGUI 语义 UI Composer</h1>
+          <p id="statusText">正在连接 Authoring 服务...</p>
+        </div>
+      </div>
+      <div class="screen-picker">
+        <label for="screenSelect">当前界面</label>
+        <select id="screenSelect"></select>
+      </div>
+      <div class="toolbar-actions">
+        <span id="layerDirtySummary" class="layer-dirty-summary" title="资源、配方和蓝图状态">资源干净 · 配方干净 · 蓝图干净</span>
+        <span id="dirtyBadge" class="status-badge clean">干净</span>
+        <button id="toggleLeftPanelButton" class="icon-button responsive-panel-toggle" type="button" title="显示工作区导航" aria-label="显示工作区导航"><svg><use href="./icons.svg#layers"/></svg></button>
+        <button id="toggleInspectorButton" class="icon-button responsive-panel-toggle" type="button" title="显示属性检查器" aria-label="显示属性检查器"><svg><use href="./icons.svg#sliders"/></svg></button>
+        <div class="topbar-history" role="group" aria-label="编辑历史">
+          <button id="undoButton" class="icon-button" type="button" title="撤销 (Ctrl+Z)" aria-label="撤销" disabled><svg><use href="./icons.svg#undo"/></svg></button>
+          <button id="redoButton" class="icon-button" type="button" title="重做 (Ctrl+Shift+Z)" aria-label="重做" disabled><svg><use href="./icons.svg#redo"/></svg></button>
+        </div>
+        <button id="validateButton" class="secondary command-button" type="button"><svg><use href="./icons.svg#play"/></svg><span>预检</span></button>
+        <button id="applyButton" class="accent command-button" type="button"><svg><use href="./icons.svg#upload-cloud"/></svg><span>应用并发布</span></button>
+        <details id="topbarOverflowMenu" class="overflow-menu">
+          <summary class="icon-button" title="更多操作" aria-label="更多操作"><svg><use href="./icons.svg#more"/></svg></summary>
+          <div class="overflow-menu-panel">
+            <button id="saveLayerButton" type="button" disabled>保存当前层</button>
+            <button id="saveButton" type="button" disabled>保存蓝图</button>
+            <button id="syncButton" type="button">从 FairyGUI 同步</button>
+            <button id="publishButton" type="button">单独发布</button>
+            <button id="commandPaletteButton" type="button">命令面板 <kbd>Ctrl K</kbd></button>
+            <button id="reviewChangesButton" type="button">变更评审</button>
+          </div>
+        </details>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="left-rail">
+        <div class="rail-tabs" role="tablist">
+          <button class="rail-tab active" data-rail-tab="hierarchy" type="button" title="层级"><svg><use href="./icons.svg#layers"/></svg><span>层级</span></button>
+          <button class="rail-tab" data-rail-tab="resources" type="button" title="资源"><svg><use href="./icons.svg#image"/></svg><span>资源</span></button>
+          <button class="rail-tab" data-rail-tab="recipes" type="button" title="配方"><svg><use href="./icons.svg#box"/></svg><span>配方</span></button>
+          <button class="rail-tab" data-rail-tab="components" type="button" title="组件"><svg><use href="./icons.svg#puzzle"/></svg><span>组件</span></button>
+        </div>
+        <div class="rail-content">
+        <section id="hierarchyPanel" class="rail-panel active" data-rail-panel="hierarchy">
+          <div class="rail-heading">
+            <div>
+              <h2>节点层级</h2>
+              <span id="nodeCount">0 个节点</span>
+            </div>
+            <details class="hierarchy-actions overflow-menu">
+              <summary class="icon-button" title="层级操作" aria-label="层级操作"><svg><use href="./icons.svg#more"/></svg></summary>
+              <div class="overflow-menu-panel">
+                <button id="toggleSelectedLockButton" type="button">锁定或解锁</button>
+                <button id="toggleSelectedVisibilityButton" type="button">隐藏或显示</button>
+                <button id="isolateSelectionButton" type="button">隔离选择</button>
+                <button id="groupSelectionButton" type="button">创建分组</button>
+                <button id="ungroupButton" type="button">解除分组</button>
+                <button id="moveNodeUpButton" type="button">上移一层</button>
+                <button id="moveNodeDownButton" type="button">下移一层</button>
+              </div>
+            </details>
+          </div>
+          <div class="hierarchy-filters">
+            <input id="hierarchySearchInput" type="search" placeholder="搜索名称、类型、绑定或资源">
+            <select id="hierarchyFilterSelect"><option value="all">全部节点</option><option value="unbound">仅未绑定</option><option value="diagnostic">仅有诊断</option><option value="container">仅当前容器</option></select>
+          </div>
+          <div id="hierarchyList" class="hierarchy-list"></div>
+        </section>
+        <section id="resourcesPanel" class="rail-panel" data-rail-panel="resources">
+          <div class="rail-heading"><div><h2>语义资源</h2><span id="resourceCount">0 个资源</span></div><button id="openResourceOperationsButton" class="icon-button" type="button" title="新建或替换 PNG">＋</button></div>
+          <input id="resourceSearchInput" class="rail-search" type="search" placeholder="搜索名称、ID、分类">
+          <div id="resourceList" class="semantic-list"></div>
+        </section>
+        <section id="recipesPanel" class="rail-panel" data-rail-panel="recipes">
+          <div class="rail-heading"><div><h2>按钮配方</h2><span id="recipeCount">0 个配方</span></div><button id="duplicateRecipeButton" class="icon-button" type="button" title="复制所选配方">＋</button></div>
+          <input id="recipeSearchInput" class="rail-search" type="search" placeholder="搜索配方名称或 ID">
+          <div id="recipeList" class="semantic-list"></div>
+        </section>
+        <section id="componentsPanel" class="rail-panel" data-rail-panel="components">
+          <div class="rail-heading">
+            <div>
+              <h2>可用组件</h2>
+              <span>拖入画布创建</span>
+            </div>
+          </div>
+          <div class="palette-list">
+            <button class="palette-item template-item" type="button" data-template="button-stack"><span class="palette-preview text-preview">≡</span><span><strong>三按钮操作组</strong><small>常用纵向按钮模板</small></span></button>
+            <button class="palette-item" type="button" draggable="true" data-create-type="ComponentInstance" data-recipe-id="ui.component.button.command.neutral">
+              <span class="palette-preview semantic-button-preview"></span>
+              <span><strong>命令按钮</strong><small>语义配方 + 可选图标</small></span>
+            </button>
+            <button class="palette-item" type="button" draggable="true" data-create-type="Image" data-resource-id="ui.panel.modal.frame">
+              <span class="palette-preview image-preview panel-image-preview"></span>
+              <span><strong>语义切图</strong><small>资源参数驱动 Image</small></span>
+            </button>
+            <button class="palette-item" type="button" draggable="true" data-create-type="Text">
+              <span class="palette-preview text-preview">Aa</span>
+              <span><strong>文本</strong><small>FairyGUI Text</small></span>
+            </button>
+            <button class="palette-item" type="button" draggable="true" data-create-type="Graph">
+              <span class="palette-preview graph-preview"></span>
+              <span><strong>矩形图形</strong><small>FairyGUI Graph</small></span>
+            </button>
+            <button class="palette-item" type="button" draggable="true" data-create-type="List">
+              <span class="palette-preview list-palette-preview">≡</span>
+              <span><strong>列表</strong><small>FairyGUI GList + 条目配方</small></span>
+            </button>
+          </div>
+          <div class="scope-note">
+            <strong>V3 边界</strong>
+            <span>支持 Graph、Text、语义 Image、受控组件实例和引用条目配方的 GList。绑定命令来自只读 C# 契约。</span>
+          </div>
+        </section>
+        </div>
+      </aside>
+
+      <section class="canvas-column">
+        <div class="canvas-toolbar">
+          <div class="tool-cluster mode-tools" role="group" aria-label="画布工具">
+            <button id="selectToolButton" class="icon-button active" type="button" title="选择工具 (V)" aria-label="选择工具"><svg><use href="./icons.svg#pointer"/></svg></button>
+            <button id="panToolButton" class="icon-button" type="button" title="平移工具 (H)" aria-label="平移工具"><svg><use href="./icons.svg#hand"/></svg></button>
+          </div>
+          <div class="tool-cluster viewport-tools">
+            <button id="fitCanvasButton" class="icon-button" type="button" title="适应全部 (Home)" aria-label="适应全部"><svg><use href="./icons.svg#maximize"/></svg></button>
+            <button id="focusSelectionButton" class="icon-button" type="button" title="聚焦选择 (F)" aria-label="聚焦选择"><svg><use href="./icons.svg#focus"/></svg></button>
+          </div>
+          <label class="zoom-control" title="缩放"><input id="zoomRange" type="range" min="25" max="100" value="55"><output id="zoomOutput">55%</output></label>
+          <div class="tool-cluster canvas-settings">
+            <label class="toggle-control icon-toggle" title="显示或隐藏画布网格"><input id="gridToggle" type="checkbox" checked><svg><use href="./icons.svg#grid"/></svg><span>网格</span></label>
+            <label class="toggle-control icon-toggle" title="吸附到网格；拖动时按住 Alt 可临时关闭"><input id="snapToggle" type="checkbox" checked><svg><use href="./icons.svg#magnet"/></svg><span>吸附</span></label>
+            <label class="compact-field grid-size-field" title="网格与吸附步长"><span>步长</span><select id="gridSizeSelect"><option value="4">4 px</option><option value="8" selected>8 px</option><option value="16">16 px</option></select></label>
+            <details id="batchLayoutMenu" class="tool-menu">
+              <summary title="批量布局"><svg><use href="./icons.svg#sliders"/></svg><span>布局</span></summary>
+              <div class="tool-menu-panel">
+                <div class="tool-menu-row"><button type="button" data-layout-action="left">左对齐</button><button type="button" data-layout-action="hcenter">水平居中</button><button type="button" data-layout-action="right">右对齐</button></div>
+                <div class="tool-menu-row"><button type="button" data-layout-action="top">上对齐</button><button type="button" data-layout-action="vcenter">垂直居中</button><button type="button" data-layout-action="bottom">下对齐</button></div>
+                <div class="tool-menu-row"><button type="button" data-layout-action="distributeHorizontal">水平等距</button><button type="button" data-layout-action="distributeVertical">垂直等距</button></div>
+                <div class="tool-menu-row"><button type="button" data-layout-action="sameWidth">等宽</button><button type="button" data-layout-action="sameHeight">等高</button><button type="button" data-layout-action="sameSize">等尺寸</button></div>
+                <div class="tool-menu-row"><button type="button" data-container-mode="Horizontal">横向容器</button><button type="button" data-container-mode="Vertical">纵向容器</button><button type="button" data-container-mode="Grid">网格容器</button></div>
+              </div>
+            </details>
+          </div>
+          <div class="tool-cluster preview-tools">
+            <label class="compact-field resolution-field"><span>分辨率</span>
+              <select id="resolutionSelect">
+                <option value="1280x720">1280×720</option>
+                <option value="1920x1080" selected>1920×1080</option>
+                <option value="2560x1440">2560×1440</option>
+                <option value="3440x1440">3440×1440</option>
+              </select>
+            </label>
+            <div class="segmented state-preview" aria-label="按钮状态预览">
+              <button type="button" class="active" data-button-state="up">常态</button>
+              <button type="button" data-button-state="over">悬停</button>
+              <button type="button" data-button-state="down">按下</button>
+            </div>
+            <button id="compareResolutionsButton" class="icon-button" type="button" title="多分辨率对比" aria-label="多分辨率对比"><svg><use href="./icons.svg#compare"/></svg></button>
+          </div>
+        </div>
+        <div id="canvasViewport" class="canvas-viewport">
+          <div id="canvasRulerCorner" class="canvas-ruler-corner" aria-hidden="true"></div>
+          <div id="canvasRulerTop" class="canvas-ruler ruler-top" aria-hidden="true"></div>
+          <div id="canvasRulerLeft" class="canvas-ruler ruler-left" aria-hidden="true"></div>
+          <div id="physicalFrame" class="physical-frame">
+            <div id="designCanvas" class="design-canvas" tabindex="0" aria-label="界面设计画布"></div>
+          </div>
+          <div id="alignmentGuides" class="alignment-guides" aria-hidden="true"></div>
+        </div>
+        <footer class="canvas-footer">
+          <span id="canvasMetrics">设计 1920×1080</span>
+          <span id="selectionMetrics">未选择节点</span>
+          <span id="canvasDiagnosticSummary">诊断 0</span>
+        </footer>
+      </section>
+
+      <aside class="inspector">
+        <section id="contextInspector" class="context-inspector" hidden>
+          <header class="context-head"><button id="contextBackButton" class="icon-button" type="button" title="返回上一层">←</button><div><h2 id="contextTitle">语义对象</h2><span id="contextSubtitle"></span></div><button id="favoriteContextButton" class="icon-button context-favorite" type="button" title="收藏当前对象">☆</button></header>
+          <div id="resourceEditor" class="context-editor" hidden>
+            <div id="resourcePreview" class="context-preview"></div>
+            <label><span>资源 ID</span><input id="resourceIdInput" type="text" readonly></label>
+            <label><span>显示名称</span><input id="resourceDisplayNameInput" type="text"></label>
+            <label><span>分类</span><input id="resourceCategoryInput" type="text"></label>
+            <label><span>用途说明</span><textarea id="resourceDescriptionInput" rows="4"></textarea></label>
+            <label><span>标签</span><input id="resourceTagsInput" type="text" placeholder="逗号分隔"></label>
+            <div class="form-grid two-column"><label><span>设计宽度</span><input id="resourceWidthInput" type="number" min="1"></label><label><span>设计高度</span><input id="resourceHeightInput" type="number" min="1"></label></div>
+            <label><span>FairyGUI 策略</span><select id="resourcePolicySelect"><option>Fixed</option><option>PreserveAspect</option><option>Stretch</option><option>NineSlice</option><option>HorizontalFill</option><option>VerticalFill</option></select></label>
+            <div id="resourceReferences" class="reference-list"></div>
+          </div>
+          <div id="recipeEditor" class="context-editor" hidden>
+            <label><span>配方 ID</span><input id="recipeIdInput" type="text" readonly></label>
+            <label><span>显示名称</span><input id="recipeDisplayNameInput" type="text"></label>
+            <label><span>FairyGUI 组件名</span><input id="recipeFguiNameInput" type="text"></label>
+            <div class="form-grid two-column"><label><span>默认宽度</span><input id="recipeWidthInput" type="number" min="1"></label><label><span>默认高度</span><input id="recipeHeightInput" type="number" min="1"></label></div>
+            <label><span>基础资源</span><select id="recipeBaseResourceSelect"></select></label>
+            <div class="check-row"><label><input id="recipeTitlePropertyInput" type="checkbox"><span>实例标题</span></label><label><input id="recipeIconPropertyInput" type="checkbox"><span>实例图标</span></label></div>
+            <div class="form-grid two-column"><label><span>悬停覆盖色</span><input id="recipeOverColorInput" type="text"></label><label><span>按下覆盖色</span><input id="recipeDownColorInput" type="text"></label><label><span>标题颜色</span><input id="recipeTitleColorInput" type="text"></label><label><span>图标颜色</span><input id="recipeIconColorInput" type="text"></label></div>
+            <div id="recipeReferences" class="reference-list"></div>
+            <button id="deleteRecipeButton" class="danger" type="button">删除配方</button>
+          </div>
+        </section>
+        <div id="nodeInspectorShell">
+        <div class="inspector-head">
+          <div class="inspector-object-icon"><svg><use href="./icons.svg#box"/></svg></div>
+          <div class="inspector-object-copy">
+            <h2 id="inspectorTitle">未选择节点</h2>
+            <span id="inspectorSubtitle">从层级或画布选择</span>
+          </div>
+          <button id="deleteNodeButton" class="danger-icon" type="button" title="删除节点" aria-label="删除节点" disabled><svg><use href="./icons.svg#trash"/></svg></button>
+        </div>
+        <div class="inspector-tabs" role="tablist">
+          <button class="inspector-tab active" data-inspector-tab="layout" type="button">布局</button>
+          <button class="inspector-tab" data-inspector-tab="appearance" type="button">外观</button>
+          <button class="inspector-tab" data-inspector-tab="binding" type="button">绑定</button>
+        </div>
+
+        <section class="inspector-panel active" data-inspector-panel="layout">
+          <div id="multiSelectionSummary" class="selection-summary" hidden></div>
+          <details class="inspector-section" open>
+            <summary>位置与尺寸</summary>
+            <div class="inspector-section-body">
+          <div class="form-grid two-column">
+            <label><span>X</span><input id="xInput" type="number"></label>
+            <label><span>Y</span><input id="yInput" type="number"></label>
+            <label><span>宽度</span><input id="widthInput" type="number" min="1"></label>
+            <label><span>高度</span><input id="heightInput" type="number" min="1"></label>
+          </div>
+            </div>
+          </details>
+          <details class="inspector-section" open>
+            <summary>锚点与约束</summary>
+            <div class="inspector-section-body anchor-editor">
+              <div id="anchorMatrix" class="anchor-matrix" role="group" aria-label="锚点位置">
+                <button type="button" data-anchor-h="Left" data-anchor-v="Top" aria-label="左上"></button><button type="button" data-anchor-h="Center" data-anchor-v="Top" aria-label="上中"></button><button type="button" data-anchor-h="Right" data-anchor-v="Top" aria-label="右上"></button>
+                <button type="button" data-anchor-h="Left" data-anchor-v="Middle" aria-label="左中"></button><button type="button" data-anchor-h="Center" data-anchor-v="Middle" aria-label="居中"></button><button type="button" data-anchor-h="Right" data-anchor-v="Middle" aria-label="右中"></button>
+                <button type="button" data-anchor-h="Left" data-anchor-v="Bottom" aria-label="左下"></button><button type="button" data-anchor-h="Center" data-anchor-v="Bottom" aria-label="下中"></button><button type="button" data-anchor-h="Right" data-anchor-v="Bottom" aria-label="右下"></button>
+              </div>
+          <div class="form-grid">
+            <label><span>水平锚点</span><select id="horizontalAnchorSelect"><option>Left</option><option>Center</option><option>Right</option><option>Stretch</option></select></label>
+            <label><span>垂直锚点</span><select id="verticalAnchorSelect"><option>Top</option><option>Middle</option><option>Bottom</option><option>Stretch</option></select></label>
+          </div>
+          <p class="field-help">锚点会编译为相对根组件的 FairyGUI relation。Stretch 通过宽度或高度 relation 扩展。</p>
+            </div>
+          </details>
+          <details class="inspector-section" id="containerSection">
+            <summary>自动布局</summary>
+            <div class="inspector-section-body">
+          <div id="containerFields" class="container-fields" hidden>
+            <div class="form-grid two-column">
+              <label><span>模式</span><select id="containerModeSelect"><option>Free</option><option>Horizontal</option><option>Vertical</option><option>Grid</option></select></label>
+              <label><span>列数</span><input id="containerColumnsInput" type="number" min="1" max="64"></label>
+              <label><span>横向间距</span><input id="containerGapXInput" type="number" min="0"></label>
+              <label><span>纵向间距</span><input id="containerGapYInput" type="number" min="0"></label>
+              <label><span>主轴对齐</span><select id="containerMainAlignSelect"><option>Start</option><option>Center</option><option>End</option></select></label>
+              <label><span>交叉轴对齐</span><select id="containerCrossAlignSelect"><option>Start</option><option>Center</option><option>End</option></select></label>
+            </div>
+            <div class="form-grid four-column">
+              <label><span>左内边距</span><input id="paddingLeftInput" type="number" min="0"></label>
+              <label><span>上</span><input id="paddingTopInput" type="number" min="0"></label>
+              <label><span>右</span><input id="paddingRightInput" type="number" min="0"></label>
+              <label><span>下</span><input id="paddingBottomInput" type="number" min="0"></label>
+            </div>
+          </div>
+            <div class="empty-state container-empty">选择布局容器后可编辑排列、间距与内边距。</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="inspector-panel" data-inspector-panel="appearance">
+          <details class="inspector-section" open><summary>基础外观</summary><div class="inspector-section-body">
+          <div id="commonAppearanceFields" class="form-grid">
+            <label><span>控件名称</span><input id="nameInput" type="text"></label>
+          </div>
+          <div id="graphFields" class="form-grid" hidden>
+            <label><span>填充颜色</span><div class="color-field"><input id="graphColorInput" type="color"><input id="graphColorTextInput" type="text"></div></label>
+            <label><span>圆角</span><input id="cornerRadiusInput" type="number" min="0" max="128"></label>
+          </div>
+          <div id="textFields" class="form-grid" hidden>
+            <label><span>文字</span><textarea id="textValueInput" rows="4"></textarea></label>
+            <div class="form-grid two-column">
+              <label><span>字体</span><input id="fontFamilyInput" type="text" placeholder="默认字体"></label>
+              <label><span>字号</span><input id="fontSizeInput" type="number" min="8" max="160"></label>
+              <label><span>对齐</span><select id="textAlignSelect"><option value="left">左</option><option value="center">居中</option><option value="right">右</option></select></label>
+            </div>
+            <label><span>文字颜色</span><div class="color-field"><input id="textColorInput" type="color"><input id="textColorTextInput" type="text"></div></label>
+            <div class="check-row"><label><input id="boldInput" type="checkbox"><span>粗体</span></label><label><input id="singleLineInput" type="checkbox"><span>单行</span></label></div>
+            <div class="check-row"><label><input id="textInputToggle" type="checkbox"><span>可编辑输入</span></label></div>
+            <div class="form-grid two-column">
+              <label><span>字符限制</span><input id="textRestrictInput" type="text" placeholder="例如 [0-9]"></label>
+              <label><span>最大长度</span><input id="textMaxLengthInput" type="number" min="0" max="1024"></label>
+            </div>
+          </div>
+          <div id="imageFields" class="form-grid" hidden>
+            <label><span>语义资源</span><select id="imageResourceSelect"></select></label>
+            <label><span>着色</span><div class="color-field"><input id="imageTintInput" type="color"><input id="imageTintTextInput" type="text"></div></label>
+            <div id="imageUsageSummary" class="semantic-reference"></div>
+          </div>
+          <div id="componentFields" class="form-grid" hidden>
+            <label><span>组件配方</span><select id="componentRecipeInput"></select></label>
+            <label><span>按钮标题</span><input id="componentTitleInput" type="text"></label>
+            <label><span>按钮图标</span><select id="componentIconSelect"></select></label>
+            <div id="componentUsageSummary" class="semantic-reference"></div>
+          </div>
+          <div id="listFields" class="form-grid" hidden>
+            <label><span>条目组件配方</span><select id="listItemRecipeInput"></select></label>
+            <div class="form-grid two-column">
+              <label><span>排列</span><select id="listLayoutSelect"><option value="Column">纵向</option><option value="Row">横向</option></select></label>
+              <label><span>选择模式</span><select id="listSelectionModeSelect"><option value="Single">单选</option><option value="Multiple">多选（组合键）</option><option value="MultipleSingleClick">多选（点击切换）</option><option value="None">不可选</option></select></label>
+              <label><span>行距</span><input id="listLineGapInput" type="number" min="0"></label>
+              <label><span>列距</span><input id="listColumnGapInput" type="number" min="0"></label>
+            </div>
+            <div class="check-row"><label><input id="listVirtualizedInput" type="checkbox"><span>运行时虚拟化</span></label></div>
+            <div id="listItemUsageSummary" class="semantic-reference"></div>
+          </div>
+          </div></details>
+        </section>
+
+        <section class="inspector-panel" data-inspector-panel="binding">
+          <details class="inspector-section" open><summary>运行时绑定</summary><div class="inspector-section-body">
+          <div class="binding-summary">
+            <strong>C# 绑定契约</strong>
+            <span>槽位决定控件名称、类型、命令和只读反馈策略。界面蓝图不能定义或覆盖这些语义。</span>
+          </div>
+          <label class="binding-field"><span>绑定槽</span><select id="bindingSlotSelect"></select></label>
+          <div id="bindingDetails" class="binding-details"></div>
+          <div id="bindingContractList" class="binding-contract-list"></div>
+          </div></details>
+        </section>
+
+        <section class="diagnostics-section">
+          <button id="diagnosticsToggle" class="section-toggle" type="button" aria-expanded="true">
+            <span>诊断</span><span id="diagnosticCount">0</span>
+          </button>
+          <div id="diagnosticsList" class="diagnostics-list"></div>
+        </section>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="planDialog">
+    <div class="dialog-card">
+      <header><div><h2 id="planDialogTitle">操作计划</h2><p id="planDialogSubtitle"></p></div><button id="closePlanDialogButton" class="icon-button" type="button" aria-label="关闭">×</button></header>
+      <div id="planSummary" class="plan-summary"></div>
+      <div id="planDiagnostics" class="plan-diagnostics"></div>
+      <div id="planDiffs" class="plan-diffs"></div>
+      <footer><button id="cancelPlanButton" class="secondary" type="button">取消</button><button id="confirmPlanButton" class="primary" type="button">确认</button></footer>
+    </div>
+  </dialog>
+  <dialog id="resourceOperationsDialog" class="resource-operations-dialog">
+    <header><div><h2>PNG 新建与替换</h2><p>复用资源库的文件预检、NineSlice 和替换约束。</p></div><button id="closeResourceOperationsButton" class="icon-button" type="button" aria-label="关闭">×</button></header>
+    <iframe id="resourceOperationsFrame" title="UI 资源文件操作"></iframe>
+  </dialog>
+  <dialog id="recoveryDialog" class="recovery-dialog">
+    <div class="dialog-card compact-dialog">
+      <header><div><h2>发现本地恢复草稿</h2><p id="recoverySummary">上次编辑可能没有正常保存。</p></div></header>
+      <div class="recovery-details">恢复后仍是未保存草稿，可以继续检查、撤销或放弃，不会直接修改 FairyGUI 文件。</div>
+      <footer><button id="discardRecoveryButton" class="secondary" type="button">丢弃草稿</button><button id="restoreRecoveryButton" class="primary" type="button">恢复编辑</button></footer>
+    </div>
+  </dialog>
+  <dialog id="resolutionCompareDialog" class="compare-dialog">
+    <div class="dialog-card compare-card"><header><div><h2>多分辨率对比</h2><p>同一蓝图在常用桌面分辨率下的布局结果。</p></div><button id="closeResolutionCompareButton" class="icon-button" type="button" aria-label="关闭">×</button></header><div id="resolutionCompareGrid" class="resolution-compare-grid"></div></div>
+  </dialog>
+  <dialog id="replaceReferencesDialog" class="replace-dialog">
+    <div class="dialog-card compact-dialog"><header><div><h2>批量替换引用</h2><p id="replaceReferencesSummary"></p></div><button id="closeReplaceReferencesButton" class="icon-button" type="button" aria-label="关闭">×</button></header><div class="replace-form"><label><span>替换为</span><select id="replaceReferencesSelect"></select></label></div><footer><button id="cancelReplaceReferencesButton" class="secondary" type="button">取消</button><button id="confirmReplaceReferencesButton" class="primary" type="button">替换引用</button></footer></div>
+  </dialog>
+  <dialog id="commandPaletteDialog" class="command-dialog">
+    <div class="command-card"><header><input id="commandSearchInput" type="search" placeholder="搜索命令、功能或快捷键" autocomplete="off"><button id="closeCommandPaletteButton" class="icon-button" type="button" aria-label="关闭">×</button></header><div id="commandList" class="command-list"></div></div>
+  </dialog>
+  <dialog id="reviewDialog" class="review-dialog">
+    <div class="dialog-card review-card"><header><div><h2>工作台变更评审</h2><p>对比本次加载时的资源、配方与蓝图基线。</p></div><button id="closeReviewButton" class="icon-button" type="button" aria-label="关闭">×</button></header><div id="reviewSummary" class="review-summary"></div><section class="snapshot-section"><header><strong>本地快照</strong><button id="createSnapshotButton" class="secondary" type="button">创建快照</button></header><div id="snapshotList" class="snapshot-list"></div></section><footer><button id="toggleReviewModeButton" class="secondary" type="button">进入只读评审</button><button id="closeReviewFooterButton" class="primary" type="button">完成</button></footer></div>
+  </dialog>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+  <script src="./layout-tools.js"></script>
+  <script src="./clipboard-tools.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

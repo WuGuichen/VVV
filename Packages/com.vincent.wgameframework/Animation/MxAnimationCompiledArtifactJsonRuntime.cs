@@ -1,0 +1,646 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using MxFramework.Resources;
+using Newtonsoft.Json.Linq;
+
+namespace MxFramework.Animation
+{
+    public sealed class MxAnimationCompiledArtifactJsonException : Exception
+    {
+        public MxAnimationCompiledArtifactJsonException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public static class MxAnimationCompiledArtifactJson
+    {
+        public const string AnimationSetDefinitionFormat = "mx.animationSetDefinition.v2";
+        public const string AnimationClipRegistryFormat = "mx.animationClipRegistry.v1";
+
+        public static IReadOnlyList<MxAnimationSetDefinition> LoadSetDefinitions(string json, string fallbackPackageId = "")
+        {
+            JObject root = ParseRoot(json, "animation set definition");
+            RequireFormat(root, AnimationSetDefinitionFormat, "animation set definition");
+
+            if (!string.Equals(ReadString(root, "schemaVersion"), "2.0", StringComparison.Ordinal))
+                throw new MxAnimationCompiledArtifactJsonException("Unsupported animation set schemaVersion; expected 2.0.");
+            ValidateBindingIdentities(root["sets"] as JArray);
+            string packageId = FirstNonEmpty(fallbackPackageId, ReadString(root, "packageId"));
+            JArray sets = root["sets"] as JArray;
+            var definitions = new List<MxAnimationSetDefinition>();
+            for (int setIndex = 0; sets != null && setIndex < sets.Count; setIndex++)
+            {
+                JObject set = sets[setIndex] as JObject;
+                if (set == null)
+                    continue;
+
+                definitions.Add(ParseSetDefinition(set, packageId));
+            }
+
+            return definitions;
+        }
+
+        public static IMxAnimationMappingProvider LoadMappingProvider(string json, string fallbackPackageId = "")
+        {
+            return new MxAnimationStaticMappingProvider(LoadSetDefinitions(json, fallbackPackageId));
+        }
+
+        public static MxAnimationClipRegistry LoadClipRegistry(
+            string json,
+            ResourceCatalog catalog = null,
+            string fallbackPackageId = "")
+        {
+            JObject root = ParseRoot(json, "animation clip registry");
+            RequireFormat(root, AnimationClipRegistryFormat, "animation clip registry");
+
+            string packageId = FirstNonEmpty(fallbackPackageId, catalog != null ? catalog.PackageId : string.Empty, ReadString(root, "packageId"));
+            JArray clips = root["clips"] as JArray;
+            var entries = new List<MxAnimationClipRegistryEntry>();
+            for (int clipIndex = 0; clips != null && clipIndex < clips.Count; clipIndex++)
+            {
+                JObject clip = clips[clipIndex] as JObject;
+                if (clip == null)
+                    continue;
+
+                string resourceId = ReadString(clip, "runtimeResourceKey");
+                ResourceKey key = CreateAnimationClipKey(
+                    resourceId,
+                    ResolveCatalogResourcePackageId(
+                        catalog,
+                        resourceId,
+                        ResourceTypeIds.AnimationClip,
+                        string.Empty,
+                        packageId));
+                if (!key.IsValid)
+                    continue;
+
+                entries.Add(new MxAnimationClipRegistryEntry(key, FindCatalogHash(catalog, key)));
+            }
+
+            return new MxAnimationClipRegistry(1, catalog != null ? catalog.CatalogId : string.Empty, string.Empty, entries);
+        }
+
+        private static void ValidateBindingIdentities(JArray sets)
+        {
+            for (int i = 0; sets != null && i < sets.Count; i++)
+            {
+                var ids = new HashSet<int>();
+                var actions = new HashSet<int>();
+                JArray bindings = (sets[i] as JObject)?["actionBindings"] as JArray;
+                for (int j = 0; bindings != null && j < bindings.Count; j++)
+                {
+                    JObject binding = bindings[j] as JObject;
+                    if (binding == null) throw new MxAnimationCompiledArtifactJsonException("Animation binding entry must be an object.");
+                    int id = ReadBindingId(binding);
+                    if (!ids.Add(id)) throw new MxAnimationCompiledArtifactJsonException("Duplicate animation bindingId: " + id + ".");
+                    int action = ReadCombatActionId(binding);
+                    if (action > 0 && !actions.Add(action)) throw new MxAnimationCompiledArtifactJsonException("Duplicate combatActionId: " + action + ".");
+                }
+                JArray prepared = (sets[i] as JObject)?["preparedClipBindings"] as JArray;
+                for (int j = 0; prepared != null && j < prepared.Count; j++)
+                {
+                    var binding = prepared[j] as JObject;
+                    if (binding == null || !ids.Add(ReadBindingId(binding)))
+                        throw new MxAnimationCompiledArtifactJsonException("Invalid or duplicate preparedClipBindings identity.");
+                    if (!ResourceKey.IsValidId(ReadString(binding, "clipKey")))
+                        throw new MxAnimationCompiledArtifactJsonException("Prepared direct clip requires a valid source resource address.");
+                }
+            }
+        }
+
+        private static int ReadCombatActionId(JObject binding)
+        {
+            JToken token = binding["combatActionId"];
+            if (token == null || token.Type == JTokenType.Null) return 0;
+            if (token.Type != JTokenType.Integer || (long)token < 0 || (long)token > int.MaxValue)
+                throw new MxAnimationCompiledArtifactJsonException("combatActionId must be a nonnegative integer.");
+            return (int)token;
+        }
+
+        private static int ReadBindingId(JObject binding)
+        {
+            JToken value = binding["bindingId"];
+            if (value == null || value.Type != JTokenType.Integer || (long)value <= 0 || (long)value > int.MaxValue)
+                throw new MxAnimationCompiledArtifactJsonException("Animation bindingId must be a prepared positive integer.");
+            return value.Value<int>();
+        }
+
+        private static MxAnimationSetDefinition ParseSetDefinition(JObject set, string packageId)
+        {
+            var clipsById = new Dictionary<string, ClipRuntimeInfo>(StringComparer.Ordinal);
+            var timelinesById = new Dictionary<string, List<MxAnimationPresentationEvent>>(StringComparer.Ordinal);
+            var layers = new List<MxAnimationLayerDefinition>();
+            var blend1D = new List<MxAnimationBlend1DDefinition>();
+            var blend2D = new List<MxAnimationBlend2DDefinition>();
+            var locomotionCalibrations = new List<MxAnimationLocomotionClipCalibration>();
+
+            JArray layerDocs = set["layers"] as JArray;
+            for (int i = 0; layerDocs != null && i < layerDocs.Count; i++)
+            {
+                JObject layer = layerDocs[i] as JObject;
+                if (layer == null)
+                    continue;
+
+                layers.Add(new MxAnimationLayerDefinition(
+                    new MxAnimationLayerId(ReadString(layer, "layerId")),
+                    ReadString(layer, "purpose"),
+                    ReadFloat(layer, "weight", 1f),
+                    ReadBool(layer, "additive") ? MxAnimationLayerBlendMode.Additive : MxAnimationLayerBlendMode.Override,
+                    CreateSelectionKey(layer["avatarMaskSelection"] as JObject, ResourceTypeIds.AvatarMask, packageId)));
+            }
+
+            JArray groups = set["groups"] as JArray;
+            for (int groupIndex = 0; groups != null && groupIndex < groups.Count; groupIndex++)
+            {
+                JObject group = groups[groupIndex] as JObject;
+                if (group == null)
+                    continue;
+
+                ReadClips(group["clips"] as JArray, packageId, clipsById);
+                ReadLocomotionCalibrations(group["clips"] as JArray, packageId, clipsById, locomotionCalibrations);
+            }
+
+            for (int groupIndex = 0; groups != null && groupIndex < groups.Count; groupIndex++)
+            {
+                JObject group = groups[groupIndex] as JObject;
+                if (group == null)
+                    continue;
+
+                ReadTimelines(group["timelines"] as JArray, packageId, clipsById, timelinesById);
+                ReadBlend1D(group["blend1D"] as JArray, clipsById, blend1D);
+                ReadBlend2D(group["blend2D"] as JArray, clipsById, blend2D);
+            }
+
+            var actions = new List<MxAnimationActionBinding>();
+            JArray bindings = set["actionBindings"] as JArray;
+            for (int bindingIndex = 0; bindings != null && bindingIndex < bindings.Count; bindingIndex++)
+            {
+                JObject binding = bindings[bindingIndex] as JObject;
+                if (binding == null)
+                    continue;
+
+                string clipId = ReadString(binding, "clipId");
+                string blendId = ReadString(binding, "blendId");
+                if (string.IsNullOrWhiteSpace(clipId) && !string.IsNullOrWhiteSpace(blendId))
+                    continue;
+
+                ClipRuntimeInfo clip = ResolveClip(clipId, clipsById);
+                List<MxAnimationPresentationEvent> events = null;
+                string timelineId = ReadString(binding, "timelineId");
+                if (!string.IsNullOrWhiteSpace(timelineId))
+                    timelinesById.TryGetValue(timelineId, out events);
+
+                actions.Add(new MxAnimationActionBinding(
+                    ReadBindingId(binding),
+                    ReadString(binding, "actionId"),
+                    clip.Key,
+                    MxAnimationLayerId.Base,
+                    clip.Speed,
+                    clip.Loop,
+                    MxAnimationAlignmentPolicy.StartAtZero,
+                    events,
+                    0.15f, ReadString(binding, "bindingLabel"), ReadCombatActionId(binding)));
+            }
+
+            ResourceKey defaultClip = ResolveClip(ReadString(set, "defaultClipId"), clipsById).Key;
+            ResourceKey fallbackClip = ResolveClip(ReadString(set, "fallbackClipId"), clipsById).Key;
+            return new MxAnimationSetDefinition(
+                ReadString(set, "setId"),
+                ParseVersion(ReadString(set, "version")),
+                defaultClip,
+                fallbackClip,
+                actions,
+                null,
+                string.Empty,
+                layers,
+                BuildWarmup(defaultClip, fallbackClip, actions, layers),
+                blend1D,
+                blend2D,
+                null,
+                locomotionCalibrations,
+                ReadPreparedClipBindings(set["preparedClipBindings"] as JArray, defaultClip, fallbackClip, actions, blend2D));
+        }
+
+        private static List<MxAnimationActionBinding> ReadPreparedClipBindings(JArray source, ResourceKey defaultClip, ResourceKey fallbackClip,
+            List<MxAnimationActionBinding> actions, List<MxAnimationBlend2DDefinition> blends)
+        {
+            var result = new List<MxAnimationActionBinding>();
+            for (int i = 0; source != null && i < source.Count; i++)
+            {
+                var row = (JObject)source[i];
+                string address = ReadString(row, "clipKey");
+                ResourceKey clip = default;
+                if (defaultClip.IsValid && string.Equals(defaultClip.Id, address, StringComparison.Ordinal)) clip = defaultClip;
+                else if (fallbackClip.IsValid && string.Equals(fallbackClip.Id, address, StringComparison.Ordinal)) clip = fallbackClip;
+                for (int j = 0; !clip.IsValid && j < actions.Count; j++)
+                    if (actions[j].Clip.IsValid && string.Equals(actions[j].Clip.Id, address, StringComparison.Ordinal)) clip = actions[j].Clip;
+                for (int j = 0; !clip.IsValid && j < blends.Count; j++)
+                    for (int k = 0; !clip.IsValid && k < blends[j].Points.Count; k++)
+                    {
+                        ResourceKey candidate = blends[j].Points[k].ClipKey;
+                        if (candidate.IsValid && string.Equals(candidate.Id, address, StringComparison.Ordinal)) clip = candidate;
+                    }
+                if (!clip.IsValid) clip = new ResourceKey(address, ResourceTypeIds.AnimationClip);
+                result.Add(new MxAnimationActionBinding(ReadBindingId(row), string.Empty, clip, MxAnimationLayerId.Base,
+                    playbackSpeed: 1f, loop: false, bindingLabel: ReadString(row, "bindingLabel")));
+            }
+            return result;
+        }
+
+        private static void ReadClips(JArray clips, string packageId, Dictionary<string, ClipRuntimeInfo> clipsById)
+        {
+            for (int clipIndex = 0; clips != null && clipIndex < clips.Count; clipIndex++)
+            {
+                JObject clip = clips[clipIndex] as JObject;
+                if (clip == null)
+                    continue;
+
+                string clipId = ReadString(clip, "clipId");
+                if (string.IsNullOrWhiteSpace(clipId))
+                    continue;
+
+                clipsById[clipId] = new ClipRuntimeInfo(
+                    CreateAnimationClipKey(ReadString(clip, "runtimeResourceKey"), packageId),
+                    ReadFloat(clip, "speed", 1f),
+                    ReadBool(clip, "loop"));
+            }
+        }
+
+        private static void ReadLocomotionCalibrations(
+            JArray clips,
+            string packageId,
+            Dictionary<string, ClipRuntimeInfo> clipsById,
+            List<MxAnimationLocomotionClipCalibration> results)
+        {
+            for (int clipIndex = 0; clips != null && clipIndex < clips.Count; clipIndex++)
+            {
+                JObject clip = clips[clipIndex] as JObject;
+                JObject calibration = clip != null ? clip["calibration"] as JObject : null;
+                if (calibration == null)
+                    continue;
+
+                string clipId = ReadString(clip, "clipId");
+                ClipRuntimeInfo info = ResolveClip(clipId, clipsById);
+                if (!info.Key.IsValid)
+                    continue;
+
+                results.Add(new MxAnimationLocomotionClipCalibration(
+                    clipId,
+                    info.Key,
+                    ReadFloat(calibration, "nativeVelocityX", 0f),
+                    ReadFloat(calibration, "nativeVelocityY", 0f),
+                    ReadFloat(calibration, "playbackSpeed", info.Speed),
+                    ReadFloat(calibration, "cycleDurationSeconds", 0f),
+                    ReadFootContactWindows(calibration["leftFootContactWindows"] as JArray),
+                    ReadFootContactWindows(calibration["rightFootContactWindows"] as JArray)));
+            }
+        }
+
+        private static List<MxAnimationFootContactWindow> ReadFootContactWindows(JArray windows)
+        {
+            var results = new List<MxAnimationFootContactWindow>();
+            for (int i = 0; windows != null && i < windows.Count; i++)
+            {
+                JObject window = windows[i] as JObject;
+                if (window == null)
+                    continue;
+
+                results.Add(new MxAnimationFootContactWindow(
+                    ReadFloat(window, "startNormalized", 0f),
+                    ReadFloat(window, "endNormalized", 0f),
+                    ReadFloat(window, "confidence", 1f)));
+            }
+
+            return results;
+        }
+
+        private static void ReadBlend1D(
+            JArray blends,
+            Dictionary<string, ClipRuntimeInfo> clipsById,
+            List<MxAnimationBlend1DDefinition> results)
+        {
+            for (int blendIndex = 0; blends != null && blendIndex < blends.Count; blendIndex++)
+            {
+                JObject blend = blends[blendIndex] as JObject;
+                if (blend == null)
+                    continue;
+
+                var points = new List<MxAnimationBlend1DPoint>();
+                JArray sourcePoints = blend["points"] as JArray;
+                for (int pointIndex = 0; sourcePoints != null && pointIndex < sourcePoints.Count; pointIndex++)
+                {
+                    JObject point = sourcePoints[pointIndex] as JObject;
+                    if (point == null)
+                        continue;
+
+                    ClipRuntimeInfo clip = ResolveClip(ReadString(point, "clipId"), clipsById);
+                    points.Add(new MxAnimationBlend1DPoint(
+                        Quantize(ReadFloat(point, "value", 0f)),
+                        clip.Key,
+                        clip.Speed,
+                        clip.Loop));
+                }
+
+                results.Add(new MxAnimationBlend1DDefinition(
+                    ReadString(blend, "blendId"),
+                    ReadString(blend, "parameter"),
+                    MxAnimationLayerId.Base,
+                    points));
+            }
+        }
+
+        private static void ReadBlend2D(
+            JArray blends,
+            Dictionary<string, ClipRuntimeInfo> clipsById,
+            List<MxAnimationBlend2DDefinition> results)
+        {
+            for (int blendIndex = 0; blends != null && blendIndex < blends.Count; blendIndex++)
+            {
+                JObject blend = blends[blendIndex] as JObject;
+                if (blend == null)
+                    continue;
+
+                var points = new List<MxAnimationBlend2DPoint>();
+                JArray sourcePoints = blend["points"] as JArray;
+                for (int pointIndex = 0; sourcePoints != null && pointIndex < sourcePoints.Count; pointIndex++)
+                {
+                    JObject point = sourcePoints[pointIndex] as JObject;
+                    if (point == null)
+                        continue;
+
+                    ClipRuntimeInfo clip = ResolveClip(ReadString(point, "clipId"), clipsById);
+                    points.Add(new MxAnimationBlend2DPoint(
+                        Quantize(ReadFloat(point, "x", 0f)),
+                        Quantize(ReadFloat(point, "y", 0f)),
+                        clip.Key,
+                        clip.Speed,
+                        clip.Loop));
+                }
+
+                results.Add(new MxAnimationBlend2DDefinition(
+                    ReadString(blend, "blendId"),
+                    ReadString(blend, "xParameter"),
+                    ReadString(blend, "yParameter"),
+                    MxAnimationLayerId.Base,
+                    points));
+            }
+        }
+
+        private static void ReadTimelines(
+            JArray timelines,
+            string packageId,
+            Dictionary<string, ClipRuntimeInfo> clipsById,
+            Dictionary<string, List<MxAnimationPresentationEvent>> timelinesById)
+        {
+            for (int timelineIndex = 0; timelines != null && timelineIndex < timelines.Count; timelineIndex++)
+            {
+                JObject timeline = timelines[timelineIndex] as JObject;
+                if (timeline == null)
+                    continue;
+
+                string timelineId = ReadString(timeline, "timelineId");
+                if (string.IsNullOrWhiteSpace(timelineId))
+                    continue;
+
+                var events = new List<MxAnimationPresentationEvent>();
+                MxAnimationEventTimeDomain timelineDomain = ParseTimeDomain(ReadString(timeline, "timeDomain"));
+                string timelineClipId = ReadString(timeline, "clipId");
+                JArray sourceEvents = timeline["events"] as JArray;
+                for (int eventIndex = 0; sourceEvents != null && eventIndex < sourceEvents.Count; eventIndex++)
+                {
+                    JObject sourceEvent = sourceEvents[eventIndex] as JObject;
+                    if (sourceEvent == null)
+                        continue;
+
+                    ResourceKey payloadKey = CreateSelectionKey(sourceEvent["resourceSelection"] as JObject, ResourceTypeIds.Object, packageId);
+                    string clipId = FirstNonEmpty(ReadString(sourceEvent, "clipId"), timelineClipId);
+                    ClipRuntimeInfo clip = ResolveClip(clipId, clipsById);
+                    if (!payloadKey.IsValid)
+                        payloadKey = clip.Key;
+
+                    events.Add(new MxAnimationPresentationEvent(
+                        ReadString(sourceEvent, "eventId"),
+                        ParseTimeDomain(FirstNonEmpty(ReadString(sourceEvent, "timeDomain"), timelineDomain.ToString())),
+                        ReadFloat(sourceEvent, "time", 0f),
+                        ReadString(sourceEvent, "eventKind"),
+                        payloadKey,
+                        ReadMetadata(sourceEvent, "socket"),
+                        ReadMetadata(sourceEvent, "tag")));
+                }
+
+                timelinesById[timelineId] = events;
+            }
+        }
+
+        private static MxAnimationWarmupDefinition BuildWarmup(
+            ResourceKey defaultClip,
+            ResourceKey fallbackClip,
+            IReadOnlyList<MxAnimationActionBinding> actions,
+            IReadOnlyList<MxAnimationLayerDefinition> layers)
+        {
+            var keys = new List<ResourceKey>();
+            AddKey(defaultClip, keys);
+            AddKey(fallbackClip, keys);
+            for (int i = 0; actions != null && i < actions.Count; i++)
+                AddKey(actions[i].Clip, keys);
+            for (int i = 0; layers != null && i < layers.Count; i++)
+                AddKey(layers[i].AvatarMaskKey, keys);
+
+            return new MxAnimationWarmupDefinition("compiled", keys);
+        }
+
+        private static void AddKey(ResourceKey key, List<ResourceKey> keys)
+        {
+            if (!key.IsValid || keys.Contains(key))
+                return;
+            keys.Add(key);
+        }
+
+        private static ClipRuntimeInfo ResolveClip(string clipId, Dictionary<string, ClipRuntimeInfo> clipsById)
+        {
+            if (!string.IsNullOrWhiteSpace(clipId) && clipsById.TryGetValue(clipId, out ClipRuntimeInfo clip))
+                return clip;
+            return default;
+        }
+
+        private static ResourceKey CreateAnimationClipKey(string resourceKey, string packageId)
+        {
+            return string.IsNullOrWhiteSpace(resourceKey)
+                ? default
+                : new ResourceKey(resourceKey, ResourceTypeIds.AnimationClip, string.Empty, packageId);
+        }
+
+        private static string ResolveCatalogResourcePackageId(
+            ResourceCatalog catalog,
+            string resourceId,
+            string typeId,
+            string variant,
+            string fallbackPackageId)
+        {
+            for (int i = 0; catalog != null && i < catalog.Entries.Count; i++)
+            {
+                ResourceCatalogEntry entry = catalog.Entries[i];
+                if (entry == null
+                    || !string.Equals(entry.Id, resourceId, StringComparison.Ordinal)
+                    || !string.Equals(entry.TypeId, typeId, StringComparison.Ordinal)
+                    || !string.Equals(entry.Variant, variant, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(entry.PackageId))
+                    return entry.PackageId;
+                if (!string.IsNullOrWhiteSpace(catalog.PackageId))
+                    return catalog.PackageId;
+                break;
+            }
+
+            return fallbackPackageId ?? string.Empty;
+        }
+
+        private static ResourceKey CreateSelectionKey(JObject selection, string fallbackTypeId, string packageId)
+        {
+            if (selection == null)
+                return default;
+
+            string key = FirstNonEmpty(
+                ReadString(selection, "runtimeResourceKey"),
+                ReadString(selection, "providerResourceKey"),
+                ReadString(selection, "packageResourceKey"));
+            if (string.IsNullOrWhiteSpace(key))
+                return default;
+
+            string expectedKind = ReadString(selection, "expectedKind");
+            string typeId = string.Equals(expectedKind, "avatarMask", StringComparison.OrdinalIgnoreCase)
+                ? ResourceTypeIds.AvatarMask
+                : fallbackTypeId;
+            return new ResourceKey(key, typeId, string.Empty, packageId);
+        }
+
+        private static string FindCatalogHash(ResourceCatalog catalog, ResourceKey key)
+        {
+            if (catalog == null || !key.IsValid)
+                return string.Empty;
+
+            for (int i = 0; i < catalog.Entries.Count; i++)
+            {
+                ResourceCatalogEntry entry = catalog.Entries[i];
+                if (entry == null)
+                    continue;
+                if (string.Equals(entry.Id, key.Id, StringComparison.Ordinal)
+                    && string.Equals(entry.TypeId, key.TypeId, StringComparison.Ordinal)
+                    && (string.IsNullOrWhiteSpace(key.Variant) || string.Equals(entry.Variant, key.Variant, StringComparison.Ordinal))
+                    && (string.IsNullOrWhiteSpace(key.PackageId) || string.IsNullOrWhiteSpace(entry.PackageId) || string.Equals(entry.PackageId, key.PackageId, StringComparison.Ordinal)))
+                {
+                    return entry.Hash;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static JObject ParseRoot(string json, string documentName)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                throw new MxAnimationCompiledArtifactJsonException("Missing " + documentName + " JSON.");
+
+            try
+            {
+                JObject root = JObject.Parse(json);
+                if (root == null)
+                    throw new MxAnimationCompiledArtifactJsonException("Invalid " + documentName + " JSON.");
+                return root;
+            }
+            catch (Exception ex) when (!(ex is MxAnimationCompiledArtifactJsonException))
+            {
+                throw new MxAnimationCompiledArtifactJsonException("Invalid " + documentName + " JSON: " + ex.Message);
+            }
+        }
+
+        private static void RequireFormat(JObject root, string expected, string documentName)
+        {
+            string actual = ReadString(root, "format");
+            if (!string.Equals(actual, expected, StringComparison.Ordinal))
+                throw new MxAnimationCompiledArtifactJsonException("Unsupported " + documentName + " format: " + actual + ".");
+        }
+
+        private static MxAnimationEventTimeDomain ParseTimeDomain(string value)
+        {
+            if (Enum.TryParse(value, ignoreCase: true, out MxAnimationEventTimeDomain result))
+                return result;
+            return MxAnimationEventTimeDomain.Seconds;
+        }
+
+        private static int ParseVersion(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return 1;
+
+            int dot = value.IndexOf('.');
+            string major = dot >= 0 ? value.Substring(0, dot) : value;
+            return int.TryParse(major, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed) && parsed > 0
+                ? parsed
+                : 1;
+        }
+
+        private static int Quantize(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                return 0;
+            return (int)Math.Round(value * 1000f, MidpointRounding.AwayFromZero);
+        }
+
+        private static string ReadMetadata(JObject fields, string key)
+        {
+            JObject metadata = fields != null ? fields["metadata"] as JObject : null;
+            return ReadString(metadata, key);
+        }
+
+        private static string ReadString(JObject fields, string name)
+        {
+            JToken token = fields != null ? fields[name] : null;
+            return token == null || token.Type == JTokenType.Null ? string.Empty : token.ToString();
+        }
+
+        private static float ReadFloat(JObject fields, string name, float fallback)
+        {
+            string value = ReadString(fields, name);
+            return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed)
+                ? parsed
+                : fallback;
+        }
+
+        private static bool ReadBool(JObject fields, string name)
+        {
+            string value = ReadString(fields, name);
+            return bool.TryParse(value, out bool parsed) && parsed;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            for (int i = 0; values != null && i < values.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(values[i]))
+                    return values[i];
+            }
+
+            return string.Empty;
+        }
+
+        private readonly struct ClipRuntimeInfo
+        {
+            public ClipRuntimeInfo(ResourceKey key, float speed, bool loop)
+            {
+                Key = key;
+                Speed = Math.Abs(speed) < 0.0001f ? 1f : speed;
+                Loop = loop;
+            }
+
+            public ResourceKey Key { get; }
+            public float Speed { get; }
+            public bool Loop { get; }
+        }
+    }
+}

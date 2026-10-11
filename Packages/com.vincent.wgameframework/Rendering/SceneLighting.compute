@@ -1,0 +1,116 @@
+#pragma kernel Inject
+#pragma kernel Reduce
+#pragma kernel Bounce
+#pragma kernel Project
+#pragma kernel DilateProbes
+#pragma kernel BuildCapsuleTiles
+#pragma target 5.0
+#include "MxSunVisibility.hlsl"
+struct Node { float4 positionArea, normalParent, albedo, emission, sky; };
+struct Row { uint start, count; };
+struct Edge { uint target; float weight; };
+struct Probe { float4 positionValid, skyUp, skyEquator, skyGround; };
+struct ProbeLink { float4 directionWeight; uint target,pad0,pad1,pad2; };
+struct Coeff { float4 r,g,b; };
+StructuredBuffer<Node> _Nodes;
+StructuredBuffer<Row> _Rows, _ProbeRows;
+StructuredBuffer<Edge> _Edges;
+StructuredBuffer<Probe> _Probes;
+StructuredBuffer<ProbeLink> _ProbeLinks;
+StructuredBuffer<float4> _Source;
+StructuredBuffer<float4> _Direct;
+RWStructuredBuffer<float4> _Destination;
+RWStructuredBuffer<Coeff> _Coefficients;
+StructuredBuffer<Coeff> _RawProbeCoefficients;
+StructuredBuffer<Row> _DilationRows;
+StructuredBuffer<Edge> _DilationLinks;
+Texture2D<float> _SunVisibility;
+SamplerState sampler_PointClamp;
+float4x4 _SunVP, _SunView;
+float4 _SunRange;
+float4 _SunDirection, _SunColor, _SkyUp, _SkyEquator, _SkyGround;
+int _SurfaceCount, _NodeCount, _ProbeCount;
+RWStructuredBuffer<uint> _CapsuleTileMasks;
+float4 _CapsuleScreenRects[32];
+int _CapsuleCount, _CapsuleTilesX, _CapsuleTilesY;
+
+[numthreads(8,8,1)]
+void BuildCapsuleTiles(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x >= (uint)_CapsuleTilesX || id.y >= (uint)_CapsuleTilesY) return;
+    float2 tileMin=id.xy*16, tileMax=tileMin+16;
+    uint mask=0;
+    for(uint i=0;i<(uint)_CapsuleCount;i++)
+    {
+        float4 rect=_CapsuleScreenRects[i];
+        if(all(rect.zw>tileMin) && all(rect.xy<tileMax))mask|=1u<<i;
+    }
+    _CapsuleTileMasks[id.y*(uint)_CapsuleTilesX+id.x]=mask;
+}
+
+float SunVisibility(float3 position, float3 normal)
+{
+    return MxSampleSunVisibility(position + normal * 0.045, _SunVP, _SunView,
+        _SunRange, _SunVisibility, sampler_PointClamp);
+}
+[numthreads(64,1,1)]
+void Inject(uint id:SV_DispatchThreadID)
+{
+    if(id >= (uint)_SurfaceCount) return;
+    Node n=_Nodes[id];
+    float3 sky=n.sky.x*_SkyUp.rgb+n.sky.y*_SkyEquator.rgb+n.sky.z*_SkyGround.rgb;
+    float3 direct=_SunColor.rgb*saturate(dot(n.normalParent.xyz,_SunDirection.xyz))*SunVisibility(n.positionArea.xyz,n.normalParent.xyz);
+    _Destination[id]=float4(max(0,n.albedo.rgb*(direct+sky)+n.emission.rgb),1);
+}
+[numthreads(64,1,1)]
+void Reduce(uint thread:SV_DispatchThreadID)
+{
+    uint id=thread+(uint)_SurfaceCount;
+    if(id >= (uint)_NodeCount) return;
+    Row row=_Rows[id]; float3 value=0;
+    for(uint i=0;i<row.count;i++) { Edge e=_Edges[row.start+i]; value+=_Destination[e.target].rgb*e.weight; }
+    _Destination[id]=float4(value,1);
+}
+[numthreads(64,1,1)]
+void Bounce(uint id:SV_DispatchThreadID)
+{
+    if(id >= (uint)_SurfaceCount) return;
+    Row row=_Rows[id]; float3 value=0;
+    for(uint i=0;i<row.count;i++) { Edge e=_Edges[row.start+i]; value+=_Source[e.target].rgb*e.weight; }
+    // Directly illuminated patches give the first bounce at a receiver; this graph step adds the second.
+    _Destination[id]=float4(_Direct[id].rgb+_Nodes[id].albedo.rgb*value,1);
+}
+[numthreads(64,1,1)]
+void Project(uint id:SV_DispatchThreadID)
+{
+    if(id >= (uint)_ProbeCount) return;
+    Probe p=_Probes[id];
+    Coeff c;
+    c.r=p.skyUp*_SkyUp.r+p.skyEquator*_SkyEquator.r+p.skyGround*_SkyGround.r;
+    c.g=p.skyUp*_SkyUp.g+p.skyEquator*_SkyEquator.g+p.skyGround*_SkyGround.g;
+    c.b=p.skyUp*_SkyUp.b+p.skyEquator*_SkyEquator.b+p.skyGround*_SkyGround.b;
+    Row row=_ProbeRows[id];
+    for(uint i=0;i<row.count;i++)
+    {
+        ProbeLink link=_ProbeLinks[row.start+i]; float3 value=_Source[link.target].rgb;
+        c.r+=link.directionWeight*value.r; c.g+=link.directionWeight*value.g; c.b+=link.directionWeight*value.b;
+    }
+    _Coefficients[id]=c;
+}
+
+[numthreads(64,1,1)]
+void DilateProbes(uint id:SV_DispatchThreadID)
+{
+    if(id >= (uint)_ProbeCount)return;
+    Row row=_DilationRows[id];Coeff c=_RawProbeCoefficients[id];
+    if(row.count>0)
+    {
+        c.r=0;c.g=0;c.b=0;
+        for(uint i=0;i<row.count;i++)
+        {
+            Edge edge=_DilationLinks[row.start+i];Coeff source=_RawProbeCoefficients[edge.target];
+            c.r+=source.r*edge.weight;c.g+=source.g*edge.weight;c.b+=source.b*edge.weight;
+        }
+    }
+    _Coefficients[id]=c;
+}

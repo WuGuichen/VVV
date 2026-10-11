@@ -1,0 +1,657 @@
+.trigger-test-window {
+    flex-grow: 1;
+    background-color: rgb(16, 20, 24);
+    color: rgb(232, 237, 240);
+}
+
+.trigger-test-header {
+    min-height: 44px;
+    height: 44px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 12px;
+    padding-right: 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(48, 58, 66);
+    background-color: rgb(20, 26, 31);
+}
+
+.trigger-test-title {
+    flex-grow: 1;
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: rgb(232, 237, 240);
+}
+
+.trigger-test-connection-dot {
+    width: 22px;
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    color: rgb(88, 201, 133);
+}
+
+.trigger-test-connection-dot.is-error {
+    color: rgb(224, 91, 91);
+}
+
+.trigger-test-expanded-body {
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.trigger-test-scenario-row {
+    min-height: 48px;
+    flex-direction: row;
+    align-items: center;
+    overflow: visible;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 7px;
+    padding-bottom: 5px;
+}
+
+.trigger-test-scenario-picker {
+    flex-grow: 1;
+    min-width: 0;
+    position: relative;
+    overflow: visible;
+    margin-right: 6px;
+    min-height: 32px;
+}
+
+.trigger-test-scenario-picker-button {
+    height: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding-left: 8px;
+    padding-right: 7px;
+    flex-direction: row;
+    align-items: center;
+    background-color: rgb(23, 30, 35);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(48, 58, 66);
+    border-right-color: rgb(48, 58, 66);
+    border-bottom-color: rgb(48, 58, 66);
+    border-left-color: rgb(48, 58, 66);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.trigger-test-scenario-picker-button:hover,
+.trigger-test-scenario-picker-button.is-open {
+    background-color: rgb(27, 36, 42);
+    border-top-color: rgb(72, 88, 98);
+    border-right-color: rgb(72, 88, 98);
+    border-bottom-color: rgb(72, 88, 98);
+    border-left-color: rgb(72, 88, 98);
+}
+
+.trigger-test-scenario-selected-name {
+    flex-grow: 1;
+    min-width: 0;
+    -unity-text-align: middle-left;
+    color: rgb(218, 224, 228);
+    font-size: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.trigger-test-scenario-picker-chevron {
+    width: 16px;
+    min-width: 16px;
+    margin-left: 5px;
+    -unity-text-align: middle-center;
+    color: rgb(151, 162, 170);
+}
+
+.trigger-test-scenario-picker-panel {
+    position: absolute;
+    top: 35px;
+    left: 0;
+    right: 0;
+    max-height: 540px;
+    padding-top: 7px;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(67, 79, 87);
+    border-right-color: rgb(67, 79, 87);
+    border-bottom-color: rgb(67, 79, 87);
+    border-left-color: rgb(67, 79, 87);
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    background-color: rgb(18, 24, 28);
+}
+
+.trigger-test-scenario-search {
+    height: 31px;
+    margin-left: 7px;
+    margin-right: 7px;
+    margin-bottom: 6px;
+}
+
+.trigger-test-scenario-search > .unity-base-field__input {
+    background-color: rgb(23, 30, 35);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(48, 58, 66);
+    border-right-color: rgb(48, 58, 66);
+    border-bottom-color: rgb(48, 58, 66);
+    border-left-color: rgb(48, 58, 66);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.trigger-test-scenario-filters {
+    min-height: 31px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 7px;
+    padding-right: 7px;
+    padding-bottom: 6px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(42, 51, 58);
+}
+
+.trigger-test-scenario-filter-button {
+    height: 24px;
+    min-width: 48px;
+    margin: 0 5px 0 0;
+    padding-left: 9px;
+    padding-right: 9px;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(55, 66, 74);
+    border-right-color: rgb(55, 66, 74);
+    border-bottom-color: rgb(55, 66, 74);
+    border-left-color: rgb(55, 66, 74);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    background-color: rgb(27, 34, 39);
+    color: rgb(178, 188, 195);
+    font-size: 11px;
+}
+
+.trigger-test-scenario-filter-button:hover {
+    background-color: rgb(34, 43, 49);
+}
+
+.trigger-test-scenario-filter-button.is-selected {
+    border-top-color: rgb(75, 190, 173);
+    border-right-color: rgb(75, 190, 173);
+    border-bottom-color: rgb(75, 190, 173);
+    border-left-color: rgb(75, 190, 173);
+    background-color: rgb(38, 116, 105);
+    color: rgb(239, 248, 246);
+}
+
+.trigger-test-scenario-list {
+    min-height: 110px;
+    max-height: 430px;
+    padding-left: 7px;
+    padding-right: 7px;
+    padding-top: 3px;
+}
+
+.trigger-test-scenario-group {
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(37, 45, 51);
+}
+
+.trigger-test-scenario-group-title {
+    height: 25px;
+    padding-left: 6px;
+    padding-top: 5px;
+    color: rgb(142, 154, 162);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+.trigger-test-scenario-option {
+    min-height: 29px;
+    height: 29px;
+    margin: 0 0 2px 0;
+    padding-left: 4px;
+    padding-right: 5px;
+    flex-direction: row;
+    align-items: center;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgba(0, 0, 0, 0);
+    border-right-color: rgba(0, 0, 0, 0);
+    border-bottom-color: rgba(0, 0, 0, 0);
+    border-left-color: rgba(0, 0, 0, 0);
+    background-color: rgb(23, 29, 34);
+}
+
+.trigger-test-scenario-option:hover,
+.trigger-test-scenario-option.is-keyboard-selected {
+    border-top-color: rgb(60, 75, 83);
+    border-right-color: rgb(60, 75, 83);
+    border-bottom-color: rgb(60, 75, 83);
+    border-left-color: rgb(60, 75, 83);
+    background-color: rgb(29, 39, 44);
+}
+
+.trigger-test-scenario-option.is-selected {
+    border-left-width: 2px;
+    border-left-color: rgb(75, 190, 173);
+    background-color: rgb(25, 65, 64);
+}
+
+.trigger-test-scenario-option.is-unavailable {
+    opacity: 0.66;
+}
+
+.trigger-test-scenario-option-check {
+    width: 20px;
+    min-width: 20px;
+    -unity-text-align: middle-center;
+    color: rgb(87, 207, 188);
+    -unity-font-style: bold;
+}
+
+.trigger-test-scenario-option-name {
+    flex-grow: 1;
+    min-width: 0;
+    -unity-text-align: middle-left;
+    color: rgb(211, 219, 224);
+    font-size: 11px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.trigger-test-scenario-badge {
+    height: 19px;
+    min-width: 32px;
+    margin-left: 4px;
+    padding-left: 5px;
+    padding-right: 5px;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(57, 70, 78);
+    border-right-color: rgb(57, 70, 78);
+    border-bottom-color: rgb(57, 70, 78);
+    border-left-color: rgb(57, 70, 78);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: rgb(25, 32, 37);
+    color: rgb(166, 177, 184);
+    -unity-text-align: middle-center;
+    font-size: 9px;
+}
+
+.trigger-test-scenario-badge.is-available {
+    border-top-color: rgb(54, 120, 105);
+    border-right-color: rgb(54, 120, 105);
+    border-bottom-color: rgb(54, 120, 105);
+    border-left-color: rgb(54, 120, 105);
+    color: rgb(105, 211, 177);
+}
+
+.trigger-test-scenario-badge.is-blocked {
+    color: rgb(202, 157, 89);
+}
+
+.trigger-test-scenario-picker-footer {
+    min-height: 27px;
+    padding-top: 7px;
+    padding-left: 11px;
+    border-top-width: 1px;
+    border-top-color: rgb(42, 51, 58);
+    color: rgb(112, 124, 132);
+    font-size: 10px;
+}
+
+.trigger-test-scenario-picker-empty {
+    min-height: 64px;
+    padding-top: 22px;
+    -unity-text-align: upper-center;
+    color: rgb(112, 124, 132);
+    font-size: 11px;
+}
+
+.trigger-test-run-button {
+    width: 46px;
+    height: 32px;
+    margin: 0;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(80, 199, 180);
+    border-right-color: rgb(80, 199, 180);
+    border-bottom-color: rgb(80, 199, 180);
+    border-left-color: rgb(80, 199, 180);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: rgb(45, 144, 130);
+    color: rgb(241, 248, 247);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+
+.trigger-test-historical-frame {
+    min-height: 30px;
+    margin-left: 12px;
+    margin-right: 64px;
+    margin-bottom: 5px;
+}
+
+.trigger-test-timeline-event {
+    min-height: 30px;
+    margin-left: 12px;
+    margin-right: 64px;
+    margin-bottom: 5px;
+}
+
+.trigger-test-timeline-event > .unity-base-field__label {
+    min-width: 58px;
+    color: rgb(184, 193, 199);
+}
+
+.trigger-test-timeline-event > .unity-base-field__input {
+    background-color: rgb(23, 30, 35);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(48, 58, 66);
+    border-right-color: rgb(48, 58, 66);
+    border-bottom-color: rgb(48, 58, 66);
+    border-left-color: rgb(48, 58, 66);
+}
+
+.trigger-test-historical-frame > .unity-base-field__label {
+    min-width: 48px;
+    color: rgb(184, 193, 199);
+}
+
+.trigger-test-historical-frame > .unity-base-field__input {
+    background-color: rgb(23, 30, 35);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(48, 58, 66);
+    border-right-color: rgb(48, 58, 66);
+    border-bottom-color: rgb(48, 58, 66);
+    border-left-color: rgb(48, 58, 66);
+}
+
+.trigger-test-profile-hint {
+    min-height: 20px;
+    margin-left: 12px;
+    margin-right: 12px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: rgb(143, 154, 163);
+}
+
+.trigger-test-status-strip {
+    height: 42px;
+    min-height: 42px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 12px;
+    padding-right: 8px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-top-color: rgb(39, 47, 53);
+    border-bottom-color: rgb(39, 47, 53);
+    background-color: rgb(19, 25, 29);
+}
+
+.trigger-test-status {
+    flex-grow: 1;
+    font-size: 15px;
+    -unity-font-style: bold;
+    color: rgb(143, 154, 163);
+}
+
+.trigger-test-status.is-passed {
+    color: rgb(88, 201, 133);
+}
+
+.trigger-test-status.is-pending {
+    color: rgb(218, 166, 69);
+}
+
+.trigger-test-status.is-failed {
+    color: rgb(224, 91, 91);
+}
+
+.trigger-test-duration {
+    margin-right: 8px;
+    color: rgb(184, 193, 199);
+    font-size: 12px;
+}
+
+.trigger-test-section-title {
+    height: 31px;
+    min-height: 31px;
+    padding-left: 12px;
+    padding-top: 8px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(218, 224, 228);
+}
+
+.trigger-test-chain-scroll {
+    flex-grow: 1;
+    min-height: 156px;
+    margin-left: 9px;
+    margin-right: 9px;
+    margin-bottom: 5px;
+}
+
+.trigger-test-chain {
+    flex-grow: 1;
+}
+
+.trigger-test-operation {
+    min-height: 52px;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 5px;
+    padding-right: 8px;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(48, 58, 66);
+    border-right-color: rgb(48, 58, 66);
+    border-bottom-color: rgb(48, 58, 66);
+    border-left-color: rgb(48, 58, 66);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: rgb(21, 27, 32);
+}
+
+.trigger-test-operation:hover {
+    border-top-color: rgb(72, 88, 98);
+    border-right-color: rgb(72, 88, 98);
+    border-bottom-color: rgb(72, 88, 98);
+    border-left-color: rgb(72, 88, 98);
+    background-color: rgb(24, 32, 37);
+}
+
+.trigger-test-operation.is-failed {
+    border-left-width: 2px;
+    border-left-color: rgb(224, 91, 91);
+}
+
+.trigger-test-operation-connector {
+    width: 31px;
+    min-width: 31px;
+    height: 100%;
+    -unity-text-align: middle-center;
+    white-space: normal;
+    color: rgb(69, 190, 169);
+    font-size: 11px;
+}
+
+.trigger-test-operation.is-trigger .trigger-test-operation-connector {
+    color: rgb(88, 201, 133);
+}
+
+.trigger-test-operation.is-function .trigger-test-operation-connector {
+    color: rgb(169, 130, 229);
+}
+
+.trigger-test-operation.is-assertion .trigger-test-operation-connector {
+    color: rgb(218, 166, 69);
+}
+
+.trigger-test-operation-copy {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.trigger-test-operation-heading {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: rgb(218, 224, 228);
+}
+
+.trigger-test-operation-result {
+    margin-top: 3px;
+    font-size: 12px;
+    color: rgb(166, 176, 183);
+    white-space: normal;
+}
+
+.trigger-test-operation-status {
+    width: 24px;
+    min-width: 24px;
+    -unity-text-align: middle-center;
+    color: rgb(88, 201, 133);
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+
+.trigger-test-operation.is-failed .trigger-test-operation-status {
+    color: rgb(224, 91, 91);
+}
+
+.trigger-test-result-section {
+    min-height: 88px;
+    padding-bottom: 9px;
+    border-top-width: 1px;
+    border-top-color: rgb(39, 47, 53);
+    background-color: rgb(18, 23, 27);
+}
+
+.trigger-test-result-title {
+    margin-left: 12px;
+    margin-right: 12px;
+    font-size: 14px;
+    color: rgb(232, 237, 240);
+}
+
+.trigger-test-result-message {
+    margin-left: 12px;
+    margin-right: 12px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgb(143, 154, 163);
+    white-space: normal;
+}
+
+.trigger-test-footer {
+    min-height: 46px;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 9px;
+    padding-right: 9px;
+    border-top-width: 1px;
+    border-top-color: rgb(48, 58, 66);
+    background-color: rgb(20, 26, 31);
+}
+
+.trigger-test-footer-button {
+    height: 29px;
+    min-width: 72px;
+    margin: 0 6px 0 0;
+    background-color: rgb(28, 36, 42);
+    border-top-color: rgb(58, 70, 78);
+    border-right-color: rgb(58, 70, 78);
+    border-bottom-color: rgb(58, 70, 78);
+    border-left-color: rgb(58, 70, 78);
+}
+
+.trigger-test-icon-button {
+    width: 30px;
+    height: 28px;
+    min-width: 30px;
+    margin: 0 2px;
+    padding: 0;
+    background-color: rgb(25, 32, 37);
+    border-top-color: rgb(48, 58, 66);
+    border-right-color: rgb(48, 58, 66);
+    border-bottom-color: rgb(48, 58, 66);
+    border-left-color: rgb(48, 58, 66);
+    font-size: 14px;
+    -unity-text-align: middle-center;
+}
+
+.trigger-test-more {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    margin: 0 0 0 2px;
+    padding: 0;
+    background-color: rgba(0, 0, 0, 0);
+    border-top-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 0;
+    border-left-width: 0;
+    font-size: 17px;
+}
+
+.trigger-test-report-paths {
+    flex-grow: 1;
+    margin-left: 6px;
+    font-size: 10px;
+    -unity-text-align: middle-right;
+    color: rgb(111, 122, 130);
+}
+
+.trigger-test-empty {
+    padding: 12px;
+    white-space: normal;
+    color: rgb(111, 122, 130);
+    font-size: 12px;
+}
+
+.trigger-test-empty.is-error {
+    color: rgb(224, 91, 91);
+}

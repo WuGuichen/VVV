@@ -1,0 +1,26 @@
+{
+    "name": "MxFramework.Vfx.Unity.VfxGraph",
+    "rootNamespace": "MxFramework.Vfx.Unity.VfxGraph",
+    "references": [
+        "MxFramework.Vfx",
+        "MxFramework.Vfx.Unity",
+        "Unity.VisualEffectGraph.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "MXFRAMEWORK_VFX_GRAPH"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.visualeffectgraph",
+            "expression": "17.0.0",
+            "define": "MXFRAMEWORK_VFX_GRAPH"
+        }
+    ],
+    "noEngineReferences": false
+}

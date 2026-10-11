@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Application.SessionBridge.Unity",
+    "rootNamespace": "MxFramework.ApplicationStartup.SessionBridge.Unity",
+    "references": [
+        "MxFramework.Application.SessionBridge",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

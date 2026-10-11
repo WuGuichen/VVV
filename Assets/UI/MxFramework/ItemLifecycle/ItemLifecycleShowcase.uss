@@ -1,0 +1,333 @@
+.item-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    background-color: rgb(18, 20, 24);
+}
+
+.top-bar {
+    height: 42px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.showcase-title {
+    font-size: 24px;
+    -unity-font-style: bold;
+    color: rgb(245, 247, 250);
+}
+
+.top-stats {
+    min-width: 180px;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.main-grid {
+    flex-grow: 1;
+    min-height: 0;
+    flex-direction: row;
+}
+
+.left-column {
+    width: 260px;
+    margin-right: 14px;
+}
+
+.center-column {
+    flex-grow: 1;
+    min-width: 300px;
+    margin-right: 14px;
+}
+
+.right-column {
+    width: 360px;
+    min-height: 0;
+}
+
+.section {
+    margin-bottom: 12px;
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    background-color: rgb(30, 34, 42);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(62, 70, 84);
+    border-right-color: rgb(62, 70, 84);
+    border-top-color: rgb(62, 70, 84);
+    border-bottom-color: rgb(62, 70, 84);
+    border-radius: 6px;
+}
+
+.grow-section {
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.section-title {
+    margin-bottom: 8px;
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(205, 218, 232);
+}
+
+.section-subtitle {
+    margin-top: 2px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: rgb(148, 160, 174);
+}
+
+.button-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 2px;
+}
+
+.command-button {
+    width: 68px;
+    height: 28px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    border-radius: 5px;
+    background-color: rgb(52, 70, 91);
+    color: rgb(245, 247, 250);
+    -unity-font-style: bold;
+}
+
+.primary-button {
+    background-color: rgb(38, 103, 82);
+}
+
+.danger-button {
+    background-color: rgb(106, 52, 58);
+}
+
+.move-pad {
+    width: 204px;
+}
+
+.move-row {
+    flex-direction: row;
+    height: 30px;
+}
+
+.move-button {
+    width: 68px;
+    height: 28px;
+}
+
+.move-spacer {
+    width: 68px;
+}
+
+.stat-row {
+    min-height: 26px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(48, 55, 68);
+}
+
+.tall-row {
+    min-height: 46px;
+}
+
+.stat-name {
+    width: 82px;
+    font-size: 12px;
+    color: rgb(148, 160, 174);
+}
+
+.stat-value {
+    max-width: 142px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(236, 240, 245);
+    -unity-text-align: middle-right;
+    white-space: normal;
+}
+
+.hash-text {
+    white-space: normal;
+    max-width: 142px;
+}
+
+.equipment-summary {
+    font-size: 12px;
+    max-width: 142px;
+}
+
+.list-panel {
+    flex-grow: 1;
+    min-height: 84px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    background-color: rgb(22, 25, 31);
+    border-radius: 4px;
+}
+
+.text-row {
+    min-height: 24px;
+    color: rgb(224, 229, 236);
+}
+
+.item-row {
+    min-height: 32px;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.item-row-text {
+    flex-grow: 1;
+    white-space: normal;
+}
+
+.item-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    margin-right: 8px;
+    background-color: rgb(34, 40, 50);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(78, 90, 108);
+    border-right-color: rgb(78, 90, 108);
+    border-top-color: rgb(78, 90, 108);
+    border-bottom-color: rgb(78, 90, 108);
+    border-radius: 4px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.item-icon-loaded {
+    background-color: rgb(18, 21, 27);
+}
+
+.item-icon-missing {
+    background-color: rgb(62, 46, 49);
+    border-left-color: rgb(132, 82, 88);
+    border-right-color: rgb(132, 82, 88);
+    border-top-color: rgb(132, 82, 88);
+    border-bottom-color: rgb(132, 82, 88);
+}
+
+.item-icon-empty {
+    opacity: 0.35;
+}
+
+.positive-row {
+    min-height: 24px;
+    color: rgb(165, 235, 199);
+    -unity-font-style: bold;
+}
+
+.muted-row {
+    min-height: 24px;
+    color: rgb(129, 140, 154);
+}
+
+.slot-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.inventory-section {
+    min-height: 0;
+}
+
+.equipment-section {
+    min-height: 116px;
+    flex-shrink: 0;
+}
+
+.equipment-grid {
+    min-height: 64px;
+}
+
+.slot-cell {
+    width: 156px;
+    height: 58px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    padding-left: 6px;
+    padding-right: 6px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    background-color: rgb(39, 45, 56);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(76, 88, 105);
+    border-right-color: rgb(76, 88, 105);
+    border-top-color: rgb(76, 88, 105);
+    border-bottom-color: rgb(76, 88, 105);
+    border-radius: 6px;
+}
+
+.slot-body {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+}
+
+.slot-text {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.slot-empty {
+    background-color: rgb(27, 31, 39);
+    border-left-color: rgb(50, 58, 70);
+    border-right-color: rgb(50, 58, 70);
+    border-top-color: rgb(50, 58, 70);
+    border-bottom-color: rgb(50, 58, 70);
+}
+
+.slot-clickable {
+    border-left-color: rgb(86, 99, 118);
+    border-right-color: rgb(86, 99, 118);
+    border-top-color: rgb(86, 99, 118);
+    border-bottom-color: rgb(86, 99, 118);
+}
+
+.slot-selected {
+    background-color: rgb(44, 58, 57);
+    border-left-color: rgb(93, 172, 147);
+    border-right-color: rgb(93, 172, 147);
+    border-top-color: rgb(93, 172, 147);
+    border-bottom-color: rgb(93, 172, 147);
+}
+
+.slot-title {
+    font-size: 10px;
+    color: rgb(149, 161, 176);
+}
+
+.slot-value {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: rgb(237, 241, 246);
+    white-space: normal;
+}

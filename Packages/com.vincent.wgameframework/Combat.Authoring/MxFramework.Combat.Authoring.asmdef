@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Combat.Authoring",
+    "rootNamespace": "MxFramework.Combat.Authoring",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Combat"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

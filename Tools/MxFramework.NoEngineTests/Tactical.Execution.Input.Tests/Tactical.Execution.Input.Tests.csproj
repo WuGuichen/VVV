@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalExecutionInput.cs" Link="Production/TacticalExecutionInput.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalPointSelectionPort.cs" Link="Production/TacticalPointSelectionPort.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalPointMoveRules.cs" Link="Production/TacticalPointMoveRules.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalPointProvider.cs" Link="Production/TacticalPointProvider.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Gameplay/GameplayEntityId.cs" Link="Production/GameplayEntityId.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Core/CharacterActionId.cs" Link="Production/CharacterActionId.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalDeckManager.cs" Link="Production/TacticalDeckManager.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalCardDefinition.cs" Link="Production/TacticalCardDefinition.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalCardEnums.cs" Link="Production/TacticalCardEnums.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalCardInstance.cs" Link="Production/TacticalCardInstance.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/MomentumLedger.cs" Link="Production/MomentumLedger.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalCooldownTracker.cs" Link="Production/TacticalCooldownTracker.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalTimeCoordinator.cs" Link="Production/TacticalTimeCoordinator.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/SettleDetector.cs" Link="Production/SettleDetector.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalExecutionPort.cs" Link="Production/TacticalExecutionPort.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalSingleCardDriver.cs" Link="Production/TacticalSingleCardDriver.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/TacticalUiReadout.cs" Link="Production/TacticalUiReadout.cs" />
+  </ItemGroup>
+</Project>

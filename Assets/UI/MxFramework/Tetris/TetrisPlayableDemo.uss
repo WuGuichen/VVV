@@ -1,0 +1,223 @@
+.tetris-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding-left: 28px;
+    padding-right: 28px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    background-color: rgb(17, 19, 24);
+}
+
+.tetris-header {
+    height: 42px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.tetris-title {
+    font-size: 26px;
+    -unity-font-style: bold;
+    color: rgb(244, 247, 250);
+}
+
+.state-pill {
+    height: 30px;
+    min-width: 110px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    border-radius: 6px;
+    background-color: rgb(33, 88, 71);
+    color: rgb(225, 255, 240);
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.is-paused .state-pill {
+    background-color: rgb(90, 74, 35);
+    color: rgb(255, 234, 174);
+}
+
+.is-game-over .state-pill {
+    background-color: rgb(111, 46, 49);
+    color: rgb(255, 218, 220);
+}
+
+.tetris-shell {
+    flex-grow: 1;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 0;
+}
+
+.board-wrap {
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: 10px;
+    background-color: rgb(27, 30, 38);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(68, 77, 92);
+    border-right-color: rgb(68, 77, 92);
+    border-top-color: rgb(68, 77, 92);
+    border-bottom-color: rgb(68, 77, 92);
+    border-radius: 8px;
+}
+
+.tetris-board {
+    position: relative;
+    background-color: rgb(9, 11, 15);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(46, 53, 65);
+    border-right-color: rgb(46, 53, 65);
+    border-top-color: rgb(46, 53, 65);
+    border-bottom-color: rgb(46, 53, 65);
+}
+
+.tetris-cell {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgba(255, 255, 255, 0.08);
+    border-right-color: rgba(255, 255, 255, 0.08);
+    border-top-color: rgba(255, 255, 255, 0.08);
+    border-bottom-color: rgba(0, 0, 0, 0.35);
+}
+
+.cell-empty {
+    background-color: rgb(14, 17, 23);
+}
+
+.cell-i {
+    background-color: rgb(31, 184, 222);
+}
+
+.cell-o {
+    background-color: rgb(239, 204, 64);
+}
+
+.cell-t {
+    background-color: rgb(156, 102, 217);
+}
+
+.cell-s {
+    background-color: rgb(72, 193, 105);
+}
+
+.cell-z {
+    background-color: rgb(224, 72, 78);
+}
+
+.cell-j {
+    background-color: rgb(65, 111, 217);
+}
+
+.cell-l {
+    background-color: rgb(235, 137, 49);
+}
+
+.side-panel {
+    width: 320px;
+    margin-left: 24px;
+    padding: 16px;
+    background-color: rgb(30, 34, 43);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(70, 81, 99);
+    border-right-color: rgb(70, 81, 99);
+    border-top-color: rgb(70, 81, 99);
+    border-bottom-color: rgb(70, 81, 99);
+    border-radius: 8px;
+}
+
+.stat-grid {
+    margin-bottom: 16px;
+}
+
+.stat-row {
+    min-height: 34px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(50, 58, 72);
+}
+
+.stat-name {
+    color: rgb(163, 174, 190);
+    font-size: 13px;
+}
+
+.stat-value {
+    color: rgb(238, 242, 247);
+    font-size: 15px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-right;
+}
+
+.button-row {
+    flex-direction: row;
+    margin-bottom: 10px;
+}
+
+.demo-button {
+    height: 34px;
+    flex-grow: 1;
+    margin-right: 8px;
+    border-radius: 6px;
+    background-color: rgb(54, 74, 96);
+    color: rgb(245, 248, 251);
+    -unity-font-style: bold;
+}
+
+.last-button {
+    margin-right: 0;
+}
+
+.danger-button {
+    background-color: rgb(110, 55, 61);
+}
+
+.hard-drop-button {
+    height: 34px;
+    flex-grow: 0;
+    margin-right: 0;
+    margin-bottom: 16px;
+    background-color: rgb(41, 102, 82);
+}
+
+.hash-panel {
+    padding: 10px;
+    background-color: rgb(22, 25, 32);
+    border-radius: 6px;
+}
+
+.hash-title {
+    margin-bottom: 6px;
+    color: rgb(163, 174, 190);
+    font-size: 12px;
+}
+
+.hash-value {
+    color: rgb(235, 238, 242);
+    font-size: 12px;
+    white-space: normal;
+}

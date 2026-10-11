@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>MxFramework.Authoring</RootNamespace>
+    <AssemblyName>MxFramework.Authoring.Core</AssemblyName>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Reflection.Metadata" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MxFramework.Authoring.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/CharacterAction/CharacterActionBladeTrailJsonProjection.cs" Link="CharacterPackages/CharacterActionBladeTrailJsonProjection.cs" />
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/WeaponCategory.cs" Link="CharacterPackages/WeaponCategory.cs" />
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/WeaponTypeCatalog.cs" Link="CharacterPackages/WeaponTypeCatalog.cs" />
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/CharacterTacticalDefaults.cs" Link="CharacterPackages/CharacterTacticalDefaults.cs" />
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/CharacterPresentationImages.cs" Link="CharacterPackages/CharacterPresentationImages.cs" />
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/Editor/ResourceMapping/Core/**/*.cs"
+             Link="ResourceMapping/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

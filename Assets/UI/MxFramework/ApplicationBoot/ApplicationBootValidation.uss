@@ -1,0 +1,48 @@
+.application-boot {
+    width: 520px;
+    margin-left: 24px;
+    margin-top: 24px;
+    padding: 16px;
+    color: rgb(218, 229, 240);
+    background-color: rgba(13, 24, 38, 0.96);
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-top-width: 2px;
+    border-bottom-width: 2px;
+    border-left-color: rgb(82, 116, 147);
+    border-right-color: rgb(82, 116, 147);
+    border-top-color: rgb(82, 116, 147);
+    border-bottom-color: rgb(82, 116, 147);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.application-boot__state {
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin-bottom: 10px;
+}
+
+.application-boot__facts > Label {
+    margin-bottom: 4px;
+    white-space: normal;
+}
+
+.application-boot__actions {
+    flex-direction: row;
+    margin-top: 12px;
+}
+
+.application-boot__actions > Button {
+    min-width: 96px;
+    height: 32px;
+    margin-right: 8px;
+}
+
+.application-boot--loading { border-left-color: rgb(71, 184, 232); }
+.application-boot--rolling-back { border-left-color: rgb(245, 178, 66); }
+.application-boot--error { border-left-color: rgb(239, 86, 92); }
+.application-boot--ready { border-left-color: rgb(77, 201, 135); }
+.application-boot--error .application-boot__error { color: rgb(255, 162, 166); }

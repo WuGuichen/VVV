@@ -1,0 +1,64 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+  <ui:Style src="TacticalCardHud.uss" />
+  <ui:VisualElement name="tacticalHud" class="tactical-hud" picking-mode="Ignore">
+    <ui:VisualElement class="tactical-header">
+      <ui:VisualElement class="tactical-row" style="justify-content: space-between; align-items: center;">
+        <ui:Label text="战术推演" class="tactical-title" style="margin-bottom: 0;" />
+        <ui:Button name="openSelectBtn" text="返回整备" class="tactical-btn-compact" />
+      </ui:VisualElement>
+      <ui:VisualElement class="tactical-row" style="margin-top: 6px;">
+        <ui:Label text="回合" /><ui:Label name="turnValue" />
+        <ui:Label name="phaseValue" /><ui:Label name="clockValue" />
+      </ui:VisualElement>
+      <ui:VisualElement class="tactical-row">
+        <ui:Label text="气机" /><ui:Label name="currentValue" />
+        <ui:Label text="预留" /><ui:Label name="reservedValue" />
+        <ui:Label text="可用" /><ui:Label name="spendableValue" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+    <ui:VisualElement class="tactical-hand">
+      <ui:Button name="hand0" class="tactical-card">
+        <ui:Label name="cardName" class="tactical-card-name" />
+        <ui:VisualElement class="tactical-row"><ui:Label text="气机消耗" /><ui:Label name="cardCost" /><ui:Label name="cardKind" /></ui:VisualElement>
+        <ui:Label name="cardDescription" class="tactical-description" />
+        <ui:Label name="cardState" class="tactical-card-state" />
+      </ui:Button>
+      <ui:Button name="hand1" class="tactical-card">
+        <ui:Label name="cardName" class="tactical-card-name" />
+        <ui:VisualElement class="tactical-row"><ui:Label text="气机消耗" /><ui:Label name="cardCost" /><ui:Label name="cardKind" /></ui:VisualElement>
+        <ui:Label name="cardDescription" class="tactical-description" />
+        <ui:Label name="cardState" class="tactical-card-state" />
+      </ui:Button>
+      <ui:Button name="hand2" class="tactical-card">
+        <ui:Label name="cardName" class="tactical-card-name" />
+        <ui:VisualElement class="tactical-row"><ui:Label text="气机消耗" /><ui:Label name="cardCost" /><ui:Label name="cardKind" /></ui:VisualElement>
+        <ui:Label name="cardDescription" class="tactical-description" />
+        <ui:Label name="cardState" class="tactical-card-state" />
+      </ui:Button>
+    </ui:VisualElement>
+    <ui:VisualElement class="tactical-controls">
+      <ui:Button name="cancelPending" text="取消选择" />
+      <ui:Button name="confirmExecution" text="确认出牌 / 出招" class="tactical-primary" />
+    </ui:VisualElement>
+    <ui:VisualElement name="commandFeedback" class="tactical-command-feedback tactical-hidden">
+      <ui:Label name="commandFeedbackMessage" class="tactical-command-feedback-message" />
+    </ui:VisualElement>
+    <ui:VisualElement name="outcomeBanner" class="tactical-modal tactical-hidden">
+      <ui:VisualElement class="tactical-dialog">
+        <ui:Label name="outcomeMessage" class="tactical-title" />
+        <ui:VisualElement class="tactical-row" style="margin-top: 12px;">
+          <ui:Button name="restartBattle" text="重试（返回整备）" class="tactical-primary" style="flex-grow: 1;" />
+          <ui:Button name="changeHeroFromOutcome" text="更换出战角色" style="flex-grow: 1;" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+    </ui:VisualElement>
+    <ui:VisualElement name="faultBanner" class="tactical-modal tactical-hidden">
+      <ui:VisualElement class="tactical-dialog">
+        <ui:Label text="故障保护" class="tactical-title" />
+        <ui:Label name="faultMessage" class="tactical-description" />
+        <ui:Button name="recoverBattle" text="尝试恢复" />
+        <ui:Button name="resetBattle" text="返回整备" class="tactical-primary" />
+      </ui:VisualElement>
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

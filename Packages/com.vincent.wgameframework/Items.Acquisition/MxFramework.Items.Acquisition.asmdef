@@ -1,0 +1,18 @@
+{
+    "name": "MxFramework.Items.Acquisition",
+    "rootNamespace": "MxFramework.Items",
+    "references": [
+        "MxFramework.Items",
+        "MxFramework.Items.Runtime",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

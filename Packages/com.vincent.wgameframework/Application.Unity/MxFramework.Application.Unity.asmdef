@@ -1,0 +1,20 @@
+{
+    "name": "MxFramework.Application.Unity",
+    "rootNamespace": "MxFramework.ApplicationStartup.Unity",
+    "references": [
+        "MxFramework.Application",
+        "MxFramework.Application.PlatformBridge",
+        "MxFramework.Platform",
+        "MxFramework.Platform.Unity",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

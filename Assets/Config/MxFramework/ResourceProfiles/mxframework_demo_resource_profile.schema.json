@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "schemaId": "mxframework.demo.resource_profile",
+  "structureKind": "Graph",
+  "resourceReferencePolicy": {
+    "packageId": "mxframework.samples",
+    "variant": "",
+    "allowedTypes": [
+      "Texture2D",
+      "GameObject",
+      "AudioClip"
+    ]
+  },
+  "fields": [
+    {
+      "path": "startScreen.buttonNormalTexture",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "startScreen.buttonHoverTexture",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "startScreen.separatorTexture",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "startScreen.icons.archive",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "startScreen.icons.continue",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "startScreen.icons.exit",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "startScreen.icons.settings",
+      "type": "ResourceKey",
+      "expectedType": "Texture2D",
+      "required": true
+    },
+    {
+      "path": "statusAura.prefabs[]",
+      "type": "ResourceKey",
+      "expectedType": "GameObject",
+      "required": true
+    },
+    {
+      "path": "weapon.prefab",
+      "type": "ResourceKey",
+      "expectedType": "GameObject",
+      "required": true
+    },
+    {
+      "path": "magicEffects.audioClips[]",
+      "type": "ResourceKey",
+      "expectedType": "AudioClip",
+      "required": true
+    }
+  ]
+}

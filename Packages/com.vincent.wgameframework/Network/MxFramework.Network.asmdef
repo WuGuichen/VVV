@@ -1,0 +1,16 @@
+{
+    "name": "MxFramework.Network",
+    "rootNamespace": "MxFramework.Network",
+    "references": [
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

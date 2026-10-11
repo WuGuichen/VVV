@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Camera.Editor",
+    "rootNamespace": "MxFramework.Camera.Editor",
+    "references": [
+        "MxFramework.Camera",
+        "MxFramework.Camera.Unity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

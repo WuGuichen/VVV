@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Vfx.CombatBridge",
+    "rootNamespace": "MxFramework.Vfx.CombatBridge",
+    "references": [
+        "MxFramework.Combat",
+        "MxFramework.Core",
+        "MxFramework.Runtime",
+        "MxFramework.Vfx"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

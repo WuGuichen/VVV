@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Items.CharacterApplicationBridge",
+    "rootNamespace": "MxFramework.Items.CharacterApplicationBridge",
+    "references": [
+        "MxFramework.Items",
+        "MxFramework.Items.Runtime",
+        "MxFramework.Character.Application",
+        "MxFramework.Config"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

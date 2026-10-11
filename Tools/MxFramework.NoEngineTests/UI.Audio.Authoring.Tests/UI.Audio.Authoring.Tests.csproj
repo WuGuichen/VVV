@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>MxFramework.NoEngineTests.UI.Audio.Authoring</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/MxFramework.Authoring.Core.csproj" />
+  </ItemGroup>
+</Project>

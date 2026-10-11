@@ -1,0 +1,30 @@
+.animation-compression {
+    padding: 12px;
+}
+
+.animation-compression > * {
+    margin-bottom: 8px;
+}
+
+.animation-compression-buttons {
+    flex-direction: row;
+}
+
+.animation-compression-buttons > Button {
+    flex-grow: 1;
+    margin-right: 6px;
+    height: 28px;
+}
+
+.animation-compression-status {
+    white-space: normal;
+}
+
+.animation-compression-report {
+    flex-grow: 1;
+    min-height: 140px;
+}
+
+.animation-compression-report .unity-text-field__input {
+    white-space: normal;
+}

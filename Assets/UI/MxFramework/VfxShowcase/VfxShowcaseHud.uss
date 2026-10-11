@@ -1,0 +1,235 @@
+.vfx-root {
+    flex-direction: row;
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    background-color: rgb(9, 11, 12);
+    color: rgb(232, 238, 236);
+}
+
+.stage-panel {
+    position: absolute;
+    left: 390px;
+    right: 12px;
+    top: 12px;
+    bottom: 192px;
+    background-color: rgb(8, 10, 11);
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(54, 67, 70);
+    border-right-color: rgb(54, 67, 70);
+    border-bottom-color: rgb(54, 67, 70);
+    border-left-color: rgb(54, 67, 70);
+}
+
+.stage-view {
+    width: 100%;
+    height: 100%;
+    background-color: rgb(8, 10, 11);
+}
+
+.sidebar {
+    width: 330px;
+    height: 100%;
+    padding: 12px;
+    background-color: rgba(14, 17, 18, 0.94);
+    border-left-width: 3px;
+    border-left-color: rgb(77, 214, 187);
+}
+
+.panel-title {
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin-bottom: 8px;
+}
+
+.search-field {
+    margin-bottom: 8px;
+}
+
+.group-scroll {
+    height: 38px;
+    margin-bottom: 8px;
+}
+
+.group-row {
+    flex-direction: row;
+}
+
+.group-button {
+    height: 28px;
+    margin-right: 6px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.count-value {
+    font-size: 11px;
+    color: rgb(174, 191, 186);
+    margin-bottom: 8px;
+}
+
+.entry-list {
+    flex-grow: 1;
+}
+
+.entry-button {
+    min-height: 54px;
+    margin-bottom: 6px;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    background-color: rgba(38, 45, 47, 0.98);
+}
+
+.entry-button:hover {
+    background-color: rgb(55, 67, 70);
+}
+
+.entry-button-selected {
+    background-color: rgb(46, 94, 89);
+}
+
+.entry-name {
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: rgb(238, 246, 243);
+    white-space: normal;
+}
+
+.entry-subtitle {
+    font-size: 10px;
+    color: rgb(170, 189, 184);
+    margin-top: 3px;
+    white-space: normal;
+}
+
+.detail-panel {
+    position: absolute;
+    left: 390px;
+    right: 12px;
+    bottom: 12px;
+    height: 168px;
+    flex-direction: row;
+    padding: 12px;
+    background-color: rgba(17, 20, 21, 0.86);
+    border-top-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(59, 67, 68);
+    border-left-color: rgb(59, 67, 68);
+}
+
+.detail-main {
+    width: 414px;
+    margin-right: 14px;
+}
+
+.detail-header {
+    margin-bottom: 8px;
+}
+
+.entry-title {
+    font-size: 20px;
+    -unity-font-style: bold;
+}
+
+.status-value {
+    font-size: 11px;
+    color: rgb(167, 216, 204);
+    margin-top: 4px;
+}
+
+.control-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.control-row Button {
+    height: 26px;
+    margin-right: 8px;
+    margin-bottom: 6px;
+}
+
+.primary-button {
+    background-color: rgb(36, 147, 126);
+}
+
+.control-row Toggle {
+    min-width: 105px;
+    margin-right: 8px;
+}
+
+.slider-block {
+    margin-bottom: 6px;
+}
+
+.slider-block Slider {
+    height: 20px;
+    margin-bottom: 0;
+}
+
+.background-row {
+    flex-direction: row;
+    align-items: center;
+    height: 24px;
+}
+
+.background-label {
+    width: 92px;
+    font-size: 12px;
+    color: rgb(230, 238, 235);
+}
+
+.background-swatch-row {
+    flex-direction: row;
+}
+
+.background-swatch {
+    width: 24px;
+    height: 18px;
+    margin-right: 8px;
+    padding-left: 0;
+    padding-right: 0;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-color: rgb(120, 135, 135);
+    border-right-color: rgb(120, 135, 135);
+    border-bottom-color: rgb(120, 135, 135);
+    border-left-color: rgb(120, 135, 135);
+}
+
+.background-swatch-selected {
+    border-top-width: 2px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+    border-left-width: 2px;
+    border-top-color: rgb(84, 222, 196);
+    border-right-color: rgb(84, 222, 196);
+    border-bottom-color: rgb(84, 222, 196);
+    border-left-color: rgb(84, 222, 196);
+}
+
+.detail-grid {
+    flex-grow: 1;
+    padding-left: 12px;
+    border-left-width: 1px;
+    border-left-color: rgb(59, 67, 68);
+}
+
+.detail-key {
+    font-size: 11px;
+    color: rgb(143, 158, 154);
+    margin-top: 8px;
+}
+
+.detail-value {
+    white-space: normal;
+    font-size: 12px;
+    color: rgb(230, 238, 235);
+}

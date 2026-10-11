@@ -1,0 +1,42 @@
+{
+    "name": "MxFramework.Tests.UI.FairyGUI",
+    "rootNamespace": "MxFramework.Tests.UI.FairyGui",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "MxFramework.Runtime",
+        "MxFramework.Resources",
+        "MxFramework.Input",
+        "MxFramework.UI",
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime",
+        "MxFramework.UI.FairyGUI",
+        "MxFramework.UI.FairyGUI.Manifest",
+        "MxFramework.Demo",
+        "MxFramework.Demo.FairyGUI",
+        "FairyGUI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "MXFRAMEWORK_FMOD",
+        "MXFRAMEWORK_FAIRYGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.fairygui.gui",
+            "expression": "5.2.0",
+            "define": "MXFRAMEWORK_FAIRYGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -1,0 +1,33 @@
+{
+    "name": "MxFramework.Tests.PlayMode.Application",
+    "rootNamespace": "MxFramework.Tests.PlayMode.Application",
+    "references": [
+        "UnityEngine.TestRunner",
+        "MxFramework.Runtime",
+        "MxFramework.Resources",
+        "MxFramework.Persistence",
+        "MxFramework.Persistence.RuntimeBridge",
+        "MxFramework.Platform",
+        "MxFramework.Platform.Unity",
+        "MxFramework.Application",
+        "MxFramework.Application.PlatformBridge",
+        "MxFramework.Application.PersistenceBridge",
+        "MxFramework.Application.SessionBridge",
+        "MxFramework.Application.SessionBridge.Unity",
+        "MxFramework.Application.Unity",
+        "MxFramework.Application.Unity.Validation"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

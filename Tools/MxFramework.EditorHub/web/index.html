@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MxFramework 外部编辑器中心</title><link rel="stylesheet" href="./styles.css"></head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">Mx</span><span>MxFramework <small>Editor Hub</small></span></a>
+      <div class="toolbar">
+        <p class="service-status" id="serverStatus" role="status">正在连接服务…</p>
+        <button id="refreshButton" type="button" class="quiet-button">刷新</button>
+        <button id="createPackageButton" type="button" class="primary-button">新建角色</button>
+        <details class="more-menu" id="moreMenu"><summary>更多</summary><div class="menu-panel"><button id="diagnosticsButton" type="button">诊断</button><button id="restartServiceButton" type="button">重启服务</button></div></details>
+      </div>
+    </header>
+    <section class="tools-section" aria-labelledby="toolsTitle">
+      <div class="section-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="toolsTitle">打开编辑器</h1></div></div>
+      <div class="tool-grid" id="toolGrid"></div>
+    </section>
+    <section class="recent-section" id="recentSection" aria-labelledby="recentTitle" hidden>
+      <div class="section-heading"><h2 id="recentTitle">最近使用</h2><button id="clearRecentButton" type="button" class="quiet-button">清空记录</button></div>
+      <div class="recent-list" id="recentList"></div>
+    </section>
+  </main>
+  <dialog id="targetDialog" class="modal-dialog">
+    <form id="targetForm" class="modal-card">
+      <div class="modal-header"><h2 id="targetTitle">选择角色</h2><button id="targetCancelButton" type="button" class="close-button" aria-label="关闭">×</button></div>
+      <label class="modal-field"><span id="targetLabel">角色</span><select id="targetSelect" required></select></label>
+      <p id="targetError" class="error-message" role="alert" hidden></p>
+      <div class="modal-actions"><button id="targetRefreshButton" type="button" class="quiet-button">重新加载</button><button id="targetSubmitButton" type="submit" class="primary-button">打开编辑器</button></div>
+    </form>
+  </dialog>
+  <dialog id="createDialog" class="modal-dialog">
+    <form id="createForm" class="modal-card">
+      <div class="modal-header"><h2>新建角色</h2><button id="createCancelButton" type="button" class="close-button" aria-label="关闭">×</button></div>
+      <div class="modal-grid">
+        <label class="modal-field"><span>模板</span><select id="createTemplate"><option value="humanoid">人形</option><option value="creature">生物</option></select></label>
+        <label class="modal-field"><span>角色包 ID</span><input id="createPackageId" type="text" placeholder="knight_01" autocomplete="off" required></label>
+        <label class="modal-field"><span>显示名称</span><input id="createDisplayName" type="text" placeholder="骑士" autocomplete="off"></label>
+        <label class="modal-field"><span>目录名称</span><input id="createDirectoryName" type="text" placeholder="character-knight-01" autocomplete="off"></label>
+      </div>
+      <p id="createError" class="error-message" role="alert" hidden></p>
+      <div class="modal-actions"><button id="createCancelFooterButton" type="button" class="quiet-button">取消</button><button id="createSubmitButton" type="submit" class="primary-button">创建并打开</button></div>
+    </form>
+  </dialog>
+  <script src="./common.js"></script><script src="./app.js"></script>
+</body>
+</html>

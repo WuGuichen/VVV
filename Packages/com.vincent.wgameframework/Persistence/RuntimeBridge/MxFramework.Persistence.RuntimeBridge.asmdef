@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Persistence.RuntimeBridge",
+    "rootNamespace": "MxFramework.Persistence.RuntimeBridge",
+    "references": [
+        "MxFramework.Persistence",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+id = "wgame_uv_tools"
+version = "1.9.5"
+name = "WGame UV 检查助手"
+tagline = "一键棋盘格与 UV 拉伸显示"
+maintainer = "WGame"
+type = "add-on"
+tags = ["UV"]
+blender_version_min = "5.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "tests/", "*.ps1", "*.pyc", ".git/"]
+

@@ -1,0 +1,65 @@
+{
+    "name": "MxFramework.Game.CharacterTest.Editor",
+    "rootNamespace": "MxFramework.Game.CharacterTest.Editor",
+    "references": [
+        "MxFramework.Character.Application",
+        "MxFramework.Character.RuntimeSpawn",
+        "MxFramework.Combat",
+        "MxFramework.Combat.GameplayBridge",
+        "MxFramework.Combat.Projectiles.Unity",
+        "MxFramework.Core",
+        "MxFramework.CharacterAction",
+        "MxFramework.Audio",
+        "MxFramework.Audio.Config",
+        "MxFramework.Audio.Physical",
+        "MxFramework.Audio.Physical.Config",
+        "MxFramework.Game.CharacterTest",
+        "MxFramework.Input",
+        "Unity.InputSystem",
+        "FairyGUI",
+        "MxFramework.Editor",
+        "MxFramework.ResourceMapping.Authoring",
+        "MxFramework.Rendering",
+        "MxFramework.Rendering.Editor",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "MxFramework.Config",
+        "MxFramework.Diagnostics",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Gameplay.Triggers.CombatBridge",
+        "MxFramework.Gameplay.Triggers.Config",
+        "MxFramework.Gameplay.Triggers.GameplayBridge",
+        "MxFramework.Gameplay.Triggers.StoryBridge",
+        "MxFramework.Resources",
+        "MxFramework.Runtime",
+        "MxFramework.Story.Config",
+        "MxFramework.Vfx",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "MXFRAMEWORK_FMOD",
+        "MXFRAMEWORK_FAIRYGUI",
+        "MXFRAMEWORK_UNITY_TRANSPORT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.fairygui.gui",
+            "expression": "5.2.0",
+            "define": "MXFRAMEWORK_FAIRYGUI"
+        },
+        {
+            "name": "com.unity.transport",
+            "expression": "6.5.0",
+            "define": "MXFRAMEWORK_UNITY_TRANSPORT"
+        }
+    ],
+    "noEngineReferences": false
+}

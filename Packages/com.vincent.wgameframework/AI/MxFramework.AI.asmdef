@@ -1,0 +1,16 @@
+{
+    "name": "MxFramework.AI",
+    "rootNamespace": "MxFramework.AI",
+    "references": [
+        "MxFramework.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

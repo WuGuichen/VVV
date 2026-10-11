@@ -1,0 +1,22 @@
+{
+    "name": "MxFramework.Application.PersistenceBridge",
+    "rootNamespace": "MxFramework.ApplicationStartup.PersistenceBridge",
+    "references": [
+        "MxFramework.Application",
+        "MxFramework.Application.PlatformBridge",
+        "MxFramework.Application.SessionBridge",
+        "MxFramework.Persistence",
+        "MxFramework.Persistence.RuntimeBridge",
+        "MxFramework.Platform",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,0 +1,143 @@
+.cc-root {
+    flex-grow: 1;
+    background-color: rgb(17, 19, 23);
+    color: rgb(235, 238, 242);
+}
+
+.cc-shell {
+    flex-grow: 1;
+    padding-left: 26px;
+    padding-right: 26px;
+    padding-top: 22px;
+    padding-bottom: 22px;
+}
+
+.cc-header {
+    height: 48px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.cc-title {
+    font-size: 25px;
+    -unity-font-style: bold;
+    color: rgb(247, 248, 250);
+}
+
+.cc-state {
+    min-width: 142px;
+    height: 30px;
+    border-radius: 4px;
+    background-color: rgb(42, 69, 62);
+    color: rgb(214, 255, 238);
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.cc-main {
+    flex-grow: 1;
+    flex-direction: row;
+}
+
+.cc-board {
+    width: 420px;
+    height: 260px;
+    min-width: 420px;
+    min-height: 260px;
+    background-color: rgb(31, 35, 40);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(76, 85, 96);
+    border-right-color: rgb(76, 85, 96);
+    border-top-color: rgb(76, 85, 96);
+    border-bottom-color: rgb(76, 85, 96);
+    border-radius: 6px;
+    position: relative;
+    margin-right: 24px;
+}
+
+.cc-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background-color: rgb(83, 175, 132);
+    position: absolute;
+    left: 201px;
+    top: 121px;
+}
+
+.cc-enemy {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    background-color: rgb(218, 98, 93);
+    position: absolute;
+    left: 268px;
+    top: 78px;
+}
+
+.cc-panel {
+    width: 410px;
+    min-width: 320px;
+    flex-grow: 1;
+}
+
+.cc-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.cc-button {
+    width: 86px;
+    height: 34px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    background-color: rgb(54, 62, 73);
+    color: rgb(245, 247, 249);
+    -unity-font-style: bold;
+}
+
+.cc-stats {
+    margin-top: 2px;
+}
+
+.cc-row {
+    min-height: 27px;
+    flex-direction: row;
+    align-items: center;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.cc-key {
+    width: 92px;
+    color: rgb(160, 170, 182);
+    font-size: 13px;
+}
+
+.cc-value {
+    flex-grow: 1;
+    color: rgb(239, 243, 247);
+    font-size: 14px;
+    -unity-text-align: middle-left;
+}
+
+.cc-hash {
+    margin-top: 14px;
+    padding-top: 8px;
+    padding-left: 10px;
+    padding-right: 10px;
+    height: 35px;
+    border-radius: 4px;
+    background-color: rgb(26, 30, 36);
+    color: rgb(202, 211, 219);
+    font-size: 13px;
+}

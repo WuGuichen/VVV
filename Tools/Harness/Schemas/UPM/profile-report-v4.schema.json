@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxframework.invalid/schemas/upm/profile-report-v4.schema.json",
+  "title": "MxFramework UPM Consumer Profile Report v4",
+  "type": "object",
+  "required": ["schemaVersion", "reportType", "candidate", "harness", "execution", "dependencyResolution", "compile", "tests", "optionalIntegrations", "player", "artifacts", "mutationGuard", "logPolicy"],
+  "properties": {
+    "schemaVersion": {"const": 4},
+    "reportType": {"const": "profile"},
+    "candidate": {
+      "type": "object",
+      "required": ["sourceMode", "requestedCommit", "resolvedCommit", "packageTreeHash", "packageTreeHashAlgorithm", "packageName", "packageVersion", "resolvedPackageSource", "localSourceDirty"],
+      "properties": {
+        "sourceMode": {"enum": ["local", "pinned-git"]}, "requestedCommit": {"type": ["string", "null"]},
+        "resolvedCommit": {"type": ["string", "null"]}, "packageTreeHash": {"$ref": "#/$defs/hash"},
+        "packageTreeHashAlgorithm": {"const": "sha256-path-nul-content-nul-v1"}, "packageName": {"type": "string", "minLength": 1},
+        "packageVersion": {"type": "string", "minLength": 1}, "resolvedPackageSource": {"type": "string", "minLength": 1},
+        "localSourceDirty": {"type": ["boolean", "null"]}
+      }, "additionalProperties": false
+    },
+    "harness": {
+      "type": "object", "required": ["repositoryCommit", "repositoryDirty", "fixtureHash", "controlledStateHash", "runnerHash", "runnerVersion", "schemaVersion"],
+      "properties": {
+        "repositoryCommit": {"$ref": "#/$defs/commit"}, "repositoryDirty": {"type": "boolean"},
+        "fixtureHash": {"$ref": "#/$defs/hash"}, "controlledStateHash": {"$ref": "#/$defs/hash"}, "runnerHash": {"$ref": "#/$defs/hash"},
+        "runnerVersion": {"const": 4}, "schemaVersion": {"const": 4}
+      }, "additionalProperties": false
+    },
+    "execution": {
+      "type": "object", "required": ["profile", "unityVersion", "platform", "cleanLibrary", "evidenceLevel", "eligibleForMatrix", "result", "failureClassification", "resolvedPackageTreeHash", "resolvedPackageTreeHashAlgorithm"],
+      "properties": {
+        "profile": {"enum": ["base", "with-fairygui", "with-unity-transport", "with-vfx-graph"]},
+        "unityVersion": {"type": "string", "minLength": 1}, "platform": {"type": "object"}, "cleanLibrary": {"type": "boolean"},
+        "evidenceLevel": {"enum": ["E1", "E2-row"]}, "eligibleForMatrix": {"type": "boolean"},
+        "result": {"enum": ["passed", "failed"]}, "failureClassification": {"type": ["string", "null"]},
+        "resolvedPackageTreeHash": {"$ref": "#/$defs/hash"},
+        "resolvedPackageTreeHashAlgorithm": {"const": "sha256-path-nul-content-nul-v1"}
+      }, "additionalProperties": false
+    },
+    "dependencyResolution": {"type": "object"},
+    "compile": {"type": "object", "required": ["passed"], "properties": {"passed": {"type": "boolean"}}},
+    "tests": {
+      "type": "object", "required": ["expectedFullNames", "observedFullNames", "total", "passed", "failed", "skipped", "complete"],
+      "properties": {
+        "expectedFullNames": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "observedFullNames": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "total": {"type": "integer", "minimum": 0}, "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}, "skipped": {"type": "integer", "minimum": 0}, "complete": {"type": "boolean"}
+      }, "additionalProperties": false
+    },
+    "optionalIntegrations": {"type": "array", "items": {"type": "object"}},
+    "player": {
+      "type": "object", "required": ["buildRequested", "buildPassed", "runRequested", "runPassed", "buildReportHash", "runReportHash", "target"],
+      "properties": {
+        "buildRequested": {"type": "boolean"}, "buildPassed": {"type": ["boolean", "null"]}, "runRequested": {"type": "boolean"},
+        "runPassed": {"type": ["boolean", "null"]}, "buildReportHash": {"type": ["string", "null"]},
+        "runReportHash": {"type": ["string", "null"]}, "target": {"type": ["string", "null"]}
+      }, "additionalProperties": false
+    },
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "mutationGuard": {"type": "object"}, "logPolicy": {"type": "object"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "artifact": {
+      "type": "object", "required": ["id", "type", "sha256", "externalStorageReference"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/hash"}, "externalStorageReference": {"type": "string", "pattern": "^consumer-output:"}},
+      "additionalProperties": false
+    }
+  }
+}

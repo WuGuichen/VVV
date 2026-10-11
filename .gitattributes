@@ -1,0 +1,2 @@
+# Code snapshot: preserve original blob bytes and disable LFS filters.
+* -filter -text

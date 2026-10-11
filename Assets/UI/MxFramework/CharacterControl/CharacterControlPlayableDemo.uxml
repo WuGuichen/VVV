@@ -1,0 +1,39 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/MxFramework/CharacterControl/CharacterControlPlayableDemo.uss?fileID=7433441132597879392&amp;guid=fc87a24a9c92342f7a44f0e7459d41bb&amp;type=3#CharacterControlPlayableDemo" />
+    <ui:VisualElement name="character-control-root" class="cc-root">
+        <ui:VisualElement name="character-control-shell" class="cc-shell">
+            <ui:VisualElement class="cc-header">
+                <ui:Label text="Character Control Playable" class="cc-title" />
+                <ui:Label name="state-label" text="Locomotion" class="cc-state" />
+            </ui:VisualElement>
+            <ui:VisualElement class="cc-main">
+                <ui:VisualElement name="board" class="cc-board">
+                    <ui:VisualElement name="avatar" class="cc-avatar" />
+                    <ui:VisualElement name="enemy" class="cc-enemy" />
+                </ui:VisualElement>
+                <ui:VisualElement class="cc-panel">
+                    <ui:VisualElement class="cc-actions">
+                        <ui:Button name="move-button" text="Move" class="cc-button" />
+                        <ui:Button name="jump-button" text="Jump" class="cc-button" />
+                        <ui:Button name="attack-button" text="Attack" class="cc-button" />
+                        <ui:Button name="pressure-button" text="Break" class="cc-button" />
+                        <ui:Button name="ai-button" text="Planner" class="cc-button" />
+                        <ui:Button name="pause-button" text="Pause" class="cc-button" />
+                        <ui:Button name="reset-button" text="Reset" class="cc-button" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="cc-stats">
+                        <ui:VisualElement class="cc-row"><ui:Label text="Frame" class="cc-key" /><ui:Label name="frame-label" text="0" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Source" class="cc-key" /><ui:Label name="source-label" text="None" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Position" class="cc-key" /><ui:Label name="position-label" text="0.00, 0.90, 0.00" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Action" class="cc-key" /><ui:Label name="action-label" text="None" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Pressure" class="cc-key" /><ui:Label name="pressure-label" text="None" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Animation" class="cc-key" /><ui:Label name="animation-label" text="None" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Replay" class="cc-key" /><ui:Label name="replay-label" text="0" class="cc-value" /></ui:VisualElement>
+                        <ui:VisualElement class="cc-row"><ui:Label text="Debug" class="cc-key" /><ui:Label name="debug-label" text="1 source / 0 errors" class="cc-value" /></ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:Label name="hash-label" text="0000000000000000" class="cc-hash" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>MxFramework.NoEngineTests.UI.Feedback</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiViewId.cs" Link="MxFramework/UI/MxUiViewId.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiCommand.cs" Link="MxFramework/UI/MxUiCommand.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiFeedback.cs" Link="MxFramework/UI/MxUiFeedback.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiCommandOutcome.cs" Link="MxFramework/UI/MxUiCommandOutcome.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiFeedbackCommandSink.cs" Link="MxFramework/UI/MxUiFeedbackCommandSink.cs" />
+  </ItemGroup>
+</Project>

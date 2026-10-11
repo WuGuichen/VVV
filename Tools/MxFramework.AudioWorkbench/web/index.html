@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework Audio Workbench</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="app-sidebar" aria-label="Audio Workbench 主导航">
+      <a class="brand" href="?screen=dashboard" data-screen-link="dashboard">
+        <span class="brand-mark" aria-hidden="true">AU</span>
+        <span><strong>Audio Workbench</strong><small>Physical Runtime v2</small></span>
+      </a>
+
+      <p class="nav-label">制作流程</p>
+      <nav class="primary-nav">
+        <button type="button" data-app-screen="dashboard"><span class="nav-icon">▦</span><span>项目总览</span><b id="dashboardCount">—</b></button>
+        <button type="button" data-app-screen="cues"><span class="nav-icon">◉</span><span>Cue 制作</span><b id="cueCount">—</b></button>
+        <button type="button" data-app-screen="candidates"><span class="nav-icon">≈</span><span>候选实验室</span><b id="candidateCount">—</b></button>
+        <button type="button" data-app-screen="basis"><span class="nav-icon">⌁</span><span>Basis 与响应</span><b id="basisCount">—</b></button>
+        <button type="button" data-app-screen="matrix"><span class="nav-icon">▦</span><span>材质覆盖</span><b id="coverageCount">—</b></button>
+        <button type="button" data-app-screen="preview"><span class="nav-icon">▷</span><span>游戏预览与发布</span><b id="blockerCount">—</b></button>
+      </nav>
+
+      <p class="nav-label">项目</p>
+      <nav class="secondary-nav">
+        <button type="button" data-app-screen="cues" data-screen-tab="history"><span class="nav-icon">⌘</span><span>FMOD 工程</span><b id="snapshotState">—</b></button>
+        <button type="button" data-copy-diagnostics><span class="nav-icon">···</span><span>诊断与历史</span><b id="diagnosticCount">—</b></button>
+      </nav>
+
+      <div class="sidebar-progress">
+        <div><span>运行时激活</span><strong id="activationPercent">0%</strong></div>
+        <progress id="activationProgress" max="100" value="0"></progress>
+        <div><small id="activationBasisSummary">0 / 0 Basis</small><small id="activationMode">Blocked</small></div>
+      </div>
+    </aside>
+
+    <div class="app-frame">
+      <header class="topbar">
+        <div class="breadcrumb"><span>MxFramework</span><i>/</i><strong id="breadcrumbTitle">项目总览</strong><span id="serverStatus" class="server-pill">正在连接 Authoring 服务…</span></div>
+        <div class="toolbar">
+          <button id="reloadButton" type="button">刷新</button>
+          <button id="saveButton" class="primary" type="button">保存草稿</button>
+          <button id="approveAllButton" type="button" title="可选内容质量记录；不影响游戏同步">可选：批量记录质量确认</button>
+          <button id="publishButton" class="publish" type="button">一键同步到游戏</button>
+          <a class="button editor-hub-link" href="/Tools/MxFramework.EditorHub/web/">EditorHub</a>
+        </div>
+      </header>
+
+      <section id="actionFeedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true" hidden></section>
+
+      <section id="statusStrip" class="status-strip" aria-label="项目状态"></section>
+
+      <section class="page-intro">
+        <div><p id="pageKicker" class="eyebrow">Project Overview</p><h1 id="pageTitle">运行时激活中心</h1><p id="pageDescription">只显示当前项目真正需要处理的决定。</p></div>
+        <div id="pageActions" class="row-actions"></div>
+      </section>
+
+      <section id="dashboardPanel" class="dashboard-panel" aria-label="Audio 项目总览">
+        <section id="runtimeActivationPanel" class="runtime-activation" aria-label="统一物理音频运行时激活状态"></section>
+        <div id="dashboardContent" class="dashboard-content"></div>
+      </section>
+
+      <main class="workspace">
+        <aside class="library-panel">
+          <div class="panel-head"><div><h2 id="libraryTitle">Cue 库</h2><p id="cueSummary">尚未载入</p></div><button id="newCueButton" type="button">新建</button></div>
+          <div class="filters">
+            <input id="searchInput" type="search" placeholder="搜索 Cue / 标签">
+            <select id="categoryFilter" aria-label="Cue 分类"><option value="all">全部分类</option></select>
+            <select id="statusFilter"><option value="all">全部状态</option><option>Draft</option><option>Active</option><option>Archived</option></select>
+            <select id="syncFilter" aria-label="游戏同步状态"><option value="all">全部同步状态</option></select>
+          </div>
+          <nav id="cueList" class="cue-list" aria-label="Audio Cue 列表"></nav>
+        </aside>
+
+        <section class="editor-panel">
+          <div class="panel-head editor-head">
+            <div id="editorWaveformPanel" class="editor-waveform-panel" aria-label="当前 Cue 素材波形"><div class="waveform-preview" data-waveform-preview></div></div>
+            <div class="editor-context"><p class="eyebrow">Gameplay Cue · 为什么播放</p><h2 id="editorTitle">未选择 Cue</h2><p id="editorSubtitle">从左侧选择或创建 Cue</p></div>
+            <div class="row-actions"><button id="duplicateButton" type="button">复制</button><button id="archiveButton" type="button">归档</button><button id="deleteButton" class="danger" type="button">永久删除</button></div>
+          </div>
+          <form id="cueForm" class="cue-form" autocomplete="off"></form>
+        </section>
+
+        <aside class="inspector-panel">
+          <section class="card next-step-card"><div class="panel-head compact"><div><p class="eyebrow">当前 Cue</p><h2>下一步</h2></div></div><div id="nextStepPanel"></div></section>
+          <details class="card inspector-details"><summary>可选试听与质量记录</summary><div id="auditionPanel"></div></details>
+          <details class="card inspector-details"><summary>改动摘要</summary><div id="diffPanel"></div></details>
+          <details class="card inspector-details"><summary>引用与诊断 <span id="referenceSummary">—</span></summary><div id="diagnosticsPanel"></div></details>
+          <details class="card inspector-details"><summary>运行时采用</summary><div id="runtimePanel"></div></details>
+        </aside>
+      </main>
+    </div>
+  </div>
+  <script src="./app-physical-pairs.js" defer></script>
+  <script src="./app-physical-workspace.js" defer></script>
+  <script src="./app-generation-recipes.js" defer></script>
+  <script src="./app-physical-analysis.js" defer></script>
+  <script src="./app-generation-session.js" defer></script>
+  <script src="./app-generation-jobs.js" defer></script>
+  <script src="./app-audio-analysis.js" defer></script>
+  <script src="./app-waveforms.js" defer></script>
+  <script src="./app-shell.js" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.UI.Audio",
+    "rootNamespace": "MxFramework.UI.Audio",
+    "references": [
+        "MxFramework.UI",
+        "MxFramework.Audio"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

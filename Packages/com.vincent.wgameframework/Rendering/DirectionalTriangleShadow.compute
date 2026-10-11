@@ -1,0 +1,127 @@
+#pragma kernel ClearDepth
+#pragma kernel CountCoverage
+#pragma kernel RasterTriangles
+#pragma target 5.0
+ByteAddressBuffer _Pose;
+StructuredBuffer<uint> _Indices;
+StructuredBuffer<float4> _Attributes; // UV.xy, vertex alpha, padding
+RWTexture2D<uint> _Depth;
+RWStructuredBuffer<uint> _Status;
+Texture2D<float4> _CoverageTexture, _DissolveTexture;
+SamplerState sampler_CoverageTexture, sampler_DissolveTexture;
+float4x4 _ObjectToWorld;
+float3 _BasisX, _BasisY, _LightDirection;
+float4 _Rectangle, _Range, _AlphaParameters, _BaseMapST;
+float _DissolveProgress;
+float3 _BoundsMin, _BoundsMax;
+int _Resolution, _Stride, _PositionOffset, _IndexStart, _TriangleCount, _TriangleStart, _CoverageMode, _DissolveMode, _PixelBudget, _ExceededTriangleBudget;
+float Cross2(float2 a, float2 b) { return a.x * b.y - a.y * b.x; }
+float NoiseHash(float2 cell)
+{
+    float3 p = frac(float3(cell.xyx) * .1031); p += dot(p, p.yzx + 33.33);
+    return frac((p.x + p.y) * p.z);
+}
+float ReferenceNoise(float2 uv)
+{
+    float2 coordinate = uv * 32, cell = floor(coordinate), blend = frac(coordinate);
+    blend = blend * blend * (3 - 2 * blend);
+    return lerp(lerp(NoiseHash(cell), NoiseHash(cell + float2(1,0)), blend.x),
+        lerp(NoiseHash(cell + float2(0,1)), NoiseHash(cell + 1), blend.x), blend.y);
+}
+bool Covered(float2 uv, float vertexAlpha)
+{
+    if (_CoverageMode == 1 && saturate(_CoverageTexture.SampleLevel(sampler_CoverageTexture, uv, 0).r
+        * _AlphaParameters.x * vertexAlpha) < _AlphaParameters.y) return false;
+    if (_CoverageMode == 2 && saturate(_CoverageTexture.SampleLevel(sampler_CoverageTexture,
+        uv * _BaseMapST.xy + _BaseMapST.zw, 0).a * _AlphaParameters.x) < _AlphaParameters.y) return false;
+    if (_DissolveProgress >= 1) return false;
+    if (_DissolveProgress > .00001)
+    {
+        float noise = _DissolveMode == 0 ? ReferenceNoise(uv) : _DissolveTexture.SampleLevel(sampler_DissolveTexture, uv, 0).r;
+        if (saturate(noise) < saturate(_DissolveProgress)) return false;
+    }
+    return true;
+}
+[numthreads(8,8,1)] void ClearDepth(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < (uint)_Resolution && id.y < (uint)_Resolution) _Depth[id.xy] = asuint(1.0);
+    if (id.x == 0 && id.y == 0) { _Status[0] = _ExceededTriangleBudget != 0 ? 4 : 0; _Status[1] = 0; }
+}
+[numthreads(64,1,1)] void CountCoverage(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_TriangleCount) return;
+    uint i0=_Indices[_IndexStart+id.x*3], i1=_Indices[_IndexStart+id.x*3+1], i2=_Indices[_IndexStart+id.x*3+2];
+    float3 a=mul(_ObjectToWorld,float4(asfloat(_Pose.Load3(i0*_Stride+_PositionOffset)),1)).xyz;
+    float3 b=mul(_ObjectToWorld,float4(asfloat(_Pose.Load3(i1*_Stride+_PositionOffset)),1)).xyz;
+    float3 c=mul(_ObjectToWorld,float4(asfloat(_Pose.Load3(i2*_Stride+_PositionOffset)),1)).xyz;
+    if(any(isnan(a)) || any(isnan(b)) || any(isnan(c)) || any(isinf(a)) || any(isinf(b)) || any(isinf(c)) ||
+        any(min(a,min(b,c))<_BoundsMin) || any(max(a,max(b,c))>_BoundsMax))
+    { InterlockedOr(_Status[0],1); return; }
+    float2 p0=(float2(dot(a,_BasisX),dot(a,_BasisY))-_Rectangle.xy)*_Rectangle.zw*_Resolution;
+    float2 p1=(float2(dot(b,_BasisX),dot(b,_BasisY))-_Rectangle.xy)*_Rectangle.zw*_Resolution;
+    float2 p2=(float2(dot(c,_BasisX),dot(c,_BasisY))-_Rectangle.xy)*_Rectangle.zw*_Resolution;
+    if(abs(Cross2(p1-p0,p2-p0))<.000001)return;
+    int2 lo=max(0,(int2)floor(min(p0,min(p1,p2)))),hi=min(_Resolution-1,(int2)floor(max(p0,max(p1,p2))));
+    uint pixels=(uint)max(0,hi.x-lo.x+1)*(uint)max(0,hi.y-lo.y+1),previous;
+    InterlockedAdd(_Status[1],pixels,previous);
+    // All count dispatches complete before any raster dispatch. Overflow may wrap
+    // the counter, but the sticky failure flag has already been set on the first
+    // crossing of the budget, so no partially rasterized shadow is accepted.
+    if(previous>(uint)_PixelBudget || pixels>(uint)_PixelBudget || previous>(uint)_PixelBudget-pixels)
+        InterlockedOr(_Status[0],2);
+}
+groupshared float2 rasterP0, rasterP1, rasterP2;
+groupshared float3 rasterDepths;
+groupshared float4 rasterAttr0, rasterAttr1, rasterAttr2;
+groupshared int2 rasterLo, rasterHi;
+groupshared float rasterArea;
+groupshared uint rasterValid;
+[numthreads(8,8,1)] void RasterTriangles(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
+{
+    uint triangleIndex=group.x+_TriangleStart;
+    if(lane==0)
+    {
+        rasterValid=0;
+        if(_Status[0]==0 && triangleIndex<(uint)_TriangleCount)
+        {
+        uint i0=_Indices[_IndexStart+triangleIndex*3],i1=_Indices[_IndexStart+triangleIndex*3+1],i2=_Indices[_IndexStart+triangleIndex*3+2];
+        float3 a=mul(_ObjectToWorld,float4(asfloat(_Pose.Load3(i0*_Stride+_PositionOffset)),1)).xyz;
+        float3 b=mul(_ObjectToWorld,float4(asfloat(_Pose.Load3(i1*_Stride+_PositionOffset)),1)).xyz;
+        float3 c=mul(_ObjectToWorld,float4(asfloat(_Pose.Load3(i2*_Stride+_PositionOffset)),1)).xyz;
+        if(any(isnan(a))||any(isnan(b))||any(isnan(c))||any(isinf(a))||any(isinf(b))||any(isinf(c))||
+            any(min(a,min(b,c))<_BoundsMin)||any(max(a,max(b,c))>_BoundsMax))
+            InterlockedOr(_Status[0],1);
+        else
+        {
+            rasterP0=(float2(dot(a,_BasisX),dot(a,_BasisY))-_Rectangle.xy)*_Rectangle.zw*_Resolution;
+            rasterP1=(float2(dot(b,_BasisX),dot(b,_BasisY))-_Rectangle.xy)*_Rectangle.zw*_Resolution;
+            rasterP2=(float2(dot(c,_BasisX),dot(c,_BasisY))-_Rectangle.xy)*_Rectangle.zw*_Resolution;
+            rasterArea=Cross2(rasterP1-rasterP0,rasterP2-rasterP0);
+            rasterLo=max(0,(int2)floor(min(rasterP0,min(rasterP1,rasterP2))));
+            rasterHi=min(_Resolution-1,(int2)floor(max(rasterP0,max(rasterP1,rasterP2))));
+            rasterDepths=float3(-dot(a,_LightDirection),-dot(b,_LightDirection),-dot(c,_LightDirection));
+            rasterAttr0=_Attributes[i0];rasterAttr1=_Attributes[i1];rasterAttr2=_Attributes[i2];
+            if(abs(rasterArea)>=.000001&&all(rasterHi>=rasterLo))rasterValid=1;
+        }
+        }
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if(rasterValid==0)return;
+    uint width=(uint)(rasterHi.x-rasterLo.x+1),height=(uint)(rasterHi.y-rasterLo.y+1);
+    // CountCoverage admits at most _PixelBudget candidates for this shadow update.
+    // Every candidate has one lane owner; the group's vertex projection is shared.
+    for(uint pixel=lane;pixel<width*height;pixel+=64)
+    {
+        int2 coordinate=rasterLo+int2(pixel%width,pixel/width);
+        float2 p=float2(coordinate)+.5;
+        float3 weights;
+        weights.y=Cross2(p-rasterP0,rasterP2-rasterP0)/rasterArea;
+        weights.z=Cross2(rasterP1-rasterP0,p-rasterP0)/rasterArea;weights.x=1-weights.y-weights.z;
+        if(any(weights<0))continue;
+        float4 attr=rasterAttr0*weights.x+rasterAttr1*weights.y+rasterAttr2*weights.z;
+        if(!Covered(attr.xy,attr.z))continue;
+        float depth=(dot(rasterDepths,weights)-_Range.x)*_Range.y;
+        if(depth>1)continue;
+        InterlockedMin(_Depth[coordinate],asuint(saturate(depth)));
+    }
+}

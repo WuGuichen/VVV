@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://specs.mxframework.io/schemas/character-skeleton-hierarchy-v1.0.json",
+  "title": "CharacterSkeletonHierarchy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "packageId", "sourceMeshSha256", "bones"],
+  "properties": {
+    "schemaVersion": { "type": "string", "enum": ["1.0.0"] },
+    "packageId": { "type": "string", "pattern": "^[0-9]{6}$" },
+    "sourceMeshSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "bones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["boneName", "path", "parentPath", "bindPoseWorldMatrix"],
+        "properties": {
+          "boneName": { "type": "string" },
+          "path": { "type": "string" },
+          "parentPath": { "type": "string" },
+          "humanoidSemantic": {
+            "type": ["string", "null"],
+            "enum": ["None", "Hips", "Spine", "Chest", "Neck", "Head", "LeftUpperArm", "RightUpperArm", null]
+          },
+          "bindPoseWorldMatrix": {
+            "type": "array",
+            "minItems": 16,
+            "maxItems": 16,
+            "items": { "type": "number" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mxframework.invalid/schemas/upm/receipt-candidate-v1.schema.json",
+  "title": "MxFramework UPM E3 Receipt Candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "type", "candidate", "matrix", "reports", "promotable", "releaseReady", "pendingP8Gates"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "type": {"const": "upm-e3-receipt-candidate"},
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "packageTreeHash", "packageName", "packageVersion", "workingTreeDirty"],
+      "properties": {
+        "commit": {"$ref": "#/$defs/commit"},
+        "packageTreeHash": {"$ref": "#/$defs/hash"},
+        "packageName": {"type": "string", "minLength": 1},
+        "packageVersion": {"type": "string", "minLength": 1},
+        "workingTreeDirty": {"const": false}
+      }
+    },
+    "matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report", "sha256"],
+      "properties": {"report": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "reports": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/report"}},
+    "promotable": {"const": true},
+    "releaseReady": {"const": false},
+    "pendingP8Gates": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "report", "sha256", "passed"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "report": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "passed": {"const": true}
+      }
+    }
+  }
+}

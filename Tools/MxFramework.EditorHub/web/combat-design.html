@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>战斗设计 · Editor Hub</title><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./combat-design.css"><link rel="stylesheet" href="./combat-design-authoring.css"><link rel="stylesheet" href="./combat-design-cards.css"></head>
+<body><main class="shell">
+  <header class="topbar"><a class="brand" href="./">← Editor Hub</a><div class="toolbar combat-design-tabs" role="tablist" aria-label="战斗设计视图"><button id="cards-tab" class="quiet-button" role="tab" aria-selected="true" aria-controls="cards-view">战术卡</button><button id="mechanisms-tab" class="quiet-button" role="tab" aria-selected="false" tabindex="-1" aria-controls="mechanisms-view">玩法机制</button><button id="intent-tab" class="quiet-button" role="tab" aria-selected="false" aria-controls="intent-view" tabindex="-1">意图目录</button><button id="templates-tab" class="quiet-button" role="tab" aria-selected="false" aria-controls="templates-view" tabindex="-1">模板表达</button><button id="sources-tab" class="quiet-button" role="tab" aria-selected="false" aria-controls="sources-view" tabindex="-1">源审查</button><button id="authoring-tab" class="quiet-button" role="tab" aria-selected="false" aria-controls="authoring-view" tabindex="-1">卡制作与发布</button><button id="snapshots-tab" class="quiet-button" role="tab" aria-selected="false" aria-controls="snapshot-view" tabindex="-1">原 owner 快照</button></div></header>
+  <section id="cards-view" class="tools-section" role="tabpanel" aria-labelledby="cards-tab"></section>
+  <section id="mechanisms-view" class="tools-section" role="tabpanel" aria-labelledby="mechanisms-tab">
+    <p class="eyebrow">GAMEPLAY MECHANISMS · READ ONLY</p><h1 id="mechanisms-heading">战斗设计 · 玩法机制</h1>
+    <p class="intent-intro">从玩家反复识别、利用和讨论的机制出发，查看触发、效果、结束与应对，再追到事件、意图和卡。规则归设计者，玩家只能在规则允许的范围内装配。</p>
+    <p id="mechanisms-status" role="status" aria-live="polite">正在读取机制来源…</p><p id="mechanisms-error" role="alert" hidden></p><div id="mechanisms-content"></div>
+  </section>
+  <section id="intent-view" class="tools-section" role="tabpanel" aria-labelledby="intent-tab" hidden>
+    <p class="eyebrow">TACTICAL INTENTS</p><h1 id="intent-heading">战术意图目录</h1>
+    <p class="intent-intro">意图是可复用的模板组件。目录从当前组件工厂、事件块与功能动作槽生成，查看实现、参数、使用实例和来源；完整战术表达在独立标签中查看。</p>
+    <div id="intent-mount"><div id="catalog-host"><p id="intent-status" role="status" aria-live="polite">正在读取权威源…</p><p id="intent-error" role="alert" hidden></p><div id="intent-content"></div></div></div>
+  </section>
+  <section id="templates-view" class="tools-section" role="tabpanel" aria-labelledby="templates-tab" hidden>
+    <p class="eyebrow">TEMPLATE COMPOSITION EXPRESSIONS</p><h1>模板制作表达目录</h1>
+    <p class="intent-intro">列出已识别组合 schema 的卡草稿表达，查看它引用的意图与共享源。表达存在不证明独立模板身份、装配后可用卡、卡牌实例或卡组；它们不属于意图主目录。</p>
+    <div id="templates-mount"></div>
+  </section>
+  <section id="sources-view" class="tools-section" role="tabpanel" aria-labelledby="sources-tab" hidden>
+    <p class="eyebrow">SOURCE AUDIT · READ ONLY</p><h1>原始源审查</h1>
+    <p class="intent-intro">待分类共享源和未解析旧 payload 在此单独审查；保留全量真实源及原文，不按名称、菜单或 Sequence 硬归为意图或模板。</p>
+    <div id="sources-mount"></div>
+  </section>
+  <section id="authoring-view" class="tools-section" role="tabpanel" aria-labelledby="authoring-tab" hidden></section><div id="snapshot-view" role="tabpanel" aria-labelledby="snapshots-tab" hidden>
+  <section class="tools-section"><p class="eyebrow">COMBAT DESIGN</p><h1>战斗设计</h1><p>机制源、引用关系与卡牌说明由既有 owner 自动生成。设计理由由 Agent 撰写；人只需查阅结果与设计取舍。</p>
+    <p class="scope">历史 owner 快照供回查当时的样例与验收范围。当前完整组件目录请使用「意图目录」；这里的快照不代表当前目录或玩家牌库状态。</p>
+    <p id="status" role="status" aria-live="polite">正在读取…</p><p id="error" role="alert" hidden></p>
+    <div class="toolbar"><button id="query" class="quiet-button">读取快照</button><button id="refresh-owner" class="quiet-button">刷新依赖与恢复状态（需要 Editor）</button><button id="create-fixture" class="quiet-button">生成隔离验收样例（需要 Editor）</button></div><div id="snapshots"></div>
+  </section>
+  </div>
+</main><script src="./common.js"></script><script src="./combat-design.js"></script><script src="./combat-design-intent.js"></script><script src="./combat-design-mechanisms.js"></script><script src="./combat-design-authoring.js"></script><script src="./combat-design-card-theme.js"></script><script src="./combat-design-cards.js"></script><script src="combat-design-levels.js"></script>
+</body>
+</html>

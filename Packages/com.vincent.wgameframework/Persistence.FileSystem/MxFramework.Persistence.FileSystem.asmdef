@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Persistence.FileSystem",
+    "rootNamespace": "MxFramework.Persistence.FileSystem",
+    "references": [
+        "MxFramework.Persistence",
+        "MxFramework.Platform"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

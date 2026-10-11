@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Story.Config",
+    "rootNamespace": "MxFramework.Story.Config",
+    "references": [
+        "MxFramework.Story",
+        "MxFramework.Config"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

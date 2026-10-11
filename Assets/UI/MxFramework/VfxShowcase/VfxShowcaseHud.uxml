@@ -1,0 +1,63 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+  <ui:VisualElement name="vfx-showcase-root" class="vfx-root">
+    <ui:VisualElement class="stage-panel">
+      <ui:Image name="stage-view" class="stage-view" scale-mode="ScaleToFit" />
+    </ui:VisualElement>
+    <ui:VisualElement class="sidebar">
+      <ui:Label class="panel-title" text="VFX Showcase" />
+      <ui:TextField name="search-field" label="" class="search-field" />
+      <ui:ScrollView name="group-scroll" mode="Horizontal" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Hidden" class="group-scroll">
+        <ui:VisualElement name="group-row" class="group-row" />
+      </ui:ScrollView>
+      <ui:Label name="count-value" class="count-value" text="0 shown / 0 total" />
+      <ui:ScrollView name="entry-list" class="entry-list" />
+    </ui:VisualElement>
+    <ui:VisualElement class="detail-panel">
+      <ui:VisualElement class="detail-main">
+        <ui:VisualElement class="detail-header">
+          <ui:Label name="entry-title" class="entry-title" text="Select a VFX" />
+          <ui:Label name="status-value" class="status-value" text="Ready." />
+        </ui:VisualElement>
+        <ui:VisualElement class="control-row">
+          <ui:Button name="play-button" class="primary-button" text="Play" />
+          <ui:Button name="replay-button" text="Replay" />
+          <ui:Button name="clear-button" text="Stop/Clear" />
+          <ui:Toggle name="loop-toggle" text="Loop" value="true" />
+          <ui:Toggle name="auto-advance-toggle" text="Auto Advance" />
+        </ui:VisualElement>
+        <ui:VisualElement class="slider-block">
+          <ui:Slider name="length-slider" label="Length" low-value="1" high-value="44" value="8" />
+          <ui:Slider name="target-distance-slider" label="Target Distance" low-value="1" high-value="18" value="8" />
+        </ui:VisualElement>
+        <ui:VisualElement class="background-row">
+          <ui:Label class="background-label" text="Background" />
+          <ui:VisualElement name="background-swatch-row" class="background-swatch-row" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+      <ui:ScrollView class="detail-grid" horizontal-scroller-visibility="Hidden">
+        <ui:Label class="detail-key" text="Kind" />
+        <ui:Label name="kind-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Definition" />
+        <ui:Label name="definition-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Resource" />
+        <ui:Label name="resource-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Lifetime" />
+        <ui:Label name="lifetime-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Asset Path" />
+        <ui:Label name="asset-path-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Labels" />
+        <ui:Label name="labels-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Semantics" />
+        <ui:Label name="semantic-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Recipe" />
+        <ui:Label name="recipe-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Budget / Fallback" />
+        <ui:Label name="budget-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Parameters" />
+        <ui:Label name="parameters-value" class="detail-value" text="-" />
+        <ui:Label class="detail-key" text="Semantic Controls" />
+        <ui:VisualElement name="semantic-parameter-controls" class="detail-value" />
+      </ui:ScrollView>
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

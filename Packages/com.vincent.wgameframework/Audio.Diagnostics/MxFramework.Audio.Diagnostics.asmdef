@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Audio.Diagnostics",
+    "rootNamespace": "MxFramework.Audio.Diagnostics",
+    "references": [
+        "MxFramework.Audio",
+        "MxFramework.Diagnostics"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

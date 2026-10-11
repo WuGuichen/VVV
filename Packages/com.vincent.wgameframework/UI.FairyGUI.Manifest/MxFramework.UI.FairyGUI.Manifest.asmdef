@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.UI.FairyGUI.Manifest",
+    "rootNamespace": "MxFramework.UI.FairyGui",
+    "references": [
+        "MxFramework.Resources",
+        "MxFramework.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

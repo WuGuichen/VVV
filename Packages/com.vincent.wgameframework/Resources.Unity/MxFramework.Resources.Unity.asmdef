@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Resources.Unity",
+    "rootNamespace": "MxFramework.Resources.Unity",
+    "references": [
+        "MxFramework.Resources",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

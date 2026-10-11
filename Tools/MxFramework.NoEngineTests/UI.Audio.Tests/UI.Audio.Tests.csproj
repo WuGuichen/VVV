@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>MxFramework.NoEngineTests.UI.Audio</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiViewId.cs" Link="MxFramework/UI/MxUiViewId.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiFeedback.cs" Link="MxFramework/UI/MxUiFeedback.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioParameterDefinition.cs" Link="MxFramework/Audio/AudioParameterDefinition.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioTransform.cs" Link="MxFramework/Audio/AudioTransform.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioCueDefinition.cs" Link="MxFramework/Audio/AudioCueDefinition.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioPlayRequest.cs" Link="MxFramework/Audio/AudioPlayRequest.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioHandle.cs" Link="MxFramework/Audio/AudioHandle.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioStopMode.cs" Link="MxFramework/Audio/AudioStopMode.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/AudioResult.cs" Link="MxFramework/Audio/AudioResult.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Audio/IAudioService.cs" Link="MxFramework/Audio/IAudioService.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI.Audio/MxAudioUiFeedbackPlayer.cs" Link="MxFramework/UI.Audio/MxAudioUiFeedbackPlayer.cs" />
+  </ItemGroup>
+</Project>

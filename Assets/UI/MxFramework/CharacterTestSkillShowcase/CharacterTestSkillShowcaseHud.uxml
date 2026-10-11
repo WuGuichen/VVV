@@ -1,0 +1,81 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:Style src="project://database/Assets/UI/MxFramework/CharacterTestSkillShowcase/CharacterTestSkillShowcaseHud.uss?fileID=7433441132597879392&amp;guid=3a37d2dfb19602748a09cbe59213dbdc&amp;type=3#CharacterTestSkillShowcaseHud" />
+    <ui:VisualElement name="skill-showcase-root" class="skill-showcase-root">
+        <ui:VisualElement name="sidebar" class="sidebar">
+            <ui:Label text="Skill Showcase" class="app-title" />
+            <ui:TextField name="search-field" class="search-field" />
+            <ui:Label name="count-value" text="0 shown / 0 total" class="count-label" />
+            <ui:ScrollView name="ability-list" class="ability-list" mode="Vertical" />
+        </ui:VisualElement>
+        <ui:VisualElement name="content" class="content">
+            <ui:VisualElement name="stage-shell" class="stage-shell">
+                <ui:Image name="stage-view" class="stage-view" />
+            </ui:VisualElement>
+            <ui:VisualElement name="control-panel" class="control-panel">
+                <ui:VisualElement name="control-left" class="control-column primary-column">
+                    <ui:Label name="ability-title" text="Ability" class="ability-title" />
+                    <ui:Label name="status-value" text="Ready." class="status-label" />
+                    <ui:VisualElement name="primary-control-body" class="primary-control-body">
+                        <ui:VisualElement name="command-controls" class="command-controls">
+                            <ui:VisualElement class="button-row">
+                                <ui:Button name="play-button" text="Play" class="primary-button" />
+                                <ui:Button name="replay-button" text="Replay" />
+                                <ui:Button name="stop-button" text="Stop" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="button-row secondary-button-row">
+                                <ui:Button name="step-button" text="Step Frame" />
+                                <ui:Button name="reset-button" text="Reset Actors" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="toggle-row">
+                                <ui:Toggle name="loop-toggle" text="Loop" />
+                                <ui:Toggle name="lock-target-toggle" text="Lock Target" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="toggle-row">
+                                <ui:Toggle name="friendly-target-toggle" text="Friendly Target" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                        <ui:VisualElement name="target-controls" class="target-controls">
+                            <ui:VisualElement class="slider-row">
+                                <ui:Label text="Targets" class="slider-label" />
+                                <ui:SliderInt name="target-count-slider" low-value="1" high-value="8" value="5" class="showcase-slider" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="slider-row">
+                                <ui:Label text="Distance" class="slider-label" />
+                                <ui:Slider name="target-distance-slider" low-value="3" high-value="18" value="7" class="showcase-slider" />
+                            </ui:VisualElement>
+                            <ui:VisualElement class="slider-row">
+                                <ui:Label text="Spacing" class="slider-label" />
+                                <ui:Slider name="target-spacing-slider" low-value="1" high-value="5" value="2.4" class="showcase-slider" />
+                            </ui:VisualElement>
+                            <ui:VisualElement name="background-swatch-row" class="background-swatch-row" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="control-middle" class="control-column details-column">
+                    <ui:Label text="Details" class="section-title" />
+                    <ui:ScrollView name="details-scroll" class="details-scroll" mode="Vertical">
+                        <ui:Label name="details-value" text="-" class="details-value" />
+                    </ui:ScrollView>
+                </ui:VisualElement>
+                <ui:VisualElement name="control-right" class="control-column telemetry-column">
+                    <ui:Label text="Telemetry" class="section-title" />
+                    <ui:VisualElement class="metric-row">
+                        <ui:Label text="Frame" class="metric-label" />
+                        <ui:Label name="frame-value" text="0" class="metric-value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="metric-row">
+                        <ui:Label text="Cooldown" class="metric-label" />
+                        <ui:Label name="cooldown-value" text="0f" class="metric-value" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="metric-row">
+                        <ui:Label text="Lock" class="metric-label" />
+                        <ui:Label name="lock-value" text="none" class="metric-value" />
+                    </ui:VisualElement>
+                    <ui:ScrollView name="telemetry-scroll" class="telemetry-scroll" mode="Vertical">
+                        <ui:Label name="telemetry-value" text="-" class="telemetry-value" />
+                    </ui:ScrollView>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

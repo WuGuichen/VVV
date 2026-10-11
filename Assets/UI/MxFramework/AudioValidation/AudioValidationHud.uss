@@ -1,0 +1,85 @@
+.audio-validation-hud {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    width: 610px;
+    padding: 18px;
+    background-color: rgba(12, 18, 29, 0.94);
+    border-left-width: 4px;
+    border-left-color: rgb(72, 196, 172);
+    border-radius: 8px;
+    color: rgb(232, 240, 245);
+}
+
+.hero-row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.eyebrow {
+    color: rgb(101, 213, 190);
+    font-size: 11px;
+    -unity-font-style: bold;
+    letter-spacing: 1px;
+}
+
+.title {
+    margin-top: 2px;
+    font-size: 25px;
+    -unity-font-style: bold;
+}
+
+.subtitle,
+.hint {
+    color: rgb(156, 177, 192);
+    white-space: normal;
+}
+
+.status-slot {
+    min-width: 92px;
+    align-items: flex-end;
+}
+
+.snapshot {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background-color: rgba(42, 57, 74, 0.76);
+    border-radius: 5px;
+    color: rgb(207, 225, 235);
+    -unity-font-style: bold;
+}
+
+.actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.actions > Button {
+    margin-right: 7px;
+    margin-bottom: 7px;
+}
+
+.report-panel {
+    padding: 12px;
+    margin-bottom: 10px;
+    background-color: rgba(27, 37, 51, 0.86);
+    border-radius: 5px;
+}
+
+.section-title {
+    margin-bottom: 6px;
+    color: rgb(247, 207, 124);
+    -unity-font-style: bold;
+}
+
+.report {
+    min-height: 132px;
+    white-space: normal;
+}
+
+.hint {
+    font-size: 11px;
+}

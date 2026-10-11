@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework 资源管理器</title>
+  <link rel="stylesheet" href="./styles.css?v=resource-library-audio-v9">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect y=%2210%22 width=%22100%22 height=%2280%22 rx=%2215%22 fill=%22%231f7a7a%22/><path d=%22M24 58h52M24 42h52M34 26h32M34 74h32%22 stroke=%22white%22 stroke-width=%229%22 stroke-linecap=%22round%22/></svg>">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="top-panel-container" id="topPanelContainer">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">RL</div>
+          <div>
+            <h1>MxFramework 资源管理器</h1>
+            <p id="serverStatus">正在连接 Authoring 服务...</p>
+          </div>
+        </div>
+
+        <div class="toolbar" aria-label="全局操作">
+          <label class="package-field" for="packageSelect">
+            <span class="package-field-copy">
+              <span>当前工作上下文</span>
+              <small>用于引用图、资源计划和 consumer 诊断</small>
+            </span>
+            <select id="packageSelect"></select>
+          </label>
+          <button id="refreshButton" type="button">刷新</button>
+          <a id="openCharacterStudioButton" class="button" href="/Tools/MxFramework.CharacterStudio/web/">CharacterStudio</a>
+          <button id="saveBuildProfileButton" type="button" title="保存 Global Resource Build Profile">保存构建 Profile</button>
+          <button id="openUnityWorkbenchButton" type="button" title="Unity 菜单：MxFramework/Resources/Open Global AssetBundle Builder">Unity 构建指引</button>
+        </div>
+      </header>
+
+      <nav class="workspace-nav" aria-label="工作区导航">
+        <button type="button" data-workspace="story" class="active">故事设定 <span class="nav-zh">StorySource</span></button>
+        <button type="button" data-workspace="art">美术状态 <span class="nav-zh">ArtSource</span></button>
+        <button type="button" data-workspace="browse">资源浏览 <span class="nav-zh">Browse</span></button>
+        <button type="button" data-workspace="audio">音频语义 <span class="nav-zh">Review</span></button>
+        <button type="button" data-workspace="profile">构建 Profile <span class="nav-zh">Profile</span></button>
+        <button type="button" data-workspace="references">引用关系 <span class="nav-zh">Refs</span></button>
+        <button type="button" data-workspace="graph">关系图 <span class="nav-zh">Graph</span></button>
+        <button type="button" data-workspace="build">构建计划 <span class="nav-zh">Build</span></button>
+        <button type="button" data-workspace="debug">详情诊断 <span class="nav-zh">Debug</span></button>
+      </nav>
+
+      <section id="statusStrip" class="status-strip" aria-label="资源库状态"></section>
+    </div>
+
+    <main class="workspace">
+      <!-- Story: StorySource 正史输入包 -->
+      <div id="workspaceStory" class="workspace-view active" data-workspace="story">
+        <section id="storyWorkspace" class="story-workspace" aria-label="StorySource 故事设定"></section>
+      </div>
+
+      <!-- Art: ArtSource 美术流程状态 -->
+      <div id="workspaceArt" class="workspace-view" data-workspace="art" hidden>
+        <section id="artWorkspace" class="art-workspace" aria-label="ArtSource 美术状态"></section>
+      </div>
+
+      <!-- Browse: 资源发现与选择 -->
+      <div id="workspaceBrowse" class="workspace-view" data-workspace="browse" hidden>
+        <aside class="resource-browser" aria-label="资源浏览器">
+          <div class="panel-heading">
+            <div>
+              <h2>资源浏览器</h2>
+              <p id="resourceSummary">尚未读取资源库</p>
+            </div>
+          </div>
+
+          <div class="filters" aria-label="资源筛选器">
+            <label class="filter-field wide" for="searchInput">
+              <span>搜索</span>
+              <input id="searchInput" type="search" placeholder="名称、ID、路径、标签…">
+            </label>
+
+            <div class="filter-quick-bar" aria-label="常用筛选">
+              <button type="button" class="filter-chip" data-quick-filter="all">全部</button>
+              <button type="button" class="filter-chip" data-quick-filter="needsProfile">待加入 Profile</button>
+              <button type="button" class="filter-chip" data-quick-filter="profileDraft">Profile 草稿变更</button>
+              <button type="button" class="filter-chip" data-quick-filter="runtimeReady">运行时候选</button>
+              <button type="button" class="filter-chip" data-quick-filter="hasDiagnostics">有诊断</button>
+            </div>
+
+            <div class="filter-primary-row">
+              <label class="filter-field" for="kindFilter">
+                <span>类型</span>
+                <select id="kindFilter"></select>
+              </label>
+              <label class="filter-field" for="providerFilter">
+                <span>来源</span>
+                <select id="providerFilter"></select>
+              </label>
+              <label class="filter-field" for="profileMembershipFilter">
+                <span>Profile</span>
+                <select id="profileMembershipFilter">
+                  <option value="all">全部</option>
+                  <option value="notInProfile">未入 Profile</option>
+                  <option value="inProfile">已在 Profile</option>
+                  <option value="saved">已保存</option>
+                  <option value="draftOnly">草稿新增</option>
+                  <option value="removedInDraft">草稿移除</option>
+                  <option value="modifiedInDraft">草稿已改</option>
+                </select>
+              </label>
+              <label class="filter-field" for="resourceSortSelect">
+                <span>排序</span>
+                <select id="resourceSortSelect">
+                  <option value="name">名称</option>
+                  <option value="profile">Profile 状态</option>
+                  <option value="diagnostics">诊断数 ↓</option>
+                  <option value="references">引用数 ↓</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="activeFiltersBar" class="active-filters-bar hidden" aria-live="polite"></div>
+
+            <details class="advanced-filters" id="advancedFilters">
+              <summary class="advanced-filters-summary">
+                <span>更多筛选</span>
+                <span id="advancedFilterBadge" class="filter-badge hidden">0</span>
+              </summary>
+              <div class="advanced-filters-content">
+                <div class="filters-grid">
+                  <label class="filter-field" for="usageFilter">
+                    <span>用途 usage</span>
+                    <select id="usageFilter"></select>
+                  </label>
+                  <label class="filter-field" for="sourceFilter">
+                    <span>源类型</span>
+                    <select id="sourceFilter"></select>
+                  </label>
+                  <label class="filter-field" for="importFilter">
+                    <span>导入状态</span>
+                    <select id="importFilter"></select>
+                  </label>
+                  <label class="filter-field" for="runtimeFilter">
+                    <span>运行时</span>
+                    <select id="runtimeFilter"></select>
+                  </label>
+                  <label class="filter-field" for="runtimeReadyFilter">
+                    <span>运行时候选</span>
+                    <select id="runtimeReadyFilter">
+                      <option value="all">全部</option>
+                      <option value="runtimeReady">是</option>
+                      <option value="notRuntimeReady">否</option>
+                    </select>
+                  </label>
+                  <label class="filter-field" for="tagFilter">
+                    <span>标签</span>
+                    <select id="tagFilter"></select>
+                  </label>
+                </div>
+
+                <div class="checkbox-grid">
+                  <label><input id="onlyReferenced" type="checkbox"> 已引用</label>
+                  <label><input id="onlyOrphan" type="checkbox"> orphan</label>
+                  <label><input id="onlyRuntimeLoadable" type="checkbox"> 运行时可加载</label>
+                  <label><input id="onlyDiagnostics" type="checkbox"> 有诊断</label>
+                </div>
+
+                <button id="clearFiltersButton" class="secondary" type="button">清除全部筛选</button>
+              </div>
+            </details>
+          </div>
+
+          <div class="selection-toolbar" aria-label="资源多选">
+            <button id="selectVisibleButton" class="secondary" type="button">全选可见</button>
+            <button id="clearCheckedButton" class="secondary" type="button">清除勾选</button>
+            <span id="checkedSummary">已勾选 0</span>
+          </div>
+
+          <div class="resource-browser-body">
+            <div class="resource-tree-panel" aria-label="资源目录树">
+              <div class="tree-toolbar">
+                <label class="tree-mode-field" for="treeGroupModeSelect">
+                  <span>目录</span>
+                  <select id="treeGroupModeSelect">
+                    <option value="path">按路径</option>
+                    <option value="taxonomy">按来源/类型</option>
+                  </select>
+                </label>
+                <button id="expandTreeButton" type="button" class="secondary" title="展开当前树">展开</button>
+                <button id="collapseTreeButton" type="button" class="secondary" title="折叠目录树">折叠</button>
+              </div>
+              <div id="resourceTree" class="resource-tree" role="tree"></div>
+            </div>
+
+            <div class="resource-list-panel">
+              <div id="resourceListHeading" class="resource-list-heading">全部资源</div>
+              <div id="resourceList" class="resource-list" role="listbox" aria-label="资源列表"></div>
+            </div>
+          </div>
+        </aside>
+
+        <section class="browse-side-panel" aria-label="浏览上下文">
+          <section id="browseWorkflowAssistant" class="workflow-assistant context-workflow" aria-label="资源浏览流程助手"></section>
+          <div class="panel-heading">
+            <div>
+              <h2 id="browsePanelTitle">当前选择</h2>
+              <p id="browsePanelSubtitle">选择资源查看关键状态</p>
+            </div>
+          </div>
+          <div id="browseContextActions" class="context-actions browse-primary-actions" aria-label="浏览上下文操作"></div>
+          <div id="browseContextBody" class="browse-context-body"></div>
+          <div id="browseBatchBar" class="batch-bar hidden" aria-label="批量 Profile 操作"></div>
+          <details class="browse-import-section">
+            <summary>导入 / 重导 / 替换源</summary>
+            <div id="browseImportActions" class="context-actions import-actions" aria-label="资源导入操作">
+              <input id="resourceImportFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+              <input id="resourceImportFolderInput" type="file" hidden multiple webkitdirectory directory accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+              <input id="resourceReplaceFileInput" type="file" hidden accept=".glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.json,.wav,.ogg" />
+              <label class="import-preset-label" for="importPresetSelect">
+                <span>导入类型</span>
+                <select id="importPresetSelect" aria-label="导入类型"></select>
+              </label>
+              <button id="importResourceButton" type="button">导入资源</button>
+              <button id="importFolderButton" type="button">导入文件夹</button>
+              <button id="reimportResourceButton" type="button">重导</button>
+              <button id="replaceSourceButton" type="button">替换源</button>
+              <p id="writeActionStatus" class="write-status"></p>
+            </div>
+          </details>
+        </section>
+      </div>
+
+      <!-- Audio: FMOD / AudioCue 管理视图 -->
+      <div id="workspaceAudio" class="workspace-view" data-workspace="audio" hidden>
+        <section id="audioWorkspace" class="audio-workspace" aria-label="FMOD 与 AudioCue 语义审查">
+          <section class="audio-control-panel" aria-label="音频筛选">
+            <div class="panel-heading">
+              <div>
+                <h2>音频语义审查</h2>
+                <p id="audioSummary">等待资源库数据</p>
+              </div>
+              <div class="context-actions inline-actions">
+                <button id="openAudioBrowseButton" type="button" class="secondary" data-audio-action="open-browse-audio">Browse 资源</button>
+                <button id="copyAudioSummaryButton" type="button" class="secondary" data-audio-action="copy-summary">复制审查摘要</button>
+              </div>
+            </div>
+            <div class="audio-filter-primary">
+              <label class="filter-field wide" for="audioSearchInput">
+                <span>搜索</span>
+                <input id="audioSearchInput" type="search" placeholder="event path、cue id、bank、参数…">
+              </label>
+              <label class="filter-field" for="audioBankFilter">
+                <span>Bank</span>
+                <select id="audioBankFilter"></select>
+              </label>
+            </div>
+            <details class="audio-advanced-filters">
+              <summary>更多筛选</summary>
+              <div class="audio-filter-grid">
+              <label class="filter-field" for="audioSpatialFilter">
+                <span>空间</span>
+                <select id="audioSpatialFilter">
+                  <option value="all">全部</option>
+                  <option value="3d">3D</option>
+                  <option value="2d">2D</option>
+                </select>
+              </label>
+              <label class="filter-field" for="audioLoopFilter">
+                <span>播放</span>
+                <select id="audioLoopFilter">
+                  <option value="all">全部</option>
+                  <option value="loop">Loop</option>
+                  <option value="oneShot">One-shot</option>
+                  <option value="stream">Stream</option>
+                </select>
+              </label>
+              <label class="filter-field" for="audioDiagnosticsFilter">
+                <span>校验</span>
+                <select id="audioDiagnosticsFilter">
+                  <option value="all">全部</option>
+                  <option value="issues">有错误或警告</option>
+                  <option value="clean">无错误或警告</option>
+                  <option value="stale">Provider stale / unavailable</option>
+                </select>
+              </label>
+              <label class="filter-field" for="audioReferencedFilter">
+                <span>当前 package</span>
+                <select id="audioReferencedFilter">
+                  <option value="all">全部</option>
+                  <option value="referenced">已引用</option>
+                  <option value="unreferenced">未引用</option>
+                  <option value="audioPlan">已进入 Audio Plan / Manifest</option>
+                  <option value="notAudioPlan">存在进包缺口</option>
+                </select>
+              </label>
+              </div>
+            </details>
+          </section>
+
+          <section class="audio-main-grid">
+            <div class="audio-list-stack">
+              <section class="audio-bank-panel" aria-label="Bank 和 Event 概览">
+                <div class="panel-heading compact">
+                  <h2>语义 Cue / FMOD 实现</h2>
+                  <p>优先按语义名称选择；Bank、path 和 guid 是实现证据</p>
+                </div>
+                <div id="audioBankList" class="audio-bank-list"></div>
+              </section>
+
+              <section class="audio-cue-panel" aria-label="AudioCue Manifest 状态">
+                <div class="panel-heading compact">
+                  <h2>Cue / Manifest 状态</h2>
+                  <p>AudioCueOnly、Resource Plan 和 audio_cue_manifest 派生状态</p>
+                </div>
+                <div id="audioCueList" class="audio-cue-list"></div>
+              </section>
+            </div>
+
+            <section id="audioImpactPanel" class="audio-impact-panel" aria-label="音频影响面"></section>
+          </section>
+
+          <section id="audioProviderSummary" class="audio-provider-summary" aria-label="FMOD Provider 状态与待办"></section>
+        </section>
+      </div>
+
+      <!-- Profile: Build Profile 编辑 -->
+      <div id="workspaceProfile" class="workspace-view" data-workspace="profile" hidden>
+        <section class="profile-workspace-panel" aria-label="构建 Profile 编辑">
+          <section id="profileWorkflowAssistant" class="workflow-assistant context-workflow" aria-label="Profile 流程助手"></section>
+          <div class="panel-heading">
+            <div>
+              <h2>全局构建 Profile</h2>
+              <p id="buildProfileSummary">尚未读取 Global Resource Build Profile</p>
+            </div>
+          </div>
+          <div id="profileContextActions" class="context-actions" aria-label="Profile 操作"></div>
+          <div id="profileBatchBar" class="batch-bar hidden" aria-label="批量 Profile 字段编辑"></div>
+          <div id="buildProfileContent" class="build-profile-content"></div>
+        </section>
+      </div>
+
+      <!-- Refs: 引用关系与 Bundle 分配建议 -->
+      <div id="workspaceReferences" class="workspace-view" data-workspace="references" hidden>
+        <section id="referencesReviewBar" class="references-review-bar" aria-label="引用审查摘要"></section>
+
+        <aside class="references-filter-panel" aria-label="引用关系筛选">
+          <div class="panel-heading">
+            <div>
+              <h2>审查范围</h2>
+              <p id="referencesSummary">选择资源后查看引用关系</p>
+            </div>
+          </div>
+          <label class="references-search-field" for="referencesScopeSearch">
+            <span>搜索范围</span>
+            <input id="referencesScopeSearch" type="search" placeholder="资源名、key、Bundle...">
+          </label>
+          <p id="referencesScopeHint" class="references-scope-hint">当前为全部资源范围。</p>
+          <div id="referencesScopeExplanation" class="references-scope-explanation"></div>
+          <div class="refs-mode-list" aria-label="引用关系视图">
+            <button type="button" data-refs-filter="current" class="active">当前资源 <span>从资源浏览选中的资源开始检查</span></button>
+            <button type="button" data-refs-filter="checked">批量检查勾选 <span>检查资源浏览中勾选的一组资源</span></button>
+            <button type="button" data-refs-filter="issues">只看需要处理 <span>必须处理或建议处理的资源</span></button>
+            <button type="button" data-refs-filter="missingProfile">未加入 Profile <span>运行时必需但还不会进构建计划</span></button>
+            <button type="button" data-refs-filter="splitBundle">Bundle 不一致 <span>同一配置必需资源分散</span></button>
+            <button type="button" data-refs-filter="required">运行时必需 <span>缺失会影响加载或生成</span></button>
+          </div>
+          <div id="referencesTargetList" class="references-target-list"></div>
+        </aside>
+
+        <section class="references-main-panel" aria-label="当前引用关系">
+          <div class="panel-heading">
+            <div>
+              <h2>当前引用关系</h2>
+              <p id="referencesGroupSummary">按 source config 分组</p>
+            </div>
+          </div>
+          <div id="referencesContent" class="references-content"></div>
+        </section>
+
+        <aside class="references-advice-panel" aria-label="Bundle 分配意见">
+          <div class="panel-heading">
+            <div>
+              <h2>Bundle 分配意见</h2>
+              <p id="referencesAdviceSummary">只写 Profile 草稿，不自动保存</p>
+            </div>
+          </div>
+          <div id="referencesAdviceContent" class="references-advice-content"></div>
+        </aside>
+      </div>
+
+      <!-- Graph: 引用关系可视图 -->
+      <div id="workspaceGraph" class="workspace-view" data-workspace="graph" hidden>
+        <aside class="graph-control-panel" aria-label="关系图范围">
+          <div class="panel-heading">
+            <div>
+              <h2>关系图范围</h2>
+              <p id="graphSummary">当前资源视角</p>
+            </div>
+          </div>
+          <label class="references-search-field" for="graphSearchInput">
+            <span>搜索图中节点</span>
+            <input id="graphSearchInput" type="search" placeholder="资源、配置、Bundle...">
+          </label>
+          <div class="refs-mode-list graph-scope-list" aria-label="关系图视角">
+            <button type="button" data-graph-scope="current" class="active">当前资源 <span>围绕资源浏览当前选择展开</span></button>
+            <button type="button" data-graph-scope="checked">已勾选资源 <span>查看批量选择的引用网络</span></button>
+            <button type="button" data-graph-scope="issues">只看需要处理 <span>聚焦必须处理 / 建议处理</span></button>
+            <button type="button" data-graph-scope="bundle">当前 Bundle <span>查看当前 Bundle 的资源和引用者</span></button>
+            <button type="button" data-graph-scope="all">全部引用图 <span>自动降噪，避免过载</span></button>
+          </div>
+          <div class="graph-options">
+            <label><input id="graphShowOptional" type="checkbox" checked> 显示可选引用</label>
+            <label>
+              <span>颜色方式</span>
+              <select id="graphColorMode">
+                <option value="recommendation">按处理状态</option>
+                <option value="delivery">按 Bundle / delivery</option>
+              </select>
+            </label>
+          </div>
+          <div id="graphLegend" class="graph-legend"></div>
+        </aside>
+
+        <section class="graph-main-panel" aria-label="引用关系图">
+          <div class="panel-heading">
+            <div>
+              <h2>资源关系图</h2>
+              <p id="graphViewportSummary">左：引用者配置 · 中：资源 · 右：Bundle / delivery</p>
+            </div>
+            <div class="panel-actions">
+              <button id="graphFitButton" type="button">适配视图</button>
+              <button id="copyGraphSummaryButton" type="button">复制图摘要</button>
+            </div>
+          </div>
+          <div id="graphNotice" class="graph-notice"></div>
+          <div id="graphCanvas" class="graph-canvas"></div>
+        </section>
+
+        <aside class="graph-inspector-panel" aria-label="关系图详情">
+          <div class="panel-heading">
+            <div>
+              <h2>图中详情</h2>
+              <p id="graphInspectorSummary">点击节点或连线查看说明</p>
+            </div>
+          </div>
+          <div id="graphInspectorContent" class="graph-inspector-content"></div>
+        </aside>
+      </div>
+
+      <!-- Build: 资源计划与 Bundle Plan -->
+      <div id="workspaceBuild" class="workspace-view" data-workspace="build" hidden>
+        <section id="buildArtifactsPanel" class="resource-plan-panel build-workspace-section build-primary-panel">
+          <section id="buildWorkflowAssistant" class="workflow-assistant context-workflow" aria-label="构建流程助手"></section>
+          <div class="panel-heading">
+            <div>
+              <h2>构建包计划</h2>
+              <p id="bundlePlanSummary">来自已保存 Profile 的预览</p>
+            </div>
+            <div class="context-actions inline-actions">
+              <button id="refreshBundlePlanButton" type="button" class="secondary">刷新构建包计划</button>
+              <button id="copyBuildReportButton" type="button" class="secondary">复制构建总览</button>
+            </div>
+          </div>
+          <div id="buildChecklist" class="build-checklist"></div>
+          <div id="bundlePlanContent" class="bundle-plan-content"></div>
+          <div id="buildDiagnostics" class="build-diagnostics"></div>
+        </section>
+
+        <section id="resourcePlanPanel" class="resource-plan-panel build-workspace-section build-context-panel">
+          <details id="resourcePlanDetails" class="resource-plan-details">
+            <summary>
+              <span class="resource-plan-summary-main">
+                <strong>资源计划</strong>
+                <span id="planSummary">尚未读取运行时资源计划</span>
+              </span>
+              <span class="resource-plan-summary-action">展开上下文</span>
+            </summary>
+            <div class="resource-plan-details-body">
+              <div class="context-actions inline-actions">
+                <button id="validateButton" type="button" class="secondary">运行资源验证</button>
+              </div>
+              <div id="planGrid" class="plan-grid"></div>
+            </div>
+          </details>
+        </section>
+      </div>
+
+      <!-- Debug: 深度检查与 JSON -->
+      <div id="workspaceDebug" class="workspace-view" data-workspace="debug" hidden>
+        <aside class="debug-resource-picker" aria-label="调试资源选择">
+          <div class="panel-heading compact">
+            <h2>调试目标</h2>
+            <p id="debugPickerSummary">从资源浏览选择资源</p>
+          </div>
+          <div id="debugResourcePicker" class="debug-picker-list"></div>
+        </aside>
+
+        <section class="inspector-panel" aria-label="资源检查器">
+          <div class="panel-heading">
+            <div>
+              <h2>资源检查器</h2>
+              <p id="inspectorStatus">选择一个资源项</p>
+            </div>
+          </div>
+
+          <nav class="inspector-tabs" aria-label="检查器页签">
+            <button type="button" data-tab="overview" class="active">总览</button>
+            <button type="button" data-tab="unity">Unity</button>
+            <button type="button" data-tab="runtime">运行时</button>
+            <button type="button" data-tab="build">构建</button>
+            <button type="button" data-tab="references">引用</button>
+            <button type="button" data-tab="diagnostics">诊断</button>
+          </nav>
+
+          <div id="inspectorContent" class="inspector-content"></div>
+
+          <details id="rawJsonSection" class="raw-json-section">
+            <summary>原始 JSON</summary>
+            <div class="debug-copy-actions" aria-label="调试复制操作">
+              <button id="copyDetailJsonButton" type="button">复制详情 JSON</button>
+              <button id="copyDiagnosticsJsonButton" type="button">复制诊断 JSON</button>
+              <span id="copyStatus" class="copy-status" aria-live="polite"></span>
+            </div>
+            <div id="rawJsonContent" class="raw-json-content"></div>
+          </details>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <button id="topToggleBtn" class="panel-toggle-btn top-toggle" type="button" title="折叠/展开顶栏">
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+  </button>
+
+  <script src="./story-source-status.js?v=storysource-workbench-v1" defer></script>
+  <script src="./art-source-status.js?v=storysource-workbench-v1" defer></script>
+  <script src="./resource-library-core.js?v=resource-library-split-v1" defer></script>
+  <script src="./resource-library-audio.js?v=resource-library-audio-v9" defer></script>
+  <script src="./resource-library-audio-workspace.js?v=resource-library-audio-v9" defer></script>
+  <script src="./resource-library-audio-inspector.js?v=resource-library-audio-v9" defer></script>
+  <script src="./resource-library-audio-preview.js?v=resource-library-audio-v9" defer></script>
+  <script src="./resource-library-audio-diagnostics.js?v=resource-library-audio-v9" defer></script>
+  <script src="./resource-library-browse.js?v=resource-library-split-v1" defer></script>
+  <script src="./resource-library-profile.js?v=resource-library-split-v1" defer></script>
+  <script src="./resource-library-references.js?v=resource-library-split-v1" defer></script>
+  <script src="./resource-library-graph.js?v=resource-library-split-v1" defer></script>
+  <script src="./resource-library-build-debug.js?v=resource-library-split-v1" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const topContainer = document.getElementById("topPanelContainer");
+      const topToggle = document.getElementById("topToggleBtn");
+
+      function updateTogglePosition() {
+        if (!topContainer.classList.contains("collapsed")) {
+          const rect = topContainer.getBoundingClientRect();
+          topToggle.style.top = `${rect.bottom - 1}px`;
+        } else {
+          topToggle.style.top = "0px";
+        }
+      }
+
+      topToggle.addEventListener("click", () => {
+        topContainer.classList.toggle("collapsed");
+        topToggle.classList.toggle("floating");
+        const svg = topToggle.querySelector("svg");
+        svg.style.transform = topContainer.classList.contains("collapsed") ? "rotate(180deg)" : "rotate(0deg)";
+        setTimeout(updateTogglePosition, 350);
+      });
+
+      window.addEventListener("resize", updateTogglePosition);
+      const observer = new MutationObserver(updateTogglePosition);
+      observer.observe(topContainer, { childList: true, subtree: true });
+      setTimeout(updateTogglePosition, 100);
+      setTimeout(updateTogglePosition, 500);
+    });
+  </script>
+</body>
+</html>

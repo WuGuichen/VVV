@@ -1,0 +1,58 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="gameplay-trigger-root" class="gt-root">
+        <ui:VisualElement class="gt-world-spacer" />
+        <ui:VisualElement name="hud-panel" class="gt-panel mx-panel">
+            <ui:VisualElement class="gt-header">
+                <ui:VisualElement>
+                    <ui:Label class="gt-title" text="Gameplay Trigger Playable" />
+                    <ui:Label class="gt-subtitle" text="Combat occupancy → Trigger → Gameplay / Story" />
+                </ui:VisualElement>
+                <ui:Label name="frame-label" class="gt-frame mx-status-badge" text="Frame 0" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="gt-section mx-panel-section">
+                <ui:Label class="gt-section-title" text="AUTHORITATIVE STATE" />
+                <ui:VisualElement class="gt-row">
+                    <ui:Label class="gt-key" text="Player" />
+                    <ui:Label name="position-label" class="gt-value" text="X -4.000  Z 0.000" />
+                </ui:VisualElement>
+                <ui:VisualElement class="gt-row">
+                    <ui:Label class="gt-key" text="Checkpoint" />
+                    <ui:Label name="checkpoint-label" class="gt-badge mx-status-badge mx-status-badge--neutral" text="PENDING" />
+                </ui:VisualElement>
+                <ui:VisualElement class="gt-row">
+                    <ui:Label class="gt-key" text="Door" />
+                    <ui:Label name="door-label" class="gt-badge mx-status-badge mx-status-badge--neutral" text="LOCKED" />
+                </ui:VisualElement>
+                <ui:VisualElement class="gt-row">
+                    <ui:Label class="gt-key" text="Trap" />
+                    <ui:Label name="trap-label" class="gt-badge mx-status-badge mx-status-badge--neutral" text="Activations 0  Slow 0f" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="gt-controls">
+                <ui:Button name="move-left-button" class="gt-button gt-move mx-command-button" text="◀ LEFT" />
+                <ui:Button name="move-right-button" class="gt-button gt-move mx-command-button mx-command-button--hot" text="RIGHT ▶" />
+            </ui:VisualElement>
+            <ui:VisualElement class="gt-controls">
+                <ui:Button name="move-up-button" class="gt-button gt-move mx-command-button" text="▲ UP" />
+                <ui:Button name="move-down-button" class="gt-button gt-move mx-command-button" text="DOWN ▼" />
+            </ui:VisualElement>
+            <ui:VisualElement class="gt-controls">
+                <ui:Button name="capture-button" class="gt-button mx-command-button" text="CAPTURE" />
+                <ui:Button name="restore-button" class="gt-button mx-command-button" text="RESTORE" />
+                <ui:Button name="reset-button" class="gt-button gt-danger mx-command-button" text="RESET" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="gt-section mx-panel-section">
+                <ui:Label class="gt-section-title" text="EVENT / CHECKPOINT EVIDENCE" />
+                <ui:Label name="event-label" class="gt-event mx-event-log" text="Occurrence None / Action 0 / Result None:None" />
+                <ui:Label name="hash-label" class="gt-hash" text="Authority 0x0000000000000000" />
+                <ui:Label name="save-label" class="gt-save" text="No capture" />
+            </ui:VisualElement>
+
+            <ui:Label class="gt-instructions" text="Move: WASD / arrows or hold buttons   Capture: E   Restore: F6   Reset: F4" />
+            <ui:Label class="gt-footnote" text="Unity primitives are view-only. CombatPhysicsWorld owns occupancy." />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

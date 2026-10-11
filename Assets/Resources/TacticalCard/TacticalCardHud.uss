@@ -1,0 +1,24 @@
+.tactical-document { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+.tactical-hud { flex-grow: 1; color: rgb(235, 239, 244); font-size: 18px; }
+.tactical-header { align-self: flex-start; margin: 24px; padding: 16px; background-color: rgba(15, 23, 34, 0.94); border-radius: 10px; }
+.tactical-title { font-size: 28px; -unity-font-style: bold; margin-bottom: 8px; }
+.tactical-row { flex-direction: row; align-items: center; }
+.tactical-row > Label { margin-right: 12px; }
+.tactical-hand { position: absolute; left: 5%; right: 5%; bottom: 85px; flex-direction: row; }
+Button { color: rgb(235, 239, 244); background-color: rgb(35, 49, 64); border-width: 1px; border-color: rgb(84, 105, 124); border-radius: 8px; padding: 12px; margin: 4px; }
+Button:hover { background-color: rgb(51, 71, 89); }
+Button:disabled { color: rgb(163, 174, 185); background-color: rgb(28, 37, 47); }
+.tactical-card { flex-grow: 1; flex-basis: 0; min-height: 175px; align-items: flex-start; white-space: normal; }
+.tactical-card-name { font-size: 26px; -unity-font-style: bold; margin-bottom: 10px; }
+.tactical-description { white-space: normal; margin-top: 8px; margin-bottom: 12px; }
+.tactical-card-state { margin-top: auto; color: rgb(148, 212, 202); }
+.tactical-selected { border-color: rgb(108, 213, 190); border-width: 3px; }
+.tactical-resolving { border-color: rgb(239, 188, 100); border-width: 3px; }
+.tactical-controls { position: absolute; bottom: 20px; right: 5%; flex-direction: row; }
+.tactical-primary { background-color: rgb(35, 101, 95); border-color: rgb(96, 184, 164); }
+.tactical-command-feedback { position: absolute; left: 5%; right: 5%; bottom: 275px; padding: 10px 14px; background-color: rgba(92, 45, 31, 0.96); border-width: 1px; border-color: rgb(226, 137, 92); border-radius: 8px; }
+.tactical-command-feedback-message { color: rgb(255, 226, 207); white-space: normal; }
+.tactical-modal { position: absolute; left: 0; right: 0; top: 0; bottom: 0; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.65); }
+.tactical-dialog { width: 500px; padding: 28px; border-radius: 12px; background-color: rgb(23, 33, 47); }
+.tactical-hidden { display: none; }
+.tactical-btn-compact { padding: 4px 12px; font-size: 14px; margin-left: 12px; }

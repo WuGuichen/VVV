@@ -1,0 +1,282 @@
+.skill-showcase-root {
+    flex-direction: row;
+    flex-grow: 1;
+    padding: 12px;
+    background-color: #050808;
+    color: #f1f5f2;
+}
+
+.sidebar {
+    width: 300px;
+    min-width: 300px;
+    flex-shrink: 0;
+    padding: 16px;
+    margin-right: 16px;
+    background-color: #101819;
+    border-left-width: 4px;
+    border-left-color: #34d0bd;
+}
+
+.app-title {
+    font-size: 25px;
+    -unity-font-style: bold;
+    margin-bottom: 14px;
+}
+
+.search-field {
+    height: 40px;
+    margin-bottom: 12px;
+}
+
+.count-label {
+    color: #b9d0cb;
+    font-size: 12px;
+    margin-top: 6px;
+    margin-bottom: 12px;
+}
+
+.ability-list {
+    flex-grow: 1;
+}
+
+.ability-row {
+    height: 68px;
+    margin-bottom: 8px;
+    padding: 10px;
+    background-color: #202b2c;
+    border-width: 1px;
+    border-color: #b8c8c4;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.ability-row:hover {
+    background-color: #2a3839;
+}
+
+.ability-row.selected {
+    background-color: #2f6b61;
+    border-color: #84eee0;
+}
+
+.ability-row-title {
+    -unity-font-style: bold;
+    font-size: 13px;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.ability-row-subtitle {
+    color: #b4ccc6;
+    font-size: 10px;
+    -unity-text-align: middle-center;
+    margin-top: 6px;
+}
+
+.content {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.stage-shell {
+    flex-grow: 1;
+    min-height: 300px;
+    background-color: #050808;
+    border-width: 1px;
+    border-color: #405255;
+}
+
+.stage-view {
+    flex-grow: 1;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.control-panel {
+    height: 280px;
+    margin-top: 12px;
+    padding: 12px;
+    flex-direction: row;
+    background-color: #11191f;
+    border-width: 1px;
+    border-color: #2f3f45;
+}
+
+.control-column {
+    min-width: 0;
+    padding-right: 14px;
+}
+
+.primary-column {
+    width: 430px;
+    flex-shrink: 0;
+}
+
+.details-column {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 190px;
+    padding-left: 14px;
+    border-left-width: 1px;
+    border-left-color: #314349;
+}
+
+.telemetry-column {
+    width: 145px;
+    flex-shrink: 0;
+    padding-left: 14px;
+    padding-right: 0;
+    border-left-width: 1px;
+    border-left-color: #314349;
+}
+
+.ability-title {
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin-bottom: 2px;
+}
+
+.status-label {
+    color: #9ee4d7;
+    font-size: 12px;
+    height: 16px;
+}
+
+.primary-control-body {
+    flex-grow: 1;
+    flex-direction: row;
+    margin-top: 6px;
+}
+
+.command-controls {
+    width: 220px;
+    flex-shrink: 0;
+}
+
+.target-controls {
+    flex-grow: 1;
+    min-width: 0;
+    padding-left: 10px;
+}
+
+.button-row {
+    flex-direction: row;
+    height: 28px;
+    margin-bottom: 6px;
+}
+
+.button-row Button {
+    height: 26px;
+    width: 64px;
+    margin-right: 8px;
+    font-size: 12px;
+}
+
+.secondary-button-row Button {
+    width: 100px;
+}
+
+.primary-button {
+    background-color: #20bfae;
+    color: #041313;
+}
+
+.toggle-row {
+    flex-direction: row;
+    height: 30px;
+    margin-bottom: 2px;
+}
+
+.toggle-row Toggle {
+    height: 28px;
+    width: 104px;
+    font-size: 12px;
+}
+
+.toggle-row .unity-toggle__label {
+    font-size: 12px;
+}
+
+.slider-row {
+    flex-direction: row;
+    height: 28px;
+    align-items: center;
+}
+
+.slider-label {
+    width: 58px;
+    color: #d3e2df;
+    font-size: 12px;
+}
+
+.showcase-slider {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 80px;
+}
+
+.background-swatch-row {
+    height: 22px;
+    margin-top: 3px;
+    flex-direction: row;
+}
+
+.background-swatch {
+    width: 26px;
+    height: 20px;
+    margin-right: 8px;
+    border-width: 1px;
+    border-color: #95aaa6;
+}
+
+.background-swatch.selected {
+    border-width: 3px;
+    border-color: #8ef4e8;
+}
+
+.section-title {
+    -unity-font-style: bold;
+    color: #d9e8e5;
+    font-size: 12px;
+    margin-bottom: 10px;
+}
+
+.details-value {
+    color: #c7d6d3;
+    white-space: normal;
+    font-size: 11px;
+}
+
+.details-scroll {
+    flex-grow: 1;
+    background-color: #0c1215;
+}
+
+.metric-row {
+    height: 22px;
+    flex-direction: row;
+}
+
+.metric-label {
+    width: 68px;
+    color: #9fb7b2;
+    font-size: 11px;
+}
+
+.metric-value {
+    color: #ecf4f2;
+    font-size: 11px;
+    flex-grow: 1;
+    white-space: normal;
+}
+
+.telemetry-scroll {
+    flex-grow: 1;
+    margin-top: 8px;
+    background-color: #0c1215;
+}
+
+.telemetry-value {
+    color: #d8e6e3;
+    white-space: normal;
+    font-size: 11px;
+}

@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Story.RuntimeAiPlannerBridge",
+    "rootNamespace": "MxFramework.Story.RuntimeAiPlannerBridge",
+    "references": [
+        "MxFramework.Story",
+        "MxFramework.AI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,0 +1,173 @@
+.component-runtime-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding-left: 28px;
+    padding-right: 28px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    background-color: rgb(18, 22, 27);
+}
+
+.header-row {
+    height: 58px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.title-label {
+    color: rgb(244, 247, 250);
+    font-size: 24px;
+    -unity-font-style: bold;
+}
+
+.subtitle-label {
+    color: rgb(158, 172, 188);
+    font-size: 13px;
+    margin-top: 3px;
+}
+
+.phase-label {
+    min-width: 190px;
+    height: 32px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    border-radius: 6px;
+    background-color: rgb(36, 91, 80);
+    color: rgb(224, 255, 245);
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.main-row {
+    flex-grow: 1;
+    flex-direction: row;
+    min-height: 0;
+}
+
+.state-panel {
+    width: 560px;
+    min-width: 460px;
+    padding: 16px;
+    background-color: rgb(29, 35, 43);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(68, 81, 96);
+    border-right-color: rgb(68, 81, 96);
+    border-top-color: rgb(68, 81, 96);
+    border-bottom-color: rgb(68, 81, 96);
+    border-radius: 8px;
+}
+
+.event-panel {
+    flex-grow: 1;
+    margin-left: 18px;
+    padding: 16px;
+    background-color: rgb(24, 29, 36);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgb(58, 70, 85);
+    border-right-color: rgb(58, 70, 85);
+    border-top-color: rgb(58, 70, 85);
+    border-bottom-color: rgb(58, 70, 85);
+    border-radius: 8px;
+}
+
+.metric-row {
+    min-height: 38px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(47, 57, 69);
+}
+
+.metric-name {
+    width: 150px;
+    color: rgb(157, 171, 188);
+    font-size: 13px;
+}
+
+.metric-value {
+    flex-grow: 1;
+    color: rgb(238, 242, 247);
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-right;
+}
+
+.hero-value {
+    color: rgb(203, 255, 214);
+}
+
+.enemy-value {
+    color: rgb(255, 218, 211);
+}
+
+.cooldown-value {
+    color: rgb(255, 236, 185);
+}
+
+.hash-value {
+    font-size: 12px;
+    color: rgb(219, 226, 235);
+}
+
+.save-value {
+    color: rgb(210, 224, 255);
+}
+
+.button-row {
+    flex-direction: row;
+    margin-top: 14px;
+}
+
+.demo-button {
+    height: 34px;
+    flex-grow: 1;
+    margin-right: 8px;
+    border-radius: 6px;
+    background-color: rgb(54, 74, 96);
+    color: rgb(245, 248, 251);
+    -unity-font-style: bold;
+}
+
+.primary-button {
+    background-color: rgb(45, 104, 91);
+}
+
+.danger-button {
+    margin-right: 0;
+    background-color: rgb(112, 58, 63);
+}
+
+.script-button {
+    margin-top: 14px;
+    margin-right: 0;
+    background-color: rgb(68, 78, 120);
+}
+
+.event-title {
+    margin-bottom: 10px;
+    color: rgb(210, 220, 233);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+
+.event-log {
+    flex-grow: 1;
+    color: rgb(222, 229, 237);
+    font-size: 12px;
+    white-space: normal;
+}

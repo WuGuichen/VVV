@@ -1,0 +1,17 @@
+{
+    "name": "MxFramework.Logging.Diagnostics",
+    "rootNamespace": "MxFramework.Logging.Diagnostics",
+    "references": [
+        "MxFramework.Logging",
+        "MxFramework.Diagnostics"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

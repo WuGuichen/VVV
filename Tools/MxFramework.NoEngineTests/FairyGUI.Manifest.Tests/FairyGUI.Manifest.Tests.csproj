@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>MxFramework.NoEngineTests.FairyGUI.Manifest</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestAiLabCardTrialControlContract.cs" Link="CardTrial/CharacterTestAiLabCardTrialControlContract.cs" />
+    <Compile Include="../../../Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestTacticalPreviewControlContract.cs" Link="Task04/CharacterTestTacticalPreviewControlContract.cs" />
+    <ProjectReference Include="../../MxFramework.Authoring/src/MxFramework.Authoring.Core/MxFramework.Authoring.Core.csproj" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Resources/ResourceKey.cs" Link="MxFramework/Resources/ResourceKey.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Resources/ResourceCatalog.cs" Link="MxFramework/Resources/ResourceCatalog.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/Resources/ResourceTypeIds.cs" Link="MxFramework/Resources/ResourceTypeIds.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiCommandDescriptor.cs" Link="MxFramework/UI/MxUiCommandDescriptor.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiFeedback.cs" Link="MxFramework/UI/MxUiFeedback.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiLayer.cs" Link="MxFramework/UI/MxUiLayer.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiLocalization.cs" Link="MxFramework/UI/MxUiLocalization.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiViewContract.cs" Link="MxFramework/UI/MxUiViewContract.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiViewDescriptor.cs" Link="MxFramework/UI/MxUiViewDescriptor.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI/MxUiViewId.cs" Link="MxFramework/UI/MxUiViewId.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI.FairyGUI.Manifest/MxFairyGuiManifest.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifest.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI.FairyGUI.Manifest/MxFairyGuiManifestGenerator.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestGenerator.cs" />
+    <Compile Include="../../../Packages/com.vincent.wgameframework/UI.FairyGUI.Manifest/MxFairyGuiManifestValidator.cs" Link="MxFramework/UI.FairyGUI.Manifest/MxFairyGuiManifestValidator.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,19 @@
+{
+  "name": "MxFramework.Project.Editor",
+  "rootNamespace": "MxFramework.Project.Editor",
+  "references": [
+    "MxFramework.ResourceMapping.Authoring",
+    "MxFramework.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

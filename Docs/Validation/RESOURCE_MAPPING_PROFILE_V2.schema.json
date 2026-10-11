@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mx.resource-mapping-profile.v2",
+  "title": "MxFramework Resource Mapping Profile v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profileId", "catalogId", "entries", "bundleRules", "catalogMounts", "preloadGroups", "metadata"],
+  "properties": {
+    "schema": { "const": "mx.resource-mapping-profile.v2" },
+    "profileId": { "$ref": "#/$defs/nonEmptyString" },
+    "catalogId": { "$ref": "#/$defs/nonEmptyString" },
+    "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "bundleRules": { "type": "array", "items": { "$ref": "#/$defs/bundleRule" } },
+    "catalogMounts": { "type": "array", "items": { "$ref": "#/$defs/catalogMount" } },
+    "preloadGroups": { "type": "array", "items": { "$ref": "#/$defs/preloadGroup" } },
+    "metadata": { "$ref": "#/$defs/stringMap" }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "sha256Fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-fA-F]{64}$" },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "producerReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerId", "producerContractVersion", "sourceRecordFingerprint"],
+      "properties": {
+        "producerId": { "$ref": "#/$defs/nonEmptyString" },
+        "producerContractVersion": { "$ref": "#/$defs/nonEmptyString" },
+        "sourceRecordFingerprint": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "resourceKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "typeId", "variant", "packageId"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9._-]+$" },
+        "typeId": { "$ref": "#/$defs/nonEmptyString" },
+        "variant": { "type": "string" },
+        "packageId": { "type": "string" }
+      }
+    },
+    "sourceLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "unityGuid", "cachedPath", "generatedAssetId", "domainSourceId", "packageRelativePath", "contentHash", "providerData"],
+      "properties": {
+        "kind": { "enum": ["unityAsset", "generatedUnityAsset", "domainSource", "importedPackageFile"] },
+        "unityGuid": { "type": "string" },
+        "cachedPath": { "type": "string" },
+        "generatedAssetId": { "type": "string" },
+        "domainSourceId": { "type": "string" },
+        "packageRelativePath": { "type": "string" },
+        "contentHash": { "type": "string" },
+        "providerData": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerReceipt", "authoringRecordId", "resourceKey", "sourceLocator", "deliveryIntent", "overrideIntent", "externalCatalogBinding", "bundleIntent", "labels", "preloadGroups", "dependencies", "providerData"],
+      "properties": {
+        "producerReceipt": { "$ref": "#/$defs/producerReceipt" },
+        "authoringRecordId": { "$ref": "#/$defs/nonEmptyString" },
+        "resourceKey": { "oneOf": [{ "$ref": "#/$defs/resourceKey" }, { "type": "null" }] },
+        "sourceLocator": { "oneOf": [{ "$ref": "#/$defs/sourceLocator" }, { "type": "null" }] },
+        "deliveryIntent": { "enum": ["internal", "external", "editorOnly", "excluded"] },
+        "overrideIntent": { "oneOf": [{ "enum": ["forbid", "allow"] }, { "type": "null" }] },
+        "externalCatalogBinding": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["catalogMountId"],
+              "properties": { "catalogMountId": { "$ref": "#/$defs/nonEmptyString" } }
+            },
+            { "type": "null" }
+          ]
+        },
+        "bundleIntent": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ruleId"],
+              "properties": { "ruleId": { "$ref": "#/$defs/nonEmptyString" } }
+            },
+            { "type": "null" }
+          ]
+        },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "preloadGroups": { "type": "array", "items": { "type": "string" } },
+        "dependencies": { "type": "array", "items": { "$ref": "#/$defs/resourceKey" } },
+        "providerData": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "bundleRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerReceipt", "authoringRecordId", "id", "bundleName", "compression", "buildTarget", "includeDependencies", "allowEmpty", "providerData"],
+      "properties": {
+        "producerReceipt": { "$ref": "#/$defs/producerReceipt" },
+        "authoringRecordId": { "$ref": "#/$defs/nonEmptyString" },
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "bundleName": { "$ref": "#/$defs/nonEmptyString" },
+        "compression": { "enum": ["lz4", "lzma", "uncompressed"] },
+        "buildTarget": { "$ref": "#/$defs/nonEmptyString" },
+        "includeDependencies": { "type": "boolean" },
+        "allowEmpty": { "type": "boolean" },
+        "providerData": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "catalogMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerReceipt", "authoringRecordId", "catalogMountId", "catalogId", "bootstrapKind", "relativeCatalogPath", "mountOrder", "expectedCatalogFingerprint"],
+      "properties": {
+        "producerReceipt": { "$ref": "#/$defs/producerReceipt" },
+        "authoringRecordId": { "$ref": "#/$defs/nonEmptyString" },
+        "catalogMountId": { "$ref": "#/$defs/nonEmptyString" },
+        "catalogId": { "$ref": "#/$defs/nonEmptyString" },
+        "bootstrapKind": { "enum": ["streamingAssetsCatalog", "compositionRoot"] },
+        "relativeCatalogPath": { "type": "string" },
+        "mountOrder": { "type": "integer", "minimum": 0 },
+        "expectedCatalogFingerprint": { "$ref": "#/$defs/sha256Fingerprint" }
+      }
+    },
+    "preloadGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerReceipt", "authoringRecordId", "id", "explicitKeys", "labels", "failFast", "maxConcurrentLoads", "allowEmpty", "providerData"],
+      "properties": {
+        "producerReceipt": { "$ref": "#/$defs/producerReceipt" },
+        "authoringRecordId": { "$ref": "#/$defs/nonEmptyString" },
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "explicitKeys": { "type": "array", "items": { "$ref": "#/$defs/resourceKey" } },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "failFast": { "type": "boolean" },
+        "maxConcurrentLoads": { "type": "integer", "minimum": 1 },
+        "allowEmpty": { "type": "boolean" },
+        "providerData": { "$ref": "#/$defs/stringMap" }
+      }
+    }
+  }
+}

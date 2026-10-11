@@ -1,0 +1,16 @@
+{
+  "name": "MxFramework.Project.CharacterTestVfx.Editor",
+  "rootNamespace": "MxFramework.Editor",
+  "references": ["MxFramework.Game.CharacterTest"],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

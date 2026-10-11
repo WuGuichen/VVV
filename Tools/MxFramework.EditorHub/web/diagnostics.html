@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>诊断 — MxFramework Editor Hub</title><link rel="stylesheet" href="./styles.css"></head>
+<body>
+  <main class="shell diagnostics-shell">
+    <header class="topbar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">Mx</span><span>返回编辑器中心</span></a><div class="toolbar"><p id="serverStatus" class="service-status" role="status">正在连接服务…</p><button id="refreshButton" type="button" class="quiet-button">刷新</button></div></header>
+    <div class="section-heading"><h1>诊断</h1><label class="context-picker">当前角色<select id="packageSelect" aria-label="当前角色"></select></label></div>
+    <div class="diagnostics-layout">
+      <section class="panel" aria-labelledby="readinessTitle">
+        <div class="section-heading"><div><h2 id="readinessTitle">交付检查</h2><p id="readinessSummary" class="muted"></p></div><a id="characterDetailsLink" class="text-link" href="/Tools/MxFramework.CharacterStudio/web/">角色详情</a></div>
+        <div id="readinessFlow" class="readiness-flow"></div>
+      </section>
+      <section class="panel" aria-labelledby="diagnosticsTitle">
+        <div class="section-heading"><div><h2 id="diagnosticsTitle">诊断信息</h2><p id="diagnosticsSummary" class="muted"></p></div><button id="copyDiagnosticsButton" type="button" class="quiet-button">复制 JSON 诊断</button></div>
+        <div class="diagnostic-controls"><input id="diagnosticsSearch" type="search" placeholder="搜索诊断" aria-label="搜索诊断"><select id="diagnosticsFilter" aria-label="过滤级别"><option value="all">所有级别</option><option value="Error">仅错误</option><option value="Warning">仅警告</option><option value="Info">仅提示</option></select></div>
+        <div id="diagnosticsConsole" class="diagnostics-console"></div>
+      </section>
+    </div>
+  </main>
+  <script src="./common.js"></script><script src="./diagnostics.js"></script>
+</body>
+</html>

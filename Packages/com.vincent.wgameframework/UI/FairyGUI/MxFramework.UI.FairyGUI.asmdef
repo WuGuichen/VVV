@@ -1,0 +1,27 @@
+{
+    "name": "MxFramework.UI.FairyGUI",
+    "rootNamespace": "MxFramework.UI.FairyGui",
+    "references": [
+        "FairyGUI",
+        "MxFramework.Resources",
+        "MxFramework.UI",
+        "MxFramework.UI.FairyGUI.Manifest"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "MXFRAMEWORK_FAIRYGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.fairygui.gui",
+            "expression": "5.2.0",
+            "define": "MXFRAMEWORK_FAIRYGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

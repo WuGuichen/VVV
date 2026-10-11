@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Gameplay.Triggers.StoryBridge",
+    "rootNamespace": "MxFramework.Gameplay.Triggers.StoryBridge",
+    "references": [
+        "MxFramework.Runtime",
+        "MxFramework.Story",
+        "MxFramework.Story.Runtime",
+        "MxFramework.Gameplay.Triggers"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

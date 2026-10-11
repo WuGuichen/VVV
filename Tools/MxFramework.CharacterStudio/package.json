@@ -1,0 +1,32 @@
+﻿{
+  "name": "mxframework-character-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency CharacterStudio workstation for MxFramework Character Resource Packages.",
+  "scripts": {
+    "smoke:character-deletion": "node scripts/character-deletion-smoke.mjs",
+    "postinstall": "node scripts/patch-three-fbx-palette-alpha.mjs",
+    "smoke": "node scripts/numeric-character-smoke.mjs",
+    "smoke:base-attributes": "node scripts/base-attributes-smoke.mjs",
+    "smoke:attribute-workspace": "node scripts/attribute-workspace-smoke.mjs",
+    "smoke:body-workspace": "node scripts/body-workspace-smoke.mjs",
+    "smoke:body-overview": "node scripts/body-overview-smoke.mjs",
+    "smoke:movement-collision": "node scripts/movement-collision-smoke.mjs",
+    "smoke:body-parts": "node scripts/body-parts-workbench-smoke.mjs",
+    "smoke:source-workspace": "node scripts/source-workspace-smoke.mjs",
+    "smoke:contact-points": "node scripts/contact-point-preview-smoke.mjs",
+    "smoke:tree-selection": "node scripts/tree-selection-smoke.mjs",
+    "smoke:palette": "node scripts/palette-preview-smoke.mjs",
+    "smoke:preview-glb": "node scripts/preview-glb-authoring-only-smoke.mjs",
+    "smoke:palette-usage": "node scripts/palette-usage-ownership-smoke.mjs",
+    "smoke:palette-api": "node scripts/surface-palette-api-smoke.mjs",
+    "smoke:cloth": "node scripts/cloth-authoring-smoke.mjs",
+    "audit:registry-class-names": "node scripts/registry-class-name-audit.mjs",
+    "serve": "dotnet run --project ../MxFramework.Authoring/src/MxFramework.Authoring.Cli/MxFramework.Authoring.Cli.csproj -- editor serve --root ../.. --port 4873 --package Authoring/CharacterPackages/character-000001"
+  },
+  "dependencies": {
+    "fbx2gltf": "^0.9.7-p1",
+    "three": "^0.165.0"
+  }
+}

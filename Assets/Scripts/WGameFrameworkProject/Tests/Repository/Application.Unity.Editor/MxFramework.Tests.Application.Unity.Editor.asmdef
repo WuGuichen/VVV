@@ -1,0 +1,23 @@
+{
+    "name": "MxFramework.Tests.Application.Unity.Editor",
+    "rootNamespace": "MxFramework.Tests.Application.Unity.Editor",
+    "references": [
+        "MxFramework.Application.Unity",
+        "MxFramework.Application.Unity.Validation",
+        "MxFramework.Platform.Unity",
+        "MxFramework.Tests.PlayMode.Application"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

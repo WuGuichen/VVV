@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MxFramework CharacterStudio</title>
+  <link rel="stylesheet" href="./styles.css?v=source-workspace-v2">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../node_modules/three/build/three.module.js",
+        "three/addons/": "../node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <div class="top-panel-container" id="topPanelContainer">
+      <header class="topbar">
+        <div>
+          <h1>CharacterStudio</h1>
+          <p id="subtitle">角色资源包外部装配工作台</p>
+        </div>
+        <div class="toolbar">
+          <select id="packageSelect" title="角色资源包"></select>
+          <div class="character-management-actions" aria-label="角色包管理">
+            <button id="newCharacterButton" type="button" title="从标准模板创建新角色">新建</button>
+            <button id="duplicateCharacterButton" type="button" title="复制当前角色及其 ArtSource">复制</button>
+            <button id="archiveCharacterButton" type="button" title="归档当前角色，不删除 Unity Generated 产物">归档</button>
+            <button id="deleteCharacterButton" class="danger" type="button" title="检查并彻底删除角色及其制作源和生成资源">彻底删除</button>
+            <button id="migrateCharacterButton" type="button" title="检查并迁移当前角色包到最新 schema">迁移</button>
+          </div>
+          <button id="reloadButton" type="button" title="刷新 readiness、资源计划和 Unity 状态；保留当前草稿和界面">刷新状态</button>
+          <button id="discardReloadButton" class="danger subtle" type="button" title="明确放弃当前未保存改动，并从磁盘重新加载；界面位置仍会保留">放弃改动并重载</button>
+          <button id="saveButton" type="button" title="校验并保存资源包草稿">保存</button>
+          <button id="compileButton" type="button" title="运行 Character compile，预检 Prefab 重建输入">Prefab 重建预检</button>
+          <select id="unityBuildTargetSelect" title="选择本次 Unity 导入使用的目标平台" aria-label="Unity 导入目标平台">
+            <option value="">选择导入平台</option>
+            <option value="StandaloneWindows64">Windows 64-bit</option>
+            <option value="StandaloneOSX">macOS</option>
+            <option value="StandaloneLinux64">Linux 64-bit</option>
+            <option value="Android">Android</option>
+            <option value="iOS">iOS</option>
+            <option value="WebGL">WebGL</option>
+          </select>
+          <button id="importButton" type="button" title="导入 Unity 资源并刷新 Prefab / CharacterAction 同步状态">Unity 导入</button>
+        </div>
+      </header>
+      <section id="workflowBar" class="workflow-bar" aria-label="角色创建流程">
+        <div class="workflow-loading">正在读取角色创建流程...</div>
+      </section>
+    </div>
+
+    <main id="workspace" class="workspace">
+      <aside class="tree-panel">
+        <div class="panel-heading">
+          <h2>资源包</h2>
+          <div class="panel-actions">
+            <span id="dirtyBadge" class="badge">源数据已保存</span>
+            <button id="treeCollapseButton" class="icon-button" type="button" title="折叠资源包栏" aria-label="折叠资源包栏">‹</button>
+          </div>
+        </div>
+        <div id="packageSummary" class="summary"></div>
+        <div class="create-config">
+          <select id="configCreateSelect" title="选择要新增的配置类型">
+            <option value="combinedWeapon">组合武器配置</option>
+            <option value="socket">挂点</option>
+            <option value="trace">攻击轨迹</option>
+            <option value="contactPoint">接触音频点</option>
+            <option value="collider">受击体 Hurtbox</option>
+            <option value="part">身体部位</option>
+          </select>
+          <button id="configCreateButton" type="button" title="新增配置项">新增</button>
+        </div>
+        <button id="addHumanoidHurtboxesButton" type="button" disabled>一键添加人形受击体（11 体）</button>
+        <nav id="packageTree" class="tree" aria-label="资源包树"></nav>
+      </aside>
+
+      <section class="viewport-panel">
+        <div class="panel-heading">
+          <h2>3D 预览</h2>
+          <div class="segmented" id="layerToggles">
+            <button data-layer="colliders" class="active" type="button">受击体</button>
+            <button data-layer="sockets" class="active" type="button">挂点</button>
+            <button data-layer="traces" class="active" type="button">轨迹</button>
+            <button data-layer="contactPoints" class="active" type="button">接触音频点</button>
+            <button data-layer="engagementAnchors" class="active" type="button">接战锚点</button>
+            <button data-layer="weapons" class="active" type="button">武器</button>
+          </div>
+        </div>
+        <div id="attributePreviewControls" class="attribute-preview-controls" hidden>
+          <span>角色预览 · 可拖动旋转与缩放</span>
+          <button id="attributeOverlayButton" type="button" aria-pressed="false">显示辅助标记</button>
+          <button id="attributeResetCameraButton" type="button">重置镜头</button>
+        </div>
+        <section id="bodyWorkspaceNavigation" class="body-workspace-navigation" aria-label="身体与受击配置导航" hidden></section>
+        <div class="viewport-mode-bar">
+          <button id="viewWeaponConfigButton" type="button">查看武器配置</button>
+          <button id="returnCharacterViewButton" type="button" hidden>返回角色</button>
+          <button id="weaponModeChooseModelButton" type="button" hidden>选择模型</button>
+          <button id="weaponModeEditTraceButton" type="button" hidden>编辑轨迹</button>
+          <button id="undoButton" type="button" title="撤销上一次 Gizmo 或属性栏编辑（Ctrl+Z）">撤销</button>
+          <button id="redoButton" type="button" title="重做上一次撤销（Ctrl+Y / Ctrl+Shift+Z）">重做</button>
+          <div class="transform-mode-buttons" aria-label="视口变换操作模式">
+            <button id="weaponTransformMoveButton" type="button" hidden>移动</button>
+            <button id="weaponTransformRotateButton" type="button" hidden>旋转</button>
+            <button id="weaponTransformScaleButton" type="button" hidden>缩放</button>
+          </div>
+          <button id="symmetryEditToggleButton" class="symmetry-toggle" type="button" aria-pressed="false" title="开启后镜像编辑左右挂点、握持姿态、受击碰撞体和接触音频点">对称</button>
+          <button id="colliderSymmetrySyncButton" type="button" title="把当前可见的左侧受击框按角色世界空间镜像到右侧">左→右同步</button>
+          <span id="viewportModeStatus">角色视图</span>
+        </div>
+        <div class="preview-controls" aria-label="预览控制">
+          <label>姿势<select id="previewPoseSelect"></select></label>
+          <label>骨骼运动<select id="previewMotionSelect"></select></label>
+          <div id="hurtboxDisplayControls" class="hurtbox-display-controls" aria-label="受击体显示范围">
+            <label>受击体<select id="hurtboxDisplayModeSelect">
+              <option value="part">当前部位</option>
+              <option value="selected">仅选中</option>
+              <option value="all">全部</option>
+            </select></label>
+            <label id="hurtboxPartFilterLabel">部位<select id="hurtboxPartFilterSelect"></select></label>
+            <span id="hurtboxDisplaySummary" class="hurtbox-display-summary"></span>
+          </div>
+          <button id="hurtboxBindingReferenceButton" type="button" aria-pressed="true" title="显示选中受击体的绑定骨骼、有效父坐标系和 localPose 前后对照">绑定参考</button>
+          <button id="hurtboxCoverageButton" type="button" aria-pressed="false" title="从前后左右上下六个方向比较当前动画帧的模型轮廓与 Hurtbox 覆盖">六向覆盖热图</button>
+          <button id="resetCameraButton" type="button" title="重置 3D 预览镜头">重置镜头</button>
+        </div>
+        <div id="viewport" class="viewport" aria-label="角色视口"></div>
+        <section id="contextDock" class="context-dock is-collapsed" aria-label="角色上下文面板">
+          <div class="context-dock-strip">
+            <div id="contextDockSummary" class="context-dock-summary">上下文状态</div>
+            <div id="contextDockTabs" class="context-dock-tabs" role="tablist" aria-label="角色上下文">
+              <button type="button" data-context-tab="binding" role="tab" aria-selected="true">绑定</button>
+              <button type="button" data-context-tab="materials" role="tab" aria-selected="false">原材料</button>
+              <button type="button" data-context-tab="validation" role="tab" aria-selected="false">运行验证</button>
+            </div>
+            <button id="contextDockToggleButton" class="context-dock-toggle" type="button" aria-expanded="false">展开</button>
+          </div>
+          <div id="contextDockBody" class="context-dock-body">
+            <section class="context-panel" data-context-panel="binding" aria-label="模型引用">
+              <div class="resource-binding-bar">
+                <strong>模型引用</strong>
+                <label class="resource-binding-role">
+                  <span>绑定目标</span>
+                  <select id="resourceBindingRole" title="选择资源绑定目标">
+                    <option value="body">角色主体模型</option>
+                    <option value="mainHand">主手槽武器模型</option>
+                    <option value="offHand">副手槽武器模型</option>
+                    <option value="preview">仅浏览资源</option>
+                  </select>
+                </label>
+                <span id="resourceBindingTarget" class="binding-meta">选择当前字段后再绑定资源</span>
+                <button id="openResourcePickerButton" type="button" title="为当前字段选择已有资源">绑定已有资源</button>
+                <button id="clearModelBindingButton" type="button" title="只清空当前字段的模型引用，不删除资源库资源">清空引用</button>
+              </div>
+              <div id="resourceBindingDetails" class="resource-binding-details"></div>
+            </section>
+            <section class="context-panel" data-context-panel="materials" aria-label="原材料清单" hidden>
+              <div class="context-panel-head">
+                <strong>原材料清单</strong>
+                <span>角色包源文件导入状态</span>
+              </div>
+              <div id="importMaterialsPanel" class="import-materials-panel" aria-label="character_sources.json 源清单编辑器"></div>
+            </section>
+            <section class="context-panel" data-context-panel="validation" aria-label="运行验证" hidden>
+              <div class="context-panel-head">
+                <strong>运行验证</strong>
+                <span>当前组合的解析结果、生成链路、资源计划与入游戏状态</span>
+              </div>
+              <div class="runtime-validation-tabs" role="tablist" aria-label="运行验证分类">
+                <button type="button" data-validation-tab="animation" role="tab" aria-selected="false">动画解析</button>
+                <button type="button" data-validation-tab="ability" role="tab" aria-selected="false">高级兼容诊断</button>
+                <button type="button" data-validation-tab="reaction" role="tab" aria-selected="false">受击结果（只读）</button>
+                <button type="button" data-validation-tab="resources" role="tab" aria-selected="false">资源计划</button>
+                <button type="button" data-validation-tab="readiness" role="tab" aria-selected="true">入游戏状态</button>
+              </div>
+              <div class="runtime-validation-panels">
+                <section data-validation-panel="animation" hidden><div id="animationConfigPanel" class="animation-config-grid" aria-label="动画解析结果"></div></section>
+                <section data-validation-panel="ability" hidden><div id="abilityLoadoutPanel" class="ability-loadout-panel" aria-label="实验性能力兼容诊断"></div></section>
+                <section data-validation-panel="reaction" hidden><div id="reactionProfilePanel" class="reaction-config-grid reaction-profile-panel" aria-label="受击结果只读视图，不可编辑"></div></section>
+                <section data-validation-panel="resources" hidden><div id="resourcePlanPreview" class="resource-plan-grid" aria-label="角色资源计划预览"></div></section>
+                <section data-validation-panel="readiness"><div id="readinessFlow" class="readiness-flow" aria-label="角色 readiness 流程"></div></section>
+              </div>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <aside class="inspector-panel">
+        <section class="inspector-shell">
+          <div class="panel-heading inspector-heading">
+            <div id="inspectorTabs" class="inspector-tabs" role="tablist" aria-label="右侧面板">
+              <button type="button" data-inspector-tab="properties" role="tab" aria-selected="true">属性</button>
+              <button type="button" data-inspector-tab="diagnostics" role="tab" aria-selected="false">诊断</button>
+              <button type="button" data-inspector-tab="import" role="tab" aria-selected="false">Unity 导入</button>
+            </div>
+            <div class="panel-actions">
+              <span id="selectionBadge" class="badge">未选择</span>
+              <button id="copyReportButton" type="button" title="复制诊断、Unity 导入和同步报告">复制报告</button>
+            </div>
+          </div>
+          <div class="inspector-tab-panels">
+            <div class="inspector-tab-panel" data-inspector-panel="properties">
+              <div id="inspector" class="inspector"></div>
+            </div>
+            <div class="inspector-tab-panel" data-inspector-panel="diagnostics" hidden>
+              <div id="diagnostics" class="diagnostics"></div>
+            </div>
+            <div class="inspector-tab-panel" data-inspector-panel="import" hidden>
+              <div id="importStatus" class="diagnostics"></div>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="characterDeleteDialog" class="character-delete-dialog">
+    <h2>彻底删除角色</h2>
+    <p>删除角色包、Blender 制作源、同编号归档和角色专属的 Unity 生成资源。编号永久停用，无法通过撤销恢复。Git 历史及仓库外副本仍保留。</p>
+    <label>角色编号（也可填写已归档角色）<input id="characterDeleteId" inputmode="numeric" maxlength="6" autocomplete="off"></label>
+    <button id="characterDeleteInspect" type="button">检查删除范围</button>
+    <div id="characterDeletePlan" role="status" aria-live="polite"></div>
+    <label>输入同一角色编号确认<input id="characterDeleteConfirm" autocomplete="off" maxlength="6"></label>
+    <label class="character-delete-check"><input id="characterDeleteEditorsClosed" type="checkbox">已关闭该角色的 Blender 文件和 Unity 编辑对象，并停止该角色的导入、烘焙和发布。</label>
+    <p id="characterDeleteError" role="alert"></p>
+    <div class="character-delete-actions"><button id="characterDeleteCancel" type="button">取消</button><button id="characterDeleteApply" type="button" class="danger" disabled>确认彻底删除</button></div>
+  </dialog>
+
+  <div id="characterManagerOverlay" class="modal-overlay" hidden>
+    <section class="character-manager-dialog" role="dialog" aria-modal="true" aria-labelledby="characterManagerTitle">
+      <div class="character-manager-head">
+        <div>
+          <h2 id="characterManagerTitle">新建角色</h2>
+          <p id="characterManagerSummary">创建 Authoring package 和对应的 ArtSource 源目录。</p>
+        </div>
+        <button id="closeCharacterManagerButton" class="icon-button" type="button" title="关闭角色管理" aria-label="关闭角色管理">×</button>
+      </div>
+      <form id="characterManagerForm" class="character-manager-form">
+        <div id="characterManagerSource" class="character-manager-source" hidden></div>
+        <div id="characterManagerIdentityFields" class="character-manager-fields">
+          <label>
+            <span>角色编号</span>
+            <input id="characterManagerPackageId" type="text" autocomplete="off" placeholder="从编号池自动分配" readonly>
+            <small>新角色使用六位数字稳定身份；编号由版本化编号池分配，归档后永久退休。</small>
+          </label>
+          <label>
+            <span>显示名称</span>
+            <input id="characterManagerDisplayName" type="text" autocomplete="off" placeholder="例如 Frost Knight" required>
+          </label>
+          <label id="characterManagerTemplateField">
+            <span>模板</span>
+            <select id="characterManagerTemplate">
+              <option value="humanoid">Humanoid（FBX / Avatar）</option>
+              <option value="creature">Creature（非 Humanoid）</option>
+            </select>
+          </label>
+        </div>
+        <div id="characterManagerArchiveFields" class="character-manager-archive" hidden>
+          <p id="characterManagerArchiveWarning"></p>
+          <label class="character-manager-confirm">
+            <input id="characterManagerArchiveConfirm" type="checkbox">
+            <span>我确认归档当前 Authoring package 与 ArtSource。Unity Generated 和 CharacterAction 产物将保留。</span>
+          </label>
+        </div>
+        <div id="characterManagerError" class="character-manager-error" role="alert" hidden></div>
+        <div class="character-manager-footer">
+          <button id="cancelCharacterManagerButton" type="button">取消</button>
+          <button id="submitCharacterManagerButton" class="primary" type="submit">创建角色</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="resourcePickerOverlay" class="modal-overlay" hidden>
+    <section class="resource-picker" role="dialog" aria-modal="true" aria-labelledby="resourcePickerTitle">
+      <div class="resource-picker-head">
+        <div>
+          <h2 id="resourcePickerTitle">选择资源</h2>
+          <p id="resourcePickerSummary">资源库由独立 Resource Library Editor 管理，这里只选择当前字段引用。</p>
+        </div>
+        <button id="closeResourcePickerButton" class="icon-button" type="button" title="关闭资源选择器" aria-label="关闭资源选择器">×</button>
+      </div>
+      <div id="resourcePickerContext" class="resource-picker-context"></div>
+      <div id="resourcePickerDebug" class="resource-picker-debug" hidden></div>
+      <div class="resource-picker-toolbar">
+        <label>
+          搜索
+          <input id="resourcePickerSearch" type="search" placeholder="按名称、resource key、路径过滤">
+        </label>
+        <label>
+          用途
+          <select id="resourcePickerUsageFilter">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          Provider
+          <select id="resourcePickerProviderFilter">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <button id="resourcePickerClearFilters" type="button">清空过滤</button>
+      </div>
+      <div id="resourcePickerList" class="model-resource-list" aria-label="字段资源选择器"></div>
+    </section>
+  </div>
+
+  <button id="topToggleBtn" class="panel-toggle-btn top-toggle" type="button" title="折叠/展开顶栏">
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+  </button>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="./app.js?v=source-workspace-v2"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const topContainer = document.getElementById("topPanelContainer");
+      const topToggle = document.getElementById("topToggleBtn");
+
+      function updateTogglePositions() {
+        if (!topContainer.classList.contains("collapsed")) {
+          const rect = topContainer.getBoundingClientRect();
+          topToggle.style.top = `${rect.bottom - 1}px`;
+        } else {
+          topToggle.style.top = '0px';
+        }
+      }
+
+      topToggle.addEventListener("click", () => {
+        topContainer.classList.toggle("collapsed");
+        topToggle.classList.toggle("floating");
+        const svg = topToggle.querySelector("svg");
+        if (topContainer.classList.contains("collapsed")) {
+          svg.style.transform = "rotate(180deg)";
+        } else {
+          svg.style.transform = "rotate(0deg)";
+        }
+        setTimeout(updateTogglePositions, 350);
+      });
+
+      window.addEventListener("resize", updateTogglePositions);
+
+      // Safety settlements
+      setTimeout(updateTogglePositions, 100);
+      setTimeout(updateTogglePositions, 500);
+      setTimeout(updateTogglePositions, 2000);
+    });
+  </script>
+</body>
+</html>

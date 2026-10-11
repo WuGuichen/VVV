@@ -1,0 +1,117 @@
+.marble-root {
+    flex-grow: 1;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    align-items: flex-end;
+}
+
+.marble-shell {
+    width: 320px;
+    max-width: 320px;
+    align-self: flex-end;
+}
+
+.header-row {
+    height: 48px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.title {
+    font-size: 24px;
+    -unity-font-style: bold;
+    color: rgb(244, 247, 248);
+}
+
+.state-pill {
+    min-width: 104px;
+    height: 30px;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-radius: 4px;
+    background-color: rgb(34, 84, 70);
+    color: rgb(232, 255, 246);
+    -unity-text-align: middle-center;
+    -unity-font-style: bold;
+}
+
+.content-row {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: flex-start;
+}
+
+.side-panel {
+    width: 300px;
+    min-width: 300px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: rgb(55, 60, 66);
+    background-color: rgb(20, 23, 27);
+}
+
+.stat-row {
+    min-height: 34px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom-width: 1px;
+    border-color: rgb(55, 60, 66);
+}
+
+.stat-name {
+    color: rgb(166, 174, 182);
+    font-size: 13px;
+}
+
+.stat-value {
+    color: rgb(239, 242, 244);
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-right;
+}
+
+.hash-title {
+    margin-top: 16px;
+    color: rgb(166, 174, 182);
+    font-size: 12px;
+}
+
+.hash-value {
+    min-height: 42px;
+    padding-top: 6px;
+    color: rgb(229, 233, 236);
+    white-space: normal;
+}
+
+.save-label {
+    min-height: 36px;
+    color: rgb(171, 188, 200);
+    white-space: normal;
+    font-size: 12px;
+}
+
+.button-row {
+    flex-direction: row;
+    margin-top: 10px;
+}
+
+Button {
+    flex-grow: 1;
+    min-height: 34px;
+    margin-right: 8px;
+    border-radius: 4px;
+    background-color: rgb(47, 95, 120);
+    color: rgb(248, 250, 251);
+    -unity-font-style: bold;
+}

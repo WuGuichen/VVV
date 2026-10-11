@@ -1,0 +1,16 @@
+{
+    "name": "MxFramework.Config",
+    "rootNamespace": "MxFramework.Config",
+    "references": [
+        "MxFramework.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

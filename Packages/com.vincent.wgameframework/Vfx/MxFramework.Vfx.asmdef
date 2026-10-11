@@ -1,0 +1,19 @@
+{
+    "name": "MxFramework.Vfx",
+    "rootNamespace": "MxFramework.Vfx",
+    "references": [
+        "MxFramework.Core",
+        "MxFramework.Diagnostics",
+        "MxFramework.Resources",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,0 +1,98 @@
+.story-runtime-root {
+    flex-grow: 1;
+    padding: 32px;
+    background-color: rgb(16, 18, 21);
+    color: rgb(238, 243, 244);
+}
+
+.story-header {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.story-title {
+    font-size: 24px;
+    -unity-font-style: bold;
+    color: rgb(246, 250, 250);
+}
+
+.story-phase {
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(173, 232, 255);
+}
+
+.story-dialogue {
+    min-height: 52px;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border-left-width: 4px;
+    border-left-color: rgb(240, 190, 90);
+    background-color: rgb(35, 38, 43);
+    color: rgb(255, 245, 208);
+    font-size: 18px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.metric-grid {
+    margin-bottom: 18px;
+}
+
+.metric-row {
+    flex-direction: row;
+    justify-content: space-between;
+    min-height: 26px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(48, 53, 59);
+}
+
+.metric-name {
+    min-width: 180px;
+    color: rgb(159, 171, 180);
+}
+
+.metric-value {
+    flex-grow: 1;
+    color: rgb(232, 238, 241);
+    white-space: normal;
+}
+
+.button-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    margin-bottom: 18px;
+}
+
+Button {
+    min-width: 92px;
+    height: 34px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    color: rgb(248, 251, 252);
+    background-color: rgb(49, 88, 94);
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+    -unity-font-style: bold;
+}
+
+Button:disabled {
+    color: rgb(122, 130, 135);
+    background-color: rgb(39, 43, 47);
+}
+
+.event-log {
+    flex-grow: 1;
+    padding: 12px;
+    background-color: rgb(24, 27, 31);
+    color: rgb(214, 224, 230);
+    font-size: 12px;
+    white-space: normal;
+}

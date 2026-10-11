@@ -1,0 +1,31 @@
+.hud {
+    position: absolute;
+    left: 18px;
+    top: 18px;
+    width: 610px;
+    padding: 14px;
+    background-color: rgba(15, 19, 20, 0.94);
+    border-left-width: 4px;
+    border-left-color: rgb(51, 242, 199);
+}
+
+.button-row {
+    flex-direction: row;
+    margin-top: 8px;
+    margin-bottom: 10px;
+}
+
+.slice-row {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.slice-title {
+    color: rgb(255, 212, 107);
+    -unity-font-style: bold;
+    font-size: 13px;
+}
+
+.event-list {
+    margin-top: 4px;
+}

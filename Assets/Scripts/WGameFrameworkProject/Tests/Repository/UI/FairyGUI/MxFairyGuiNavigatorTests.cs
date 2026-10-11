@@ -1,0 +1,1985 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using MxFramework.Input;
+using MxFramework.Resources;
+using MxFramework.UI;
+using MxFramework.UI.FairyGui;
+using NUnit.Framework;
+using Fgui = global::FairyGUI;
+
+namespace MxFramework.Tests.UI.FairyGui
+{
+    public sealed class MxFairyGuiNavigatorTests
+    {
+        [SetUp]
+        public void SetUp()
+        {
+            FairyGuiTestStageReset.Reset();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            FairyGuiTestStageReset.Reset();
+        }
+
+        [Test]
+        public void Open_WithRegisteredPackageComponentAndViewModel_BindsAndShowsView()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, binder);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("ready"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.IsTrue(navigator.IsOpen(ViewId));
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+            Assert.AreEqual(1, binder.BindCount);
+            Assert.AreEqual("ready", binder.Last.Title);
+            Assert.AreSame(host.LastHandle, binder.LastComponent);
+            Assert.IsTrue(host.LastHandle.Visible);
+            Assert.AreEqual(MxUiLifecycleState.Visible, result.View.Lifecycle.State);
+        }
+
+        [Test]
+        public void Open_WithRealMxFguiSmokePackage_BindsClosesAndReleases()
+        {
+            RemoveRealSmokePackageIfLoaded();
+
+            byte[] packageBytes = File.ReadAllBytes(Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Assets/Bundles/FGUI/MxFguiSmoke/MxFguiSmoke_fui.bytes"));
+            Assert.Greater(packageBytes.Length, 4);
+            Assert.AreEqual((byte)'F', packageBytes[0]);
+            Assert.AreEqual((byte)'G', packageBytes[1]);
+            Assert.AreEqual((byte)'U', packageBytes[2]);
+            Assert.AreEqual((byte)'I', packageBytes[3]);
+
+            ResourceManager manager = CreateManager(
+                new MemoryResourceProvider().Register("fgui/MxFguiSmoke_fui.bytes", packageBytes),
+                RealSmokePackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new MxFairyGuiHost();
+            var binder = new RealSmokeBinder();
+            MxFairyGuiNavigator navigator = CreateRealSmokeNavigator(bridge, host, binder);
+
+            try
+            {
+                MxUiOpenResult result = navigator.Open(RealSmokeViewId, new RealSmokeViewModel("Navigator smoke bound"));
+
+                Assert.IsTrue(result.Success, result.Message);
+                Assert.IsTrue(navigator.IsOpen(RealSmokeViewId));
+                Assert.AreEqual(1, bridge.LoadedScopeCount);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.AreEqual(1, binder.BindCount);
+                Assert.AreEqual("Navigator smoke bound", binder.BoundTitle);
+                Assert.IsFalse(binder.BoundComponent.IsDisposed);
+                Assert.AreEqual(MxUiLifecycleState.Visible, result.View.Lifecycle.State);
+
+                Assert.IsTrue(navigator.Close(RealSmokeViewId));
+                Assert.IsFalse(navigator.Close(RealSmokeViewId));
+                Assert.IsFalse(navigator.IsOpen(RealSmokeViewId));
+                Assert.IsTrue(binder.BoundComponent.IsDisposed);
+                Assert.AreEqual(1, bridge.ReleasedScopeCount);
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+                Assert.IsNull(Fgui.UIPackage.GetByName(RealSmokePackageId));
+            }
+            finally
+            {
+                if (navigator.IsOpen(RealSmokeViewId))
+                    navigator.Close(RealSmokeViewId);
+
+                RemoveRealSmokePackageIfLoaded();
+            }
+        }
+
+        [Test]
+        public void ReleasePackage_WhenOwnedPackageWasAlreadyRemoved_DoesNotThrow()
+        {
+            RemoveRealSmokePackageIfLoaded();
+
+            byte[] packageBytes = File.ReadAllBytes(Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "Assets/Bundles/FGUI/MxFguiSmoke/MxFguiSmoke_fui.bytes"));
+
+            ResourceManager manager = CreateManager(
+                new MemoryResourceProvider().Register("fgui/MxFguiSmoke_fui.bytes", packageBytes),
+                RealSmokePackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            MxFairyGuiPackageLoadResult loadResult = bridge.LoadPackage(
+                new MxFairyGuiPackageDescriptor(RealSmokePackageId, RealSmokePackageKey));
+            Assert.IsTrue(loadResult.Success, loadResult.Failure.Message);
+
+            var host = new MxFairyGuiHost();
+            try
+            {
+                string failure;
+                Assert.IsTrue(host.EnsurePackage(loadResult.Scope, out failure), failure);
+                Assert.IsNotNull(Fgui.UIPackage.GetByName(RealSmokePackageId));
+
+                Fgui.UIPackage.RemovePackage(RealSmokePackageId);
+                Assert.IsNull(Fgui.UIPackage.GetByName(RealSmokePackageId));
+
+                loadResult.Scope.Release();
+                Assert.DoesNotThrow(() => host.ReleasePackage(loadResult.Scope.PackageId));
+                Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            }
+            finally
+            {
+                loadResult.Scope.Release();
+                RemoveRealSmokePackageIfLoaded();
+            }
+        }
+
+        [Test]
+        public void ComponentHandle_WhenUnityDisplayObjectWasDestroyed_ShowHideAndDisposeDoNotThrow()
+        {
+            var parent = new Fgui.GComponent();
+            var component = new Fgui.GComponent();
+            parent.AddChild(component);
+            var handle = new MxFairyGuiComponentHandle("ui.demo", "Panel", component);
+
+            UnityEngine.Object.DestroyImmediate(component.displayObject.gameObject);
+
+            Assert.DoesNotThrow(() => handle.Hide());
+            Assert.IsNull(component.parent);
+            Assert.DoesNotThrow(() => handle.Dispose());
+            Assert.IsTrue(handle.IsDisposed);
+            parent.Dispose();
+
+            var hiddenParent = new Fgui.GComponent();
+            var hiddenComponent = new Fgui.GComponent();
+            hiddenParent.AddChild(hiddenComponent);
+            hiddenComponent.visible = false;
+            var hiddenHandle = new MxFairyGuiComponentHandle("ui.demo", "HiddenPanel", hiddenComponent);
+
+            UnityEngine.Object.DestroyImmediate(hiddenComponent.displayObject.gameObject);
+
+            Assert.DoesNotThrow(() => hiddenHandle.Show());
+            Assert.IsNull(hiddenComponent.parent);
+            Assert.DoesNotThrow(() => hiddenHandle.Dispose());
+            Assert.IsTrue(hiddenHandle.IsDisposed);
+            Assert.IsNull(hiddenComponent.parent);
+            hiddenParent.Dispose();
+        }
+
+        [Test]
+        public void LayerHost_WhenLayerRootUnityDisplayObjectWasDestroyed_RecreatesRoot()
+        {
+            var layerHost = new MxFairyGuiLayerHost();
+            try
+            {
+                layerHost.EnsureLayerRoots();
+                Assert.IsTrue(layerHost.TryGetLayerRoot(MxUiLayer.Hud, out Fgui.GComponent original));
+                Assert.IsNotNull(original);
+                UnityEngine.Object.DestroyImmediate(original.displayObject.gameObject);
+
+                Assert.IsFalse(layerHost.TryGetLayerRoot(MxUiLayer.Hud, out _));
+
+                Assert.DoesNotThrow(() => layerHost.EnsureLayerRoots());
+                Assert.IsTrue(layerHost.TryGetLayerRoot(MxUiLayer.Hud, out Fgui.GComponent recreated));
+                Assert.IsNotNull(recreated);
+                Assert.AreNotSame(original, recreated);
+                Assert.IsNotNull(recreated.displayObject.gameObject);
+            }
+            finally
+            {
+                layerHost.Dispose();
+            }
+        }
+
+        [Test]
+        public void LayerHost_EnablesFairyBatchingForEveryProductizedLayer()
+        {
+            var layerHost = new MxFairyGuiLayerHost();
+            try
+            {
+                layerHost.EnsureLayerRoots();
+
+                for (int i = 0; i < layerHost.LayerOrder.Count; i++)
+                {
+                    MxUiLayer layer = layerHost.LayerOrder[i];
+                    Assert.IsTrue(layerHost.TryGetLayerRoot(layer, out Fgui.GComponent root), layer.ToString());
+                    Assert.IsTrue(root.fairyBatching, layer.ToString());
+                }
+            }
+            finally
+            {
+                layerHost.Dispose();
+            }
+        }
+
+        [Test]
+        public void LayerHost_Dispose_ReleasesOwnedRootsAndCanRecreateThem()
+        {
+            var layerHost = new MxFairyGuiLayerHost();
+            layerHost.EnsureLayerRoots();
+            Assert.IsTrue(layerHost.TryGetLayerRoot(MxUiLayer.Hud, out Fgui.GComponent original));
+            Assert.IsNotNull(original);
+            Fgui.DisplayObject originalDisplayObject = original.displayObject;
+
+            layerHost.Dispose();
+
+            Assert.IsNull(original.parent);
+            Assert.IsTrue(originalDisplayObject.isDisposed);
+            Assert.IsFalse(layerHost.TryGetLayerRoot(MxUiLayer.Hud, out _));
+
+            layerHost.EnsureLayerRoots();
+            Assert.IsTrue(layerHost.TryGetLayerRoot(MxUiLayer.Hud, out Fgui.GComponent recreated));
+            Assert.IsNotNull(recreated);
+            Assert.AreNotSame(original, recreated);
+            Assert.IsFalse(recreated.displayObject.isDisposed);
+
+            layerHost.Dispose();
+        }
+
+        [Test]
+        public void Open_WhenPackageBytesAreMissing_MapsBridgeFailureToOpenFailure()
+        {
+            var bridge = new MxFairyGuiResourceBridge(CreateManager(new MemoryResourceProvider()));
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("missing"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+            Assert.AreEqual(0, host.CreateComponentCount);
+        }
+
+        [Test]
+        public void Open_WhenContractIsMissing_ReturnsStructuredFailure()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), registerContract: false);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("missing"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewNotFound, result.ErrorCode);
+            StringAssert.Contains("contract is not registered", result.Message);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+        }
+
+        [Test]
+        public void Open_WhenPackageDescriptorIsMissing_ReturnsStructuredFailure()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), registerPackage: false);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("missing"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("package descriptor is not registered", result.Message);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+        }
+
+        [Test]
+        public void Open_WhenHostEnsurePackageFails_ReleasesLoadedPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost { EnsurePackageFailure = "owned package conflict" };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("fail"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("owned package conflict", result.Message);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(0, host.ReleasePackageCount);
+            Assert.AreEqual(0, host.CreateComponentCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void Open_WhenComponentCreationFails_ReleasesLoadedPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost { CreateComponentFailure = "component missing" };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("fail"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("component missing", result.Message);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void Open_WhenContractViewModelTypeIsMissing_ReturnsStructuredFailure()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), viewModelType: string.Empty);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("missing"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("view model type is required", result.Message);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+        }
+
+        [Test]
+        public void Open_WhenContractViewModelTypeDoesNotMatchArgs_ReturnsStructuredFailure()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), viewModelType: typeof(OtherViewModel).FullName);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("wrong"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("view model type does not match", result.Message);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+        }
+
+        [Test]
+        public void Open_WhenBindingIsMissing_ReturnsStructuredFailureAndReleasesPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, (IMxFairyGuiViewBinder<DemoViewModel>)null);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("missing"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("view binding is not registered", result.Message);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+        }
+
+        [Test]
+        public void Open_WhenBindingTypeDoesNotMatch_ReturnsStructuredFailureAndReleasesPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var bindings = new MxFairyGuiViewBindingRegistry();
+            bindings.Register(ViewId, new OtherBinder());
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, bindings);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("wrong"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("binding type does not match", result.Message);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+        }
+
+        [Test]
+        public void Open_WhenBinderThrows_ReturnsStructuredFailureAndReleasesPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new ThrowingBinder());
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("throw"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, result.ErrorCode);
+            StringAssert.Contains("view binding failed", result.Message);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+        }
+
+        [Test]
+        public void Open_WhenSameViewIsReopened_BindsExistingComponentWithNewArgs()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, binder);
+
+            MxUiOpenResult first = navigator.Open(ViewId, new DemoViewModel("first"));
+            MxUiOpenResult second = navigator.Open(ViewId, new DemoViewModel("second"));
+
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreSame(first.View, second.View);
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+            Assert.AreEqual(2, binder.BindCount);
+            Assert.AreEqual("second", binder.Last.Title);
+            Assert.AreSame(host.LastHandle, binder.LastComponent);
+            Assert.AreEqual(1, host.LastHandle.ShowCount);
+        }
+
+        [Test]
+        public void Open_WhenExistingViewIsReopenedWithWrongArgs_ReturnsStructuredFailure()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, binder);
+            MxUiOpenResult first = navigator.Open(ViewId, new DemoViewModel("first"));
+
+            MxUiOpenResult second = navigator.Open(ViewId, new OtherViewModel());
+
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.IsFalse(second.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ViewCreateFailed, second.ErrorCode);
+            StringAssert.Contains("view model type does not match", second.Message);
+            Assert.AreEqual(1, binder.BindCount);
+            Assert.AreEqual(1, host.LastHandle.ShowCount);
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+        }
+
+        [Test]
+        public void Open_WhenResourceIsPending_MapsToResourcesPending()
+        {
+            var manager = new PendingResourceManager(PackageKey);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("pending"));
+
+            Assert.IsFalse(result.Success);
+            Assert.AreEqual(MxUiOpenErrorCode.ResourcesPending, result.ErrorCode);
+            Assert.AreEqual(1, manager.CancelCount);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+        }
+
+        [Test]
+        public void OpenAsync_RemainsPendingUntilResourcesCompleteThenCreatesView()
+        {
+            ResourceManager inner = CreateManager(
+                new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }),
+                PackageEntry);
+            var manager = new DeferredResourceManager(inner);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+
+            MxUiOpenOperation operation = navigator.OpenAsync(ViewId, new DemoViewModel("async"));
+
+            Assert.IsFalse(operation.IsCompleted);
+            Assert.AreEqual(MxUiOpenOperationStatus.Pending, operation.Status);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+
+            manager.CompletePending();
+
+            Assert.IsTrue(operation.IsCompleted);
+            Assert.AreEqual(MxUiOpenOperationStatus.Succeeded, operation.Status);
+            Assert.IsTrue(operation.Result.Success, operation.Result.Message);
+            Assert.IsTrue(navigator.IsOpen(ViewId));
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+        }
+
+        [Test]
+        public void OpenAsync_Cancel_ReleasesPendingResourceOperationWithoutCreatingView()
+        {
+            ResourceManager inner = CreateManager(
+                new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }),
+                PackageEntry);
+            var manager = new DeferredResourceManager(inner);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+            MxUiOpenOperation operation = navigator.OpenAsync(ViewId, new DemoViewModel("cancel"));
+            Assert.IsFalse(operation.IsCompleted);
+
+            Assert.IsTrue(operation.Cancel("test cancel"));
+
+            Assert.AreEqual(MxUiOpenOperationStatus.Cancelled, operation.Status);
+            Assert.AreEqual(MxUiOpenErrorCode.OperationCancelled, operation.Result.ErrorCode);
+            Assert.AreEqual(1, manager.CancelCount);
+            Assert.AreEqual(0, host.EnsurePackageCount);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+        }
+
+        [Test]
+        public void CloseHideAndDispose_AreIdempotentAndReleasePackageOnce()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("close"));
+
+            result.View.Hide();
+            result.View.Hide();
+            bool firstClose = navigator.Close(ViewId);
+            bool secondClose = navigator.Close(ViewId);
+            result.View.Dispose();
+
+            Assert.IsTrue(firstClose);
+            Assert.IsFalse(secondClose);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.AreEqual(1, host.LastHandle.HideCount);
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void Close_ReleasesFairyGuiPackageBeforeResourceScope()
+        {
+            var events = new List<string>();
+            var provider = new RecordingResourceProvider(events)
+                .Register("ui/demo.bytes", new byte[] { 1, 2, 3 });
+            ResourceManager manager = CreateManager(provider, PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost(events);
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder());
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("close"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.IsTrue(navigator.Close(ViewId));
+
+            CollectionAssert.AreEqual(new[]
+            {
+                "host.release:ui.demo",
+                "resource.release:ui/demo.bytes"
+            }, events);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(1, provider.ReleaseCount);
+        }
+
+        [Test]
+        public void Close_DuringShowTransition_CancelsTransitionAndReleasesOwnedResources()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var transitionController = new RecordingTransitionController();
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                new DemoBinder(),
+                transitionController: transitionController);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("transition"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(1, transitionController.PlayShowCount);
+            Assert.IsTrue(transitionController.IsActive);
+
+            Assert.IsTrue(navigator.Close(ViewId));
+
+            Assert.AreEqual(1, transitionController.CancelCount);
+            Assert.AreEqual(MxFairyGuiTransitionCloseReason.Dispose, transitionController.LastCancelReason);
+            Assert.IsFalse(transitionController.IsActive);
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void Open_UsesLayerHostAndTracksModalOwnership()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var layerHost = new FakeLayerHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor, layerHost: layerHost);
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("modal"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(1, layerHost.ShowCount);
+            Assert.AreEqual(0, layerHost.HideCount);
+            Assert.AreEqual(MxUiLayer.Modal, layerHost.LastShownLayer);
+            Assert.AreEqual(1, layerHost.ModalCount);
+            Assert.AreEqual(1, host.LastHandle.ShowCount);
+
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.AreEqual(1, layerHost.HideCount);
+            Assert.AreEqual(0, layerHost.ModalCount);
+        }
+
+        [Test]
+        public void Open_WhenDescriptorIsModal_PushesUiInputContextAndCloseReleasesScope()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var contexts = new InputContextStack();
+            contexts.Set(InputContext.Gameplay);
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                new DemoBinder(),
+                descriptor: descriptor,
+                inputBridge: new MxFairyGuiInputContextBridge(_ => contexts.Push(InputContext.UI)));
+
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("modal"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(InputContext.UI, contexts.ActiveContext);
+            Assert.IsFalse(contexts.IsContextEnabled(InputContext.Gameplay));
+
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.AreEqual(InputContext.Gameplay, contexts.ActiveContext);
+            Assert.IsTrue(contexts.IsContextEnabled(InputContext.Gameplay));
+        }
+
+        [Test]
+        public void Close_WhenModalIsKeepAlive_ReleasesInputScopeUntilReopened()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var contexts = new InputContextStack();
+            contexts.Set(InputContext.Gameplay);
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Modal)
+            {
+                Modal = true,
+                KeepAlive = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                new DemoBinder(),
+                descriptor: descriptor,
+                inputBridge: new MxFairyGuiInputContextBridge(_ => contexts.Push(InputContext.UI)));
+
+            MxUiOpenResult first = navigator.Open(ViewId, new DemoViewModel("first"));
+            Assert.IsTrue(navigator.Close(ViewId));
+
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.AreEqual(InputContext.Gameplay, contexts.ActiveContext);
+            Assert.IsTrue(navigator.IsCached(ViewId));
+
+            MxUiOpenResult second = navigator.Open(ViewId, new DemoViewModel("second"));
+
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreEqual(InputContext.UI, contexts.ActiveContext);
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.AreEqual(InputContext.Gameplay, contexts.ActiveContext);
+        }
+
+        [Test]
+        public void ModalCommandGate_BlocksLowerLayerCommandsWhenModalIsActive()
+        {
+            var layerHost = new FakeLayerHost();
+            var inner = new RecordingCommandSink();
+            var gate = new MxFairyGuiModalCommandGate(inner, layerHost);
+            var modalId = new MxUiViewId("ui.modal");
+            var hudId = new MxUiViewId("ui.hud");
+            layerHost.Show(new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true }, new FakeComponentHandle("ui.demo", "Modal"));
+
+            gate.Enqueue(new MxUiCommand(hudId, "hud.strike", null));
+            gate.Enqueue(new MxUiCommand(modalId, "modal.confirm", null));
+
+            Assert.AreEqual(1, gate.BlockedCount);
+            Assert.AreEqual(1, gate.ForwardedCount);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual("modal.confirm", inner.Last.CommandId);
+        }
+
+        [Test]
+        public void ModalCommandGate_ForwardsCommandsWhenNoModalIsActiveAndBlocksInvalidSourcesWhenModalIsActive()
+        {
+            var layerHost = new FakeLayerHost();
+            var inner = new RecordingCommandSink();
+            var gate = new MxFairyGuiModalCommandGate(inner, layerHost);
+            var modalId = new MxUiViewId("ui.modal");
+
+            gate.Enqueue(new MxUiCommand(new MxUiViewId("ui.hud"), "hud.strike", null));
+            layerHost.Show(new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true }, new FakeComponentHandle("ui.demo", "Modal"));
+            gate.Enqueue(new MxUiCommand(default, "invalid.source", null));
+
+            Assert.AreEqual(1, gate.ForwardedCount);
+            Assert.AreEqual(1, gate.BlockedCount);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual("hud.strike", inner.Last.CommandId);
+        }
+
+        [Test]
+        public void CancelCommandBridge_EnqueuesCancelForTopModalOnly()
+        {
+            var layerHost = new FakeLayerHost();
+            var inner = new RecordingCommandSink();
+            var bridge = new MxFairyGuiCancelCommandBridge(layerHost, inner);
+            var modalId = new MxUiViewId("ui.modal");
+
+            var cancel = new InputCommand(10, 1, InputIntent.Cancel, InputCommandPhase.Pressed);
+            bool withoutModal = bridge.ProcessCancel(cancel);
+            layerHost.Show(new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true }, new FakeComponentHandle("ui.demo", "Modal"));
+            bool withModal = bridge.ProcessCancel(cancel);
+
+            Assert.IsFalse(withoutModal);
+            Assert.IsTrue(withModal);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual(modalId, inner.Last.SourceViewId);
+            Assert.AreEqual(MxFairyGuiCommandIds.Cancel, inner.Last.CommandId);
+            Assert.IsInstanceOf<InputCommand>(inner.Last.Payload);
+        }
+
+        [Test]
+        public void FocusInputBridge_BlocksLowerLayerNavigationWhileModalIsActiveAndRoutesCancelThroughGate()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var root = new Fgui.GComponent();
+            root.AddChild(new Fgui.GButton { name = "btnPrimary" });
+            var host = new ConstructedComponentHost(root);
+            var layerHost = new FakeLayerHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Hud);
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                new FocusBinder("btnPrimary"),
+                descriptor: descriptor,
+                layerHost: layerHost);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("focus"));
+            Assert.IsTrue(result.Success, result.Message);
+
+            var modalId = new MxUiViewId("ui.modal");
+            layerHost.Show(
+                new MxUiViewDescriptor(modalId, "ui.demo", "Modal", MxUiLayer.Modal) { Modal = true },
+                new FakeComponentHandle("ui.demo", "Modal"));
+            var inner = new RecordingCommandSink();
+            var gate = new MxFairyGuiModalCommandGate(inner, layerHost);
+            var focusBridge = new MxFairyGuiFocusInputBridge(
+                navigator,
+                layerHost,
+                new MxFairyGuiCancelCommandBridge(layerHost, gate));
+
+            Assert.IsFalse(focusBridge.Process(ViewId, MxFairyGuiFocusNavigationIntent.Submit));
+            Assert.IsTrue(focusBridge.Process(ViewId, MxFairyGuiFocusNavigationIntent.Cancel, "back"));
+
+            Assert.AreEqual(1, gate.ForwardedCount);
+            Assert.AreEqual(0, gate.BlockedCount);
+            Assert.AreEqual(1, inner.Count);
+            Assert.AreEqual(modalId, inner.Last.SourceViewId);
+            Assert.AreEqual(MxFairyGuiCommandIds.Cancel, inner.Last.CommandId);
+        }
+
+        [Test]
+        public void Dispose_VisibleModal_ReleasesInputScopeOnce()
+        {
+            var layerHost = new FakeLayerHost();
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+
+            view.Show();
+            view.Dispose();
+            view.Dispose();
+
+            Assert.AreEqual(1, scope.DisposeCount);
+            Assert.AreEqual(1, handle.DisposeCount);
+            Assert.AreEqual(0, layerHost.ModalCount);
+        }
+
+        [Test]
+        public void Show_WhenLayerHostThrows_ReleasesInputScope()
+        {
+            var layerHost = new FakeLayerHost { ThrowOnShow = true };
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+
+            Assert.Throws<InvalidOperationException>(() => view.Show());
+            Assert.AreEqual(1, scope.DisposeCount);
+        }
+
+        [Test]
+        public void Show_WhenTransitionThrows_ClearsLayerHostAndInputScope()
+        {
+            var layerHost = new FakeLayerHost();
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var transitionController = new RecordingTransitionController
+            {
+                ThrowOnPlayShow = true
+            };
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope),
+                transitionController);
+
+            Assert.Throws<InvalidOperationException>(() => view.Show());
+
+            Assert.AreEqual(1, transitionController.CancelCount);
+            Assert.AreEqual(MxFairyGuiTransitionCloseReason.ShowFailed, transitionController.LastCancelReason);
+            Assert.AreEqual(1, layerHost.HideCount);
+            Assert.AreEqual(0, layerHost.ModalCount);
+            Assert.AreEqual(1, scope.DisposeCount);
+        }
+
+        [Test]
+        public void Hide_WhenLayerHostThrows_ReleasesInputScope()
+        {
+            var layerHost = new FakeLayerHost();
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                null,
+                new FakeFairyGuiHost(),
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+            view.Show();
+            layerHost.ThrowOnHide = true;
+
+            Assert.Throws<InvalidOperationException>(() => view.Hide());
+            Assert.AreEqual(1, scope.DisposeCount);
+        }
+
+        [Test]
+        public void Dispose_WhenLayerHostHideThrows_ReleasesInputScopeComponentAndPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            MxFairyGuiPackageLoadResult load = bridge.LoadPackage(new MxFairyGuiPackageDescriptor("ui.demo", PackageKey));
+            Assert.IsTrue(load.Success, load.Failure.Message);
+
+            var layerHost = new FakeLayerHost();
+            var host = new FakeFairyGuiHost();
+            string failure;
+            Assert.IsTrue(host.EnsurePackage(load.Scope, out failure), failure);
+            var handle = new FakeComponentHandle("ui.demo", "Modal");
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Modal", MxUiLayer.Modal)
+            {
+                Modal = true
+            };
+            var scope = new RecordingScope();
+            var view = new MxFairyGuiView<DemoViewModel>(
+                descriptor,
+                handle,
+                load.Scope,
+                host,
+                layerHost,
+                new MxFairyGuiInputContextBridge(_ => scope));
+            view.Show();
+            layerHost.ThrowOnHide = true;
+
+            Assert.Throws<InvalidOperationException>(() => view.Dispose());
+
+            Assert.AreEqual(1, scope.DisposeCount);
+            Assert.AreEqual(1, handle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void Open_LayerHostRecordsStableLayerOrderIndependentOfOpenOrder()
+        {
+            var layerHost = new MxFairyGuiLayerHost();
+            try
+            {
+                layerHost.EnsureLayerRoots();
+
+                CollectionAssert.AreEqual(
+                    new[] { MxUiLayer.Background, MxUiLayer.Hud, MxUiLayer.Panel, MxUiLayer.Popup, MxUiLayer.Modal, MxUiLayer.Toast, MxUiLayer.Debug },
+                    layerHost.LayerOrder);
+                AssertRootExists(layerHost, MxUiLayer.Hud);
+                AssertRootExists(layerHost, MxUiLayer.Panel);
+                AssertRootExists(layerHost, MxUiLayer.Popup);
+                AssertRootExists(layerHost, MxUiLayer.Modal);
+                AssertRootExists(layerHost, MxUiLayer.Toast);
+                AssertRootExists(layerHost, MxUiLayer.Debug);
+            }
+            finally
+            {
+                layerHost.Dispose();
+            }
+        }
+
+        [Test]
+        public void StageLayout_ResolveStageSize_PrefersParentThenRootThenFallback()
+        {
+            var parent = new Fgui.GComponent();
+            var root = new Fgui.GComponent();
+            try
+            {
+                parent.SetSize(1600f, 900f);
+                root.SetSize(1280f, 720f);
+                parent.AddChild(root);
+
+                Assert.AreEqual(1600f, MxFairyGuiStageLayout.ResolveStageWidth(root, 1920f));
+                Assert.AreEqual(900f, MxFairyGuiStageLayout.ResolveStageHeight(root, 1080f));
+
+                root.RemoveFromParent();
+
+                Assert.AreEqual(1280f, MxFairyGuiStageLayout.ResolveStageWidth(root, 1920f));
+                Assert.AreEqual(720f, MxFairyGuiStageLayout.ResolveStageHeight(root, 1080f));
+            }
+            finally
+            {
+                root.Dispose();
+                parent.Dispose();
+            }
+
+            Assert.AreEqual(1920f, MxFairyGuiStageLayout.ResolveStageWidth(null, 1920f));
+            Assert.AreEqual(1080f, MxFairyGuiStageLayout.ResolveStageHeight(null, 1080f));
+        }
+
+        [Test]
+        public void Close_WhenDescriptorIsKeepAlive_HidesAndCachesWithoutReleasingPackage()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            var transitionController = new RecordingTransitionController();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                KeepAlive = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(
+                bridge,
+                host,
+                binder,
+                descriptor: descriptor,
+                transitionController: transitionController);
+            MxUiOpenResult first = navigator.Open(ViewId, new DemoViewModel("first"));
+
+            bool closed = navigator.Close(ViewId);
+
+            Assert.IsTrue(first.Success, first.Message);
+            Assert.IsTrue(closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsTrue(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.HideCount);
+            Assert.AreEqual(1, transitionController.PlayHideCount);
+            Assert.AreEqual(0, host.LastHandle.DisposeCount);
+            Assert.AreEqual(0, bridge.ReleasedScopeCount);
+            Assert.AreEqual(0, host.ReleasePackageCount);
+            Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+            MxUiOpenResult second = navigator.Open(ViewId, new DemoViewModel("second"));
+
+            Assert.IsTrue(second.Success, second.Message);
+            Assert.AreSame(first.View, second.View);
+            Assert.IsTrue(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+            Assert.AreEqual(2, binder.BindCount);
+            Assert.AreEqual("second", binder.Last.Title);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ReleaseView_DisposesOnlyTheRequestedOpenOrCachedViewAndAllowsFreshReopen(bool cached)
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel) { KeepAlive = true };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            var first = navigator.Open(ViewId, new DemoViewModel("before release"));
+            Assert.IsTrue(first.Success, first.Message);
+            if (cached) Assert.IsTrue(navigator.Close(ViewId));
+            Assert.IsFalse(navigator.ReleaseView(new MxUiViewId("unrelated")));
+            Assert.IsTrue(cached ? navigator.IsCached(ViewId) : navigator.IsOpen(ViewId));
+
+            Assert.IsTrue(navigator.ReleaseView(ViewId));
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.IsFalse(navigator.ReleaseView(ViewId));
+
+            var reopened = navigator.Open(ViewId, new DemoViewModel("after release"));
+            Assert.IsTrue(reopened.Success, reopened.Message);
+            Assert.AreNotSame(first.View, reopened.View);
+            Assert.AreEqual(2, host.CreateComponentCount);
+            navigator.Dispose();
+        }
+
+        [Test]
+        public void CloseSceneViews_DisposesOpenAndCachedSceneOwnedViews()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                KeepAlive = true,
+                CloseOnSceneChange = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("scene"));
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.IsTrue(navigator.Close(ViewId));
+            Assert.IsTrue(navigator.IsCached(ViewId));
+
+            int closed = navigator.CloseSceneViews();
+
+            Assert.AreEqual(1, closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void CloseSceneViews_DisposesOpenSceneOwnedViews()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                CloseOnSceneChange = true
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("scene"));
+
+            int closed = navigator.CloseSceneViews();
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(1, closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsFalse(navigator.IsCached(ViewId));
+            Assert.AreEqual(1, host.LastHandle.DisposeCount);
+            Assert.AreEqual(1, bridge.ReleasedScopeCount);
+            Assert.AreEqual(1, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void CloseSceneViews_IgnoresViewsWhenCloseOnSceneChangeIsFalse()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var bridge = new MxFairyGuiResourceBridge(manager);
+            var host = new FakeFairyGuiHost();
+            var descriptor = new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel)
+            {
+                KeepAlive = true,
+                CloseOnSceneChange = false
+            };
+            MxFairyGuiNavigator navigator = CreateNavigator(bridge, host, new DemoBinder(), descriptor: descriptor);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("scene"));
+            Assert.IsTrue(navigator.Close(ViewId));
+
+            int closed = navigator.CloseSceneViews();
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(0, closed);
+            Assert.IsFalse(navigator.IsOpen(ViewId));
+            Assert.IsTrue(navigator.IsCached(ViewId));
+            Assert.AreEqual(0, host.LastHandle.DisposeCount);
+            Assert.AreEqual(0, bridge.ReleasedScopeCount);
+            Assert.AreEqual(0, host.ReleasePackageCount);
+            Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void RuntimeCatalog_CreateNavigator_RegistersSelectedViewsWithoutGlobalManager()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var host = new FakeFairyGuiHost();
+            var binder = new DemoBinder();
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            catalog.Register(CreateDemoRegistration(binder));
+
+            MxFairyGuiNavigator navigator = MxFairyGuiRuntimeShellComposition.CreateNavigator(manager, catalog, host);
+            MxUiOpenResult result = navigator.Open(ViewId, new DemoViewModel("catalog"));
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.IsTrue(navigator.IsOpen(ViewId));
+            Assert.AreEqual(1, catalog.ViewCount);
+            Assert.AreEqual(1, catalog.PackageCount);
+            Assert.AreEqual(1, host.EnsurePackageCount);
+            Assert.AreEqual(1, host.CreateComponentCount);
+            Assert.AreEqual(1, binder.BindCount);
+            Assert.AreEqual("catalog", binder.Last.Title);
+        }
+
+        [Test]
+        public void RuntimeShell_CombinesCatalogFragmentsIntoOneNavigatorAndOwnsTeardown()
+        {
+            ResourceManager manager = CreateManager(
+                new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }),
+                PackageEntry);
+            var host = new FakeFairyGuiHost();
+            var firstCatalog = new MxFairyGuiRuntimeCatalog();
+            var secondCatalog = new MxFairyGuiRuntimeCatalog();
+            var secondViewId = new MxUiViewId("ui.demo.second");
+            firstCatalog.Register(CreateDemoRegistration(ViewId, new DemoBinder()));
+            secondCatalog.Register(CreateDemoRegistration(secondViewId, new DemoBinder()));
+
+            var shell = new MxFairyGuiRuntimeShell(manager, host);
+            MxFairyGuiNavigator firstNavigator = shell.Register(firstCatalog);
+            MxFairyGuiNavigator secondNavigator = shell.Register(secondCatalog);
+
+            Assert.AreSame(firstNavigator, secondNavigator);
+            Assert.AreEqual(2, shell.Catalog.ViewCount);
+            Assert.AreEqual(1, shell.Catalog.PackageCount);
+            Assert.IsTrue(firstNavigator.Open(ViewId, new DemoViewModel("first")).Success);
+            Assert.IsTrue(firstNavigator.Open(secondViewId, new DemoViewModel("second")).Success);
+            Assert.AreEqual(2, host.CreateComponentCount);
+
+            shell.Dispose();
+
+            Assert.AreEqual(2, host.ReleasePackageCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [Test]
+        public void RuntimeCatalog_DiagnosticsReportMissingPackageBytes()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider());
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            catalog.Register(CreateDemoRegistration(new DemoBinder()));
+
+            MxFairyGuiRuntimeCatalogDiagnostics diagnostics = catalog.CreateDiagnostics(manager);
+
+            Assert.IsFalse(diagnostics.Success);
+            Assert.AreEqual(1, diagnostics.ViewCount);
+            Assert.AreEqual(1, diagnostics.PackageCount);
+            Assert.AreEqual(1, diagnostics.ResourceKeyCount);
+            Assert.AreEqual(1, diagnostics.MissingPackageCount);
+            Assert.AreEqual("MissingPackageBytes", diagnostics.Issues[0].Code);
+        }
+
+        [Test]
+        public void RuntimePreloadSurface_PreloadsCatalogKeysAndReleasesGroup()
+        {
+            ResourceManager manager = CreateManager(new MemoryResourceProvider().Register("ui/demo.bytes", new byte[] { 1, 2, 3 }), PackageEntry);
+            var catalog = new MxFairyGuiRuntimeCatalog();
+            catalog.Register(CreateDemoRegistration(new DemoBinder()));
+            using (var preload = new MxFairyGuiRuntimePreloadSurface(new ResourcePreloadService(manager)))
+            {
+                IResourceOperation<ResourcePreloadResult> operation = preload.Preload(catalog, "ui.demo.preload");
+
+                Assert.IsTrue(operation.IsDone);
+                MxFairyGuiRuntimePreloadDiagnostics diagnostics = preload.CreateDiagnostics();
+                Assert.IsTrue(diagnostics.Success);
+                Assert.AreEqual("ui.demo.preload", diagnostics.GroupId);
+                Assert.AreEqual(1, diagnostics.RequestedCount);
+                Assert.AreEqual(1, diagnostics.LoadedCount);
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().LoadedCount);
+
+                preload.Release();
+                Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            }
+        }
+
+        private static readonly MxUiViewId ViewId = new MxUiViewId("ui.demo.main");
+        private static readonly ResourceKey PackageKey = new ResourceKey("ui.demo.package", MxFairyGuiResourceTypeIds.PackageBytes);
+        private static readonly ResourceCatalogEntry PackageEntry = Entry(PackageKey, "ui/demo.bytes");
+        private static readonly MxUiViewId RealSmokeViewId = new MxUiViewId("ui.fairygui.smoke");
+        private static readonly ResourceKey RealSmokePackageKey = new ResourceKey("ui.fairygui.smoke.package", MxFairyGuiResourceTypeIds.PackageBytes, packageId: RealSmokePackageId);
+        private static readonly ResourceCatalogEntry RealSmokePackageEntry = Entry(RealSmokePackageKey, "fgui/MxFguiSmoke_fui.bytes");
+        private const string RealSmokePackageId = "MxFguiSmoke";
+
+        private static MxFairyGuiNavigator CreateNavigator(
+            MxFairyGuiResourceBridge bridge,
+            IMxFairyGuiHost host,
+            IMxFairyGuiViewBinder<DemoViewModel> binder,
+            bool registerContract = true,
+            bool registerPackage = true,
+            string viewModelType = null,
+            MxUiViewDescriptor descriptor = null,
+            IMxFairyGuiLayerHost layerHost = null,
+            IMxFairyGuiInputContextBridge inputBridge = null,
+            IMxFairyGuiViewTransitionController transitionController = null)
+        {
+            var contracts = new MxUiViewContractRegistry();
+            if (registerContract)
+            {
+                var contract = new MxUiViewContract(descriptor ?? new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel))
+                {
+                    ViewModelType = viewModelType ?? typeof(DemoViewModel).FullName
+                };
+                contracts.Register(contract);
+            }
+
+            var packages = new MxFairyGuiPackageCatalog();
+            if (registerPackage)
+                packages.Register(new MxFairyGuiPackageDescriptor("ui.demo", PackageKey));
+
+            var bindings = new MxFairyGuiViewBindingRegistry();
+            if (binder != null)
+                bindings.Register(ViewId, binder);
+
+            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings, layerHost, inputBridge, transitionController);
+        }
+
+        private static MxFairyGuiNavigator CreateNavigator(
+            MxFairyGuiResourceBridge bridge,
+            IMxFairyGuiHost host,
+            MxFairyGuiViewBindingRegistry bindings)
+        {
+            var contracts = new MxUiViewContractRegistry();
+            contracts.Register(new MxUiViewContract(new MxUiViewDescriptor(ViewId, "ui.demo", "Main", MxUiLayer.Panel))
+            {
+                ViewModelType = typeof(DemoViewModel).FullName
+            });
+
+            var packages = new MxFairyGuiPackageCatalog();
+            packages.Register(new MxFairyGuiPackageDescriptor("ui.demo", PackageKey));
+
+            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings);
+        }
+
+        private static IMxFairyGuiRuntimeViewRegistration CreateDemoRegistration(IMxFairyGuiViewBinder<DemoViewModel> binder)
+        {
+            return CreateDemoRegistration(ViewId, binder);
+        }
+
+        private static IMxFairyGuiRuntimeViewRegistration CreateDemoRegistration(
+            MxUiViewId viewId,
+            IMxFairyGuiViewBinder<DemoViewModel> binder)
+        {
+            var contract = new MxUiViewContract(new MxUiViewDescriptor(viewId, "ui.demo", "Main", MxUiLayer.Panel))
+            {
+                ViewModelType = typeof(DemoViewModel).FullName
+            };
+
+            return new MxFairyGuiRuntimeViewRegistration<DemoViewModel>(
+                contract,
+                new MxFairyGuiPackageDescriptor("ui.demo", PackageKey),
+                binder);
+        }
+
+        private static MxFairyGuiNavigator CreateRealSmokeNavigator(
+            MxFairyGuiResourceBridge bridge,
+            IMxFairyGuiHost host,
+            IMxFairyGuiViewBinder<RealSmokeViewModel> binder)
+        {
+            var contracts = new MxUiViewContractRegistry();
+            contracts.Register(new MxUiViewContract(new MxUiViewDescriptor(RealSmokeViewId, RealSmokePackageId, "SmokePanel", MxUiLayer.Panel))
+            {
+                ViewModelType = typeof(RealSmokeViewModel).FullName
+            });
+
+            var packages = new MxFairyGuiPackageCatalog();
+            packages.Register(new MxFairyGuiPackageDescriptor(RealSmokePackageId, RealSmokePackageKey));
+
+            var bindings = new MxFairyGuiViewBindingRegistry();
+            bindings.Register(RealSmokeViewId, binder);
+
+            return new MxFairyGuiNavigator(contracts, packages, bridge, host, bindings);
+        }
+
+        private static ResourceManager CreateManager(IResourceProvider provider, params ResourceCatalogEntry[] entries)
+        {
+            var manager = new ResourceManager();
+            manager.RegisterProvider(provider);
+            manager.AddCatalog(new ResourceCatalog("ui.demo.catalog", string.Empty, entries));
+            return manager;
+        }
+
+        private static ResourceCatalogEntry Entry(ResourceKey key, string address)
+        {
+            return new ResourceCatalogEntry(key.Id, key.TypeId, "memory", address, key.Variant, key.PackageId);
+        }
+
+        private static void AssertRootExists(MxFairyGuiLayerHost layerHost, MxUiLayer layer)
+        {
+            Fgui.GComponent root;
+            Assert.IsTrue(layerHost.TryGetLayerRoot(layer, out root));
+            Assert.IsNotNull(root);
+            Assert.AreEqual("MxFairyGuiLayer_" + layer, root.name);
+        }
+
+        private static void RemoveRealSmokePackageIfLoaded()
+        {
+            if (Fgui.UIPackage.GetByName(RealSmokePackageId) != null)
+                Fgui.UIPackage.RemovePackage(RealSmokePackageId);
+        }
+
+        private sealed class DemoViewModel
+        {
+            public DemoViewModel(string title)
+            {
+                Title = title;
+            }
+
+            public string Title { get; }
+        }
+
+        private sealed class RealSmokeViewModel
+        {
+            public RealSmokeViewModel(string title)
+            {
+                Title = title;
+            }
+
+            public string Title { get; }
+        }
+
+        private sealed class DemoBinder : IMxFairyGuiViewBinder<DemoViewModel>
+        {
+            public DemoViewModel Last { get; private set; }
+            public IMxFairyGuiComponentHandle LastComponent { get; private set; }
+            public int BindCount { get; private set; }
+
+            public void Bind(IMxFairyGuiComponentHandle component, DemoViewModel viewModel)
+            {
+                BindCount++;
+                LastComponent = component;
+                Last = viewModel;
+            }
+        }
+
+        private sealed class FocusBinder : IMxFairyGuiViewBinder<DemoViewModel>
+        {
+            private readonly string _buttonName;
+
+            public FocusBinder(string buttonName)
+            {
+                _buttonName = buttonName;
+            }
+
+            public void Bind(IMxFairyGuiComponentHandle component, DemoViewModel viewModel)
+            {
+                var handle = component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(handle);
+                MxFairyGuiFocusNavigation.Configure(
+                    handle.Component,
+                    new MxFairyGuiFocusNavigationMetadata(ViewId, _buttonName, new[] { _buttonName }));
+                MxFairyGuiFocusNavigation.RequestDefaultFocus(handle.Component);
+            }
+        }
+
+        private sealed class RealSmokeBinder : IMxFairyGuiViewBinder<RealSmokeViewModel>
+        {
+            public MxFairyGuiComponentHandle BoundComponent { get; private set; }
+            public int BindCount { get; private set; }
+            public string BoundTitle { get; private set; }
+
+            public void Bind(IMxFairyGuiComponentHandle component, RealSmokeViewModel viewModel)
+            {
+                BindCount++;
+                BoundComponent = component as MxFairyGuiComponentHandle;
+                Assert.IsNotNull(BoundComponent);
+
+                var title = BoundComponent.Component.GetChild("txtTitle")?.asTextField;
+                Assert.IsNotNull(title);
+                title.text = viewModel.Title;
+                BoundTitle = title.text;
+            }
+        }
+
+        private sealed class ThrowingBinder : IMxFairyGuiViewBinder<DemoViewModel>
+        {
+            public void Bind(IMxFairyGuiComponentHandle component, DemoViewModel viewModel)
+            {
+                throw new InvalidOperationException("binder failed");
+            }
+        }
+
+        private sealed class OtherBinder : IMxFairyGuiViewBinder<OtherViewModel>
+        {
+            public void Bind(IMxFairyGuiComponentHandle component, OtherViewModel viewModel)
+            {
+            }
+        }
+
+        private sealed class OtherViewModel
+        {
+        }
+
+        private sealed class FakeFairyGuiHost : IMxFairyGuiHost
+        {
+            private readonly Dictionary<string, int> _refCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+            private readonly Dictionary<string, MxFairyGuiPackageLoadScope> _scopes =
+                new Dictionary<string, MxFairyGuiPackageLoadScope>(StringComparer.Ordinal);
+            private readonly IList<string> _events;
+
+            public FakeFairyGuiHost(IList<string> events = null)
+            {
+                _events = events;
+            }
+
+            public string EnsurePackageFailure { get; set; }
+            public string CreateComponentFailure { get; set; }
+            public int EnsurePackageCount { get; private set; }
+            public int CreateComponentCount { get; private set; }
+            public int ReleasePackageCount { get; private set; }
+            public FakeComponentHandle LastHandle { get; private set; }
+
+            public bool EnsurePackage(MxFairyGuiPackageLoadScope scope, out string failure)
+            {
+                EnsurePackageCount++;
+                if (!string.IsNullOrEmpty(EnsurePackageFailure))
+                {
+                    failure = EnsurePackageFailure;
+                    return false;
+                }
+
+                failure = string.Empty;
+                string packageId = scope != null ? scope.PackageId : string.Empty;
+                if (_refCounts.TryGetValue(packageId, out int refCount))
+                {
+                    _refCounts[packageId] = refCount + 1;
+                    scope?.Release();
+                    return true;
+                }
+
+                _refCounts.Add(packageId, 1);
+                _scopes.Add(packageId, scope);
+                return true;
+            }
+
+            public bool TryCreateComponent(string packageId, string componentName, out IMxFairyGuiComponentHandle handle, out string failure)
+            {
+                CreateComponentCount++;
+                if (!string.IsNullOrEmpty(CreateComponentFailure))
+                {
+                    handle = null;
+                    failure = CreateComponentFailure;
+                    return false;
+                }
+
+                LastHandle = new FakeComponentHandle(packageId, componentName);
+                handle = LastHandle;
+                failure = string.Empty;
+                return true;
+            }
+
+            public void ReleasePackage(string packageId)
+            {
+                ReleasePackageCount++;
+                _events?.Add("host.release:" + packageId);
+                string normalizedPackageId = packageId ?? string.Empty;
+                if (!_refCounts.TryGetValue(normalizedPackageId, out int refCount))
+                    return;
+
+                if (refCount > 1)
+                {
+                    _refCounts[normalizedPackageId] = refCount - 1;
+                    return;
+                }
+
+                _refCounts.Remove(normalizedPackageId);
+                if (_scopes.TryGetValue(normalizedPackageId, out MxFairyGuiPackageLoadScope scope))
+                {
+                    _scopes.Remove(normalizedPackageId);
+                    scope?.Release();
+                }
+            }
+        }
+
+        private sealed class RecordingResourceProvider : IResourceProvider
+        {
+            private readonly Dictionary<string, object> _assets = new Dictionary<string, object>(StringComparer.Ordinal);
+            private readonly IList<string> _events;
+
+            public RecordingResourceProvider(IList<string> events)
+            {
+                _events = events;
+            }
+
+            public string ProviderId => MemoryResourceProvider.Id;
+            public int LoadCount { get; private set; }
+            public int ReleaseCount { get; private set; }
+
+            public RecordingResourceProvider Register(string address, object value)
+            {
+                _assets[address ?? string.Empty] = value;
+                return this;
+            }
+
+            public bool CanLoad(ResourceCatalogEntry entry)
+            {
+                return entry != null && _assets.ContainsKey(entry.Address);
+            }
+
+            public ResourceLoadResult<object> Load(ResourceLoadContext context)
+            {
+                if (context == null || context.Entry == null)
+                {
+                    return ResourceLoadResult<object>.Failed(new ResourceError(
+                        ResourceErrorCode.ProviderFailed,
+                        default,
+                        ProviderId,
+                        "Resource load context is missing."));
+                }
+
+                if (!_assets.TryGetValue(context.Entry.Address, out object value))
+                {
+                    return ResourceLoadResult<object>.Failed(new ResourceError(
+                        ResourceErrorCode.NotFound,
+                        context.Key,
+                        ProviderId,
+                        "Memory resource address is not registered.",
+                        context.Entry.Address));
+                }
+
+                LoadCount++;
+                return ResourceLoadResult<object>.Loaded(value);
+            }
+
+            public IResourceOperation<object> LoadAsync(ResourceLoadContext context, CancellationToken cancellationToken = default)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return new ImmediateResourceOperation<object>(ResourceLoadResult<object>.Failed(new ResourceError(
+                        ResourceErrorCode.Cancelled,
+                        context != null ? context.Key : default,
+                        ProviderId,
+                        "Resource operation was cancelled.")));
+                }
+
+                return new ImmediateResourceOperation<object>(Load(context));
+            }
+
+            public void Release(ResourceReleaseContext context)
+            {
+                ReleaseCount++;
+                _events?.Add("resource.release:" + (context != null && context.Entry != null ? context.Entry.Address : string.Empty));
+            }
+        }
+
+        private sealed class ConstructedComponentHost : IMxFairyGuiHost
+        {
+            private readonly Fgui.GComponent _root;
+            private MxFairyGuiPackageLoadScope _scope;
+
+            public ConstructedComponentHost(Fgui.GComponent root)
+            {
+                _root = root;
+            }
+
+            public bool EnsurePackage(MxFairyGuiPackageLoadScope scope, out string failure)
+            {
+                if (_scope == null)
+                    _scope = scope;
+                else
+                    scope?.Release();
+
+                failure = string.Empty;
+                return true;
+            }
+
+            public bool TryCreateComponent(string packageId, string componentName, out IMxFairyGuiComponentHandle handle, out string failure)
+            {
+                handle = new MxFairyGuiComponentHandle(packageId, componentName, _root);
+                failure = string.Empty;
+                return true;
+            }
+
+            public void ReleasePackage(string packageId)
+            {
+                MxFairyGuiPackageLoadScope scope = _scope;
+                _scope = null;
+                scope?.Release();
+            }
+        }
+
+        private sealed class RecordingTransitionController : IMxFairyGuiViewTransitionController
+        {
+            public int PlayShowCount { get; private set; }
+            public int PlayHideCount { get; private set; }
+            public int CancelCount { get; private set; }
+            public bool IsActive { get; private set; }
+            public bool ThrowOnPlayShow { get; set; }
+            public MxFairyGuiTransitionCloseReason LastCancelReason { get; private set; }
+
+            public void PlayShow(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+            {
+                if (ThrowOnPlayShow)
+                    throw new InvalidOperationException("transition show failed");
+
+                PlayShowCount++;
+                IsActive = true;
+            }
+
+            public void PlayHide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+            {
+                PlayHideCount++;
+                IsActive = true;
+            }
+
+            public void Cancel(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component, MxFairyGuiTransitionCloseReason reason)
+            {
+                CancelCount++;
+                LastCancelReason = reason;
+                IsActive = false;
+            }
+        }
+
+        private sealed class FakeLayerHost : IMxFairyGuiLayerHost
+        {
+            private readonly List<MxUiLayer> _layerOrder = new List<MxUiLayer>();
+            private readonly List<MxUiViewId> _modalStack = new List<MxUiViewId>();
+            private readonly Dictionary<MxUiViewId, IMxFairyGuiComponentHandle> _visibleComponents =
+                new Dictionary<MxUiViewId, IMxFairyGuiComponentHandle>();
+
+            public bool ThrowOnShow { get; set; }
+            public bool ThrowOnHide { get; set; }
+            public int ShowCount { get; private set; }
+            public int HideCount { get; private set; }
+            public MxUiLayer LastShownLayer { get; private set; }
+            public int ModalCount => _modalStack.Count;
+            public IReadOnlyList<MxUiLayer> LayerOrder => _layerOrder;
+
+            public void Show(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+            {
+                if (ThrowOnShow)
+                    throw new InvalidOperationException("layer host failed");
+
+                ShowCount++;
+                LastShownLayer = descriptor.Layer;
+                if (!_layerOrder.Contains(descriptor.Layer))
+                {
+                    _layerOrder.Add(descriptor.Layer);
+                    _layerOrder.Sort((left, right) => ((int)left).CompareTo((int)right));
+                }
+
+                if (descriptor.Modal && !_modalStack.Contains(descriptor.Id))
+                    _modalStack.Add(descriptor.Id);
+
+                _visibleComponents[descriptor.Id] = component;
+                component.Show();
+            }
+
+            public void Hide(MxUiViewDescriptor descriptor, IMxFairyGuiComponentHandle component)
+            {
+                if (ThrowOnHide)
+                    throw new InvalidOperationException("layer host hide failed");
+
+                HideCount++;
+                if (descriptor.Modal)
+                    _modalStack.Remove(descriptor.Id);
+
+                _visibleComponents.Remove(descriptor.Id);
+                component.Hide();
+            }
+
+            public bool TryGetTopModal(out MxUiViewId viewId)
+            {
+                if (_modalStack.Count == 0)
+                {
+                    viewId = default;
+                    return false;
+                }
+
+                viewId = _modalStack[_modalStack.Count - 1];
+                return true;
+            }
+
+            public bool TryGetVisibleComponent(
+                MxUiViewId viewId,
+                out IMxFairyGuiComponentHandle component)
+            {
+                return _visibleComponents.TryGetValue(viewId, out component);
+            }
+        }
+
+        private sealed class RecordingCommandSink : IMxUiCommandSink
+        {
+            public int Count { get; private set; }
+            public MxUiCommand Last { get; private set; }
+
+            public void Enqueue(MxUiCommand command)
+            {
+                Count++;
+                Last = command;
+            }
+        }
+
+        private sealed class RecordingScope : IDisposable
+        {
+            public int DisposeCount { get; private set; }
+
+            public void Dispose()
+            {
+                DisposeCount++;
+            }
+        }
+
+        private sealed class FakeComponentHandle : IMxFairyGuiComponentHandle
+        {
+            public FakeComponentHandle(string packageId, string componentName)
+            {
+                PackageId = packageId;
+                ComponentName = componentName;
+            }
+
+            public string PackageId { get; }
+            public string ComponentName { get; }
+            public bool IsDisposed { get; private set; }
+            public bool Visible { get; private set; }
+            public int ShowCount { get; private set; }
+            public int HideCount { get; private set; }
+            public int DisposeCount { get; private set; }
+
+            public void Show()
+            {
+                ShowCount++;
+                Visible = true;
+            }
+
+            public void Hide()
+            {
+                HideCount++;
+                Visible = false;
+            }
+
+            public void Dispose()
+            {
+                if (IsDisposed)
+                    return;
+
+                IsDisposed = true;
+                DisposeCount++;
+            }
+        }
+
+        private sealed class PendingResourceManager : IResourceManager
+        {
+            private readonly ResourceKey _pendingKey;
+
+            public PendingResourceManager(ResourceKey pendingKey)
+            {
+                _pendingKey = pendingKey;
+            }
+
+            public int CancelCount { get; private set; }
+
+            public IResourceManager RegisterProvider(IResourceProvider provider)
+            {
+                return this;
+            }
+
+            public IResourceManager AddCatalog(ResourceCatalog catalog)
+            {
+                return this;
+            }
+
+            public bool Contains(ResourceKey key)
+            {
+                return key == _pendingKey;
+            }
+
+            public ResourceLoadResult<ResourceHandle<T>> Load<T>(ResourceKey key)
+            {
+                return ResourceLoadResult<ResourceHandle<T>>.Failed(new ResourceError(ResourceErrorCode.ProviderFailed, key, string.Empty, "Use async path."));
+            }
+
+            public IResourceOperation<ResourceHandle<T>> LoadAsync<T>(ResourceKey key, CancellationToken cancellationToken = default)
+            {
+                return new PendingOperation<T>(key, () => CancelCount++);
+            }
+
+            public void Release<T>(ResourceHandle<T> handle)
+            {
+            }
+
+            public ResourceDebugSnapshot CreateDebugSnapshot()
+            {
+                return default;
+            }
+        }
+
+        private sealed class DeferredResourceManager : IResourceManager
+        {
+            private readonly IResourceManager _inner;
+            private IDeferredOperation _pending;
+
+            public DeferredResourceManager(IResourceManager inner)
+            {
+                _inner = inner;
+            }
+
+            public int CancelCount { get; private set; }
+
+            public IResourceManager RegisterProvider(IResourceProvider provider)
+            {
+                _inner.RegisterProvider(provider);
+                return this;
+            }
+
+            public IResourceManager AddCatalog(ResourceCatalog catalog)
+            {
+                _inner.AddCatalog(catalog);
+                return this;
+            }
+
+            public bool Contains(ResourceKey key)
+            {
+                return _inner.Contains(key);
+            }
+
+            public ResourceLoadResult<ResourceHandle<T>> Load<T>(ResourceKey key)
+            {
+                return _inner.Load<T>(key);
+            }
+
+            public IResourceOperation<ResourceHandle<T>> LoadAsync<T>(
+                ResourceKey key,
+                CancellationToken cancellationToken = default)
+            {
+                var operation = new DeferredOperation<T>(
+                    () => _inner.Load<T>(key),
+                    () => CancelCount++);
+                _pending = operation;
+                return operation;
+            }
+
+            public void Release<T>(ResourceHandle<T> handle)
+            {
+                _inner.Release(handle);
+            }
+
+            public ResourceDebugSnapshot CreateDebugSnapshot()
+            {
+                return _inner.CreateDebugSnapshot();
+            }
+
+            public void CompletePending()
+            {
+                _pending?.Complete();
+            }
+        }
+
+        private interface IDeferredOperation
+        {
+            void Complete();
+        }
+
+        private sealed class DeferredOperation<T> : IResourceOperation<ResourceHandle<T>>, IDeferredOperation
+        {
+            private readonly Func<ResourceLoadResult<ResourceHandle<T>>> _load;
+            private readonly Action _onCancel;
+            private ResourceLoadResult<ResourceHandle<T>> _result;
+
+            public DeferredOperation(
+                Func<ResourceLoadResult<ResourceHandle<T>>> load,
+                Action onCancel)
+            {
+                _load = load;
+                _onCancel = onCancel;
+                _result = ResourceLoadResult<ResourceHandle<T>>.Failed(new ResourceError(
+                    ResourceErrorCode.ProviderFailed,
+                    default,
+                    string.Empty,
+                    "Pending."));
+            }
+
+            public bool IsDone { get; private set; }
+            public bool IsCancelled { get; private set; }
+            public float Progress => IsDone ? 1f : 0.5f;
+            public ResourceLoadResult<ResourceHandle<T>> Result => _result;
+
+            public void Complete()
+            {
+                if (IsDone)
+                    return;
+
+                _result = _load();
+                IsDone = true;
+            }
+
+            public void Cancel()
+            {
+                if (IsDone)
+                    return;
+
+                IsCancelled = true;
+                IsDone = true;
+                _onCancel?.Invoke();
+                _result = ResourceLoadResult<ResourceHandle<T>>.Failed(new ResourceError(
+                    ResourceErrorCode.Cancelled,
+                    default,
+                    string.Empty,
+                    "Cancelled."));
+            }
+        }
+
+        private sealed class PendingOperation<T> : IResourceOperation<ResourceHandle<T>>
+        {
+            private readonly System.Action _onCancel;
+
+            public PendingOperation(ResourceKey key, System.Action onCancel)
+            {
+                _onCancel = onCancel;
+                Result = ResourceLoadResult<ResourceHandle<T>>.Failed(new ResourceError(ResourceErrorCode.ProviderFailed, key, string.Empty, "Pending."));
+            }
+
+            public bool IsDone => false;
+            public bool IsCancelled { get; private set; }
+            public float Progress => 0.25f;
+            public ResourceLoadResult<ResourceHandle<T>> Result { get; }
+
+            public void Cancel()
+            {
+                if (IsCancelled)
+                    return;
+
+                IsCancelled = true;
+                _onCancel?.Invoke();
+            }
+        }
+    }
+}

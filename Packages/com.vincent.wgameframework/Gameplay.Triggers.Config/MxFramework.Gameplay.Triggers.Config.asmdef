@@ -1,0 +1,20 @@
+{
+    "name": "MxFramework.Gameplay.Triggers.Config",
+    "rootNamespace": "MxFramework.Gameplay.Triggers.Config",
+    "references": [
+        "MxFramework.Config",
+        "MxFramework.Core",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -1,0 +1,22 @@
+{
+    "name": "MxFramework.Gameplay.Triggers.CombatBridge",
+    "rootNamespace": "MxFramework.Gameplay.Triggers.CombatBridge",
+    "references": [
+        "MxFramework.Combat",
+        "MxFramework.Combat.GameplayBridge",
+        "MxFramework.Core",
+        "MxFramework.Gameplay",
+        "MxFramework.Gameplay.Triggers",
+        "MxFramework.Gameplay.Triggers.Config",
+        "MxFramework.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

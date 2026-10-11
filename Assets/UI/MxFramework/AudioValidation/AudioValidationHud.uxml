@@ -1,0 +1,20 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/UI/MxFramework/AudioValidation/AudioValidationHud.uss" />
+    <ui:VisualElement name="audio-validation-hud" class="audio-validation-hud">
+        <ui:VisualElement class="hero-row">
+            <ui:VisualElement>
+                <ui:Label class="eyebrow" text="MXFRAMEWORK / FMOD" />
+                <ui:Label class="title" text="Audio Validation" />
+                <ui:Label class="subtitle" text="真实 Bank · 2D/3D · controlled event · Bus 状态" />
+            </ui:VisualElement>
+            <ui:VisualElement name="status-slot" class="status-slot" />
+        </ui:VisualElement>
+        <ui:Label name="snapshot" class="snapshot" text="Backend Initializing" />
+        <ui:VisualElement name="actions" class="actions" />
+        <ui:VisualElement class="report-panel">
+            <ui:Label class="section-title" text="Machine-readable smoke report" />
+            <ui:TextField name="report" class="report" multiline="true" is-read-only="true" value="status: NotRun" />
+        </ui:VisualElement>
+        <ui:Label class="hint" text="A：2D One-shot · B：Start/Stop（若 Input mapping 启用） · 完整 Smoke 会自动运行并写入 persistentDataPath。" />
+    </ui:VisualElement>
+</ui:UXML>
