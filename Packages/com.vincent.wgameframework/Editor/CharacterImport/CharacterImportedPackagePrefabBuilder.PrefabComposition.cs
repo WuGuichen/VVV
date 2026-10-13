@@ -365,6 +365,8 @@ namespace MxFramework.Editor.CharacterImport
             var result = new List<PackageMaterialDescriptorBinding>();
             if (package?.UnityResourceCatalog == null)
                 return result;
+            if (!ValidateGeneratedPackageMaterialTargets(package, importedPackageRoot, out issue))
+                return result;
 
             for (int i = 0; i < package.UnityResourceCatalog.Entries.Count; i++)
             {
@@ -874,6 +876,46 @@ namespace MxFramework.Editor.CharacterImport
             }
 
             return builder.ToString();
+        }
+
+        private static bool ValidateGeneratedPackageMaterialTargets(
+            CharacterImportedPackage package,
+            string importedPackageRoot,
+            out string issue)
+        {
+            issue = string.Empty;
+            if (package?.UnityResourceCatalog == null)
+                return true;
+
+            var materials = new List<ResourceCatalogEntry>();
+            foreach (ResourceCatalogEntry entry in package.UnityResourceCatalog.Entries)
+                if (entry != null && entry.TypeId == ResourceTypeIds.Material)
+                    materials.Add(entry);
+            materials.Sort((left, right) => string.Compare(left.Id, right.Id, StringComparison.Ordinal));
+            var targets = new Dictionary<string, ResourceCatalogEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (ResourceCatalogEntry entry in materials)
+            {
+                string sourcePath = ResolveUnityAssetPath(entry, GetUnityAssetGuid(entry), requireGameObject: false);
+                if (string.IsNullOrWhiteSpace(sourcePath))
+                    continue;
+                string target = sourcePath.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)
+                    ? GetGeneratedPackageMaterialPath(importedPackageRoot, package.PackageId, sourcePath)
+                    : NormalizeProjectPath(sourcePath);
+                if (!target.EndsWith(".mat", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (targets.TryGetValue(target, out ResourceCatalogEntry previous))
+                {
+                    if (previous.Id != entry.Id)
+                    {
+                        issue = "CharacterGeneratedMaterialTargetCollision: Material resources '" + previous.Id
+                            + "' and '" + entry.Id + "' target the same generated Unity asset: " + target + ".";
+                        return false;
+                    }
+                }
+                else
+                    targets.Add(target, entry);
+            }
+            return true;
         }
 
         private static string GetGeneratedPackageMaterialPath(

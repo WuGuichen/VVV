@@ -11,7 +11,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         // This installer binds fixed logic programs. Point input is acquired per execution by
         // the Stage/Driver owner, and no automatic point policy is configured in production yet.
         internal static string AutomaticInputIssue(TacticalActionCardDefinition card)
-            => card?.PositionRecall != null ? "execution:PositionRecallPlayerOnly" : card?.PointMove != null ? "execution-input:UnsupportedProvider" : string.Empty;
+            => (card?.FixedAssembly?.HasDoubleEdge == true || card?.FixedAssembly?.HasSecondBatch == true || card?.FixedAssembly?.HasThirdBatch == true)
+                ? card.FixedAssembly.DoubleEdgeParameters.Shattered ? "execution:ShatteredRequiresRealPlayerDeck" : "execution:DoubleEdgeAutomaticJointOwnerUnavailable"
+                : card?.PositionRecall != null ? "execution:PositionRecallPlayerOnly" : card?.PointMove != null ? "execution-input:UnsupportedProvider" : string.Empty;
 
         internal static bool TryInstall(CharacterTestSliceServices services, TacticalDeployment deployment, out string issue,
             Func<TacticalDeploymentParticipant, ITacticalAutomaticCardExecutionPort> automaticOwner = null)
@@ -59,6 +61,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 if (!participant.IsPlayerControlled)
                     foreach (var card in participant.Cards)
                     {
+                        if ((card.FixedAssembly?.HasDoubleEdge == true || card.FixedAssembly?.HasSecondBatch == true || card.FixedAssembly?.HasThirdBatch == true))
+                        { issue = card.FixedAssembly.DoubleEdgeParameters.Shattered ? "execution:ShatteredRequiresRealPlayerDeck"
+                            : "execution:DoubleEdgeAutomaticJointOwnerUnavailable"; return false; }
                         string inputIssue = AutomaticInputIssue(card as TacticalActionCardDefinition);
                         if (inputIssue.Length == 0) continue;
                         if (!automaticOwners.TryGetValue(participant.EntityId, out var owner))

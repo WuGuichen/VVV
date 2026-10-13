@@ -14,8 +14,9 @@ namespace MxFramework.Game.CharacterTest
     internal sealed class CharacterActionTacticalInput
     {
         internal CharacterActionTacticalInput(CharacterActionConfig action, CharacterTestCharacterEntity source,
-            CharacterTestCharacterPhysicsRuntime physics, ICharacterTestBakedWeaponTraceSource bakes, ICharacterTestWeaponTraceBindingResolver bindings)
-        { Action = action; Source = source; Physics = physics; Bakes = bakes; Bindings = bindings; }
+            CharacterTestCharacterPhysicsRuntime physics, ICharacterTestBakedWeaponTraceSource bakes, ICharacterTestWeaponTraceBindingResolver bindings, CharacterActionProjectileReferenceCatalog combat = null)
+        { Action = action; Source = source; Physics = physics; Bakes = bakes; Bindings = bindings; Combat = combat; }
+        internal CharacterActionProjectileReferenceCatalog Combat { get; }
         internal CharacterActionConfig Action { get; }
         internal CharacterTestCharacterEntity Source { get; }
         internal CharacterTestCharacterPhysicsRuntime Physics { get; }
@@ -23,7 +24,7 @@ namespace MxFramework.Game.CharacterTest
         internal ICharacterTestWeaponTraceBindingResolver Bindings { get; }
         internal static CharacterActionTacticalInput FromSession(CharacterActionReferenceProbeSession session) =>
             new CharacterActionTacticalInput(session.Action, session.Source, session.Runtime.PhysicsRuntime,
-                session.Runtime.CombatTraceSystem.BakedTraceSource, session.Runtime.CombatTraceSystem.WeaponTraceBindingResolver);
+                session.Runtime.CombatTraceSystem.BakedTraceSource, session.Runtime.CombatTraceSystem.WeaponTraceBindingResolver, session.Runtime.CombatTraceSystem.ReferenceProjectiles);
     }
 
     internal readonly struct CharacterActionTacticalMetricsLoadResult
@@ -85,7 +86,7 @@ namespace MxFramework.Game.CharacterTest
                 if (saved.ProberStatus == CharacterActionProberStatus.Unavailable || saved.ProberStatus == CharacterActionProberStatus.Unsupported)
                     return Result(CharacterActionTacticalMetricsLoadStatus.Unavailable, "SummaryHasNoCompletedMeasurement");
                 if (!CharacterActionContentHashUtility.TryCompute(input.Action, input.Source, input.Physics, input.Bakes, input.Bindings,
-                    out string currentHash, out string issue)) return Result(CharacterActionTacticalMetricsLoadStatus.Unavailable, issue);
+                    out string currentHash, out string issue, input.Combat, requireProjectileCatalog: true)) return Result(CharacterActionTacticalMetricsLoadStatus.Unavailable, issue);
                 string dummyHash = CharacterActionContentHashUtility.ComputeReferenceDummyHash(measurement.ReferenceDummy);
                 if (saved.ActionId != input.Action.ActionId || saved.ActionContentHash != currentHash
                     || saved.ReferenceDummyHash != dummyHash
@@ -117,7 +118,7 @@ namespace MxFramework.Game.CharacterTest
             int defaultCharacter = CharacterTestCharacterDefinitionRegistry.DefaultPlayableCharacterId;
             if (input.Source.Identity.CharacterId == defaultCharacter) return own;
             if (!CharacterActionContentHashUtility.TryCompute(input.Action, input.Source, input.Physics, input.Bakes, input.Bindings,
-                    out string currentHash, out string inputIssue))
+                    out string currentHash, out string inputIssue, input.Combat, requireProjectileCatalog: true))
                 return Result(CharacterActionTacticalMetricsLoadStatus.Unavailable, inputIssue);
             try
             {

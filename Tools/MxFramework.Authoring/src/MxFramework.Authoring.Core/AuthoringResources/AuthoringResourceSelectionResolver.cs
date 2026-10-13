@@ -202,17 +202,21 @@ namespace MxFramework.Authoring
             {
                 if (result.Reasons.Count == 0)
                 {
-                    result.Reasons.Add(CreateReason(
+                    AuthoringResourceSelectionReason missing = CreateReason(
                         CharacterAuthoringValidationSeverity.Error,
                         true,
                         AuthoringResourceSelectionReasonCodes.ItemMissing,
                         "identity",
                         spec,
                         null,
-                        string.Empty,
+                        selection != null ? selection.ResourceStableId : string.Empty,
                         string.Empty,
                         "selected resource item does not exist.",
-                        "Choose an existing resource item or repair the saved ResourceSelectionRef."));
+                        "Choose an existing resource item or repair the saved ResourceSelectionRef.");
+                    missing.ResourceStableId = selection != null ? selection.ResourceStableId ?? string.Empty : string.Empty;
+                    missing.ProviderId = selection != null ? selection.SourceProviderId ?? string.Empty : string.Empty;
+                    missing.BindingKind = selection != null ? selection.BindingKind : AuthoringResourceBindingKind.None;
+                    result.Reasons.Add(missing);
                 }
 
                 result.Accepted = false;
@@ -317,8 +321,8 @@ namespace MxFramework.Authoring
             if (collection == null || collection.Items == null || selection == null)
                 return null;
 
-            AuthoringResourceItem exact = null;
-            if (!string.IsNullOrWhiteSpace(selection.ResourceStableId) && !string.IsNullOrWhiteSpace(selection.SourceProviderId))
+            bool hasProvider = !string.IsNullOrWhiteSpace(selection.SourceProviderId);
+            if (!string.IsNullOrWhiteSpace(selection.ResourceStableId) && hasProvider)
             {
                 for (int i = 0; i < collection.Items.Count; i++)
                 {
@@ -327,20 +331,20 @@ namespace MxFramework.Authoring
                         string.Equals(item.StableId, selection.ResourceStableId, StringComparison.Ordinal) &&
                         string.Equals(item.SourceProviderId, selection.SourceProviderId, StringComparison.Ordinal))
                     {
-                        exact = item;
-                        break;
+                        return item;
                     }
                 }
+                // A saved provider/stable-id pair must not fall back to another identity or binding key.
+                return null;
             }
-
-            if (exact != null)
-                return exact;
 
             var matches = new List<AuthoringResourceItem>();
             for (int i = 0; i < collection.Items.Count; i++)
             {
                 AuthoringResourceItem item = collection.Items[i];
                 if (item == null)
+                    continue;
+                if (hasProvider && !string.Equals(item.SourceProviderId, selection.SourceProviderId, StringComparison.Ordinal))
                     continue;
 
                 if (!string.IsNullOrWhiteSpace(selection.ResourceStableId) && string.Equals(item.StableId, selection.ResourceStableId, StringComparison.Ordinal))

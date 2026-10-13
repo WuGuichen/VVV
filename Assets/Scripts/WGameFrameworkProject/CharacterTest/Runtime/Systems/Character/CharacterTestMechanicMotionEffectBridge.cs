@@ -200,9 +200,9 @@ namespace MxFramework.Game.CharacterTest
             Kind = kind;
             MovementMode = movementMode;
             MovementControlScaleMilli =
-                CharacterTestDeterministicMath.ClampScaleMilli(movementControlScaleMilli);
+                CharacterTestDeterministicMath.ClampControlScaleMilli(movementControlScaleMilli);
             RotationControlScaleMilli =
-                CharacterTestDeterministicMath.ClampScaleMilli(rotationControlScaleMilli);
+                CharacterTestDeterministicMath.ClampControlScaleMilli(rotationControlScaleMilli);
             HasMovementControlScale = hasMovementControlScale;
             HasRotationControlScale = hasRotationControlScale;
             ExternalMotionPolicy = externalMotionPolicy;

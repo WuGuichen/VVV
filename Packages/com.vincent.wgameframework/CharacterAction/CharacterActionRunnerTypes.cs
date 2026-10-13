@@ -224,8 +224,8 @@ namespace MxFramework.CharacterAction
             PresentationCueId = presentationCueId;
             ResourceKey = resourceKey ?? string.Empty;
             DebugMarkerId = debugMarkerId ?? string.Empty;
-            MovementControlScale = Clamp01(movementControlScale);
-            RotationControlScale = Clamp01(rotationControlScale);
+            MovementControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(movementControlScale);
+            RotationControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(rotationControlScale);
             MotionVectorSpace = motionVectorSpace;
             HasMovementControlScale = hasMovementControlScale;
             HasRotationControlScale = hasRotationControlScale;

@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../../../Packages/com.vincent.wgameframework/CharacterAction/CharacterActionBladeTrailJsonProjection.cs" Link="CharacterPackages/CharacterActionBladeTrailJsonProjection.cs" />
+    <Compile Include="../../../../Packages/com.vincent.wgameframework/CharacterAction/CharacterActionControlScaleJsonProjection.cs" Link="CharacterPackages/CharacterActionControlScaleJsonProjection.cs" />
     <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/WeaponCategory.cs" Link="CharacterPackages/WeaponCategory.cs" />
     <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/WeaponTypeCatalog.cs" Link="CharacterPackages/WeaponTypeCatalog.cs" />
     <Compile Include="../../../../Packages/com.vincent.wgameframework/Character.Application/CharacterTacticalDefaults.cs" Link="CharacterPackages/CharacterTacticalDefaults.cs" />

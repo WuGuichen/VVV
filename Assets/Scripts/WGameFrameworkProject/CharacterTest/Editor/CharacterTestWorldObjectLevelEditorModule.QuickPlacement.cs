@@ -256,43 +256,49 @@ namespace MxFramework.Game.CharacterTest.Editor
             Transform duplicate,
             Transform root)
         {
+            // Add normalizes and sorts every collection; preserve the source before its row index changes.
             int definitionId = GetRowDefinitionId(sourceRow);
             CharacterTestWorldObjectLevelEditorModel.AddRowsResult result;
             switch (sourceRow.Kind)
             {
                 case RowKind.Movable:
+                    // Add/Normalize replaces and sorts the lists, invalidating sourceRow.Index.
+                    LevelWorldObjectInstanceDefinition movableSource = _document.MovableInstances[sourceRow.Index]?.Normalize();
                     result = CharacterTestWorldObjectLevelEditorModel.AddTransformsDetailed(
                         _document,
                         root,
                         new[] { duplicate },
                         LevelWorldObjectRole.Movable,
                         definitionId);
-                    CopyInstanceProperties(sourceRow, duplicate, root, isMovable: true);
+                    CopyInstanceProperties(movableSource, duplicate, root, isMovable: true);
                     return result;
                 case RowKind.SingleStatic:
+                    LevelWorldObjectInstanceDefinition staticSource = _document.SingleStaticColliders[sourceRow.Index]?.Normalize();
                     result = CharacterTestWorldObjectLevelEditorModel.AddTransformsDetailed(
                         _document,
                         root,
                         new[] { duplicate },
                         LevelWorldObjectRole.StaticCollider,
                         definitionId);
-                    CopyInstanceProperties(sourceRow, duplicate, root, isMovable: false);
+                    CopyInstanceProperties(staticSource, duplicate, root, isMovable: false);
                     return result;
                 case RowKind.Point:
+                    LevelWorldObjectPointDefinition pointSource = _document.Points[sourceRow.Index]?.Normalize();
                     result = CharacterTestWorldObjectLevelEditorModel.AddPointsDetailed(
                         _document,
                         root,
                         new[] { duplicate },
                         definitionId);
-                    CopyPointProperties(sourceRow, duplicate, root);
+                    CopyPointProperties(pointSource, duplicate, root);
                     return result;
                 case RowKind.Region:
+                    LevelWorldObjectRegionDefinition regionSource = _document.Regions[sourceRow.Index]?.Normalize();
                     result = CharacterTestWorldObjectLevelEditorModel.AddRegionsDetailed(
                         _document,
                         root,
                         new[] { duplicate },
                         definitionId);
-                    CopyRegionProperties(sourceRow, duplicate, root);
+                    CopyRegionProperties(regionSource, duplicate, root);
                     return result;
                 default:
                     return CharacterTestWorldObjectLevelEditorModel.AddRowsResult.Empty;
@@ -300,14 +306,11 @@ namespace MxFramework.Game.CharacterTest.Editor
         }
 
         private void CopyInstanceProperties(
-            Row sourceRow,
+            LevelWorldObjectInstanceDefinition source,
             Transform duplicate,
             Transform root,
             bool isMovable)
         {
-            LevelWorldObjectInstanceDefinition source = isMovable
-                ? _document.MovableInstances[sourceRow.Index]
-                : _document.SingleStaticColliders[sourceRow.Index];
             LevelWorldObjectInstanceDefinition target = FindInstanceByTransform(
                 isMovable ? _document.MovableInstances : _document.SingleStaticColliders,
                 root,
@@ -323,9 +326,8 @@ namespace MxFramework.Game.CharacterTest.Editor
             target.Notes = source.Notes;
         }
 
-        private void CopyPointProperties(Row sourceRow, Transform duplicate, Transform root)
+        private void CopyPointProperties(LevelWorldObjectPointDefinition source, Transform duplicate, Transform root)
         {
-            LevelWorldObjectPointDefinition source = _document.Points[sourceRow.Index];
             string path = CharacterTestWorldObjectAuthoringAdapter.CreateTransformRef(root, duplicate).Path;
             LevelWorldObjectPointDefinition target = _document.Points.Find(
                 item => item != null
@@ -341,9 +343,8 @@ namespace MxFramework.Game.CharacterTest.Editor
             target.Notes = source.Notes;
         }
 
-        private void CopyRegionProperties(Row sourceRow, Transform duplicate, Transform root)
+        private void CopyRegionProperties(LevelWorldObjectRegionDefinition source, Transform duplicate, Transform root)
         {
-            LevelWorldObjectRegionDefinition source = _document.Regions[sourceRow.Index];
             string path = CharacterTestWorldObjectAuthoringAdapter.CreateTransformRef(root, duplicate).Path;
             LevelWorldObjectRegionDefinition target = _document.Regions.Find(
                 item => item != null

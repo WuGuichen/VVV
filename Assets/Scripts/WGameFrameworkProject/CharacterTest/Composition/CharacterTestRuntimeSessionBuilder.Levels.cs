@@ -124,7 +124,7 @@ namespace MxFramework.Game.CharacterTest
                 if (requests.Count > 0 && !slice.Services.Modules.RuntimeAiPlannerCommands.TryApplyBehaviorCompositionOverlayBatch(requests, out var result))
                     throw new InvalidOperationException(document.LevelId + "/AI install: " + result.ReportText);
                 if (publishPins) CharacterTestSceneCharacterAuthoringAdapter.UpsertCharactersModule(document, actorDocument);
-                return new PreparedLevelSession(slice, document, world, characters, triggers, guidance, runId);
+                return new PreparedLevelSession(slice, document, world, characters, triggers, guidance, runId, deployment);
             }
             catch { slice?.Dispose(); if (!accepted) resources.Dispose(); throw; }
             finally { Time.timeScale = scale; }
@@ -194,6 +194,8 @@ namespace MxFramework.Game.CharacterTest
             _context.NetworkSyncProbe.Reset();
             _context.ManualPaused = false; _context.Paused = false;
             _context.MainMenuCoordinator?.SetPaused(false);
+            _gameManager.GetComponent<TacticalCardSliceCoordinator>()?.NotifyLevelSessionPublished(
+                _context.Slice, candidate.Deployment, candidate.RunId);
         }
 
         internal static CharacterTestMovableNaturalObjectUnityViewBridge CreateLevelWorldViewBridge(
@@ -251,8 +253,9 @@ namespace MxFramework.Game.CharacterTest
         internal sealed class PreparedLevelSession : IDisposable
         {
             internal PreparedLevelSession(GameSlice slice, MxLevelAuthoringDocument document, CharacterTestWorldObjectSceneCache world,
-                CharacterTestSceneCharacterCache characters, CharacterTestGameplayTriggerSceneCache triggers, CharacterTestGuidanceSceneCache guidance, ulong runId)
-            { Slice = slice; Document = document; World = world; Characters = characters; Triggers = triggers; Guidance = guidance; RunId = runId; }
+                CharacterTestSceneCharacterCache characters, CharacterTestGameplayTriggerSceneCache triggers, CharacterTestGuidanceSceneCache guidance, ulong runId,
+                TacticalDeployment deployment)
+            { Slice = slice; Document = document; World = world; Characters = characters; Triggers = triggers; Guidance = guidance; RunId = runId; Deployment = deployment; }
             internal GameSlice Slice { get; private set; }
             internal MxLevelAuthoringDocument Document { get; }
             internal CharacterTestWorldObjectSceneCache World { get; }
@@ -260,6 +263,7 @@ namespace MxFramework.Game.CharacterTest
             internal CharacterTestGameplayTriggerSceneCache Triggers { get; }
             internal CharacterTestGuidanceSceneCache Guidance { get; }
             internal ulong RunId { get; }
+            internal TacticalDeployment Deployment { get; }
             internal GameSlice Take() { var slice = Slice; Slice = null; return slice; }
             public void Dispose() { Slice?.Dispose(); Slice = null; }
         }

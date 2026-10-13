@@ -179,6 +179,8 @@ namespace MxFramework.Rendering
                     continue;
 
                 slot.Generation = NextGeneration(slot.Generation);
+                // Clear rebuilds the free queue, so discard its previous membership markers.
+                slot.Reusable = false;
                 _slots[i] = slot;
             }
 

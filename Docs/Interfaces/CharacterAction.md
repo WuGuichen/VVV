@@ -259,6 +259,8 @@ Runner allocation notes:
 
 有状态区间的固定序列为：起始帧 `Enter(BeforeFrame) → Active(BeforeFrame)`；中间帧一次 `Active(BeforeFrame)`；结束帧 `Active(BeforeFrame) → Exit(NaturalEnd, AfterFrame)`。单帧区间同帧产生 `Enter → Active → Exit`。取消、打断、替换、死亡、重置、实体销毁、配置重载、Runtime 关闭、预览 Seek 或回放重建会立即产生一次 `Exit(BeforeFrame)` 并注销活动身份；任何已 Enter 的身份必须且只能 Exit 一次。
 
+`CharacterControl.CharacterActionController` 的正式桥将 `TrackLifecycle` 与一次性 `TrackEventFired` 一起交给既有轨道分发协调器，保留 Runner 的生命周期载荷、顺序和实例身份。Runtime / Presentation Adapter 继续决定具体消费策略，Controller 不复制事件或额外生成 Exit；见 [CharacterControl 使用约定](CharacterControl.md#使用约定)。
+
 非连续 Seek、向前跳帧、向后回放、循环回零和配置刷新采用同一重建规则：先退出旧活动集合，再重置并重放到目标帧，最后按目标帧重建活动集合。动画与 Root Motion 继续按目标帧采样；伤害、冲量、音频、Gameplay 命令和 `StartEffectTimeline` 都是不可逆单发，不进入通用 Exit。
 
 动画事件在编辑器中按有源长度的时间轴剪辑处理：源长度来自实际 `AnimationClip`，最终时间轴长度为 `ceil((源长度 - AnimationStartOffsetFrames - AnimationEndOffsetFrames) / PlaybackSpeed)`。普通拖拽片段边缘反算 `PlaybackSpeed`，`Alt` 拖拽边缘修改前后截断，拖动主体只移动事件；动画片段仍必须位于动作时长内。无法解析源 Clip 长度时保留人工事件窗口，但不使用固定帧数回退，也不提供自动变速或截断。
@@ -271,10 +273,14 @@ CharacterTest consumes `PresentationTrackEvent(kind=SpawnVisualCue)` as determin
 
 #### Motion / Root Motion runtime contract
 
-- `LockMovement`、`SetControlScale` 与 `SetCollisionProfile` 是 MotionTrack 有状态区间，直接携带 `frame/endFrame`；不再使用 Reset 命令。
-- `SetControlScale` sets active-control contribution scales for the current action. `movementControlScale` and `rotationControlScale` are clamped to `0..1`.
+- 制作端的控制倍率由 `motionTrack.movementControlKeys`、`rotationControlKeys` 两组标记唯一拥有。`ControlScaleKeyJsonDto` 保存 `frame/value` 及制作期事件身份；缺少标记时默认 1。值必须有限且在 `0..10`，从所在帧立即生效到下一标记或动作退出，无插值。
+- `CharacterActionControlScaleJsonProjection` 是 Unity Editor 与外部 Authoring 共用的 noEngine 制作／加载期投影器。发布时分别生成单轴 `SetControlScale(frame,endFrame)`，终点为下一标记前一帧或动作末帧；`controlScaleGenerated=true` 标记只读派生事件，制作源恢复时移除。Runtime Tick 不生成事件、不解析名称、不分配身份。
+- 旧控制区间在 Editor 内存中逐轴转换：使用起点和包含式终点后一帧，按原起始帧／排序求有效值，只保存变化点，包括恢复默认 1 的标记。正常保存才准备正式身份并写回；转换失败保留原数据并阻止保存。草稿校验／隔离预览的临时身份不写目录，不可用于发布。
+- `LockMovement`、派生 `SetControlScale` 与 `SetCollisionProfile` 继续使用 MotionTrack 有状态区间生命周期。旧发布数据的普通控制区间仍可导入；制作数据不能同时包含标记和手工控制区间。
+- `SetControlScale` sets active-control contribution scales for the current action. Values use `0..10`, with deterministic milli-scales `0..10000`; 1 is normal and values above 1 accelerate active control.
 - `movementControlScale` and `rotationControlScale` are independent. If one field is omitted, that axis keeps its current control scale.
 - Active-control scales are reset to `1/1` automatically when the action finishes, is cancelled, or is interrupted.
+- CharacterTest resolves overlapping Motion state ranges by start frame, then the persisted `StableEventOrder` carried by the dispatch. Control-scale, movement-lock and collision-profile contributions must not look up newly authored event IDs in the compiled legacy catalog; their priority comes from the published action data. Exiting the winning range restores the remaining contribution, or the default when none remains.
 - `SetControlScale` does not apply `movementMode`; legacy data may still contain the field, but runtime ignores it for this event.
 - `LockMovement` is interpreted by CharacterTest as active movement scale `0` and active rotation scale `1`.
 - `SetCollisionProfile` is a MotionTrack authority range, not presentation
@@ -548,3 +554,22 @@ Character Action 的 `SpawnVisualCue` 编辑器不再把长 `ResourceKey` 下拉
 Invalid complete external JSON is not silently masked by embedded fallback: the runtime keeps `ExternalJson`, importer diagnostics remain visible, and `IsReady=false` until the exported files are fixed.
 
 CharacterTest 的行为编排终止／替换入口在目标不处于 Alive 或 HP 已归零时拒绝操作，不得清除 Dying、Dead 或 Reviving 的生命周期动作；普通 Reaction 同样不能覆盖这些生命周期状态。死亡动作完成后的 terminal hold 由生命周期 owner 保持，复活／销毁等显式生命周期权限不受此普通编排门槛替代。
+
+
+
+### CharacterTest projectile reference summaries
+
+The tactical bound-action preparation path can measure a finite, single-request, constant-speed linear direct-hit projectile action, including published C006_1 Fireball 1090004 (request 422 / projectile 91001). It measures a reference hurtbox at 50 mm intervals over a bounded 0–50 m search and retains the normal closed-boundary and verified-hit-midpoint checks. This search extent is not a configured attack range. Unsupported producers, missing configuration, failure to start the real action, missing accepted projectile birth, or a projectile that outlives the bounded simulation produce an unavailable result. An explicit aim range exceeding the definition's declared travel horizon is unsupported. Melee retains its existing 0–5 m measurement.
+
+Each projectile distance executes the actual action gateway, spawn/aim, projectile runtime and direct-hit resolver in a fresh isolated reference session with the reference capsule selected as its aim target. Projectile, health, cooldown and on-hit buff state are discarded between samples. This is low-frequency nominal configuration evidence, not a live attack-opportunity permission or a replacement for Stage ownership, binding, payment, eligibility or ACK. The live Runtime AI Planner BasicAttack opportunity evaluator is unchanged.
+
+A projectile summary fingerprint includes the actual loaded spawn profile, projectile definition and selected source-package socket bake (or the production fallback choice), in addition to the existing action/source inputs. Queries without the required loaded projectile catalog fail closed. CharacterTacticalBoundCardInputs passes this catalog and chooses the projectile measurement before the existing transactional summary repair and retry. No generated content, action eligibility classification or player inventory is granted by this path. Runtime/sample validation requires Unity; offline configuration tests alone do not establish Stage-to-ACK-to-birth or delayed-damage acceptance.
+
+
+### 弹体参考测距的角色碰撞代理
+
+弹体实际采样子会话使用正式 DynamicCharacter（layer 8）目标 AABB，由既有角色 MotionSystem 同步生成。名义 layer 10 capsule 继续负责表面距离与伤害几何，不能替代弹体 Authoring 根据 targetTypes 生成的查询层。正式 Fireball 的 mask 256 保持不变。
+
+仅弹体采样子会话启用目标 blocksCharacters，目标不可推挤，来源保持非阻挡；其运动查询只包括静态层，以保持二分定位的重叠姿态。普通 Runtime 构造与近战参考会话仍使用原行为。采样在实际网关执行前验证目标实体、body/collider 和 layer；排除角色层、缺失代理或层错误分别返回 ProjectileReferenceCharacterLayerExcluded、ProjectileReferenceTargetColliderMissing、ProjectileReferenceTargetColliderLayerMismatch，不能当作有效 miss。
+
+弹体测量指纹的 executor 更新为 actual-projectile-reference-v2-production-target-body，旧弹体测量缓存需重测；近战指纹版本不变。是否命中仍取真实弹体出生后的 DirectSweep Damage 结果，不能由几何预测或人为 accepted 事件代替。修补交付须保留 1m/10m 命中、40m 不命中、独立样本无状态泄漏和完整 0–50m 扫描的原生验收；离线编译与物理查询测试不代表上述 Unity 验收已通过。

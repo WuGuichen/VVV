@@ -110,11 +110,13 @@ internal static partial class CharacterPackageTests
     {
         AudioAuthoringManifestV2_MigratesAndCompilesSharedEvents();
         AudioAuthoringManifestV2_InvalidatesChangedBindingEvidence();
+        AudioAuthoringManifestV2_ValidatesCueDefaultParameterReferences();
         FmodAudioLibraryProvider_MergesSemanticOverlay();
     }
 
     internal static void RunAudioWorkbenchServer()
     {
+        EditorServer_AudioWorkbench_BlocksUnknownCueDefaultParametersWithoutWrites();
         PhysicalAudioWorkbench_UsesTripleHashAndAtomicSave();
         PhysicalAudioWorkbench_PromotesAppliedSetWithHash();
         PhysicalAudioWorkbench_WritesUnityRuntimePreviewRequest();
@@ -145,6 +147,8 @@ internal static partial class CharacterPackageTests
         AudioSemanticManifestValidator_ReportsDuplicatesAndValidatesReplacement();
         AudioAuthoringManifestV2_MigratesAndCompilesSharedEvents();
         AudioAuthoringManifestV2_InvalidatesChangedBindingEvidence();
+        AudioAuthoringManifestV2_ValidatesCueDefaultParameterReferences();
+        EditorServer_AudioWorkbench_BlocksUnknownCueDefaultParametersWithoutWrites();
         AudioGenerationBriefBuilder_DerivesFoleyAndLayeredActionContracts();
         AudioGenerationRecipeV2_PersistsAndBoundsHistory();
         PhysicalAudioAuthoring_CompilesSeedAndMatchesRuntimeSelectionSemantics();

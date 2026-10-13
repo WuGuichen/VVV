@@ -13,6 +13,172 @@ namespace MxFramework.Tests.Game.CharacterTest
 {
     public sealed partial class CharacterTestIntegrationContractTests
     {
+        [TestCase(10, 0, 0, false, false)]
+        [TestCase(10, 0, 0, false, true)]
+        [TestCase(10, 0, 0, true, false)]
+        [TestCase(10, 0, 0, true, true)]
+        [TestCase(0, 10, 0, false, false)]
+        [TestCase(0, 0, 10, false, false)]
+        public void EnvironmentHazard_AggregatesAllObjectsAndReachesPlannerFacts(
+            int motion, int cohesion, int scatter, bool swapIds, bool reverseInput)
+        {
+            var specs = new[]
+            {
+                HazardTestObject(swapIds ? 3 : 1, 1f, default),
+                HazardTestObject(swapIds ? 1 : 3, 0.25f,
+                    new CharacterTestGenesisPotencyTriplet(motion, cohesion, scatter)),
+                HazardTestObject(2, 0.75f, default)
+            };
+            if (reverseInput) Array.Reverse(specs);
+            var module = new CharacterTestCharacterRuntimeModule(null, NullRuntimeLogger.Instance,
+                movableNaturalObjectSpawnSpecs: specs, createViews: false);
+            using var lifetime = new HazardTestModuleScope(module);
+            Assert.AreEqual(1, module.MovableNaturalObjects[0].NumericId);
+            Assert.AreEqual(3, module.MovableNaturalObjects[2].NumericId);
+            CharacterTestCharacterEntity actor = SpawnHazardTestActor(module);
+            var settings = new CharacterTestRuntimeAiPlannerPerceptionSettings(environmentSampleRadius: 2f);
+            var frame = new RuntimeFrame(1);
+            module.PerceptionFrameCache.BeginFrame(frame, module, module.PhysicsRuntime);
+            Assert.IsTrue(module.PerceptionFrameCache.TryGetEnvironment(frame, actor, settings, out var cached));
+            var fallback = new CharacterTestRuntimeAiPlannerWorldPerceptionSource(module);
+            var sample = new CharacterTestRuntimeAiPlannerEnvironmentSample();
+            fallback.SampleEnvironment(actor, settings, sample);
+            Assert.IsTrue(cached.NearHazard, "Ordinary lower IDs must not hide a nearer hazard.");
+            Assert.IsTrue(sample.NearHazard, "Fallback must aggregate the same objects.");
+            Assert.IsTrue(cached.NearMovableObject && cached.NearUsefulObject);
+            Assert.IsTrue(sample.NearMovableObject && sample.NearUsefulObject);
+            foreach (bool useCache in new[] { false, true })
+            {
+                var evaluator = HazardTestEvaluator(module, settings, fallback, useCache);
+                Assert.IsTrue(evaluator.TryRefreshFactsWithoutSelection(actor, module.World.Entities, frame,
+                    out var observation));
+                Assert.IsTrue(observation.EnvironmentNearHazard, "The formal Planner fact must preserve aggregation.");
+            }
+        }
+
+        [TestCase(-1f, 0, false, false)]
+        [TestCase(0.25f, 0, true, false)]
+        [TestCase(3f, 10, false, false)]
+        [TestCase(2f, 10, true, true)]
+        [TestCase(2.001f, 10, false, false)]
+        public void EnvironmentHazard_PreservesEmptyNeutralAndRadiusBoundary(
+            float x, int potency, bool expectedMovable, bool expectedHazard)
+        {
+            var specs = x < 0f ? Array.Empty<CharacterTestMovableNaturalObjectSpawnSpec>()
+                : new[] { HazardTestObject(1, x, new CharacterTestGenesisPotencyTriplet(potency, 0, 0)) };
+            var module = new CharacterTestCharacterRuntimeModule(null, NullRuntimeLogger.Instance,
+                movableNaturalObjectSpawnSpecs: specs, createViews: false);
+            using var lifetime = new HazardTestModuleScope(module);
+            CharacterTestCharacterEntity actor = SpawnHazardTestActor(module);
+            var settings = new CharacterTestRuntimeAiPlannerPerceptionSettings(environmentSampleRadius: 2f);
+            var frame = new RuntimeFrame(1);
+            module.PerceptionFrameCache.BeginFrame(frame, module, module.PhysicsRuntime);
+            Assert.IsTrue(module.PerceptionFrameCache.TryGetEnvironment(frame, actor, settings, out var cached));
+            var fallback = new CharacterTestRuntimeAiPlannerWorldPerceptionSource(module);
+            var sample = new CharacterTestRuntimeAiPlannerEnvironmentSample();
+            fallback.SampleEnvironment(actor, settings, sample);
+            Assert.AreEqual(expectedHazard, cached.NearHazard);
+            Assert.AreEqual(expectedHazard, sample.NearHazard);
+            Assert.AreEqual(expectedMovable, cached.NearMovableObject);
+            Assert.AreEqual(expectedMovable, cached.NearUsefulObject);
+            Assert.AreEqual(expectedMovable, sample.NearMovableObject);
+            Assert.AreEqual(expectedMovable, sample.NearUsefulObject);
+            foreach (bool useCache in new[] { false, true })
+            {
+                var evaluator = HazardTestEvaluator(module, settings, fallback, useCache);
+                Assert.IsTrue(evaluator.TryRefreshFactsWithoutSelection(actor, module.World.Entities, frame,
+                    out var observation));
+                Assert.AreEqual(expectedHazard, observation.EnvironmentNearHazard);
+            }
+        }
+
+        [Test]
+        public void EnvironmentHazard_WarmedSamplingIsNoAllocAndCacheClearsNextFrame()
+        {
+            var module = new CharacterTestCharacterRuntimeModule(null, NullRuntimeLogger.Instance,
+                movableNaturalObjectSpawnSpecs: new[] { HazardTestObject(1, 1f, default),
+                    HazardTestObject(2, 0.25f, new CharacterTestGenesisPotencyTriplet(10, 0, 0)) },
+                createViews: false);
+            using var lifetime = new HazardTestModuleScope(module);
+            CharacterTestCharacterEntity actor = SpawnHazardTestActor(module);
+            var settings = new CharacterTestRuntimeAiPlannerPerceptionSettings(environmentSampleRadius: 2f);
+            var fallback = new CharacterTestRuntimeAiPlannerWorldPerceptionSource(module);
+            var sample = new CharacterTestRuntimeAiPlannerEnvironmentSample();
+            for (int i = 1; i <= 32; i++)
+            {
+                module.PerceptionFrameCache.BeginFrame(new RuntimeFrame(i), module, module.PhysicsRuntime);
+                module.PerceptionFrameCache.TryGetEnvironment(new RuntimeFrame(i), actor, settings, out _);
+                fallback.SampleEnvironment(actor, settings, sample);
+            }
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            int hazardCount = 0;
+            for (int i = 33; i <= 64; i++)
+            {
+                var frame = new RuntimeFrame(i);
+                module.PerceptionFrameCache.BeginFrame(frame, module, module.PhysicsRuntime);
+                if (module.PerceptionFrameCache.TryGetEnvironment(frame, actor, settings, out var cached)
+                    && cached.NearHazard) hazardCount++;
+                fallback.SampleEnvironment(actor, settings, sample);
+                if (sample.NearHazard) hazardCount++;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(64, hazardCount);
+            Assert.AreEqual(0L, allocated);
+
+            // Existing same-frame reuse remains unchanged; the next frame must discard old hazard data.
+            module.World.SetMovableNaturalObjectSpawnSpecs(new[] { HazardTestObject(1, 1f, default) });
+            Assert.IsTrue(module.PerceptionFrameCache.TryGetEnvironment(new RuntimeFrame(64), actor, settings,
+                out var reused));
+            Assert.IsTrue(reused.NearHazard);
+            Assert.IsTrue(module.PerceptionFrameCache.TryGetEnvironment(new RuntimeFrame(65), actor, settings,
+                out var refreshed));
+            Assert.IsFalse(refreshed.NearHazard);
+            fallback.SampleEnvironment(actor, settings, sample);
+            Assert.IsFalse(sample.NearHazard);
+        }
+
+        private readonly struct HazardTestModuleScope : IDisposable
+        {
+            private readonly CharacterTestCharacterRuntimeModule _module;
+            public HazardTestModuleScope(CharacterTestCharacterRuntimeModule module) => _module = module;
+            public void Dispose() => _module.Dispose();
+        }
+
+        private static CharacterTestMovableNaturalObjectSpawnSpec HazardTestObject(
+            int id, float x, CharacterTestGenesisPotencyTriplet potency)
+        {
+            return CharacterTestMovableNaturalObjectSpawnSpec.FromMeters(
+                "test.hazard." + id, id, CharacterTestMovableNaturalObjectSpawnSpec.DefaultCategory,
+                20f, CombatSurfaceMaterial.Default, new Vector3(0.25f, 0.25f, 0.25f),
+                new Vector3(x, 0.25f, 0f), basePotency: potency);
+        }
+
+        private static CharacterTestCharacterEntity SpawnHazardTestActor(CharacterTestCharacterRuntimeModule module)
+        {
+            var registry = new CharacterTestCharacterDefinitionRegistry();
+            Assert.IsTrue(registry.TryGet(CharacterTestCharacterDefinitionRegistry.IronVanguardCharacterId,
+                out var definition));
+            return module.World.Spawn(new CharacterTestCharacterSpawnRequest(definition.CharacterId,
+                2, 0f, 0f, 0f, CharacterTestCharacterControlOwner.AiControlled), definition);
+        }
+
+        private static CharacterTestRuntimeAiPlannerEvaluator HazardTestEvaluator(
+            CharacterTestCharacterRuntimeModule module,
+            CharacterTestRuntimeAiPlannerPerceptionSettings settings,
+            CharacterTestRuntimeAiPlannerWorldPerceptionSource fallback, bool useCache)
+        {
+            CharacterTestRuntimeAiPlannerProfile basis = CharacterTestRuntimeAiPlannerProfileSource.CreateDefault();
+            var profile = new CharacterTestRuntimeAiPlannerProfile(basis.ProfileId, basis.InitialStateId,
+                basis.TargetSelectionMode, basis.AttackRange, basis.States, basis.Transitions, basis.Actions,
+                perceptionSettings: settings);
+            Assert.IsTrue(CharacterTestRuntimeAiPlannerCompiledProfile.TryCompile(profile, out var compiled,
+                out var report), report.ToText());
+            return new CharacterTestRuntimeAiPlannerEvaluator(compiled,
+                CharacterTestDirectAiNavigationService.Instance, fallback,
+                perceptionFrameCache: useCache ? module.PerceptionFrameCache : null);
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void RuntimeCommandModule_TargetLock_CombatHandleKeepsCasterIdentity(bool explicitSet)
@@ -1388,7 +1554,7 @@ namespace MxFramework.Tests.Game.CharacterTest
         }
 
         [Test]
-        public void PerceptionFrameCache_NavigationCapsuleProbeUsesClearanceAndRefreshesKey()
+        public void PerceptionFrameCache_NavigationSweptClearanceUsesPostureAndRefreshesKey()
         {
             CharacterTestCharacterPhysicsRuntime physicsRuntime =
                 CreateFrameworkPhysicsRuntime(includeWall: false);
@@ -1433,7 +1599,7 @@ namespace MxFramework.Tests.Game.CharacterTest
                 noCandidateAngles,
                 out CharacterTestNavigationSample blocked));
 
-            Assert.AreEqual(CharacterTestNavigationProbeShape.Capsule, blocked.QueryShape);
+            Assert.AreEqual(CharacterTestNavigationProbeShape.SweptObb, blocked.QueryShape);
             Assert.AreEqual(physicsRuntime.MotionObstacleLayerMask.Value, blocked.LayerMask);
             Assert.AreEqual(source.Physics.EffectiveRadiusMillimeters, blocked.ClearanceRadiusMillimeters);
             Assert.IsFalse(blocked.Result.DirectPathClear);

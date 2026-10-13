@@ -120,7 +120,7 @@ namespace MxFramework.Game.CharacterTest
                     configs,
                     physicsRuntime,
                     entity.Identity.GeneratedPackageRoot);
-            var registration = new CharacterBodyPartContactRegistration(bindings);
+            var registration = new CharacterBodyPartContactRegistration(bindings, package?.Configs?.BodyParts, package?.Geometry);
             if (_contactRegistrations.ContainsKey(entityId))
                 _contactRegistrations[entityId] = registration;
             else if (_contactRegistrations.Count < PhysicalAudioSensorCapacity)

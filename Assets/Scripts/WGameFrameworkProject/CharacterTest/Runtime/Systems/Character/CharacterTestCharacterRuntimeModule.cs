@@ -204,7 +204,8 @@ namespace MxFramework.Game.CharacterTest
                 createViews);
             _destructionSystem = new CharacterTestCharacterDestructionSystem();
             _battleStateSystem = new CharacterTestBattleStateSystem();
-            _abilityRuntimeModule?.SetCostAuthority(new CharacterTestAbilityCostAuthority(_world));
+            _abilityCostAuthority = new CharacterTestAbilityCostAuthority(_world);
+            _abilityRuntimeModule?.SetCostAuthority(_abilityCostAuthority);
             _actionUseAuthority = new CharacterTestActionUseAuthority(this, _abilityRuntimeModule);
             _actionSystem.Runtime.BindRuntimeWorld(_world);
             _authorityPoseTerrainSystem =
@@ -242,6 +243,7 @@ namespace MxFramework.Game.CharacterTest
             _world.EntitiesCleared += _authorityPoseTerrainSystem.Clear;
             _world.EntitiesCleared += ClearHurtboxesForClearedWorld;
             _combatTraceSystem = new CharacterTestCharacterCombatTraceSystem(safeLogger);
+            _world.ThirdDirectProjectileRequest = _combatTraceSystem.IsThirdDirectProjectileRequest;
             _weaponHitAudioSystem = new CharacterTestWeaponHitAudioSystem(
                 _audioCuePlaybackSystem,
                 _audioIntentQueue,
@@ -1605,6 +1607,8 @@ namespace MxFramework.Game.CharacterTest
         {
             var frame = new RuntimeFrame(context.FrameIndex);
             _lastRuntimeFrame = frame;
+            _world.DoubleEdgeState.FlushThirdLifecycleBefore(frame.Value);
+            _world.DoubleEdgeState.ObserveThirdFrame(frame.Value);
             _world.CharacterComponents.ClearAnimationRequestsBefore(frame.Value);
             using (SpawnMarker.Auto())
             {
@@ -1677,6 +1681,7 @@ namespace MxFramework.Game.CharacterTest
                 // All action/root-motion/mechanic producers have now published this frame's requests.
                 // Return admission must see them before Motion consumes and clears them.
                 ProcessInteractionReturns(frame);
+                ApplyDoubleEdgeFields(frame);
                 _motionSystem.SetActionPoseRegistry(_actionSystem.Runtime.Registry);
                 _motionSystem.Tick(_world, _simulationTickRate, frame);
                 PublishPresentationMotion(frame);
@@ -1765,6 +1770,7 @@ namespace MxFramework.Game.CharacterTest
                     _traceRecorder);
             }
 
+            _world.DoubleEdgeState.FlushThirdLifecycle();
             using (ViewSyncMarker.Auto())
             {
                 _viewSyncSystem.Tick(
@@ -1841,6 +1847,7 @@ namespace MxFramework.Game.CharacterTest
             _viewBridge.TickPresentation(deltaTime, frame);
             using (PhysicalAudioMarker.Auto())
             {
+                PublishPhysicalContactMotion(frame);
                 _physicalAudioSystem.Tick(_world, frame, _simulationTickRate, _motionSystem.PhysicsRuntime);
             }
             using (AudioIntentDrainMarker.Auto())

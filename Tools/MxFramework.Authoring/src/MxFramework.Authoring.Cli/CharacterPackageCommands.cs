@@ -957,6 +957,12 @@ internal static partial class CharacterPackageCommands
         document = JsonNode.Parse(bladeTrailDocument.ToString(Newtonsoft.Json.Formatting.None));
         ProjectCharacterActionNode(document, identityCatalog, audioCueIds, abilityIds, vfxDefinitionIds, eventOrders);
         ProjectCharacterActionEventOrders(document, eventOrders);
+        var controlDocument = Newtonsoft.Json.Linq.JObject.Parse(document.ToJsonString());
+        if (controlDocument["actions"] is Newtonsoft.Json.Linq.JArray controlActions)
+            foreach (Newtonsoft.Json.Linq.JObject action in controlActions.Children<Newtonsoft.Json.Linq.JObject>())
+                MxFramework.CharacterAction.CharacterActionControlScaleJsonProjection.SynchronizeAction(action,
+                    key => key.Value<int>("stableEventId"), id => eventOrders.TryGetValue(id, out int order) ? order : 0);
+        document = JsonNode.Parse(controlDocument.ToString(Newtonsoft.Json.Formatting.None));
         if (document is JsonObject root)
             root["schemaVersion"] = root["actions"] != null ? "0.5.0" : "0.6.0";
         return EnsureTrailingNewline(document.ToJsonString(options));
@@ -970,7 +976,7 @@ internal static partial class CharacterPackageCommands
         }
         else if (node is JsonObject obj)
         {
-            if (obj["kind"] != null && obj["stableEventId"] is JsonValue value && value.TryGetValue(out int id))
+            if ((obj["kind"] != null || obj["value"] != null) && obj["stableEventId"] is JsonValue value && value.TryGetValue(out int id))
                 obj["stableEventOrder"] = orders.TryGetValue(id, out int order) ? order : 0;
             foreach (KeyValuePair<string, JsonNode> property in obj)
                 ProjectCharacterActionEventOrders(property.Value, orders);
@@ -3018,6 +3024,8 @@ internal static partial class CharacterPackageCommands
                     SourcePath = write.SourcePath,
                     Message = $"Write-after-verify failed: target file does not exist on disk: {write.TargetPath}"
                 });
+                report.ErrorCount++;
+                report.Status = "Failed";
                 report.CanSpawnAfterImport = false;
                 continue;
             }
@@ -3029,8 +3037,24 @@ internal static partial class CharacterPackageCommands
                 continue;
             }
 
+            string expectedHash = write.ContentHash;
+            // Resource artifacts may intentionally differ from their authored source bytes.
+            for (int j = 0; j < report.Operations.Count; j++)
+            {
+                CharacterUnityImportOperation operation = report.Operations[j];
+                if (string.Equals(operation.TargetPath, write.TargetPath, StringComparison.Ordinal)
+                    && string.Equals(operation.SourcePath, write.SourcePath, StringComparison.Ordinal)
+                    && string.Equals(operation.ArtifactStatus, "Generated", StringComparison.Ordinal)
+                    && string.Equals(operation.ArtifactValidationStatus, "Passed", StringComparison.Ordinal)
+                    && !string.IsNullOrWhiteSpace(operation.ArtifactHash))
+                {
+                    expectedHash = operation.ArtifactHash;
+                    break;
+                }
+            }
+
             string actualHash = CharacterPackageHashUtility.ComputeFileSha256(diskPath);
-            if (!string.Equals(actualHash, write.ContentHash, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
             {
                 report.Issues.Add(new CharacterAuthoringValidationIssue
                 {
@@ -3038,8 +3062,10 @@ internal static partial class CharacterPackageCommands
                     Gate = CharacterAuthoringValidationGate.ImportBlocked,
                     Severity = CharacterAuthoringValidationSeverity.Error,
                     SourcePath = write.SourcePath,
-                    Message = $"Write-after-verify SHA-256 mismatch for {write.TargetPath}. Expected: {write.ContentHash}, actual: {actualHash}"
+                    Message = $"Write-after-verify SHA-256 mismatch for {write.TargetPath}. Expected: {expectedHash}, actual: {actualHash}"
                 });
+                report.ErrorCount++;
+                report.Status = "Failed";
                 report.CanSpawnAfterImport = false;
             }
         }

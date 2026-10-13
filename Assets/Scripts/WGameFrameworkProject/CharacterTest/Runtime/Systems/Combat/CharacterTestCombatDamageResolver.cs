@@ -236,7 +236,12 @@ namespace MxFramework.Game.CharacterTest
                     preHitDecision);
                 damagePayloadsByHit[hitKey] = resolvedDamage;
                 if (accessoryEvidenceByHit != null)
-                    accessoryEvidenceByHit[hitKey] = CharacterTestAccessoryHitEvidence.DirectTrace(payload.Trace.ActionId, candidate.IncomingDirection);
+                    accessoryEvidenceByHit[hitKey] = CharacterTestAccessoryHitEvidence.DirectTrace(payload.Trace.ActionId, candidate.IncomingDirection,
+                        payload.Trace.DoubleEdgeSource, payload.Trace.SourceActionInstanceId)
+                        .WithCollision(source?.GameplayEntityId ?? default, target, source != null && target != null
+                            && source.Team.TeamId != target.Team.TeamId, lookup.AccessoryState?.SecondBatchProducer(
+                                payload.Trace.DoubleEdgeSource, 2, candidate.ActionInstanceId, 0) ?? default,
+                            unchecked((ulong)(uint)candidate.ActionInstanceId));
                 if (hitZonesByHit != null)
                     hitZonesByHit[hitKey] = hitZone;
                 if (onHitBuffsByHit != null && payload.Trace.HitEvent.OnHitBuffCount > 0)
@@ -304,11 +309,13 @@ namespace MxFramework.Game.CharacterTest
             DamageProfileSourceKind sourceKind,
             CharacterTestBodyPartDamageSourcePolicy bodyPartSourcePolicy,
             out DamageProfileResolveResult resolvedDamage,
-            out CharacterTestHitZoneResolution hitZone)
+            out CharacterTestHitZoneResolution hitZone,
+            TacticalCard.TacticalDoubleEdgeBattleState.ProjectileActor frozenActor = null,
+            CombatHitProducerIdentity producerIdentity = default)
         {
             resolvedDamage = default;
             hitZone = CharacterTestHitZoneResolution.Default;
-            if (source == null || lookup == null)
+            if (lookup == null || source == null && frozenActor == null)
                 return false;
 
             CharacterTestBodyPartHitEvidence hitEvidence = ResolveHitZoneEvidence(
@@ -324,18 +331,19 @@ namespace MxFramework.Game.CharacterTest
                 request.Metadata.StableEventId,
                 0,
                 0,
-                source.Id.Value,
+                source?.Id.Value ?? CharacterTestCombatEntityLookup.ResolveCharacterEntityId(new CombatEntityId(frozenActor.CombatSource)),
                 CharacterTestCombatEntityLookup.ResolveCharacterEntityId(targetId),
                 hitZone.HitZoneId,
                 hitZone.BodyPartId,
                 (int)Math.Min(int.MaxValue, Math.Max(0, frame.Value)),
                 request.Metadata.LocalFrame);
-            CombatEntityId sourceEntityId = new CombatEntityId(
-                CharacterTestCharacterPhysicsRuntime.DynamicBodyIdStart + source.Id.Value);
+            CombatEntityId sourceEntityId = new CombatEntityId(frozenActor != null ? frozenActor.CombatSource
+                : CharacterTestCharacterPhysicsRuntime.DynamicBodyIdStart + source.Id.Value);
             if (!TryResolveCharacterActionDamage(
                     request.DamagePayload,
                     usage,
-                    ConfigureSourceAttributeReader(lookup, sourceEntityId),
+                    frozenActor != null && (source == null || source.GameplayEntityId != frozenActor.Actor)
+                        ? frozenActor.ReadAttribute : ConfigureSourceAttributeReader(lookup, sourceEntityId),
                     ConfigureTargetAttributeReader(lookup, targetId),
                     hitZone,
                     request.DamagePayload.PresentationProfileId,
@@ -372,7 +380,7 @@ namespace MxFramework.Game.CharacterTest
                     HitResolveKind.Damage,
                     resolvedDamage.IncomingDamage,
                     resolvedDamage.StaggerFrames,
-                    resolvedDamage.Knockback);
+                    resolvedDamage.Knockback).WithProducerIdentity(producerIdentity);
                 _bodyPartDamageBridge.RecordResolvedHit(
                     new CharacterTestResolvedHitKey(resolvedHit),
                     target?.BodyPartState,
@@ -407,19 +415,17 @@ namespace MxFramework.Game.CharacterTest
         {
             resolvedDamage = default;
             hitZone = CharacterTestHitZoneResolution.Default;
-            if (source == null || lookup == null)
-                return false;
+            if (lookup == null) return false;
+            var frozenActor = lookup.AccessoryState?.FindProjectileActor(projectile.ProjectileId, projectile.SpawnSequence);
+            if (source == null && frozenActor == null) return false;
 
             CombatHitEventConfig hitEvent = ResolveProjectileHitEvent(impact, context);
-            if (!CharacterTestCombatHitEventResolver.AllowsTarget(
-                    hitEvent,
-                    source,
-                    targetId,
-                    lookup,
-                    out bool environmentTarget))
-            {
-                return false;
-            }
+            bool environmentTarget;
+            if (frozenActor != null && lookup.FindEntityByCombatId(targetId) is CharacterTestCharacterEntity targetEntity) {
+                var kind = frozenActor.Actor == targetEntity.GameplayEntityId ? CharacterTestAttackOpportunityTargetKind.Self
+                    : CharacterTestCombatHitEventResolver.ResolveCharacterTargetKind(-1, targetEntity.Id.Value, frozenActor.Team, targetEntity.Team.TeamId);
+                if (!CharacterTestCombatHitEventResolver.AllowsTarget(hitEvent, kind, targetId, out environmentTarget)) return false;
+            } else if (!CharacterTestCombatHitEventResolver.AllowsTarget(hitEvent, source, targetId, lookup, out environmentTarget)) return false;
 
             if (environmentTarget)
             {
@@ -451,7 +457,7 @@ namespace MxFramework.Game.CharacterTest
                 stableEventId,
                 0,
                 0,
-                source.Id.Value,
+                CharacterTestCombatEntityLookup.ResolveCharacterEntityId(projectile.SourceEntityId),
                 CharacterTestCombatEntityLookup.ResolveCharacterEntityId(targetId),
                 hitZone.HitZoneId,
                 hitZone.BodyPartId,
@@ -460,7 +466,8 @@ namespace MxFramework.Game.CharacterTest
             if (!TryResolveProjectileDamagePayload(
                     hitEvent.Damage,
                     usage,
-                    ConfigureSourceAttributeReader(lookup, projectile.SourceEntityId),
+                    frozenActor != null && (source == null || source.GameplayEntityId != frozenActor.Actor)
+                        ? frozenActor.ReadAttribute : ConfigureSourceAttributeReader(lookup, projectile.SourceEntityId),
                     ConfigureTargetAttributeReader(lookup, targetId),
                     hitZone,
                     ResolveProjectilePresentationProfileId(stableEventId, impact.PresentationProfileId),
@@ -497,7 +504,7 @@ namespace MxFramework.Game.CharacterTest
                     HitResolveKind.Damage,
                     resolvedDamage.IncomingDamage,
                     resolvedDamage.StaggerFrames,
-                    resolvedDamage.Knockback);
+                    resolvedDamage.Knockback).WithProducerIdentity(context.GetProducerIdentity(projectile.ProjectileId, projectile.SpawnSequence));
                 _bodyPartDamageBridge.RecordResolvedHit(
                     new CharacterTestResolvedHitKey(resolvedHit),
                     target?.BodyPartState,
@@ -539,19 +546,17 @@ namespace MxFramework.Game.CharacterTest
         {
             resolvedDamage = default;
             hitZone = CharacterTestHitZoneResolution.Default;
-            if (source == null || lookup == null)
-                return false;
+            if (lookup == null) return false;
+            var frozenActor = lookup.AccessoryState?.FindProjectileActor(projectile.ProjectileId, projectile.SpawnSequence);
+            if (source == null && frozenActor == null) return false;
 
             CombatHitEventConfig hitEvent = ResolveProjectileHitEvent(impact, context);
-            if (!CharacterTestCombatHitEventResolver.AllowsTarget(
-                    hitEvent,
-                    source,
-                    targetId,
-                    lookup,
-                    out bool environmentTarget))
-            {
-                return false;
-            }
+            bool environmentTarget;
+            if (frozenActor != null && lookup.FindEntityByCombatId(targetId) is CharacterTestCharacterEntity targetEntity) {
+                var kind = frozenActor.Actor == targetEntity.GameplayEntityId ? CharacterTestAttackOpportunityTargetKind.Self
+                    : CharacterTestCombatHitEventResolver.ResolveCharacterTargetKind(-1, targetEntity.Id.Value, frozenActor.Team, targetEntity.Team.TeamId);
+                if (!CharacterTestCombatHitEventResolver.AllowsTarget(hitEvent, kind, targetId, out environmentTarget)) return false;
+            } else if (!CharacterTestCombatHitEventResolver.AllowsTarget(hitEvent, source, targetId, lookup, out environmentTarget)) return false;
 
             if (environmentTarget)
             {
@@ -583,7 +588,7 @@ namespace MxFramework.Game.CharacterTest
                 stableEventId,
                 0,
                 0,
-                source.Id.Value,
+                CharacterTestCombatEntityLookup.ResolveCharacterEntityId(projectile.SourceEntityId),
                 CharacterTestCombatEntityLookup.ResolveCharacterEntityId(targetId),
                 hitZone.HitZoneId,
                 hitZone.BodyPartId,
@@ -592,7 +597,8 @@ namespace MxFramework.Game.CharacterTest
             if (!TryResolveProjectileDamagePayload(
                     hitEvent.Damage,
                     usage,
-                    ConfigureSourceAttributeReader(lookup, projectile.SourceEntityId),
+                    frozenActor != null && (source == null || source.GameplayEntityId != frozenActor.Actor)
+                        ? frozenActor.ReadAttribute : ConfigureSourceAttributeReader(lookup, projectile.SourceEntityId),
                     ConfigureTargetAttributeReader(lookup, targetId),
                     hitZone,
                     ResolveProjectilePresentationProfileId(stableEventId, impact.PresentationProfileId),
@@ -629,7 +635,7 @@ namespace MxFramework.Game.CharacterTest
                     HitResolveKind.Damage,
                     resolvedDamage.IncomingDamage,
                     resolvedDamage.StaggerFrames,
-                    resolvedDamage.Knockback);
+                    resolvedDamage.Knockback).WithProducerIdentity(context.GetProducerIdentity(projectile.ProjectileId, projectile.SpawnSequence));
                 _bodyPartDamageBridge.RecordResolvedHit(
                     new CharacterTestResolvedHitKey(resolvedHit),
                     target?.BodyPartState,
@@ -672,18 +678,16 @@ namespace MxFramework.Game.CharacterTest
             hitEvent = ResolveProjectileHitEvent(
                 CharacterTestFireballProjectileAdapter.TornadoTickImpactConfig,
                 TornadoTickAreaPulseContext);
-            if (source == null || lookup == null)
-                return false;
+            if (lookup == null) return false;
+            var frozenActor = lookup.AccessoryState?.FindProjectileActor(projectile.ProjectileId, projectile.SpawnSequence);
+            if (source == null && frozenActor == null) return false;
 
-            if (!CharacterTestCombatHitEventResolver.AllowsTarget(
-                    hitEvent,
-                    source,
-                    targetId,
-                    lookup,
-                    out bool environmentTarget))
-            {
-                return false;
-            }
+            bool environmentTarget;
+            if (frozenActor != null && lookup.FindEntityByCombatId(targetId) is CharacterTestCharacterEntity targetEntity) {
+                var kind = frozenActor.Actor == targetEntity.GameplayEntityId ? CharacterTestAttackOpportunityTargetKind.Self
+                    : CharacterTestCombatHitEventResolver.ResolveCharacterTargetKind(-1, targetEntity.Id.Value, frozenActor.Team, targetEntity.Team.TeamId);
+                if (!CharacterTestCombatHitEventResolver.AllowsTarget(hitEvent, kind, targetId, out environmentTarget)) return false;
+            } else if (!CharacterTestCombatHitEventResolver.AllowsTarget(hitEvent, source, targetId, lookup, out environmentTarget)) return false;
 
             if (environmentTarget)
             {
@@ -713,7 +717,7 @@ namespace MxFramework.Game.CharacterTest
                 stableEventId,
                 0,
                 0,
-                source.Id.Value,
+                CharacterTestCombatEntityLookup.ResolveCharacterEntityId(projectile.SourceEntityId),
                 CharacterTestCombatEntityLookup.ResolveCharacterEntityId(targetId),
                 hitZone.HitZoneId,
                 hitZone.BodyPartId,
@@ -722,7 +726,8 @@ namespace MxFramework.Game.CharacterTest
             if (!TryResolveProjectileDamagePayload(
                     hitEvent.Damage,
                     usage,
-                    ConfigureSourceAttributeReader(lookup, projectile.SourceEntityId),
+                    frozenActor != null && (source == null || source.GameplayEntityId != frozenActor.Actor)
+                        ? frozenActor.ReadAttribute : ConfigureSourceAttributeReader(lookup, projectile.SourceEntityId),
                     ConfigureTargetAttributeReader(lookup, targetId),
                     hitZone,
                     ResolveProjectilePresentationProfileId(
@@ -764,7 +769,8 @@ namespace MxFramework.Game.CharacterTest
                     HitResolveKind.Damage,
                     resolvedDamage.IncomingDamage,
                     resolvedDamage.StaggerFrames,
-                    resolvedDamage.Knockback);
+                    resolvedDamage.Knockback).WithProducerIdentity(new CombatHitProducerIdentity(CombatHitProducerKind.ProjectilePeriodic,
+                        checked((ulong)projectile.ProjectileId), checked((ulong)projectile.SpawnSequence), unchecked((ulong)frame.Value + 1)));
                 _bodyPartDamageBridge.RecordResolvedHit(
                     new CharacterTestResolvedHitKey(resolvedHit),
                     target?.BodyPartState,
@@ -989,7 +995,7 @@ namespace MxFramework.Game.CharacterTest
                 stableEventId,
                 0,
                 0,
-                source.Id.Value,
+                CharacterTestCombatEntityLookup.ResolveCharacterEntityId(projectile.SourceEntityId),
                 0,
                 0,
                 0,
@@ -1030,7 +1036,7 @@ namespace MxFramework.Game.CharacterTest
                 stableEventId,
                 0,
                 0,
-                source.Id.Value,
+                CharacterTestCombatEntityLookup.ResolveCharacterEntityId(projectile.SourceEntityId),
                 0,
                 0,
                 0,

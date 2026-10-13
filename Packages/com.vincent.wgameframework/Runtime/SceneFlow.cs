@@ -420,7 +420,8 @@ namespace MxFramework.Runtime
             _lastResult = SceneFlowResult.Succeeded(request.SceneKey, SceneFlowOperationType.Load);
             ClearCurrentOperation();
 
-            if (request.UnloadPreviousScene
+            if (request.LoadMode == SceneFlowLoadMode.Additive
+                && request.UnloadPreviousScene
                 && !string.IsNullOrEmpty(previousSceneKey)
                 && !string.Equals(previousSceneKey, request.SceneKey, StringComparison.Ordinal))
             {

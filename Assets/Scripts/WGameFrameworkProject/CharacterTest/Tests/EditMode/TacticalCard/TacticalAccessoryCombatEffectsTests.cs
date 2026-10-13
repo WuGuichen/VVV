@@ -90,7 +90,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         [TestCase((int)TacticalAccessoryDamageOrigin.DirectAttack, DamageProfileSourceKind.Unknown)]
         public void AllThree_RejectPeriodicDerivedUnknownAndInconsistentOrigins(int origin, DamageProfileSourceKind source)
         {
-            foreach (TacticalAccessoryCombatKind kind in Enum.GetValues(typeof(TacticalAccessoryCombatKind)))
+            foreach (var kind in new[] { TacticalAccessoryCombatKind.BorrowMomentum,
+                TacticalAccessoryCombatKind.PushAway, TacticalAccessoryCombatKind.BreakMomentum })
             {
                 var state = Arm(kind); var ledger = new MomentumLedger(30);
                 var receipt = Receipt(kind == TacticalAccessoryCombatKind.PushAway ? HitResolveKind.Damage : HitResolveKind.Blocked,

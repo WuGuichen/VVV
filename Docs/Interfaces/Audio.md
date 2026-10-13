@@ -2,6 +2,10 @@
 
 > Status: Current
 >
+> Bank 生命周期说明更新：2026-10-12（Issue #775）
+>
+> Code-Doc: `Packages/com.vincent.wgameframework/Audio/AudioBankLifecycleManager.cs`
+>
 > 状态：Runtime Catalog + Audio Workbench 闭环已实现；Phase 17.1 foundation、Phase 17.2 Workbench 规划/捕获闭环、CharacterTest one-shot resolver bridge、受控 managed Event 管线与 Physical publish gates 已落地
 > 来源：`Docs/AUDIO_SYSTEM_FMOD.md`
 > 实现边界：`MxFramework.Audio` noEngine contract、`NullAudioBackend` 和基础测试已落地；`MxFramework.Audio.FMOD` 已引用官方 FMOD Unity Integration，并在 `MXFRAMEWORK_FMOD` 下编译真实后端路径；`AudioRuntimeModule` 和 FMOD Demo Runner 已接入 RuntimeHost。缺测试 bank / Demo bank 时仍未声明真实出声验收。
@@ -153,6 +157,18 @@ public interface IAudioDefinitionProvider
 - 音频不参与 Runtime result hash；Replay 可记录 command 摘要用于诊断，也可以忽略实际音频输出。
 - `AudioDebugSnapshot` 是低频调试接口，不作为高频状态同步入口。
 - Gameplay / Combat 源码不得直接引用 `FMODUnity` 或 `FMOD.Studio`。
+
+## Bank 生命周期
+
+`AudioBankLifecycleManager` 的 `WarmupGroup(string)`／`ReleaseGroup(string)` API 保持兼容。调用方顺序调用并配对持有／释放，不要求按 warmup 的先后顺序释放；这两个低频入口允许后端分配，不用于 Tick，也不提供并发／重入保证。
+
+- 每次成功的 `WarmupGroup` 为该 group 的所有 Bank 建立一次逻辑持有，包括本次加载失败的可选 Bank。可选加载失败仍返回 group 成功，并增加 `LoadFailures`；required 加载失败不提交新持有，只回滚本次已取得的引用，不消费已有持有者的所有权。
+- 可选 Bank 在后续 warmup 中恢复加载时，为所有仍有效的 group 持有者补齐引用。两位持有者先失败／后恢复的场景中，恢复后该 Bank 的引用数为 2；首次 release 后仍保留 1，最后 release 才卸载。它成为该 group 的共享资源，不绑定到某次匿名 warmup。
+- `ReleaseGroup` 每次释放一次逻辑持有，只在没有剩余持有者时卸载已加载的 Bank。已知 group 没有持有时可重复释放，空白／未知 group 返回 `RequestRejected`。Bank 卸载失败时保留一份已加载引用并增加 `UnloadFailures`，允许后续 release、scope unload 或 Dispose 重试；新 warmup 可复用该 Bank，不把卸载重试引用额外算成新持有。
+- `UnloadScope` 强制撤销指定 scope 内各 Bank 的全部持有，包括尚未成功加载的可选 Bank；它不撤销其他 scope 的持有。返回成功卸载的 Bank 数，失败的 Bank 保留一份引用供重试。`Dispose` 依次清理 Scene 与 AppPersistent scope。强制清理已结束对应 scope 的旧持有生命周期；旧调用方应完成交接后再建立新的持有，匿名 API 不能识别跨生命周期的陈旧 release。
+- `Snapshot.TotalReferences` 和 `CaptureDebugStates().References` 记录已加载 Bank 的有效持有引用；卸载失败且没有持有者时的一份引用表示待重试清理。尚未加载的可选 Bank 引用数为 0，`LoadedBanks` 不计入它，但其逻辑 group 持有仍在 manager 内跟踪。required 失败回滚若未能卸载刚恢复的可选 Bank，保留的 Bank 会继续服务已有 group 持有者；失败的 warmup 不新增持有。
+
+针对性回归入口为 `AudioBankLifecycleManagerTests`，覆盖可选失败恢复及多持有者释放、可选始终失败、required 回滚、混合 scope、卸载失败重试与复用、scope／Dispose 清理和无效 group。运行结果、Unity 编译证据与未覆盖范围在 Issue #775 的执行回执记录；这些测试不替代真实 FMOD Bank／可听行为验证。
 
 ## Audio Authoring 与发布链
 

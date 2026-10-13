@@ -180,6 +180,10 @@ namespace MxFramework.Editor.CharacterAction
                 return;
             Assign(action, action.MotionTrack?.Events, (evt, i) => evt.StableEventId,
                 (evt, id) => evt.StableEventId = id, "motion");
+            Assign(action, action.MotionTrack?.MovementControlKeys, (key, i) => key.StableEventId,
+                (key, id) => { key.StableEventId = id; key.StableEventOrder = 0; }, "movement-control");
+            Assign(action, action.MotionTrack?.RotationControlKeys, (key, i) => key.StableEventId,
+                (key, id) => { key.StableEventId = id; key.StableEventOrder = 0; }, "rotation-control");
             Assign(action, action.CombatTrack?.Events, (evt, i) => evt.StableEventId,
                 (evt, id) => evt.StableEventId = id, "combat");
             Assign(action, action.GameplayTrack?.Events, (evt, i) => evt.StableEventId,

@@ -15,6 +15,7 @@ namespace MxFramework.Game.CharacterTest
             internal CharacterTestCharacterRuntimeWorld World;
             internal CharacterTestCharacterEntity Target;
             internal MxFramework.Gameplay.GameplayEntityId Generation;
+            internal TacticalThirdBatchAttack Source;
             public bool TryEnqueue(in CharacterMotionRequest request)
             {
                 if (World == null || Target == null || Target.GameplayEntityId != Generation
@@ -24,7 +25,7 @@ namespace MxFramework.Game.CharacterTest
                 // EnqueueMotionRequest synchronously appends every HasValue request. The effect owner
                 // publishes consumption only after this call returns. No callback runs between admission and publish.
                 Target.EnqueueMotionRequest(CharacterTestCharacterMotionRequest.ImpulseRaw(request.XRaw, request.YRaw, request.ZRaw,
-                    CharacterMovementMode.Idle, request.Source.SourceActionId, request.Source.StableEventId));
+                    CharacterMovementMode.Idle, request.Source.SourceActionId, request.Source.StableEventId).WithThirdSource(Source, TacticalThirdBatchMotionChannel.OrdinaryKnockback));
                 return true;
             }
         }
@@ -45,6 +46,7 @@ namespace MxFramework.Game.CharacterTest
             // Runtime ID lookup is accepted only after resolving current live actor/generation above.
             world.TryGetTacticalMotion(attacker.Id.Value, out var attackingLedger);
             world.TryGetTacticalMotion(target.Id.Value, out var defendingLedger);
+            _accessoryMotionSink.Source = ThirdMotionSource(world, result, payload.Usage.SourceKind);
             _accessoryMotionSink.World = world; _accessoryMotionSink.Target = target; _accessoryMotionSink.Generation = target.GameplayEntityId;
             try
             {
@@ -59,7 +61,7 @@ namespace MxFramework.Game.CharacterTest
                 var receipt = new TacticalAccessoryCombatReceipt(owner.Stage, owner.Turn, frame.Value, owner.AccessoryReceiptSequence + 1,
                     attacker.GameplayEntityId, target.GameplayEntityId, evidence.Action, result.ActionInstanceId, result.TraceId,
                     payload.Usage.SourceKind, evidence.Origin, result.Kind, attackerAlive, targetWasAlive, targetAlive, evidence.Direction,
-                    target.Physics.EffectiveMassGrams, target.Physics.CanBePushed ? target.Physics.EffectivePushScaleMilli : 0);
+                    target.Physics.EffectiveMassGrams, target.Physics.CanBePushed ? target.Physics.EffectivePushScaleMilli : 0, result.ProducerIdentity);
                 owner.CommitAccessoryReceipt(receipt, actorLedger, defendingLedger, _accessoryMotionSink);
             }
         }

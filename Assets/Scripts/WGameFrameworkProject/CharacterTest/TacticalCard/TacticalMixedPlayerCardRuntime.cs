@@ -6,7 +6,7 @@ using MxFramework.Runtime;
 namespace MxFramework.Game.CharacterTest.TacticalCard
 {
     /// <summary>Player hand/time owner for a mixed player-plus-AI deployment. Battle outcome remains external.</summary>
-    internal sealed partial class TacticalMixedPlayerCardRuntime : RuntimeModule, ITacticalExecutionPort, ITacticalExecutionInputPort, ITacticalPointSelectionPort, ITacticalBehindPreviewPort, ITacticalExecutionRetirementPort
+    internal sealed partial class TacticalMixedPlayerCardRuntime : RuntimeModule, ITacticalExecutionPort, ITacticalExecutionInputPort, ITacticalPointSelectionPort, ITacticalBehindPreviewPort, ITacticalExecutionRetirementPort, ITacticalFixedExecutionPort, ITacticalFixedFeeReadoutPort, ITacticalFixedCleanupPort, ITacticalFixedTerminalPort
     {
         private readonly CharacterTestSliceModules _modules;
         private readonly TacticalDeployment _deployment;
@@ -61,7 +61,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal bool OutcomeReady { get; private set; }
         internal int WinningTeamId { get; private set; }
         internal bool IsDraw { get; private set; }
-        internal bool CanStep => !OutcomeReady && (PlayerDefeated || Stage.CanStep);
+        internal bool CanStep => Stage.HasReleasedCleanup ? Stage.CanStep : !OutcomeReady && (PlayerDefeated || Stage.CanStep);
 
         internal void DrainControls()
         {
@@ -83,14 +83,18 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         public override void Tick(RuntimeTickContext context)
         {
-            if (_disposed || PlayerDefeated) return;
+            if (_disposed) return;
             _adapter?.SetContext(null, new RuntimeFrame(context.FrameIndex));
+            if (Stage.HasReleasedCleanup) { Stage.ReconcileReleasedCleanup(); return; }
+            if (PlayerDefeated || OutcomeReady) return;
             if (Stage.Health == TacticalStageHealth.Running) _adapter?.Tick();
         }
 
         internal void AfterWorldTick(RuntimeFrame frame)
         {
-            if (_disposed || OutcomeReady) return;
+            if (_disposed) return;
+            Stage.ReconcileReleasedCleanup();
+            if (OutcomeReady) { _worldTime.SetSimulationPaused(Stage.HasReleasedCleanup ? Stage.Time.IsWorldPaused : true); return; }
             if (_bound)
             {
                 int team = 0; bool multiple = false;
@@ -103,7 +107,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 if (!multiple)
                 {
                     WinningTeamId = team; IsDraw = team == 0; OutcomeReady = true;
-                    Stage.CompleteExternalOutcome(frame.Value); _adapter?.ClearRecallStage(); _worldTime.SetSimulationPaused(true); return;
+                    Stage.CompleteExternalOutcome(frame.Value); _adapter?.ClearRecallStage();
+                    _worldTime.SetSimulationPaused(Stage.HasReleasedCleanup ? Stage.Time.IsWorldPaused : true); return;
                 }
             }
             if (PlayerDefeated) return;
@@ -220,6 +225,26 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                     target.HorizontalVelocity.y).magnitude,
                 0f, noActionStarted: target.Action.State != CharacterTestActionStateId.Running);
         }
+
+        public bool TryCommitFixed(TacticalCardInstance card, TacticalDeckManager deck, TacticalTimeCoordinator time,
+            MomentumLedger ledger, in TacticalExecutionInput input, out ulong executionId,
+            out TacticalFixedCardPaymentCommit payment, out string issue)
+        {
+            executionId = 0; payment = null; issue = "execution:ActorNotBound";
+            return _adapter != null && _adapter.TryCommitFixed(card, deck, time, ledger, input, out executionId, out payment, out issue);
+        }
+        public bool TryReadFixedFees(TacticalCardInstance card, out TacticalFixedCardFeePlan fees, out string issue)
+        {
+            fees = null; issue = "fixed-fee:ActorNotBound";
+            return _adapter != null && _adapter.TryReadFixedFees(card, out fees, out issue);
+        }
+        public void SetFixedReleaseObserver(ulong executionId, Action onActorRetired)
+            => _adapter?.SetFixedReleaseObserver(executionId, onActorRetired);
+        public ExecutionObservation ReconcileFixedRelease(ulong executionId)
+            => _adapter?.ReconcileFixedRelease(executionId) ?? default;
+        public void FinishFixedRelease(ulong executionId) => _adapter?.FinishFixedRelease(executionId);
+        public void CancelFixed(ulong executionId) => _adapter?.CancelFixed(executionId);
+        public bool IsNaturalFixedCompletion(ulong executionId) => _adapter?.IsNaturalFixedCompletion(executionId) == true;
 
         public bool TryPrepare(TacticalCardInstance card, out string issue)
         {

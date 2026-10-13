@@ -58,6 +58,7 @@ namespace MxFramework.Game.CharacterTest.Editor
         private CharacterTestWorldObjectContentProjection _contentProjection;
         private DefinitionRow _selectedDefinitionRow;
         private bool _definitionsDirty;
+        private string _definitionSourceHash;
         private readonly List<Transform> _unregisteredSceneObjects = new List<Transform>();
 
         public string ModuleId => CharacterTestWorldObjectAuthoringAdapter.WorldObjectsModuleId;
@@ -244,6 +245,7 @@ namespace MxFramework.Game.CharacterTest.Editor
         bool IMxLevelEditorSaveParticipant.TryPrepareSave(out string failureMessage)
         {
             EnsureLoaded();
+            RequireDefinitionSourceUnchanged();
             RefreshEnvelopeFromDiskPreservingCurrentModule();
             ForceValidate();
             if (_report.HasErrors)
@@ -292,6 +294,7 @@ namespace MxFramework.Game.CharacterTest.Editor
 
         void IMxLevelEditorSaveParticipant.SavePreparedChanges()
         {
+            RequireDefinitionSourceUnchanged();
             RefreshEnvelopeFromDiskPreservingCurrentModule();
             SyncEnvelopeFromDocument();
 
@@ -350,6 +353,8 @@ namespace MxFramework.Game.CharacterTest.Editor
                 return;
             }
 
+            if (_definitionsDirty)
+                _definitionSourceHash = ReadDefinitionSourceHash();
             _dirty = false;
             _triggerDirty = false;
             _definitionsDirty = false;

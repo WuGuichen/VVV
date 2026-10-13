@@ -635,10 +635,11 @@ namespace MxFramework.Tests.Game.CharacterTest
                 CharacterTestLocalizationRuntime localizationRuntime = CharacterTestLocalizationRuntime.Create(
                     GetCharacterTestLocalizationPath(),
                     NullRuntimeLogger.Instance);
+                var rebinding = new RecordingInputRebindingEditSessionService();
                 var settingsRuntime = new CharacterTestSettingsRuntime(
                     "settings.json",
                     new MxSettingsService(null),
-                    new MxInputRebindingSettingsController(null, null),
+                    new MxInputRebindingSettingsController(rebinding, null),
                     MxSettingsLoadResult.Succeeded(MxSettingsProfile.CreateDefault()),
                     localizationOptions: localizationRuntime.LocaleOptions);
 
@@ -678,7 +679,22 @@ namespace MxFramework.Tests.Game.CharacterTest
                 Assert.IsNotNull(runtime.FairyGuiSettingsPanelHost);
                 Assert.IsNotNull(runtime.FairyGuiMainMenuHost);
                 Assert.IsNotNull(runtime.FairyGuiNetworkPanelHost);
-                Assert.AreEqual(3, runtime.FairyGuiRegisteredViewCount);
+                var runtimeShell = (MxFairyGuiRuntimeShell)typeof(CharacterTestUiRuntime)
+                    .GetField("_fairyGuiRuntimeShell", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(runtime);
+                Assert.IsNotNull(runtimeShell);
+                MxUiViewId[] requiredViews =
+                {
+                    CharacterTestFairyGuiMainMenuIds.ViewId,
+                    CharacterTestFairyGuiNetworkPanelIds.ViewId,
+                    CharacterTestFairyGuiSettingsPanelIds.ViewId
+                };
+                foreach (MxUiViewId requiredView in requiredViews)
+                {
+                    Assert.AreEqual(1, runtimeShell.Catalog.Registrations.Count(
+                        registration => registration.ViewId.Equals(requiredView)),
+                        "The enabled player panel must be registered exactly once: " + requiredView);
+                }
                 Assert.AreSame(
                     hostObject.GetComponent<CharacterTestFairyGuiSettingsPanelHost>(),
                     runtime.FairyGuiSettingsPanelHost);
@@ -708,6 +724,9 @@ namespace MxFramework.Tests.Game.CharacterTest
                     CharacterTestFairyGuiMainMenuCommandIds.SettingsToggle,
                     null));
                 Assert.IsTrue(runtime.FairyGuiSettingsPanelHost.IsOpen, runtime.LastFairyGuiSettingsPanelStatus);
+                Assert.IsTrue(rebinding.IsEditSessionActive);
+                Assert.AreEqual(1, rebinding.BeginEditSessionCount);
+                Assert.IsTrue(runtime.BlocksTacticalBattleInput);
                 Assert.AreEqual(1, runtime.FairyGuiMainMenuHost.CommandSink.SettingsToggleCount);
                 Assert.AreEqual(InputContext.UI, input.CurrentContext);
                 Assert.AreEqual(1, input.ActiveScopeCount);
@@ -723,6 +742,8 @@ namespace MxFramework.Tests.Game.CharacterTest
                     InputCommandPhase.Pressed));
                 runtime.ProcessInput();
                 Assert.IsFalse(runtime.FairyGuiSettingsPanelHost.IsOpen);
+                Assert.IsFalse(rebinding.IsEditSessionActive);
+                Assert.AreEqual(1, rebinding.RollbackEditSessionCount);
                 Assert.IsTrue(
                     runtime.FairyGuiMainMenuHost.IsOpen,
                     runtime.FairyGuiMainMenuHost.LastStatusMessage);
@@ -733,6 +754,9 @@ namespace MxFramework.Tests.Game.CharacterTest
                     "A non-destructive peek must not process the same Cancel sequence twice.");
 
                 Assert.IsTrue(runtime.FairyGuiMainMenuHost.Close());
+                Assert.IsTrue(runtime.BlocksTacticalBattleInput,
+                    "Closing the last modal must retain its input ownership for this frame.");
+                Assert.IsTrue(runtime.OwnsTacticalCancelInput);
                 Assert.AreEqual(0, input.ActiveScopeCount);
                 Assert.AreEqual(MxCursorMode.Captured, cursorController.Current.Mode);
                 Assert.AreEqual("test.camera", cursorController.Current.Owner);

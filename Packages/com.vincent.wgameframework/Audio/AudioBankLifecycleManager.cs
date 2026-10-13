@@ -43,6 +43,8 @@ namespace MxFramework.Audio
         private readonly AudioBankManifest _manifest;
         private readonly IAudioBankBackend _backend;
         private readonly int[] _references;
+        // Successful group ownership is retained even while an optional Bank is unavailable.
+        private readonly int[] _groupReferences;
         private int _loadedBanks;
         private int _totalReferences;
         private int _loadFailures;
@@ -54,6 +56,7 @@ namespace MxFramework.Audio
             _manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
             _backend = backend ?? throw new ArgumentNullException(nameof(backend));
             _references = new int[manifest.Banks.Count];
+            _groupReferences = new int[manifest.Banks.Count];
         }
 
         public AudioBankLifecycleSnapshot Snapshot => new AudioBankLifecycleSnapshot(
@@ -79,6 +82,7 @@ namespace MxFramework.Audio
             return states;
         }
 
+        /// <summary>Acquires one group hold; recovered optional Banks serve every active hold.</summary>
         /// <remarks>LowFreqAlloc at the external backend boundary.</remarks>
         public AudioResult WarmupGroup(string group)
         {
@@ -99,11 +103,23 @@ namespace MxFramework.Audio
                     return result;
                 }
             }
-            return matched
-                ? AudioResult.Ok()
-                : AudioResult.Fail(AudioErrorCode.RequestRejected, "Unknown Audio Bank group: " + group + ".");
+            if (!matched)
+                return AudioResult.Fail(AudioErrorCode.RequestRejected, "Unknown Audio Bank group: " + group + ".");
+
+            // Commit ownership only after all required Banks have been acquired. A recovered
+            // optional Bank also belongs to earlier holds whose warmup could not load it.
+            for (int i = 0; i < _manifest.Banks.Count; i++)
+            {
+                if (!string.Equals(_manifest.Banks[i].Group, group, StringComparison.Ordinal))
+                    continue;
+                _groupReferences[i]++;
+                if (_references[i] > 0)
+                    SetReferences(i, _groupReferences[i]);
+            }
+            return AudioResult.Ok();
         }
 
+        /// <summary>Releases one group hold without imposing an acquisition order.</summary>
         /// <remarks>LowFreqAlloc at the external backend boundary.</remarks>
         public AudioResult ReleaseGroup(string group)
         {
@@ -117,6 +133,14 @@ namespace MxFramework.Audio
                 if (!string.Equals(bank.Group, group, StringComparison.Ordinal))
                     continue;
                 matched = true;
+                if (_groupReferences[i] > 0)
+                    _groupReferences[i]--;
+                if (_references[i] == 0)
+                    continue;
+                // Keep a failed unload as one retryable reference, independent of group holds.
+                SetReferences(i, Math.Max(1, _groupReferences[i]));
+                if (_groupReferences[i] > 0)
+                    continue;
                 AudioResult result = Release(i, bank);
                 if (result.Failed && firstFailure.Success)
                     firstFailure = result;
@@ -133,8 +157,9 @@ namespace MxFramework.Audio
             for (int i = _manifest.Banks.Count - 1; i >= 0; i--)
             {
                 AudioBankDefinition bank = _manifest.Banks[i];
-                if (bank.Scope != scope || _references[i] == 0)
+                if (bank.Scope != scope)
                     continue;
+                _groupReferences[i] = 0;
                 int references = _references[i];
                 for (int reference = 0; reference < references; reference++)
                 {
@@ -174,8 +199,20 @@ namespace MxFramework.Audio
             {
                 AudioBankDefinition bank = _manifest.Banks[i];
                 if (string.Equals(bank.Group, group, StringComparison.Ordinal))
+                {
                     Release(i, bank);
+                    // If rollback cannot unload a newly recovered Bank, existing group holds
+                    // can use that retained Bank; the failed warmup itself owns no hold.
+                    if (_references[i] > 0)
+                        SetReferences(i, Math.Max(1, _groupReferences[i]));
+                }
             }
+        }
+
+        private void SetReferences(int index, int references)
+        {
+            _totalReferences += references - _references[index];
+            _references[index] = references;
         }
 
         private AudioResult Release(int index, in AudioBankDefinition bank)

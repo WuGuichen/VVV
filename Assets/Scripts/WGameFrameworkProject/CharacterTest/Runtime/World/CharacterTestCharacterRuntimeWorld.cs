@@ -161,6 +161,8 @@ namespace MxFramework.Game.CharacterTest
 
                 CharacterTestCharacterEntity entity = _entities[i];
                 GameplayEntityId gameplayEntityId = entity.GameplayEntityId;
+                DoubleEdgeState.RevokePair(gameplayEntityId);
+                DoubleEdgeState.ThirdActorDeparted(gameplayEntityId, DoubleEdgeState.ThirdObservedFrame);
                 _entities.RemoveAt(i);
                 _combatGameplayMap.RemoveGameplay(gameplayEntityId);
                 _gameplayComponentWorld.DestroyEntity(gameplayEntityId);
@@ -189,6 +191,7 @@ namespace MxFramework.Game.CharacterTest
 
         public void Clear()
         {
+            DoubleEdgeState = new TacticalCard.TacticalDoubleEdgeBattleState();
             _tacticalMotion.Clear();
             _entities.Clear();
             _characterComponentWorld.Clear();

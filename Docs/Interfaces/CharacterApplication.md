@@ -2,7 +2,10 @@
 
 > Status: Current
 
-> 文档版本：2026-10-09
+> 文档版本：2026-10-12
+>
+> Code-Doc: `Packages/com.vincent.wgameframework/Character.Application/CharacterEquipmentIds.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/CharacterApplication/CharacterApplicationResolverTests.cs`
 
 ## CharacterStudio 彻底删除（Authoring 内部接口）
 
@@ -85,6 +88,8 @@ Runtime Spawn 第一切片：
 `CharacterBodyPartContactPointConfig` 当前作为 CharacterStudio / 外部角色资源包导出的表现层接触音频点配置。`Usage` 默认 `PresentationAudio`，`Authority` 默认 `PresentationOnly`；CharacterTest 可在表现层读取当前 Animator / socket / bone 结果来驱动接触探测和 3D one-shot，不承诺进入 Combat authority、Replay hash、SaveState 或 network state。`LocalOffset*Millimeters`、`RadiusMillimeters`、`ContactPointId`、`BodyPartId` 和 `SourceOrder` 仍保持稳定，便于人眼审查、规则映射和 debug。
 
 ## 纯解析器接口
+
+> Code-Doc: `Packages/com.vincent.wgameframework/Character.Application/EquipmentStateResolver.cs`
 
 | 类型 | 用途 |
 | --- | --- |
@@ -265,7 +270,7 @@ Runtime Spawn 的 locomotion 选择权威只有 `ResolvedProfile.AnimationProfil
 - 跨表字段使用 typed id，并通过 `ConfigReferenceRule` 暴露目标 schema。
 - `StableId` 用于 SaveState、Mod、调试报告和跨版本迁移。
 - 常用装备 slot/tag id 通过 `CharacterEquipmentSlotIds` / `CharacterWeaponTagIds` 访问；配置 wire string 不变。
-- `EquipmentMatchRuleToken.Create(slotId, token)` 只负责生成现有 resolver 消费的 `"slot:token"` 字符串，不改变 `EquipmentMatchRule` schema。
+- `EquipmentMatchRuleToken.Create(slotId, token)` 使用正整数槽位 ID 生成现有 resolver 消费的 `"slotId:token"` 字符串，例如 `Create(CharacterEquipmentSlotIds.MainHand, CharacterWeaponTagIds.Blade)` 生成 `"1:blade"`，不改变 `EquipmentMatchRule` schema。`mainHand` / `offHand` 是槽位显示标签，不能作为规则 token 的数字前缀。
 
 ## 使用约定
 
@@ -276,6 +281,8 @@ Runtime Spawn 的 locomotion 选择权威只有 `ResolvedProfile.AnimationProfil
 - 表现资源只保存 `CharacterResourceKeyEntry`，不直接保存 `UnityEngine.Object`、Prefab、`AnimationClip` 或 Material。
 - Resolver 是纯函数：不读取 Unity 场景对象，不写 Runtime / Gameplay / Combat world，不做真实资源加载。
 - 装备状态最高优先级并列时返回 `EquipmentStateResolveStatus.MultipleMatchingStates` 和 `CHAR_EQUIPMENT_STATE_TIE`，不随机选择。
+- loadout 未显式指定 `EquipmentStateId` 的规则匹配路径要求 `AllowedStateIds` 引用的状态配置完整。任一引用缺失时，在候选收集结束后返回 `MissingEquipmentStateConfig` / `IsSuccess=false`，保留全部 `Error / CHAR_MISSING_EQUIPMENT_STATE` 及 schema 来源、缺失 ID、`AllowedStateIds` 字段；不从剩余候选选择 active state，`ActiveState=null`、`ActiveStateId` 无效、`MatchedStateIds` 为空。已验证的 `EquippedWeapons` 仍用于诊断和聚合，不能作为解析成功的依据；`CharacterPackageResolver` 保留该错误且不再暴露残余 active equipment state。
+- 完整状态目录仍按原规则选择唯一最高优先级。显式 `EquipmentStateId` 路径仍只解析并校验被指定的状态及 schema 允许关系，不要求其他 allowed state 同时提供，也不改为规则匹配；指定状态缺失时保留原 loadout 来源诊断和失败语义。
 - 能力重复授予只保留一份并产生 diagnostic；同 slot 或同 input intent 冲突时保留第一条绑定并报告错误。
 - SaveState 恢复时 active equipment state 必须由当前装备重新解析，保存的 state id 只作为迁移 / mismatch 诊断线索。
 
@@ -291,6 +298,8 @@ Runtime Spawn 的 locomotion 选择权威只有 `ResolvedProfile.AnimationProfil
 
 烘焙材质保持独立资源归属；`CharacterPaletteBinding` 不得写入其属性。实现与制作入口见 [角色合图与头发指南](../Guides/CHARACTER_BAKED_SURFACE_AND_HAIR.md)。该能力属于表现与资源制作，不进入角色权威、回放或网络哈希。
 
+生成材质目标的身份唯一性与兼容路径规则见 [资源包制作说明](../CHARACTER_RESOURCE_PACKAGE_AUTHORING.md#资源包结构)。同包不同身份投影到同一清理后的 `.mat` 路径（忽略大小写）时，Authoring compiler 以 `CharacterGeneratedMaterialTargetCollision / ImportBlocked` 阻止 Profile 发布与项目写入；Unity Prefab builder 在缓存复用和生成资产写入前独立预检。无碰撞描述继续使用原路径及 GUID，不自动迁移碰撞包。
+
 ## 测试入口
 
 `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/CharacterApplication/`
@@ -299,7 +308,9 @@ Runtime Spawn 的 locomotion 选择权威只有 `ResolvedProfile.AnimationProfil
 
 - 12 张表 schema 与 typed reference。
 - 数字角色 000001 的空手、单剑等正式 loadout resolver 输出。
+- `CharacterApplicationResolverTests.IronVanguardFixture` 的单剑／剑盾 category 与 tag 规则通过公开 `EquipmentMatchRuleToken.Create` 构造数字槽位 token；原测试分别覆盖剑盾 resolved profile、单剑／空手确定性解析和最高优先级并列 diagnostic。
 - 装备状态优先级并列、缺失 ability loadout、缺失 Combat action、缺失资源 key、未映射 hit zone、SaveState active state mismatch。
+- `CharacterApplicationResolverTests` 覆盖完整目录的唯一最高优先级、部分目录两种排列及高／低优先级残余候选、多项／全部缺失诊断、显式缺失／成功选择、完整目录 tie，以及聚合错误与 active equipment state 清空。
 
 ## 2026-09-11 Authority Pose 哈希读取
 

@@ -153,6 +153,9 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             });
             RegisterRowScrubClick(row);
 
+            if (track.Kind == TimelineTrackKind.MovementControl || track.Kind == TimelineTrackKind.RotationControl)
+                BuildControlScaleBand(row, track.Kind == TimelineTrackKind.RotationControl);
+
             if (!track.IsEnabled || !_snapshot.ItemsByTrack.TryGetValue(track.Kind, out IReadOnlyList<ITimelineItemAdapter> items))
                 return row;
 
@@ -314,6 +317,21 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             node.AddToClassList("ca-tl-marker-node");
             marker.Add(node);
 
+            var hitArea = new VisualElement();
+            hitArea.AddToClassList("ca-tl-marker-hit-area");
+            marker.Add(hitArea);
+            AttachItemContextMenuHitTarget(hitArea, adapter);
+            ApplyItemGeometry(marker, adapter);
+
+            if (adapter is ControlScaleTimelineAdapter)
+            {
+                AttachItemContextMenuHitTarget(node, adapter);
+                marker.RegisterCallback<MouseDownEvent>(evt => { if (evt.clickCount == 1) SelectItem(adapter.Id); });
+                if (adapter.CanEdit && !_snapshot.ReadOnly)
+                    marker.AddManipulator(new TimelineMarkerDragManipulator(this, adapter, marker));
+                return marker;
+            }
+
             var bubble = new Label("i")
             {
                 tooltip = adapter.FullTitle,
@@ -321,6 +339,7 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             bubble.AddToClassList("ca-tl-tooltip-bubble");
             ApplyTooltipBubbleText(bubble, adapter.FullTitle);
             marker.Add(bubble);
+            ApplyItemGeometry(marker, adapter);
 
             AttachItemContextMenuHitTarget(node, adapter);
             AttachItemContextMenuHitTarget(bubble, adapter);
@@ -346,16 +365,35 @@ namespace MxFramework.Editor.CharacterAction.Timeline
                 layout.TryGetPlacement(adapter.Id, out placement);
 
             int lane = placement?.Lane ?? 0;
+            if (adapter is ControlScaleTimelineAdapter) lane = 0;
             if (adapter.ItemKind == TimelineItemKind.Marker)
             {
                 float centerX = pad
                     + CharacterActionTimelineLayout.FrameToX(adapter.StartFrame, pps)
                     + pps * 0.5f;
-                float width = CharacterActionTimelineLayout.MarkerNodeWidth;
+                float width = Math.Max(1f, pps);
                 element.style.left = centerX - width * 0.5f;
                 element.style.width = width;
-                element.style.top = CharacterActionTimelineLaneLayout.MarkerTop(lane);
-                element.style.height = CharacterActionTimelineLayout.MarkerHeight;
+                bool controlKey = adapter is ControlScaleTimelineAdapter;
+                float markerHeight = controlKey ? ControlScaleItemHeight : CharacterActionTimelineLayout.MarkerHeight;
+                element.style.top = controlKey
+                    ? (ControlScaleRowHeight - markerHeight) * 0.5f
+                    : CharacterActionTimelineLaneLayout.MarkerTop(lane);
+                element.style.height = markerHeight;
+                VisualElement hitArea = element.Q(className: "ca-tl-marker-hit-area");
+                if (hitArea != null)
+                {
+                    float hitWidth = Math.Max(CharacterActionTimelineLayout.MarkerNodeWidth, width);
+                    hitArea.style.left = (width - hitWidth) * 0.5f;
+                    hitArea.style.width = hitWidth;
+                    hitArea.style.height = markerHeight;
+                }
+                VisualElement markerNode = element.Q(className: "ca-tl-marker-node");
+                if (markerNode != null)
+                    markerNode.style.width = Math.Min(6f, Math.Max(0f, width - 4f));
+                Label tooltipBubble = element.Q<Label>(className: "ca-tl-tooltip-bubble");
+                if (tooltipBubble != null)
+                    tooltipBubble.style.left = width + 2f;
             }
             else
             {
@@ -470,6 +508,8 @@ namespace MxFramework.Editor.CharacterAction.Timeline
 
         private float ResolveTrackRowHeight(TimelineTrackDescriptor track)
         {
+            if (track?.Kind == TimelineTrackKind.MovementControl || track?.Kind == TimelineTrackKind.RotationControl)
+                return ControlScaleRowHeight;
             if (track == null)
                 return CharacterActionTimelineLayout.RowHeight;
 

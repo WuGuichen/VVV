@@ -10,6 +10,36 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
     public sealed class TacticalCardTrialConfigurationTests
     {
         [Test]
+        public void ManualPlacementAndAdditionalParticipantAreFrozenFromTheEditedRoster()
+        {
+            var content = Content(); var draft = Configuration(2);
+            draft.UseExplicitDecks = true;
+            draft.SetPlacement(0, new UnityEngine.Vector3(-3, 1, 2), 120);
+            draft.SetPlacement(1, new UnityEngine.Vector3(4, 1, -2), 300);
+            draft.OpponentDeck.Add(new CharacterTestRuntimeAiLabCardTrialSelection("fixture.wait"));
+            var additional = new CharacterTestRuntimeAiLabTrialParticipant { CharacterId = 2, Position = new UnityEngine.Vector3(1, 1, 3), Facing = 180 };
+            additional.Cards.Add(new CharacterTestRuntimeAiLabCardTrialSelection("fixture.wait"));
+            draft.AdditionalParticipants.Add(additional);
+            var frozen = draft.Clone(); var deployment = content.Freeze(frozen, 94);
+            draft.SetPlacement(0, UnityEngine.Vector3.zero, 0); additional.Position = UnityEngine.Vector3.zero;
+            additional.Cards.Clear();
+            Assert.AreEqual(3, deployment.Participants.Count);
+            Assert.AreEqual(new UnityEngine.Vector3(-3, 1, 2), deployment.Participants[0].Position);
+            Assert.AreEqual(120, deployment.Participants[0].YawDegrees);
+            Assert.AreEqual(new UnityEngine.Vector3(1, 1, 3), deployment.Participants[2].Position);
+            Assert.AreEqual(1, deployment.Participants[2].Cards.Count);
+            Assert.IsFalse(draft.HasSameConditions(frozen));
+        }
+
+        [Test]
+        public void ExplicitEmptyOpponentDeckIsNotSilentlyReplacedByADefaultCard()
+        {
+            var content = Content(); var draft = Configuration(2); draft.UseExplicitDecks = true;
+            var deployment = content.Freeze(draft, 95);
+            Assert.AreEqual(0, deployment.Participants[1].Cards.Count);
+        }
+
+        [Test]
         public void CloneFreezesHandResourcesOpponentAndSeedAwayFromEditableDraft()
         {
             var draft = Configuration(4); var frozen = draft.Clone();

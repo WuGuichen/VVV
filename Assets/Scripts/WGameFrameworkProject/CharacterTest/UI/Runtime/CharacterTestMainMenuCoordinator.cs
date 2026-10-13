@@ -81,8 +81,16 @@ namespace MxFramework.Game.CharacterTest
                 target.TacticalPhase = (int)tactical.State;
                 target.TacticalBusy = tactical.IsBusy;
                 target.TacticalSettlementSaved = tactical.SettlementSaved;
+                target.TacticalRewardState = tactical.RewardState;
+                target.TacticalRewardClaimFailed = tactical.RewardClaimFailed;
+                target.TacticalRewardClaiming = tactical.RewardClaiming;
                 target.HasTacticalCheckpoint = TacticalCard.CharacterTacticalServices.HasCheckpoint;
-                target.Message = tactical.StatusMessage;
+                string message = !tactical.IsBusy && tactical.RewardClaimFailed
+                    ? "奖励尚未领取，请重试。"
+                    : !tactical.IsBusy && tactical.State == TacticalCard.TacticalPreparationState.Completed && !tactical.SettlementSaved
+                        ? "结算尚未保存，请重试。" : tactical.StatusMessage;
+                target.Message = string.IsNullOrEmpty(tactical.RewardSummary) ? message
+                    : tactical.RewardSummary + "\n" + message;
             }
         }
 

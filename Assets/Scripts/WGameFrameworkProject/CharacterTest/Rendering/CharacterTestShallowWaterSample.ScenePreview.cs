@@ -25,7 +25,10 @@ namespace MxFramework.Game.CharacterTest
             internal Matrix4x4 ViewProjection;
             internal readonly Plane[] Frustum = new Plane[6];
             internal readonly MaterialPropertyBlock Properties = new MaterialPropertyBlock();
+            internal readonly RippleFieldView RippleField = new RippleFieldView();
             internal bool Wanted, Valid;
+            internal WaterReflectionSchedule Schedule;
+            internal int Budget;
             internal string Issue = string.Empty;
             internal RenderTexture Texture => Target?.rt;
             internal bool Ready => Valid && Texture != null && Texture.IsCreated();
@@ -54,6 +57,8 @@ namespace MxFramework.Game.CharacterTest
 
         private void PrepareScenePreview(ScenePreviewView view)
         {
+            if (!RipplesEnabled || Settings.EffectiveRippleLimit == 0 || _ripples.Count == 0
+                || !SurfaceVisible(view.Source, view.Frustum)) view.RippleField.Release();
             if (view.Source == null)
             {
                 view.Wanted = false;
@@ -86,16 +91,22 @@ namespace MxFramework.Game.CharacterTest
             view.Auxiliary.SourceCamera = _source;
             if (!EnsureSceneTarget(view)) return;
             var camera = view.Reflection;
+            int budget = ReflectionBudget;
+            if (view.Budget != budget) { view.Budget = budget; view.Valid = false; }
+            bool render = !Application.isPlaying || view.Schedule.IsDue(view.Source, Time.realtimeSinceStartupAsDouble,
+                view.Ready, Settings.EffectiveReflectionRate);
+            camera.enabled = render && Application.isPlaying;
+            if (!render) return;
             camera.CopyFrom(view.Source);
             camera.cameraType = CameraType.Game;
             camera.enabled = Application.isPlaying;
             camera.targetTexture = view.Texture;
             camera.depth = _source.depth - 1;
             camera.cullingMask = view.Source.cullingMask & Settings.ReflectionLayers.value & ~(1 << 5);
-            camera.farClipPlane = Mathf.Min(view.Source.farClipPlane, Settings.ReflectionDistance);
+            camera.farClipPlane = Mathf.Min(view.Source.farClipPlane, Settings.EffectiveReflectionDistance);
             camera.useOcclusionCulling = false; camera.allowMSAA = false;
             view.Data.renderType = CameraRenderType.Base;
-            view.Data.renderPostProcessing = false; view.Data.renderShadows = _sourceData.renderShadows;
+            view.Data.renderPostProcessing = false; view.Data.renderShadows = Settings.UseReflectionShadows && _sourceData.renderShadows;
             view.Data.requiresColorOption = CameraOverrideOption.Off;
             view.Data.requiresDepthOption = CameraOverrideOption.On;
             view.Data.volumeLayerMask = 0; view.Data.antialiasing = AntialiasingMode.None;
@@ -116,10 +127,10 @@ namespace MxFramework.Game.CharacterTest
 
         private bool EnsureSceneTarget(ScenePreviewView view)
         {
-            float scale = Mathf.Clamp(Settings.ReflectionScale, .1f, 1);
+            float scale = Settings.EffectiveReflectionScale;
             int width = Mathf.Max(64, Mathf.RoundToInt(view.Source.pixelWidth * scale));
             int height = Mathf.Max(64, Mathf.RoundToInt(view.Source.pixelHeight * scale));
-            float limit = Mathf.Min(1, Settings.ReflectionMaximumEdge / (float)Mathf.Max(width, height));
+            float limit = Mathf.Min(1, Settings.EffectiveReflectionEdge / (float)Mathf.Max(width, height));
             width = Mathf.Max(64, Mathf.RoundToInt(width * limit)); height = Mathf.Max(64, Mathf.RoundToInt(height * limit));
             var cached = view.Texture;
             if (cached != null && view.ColorView != null && cached.IsCreated() && SupportedDepth(cached.depthStencilFormat)
@@ -173,6 +184,7 @@ namespace MxFramework.Game.CharacterTest
                 if (camera != view.Reflection) continue;
                 SceneReflectionRenders++;
                 view.Valid = view.Texture != null && view.Texture.IsCreated() && camera.targetTexture == view.Texture;
+                view.Schedule.Record(view.Source, Time.realtimeSinceStartupAsDouble);
                 return;
             }
         }
@@ -196,6 +208,7 @@ namespace MxFramework.Game.CharacterTest
 
         private void ReleaseScenePreview(ScenePreviewView view)
         {
+            view.RippleField.Release();
             _lod?.UnregisterGameplayCamera(view.Reflection);
             ReleaseSceneTarget(view);
             if (view.Auxiliary != null) view.Auxiliary.SourceCamera = null;

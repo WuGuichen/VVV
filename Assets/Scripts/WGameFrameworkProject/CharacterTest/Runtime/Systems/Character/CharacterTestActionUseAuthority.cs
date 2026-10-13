@@ -40,7 +40,7 @@ namespace MxFramework.Game.CharacterTest
     }
 
     /// <summary>Project adapter over existing action declarations, attributes and Ability state. Owns no cooldown or resource state.</summary>
-    internal sealed class CharacterTestActionUseAuthority
+    internal sealed partial class CharacterTestActionUseAuthority
     {
         private const int ActionUseCommitTraceKind = 91002;
         private readonly CharacterTestCharacterRuntimeModule _runtime;
@@ -219,7 +219,7 @@ namespace MxFramework.Game.CharacterTest
                         {
                             if (!_runtime.World.TryGetTacticalMotion(entity.Id.Value, out var motion))
                                 return new CharacterTestActionUseResult(CharacterTestActionUseStatus.AttributeMissing, i, requirement.ReferenceId);
-                            if (motion.Spendable < requirement.Value)
+                            if ((long)motion.Spendable + _runtime.FixedActionReservationCredit(entity, actionId) < requirement.Value)
                                 return new CharacterTestActionUseResult(CharacterTestActionUseStatus.ResourceUnavailable, i, requirement.ReferenceId);
                             break;
                         }

@@ -61,7 +61,7 @@ namespace MxFramework.Resources
 
     public sealed class ImmediateResourceOperation<T> : IResourceOperation<T>
     {
-        private ResourceLoadResult<T> _result;
+        private readonly ResourceLoadResult<T> _result;
 
         public ImmediateResourceOperation(ResourceLoadResult<T> result)
         {
@@ -69,17 +69,12 @@ namespace MxFramework.Resources
         }
 
         public bool IsDone => true;
-        public bool IsCancelled { get; private set; }
+        public bool IsCancelled => !_result.Success && _result.Error.Code == ResourceErrorCode.Cancelled;
         public float Progress => 1f;
         public ResourceLoadResult<T> Result => _result;
 
-        public void Cancel()
-        {
-            if (IsCancelled)
-                return;
-
-            IsCancelled = true;
-            _result = ResourceLoadResult<T>.Failed(new ResourceError(ResourceErrorCode.Cancelled, default, string.Empty, "Resource operation was cancelled."));
-        }
+        /// <summary>Ignores cancellation because the supplied result is already terminal.</summary>
+        /// <remarks>NoAlloc. The result and the consumer's handle ownership remain unchanged.</remarks>
+        public void Cancel() { }
     }
 }

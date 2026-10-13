@@ -82,8 +82,8 @@ namespace MxFramework.Game.CharacterTest
             JumpImpulseYMillimetersPerSecond = jumpImpulseYMillimetersPerSecond;
             MovementMode = movementMode;
             MovementLocked = movementLocked;
-            MovementControlScaleMilli = CharacterTestDeterministicMath.ClampScaleMilli(movementControlScaleMilli);
-            RotationControlScaleMilli = CharacterTestDeterministicMath.ClampScaleMilli(rotationControlScaleMilli);
+            MovementControlScaleMilli = CharacterTestDeterministicMath.ClampControlScaleMilli(movementControlScaleMilli);
+            RotationControlScaleMilli = CharacterTestDeterministicMath.ClampControlScaleMilli(rotationControlScaleMilli);
         }
 
         public CharacterActionId ActiveActionId { get; }

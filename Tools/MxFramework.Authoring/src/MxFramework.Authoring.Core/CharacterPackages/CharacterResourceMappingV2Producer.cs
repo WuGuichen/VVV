@@ -9,6 +9,7 @@ namespace MxFramework.Authoring
     {
         public const string ContractVersion = "1";
         public const string DefaultBundleRuleId = "character.package.assets";
+        public const string MaterialTargetCollision = "CharacterGeneratedMaterialTargetCollision";
     }
 
     public sealed class CharacterResourceMappingV2Materialization
@@ -66,7 +67,32 @@ namespace MxFramework.Authoring
                     result.Snapshot.Entries.Add(entry);
             }
             result.Snapshot.Entries.Sort((left, right) => string.Compare(left.AuthoringRecordId, right.AuthoringRecordId, StringComparison.Ordinal));
+            ValidateMaterialTargets(result);
             return result;
+        }
+
+        private static void ValidateMaterialTargets(CharacterResourceMappingV2Materialization result)
+        {
+            var targets = new Dictionary<string, ResourceMappingEntry>(StringComparer.OrdinalIgnoreCase);
+            string materialTypeId = MapCanonicalTypeId(CharacterPackageResourceTypeIds.Material);
+            foreach (ResourceMappingEntry entry in result.Snapshot.Entries)
+            {
+                if (entry.ResourceKey?.TypeId != materialTypeId
+                    || entry.SourceLocator?.Kind != ResourceMappingSourceLocatorKind.GeneratedUnityAsset)
+                    continue;
+
+                string target = NormalizeProjectPath(entry.SourceLocator.CachedPath);
+                if (targets.TryGetValue(target, out ResourceMappingEntry previous))
+                {
+                    if (previous.AuthoringRecordId != entry.AuthoringRecordId || previous.ResourceKey.Id != entry.ResourceKey.Id)
+                        AddError(result, CharacterResourceMappingV2ProducerContracts.MaterialTargetCollision,
+                            "Material resources '" + previous.ResourceKey.Id + "' and '" + entry.ResourceKey.Id
+                            + "' target the same generated Unity asset: " + previous.SourceLocator.CachedPath + ".",
+                            entry.AuthoringRecordId + ".sourceLocator.cachedPath");
+                }
+                else
+                    targets.Add(target, entry);
+            }
         }
 
         private static ResourceMappingEntry MaterializeEntry(

@@ -33,6 +33,7 @@ namespace MxFramework.Runtime
         public const int GenesisPotencyTriplet = 1015;
         public const int GenesisPotencyProfile = 1016;
         public const int GenesisPotencyApplication = 1017;
+        public const int NetworkSnapshotDoubleEdgeStage = 1018;
         
         // Gameplay Core
         public const int GameplayWorld = 2001;

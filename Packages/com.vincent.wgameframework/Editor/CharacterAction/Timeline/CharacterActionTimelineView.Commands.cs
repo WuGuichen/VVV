@@ -15,6 +15,8 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             AppendDefaultAddAction(menu, "Character Action/Phase", TimelineTrackKind.Phases, frame);
             AppendDefaultAddAction(menu, "Character Action/Transition Window", TimelineTrackKind.TransitionWindow, frame);
             AppendDefaultAddAction(menu, "Character Action/Motion", TimelineTrackKind.Motion, frame);
+            AppendDefaultAddAction(menu, "移动控制倍率标记", TimelineTrackKind.MovementControl, frame);
+            AppendDefaultAddAction(menu, "旋转控制倍率标记", TimelineTrackKind.RotationControl, frame);
             AppendDefaultAddAction(menu, "Character Action/Animation", TimelineTrackKind.Animation, frame);
             AppendDefaultAddAction(menu, "Character Action/Combat", TimelineTrackKind.Combat, frame);
             AppendDefaultAddAction(menu, "Character Action/Gameplay", TimelineTrackKind.Gameplay, frame);
@@ -258,6 +260,18 @@ namespace MxFramework.Editor.CharacterAction.Timeline
 
             CharacterActionJsonDto action = _snapshot.Action;
             frame = CharacterActionTimelineLayout.ClampFrame(frame, _snapshot.ActionDurationFrames);
+
+            if (kind == TimelineTrackKind.MovementControl || kind == TimelineTrackKind.RotationControl)
+            {
+                bool rotation = kind == TimelineTrackKind.RotationControl;
+                ControlScaleKeyJsonDto key = null;
+                foreach (var existing in CharacterActionControlScaleAuthoring.Keys(action, rotation))
+                    if (existing.Frame == frame) key = existing;
+                if (key == null)
+                    _host?.CommitStructural(() => key = CharacterActionControlScaleAuthoring.Insert(action, rotation, frame));
+                if (key != null) SelectItem(new ControlScaleTimelineAdapter(action, key, rotation, true).Id);
+                return;
+            }
 
             _host?.CommitStructural(() =>
             {

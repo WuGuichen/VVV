@@ -490,6 +490,7 @@ namespace MxFramework.CharacterAction
 
                 try
                 {
+                    CharacterActionControlScaleJsonProjection.SynchronizeAction(item);
                     results.Add(new CharacterActionConfig(
                         new CharacterActionId(actionId),
                         ReadString(item, "displayName"),
@@ -512,7 +513,7 @@ namespace MxFramework.CharacterAction
                 }
                 catch (Exception ex) when (IsConfigException(ex))
                 {
-                    AddError(diagnostics, sourcePath, path, CharacterActionDiagnosticCodes.JsonInvalidConfig, "Action could not be converted to runtime config.");
+                    AddError(diagnostics, sourcePath, path, CharacterActionDiagnosticCodes.JsonInvalidConfig, "Action could not be converted to runtime config: " + ex.Message);
                 }
             }
 

@@ -89,6 +89,159 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(CharacterActionRejectedReason.DuplicateSameFrame, duplicate.RejectedReason);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SameFrameDifferentIntents_ReachGatewayAndStartTargetOnce(bool useDefaultFirstIntent)
+        {
+            int firstIntent = useDefaultFirstIntent
+                ? CharacterActionRequest.AttackIntentId
+                : CharacterTestNumericIds.IntentLightAttack;
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateSameFrameIntentOptions(new CharacterCancelRule(0, 2), firstIntent));
+            var events = new List<CharacterActionEvent>();
+            controller.ActionEvent += events.Add;
+            CharacterActionRequest first = CreateSameFrameIntentRequest(useDefaultFirstIntent ? 0 : firstIntent);
+            CharacterActionRequest second = CreateSameFrameIntentRequest(CharacterTestNumericIds.IntentHeavyAttack);
+
+            Assert.IsFalse(first.Equals(second));
+            Assert.IsTrue(controller.Submit(first).Success);
+            CharacterActionResult transition = controller.Submit(second);
+
+            Assert.IsTrue(transition.Success, transition.Message);
+            Assert.AreEqual(new CharacterActionId(302), controller.CreateDebugSnapshot().ActionId);
+            Assert.AreEqual(1, events.FindAll(evt => evt.Type == CharacterActionEventType.Canceled).Count);
+            Assert.AreEqual(1, events.FindAll(evt => evt.Type == CharacterActionEventType.Started
+                && evt.Request.ActionIntentId == CharacterTestNumericIds.IntentHeavyAttack).Count);
+            CharacterActionResult duplicate = controller.Submit(second);
+            Assert.AreEqual(CharacterActionRejectedReason.DuplicateSameFrame, duplicate.RejectedReason);
+            Assert.AreEqual(2, events.FindAll(evt => evt.Type == CharacterActionEventType.Started).Count);
+        }
+
+        [TestCase(0, CharacterActionRequest.AttackIntentId)]
+        [TestCase(CharacterActionRequest.AttackIntentId, 0)]
+        [TestCase(-1, CharacterActionRequest.AttackIntentId)]
+        [TestCase(CharacterActionRequest.AttackIntentId, -1)]
+        [TestCase(0, -1)]
+        public void SameFrameEquivalentDefaultIntents_AreStillDuplicates(int firstIntent, int secondIntent)
+        {
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateSameFrameIntentOptions(
+                    new CharacterCancelRule(0, 2), CharacterActionRequest.AttackIntentId));
+            CharacterActionRequest first = CreateSameFrameIntentRequest(firstIntent);
+            CharacterActionRequest second = CreateSameFrameIntentRequest(secondIntent);
+            int started = 0;
+            controller.ActionEvent += evt =>
+            {
+                if (evt.Type == CharacterActionEventType.Started)
+                    started++;
+            };
+
+            Assert.IsFalse(first.Equals(second), "DTO equality retains the caller's raw intent.");
+            Assert.IsTrue(controller.Submit(first).Success);
+            CharacterActionResult duplicate = controller.Submit(second);
+
+            Assert.IsFalse(duplicate.Success);
+            Assert.AreEqual(CharacterActionRejectedReason.DuplicateSameFrame, duplicate.RejectedReason);
+            Assert.AreEqual(new CharacterActionId(301), controller.CreateDebugSnapshot().ActionId);
+            Assert.AreEqual(1, started);
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void SameFrameDifferentIntents_KeepTransitionWindowAndMasks(int rejectionCase)
+        {
+            CharacterCancelRule rule = rejectionCase == 0
+                ? new CharacterCancelRule(1, 2)
+                : rejectionCase == 1
+                    ? new CharacterCancelRule(0, 2, CharacterActionRequestType.Skill)
+                    : new CharacterCancelRule(0, 2, cancelInputMask: CharacterCancelInputMask.AttackPrimary);
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateSameFrameIntentOptions(rule));
+            int started = 0;
+            int canceled = 0;
+            controller.ActionEvent += evt =>
+            {
+                if (evt.Type == CharacterActionEventType.Started)
+                    started++;
+                if (evt.Type == CharacterActionEventType.Canceled)
+                    canceled++;
+            };
+            Assert.IsTrue(controller.Submit(CreateSameFrameIntentRequest(CharacterTestNumericIds.IntentLightAttack)).Success);
+            CharacterActionDebugSnapshot before = controller.CreateDebugSnapshot();
+
+            CharacterActionResult rejected = controller.Submit(
+                CreateSameFrameIntentRequest(CharacterTestNumericIds.IntentHeavyAttack));
+
+            Assert.IsFalse(rejected.Success);
+            Assert.AreEqual(CharacterActionRejectedReason.CharacterActionResolveRejected, rejected.RejectedReason);
+            CharacterActionDebugSnapshot after = controller.CreateDebugSnapshot();
+            Assert.AreEqual(before.ActionId, after.ActionId);
+            Assert.AreEqual(before.ActiveActionInstanceId, after.ActiveActionInstanceId);
+            Assert.AreEqual(1, started);
+            Assert.AreEqual(0, canceled);
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void ActionRequestIdentity_PreservesDistinctSourceTraceAndFrame(int distinctField)
+        {
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateSameFrameIntentOptions(new CharacterCancelRule(0, 2)));
+            CharacterActionRequest first = CreateSameFrameIntentRequest(CharacterTestNumericIds.IntentLightAttack);
+            CharacterActionRequest second = CreateSameFrameIntentRequest(
+                CharacterTestNumericIds.IntentLightAttack,
+                sourceId: distinctField == 0 ? 5 : 4,
+                traceId: distinctField == 1 ? CharacterTestRuntimeTraceIds.Attack : default);
+            if (distinctField == 2)
+                second = second.WithFrame(new RuntimeFrame(1));
+            var events = new List<CharacterActionEvent>();
+            controller.ActionEvent += events.Add;
+            Assert.IsTrue(controller.Submit(first).Success);
+
+            CharacterActionResult result = controller.Submit(second);
+
+            Assert.IsTrue(result.Success, result.Message);
+            Assert.AreEqual(2, events.FindAll(evt => evt.Type == CharacterActionEventType.Started).Count);
+            CharacterActionEvent started = events.FindLast(evt => evt.Type == CharacterActionEventType.Started);
+            Assert.AreEqual(second.SourceId, started.Request.SourceId);
+            Assert.AreEqual(second.TraceId, started.Request.TraceId);
+            Assert.AreEqual(second.Frame, started.Request.Frame);
+            Assert.AreEqual(CharacterActionRejectedReason.DuplicateSameFrame, controller.Submit(second).RejectedReason);
+        }
+
+        private static CharacterActionControllerOptions CreateSameFrameIntentOptions(
+            CharacterCancelRule rule, int firstIntent = CharacterTestNumericIds.IntentLightAttack)
+        {
+            var first = new CharacterActionConfig(
+                new CharacterActionId(301), "Same-frame first intent",
+                CharacterActionCategory.BasicAttack, CharacterActionTimelineAuthority.CharacterAuthored,
+                tags: null, priority: 0, durationFrames: 3, requirements: null,
+                phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Active, 0, 2) },
+                cancelRules: new[] { rule }, interruptRules: null);
+            var second = new CharacterActionConfig(
+                new CharacterActionId(302), "Same-frame second intent",
+                CharacterActionCategory.BasicAttack, CharacterActionTimelineAuthority.CharacterAuthored,
+                tags: null, priority: 0, durationFrames: 3, requirements: null,
+                phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Active, 0, 2) },
+                cancelRules: null, interruptRules: null);
+            return CreateCharacterActionOptions(
+                new[] { first, second }, new[] { firstIntent, CharacterTestNumericIds.IntentHeavyAttack });
+        }
+
+        private static CharacterActionRequest CreateSameFrameIntentRequest(
+            int intentId, int sourceId = 4, RuntimeTraceIdentity traceId = default)
+        {
+            return CharacterActionRequest.CombatAction(
+                RuntimeFrame.Zero, CreateEntity(), CharacterActionKind.Attack,
+                combatActionId: 0, sourceId: sourceId, traceId: traceId, actionIntentId: intentId);
+        }
+
         [Test]
         public void CharacterActionRuntime_StartsCombatActionFromConfiguredTrack()
         {
@@ -208,16 +361,44 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(1, runtimeCollector.MotionRequests.Count);
             Assert.AreEqual(CharacterActionTrackEventKind.ApplyImpulse, runtimeCollector.MotionRequests[0].EventKind);
             Assert.AreEqual(new RuntimeFrame(0), runtimeCollector.MotionRequests[0].Metadata.Frame);
-            Assert.AreEqual(1, runtimeCollector.CombatRequests.Count);
+            Assert.AreEqual(3, runtimeCollector.CombatRequests.Count);
             Assert.AreEqual(CharacterActionTrackEventKind.HitTraceWindow, runtimeCollector.CombatRequests[0].EventKind);
-            Assert.AreEqual("mainHand", runtimeCollector.CombatRequests[0].EquipmentSlotId);
+            Assert.AreEqual(CharacterTestNumericIds.Field_mainHand, runtimeCollector.CombatRequests[0].EquipmentSlotId);
             Assert.AreEqual(1, runtimeCollector.GameplayRequests.Count);
-            Assert.AreEqual(CharacterTestNumericIds.Assert_gameplay_hit, runtimeCollector.GameplayRequests[0].RequestId);
+            Assert.AreEqual(CharacterTestNumericIds.Field_gameplay_hit, runtimeCollector.GameplayRequests[0].RequestId);
             Assert.AreEqual(1, presentationCollector.AnimationRequests.Count);
             Assert.AreEqual("actor.hero", presentationCollector.AnimationRequests[0].TargetActorId);
             Assert.AreEqual("upper", presentationCollector.AnimationRequests[0].LayerId);
-            Assert.AreEqual(1, presentationCollector.VfxRequests.Count);
+            Assert.IsFalse(presentationCollector.AnimationRequests[0].Metadata.HasLifecycle);
+            Assert.AreEqual(2, presentationCollector.VfxRequests.Count);
             Assert.AreEqual("vfx.light", presentationCollector.VfxRequests[0].ResourceKey);
+            var singleFramePhases = new[]
+            {
+                CharacterActionTrackLifecyclePhase.Enter,
+                CharacterActionTrackLifecyclePhase.Active,
+                CharacterActionTrackLifecyclePhase.Exit
+            };
+            for (int i = 0; i < singleFramePhases.Length; i++)
+            {
+                Assert.AreEqual(singleFramePhases[i], runtimeCollector.CombatRequests[i].Metadata.LifecyclePhase);
+                Assert.AreEqual(result.ActionInstanceId, runtimeCollector.CombatRequests[i].Metadata.InstanceId);
+            }
+            Assert.AreEqual(CharacterActionTrackExitReason.NaturalEnd,
+                runtimeCollector.CombatRequests[2].Metadata.LifecycleExitReason);
+            Assert.AreEqual(CharacterActionTrackLifecycleBoundary.AfterFrame,
+                runtimeCollector.CombatRequests[2].Metadata.LifecycleBoundary);
+            Assert.AreEqual(CharacterActionTrackLifecyclePhase.Enter, presentationCollector.VfxRequests[0].Metadata.LifecyclePhase);
+            Assert.AreEqual(CharacterActionTrackLifecyclePhase.Active, presentationCollector.VfxRequests[1].Metadata.LifecyclePhase);
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(1)).Success);
+            Assert.AreEqual(1, runtimeCollector.MotionRequests.Count);
+            Assert.AreEqual(1, runtimeCollector.GameplayRequests.Count);
+            Assert.AreEqual(3, runtimeCollector.CombatRequests.Count);
+            Assert.AreEqual(1, presentationCollector.AnimationRequests.Count);
+            Assert.AreEqual(4, presentationCollector.VfxRequests.Count);
+            Assert.AreEqual(CharacterActionTrackLifecyclePhase.Active, presentationCollector.VfxRequests[2].Metadata.LifecyclePhase);
+            Assert.AreEqual(CharacterActionTrackLifecyclePhase.Exit, presentationCollector.VfxRequests[3].Metadata.LifecyclePhase);
+            Assert.AreEqual(CharacterActionTrackExitReason.NaturalEnd, presentationCollector.VfxRequests[3].Metadata.LifecycleExitReason);
+            Assert.AreEqual(CharacterActionTrackLifecycleBoundary.AfterFrame, presentationCollector.VfxRequests[3].Metadata.LifecycleBoundary);
         }
 
         [Test]
@@ -310,7 +491,152 @@ namespace MxFramework.Tests.CharacterControl
             Assert.IsTrue(frame.HasMovementControlScale);
             Assert.IsFalse(frame.HasRotationControlScale);
             Assert.AreEqual(250, frame.MovementControlScaleMilli);
-            Assert.AreEqual(CharacterTestNumericIds.Assert_motion_scale, frame.ControlScaleSource.StableEventId);
+            Assert.AreEqual(CharacterTestNumericIds.Field_motion_scale, frame.ControlScaleSource.StableEventId);
+        }
+
+        [TestCase(0)]
+        [TestCase(2)]
+        public void CharacterActionRuntime_ForwardsMotionRangeLifecycleInOrder(int endFrame)
+        {
+            var collector = new CharacterActionAdapterRequestCollector();
+            CharacterActionConfig action = CreateMotionRequestFrameAction(endFrame, endFrame + 2);
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateCharacterActionOptions(
+                    action, CharacterTestNumericIds.IntentMotionAttack,
+                    new CharacterActionTrackAdapter(motionSink: collector)));
+
+            CharacterActionResult start = controller.Submit(CreateMotionLifecycleRequest(RuntimeFrame.Zero));
+            Assert.IsTrue(start.Success, start.Message);
+            for (int frame = 1; frame <= endFrame + 2; frame++)
+                Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(frame)).Success);
+
+            Assert.AreEqual(endFrame + 5, collector.MotionRequests.Count);
+            Assert.AreEqual(CharacterActionTrackEventKind.SetMovementMode, collector.MotionRequests[0].EventKind);
+            Assert.AreEqual(CharacterActionTrackEventKind.ApplyImpulse, collector.MotionRequests[1].EventKind);
+            Assert.IsFalse(collector.MotionRequests[1].Metadata.HasLifecycle);
+            AssertMotionLifecycle(collector.MotionRequests[2], start.ActionInstanceId, action.ActionId,
+                0, CharacterActionTrackLifecyclePhase.Enter);
+            for (int frame = 0; frame <= endFrame; frame++)
+                AssertMotionLifecycle(collector.MotionRequests[frame + 3], start.ActionInstanceId, action.ActionId,
+                    frame, CharacterActionTrackLifecyclePhase.Active);
+            AssertMotionLifecycle(collector.MotionRequests[endFrame + 4], start.ActionInstanceId, action.ActionId,
+                endFrame, CharacterActionTrackLifecyclePhase.Exit,
+                CharacterActionTrackExitReason.NaturalEnd, CharacterActionTrackLifecycleBoundary.AfterFrame);
+            Assert.Greater(collector.MotionRequests[2].Metadata.PlanId, 0);
+            Assert.AreEqual(collector.MotionRequests[2].Metadata.PlanId,
+                collector.MotionRequests[endFrame + 4].Metadata.PlanId);
+        }
+
+        [TestCase(CharacterActionLifecycleReason.Death, CharacterActionTrackExitReason.Death)]
+        [TestCase(CharacterActionLifecycleReason.ReviveReset, CharacterActionTrackExitReason.ReviveReset)]
+        [TestCase(CharacterActionLifecycleReason.EntityDespawn, CharacterActionTrackExitReason.EntityDespawn)]
+        [TestCase(CharacterActionLifecycleReason.ConfigurationReload, CharacterActionTrackExitReason.ConfigurationReload)]
+        [TestCase(CharacterActionLifecycleReason.RuntimeShutdown, CharacterActionTrackExitReason.RuntimeShutdown)]
+        [TestCase(CharacterActionLifecycleReason.PreviewSeek, CharacterActionTrackExitReason.PreviewSeek)]
+        [TestCase(CharacterActionLifecycleReason.ReplayRebuild, CharacterActionTrackExitReason.ReplayRebuild)]
+        public void CharacterActionRuntime_TerminationExitsMotionRangeOnce(
+            CharacterActionLifecycleReason reason, CharacterActionTrackExitReason expectedExit)
+        {
+            var collector = new CharacterActionAdapterRequestCollector();
+            CharacterActionConfig action = CreateMotionRequestFrameAction(2, 4);
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateCharacterActionOptions(
+                    action, CharacterTestNumericIds.IntentMotionAttack,
+                    new CharacterActionTrackAdapter(motionSink: collector)));
+            CharacterActionResult start = controller.Submit(CreateMotionLifecycleRequest(RuntimeFrame.Zero));
+            Assert.IsTrue(start.Success, start.Message);
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(1)).Success);
+
+            CharacterActionResult termination = controller.TerminateForLifecycle(new RuntimeFrame(1), reason);
+            Assert.IsTrue(termination.Success, termination.Message);
+            Assert.AreEqual(6, collector.MotionRequests.Count);
+            AssertMotionLifecycle(collector.MotionRequests[5], start.ActionInstanceId, action.ActionId,
+                1, CharacterActionTrackLifecyclePhase.Exit, expectedExit);
+            controller.TerminateForLifecycle(new RuntimeFrame(2), reason);
+            controller.TickCharacterAction(new RuntimeFrame(2));
+            controller.Dispose();
+            Assert.AreEqual(6, collector.MotionRequests.Count, "Repeated cleanup must not dispatch another Exit.");
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CharacterActionRuntime_TransitionExitsOriginalMotionRange(bool interrupt)
+        {
+            var collector = new CharacterActionAdapterRequestCollector();
+            CharacterActionConfig next = CreateReactionAction("cohesion_break_react");
+            CharacterActionConfig action = CreateMotionRequestFrameAction(
+                2, 4,
+                cancelRules: new[] { new CharacterCancelRule(1, 1) },
+                interruptRules: new[]
+                {
+                    new CharacterInterruptRule(CharacterActionSourceKind.CohesionBreak,
+                        minimumPriority: 50, targetActionId: next.ActionId)
+                });
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateCharacterActionOptions(
+                    new[] { action, next },
+                    new[] { CharacterTestNumericIds.IntentMotionAttack, CharacterTestNumericIds.IntentUnusedReaction },
+                    new CharacterActionTrackAdapter(motionSink: collector),
+                    reactionProfiles: new[] { CreateCohesionBreakProfile(next.ActionId) },
+                    reactionProfileId: "pressure-only"));
+            CharacterActionResult start = controller.Submit(CreateMotionLifecycleRequest(RuntimeFrame.Zero));
+            Assert.IsTrue(start.Success, start.Message);
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(1)).Success);
+
+            CharacterActionResult transition = interrupt
+                ? controller.SubmitReaction(CreateCohesionBreakContext())
+                : controller.Submit(CreateMotionLifecycleRequest(
+                    new RuntimeFrame(1), CharacterTestNumericIds.IntentUnusedReaction));
+            Assert.IsTrue(transition.Success, transition.Message);
+            Assert.AreEqual(next.ActionId, controller.CreateDebugSnapshot().ActiveActionId);
+            Assert.AreNotEqual(start.ActionInstanceId, transition.ActionInstanceId);
+            Assert.AreEqual(6, collector.MotionRequests.Count);
+            AssertMotionLifecycle(collector.MotionRequests[5], start.ActionInstanceId, action.ActionId,
+                1, CharacterActionTrackLifecyclePhase.Exit,
+                interrupt ? CharacterActionTrackExitReason.ActionInterrupted : CharacterActionTrackExitReason.ActionReplaced,
+                runtimeFrame: interrupt ? 3 : 1);
+            controller.TickCharacterAction(new RuntimeFrame(2));
+            controller.Dispose();
+            Assert.AreEqual(6, collector.MotionRequests.Count);
+        }
+
+        [Test]
+        public void CharacterActionRuntime_ActiveOnlyMotionAdapterDoesNotEmitBoundaryRequests()
+        {
+            var collector = new CharacterActionAdapterRequestCollector();
+            var action = new CharacterActionConfig(
+                new CharacterActionId(302), "Vertical velocity range",
+                CharacterActionCategory.BasicAttack, CharacterActionTimelineAuthority.CharacterAuthored,
+                tags: null, priority: 0,
+                durationFrames: 3,
+                requirements: null,
+                phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Active, 0, 2) },
+                cancelRules: null, interruptRules: null,
+                motionTrack: new MotionTrackConfig(false, new[]
+                {
+                    new MotionTrackEvent(0, CharacterActionTrackEventKind.SetVerticalVelocity,
+                        CharacterMovementMode.Airborne, y: 2f,
+                        stableEventId: CharacterTestNumericIds.Field_motion_scale, endFrame: 1)
+                }));
+            using var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateCharacterActionOptions(
+                    action, CharacterTestNumericIds.IntentMotionAttack,
+                    new CharacterActionTrackAdapter(motionSink: collector)));
+            Assert.IsTrue(controller.Submit(CreateMotionLifecycleRequest(RuntimeFrame.Zero)).Success);
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(1)).Success);
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(2)).Success);
+
+            Assert.AreEqual(2, collector.MotionRequests.Count, "This adapter emits only the Active payload.");
+            for (int i = 0; i < collector.MotionRequests.Count; i++)
+            {
+                Assert.AreEqual(CharacterActionTrackEventKind.SetVerticalVelocity, collector.MotionRequests[i].EventKind);
+                Assert.AreEqual(CharacterActionTrackLifecyclePhase.Active, collector.MotionRequests[i].Metadata.LifecyclePhase);
+                Assert.AreEqual(i, collector.MotionRequests[i].Metadata.LocalFrame);
+            }
         }
 
         [Test]
@@ -354,6 +680,191 @@ namespace MxFramework.Tests.CharacterControl
             Assert.AreEqual(0, tickFrame.RootMotionDeltaY);
             Assert.AreEqual(0, tickFrame.RootMotionDeltaZ);
             Assert.AreEqual((int)CharacterMovementMode.RootMotionDriven, tickFrame.MovementModeId);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void CharacterActionRuntime_QueuedRootMotionBelongsToNewOperationOnce(bool queued, bool zeroStart)
+        {
+            var sink = new RecordingRootMotionSink();
+            var collector = new CharacterActionAdapterRequestCollector();
+            var events = new List<CharacterActionEvent>();
+            var machine = new CharacterControlStateMachine(CreateEntity());
+            var controller = new CharacterActionController(
+                machine,
+                characterActionOptions: CreateCharacterActionOptions(
+                    new[] { CreateQueuedPredecessorAction(), CreateRootMotionFrameAction(zeroStart ? 0f : 0.5f, true) },
+                    new[] { CharacterTestNumericIds.IntentLightAttack, CharacterTestNumericIds.IntentRootMotionAttack },
+                    new CharacterActionTrackAdapter(rootMotionSink: sink, debugSink: collector)));
+            controller.ActionEvent += events.Add;
+            CharacterActionRequest next = CreateQueuedRootMotionRequest(RuntimeFrame.Zero, queueIfBusy: queued);
+            if (queued)
+            {
+                Assert.IsTrue(controller.Submit(CreateQueuedPredecessorRequest(RuntimeFrame.Zero)).Success);
+                CharacterActionResult result = controller.Submit(next);
+                Assert.IsTrue(result.Success, result.Message);
+                Assert.IsTrue(result.Queued);
+                Assert.IsTrue(controller.HasQueuedRequest);
+                Assert.AreEqual(0, sink.Requests.Count);
+                Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(1)).Success);
+            }
+            else
+            {
+                Assert.IsTrue(controller.Submit(next.WithFrame(new RuntimeFrame(1))).Success);
+            }
+
+            CharacterMotionRequestFrame startFrame = sink.Accumulator.ToFrame();
+            TestContext.WriteLine("queued=" + queued + " zeroStart=" + zeroStart
+                + " requests=" + sink.Requests.Count + " deltaZmm=" + startFrame.RootMotionDeltaZ);
+            for (int i = 0; i < sink.Requests.Count; i++)
+            {
+                CharacterActionAdapterDispatchMetadata metadata = sink.Requests[i].Metadata;
+                TestContext.WriteLine("instance=" + metadata.InstanceId + " plan=" + metadata.PlanId
+                    + " action=" + metadata.ActionId + " local=" + metadata.LocalFrame
+                    + " frame=" + metadata.Frame + " source=" + metadata.SourceId);
+            }
+            Assert.AreEqual(zeroStart ? 0 : 500, startFrame.RootMotionDeltaZ);
+            Assert.AreEqual(zeroStart ? 0 : 1, sink.Requests.Count);
+            Assert.AreEqual(!zeroStart, startFrame.HasRootMotion);
+            Assert.IsFalse(controller.HasQueuedRequest);
+            Assert.AreEqual(CharacterControlState.Action, machine.CurrentState);
+            Assert.AreEqual(1, collector.DebugRequests.Count, "The initial one-shot track must still dispatch once.");
+            Assert.AreEqual(new CharacterActionId(302), collector.DebugRequests[0].Metadata.ActionId);
+            int startedCount = 0;
+            int finishedCount = 0;
+            CharacterActionEvent started = default;
+            for (int i = 0; i < events.Count; i++)
+            {
+                if (events[i].Type == CharacterActionEventType.Started && events[i].Request.SourceId == 44)
+                {
+                    startedCount++;
+                    started = events[i];
+                }
+                if (events[i].Type == CharacterActionEventType.Finished)
+                    finishedCount++;
+            }
+            Assert.AreEqual(1, startedCount);
+            Assert.AreEqual(queued ? 1 : 0, finishedCount);
+            Assert.AreEqual(new RuntimeFrame(1), started.Request.Frame);
+            if (!zeroStart)
+                AssertQueuedRootMotionMetadata(sink.Requests[0], started.ActionInstanceId, 0, new RuntimeFrame(1));
+
+            sink.Clear();
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(2)).Success);
+            Assert.AreEqual(1, sink.Requests.Count);
+            CharacterMotionRequestFrame nextFrame = sink.Accumulator.ToFrame();
+            Assert.AreEqual(250, nextFrame.RootMotionDeltaX);
+            Assert.AreEqual(0, nextFrame.RootMotionDeltaZ);
+            AssertQueuedRootMotionMetadata(sink.Requests[0], started.ActionInstanceId, 1, new RuntimeFrame(2));
+            Assert.AreEqual(collector.DebugRequests[0].Metadata.PlanId, sink.Requests[0].Metadata.PlanId);
+            Assert.AreEqual(1, collector.DebugRequests.Count);
+            sink.Clear();
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(3)).Success);
+            Assert.IsTrue(controller.TickCharacterAction(new RuntimeFrame(4)).Success);
+            Assert.AreEqual(0, sink.Requests.Count);
+            Assert.AreEqual(CharacterControlState.Locomotion, machine.CurrentState);
+        }
+
+        [Test]
+        public void CharacterActionRuntime_QueuedRootMotionHandoverAfterWarmupDoesNotAllocate()
+        {
+            var sink = new RecordingRootMotionSink();
+            var controller = new CharacterActionController(
+                new CharacterControlStateMachine(CreateEntity()),
+                characterActionOptions: CreateCharacterActionOptions(
+                    new[] { CreateQueuedPredecessorAction(), CreateRootMotionFrameAction() },
+                    new[] { CharacterTestNumericIds.IntentLightAttack, CharacterTestNumericIds.IntentRootMotionAttack },
+                    new CharacterActionTrackAdapter(rootMotionSink: sink)));
+            for (int cycle = 0; cycle < 32; cycle++)
+                Assert.IsTrue(QueuedRootMotionCycle(controller, sink, cycle * 5L));
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            bool success = true;
+            for (int cycle = 32; cycle < 132; cycle++)
+                success &= QueuedRootMotionCycle(controller, sink, cycle * 5L);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.IsTrue(success);
+            Assert.AreEqual(0L, allocated);
+        }
+
+        private static bool QueuedRootMotionCycle(
+            CharacterActionController controller,
+            RecordingRootMotionSink sink,
+            long frame)
+        {
+            sink.Clear();
+            bool success = controller.Submit(CreateQueuedPredecessorRequest(new RuntimeFrame(frame))).Success;
+            CharacterActionResult queued = controller.Submit(CreateQueuedRootMotionRequest(new RuntimeFrame(frame), true));
+            success &= queued.Success && queued.Queued;
+            success &= controller.TickCharacterAction(new RuntimeFrame(frame + 1)).Success;
+            success &= sink.Requests.Count == 1 && sink.Accumulator.ToFrame().RootMotionDeltaZ == 500;
+            sink.Clear();
+            success &= controller.TickCharacterAction(new RuntimeFrame(frame + 2)).Success;
+            success &= sink.Requests.Count == 1 && sink.Accumulator.ToFrame().RootMotionDeltaX == 250;
+            success &= controller.TickCharacterAction(new RuntimeFrame(frame + 3)).Success;
+            success &= controller.TickCharacterAction(new RuntimeFrame(frame + 4)).Success;
+            return success;
+        }
+
+        private static void AssertQueuedRootMotionMetadata(
+            CharacterActionRootMotionRequest request,
+            int instanceId,
+            int localFrame,
+            RuntimeFrame frame)
+        {
+            Assert.AreEqual(instanceId, request.Metadata.InstanceId);
+            Assert.Greater(request.Metadata.PlanId, 0L);
+            Assert.AreEqual(new CharacterActionId(302), request.Metadata.ActionId);
+            Assert.AreEqual(localFrame, request.Metadata.LocalFrame);
+            Assert.AreEqual(frame, request.Metadata.Frame);
+            Assert.AreEqual(44, request.Metadata.SourceId);
+            Assert.AreEqual(CharacterTestRuntimeTraceIds.RootMotion, request.Metadata.TraceId);
+            Assert.AreEqual(CharacterTestNumericIds.Field_anim_root, request.Metadata.StableEventId);
+        }
+
+        private static CharacterActionRequest CreateQueuedPredecessorRequest(RuntimeFrame frame)
+        {
+            return CharacterActionRequest.CombatAction(frame, CreateEntity(), CharacterActionKind.Attack,
+                QuickAttackId, sourceId: 11, traceId: CharacterTestRuntimeTraceIds.Attack,
+                actionIntentId: CharacterTestNumericIds.IntentLightAttack);
+        }
+
+        private static CharacterActionRequest CreateQueuedRootMotionRequest(RuntimeFrame frame, bool queueIfBusy)
+        {
+            return CharacterActionRequest.CombatAction(frame, CreateEntity(), CharacterActionKind.Attack,
+                HeavyAttackId, sourceId: 44, queueIfBusy: queueIfBusy,
+                traceId: CharacterTestRuntimeTraceIds.RootMotion,
+                actionIntentId: CharacterTestNumericIds.IntentRootMotionAttack);
+        }
+
+        private static CharacterActionConfig CreateQueuedPredecessorAction()
+        {
+            return new CharacterActionConfig(new CharacterActionId(301), "Queued Root Motion Predecessor",
+                CharacterActionCategory.BasicAttack, CharacterActionTimelineAuthority.CharacterAuthored,
+                tags: null, priority: 0, durationFrames: 1, requirements: null,
+                phases: new[] { new CharacterActionPhase(CharacterActionPhaseKind.Active, 0, 0) },
+                cancelRules: null, interruptRules: null);
+        }
+
+        private sealed class RecordingRootMotionSink : ICharacterActionRootMotionRequestSink
+        {
+            public readonly List<CharacterActionRootMotionRequest> Requests = new List<CharacterActionRootMotionRequest>();
+            public readonly CharacterActionMotionRequestAccumulatorSink Accumulator = new CharacterActionMotionRequestAccumulatorSink();
+
+            public CharacterActionAdapterSinkResult SubmitRootMotionRequest(CharacterActionRootMotionRequest request)
+            {
+                Requests.Add(request);
+                return Accumulator.SubmitRootMotionRequest(request);
+            }
+
+            public void Clear()
+            {
+                Requests.Clear();
+                Accumulator.Reset();
+            }
         }
 
         [Test]
@@ -985,11 +1496,44 @@ namespace MxFramework.Tests.CharacterControl
                         CharacterActionTrackEventKind.SpawnVisualCue,
                         resourceKey: "vfx.light",
                         stableEventId: CharacterTestNumericIds.Field_vfx_light,
-                        endFrame: 1)
+                        endFrame: 1,
+                        vfxConfig: new CharacterActionVfxEventConfig(
+                            playbackMode: CharacterActionVfxPlaybackMode.StopAtEventEnd))
                 }));
         }
 
-        private static CharacterActionConfig CreateMotionRequestFrameAction()
+        private static CharacterActionRequest CreateMotionLifecycleRequest(RuntimeFrame frame, int intentId = 0)
+        {
+            return CharacterActionRequest.CombatAction(
+                frame, CreateEntity(), CharacterActionKind.Attack, QuickAttackId,
+                sourceId: 4, traceId: CharacterTestRuntimeTraceIds.Motion,
+                actionIntentId: intentId == 0 ? CharacterTestNumericIds.IntentMotionAttack : intentId);
+        }
+
+        private static void AssertMotionLifecycle(
+            CharacterActionMotionRequest request, int instanceId, CharacterActionId actionId, int localFrame,
+            CharacterActionTrackLifecyclePhase phase,
+            CharacterActionTrackExitReason exitReason = CharacterActionTrackExitReason.None,
+            CharacterActionTrackLifecycleBoundary boundary = CharacterActionTrackLifecycleBoundary.BeforeFrame,
+            int runtimeFrame = -1)
+        {
+            Assert.AreEqual(CharacterActionTrackEventKind.SetControlScale, request.EventKind);
+            Assert.AreEqual(0.25f, request.MovementControlScale);
+            Assert.IsTrue(request.HasMovementControlScale);
+            Assert.IsFalse(request.HasRotationControlScale);
+            Assert.AreEqual(instanceId, request.Metadata.InstanceId);
+            Assert.AreEqual(actionId, request.Metadata.ActionId);
+            Assert.AreEqual(localFrame, request.Metadata.LocalFrame);
+            Assert.AreEqual(new RuntimeFrame(runtimeFrame < 0 ? localFrame : runtimeFrame), request.Metadata.Frame);
+            Assert.AreEqual(CharacterTestNumericIds.Field_motion_scale, request.Metadata.StableEventId);
+            Assert.AreEqual(phase, request.Metadata.LifecyclePhase);
+            Assert.AreEqual(boundary, request.Metadata.LifecycleBoundary);
+            Assert.AreEqual(exitReason, request.Metadata.LifecycleExitReason);
+        }
+
+        private static CharacterActionConfig CreateMotionRequestFrameAction(
+            int endFrame = 0, int durationFrames = 1,
+            CharacterCancelRule[] cancelRules = null, CharacterInterruptRule[] interruptRules = null)
         {
             return new CharacterActionConfig(
                 new CharacterActionId(301),
@@ -998,14 +1542,14 @@ namespace MxFramework.Tests.CharacterControl
                 CharacterActionTimelineAuthority.CharacterAuthored,
                 tags: null,
                 priority: 0,
-                durationFrames: 1,
+                durationFrames: durationFrames,
                 requirements: null,
                 phases: new[]
                 {
-                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 0, 0)
+                    new CharacterActionPhase(CharacterActionPhaseKind.Active, 0, durationFrames - 1)
                 },
-                cancelRules: null,
-                interruptRules: null,
+                cancelRules: cancelRules,
+                interruptRules: interruptRules,
                 motionTrack: new MotionTrackConfig(
                     usesRootMotion: false,
                     events: new[]
@@ -1029,7 +1573,8 @@ namespace MxFramework.Tests.CharacterControl
                             movementControlScale: 0.25f,
                             rotationControlScale: 1f,
                             hasMovementControlScale: true,
-                            hasRotationControlScale: false)
+                            hasRotationControlScale: false,
+                            endFrame: endFrame)
                     }));
         }
 
@@ -1060,7 +1605,7 @@ namespace MxFramework.Tests.CharacterControl
                 }));
         }
 
-        private static CharacterActionConfig CreateRootMotionFrameAction()
+        private static CharacterActionConfig CreateRootMotionFrameAction(float initialDeltaZ = 0.5f, bool includeStartTrack = false)
         {
             return new CharacterActionConfig(
                 new CharacterActionId(302),
@@ -1089,9 +1634,16 @@ namespace MxFramework.Tests.CharacterControl
                         obstaclePolicy: CharacterActionRootMotionObstaclePolicy.StaticOnly,
                         frames: new[]
                         {
-                            new CharacterActionRootMotionFrame(0, 0f, 0f, 0.5f),
+                            new CharacterActionRootMotionFrame(0, 0f, 0f, initialDeltaZ),
                             new CharacterActionRootMotionFrame(1, 0.25f, 0f, 0f)
-                        })));
+                        })),
+                debugTrack: includeStartTrack
+                    ? new DebugTrackConfig(new[]
+                    {
+                        new DebugTrackEvent(0, CharacterActionTrackEventKind.EmitDebugMarker,
+                            "queued.root-motion.start", CharacterTestBulkIds.Id790025)
+                    })
+                    : null);
         }
 
         private sealed class RejectingConstraint : ICharacterActionConstraint

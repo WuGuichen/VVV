@@ -73,6 +73,40 @@ namespace MxFramework.Game.CharacterTest
             private long _executionSubmittedFrame = -1;
             private long _executionReceiptInstance;
             internal CharacterActionInstance LastAcknowledgedActionInstance { get; private set; }
+            internal ulong AcknowledgedActionRevision { get; private set; }
+            private long _acknowledgedInstanceId, _acknowledgedFrame;
+            private CharacterActionId _acknowledgedActionId;
+            private CharacterActionInstanceState _acknowledgedTerminalState;
+            // Runner instances are pooled. A reaction can reset the same object to another action.
+            // Read the exact receipt identity and original authority events instead of that new action.
+            internal CharacterActionInstanceState AcknowledgedActionState
+            {
+                get
+                {
+                    if (_acknowledgedTerminalState != CharacterActionInstanceState.None) return _acknowledgedTerminalState;
+                    var instance = LastAcknowledgedActionInstance;
+                    if (instance == null) return CharacterActionInstanceState.None;
+                    if (instance.InstanceId == _acknowledgedInstanceId && instance.Plan.ActionId == _acknowledgedActionId) {
+                        var state = instance.State;
+                        if (state != CharacterActionInstanceState.Running) _acknowledgedTerminalState = state;
+                        return state;
+                    }
+                    var events = _actionRuntime.TimelineEvents;
+                    for (int i = events.Count - 1; i >= 0; i--) {
+                        var evt = events[i];
+                        if (evt.EntityId != _entityId || evt.InstanceId != _acknowledgedInstanceId
+                            || evt.ActionId != _acknowledgedActionId || evt.Frame < _acknowledgedFrame) continue;
+                        switch (evt.Kind) {
+                            case CharacterActionRunnerEventKind.ActionInterrupted: _acknowledgedTerminalState = CharacterActionInstanceState.Interrupted; break;
+                            case CharacterActionRunnerEventKind.ActionCancelled: _acknowledgedTerminalState = CharacterActionInstanceState.Cancelled; break;
+                            case CharacterActionRunnerEventKind.ActionFinished: _acknowledgedTerminalState = CharacterActionInstanceState.Finished; break;
+                        }
+                        if (_acknowledgedTerminalState != CharacterActionInstanceState.None) return _acknowledgedTerminalState;
+                    }
+                    // Missing terminal evidence cannot grant completion or adopt a foreign reaction.
+                    return CharacterActionInstanceState.None;
+                }
+            }
             private CharacterTestBehaviorExecutionEvaluator _executionEvaluator;
             private long _executionContinuationFrame = -1;
             private bool _executionFailureContinuation;
@@ -118,7 +152,9 @@ namespace MxFramework.Game.CharacterTest
             public void CompleteActionCommand() { CompleteOrchestration(); _executionSubmittedFrame = -1; _executionReceiptInstance = 0; }
             private void ResetExecutionRuntime()
             {
-                LastAcknowledgedActionInstance = null;
+                LastAcknowledgedActionInstance = null; AcknowledgedActionRevision = 0;
+                _acknowledgedInstanceId = 0; _acknowledgedFrame = -1; _acknowledgedActionId = CharacterActionId.None;
+                _acknowledgedTerminalState = CharacterActionInstanceState.None;
                 _executionControlPending = false; _executionMove = Vector2.zero; _executionMoveSpeed = 1f;
                 _executionControl = default; _executionOwnedInstance = 0; _executionSubmittedFrame = -1;
                 _executionReceiptInstance = 0;
@@ -266,8 +302,17 @@ namespace MxFramework.Game.CharacterTest
                 if (receipt.Success && receipt.Operation == CharacterTestBehaviorRecipeOrchestrationOperation.ReplaceCharacterAction)
                 {
                     var instance = _actionRuntime?.GetActionInstanceForObservation(new CharacterTestCharacterEntityId(_entityId));
-                    if (instance != null && instance.InstanceId == receipt.ActionInstanceId)
+                    if (instance != null && instance.InstanceId == receipt.ActionInstanceId) {
                         LastAcknowledgedActionInstance = instance;
+                        _acknowledgedInstanceId = receipt.ActionInstanceId; _acknowledgedFrame = receipt.Frame.Value;
+                        _acknowledgedActionId = instance.Plan.ActionId; _acknowledgedTerminalState = CharacterActionInstanceState.None;
+                        AcknowledgedActionRevision++;
+                        TacticalCard.TacticalDirectAttackStamp source = default;
+                        if (FixedPayment?.DoubleEdgeState != null && instance.InstanceId > 0 && instance.InstanceId <= int.MaxValue)
+                            FixedPayment.DoubleEdgeState.AcknowledgeAction(FixedPayment.Record.DoubleEdgeKey,
+                                (int)instance.InstanceId, AcknowledgedActionRevision, receipt.Frame.Value, out source);
+                        _entity.BindDoubleEdgeAction(instance, source, FixedPayment?.DoubleEdgeState);
+                    }
                 }
                 _orchestrationState = receipt.Success ? CharacterTestRuntimeAiLabBehaviorRecipeOrchestrationState.Succeeded
                     : CharacterTestRuntimeAiLabBehaviorRecipeOrchestrationState.Rejected;
@@ -287,10 +332,11 @@ namespace MxFramework.Game.CharacterTest
                 if (_executionContinuationFrame != frame.Value || _executionEvaluator == null) return false;
                 _executionContinuationFrame = -1;
                 _executionEvaluator.ContinueAfterActionCommit(checked((int)frame.Value));
+                PublishDoubleEdgeTerminal(frame);
                 if (_executionEvaluator.HasReadyCommandReceipt) _executionContinuationFrame = frame.Value;
                 if (TryBuildExecutionIntent(out var intent))
                 {
-                    var result = CharacterTestBehaviorExecutionCommandWriter.Submit(frame, _entityId, intent, apply);
+                    var result = CharacterTestBehaviorExecutionCommandWriter.Submit(frame, _entityId, intent, apply, FixedPayment);
                     RecordCommandResult(result.Success);
                 }
                 if (_executionContinuationFrame < 0 && _orchestrationState != CharacterTestRuntimeAiLabBehaviorRecipeOrchestrationState.Pending)
@@ -313,7 +359,14 @@ namespace MxFramework.Game.CharacterTest
             }
             public void SetExecutionControl(Vector2 move, float movementSpeed, in CharacterTestBehaviorControlInput control)
             {
-                _executionMove = move; _executionMoveSpeed = movementSpeed; _executionControl = control; _executionControlPending = true;
+                _executionMove = move; _executionMoveSpeed = movementSpeed;
+                // Fixed-card cleanup releases only this owner's channels, including while dead/reacting.
+                // The existing command consumer validates the exact owner token/source before clearing input.
+                _executionControl = FixedPayment != null && control.IsRelease
+                    ? new CharacterTestBehaviorControlInput(control.FacingMode, control.TargetXMillimeters, control.TargetZMillimeters,
+                        true, control.TurnSpeedScaleMilli, control.MaxMoveStepMillimeters, control.IsPresent, control.OwnerToken, true)
+                    : control;
+                _executionControlPending = true;
             }
             private bool TryBuildExecutionIntent(out CharacterTestRuntimeAiLabRuntimeIntent intent)
             {

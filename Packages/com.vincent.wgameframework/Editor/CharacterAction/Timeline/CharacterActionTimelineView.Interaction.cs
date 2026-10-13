@@ -41,6 +41,9 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             if (adapter == null || !_itemElements.TryGetValue(adapter.Id, out VisualElement element))
                 return;
 
+            if (adapter is ControlScaleTimelineAdapter control && _rowCanvases.TryGetValue(adapter.TrackKind, out var controlRow))
+                BuildControlScaleBand(controlRow, control.Rotation);
+
             // Keep the grabbed item in its lane until the host commits the gesture.
             // Phase edits also move adjacent phases, so they still refresh together.
             if (_isItemGestureActive && adapter.TrackKind != TimelineTrackKind.Phases)
@@ -161,6 +164,13 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             bool canEdit = !_snapshot.ReadOnly;
             bool characterActionMode = _snapshot.Action != null;
 
+            if (characterActionMode && track != null &&
+                (track.Kind == TimelineTrackKind.MovementControl || track.Kind == TimelineTrackKind.RotationControl))
+            {
+                evt.menu.AppendAction("插入倍率标记", _ => AddEventAtTrack(track.Kind, frame), MenuStatus(canEdit));
+                return;
+            }
+
             if (!characterActionMode)
             {
                 evt.menu.AppendAction(
@@ -196,10 +206,6 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             evt.menu.AppendAction(
                 "Add Motion Event",
                 _ => AddEventAtTrack(TimelineTrackKind.Motion, frame),
-                characterActionMode && isRuler ? MenuStatus(canEdit) : CanAddEventAt(track, TimelineTrackKind.Motion, characterActionMode && canEdit));
-            evt.menu.AppendAction(
-                "Set Control Scale Here",
-                _ => AddControlScaleAtFrame(frame, reset: false),
                 characterActionMode && isRuler ? MenuStatus(canEdit) : CanAddEventAt(track, TimelineTrackKind.Motion, characterActionMode && canEdit));
             evt.menu.AppendAction(
                 "Add RootMotion",

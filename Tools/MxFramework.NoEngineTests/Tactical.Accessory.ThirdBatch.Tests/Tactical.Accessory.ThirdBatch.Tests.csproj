@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RepoRoot>../../..</RepoRoot>
+    <PackageRoot>$(RepoRoot)/Packages/com.vincent.wgameframework</PackageRoot>
+    <TacticalRoot>$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard</TacticalRoot>
+    <NUnitFrameworkPath Condition="'$(NUnitFrameworkPath)' == ''">$(UserProfile)/.nuget/packages/nunit/3.13.1/lib/netstandard2.0/nunit.framework.dll</NUnitFrameworkPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="nunit.framework"><HintPath>$(NUnitFrameworkPath)</HintPath></Reference>
+    <!-- Only actual repository contracts are linked. No combat/runtime/deck substitute or shared project edit. -->
+    <Compile Include="$(PackageRoot)/Gameplay/GameplayEntityId.cs;$(PackageRoot)/Combat/Hit/HitResolveKind.cs" />
+    <Compile Include="$(PackageRoot)/Runtime/Random/DeterministicRandom.cs;$(PackageRoot)/Runtime/Random/IDeterministicRandom.cs;$(PackageRoot)/Runtime/Random/RuntimeRandomState.cs" />
+    <Compile Include="$(TacticalRoot)/TacticalAccessoryThirdBatchRules.cs;$(TacticalRoot)/TacticalAccessoryThirdBatchState.cs" />
+    <Compile Include="$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalAccessoryThirdBatchTests.cs" />
+  </ItemGroup>
+  <Target Name="RequireCachedDependencies" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(NUnitFrameworkPath)')" Text="Provide an existing NUnit 3.13.1 DLL. This offline project does not download dependencies." />
+  </Target>
+</Project>

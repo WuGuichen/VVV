@@ -13,11 +13,11 @@ namespace MxFramework.Game.CharacterTest
 
     /// <summary>Connects validated per-character card bindings to the shared execution host and caller's command queue.</summary>
     /// <remarks>Start/compile/restore allocate. Tick and Stop reuse the host; no file reads, hashing or slot resolution occur in Tick.</remarks>
-    internal sealed class CharacterTestTacticalCardSession
+    internal sealed partial class CharacterTestTacticalCardSession
     {
         private readonly CharacterTestCharacterRuntimeModule _runtime;
         private readonly int _entityId;
-        private readonly CharacterTestTacticalCardBinding _binding;
+        private CharacterTestTacticalCardBinding _binding;
         private readonly Func<RuntimeCommand, RuntimeCommandValidationResult> _submit;
         private readonly ICharacterTestAiNavigationService _navigation;
         private readonly CharacterTestRuntimeAiPlannerFactState _unavailableFacts = new CharacterTestRuntimeAiPlannerFactState();
@@ -39,8 +39,12 @@ namespace MxFramework.Game.CharacterTest
         internal CharacterTestRuntimeAiLabLogicRuntimeState State => _host?.State ?? CharacterTestRuntimeAiLabLogicRuntimeState.Inactive;
         internal int LocalFrame => _host?.LocalFrame ?? 0;
         internal CharacterTestBehaviorExecutionEndReason EndReason => _host?.EndReason ?? CharacterTestBehaviorExecutionEndReason.None;
+        internal bool NaturallyCompleted => _host?.NaturallyCompleted == true;
         internal long OwnedActionInstanceId => _host?.OwnedActionInstanceId ?? 0;
         internal MxFramework.CharacterAction.CharacterActionInstance AcknowledgedActionInstance => _host?.AcknowledgedActionInstance;
+        internal ulong AcknowledgedActionRevision => _host?.AcknowledgedActionRevision ?? 0;
+        internal MxFramework.CharacterAction.CharacterActionInstanceState AcknowledgedActionState
+            => _host?.AcknowledgedActionState ?? MxFramework.CharacterAction.CharacterActionInstanceState.None;
         internal bool HasPendingActionCommand => _host != null && _host.HasPendingActionCommand;
         internal int LastActionConditionRejectedEvent => _host?.LastActionConditionRejectedEvent ?? -1;
         internal string LastIssue { get; private set; } = string.Empty;

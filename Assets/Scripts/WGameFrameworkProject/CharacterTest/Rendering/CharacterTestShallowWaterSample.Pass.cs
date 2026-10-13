@@ -10,7 +10,7 @@ namespace MxFramework.Game.CharacterTest
 {
     internal sealed partial class CharacterTestShallowWaterSession
     {
-        private sealed class SurfacePass : IMxRenderPassProvider, IMxRenderGraphPass
+        private sealed partial class SurfacePass : IMxRenderPassProvider, IMxRenderGraphPass
         {
             internal const string Name = "CharacterTest.ShallowWater";
             private readonly CharacterTestShallowWaterSession _owner;
@@ -26,6 +26,7 @@ namespace MxFramework.Game.CharacterTest
             private static readonly int TimeId = Shader.PropertyToID("_WgWaterTime");
             private static readonly int DepthId = Shader.PropertyToID("_CameraDepthTexture");
             private readonly MaterialPropertyBlock _properties = new MaterialPropertyBlock();
+            private readonly Plane[] _planes = new Plane[6];
             internal SurfacePass(CharacterTestShallowWaterSession owner) { _owner=owner; }
             public string DebugName => Name;
             public MxRenderPhase Phase => MxRenderPhase.BeforeRenderingTransparents;
@@ -33,10 +34,11 @@ namespace MxFramework.Game.CharacterTest
             public bool IsEnabled => _owner != null && _owner.IsActive && _owner.SurfaceEnabled;
             public IReadOnlyList<SharedRenderTextureKey> Reads => Array.Empty<SharedRenderTextureKey>();
             public IReadOnlyList<SharedRenderTextureKey> Writes => Array.Empty<SharedRenderTextureKey>();
-            public ScriptableRenderPassInput InputRequirements => ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Color;
+            public ScriptableRenderPassInput InputRequirements => ScriptableRenderPassInput.Depth
+                | (WantsSspr ? ScriptableRenderPassInput.Color : ScriptableRenderPassInput.None);
             public void CollectPasses(IMxRenderPassRegistry registry, in MxCameraRenderContextDescriptor camera)
             {
-                if (!IsEnabled) return;
+                if (!IsEnabled || !_owner.SurfaceVisible(camera.Camera, _planes)) return;
                 if ((camera.Camera == _owner._source && camera.CameraKind == MxCameraRenderKind.Game)
                     || (camera.CameraKind == MxCameraRenderKind.SceneView && _owner.TryGetScenePreview(camera.Camera, out _)))
                     registry.RegisterPass(this);
@@ -46,24 +48,39 @@ namespace MxFramework.Game.CharacterTest
             public void RecordRenderGraph(RenderGraph graph, ContextContainer frameData, in MxRenderPassConfigureContext context)
             {
                 var resources = frameData.Get<UniversalResourceData>();
-                if (!resources.activeColorTexture.IsValid() || !resources.cameraDepthTexture.IsValid() || _owner._material == null) return;
+                if (!resources.activeColorTexture.IsValid() || !resources.cameraDepthTexture.IsValid() || _owner._material == null
+                    || !_owner.SurfaceVisible(context.CameraContext.Camera, _planes)) return;
                 ScenePreviewView scene = null;
                 if (context.CameraContext.CameraKind == MxCameraRenderKind.SceneView
                     && !_owner.TryGetScenePreview(context.CameraContext.Camera, out scene)) return;
-                var desc = graph.GetTextureDesc(resources.activeColorTexture); desc.name = Name + ".SceneColor"; desc.clearBuffer=false;
-                TextureHandle color = graph.CreateTexture(desc);
-                using (var builder=graph.AddRasterRenderPass<CopyData>(Name+".CopyOpaque", out var d))
+                TextureHandle sspr = RecordSspr(graph, frameData, resources);
+                TextureHandle rippleField = RecordRippleField(graph, context.CameraContext.Camera,
+                    scene != null ? scene.RippleField : _owner._gameRippleField, out Vector4 rippleRect);
+                bool refract = _owner.Settings.UseRefraction && _owner.Settings.RefractionStrength > 0;
+                TextureHandle color = TextureHandle.nullHandle;
+                if (refract)
                 {
-                    d.Source=resources.activeColorTexture; builder.UseTexture(d.Source,AccessFlags.Read);
-                    builder.SetRenderAttachment(color,0,AccessFlags.Write);
-                    builder.SetRenderFunc(static (CopyData p,RasterGraphContext ctx)=>Blitter.BlitTexture(ctx.cmd,p.Source,new Vector4(1,1,0,0),0,false));
+                    var desc = graph.GetTextureDesc(resources.activeColorTexture); desc.name = Name + ".SceneColor"; desc.clearBuffer=false;
+                    color = graph.CreateTexture(desc);
+                    using (var builder=graph.AddRasterRenderPass<CopyData>(Name+".CopyOpaque", out var d))
+                    {
+                        d.Owner=_owner; d.Source=resources.activeColorTexture; builder.UseTexture(d.Source,AccessFlags.Read);
+                        builder.SetRenderAttachment(color,0,AccessFlags.Write);
+                        builder.SetRenderFunc(static (CopyData p,RasterGraphContext ctx)=>
+                        {
+                            Blitter.BlitTexture(ctx.cmd,p.Source,new Vector4(1,1,0,0),0,false);
+                            p.Owner.SurfaceColorCopies++;
+                        });
+                    }
                 }
                 using (var builder=graph.AddRasterRenderPass<DrawData>(Name+".Surface",out var d))
                 {
-                    d.Color=color; d.Owner=_owner; d.Material=_owner._material; d.Mesh=_owner._mesh;
+                    d.Color=color; d.Owner=_owner; d.Material=_owner._material; d.Mesh=_owner._mesh; d.Refract=refract;
                     d.Properties=scene != null ? scene.Properties : _properties; d.ScenePreview=scene != null;
                     d.Matrix=_owner.LocalToWorld * Matrix4x4.Scale(new Vector3(_owner.Settings.Size.x,1,_owner.Settings.Size.y));
                     d.Vp=scene != null ? scene.ViewProjection : _owner._reflectionViewProjection;
+                    d.Sspr = sspr.IsValid();
+                    d.RippleField = rippleField; d.RippleRect = rippleRect;
                     bool reflection = _owner.ReflectionEnabled && (scene != null ? scene.Wanted && scene.Ready : _owner._reflectionWanted && _owner.ReflectionReady);
                     if (reflection)
                     {
@@ -73,30 +90,38 @@ namespace MxFramework.Game.CharacterTest
                         d.Reflection=graph.ImportTexture(scene != null ? scene.ColorView : _owner._reflectionColorView,info);
                         d.ReflectionTexture=rt;
                     }
-                    else d.Reflection=TextureHandle.nullHandle;
+                    else d.Reflection=sspr;
                     d.Depth=resources.cameraDepthTexture;
-                    builder.UseTexture(color,AccessFlags.Read); builder.UseTexture(d.Depth,AccessFlags.Read);
-                    if(reflection) builder.UseTexture(d.Reflection,AccessFlags.Read);
-                    builder.SetRenderAttachment(resources.activeColorTexture,0,AccessFlags.Write);
+                    if (refract) builder.UseTexture(color,AccessFlags.Read);
+                    builder.UseTexture(d.Depth,AccessFlags.Read);
+                    if(d.Reflection.IsValid()) builder.UseTexture(d.Reflection,AccessFlags.Read);
+                    if (rippleField.IsValid()) builder.UseTexture(rippleField, AccessFlags.Read);
+                    builder.SetRenderAttachment(resources.activeColorTexture,0,AccessFlags.ReadWrite);
                     builder.SetRenderAttachmentDepth(resources.activeDepthTexture,AccessFlags.Read);
                     builder.SetRenderFunc(static (DrawData p,RasterGraphContext ctx)=>
                     {
                         var s=p.Owner.Settings; var b=p.Properties; b.Clear();
-                        b.SetTexture(SceneColorId,p.Color); b.SetTexture(DepthId,p.Depth);
-                        b.SetTexture(ReflectionId,p.ReflectionTexture!=null?(Texture)p.ReflectionTexture:Texture2D.blackTexture);
+                        if (p.Refract) b.SetTexture(SceneColorId,p.Color);
+                        b.SetTexture(DepthId,p.Depth);
+                        if (p.Sspr) b.SetTexture(ReflectionId,p.Reflection);
+                        else b.SetTexture(ReflectionId,p.ReflectionTexture!=null?(Texture)p.ReflectionTexture:Texture2D.blackTexture);
                         b.SetMatrix(ReflectionVpId,p.Vp);
-                        b.SetVector(SurfaceId,new Vector4(p.Reflection.IsValid()?s.ReflectionStrength:0,s.BaseReflectivity,s.TintOpacity,s.ContactSoftness));
+                        bool environment = !s.UsePlanarReflection && p.Owner.Configuration.ReflectionEnabled;
+                        b.SetVector(SurfaceId,new Vector4(p.Reflection.IsValid() || environment ? s.ReflectionStrength:0,s.BaseReflectivity,s.TintOpacity,s.ContactSoftness));
                         b.SetVector(ResponseId,new Vector4(s.RefractionStrength,s.EdgeSoftness,s.HighlightStrength,s.MaximumWaterDepth));
-                        b.SetVector(DetailId,new Vector4(s.MinimumReflection,s.ReflectionDistortion,s.RippleSheen,0));
+                        b.SetVector(DetailId,new Vector4(s.MinimumReflection,s.ReflectionDistortion,s.RippleSheen,p.Sspr ? 2 : environment ? 1 : 0));
                         b.SetVector(WaveId,new Vector4(s.BackgroundSlope,s.RippleSpeed,s.RippleLifetime,0));
                         b.SetVector(SizeId,new Vector4(s.Size.x,s.Size.y,0,0)); b.SetColor(TintId,s.Tint.linear);
-                        b.SetFloat(TimeId,(float)p.Owner.Clock); p.Owner.WriteRipples(b);
-                        ctx.cmd.DrawMesh(p.Mesh,p.Matrix,p.Material,0,0,b);
+                        b.SetFloat(TimeId,(float)p.Owner.Clock);
+                        b.SetVector(FieldRectId,p.RippleRect);
+                        if (p.RippleField.IsValid()) b.SetTexture(FieldTextureId,p.RippleField);
+                        else b.SetTexture(FieldTextureId,Texture2D.blackTexture);
+                        ctx.cmd.DrawMesh(p.Mesh,p.Matrix,p.Material,0,p.Refract ? 0 : 1,b);
                         if (p.ScenePreview) p.Owner.SceneSurfaceDraws++; else p.Owner.SurfaceDraws++;
                     });
                 }
             }
-            private sealed class CopyData { internal TextureHandle Source; }
+            private sealed class CopyData { internal TextureHandle Source; internal CharacterTestShallowWaterSession Owner; }
             private sealed class DrawData
             {
                 internal CharacterTestShallowWaterSession Owner; internal TextureHandle Color,Reflection,Depth;
@@ -104,6 +129,10 @@ namespace MxFramework.Game.CharacterTest
                 internal RenderTexture ReflectionTexture;
                 internal MaterialPropertyBlock Properties;
                 internal bool ScenePreview;
+                internal bool Refract;
+                internal bool Sspr;
+                internal TextureHandle RippleField;
+                internal Vector4 RippleRect;
             }
         }
     }

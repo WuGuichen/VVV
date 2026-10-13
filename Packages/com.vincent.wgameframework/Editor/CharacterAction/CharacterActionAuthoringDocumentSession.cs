@@ -531,7 +531,7 @@ namespace MxFramework.Editor.CharacterAction
                 () => SerializeActions(),
                 () => new[]
                 {
-                    new CharacterActionAuthoringPreparedDocumentWrite(source.ActionsPath, State.SerializeCurrentState()),
+                    new CharacterActionAuthoringPreparedDocumentWrite(source.ActionsPath, PrepareControlProjection()),
                 },
                 AcceptWrites);
         }
@@ -541,6 +541,12 @@ namespace MxFramework.Editor.CharacterAction
         internal CharacterActionsJsonDocument Document { get; }
         internal CharacterActionAuthoringDocumentState State { get; }
         internal string Json => SerializeActions();
+
+        private string PrepareControlProjection()
+        {
+            foreach (var action in Document.Actions) CharacterActionControlScaleAuthoring.Prepare(action);
+            return CharacterActionControlScaleAuthoring.Publish(SerializeActions());
+        }
 
         private string SerializeActions()
         {
@@ -1043,7 +1049,7 @@ namespace MxFramework.Editor.CharacterAction
                 CharacterActionAuthoringJsonService.JsonSettings);
             return CharacterActionAuthoringJsonService.ValidateJson(
                 actionSetsJson,
-                actionsJson,
+                CharacterActionControlScaleAuthoring.ValidationJson(actionsJson),
                 reactionProfilesJson,
                 landingProfilesJson,
                 validationContext,

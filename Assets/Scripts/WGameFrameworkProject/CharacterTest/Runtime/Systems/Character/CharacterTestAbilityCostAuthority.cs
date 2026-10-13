@@ -5,7 +5,7 @@ using MxFramework.Gameplay;
 namespace MxFramework.Game.CharacterTest
 {
     /// <summary>Commits action-only ability costs against formal character attributes.</summary>
-    internal sealed class CharacterTestAbilityCostAuthority : IAbilityCostAuthority
+    internal sealed partial class CharacterTestAbilityCostAuthority : IAbilityCostAuthority
     {
         private readonly CharacterTestCharacterRuntimeWorld _world;
 
@@ -24,6 +24,7 @@ namespace MxFramework.Game.CharacterTest
             if (entity == null)
                 return false;
 
+            if (_fixedScope != null) return _fixedScope.CanAfford(entity, costs, out missingAttributeId);
             _world.TryGetTacticalMotion(casterEntityId,out var motion);
             return CharacterTestAbilityCosts.CanAfford(_world.GameplayComponentWorld,entity.GameplayEntityId,motion,costs,0,out missingAttributeId);
         }
@@ -31,6 +32,7 @@ namespace MxFramework.Game.CharacterTest
         public bool TryCommitCosts(int casterEntityId,IReadOnlyList<AbilityCostConfig> costs,out int missingAttributeId)
         {
             missingAttributeId=0;var entity=FindEntity(casterEntityId);if(entity==null)return false;
+            if (_fixedScope != null) return _fixedScope.TryCommit(entity, costs, out missingAttributeId);
             _world.TryGetTacticalMotion(casterEntityId,out var motion);
             return CharacterTestAbilityCosts.TryCommit(_world.GameplayComponentWorld,entity.GameplayEntityId,motion,costs,out missingAttributeId);
         }

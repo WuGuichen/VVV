@@ -1726,8 +1726,8 @@ namespace MxFramework.Game.CharacterTest
             CoyoteTimeFramesRemaining = coyoteTimeFramesRemaining < 0 ? 0 : coyoteTimeFramesRemaining;
             MovementMode = movementMode;
             MovementLocked = movementLocked;
-            MovementControlScaleMilli = CharacterTestDeterministicMath.ClampScaleMilli(movementControlScaleMilli);
-            RotationControlScaleMilli = CharacterTestDeterministicMath.ClampScaleMilli(rotationControlScaleMilli);
+            MovementControlScaleMilli = CharacterTestDeterministicMath.ClampControlScaleMilli(movementControlScaleMilli);
+            RotationControlScaleMilli = CharacterTestDeterministicMath.ClampControlScaleMilli(rotationControlScaleMilli);
             MovementProfileId = movementProfileId;
             MovementProfileFallback = movementProfileFallback;
             PhysicsEnabled = physicsEnabled;

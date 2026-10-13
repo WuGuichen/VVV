@@ -26,7 +26,8 @@ namespace MxFramework.Settings
         Disabled = 1,
         Low = 2,
         Medium = 3,
-        High = 4
+        High = 4,
+        Ultra = 5
     }
 
     public enum MxGraphicsSettingExposure
@@ -54,7 +55,9 @@ namespace MxFramework.Settings
         HdrOutput = 13,
         HdrPaperWhite = 14,
         HdrPeakBrightness = 15,
-        DirectionalShadowQuality = 16
+        DirectionalShadowQuality = 16,
+        WaterQuality = 17,
+        RippleQuality = 18
     }
 
     public readonly struct MxGraphicsSettingDescriptor
@@ -94,7 +97,9 @@ namespace MxFramework.Settings
             new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.HdrOutput, MxGraphicsSettingExposure.Player),
             new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.HdrPaperWhite, MxGraphicsSettingExposure.Player),
             new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.HdrPeakBrightness, MxGraphicsSettingExposure.Player),
-            new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.DirectionalShadowQuality, MxGraphicsSettingExposure.Player)
+            new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.DirectionalShadowQuality, MxGraphicsSettingExposure.Player),
+            new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.WaterQuality, MxGraphicsSettingExposure.Player),
+            new MxGraphicsSettingDescriptor(MxGraphicsSettingKey.RippleQuality, MxGraphicsSettingExposure.Player)
         };
 
         private static readonly MxGraphicsSettingDescriptor[] s_playerVisibleDescriptors =
@@ -112,7 +117,9 @@ namespace MxFramework.Settings
             s_descriptors[13],
             s_descriptors[14],
             s_descriptors[15],
-            s_descriptors[16]
+            s_descriptors[16],
+            s_descriptors[17],
+            s_descriptors[18]
         };
 
         public static IReadOnlyList<MxGraphicsSettingDescriptor> Descriptors => s_descriptors;
@@ -138,8 +145,13 @@ namespace MxFramework.Settings
             int shadowCascadeCount = 0,
             int additionalLightsShadowmapResolution = 0,
             MxHdrOutputSettings hdrOutput = null,
-            MxGraphicsFeatureQuality directionalShadowQuality = MxGraphicsFeatureQuality.Default)
+            MxGraphicsFeatureQuality directionalShadowQuality = MxGraphicsFeatureQuality.Default,
+            MxGraphicsFeatureQuality waterQuality = MxGraphicsFeatureQuality.Default,
+            MxGraphicsFeatureQuality rippleQuality = MxGraphicsFeatureQuality.Default)
         {
+            RippleQuality = NormalizeFeatureQuality(rippleQuality);
+            WaterQuality = waterQuality == MxGraphicsFeatureQuality.Low || waterQuality == MxGraphicsFeatureQuality.Medium || waterQuality == MxGraphicsFeatureQuality.High || waterQuality == MxGraphicsFeatureQuality.Ultra
+                ? waterQuality : MxGraphicsFeatureQuality.Default;
             QualityPreset = NormalizeQualityPreset(qualityPreset);
             if (resolutionWidth > 0 && resolutionHeight > 0)
             {
@@ -190,6 +202,11 @@ namespace MxFramework.Settings
         public MxHdrOutputSettings HdrOutput { get; }
         /// <summary>Fixed directional backend dynamic-field quality. Default preserves scene authoring; no runtime bake.</summary>
         public MxGraphicsFeatureQuality DirectionalShadowQuality { get; }
+        /// <summary>Water presentation quality. Default preserves scene authoring.</summary>
+        /// <remarks>High retains legacy planar reflection; Ultra selects high SSPR in the water adapter.</remarks>
+        public MxGraphicsFeatureQuality WaterQuality { get; }
+        /// <summary>Interactive ripple field quality, independent of reflection; Disabled preserves background waves.</summary>
+        public MxGraphicsFeatureQuality RippleQuality { get; }
 
         public static MxGraphicsSettings Default { get; } = new MxGraphicsSettings();
 

@@ -1,6 +1,12 @@
 # CharacterStudio 数据归属与制作入口
 
 > Status: Current
+> 文档版本：2026-10-12.1
+> Code-Doc: `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/CharacterPackageCommands.cs`
+> Code-Doc: `Tools/MxFramework.Authoring/tests/MxFramework.Authoring.Tests/CharacterImportVerificationTests.cs`
+> Code-Doc: `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Cli/ResourceMappingCharacterCoordinator.cs`
+> Code-Doc: `Tools/MxFramework.Authoring/tests/MxFramework.Authoring.Tests/ResourceMappingProfileV2Tests.cs`
+> Code-Doc: `Tools/MxFramework.Authoring/tests/MxFramework.Authoring.Tests/Program.cs`
 > 本文维护角色数据的所有者、写入入口和消费边界；角色武器合同仍以 `Docs/CHARACTER_WEAPON_CONFIGURATION.md` 为准。
 
 ## 数据清单
@@ -23,6 +29,8 @@
 
 `CharacterResourcePackage` 是加载与制作聚合对象，不代表所有成员都由整包保存拥有。`CombinedWeaponConfigurations`、动画解析集合、`WeaponAttachments`、`Traces` 是解析投影；显示这些集合不能创建第二个源文件权威。
 
+动作的主动移动／旋转控制倍率由 `motionTrack.movementControlKeys`、`rotationControlKeys` 制作标记唯一拥有，默认 1、合法范围 0–10。`character project-common` 与角色动作运行投影复用 noEngine `CharacterActionControlScaleJsonProjection`，从准备好的事件身份生成单轴、包含式控制区间；派生事件不反写为动作制作正文。CLI 编译只解析既有目录身份，不在 Runtime 分配 ID。两轴、旧区间迁移、保存与动作退出合同见[角色动作接口](../Interfaces/CharacterAction.md)和[编辑指南](CHARACTER_ACTION_AUTHORING_GUIDE.md)。
+
 ## 基础属性合同
 
 属性源为可选的 schema `1.0` 文档。正式字段为 `hp`、`attack`、`defense`、`baseCohesion`、`scatterRecoveryRate`、`scatterRecoveryDelayFrames`、`cohesionBreakRecoveryDelayFrames`。HP 和基础聚限必须为正整数，其余为非负整数；未知版本拒绝保存和编译。质量和几何不复制到此文档。
@@ -43,6 +51,8 @@ HP / Attack / Defense 上限为 16777215，以保证现有 float 属性档案与
 
 ## 生成产物的四层边界（2026-09-19）
 
+不同材质描述的 ResourceKey／StableId 不能共享一个生成 `.mat` 目标。Authoring 和 Unity Prefab builder 在写入前检查清理文件名后的目标路径（忽略大小写）；碰撞报告 `CharacterGeneratedMaterialTargetCollision` 并阻断导入与 Profile 发布，已有生成文件不变。普通包保留原目标路径和 GUID，手写描述仍是源权威。具体规则及 `character-material-collision` 回归入口见 [资源包制作说明](../CHARACTER_RESOURCE_PACKAGE_AUTHORING.md#资源包结构)。
+
 导入产物的所有权按四层划分，不得互相替代：
 
 | 层 | 载体 | 写入权威 | 消费边界 |
@@ -53,6 +63,10 @@ HP / Attack / Defense 上限为 16777215，以保证现有 float 属性档案与
 | 外部诊断 | 由 `character import-unity --diagnostics-out <dir>` 显式导出的完整编译对象、动画对象、导入报告与阶段 manifest | Authoring CLI，仅在调用方显式请求时产生 | 排障与审计。不写入正式包、不进入 `Assets/` 等仓库目录、不参与门禁 |
 
 配套约束：正式 `config/` 文件只写入 `config/`，`generated/` 不再保存同名镜像；废弃快照与未被本次导入声明的孤立资源由导入成功路径按白名单迁移删除，删除前备份并做哈希前置校验，导入未完整成功时不执行迁移。详见 `Docs/CHARACTER_PACKAGE_EXPORT_SIZE_OPTIMIZATION_PLAN.md`。
+
+`character import-unity` 的写后验证缺文件或哈希不符会增加报告 `ErrorCount`、将 `Status` 标记为 `Failed` 并禁止 Spawn；文件阶段返回非零，停止资源映射发布、成功清理和轻量摘要更新，保留已有映射及摘要。合法 GLB 兼容转换按同一写入 operation 已验证的 `ArtifactHash` 检查实际产物，未转换资源仍核对声明的源 hash。聚焦回归入口为 Authoring tests 的 `character-import-verification`；这些文件阶段证据不替代 Unity Editor 导入验收。
+
+`resource-mapping sync-character` 与导入路径共享 `ApplyFromCompileResult` 发布边界：角色编译 `GateReport.ExportBlocked` 或 `ImportBlocked` 时，在调用 Profile File Aggregator 前返回失败，CLI 退出非零，保留已有 Profile 的全部行、正文与 revision；缺少 GateReport 也拒绝发布。同步结果的 `compileDiagnostics` 保留编译器原始诊断的 gate、severity、code、来源字段、消息和修复建议，映射诊断仍在 `diagnostics`。完整 v2 snapshot 或空映射诊断不能替代角色编译门禁。仅 WarningOnly／SpawnBlocked 不阻断这一步，合法尚未导入的 `GeneratedUnityAsset` 定位仍可登记；同步不新增全面的磁盘存在性门禁，也不生成 Unity 资产。完整快照替换、其他 producer 保留、no-op 和 revision conflict 仍由唯一 Aggregator 维护。聚焦回归入口为 Authoring tests 的 `character-resource-mapping`，验收到文件发布边界，不替代 Unity Editor 导入验收。
 
 `config/animation_resource_plan.json` 有一处需要特别区分：正式包里它是 `mx.animationResourcePlan.v2` 的**五字段运行投影**（身份 + 语义 `planHash`），而完整 `mx.animationResourcePlan.v1`（含 runtime catalog、加载分组、audio manifest、diagnostics）属于**制作数据**，只存在于编译对象、制作 API 与显式诊断输出中。因此"完整动画资源计划"不是角色源，也不是正式运行配置；CharacterStudio 展示完整计划时应读取编译对象或显式诊断导出，不得从正式包文件反推被裁字段。详见 `Docs/CHARACTER_ANIMATION_RESOURCE_PLAN_RUNTIME_EXPORT_TASK.md`。
 

@@ -272,6 +272,20 @@ namespace MxFramework.Game.CharacterTest
             return active != null && active.IsRunning;
         }
 
+        /// <summary>Releases terminal payload while retaining the real actor-local instance allocator.
+        /// Idle gateway state is already included in runner snapshot/hash and trusted restore.</summary>
+        /// <remarks>NoAlloc. Removal is reserved for rollback or rejected restore, not accepted-action cleanup.</remarks>
+        internal void ReleaseCompleted(CharacterTestCharacterEntityId entityId)
+        {
+            if (!TryGet(entityId, out var gateway)) return;
+            if (gateway.ActiveInstance != null && gateway.ActiveInstance.IsRunning)
+                throw new InvalidOperationException("Cannot release a running action gateway.");
+            var completed = gateway.CaptureState();
+            // Restoring an actual terminal/idle receipt clears the active payload without rewinding NextInstanceId.
+            if (!gateway.TryRestore(completed, null, null, out var diagnostic))
+                throw new InvalidOperationException("Completed action gateway could not retain its identity: " + diagnostic.Code);
+        }
+
         internal void Remove(CharacterTestCharacterEntityId entityId)
         {
             if (entityId.IsValid)
@@ -310,12 +324,14 @@ namespace MxFramework.Game.CharacterTest
         private readonly Dictionary<int, List<PendingAfterFrameStateExit>> _pendingAfterFrameStateExits =
             new Dictionary<int, List<PendingAfterFrameStateExit>>(32);
         private CharacterTestComponentWorld _components;
+        private CharacterTestCharacterRuntimeWorld _thirdWorld;
 
         internal CharacterTestComponentWorld Components => _components;
         internal CharacterTestCharacterActionTimelineEventBuffer TimelineEvents => _timelineEvents;
 
         internal void BindRuntimeWorld(CharacterTestCharacterRuntimeWorld world)
         {
+            _thirdWorld = world;
             CharacterTestComponentWorld components = world != null ? world.CharacterComponents : null;
             bool changed = !ReferenceEquals(_components, components);
             _components = components;
@@ -354,11 +370,43 @@ namespace MxFramework.Game.CharacterTest
             action = ApplyPendingAfterFrameStateExits(components, entityId, action);
             CharacterActionRunnerEventBuffer events = operation.Events;
             int eventCount = events != null ? events.Count : 0;
-            for (int i = 0; i < eventCount; i++)
+            for (int i = 0; i < eventCount; i++) {
+                ObserveThirdAction(entityId, operation.ActiveInstance, events[i], frame);
                 action = ApplyOperationEvent(components, entityId, action, events[i], frame);
+            }
 
             action = ApplyActiveInstanceDebug(action, operation.ActiveInstance);
             components.SetAction(entityId, action);
+        }
+
+        private void EnqueueThirdActionMotion(CharacterTestComponentWorld components, CharacterTestCharacterEntityId id, long instance,
+            CharacterTestCharacterMotionRequest request)
+        {
+            var actor = _thirdWorld?.FindEntity(id.Value);
+            var source = actor == null ? default : _thirdWorld.DoubleEdgeState.ThirdAttack(actor.GameplayEntityId, instance);
+            var channel = request.Kind == CharacterTestCharacterMotionRequestKind.IgnoreGravity
+                ? TacticalCard.TacticalThirdBatchMotionChannel.ActiveGravitySuppression
+                : request.Kind == CharacterTestCharacterMotionRequestKind.Impulse ? TacticalCard.TacticalThirdBatchMotionChannel.ActiveImpulse
+                : request.Kind == CharacterTestCharacterMotionRequestKind.VerticalVelocityOverride ? TacticalCard.TacticalThirdBatchMotionChannel.ActiveVelocityOverride
+                : TacticalCard.TacticalThirdBatchMotionChannel.Unknown;
+            components.EnqueueMotionRequest(id, request.WithThirdSource(source, channel));
+        }
+
+        private void ObserveThirdAction(CharacterTestCharacterEntityId id, CharacterActionInstance active, CharacterActionRunnerEvent evt, RuntimeFrame frame)
+        {
+            var owner = _thirdWorld?.DoubleEdgeState; var actor = _thirdWorld?.FindEntity(id.Value);
+            if (owner == null || owner.Stage == 0 || actor == null) return;
+            actor.BindThirdWorld(_thirdWorld);
+            if (evt.Kind == CharacterActionRunnerEventKind.ActionStarted) {
+                if (active == null || active.InstanceId != evt.InstanceId || evt.InstanceId <= 0 || evt.InstanceId > int.MaxValue)
+                    throw new InvalidOperationException("third-batch:AcceptedActionIdentityMissing");
+                bool eligible = false;
+                foreach (var track in active.Definition.TrackEvents)
+                    if (track.EventKind == CharacterActionTrackEventKind.HitTraceWindow || track.EventKind == CharacterActionTrackEventKind.StartCombatAction
+                        || track.EventKind == CharacterActionTrackEventKind.SendGameplayRequest && _thirdWorld.ThirdDirectProjectileRequest?.Invoke(track.GameplayRequestId) == true) eligible = true;
+                owner.ObserveThirdAttack(actor.GameplayEntityId, (int)evt.InstanceId, frame.Value, eligible);
+            } else if (evt.Kind == CharacterActionRunnerEventKind.ActionFinished || evt.Kind == CharacterActionRunnerEventKind.ActionCancelled
+                || evt.Kind == CharacterActionRunnerEventKind.ActionInterrupted) owner.EndThirdAttack(actor.GameplayEntityId, evt.InstanceId, frame.Value);
         }
 
         internal void ApplyRestoredActiveInstance(
@@ -439,7 +487,7 @@ namespace MxFramework.Game.CharacterTest
                 && dispatch.EventKind == CharacterActionTrackEventKind.ApplyImpulse
                 && (dispatch.X != 0f || dispatch.Y != 0f || dispatch.Z != 0f))
             {
-                components.EnqueueMotionRequest(entityId, CharacterTestCharacterMotionRequest.Impulse(
+                EnqueueThirdActionMotion(components, entityId, evt.InstanceId, CharacterTestCharacterMotionRequest.Impulse(
                     new Vector3(dispatch.X, dispatch.Y, dispatch.Z),
                     dispatch.MovementMode,
                     evt.ActionId,
@@ -456,7 +504,7 @@ namespace MxFramework.Game.CharacterTest
                 if (lifecyclePhase == CharacterActionTrackLifecyclePhase.Active)
                 {
                     UpsertMotionStateContribution(entityId, evt, dispatch);
-                    components.EnqueueMotionRequest(entityId, CharacterTestCharacterMotionRequest.LockMovement(
+                    EnqueueThirdActionMotion(components, entityId, evt.InstanceId, CharacterTestCharacterMotionRequest.LockMovement(
                         dispatch.MovementMode,
                         evt.ActionId,
                         dispatch.StableEventId));
@@ -480,7 +528,7 @@ namespace MxFramework.Game.CharacterTest
                 if (lifecyclePhase == CharacterActionTrackLifecyclePhase.Active)
                 {
                     UpsertMotionStateContribution(entityId, evt, dispatch);
-                    components.EnqueueMotionRequest(entityId, CharacterTestCharacterMotionRequest.ControlScale(
+                    EnqueueThirdActionMotion(components, entityId, evt.InstanceId, CharacterTestCharacterMotionRequest.ControlScale(
                         dispatch.MovementControlScale,
                         dispatch.RotationControlScale,
                         dispatch.MovementMode,
@@ -506,7 +554,7 @@ namespace MxFramework.Game.CharacterTest
                 && lifecyclePhase == CharacterActionTrackLifecyclePhase.Active
                 && dispatch.EventKind == CharacterActionTrackEventKind.SetVerticalVelocity)
             {
-                components.EnqueueMotionRequest(entityId,
+                EnqueueThirdActionMotion(components, entityId, evt.InstanceId,
                     CharacterTestCharacterMotionRequest.VerticalVelocityOverride(
                         dispatch.Y, evt.ActionId, dispatch.StableEventId));
             }
@@ -515,7 +563,7 @@ namespace MxFramework.Game.CharacterTest
                 && lifecyclePhase == CharacterActionTrackLifecyclePhase.Active
                 && dispatch.EventKind == CharacterActionTrackEventKind.IgnoreGravity)
             {
-                components.EnqueueMotionRequest(entityId,
+                EnqueueThirdActionMotion(components, entityId, evt.InstanceId,
                     CharacterTestCharacterMotionRequest.IgnoreGravity(
                         evt.ActionId, dispatch.StableEventId));
             }
@@ -816,7 +864,7 @@ namespace MxFramework.Game.CharacterTest
             {
                 ActionInstanceId = actionInstanceId;
                 StableEventId = dispatch.StableEventId;
-                EventOrder = CharacterTestAuthoredContentIds.GetEventOrder(StableEventId);
+                EventOrder = dispatch.StableEventOrder;
                 StartFrame = dispatch.Frame;
                 MovementMode = dispatch.MovementMode;
                 LocksMovement = dispatch.EventKind == CharacterActionTrackEventKind.LockMovement;
@@ -931,7 +979,7 @@ namespace MxFramework.Game.CharacterTest
                 ActionInstanceId = actionInstanceId;
                 ActionId = actionId;
                 StableEventId = dispatch.StableEventId;
-                EventOrder = CharacterTestAuthoredContentIds.GetEventOrder(StableEventId);
+                EventOrder = dispatch.StableEventOrder;
                 StartFrame = dispatch.Frame;
                 ProfileId = dispatch.CollisionProfileId;
                 RestorePolicy = dispatch.CollisionRestorePolicy;

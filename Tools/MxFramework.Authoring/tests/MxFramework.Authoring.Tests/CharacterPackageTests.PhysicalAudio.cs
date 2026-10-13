@@ -795,6 +795,21 @@ internal static partial class CharacterPackageTests
             Require(capture.success && capture.httpStatus == 202
                     && File.Exists(Path.Combine(root, "Temp", "MxFrameworkAuthoring", "Audio", "physical_capture_request.json")),
                 "physical fact capture should expose a low-frequency request shelf without inventing captured data.");
+
+            AudioCueAuthoringDefinition invalidCue = semantic.Cues.Find(item => item.RuntimeCueId == response.expectedRuntimeCueId);
+            invalidCue.Lifecycle = AudioCueLifecycles.Active;
+            invalidCue.DefaultParameters.Add(new AudioCueDefaultParameter { Name = "MissingPreviewParameter", Value = 0.75f });
+            Dictionary<string, string> before = SnapshotCueDefaultParameterFiles(root);
+            var blockedPreview = MxFramework.Authoring.Cli.EditorServer.WritePhysicalAudioPreviewRequest(
+                root, string.Empty,
+                new MxFramework.Authoring.Cli.EditorServer.PhysicalAudioPreviewApiRequest
+                {
+                    semanticManifest = semantic, physicalManifest = physical, fact = fact
+                }, JsonOptions);
+            Require(!blockedPreview.success && blockedPreview.httpStatus == 400
+                && blockedPreview.code == CueDefaultParameterMissingCode,
+                "physical preview must return the parameter diagnostic before writing a catalog or Unity request.");
+            RequireCueDefaultParameterFilesUnchanged(root, before);
         }
         finally
         {

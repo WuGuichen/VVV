@@ -138,7 +138,7 @@ namespace MxFramework.Settings.UI
                 graphics.MainLightShadowmapResolution,
                 graphics.ShadowCascadeCount,
                 graphics.AdditionalLightsShadowmapResolution,
-                graphics.HdrOutput, graphics.DirectionalShadowQuality));
+                graphics.HdrOutput, graphics.DirectionalShadowQuality, graphics.WaterQuality, graphics.RippleQuality));
         }
 
         public void SetResolution(int width, int height)
@@ -160,7 +160,7 @@ namespace MxFramework.Settings.UI
                 graphics.MainLightShadowmapResolution,
                 graphics.ShadowCascadeCount,
                 graphics.AdditionalLightsShadowmapResolution,
-                graphics.HdrOutput, graphics.DirectionalShadowQuality));
+                graphics.HdrOutput, graphics.DirectionalShadowQuality, graphics.WaterQuality, graphics.RippleQuality));
         }
 
         public void SetWindowMode(MxWindowMode value, bool applyWindowMode = true)
@@ -182,7 +182,7 @@ namespace MxFramework.Settings.UI
                 graphics.MainLightShadowmapResolution,
                 graphics.ShadowCascadeCount,
                 graphics.AdditionalLightsShadowmapResolution,
-                graphics.HdrOutput, graphics.DirectionalShadowQuality));
+                graphics.HdrOutput, graphics.DirectionalShadowQuality, graphics.WaterQuality, graphics.RippleQuality));
         }
 
         public void SetVSyncCount(int value)
@@ -204,7 +204,7 @@ namespace MxFramework.Settings.UI
                 graphics.MainLightShadowmapResolution,
                 graphics.ShadowCascadeCount,
                 graphics.AdditionalLightsShadowmapResolution,
-                graphics.HdrOutput, graphics.DirectionalShadowQuality));
+                graphics.HdrOutput, graphics.DirectionalShadowQuality, graphics.WaterQuality, graphics.RippleQuality));
         }
 
         public void SetTargetFrameRate(int value)
@@ -226,7 +226,7 @@ namespace MxFramework.Settings.UI
                 graphics.MainLightShadowmapResolution,
                 graphics.ShadowCascadeCount,
                 graphics.AdditionalLightsShadowmapResolution,
-                graphics.HdrOutput, graphics.DirectionalShadowQuality));
+                graphics.HdrOutput, graphics.DirectionalShadowQuality, graphics.WaterQuality, graphics.RippleQuality));
         }
 
         public void SetRenderScale(float value)
@@ -248,7 +248,19 @@ namespace MxFramework.Settings.UI
                 graphics.MainLightShadowmapResolution,
                 graphics.ShadowCascadeCount,
                 graphics.AdditionalLightsShadowmapResolution,
-                graphics.HdrOutput, graphics.DirectionalShadowQuality));
+                graphics.HdrOutput, graphics.DirectionalShadowQuality, graphics.WaterQuality, graphics.RippleQuality));
+        }
+
+        /// <summary>LowFreqAlloc: updates the settings draft; runtime effects occur on Apply.</summary>
+        public void SetWaterQuality(MxGraphicsFeatureQuality value)
+        {
+            UpdateGraphics(CopyGraphics(WorkingProfile.Graphics, waterQuality: value));
+        }
+
+        /// <summary>LowFreqAlloc: updates the settings draft; runtime effects occur on Apply.</summary>
+        public void SetRippleQuality(MxGraphicsFeatureQuality value)
+        {
+            UpdateGraphics(CopyGraphics(WorkingProfile.Graphics, rippleQuality: value));
         }
 
         public void SetDirectionalShadowQuality(MxGraphicsFeatureQuality value)
@@ -493,6 +505,20 @@ namespace MxFramework.Settings.UI
                             graphics.DirectionalShadowQuality.ToString(), MxSettingsUiControlKind.Select,
                             options: new[] { Option(0, "Default"), Option(2, "Low"), Option(3, "Medium"), Option(4, "High") }));
                         break;
+                    case MxGraphicsSettingKey.WaterQuality:
+                        items.Add(new MxSettingsUiItemViewModel(MxSettingsUiSectionKey.Graphics,
+                            MxSettingsUiItemKey.GraphicsWaterQuality, "graphics.waterQuality", "Water Quality",
+                            ((int)graphics.WaterQuality).ToString(CultureInfo.InvariantCulture),
+                            graphics.WaterQuality.ToString(), MxSettingsUiControlKind.Select,
+                            options: new[] { Option(0, "Default"), Option(2, "Low SSPR"), Option(3, "Medium SSPR"), Option(5, "High SSPR"), Option(4, "Planar Reflection") }));
+                        break;
+                    case MxGraphicsSettingKey.RippleQuality:
+                        items.Add(new MxSettingsUiItemViewModel(MxSettingsUiSectionKey.Graphics,
+                            MxSettingsUiItemKey.GraphicsRippleQuality, "graphics.rippleQuality", "Ripple Quality",
+                            ((int)graphics.RippleQuality).ToString(CultureInfo.InvariantCulture),
+                            graphics.RippleQuality.ToString(), MxSettingsUiControlKind.Select,
+                            options: new[] { Option(0, "Default"), Option(1, "Off"), Option(2, "Low"), Option(3, "Medium"), Option(4, "High") }));
+                        break;
                     case MxGraphicsSettingKey.HdrOutput:
                         items.Add(new MxSettingsUiItemViewModel(MxSettingsUiSectionKey.Graphics,
                             MxSettingsUiItemKey.GraphicsHdrOutput, "graphics.hdrOutput.mode", "HDR Output",
@@ -628,7 +654,9 @@ namespace MxFramework.Settings.UI
             int? shadowCascadeCount = null,
             int? additionalLightsShadowmapResolution = null,
             MxHdrOutputSettings hdrOutput = null,
-            MxGraphicsFeatureQuality? directionalShadowQuality = null)
+            MxGraphicsFeatureQuality? directionalShadowQuality = null,
+            MxGraphicsFeatureQuality? waterQuality = null,
+            MxGraphicsFeatureQuality? rippleQuality = null)
         {
             return new MxGraphicsSettings(
                 graphics.QualityPreset,
@@ -646,7 +674,7 @@ namespace MxFramework.Settings.UI
                 mainLightShadowmapResolution ?? graphics.MainLightShadowmapResolution,
                 shadowCascadeCount ?? graphics.ShadowCascadeCount,
                 additionalLightsShadowmapResolution ?? graphics.AdditionalLightsShadowmapResolution,
-                hdrOutput ?? graphics.HdrOutput, directionalShadowQuality ?? graphics.DirectionalShadowQuality);
+                hdrOutput ?? graphics.HdrOutput, directionalShadowQuality ?? graphics.DirectionalShadowQuality, waterQuality ?? graphics.WaterQuality, rippleQuality ?? graphics.RippleQuality);
         }
 
         private void UpdateAudioBus(int busId, float? volume, bool? muted)

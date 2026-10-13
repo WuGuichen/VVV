@@ -201,6 +201,63 @@ namespace MxFramework.Tests.Runtime
                 calls);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void PendingTransitionCallbacks_RejectNestedRequests(bool requestFromEnter)
+        {
+            var calls = new List<string>();
+            var controller = new AppFlowController();
+            var boot = new CallbackRequestingState("boot", calls, requestFromEnter: false, requestFromExit: !requestFromEnter);
+            var menu = new CallbackRequestingState("menu", calls, requestFromEnter, requestFromExit: false);
+            controller.RegisterState(boot);
+            controller.RegisterState(menu);
+            controller.RegisterState(new RecordingState("gameplay", calls));
+            controller.Start("boot");
+            controller.RequestTransition("menu");
+
+            controller.Tick(0, 0.1d, 0.1d);
+
+            AppFlowTransitionResult nested = requestFromEnter ? menu.CallbackResult : boot.CallbackResult;
+            Assert.IsNotNull(nested);
+            Assert.IsFalse(nested.Success);
+            Assert.AreEqual(AppFlowTransitionErrorCode.TransitionInProgress, nested.ErrorCode);
+            Assert.AreEqual("menu", controller.CurrentStateId);
+            Assert.IsFalse(controller.HasPendingTransition);
+
+            controller.Tick(1, 0.1d, 0.2d);
+            Assert.AreEqual("menu", controller.CurrentStateId);
+            Assert.IsFalse(controller.HasPendingTransition);
+        }
+
+        private sealed class CallbackRequestingState : RecordingState
+        {
+            private readonly bool _requestFromEnter;
+            private readonly bool _requestFromExit;
+
+            public CallbackRequestingState(string stateId, List<string> calls, bool requestFromEnter, bool requestFromExit)
+                : base(stateId, calls)
+            {
+                _requestFromEnter = requestFromEnter;
+                _requestFromExit = requestFromExit;
+            }
+
+            public AppFlowTransitionResult CallbackResult { get; private set; }
+
+            public override void Enter(AppFlowStateContext context, AppFlowTransition transition)
+            {
+                base.Enter(context, transition);
+                if (_requestFromEnter)
+                    CallbackResult = context.Controller.RequestTransition("gameplay", "from-enter");
+            }
+
+            public override void Exit(AppFlowStateContext context, AppFlowTransition transition)
+            {
+                base.Exit(context, transition);
+                if (_requestFromExit)
+                    CallbackResult = context.Controller.RequestTransition("gameplay", "from-exit");
+            }
+        }
+
         private class RecordingState : IAppFlowState
         {
             protected readonly List<string> Calls;

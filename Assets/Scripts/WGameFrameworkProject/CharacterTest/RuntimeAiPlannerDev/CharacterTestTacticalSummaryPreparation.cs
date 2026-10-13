@@ -51,7 +51,7 @@ namespace MxFramework.Game.CharacterTest
             if (!CharacterTestTacticalCardInputs.TryResolveSelectedAction(actionSet, runtime.ActionRuntime.Registry.Actions, testActionId, out var action, out issue)
                 || !CharacterTestTacticalCardInputs.TryValidateAction(action, out issue)) return false;
             if (!CharacterActionContentHashUtility.TryCompute(action, source, runtime.PhysicsRuntime,
-                runtime.CombatTraceSystem.BakedTraceSource, runtime.CombatTraceSystem.WeaponTraceBindingResolver, out string hash, out issue)) return false;
+                runtime.CombatTraceSystem.BakedTraceSource, runtime.CombatTraceSystem.WeaponTraceBindingResolver, out string hash, out issue, runtime.CombatTraceSystem.ReferenceProjectiles)) return false;
             request = new CharacterTestTacticalSummaryRequest(source.Identity.CharacterId, action.ActionId.Value,
                 actionSet?.StableId ?? string.Empty, source.Equipment, hash, measurement, testActionId > 0);
             return true;

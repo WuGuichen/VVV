@@ -13,6 +13,154 @@ namespace MxFramework.Tests.Game.CharacterTest
     {
         private static readonly float[] CandidateAngles = { 90f, -90f, 45f, -45f };
 
+        [TestCase(0f, 0.6f)]
+        [TestCase(1.6f, 1.8f)]
+        [TestCase(0.8f, 1.2f)]
+        public void FullHeightObstacle_BlocksCachedAndFallbackDirectProbe(float bottom, float top)
+        {
+            CharacterTestCharacterPhysicsRuntime physics = CreatePhysics();
+            using ActorFixture actors = CreateActors(physics, 0f, 2f);
+            SetClearance(actors.Source, height: 2000, radius: 250, centerY: 1000);
+            AddBounds(physics.World, 120, 1, Position(0.5f, bottom, -1f), Position(0.75f, top, 1f));
+            actors.Cache.BeginFrame(new RuntimeFrame(30), actors.Module, physics);
+
+            Assert.IsTrue(TryQuery(actors, null, 120, out CharacterTestNavigationSample sample,
+                Array.Empty<float>(), probeMaxLength: 1.25f));
+            Assert.IsFalse(sample.Result.DirectPathClear, "Cached navigation must cover the full body height.");
+            Assert.AreEqual(Vector2.zero, sample.Result.Move);
+            Assert.Greater(sample.DirectPathHitCount, 0);
+            Assert.AreEqual(1, sample.CombatQueryCount);
+
+            var service = new CharacterTestCombatPhysicsNavigationService(physics,
+                new CharacterTestAiBehaviorProfile(navigationProbeMaxLength: 1.25f));
+            Assert.IsTrue(service.TryResolveMove(actors.Source, actors.Target, 0.1f, out var fallback));
+            Assert.IsFalse(fallback.DirectPathClear, "Fallback navigation must use the same clearance.");
+        }
+
+        private static void SetClearance(CharacterTestCharacterEntity actor, int height, int radius, int centerY)
+        {
+            CharacterTestColliderPostureComponent posture = actor.ColliderPosture;
+            actor.SetColliderPosture(posture.WithResolved(
+                global::MxFramework.Tests.Game.CharacterTest.MigrationFixtureIds.Id0055,
+                height, radius, centerY, posture.BlocksCharacters, posture.CanBePushed,
+                CharacterTestColliderPostureSource.ActionTimeline, posture.Priority + 1, frame: 30));
+        }
+
+        private static void AddBounds(CombatPhysicsWorld world, int id, int layer, FixVector3 min, FixVector3 max,
+            CombatEntityId entityId = default)
+        {
+            var body = new CombatBodyId(id);
+            world.UpsertBody(new CombatPhysicsBody(entityId.IsNone ? new CombatEntityId(id) : entityId,
+                body, FixVector3.Zero));
+            world.UpsertAabbCollider(new CombatPhysicsAabbCollider(body, new CombatColliderId(1), layer, min, max));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void LowWall_UsesSharedDetourOrStopsWhenUnreachable(bool spansRegion)
+        {
+            CharacterTestCharacterPhysicsRuntime physics = CreatePhysics();
+            float halfZ = spansRegion ? 5.5f : 0.6f;
+            AddBounds(physics.World, 121, 1, Position(-0.6f, 0f, -halfZ), Position(0.6f, 0.6f, halfZ));
+            CharacterTestNavigationSession session = BuildSession(physics, Input());
+            using ActorFixture actors = CreateActors(physics, -4f, 4f);
+            actors.Cache.BeginFrame(new RuntimeFrame(31), actors.Module, physics);
+
+            Assert.IsTrue(TryQuery(actors, session, 121, out var sample, Array.Empty<float>()));
+            Assert.IsFalse(sample.Result.DirectPathClear);
+            Assert.AreEqual(1, sample.PathQueryCount);
+            Assert.AreEqual(spansRegion ? CharacterTestPathStatus.Unreachable : CharacterTestPathStatus.Success,
+                sample.PathStatus);
+            if (spansRegion)
+            {
+                Assert.AreEqual(Vector2.zero, sample.Result.Move);
+                Assert.AreEqual(CharacterTestNavigationResolutionStatus.Stopped, sample.ResolutionStatus);
+            }
+            else
+            {
+                Assert.AreEqual(CharacterTestNavigationResolutionStatus.PathWaypoint, sample.ResolutionStatus);
+                Assert.Greater(Math.Abs(sample.Result.Move.y), 0.1f);
+            }
+        }
+
+        [TestCase(0f)]
+        [TestCase(0.2f)]
+        [TestCase(0.25f)]
+        public void GroundAndAllowedStep_RemainClearInBothPaths(float stepHeight)
+        {
+            CharacterTestCharacterPhysicsRuntime physics = CreatePhysics();
+            using ActorFixture actors = CreateActors(physics, 0f, 2f);
+            SetClearance(actors.Source, 2000, 250, 1000);
+            AddBounds(physics.World, 122, 1, Position(-10f, -1f, -10f), Position(10f, 0f, 10f));
+            AddBounds(physics.World, 123, 1, Position(0.5f, 0f, -1f), Position(0.75f, stepHeight, 1f));
+            actors.Cache.BeginFrame(new RuntimeFrame(32), actors.Module, physics);
+            Assert.IsTrue(TryQuery(actors, null, 122, out var sample, Array.Empty<float>()));
+            Assert.IsTrue(sample.Result.DirectPathClear);
+            var service = new CharacterTestCombatPhysicsNavigationService(physics);
+            Assert.IsTrue(service.TryResolveMove(actors.Source, actors.Target, 0.1f, out var fallback));
+            Assert.IsTrue(fallback.DirectPathClear);
+
+            if (stepHeight > 0f)
+            {
+                int queries = actors.Cache.NavigationQueryCount;
+                actors.Source.SetMotionState(0f, Vector2.zero, isGrounded: false);
+                Assert.IsTrue(TryQuery(actors, null, 122, out var airborne, Array.Empty<float>()));
+                Assert.IsFalse(airborne.Result.DirectPathClear, "Airborne actors cannot use grounded step clearance.");
+                Assert.Greater(actors.Cache.NavigationQueryCount, queries);
+                Assert.IsTrue(service.TryResolveMove(actors.Source, actors.Target, 0.1f, out fallback));
+                Assert.IsFalse(fallback.DirectPathClear);
+            }
+        }
+
+        [Test]
+        public void PostureHeightAndCenter_RefreshSameFrameWithoutPhysicsRevision()
+        {
+            CharacterTestCharacterPhysicsRuntime physics = CreatePhysics();
+            using ActorFixture actors = CreateActors(physics, 0f, 2f);
+            AddBounds(physics.World, 124, 1, Position(0.5f, 1.6f, -1f), Position(0.75f, 1.8f, 1f));
+            SetClearance(actors.Source, 2000, 250, 1000);
+            actors.Cache.BeginFrame(new RuntimeFrame(33), actors.Module, physics);
+            Assert.IsTrue(TryQuery(actors, null, 124, out var standing, Array.Empty<float>()));
+            Assert.IsFalse(standing.Result.DirectPathClear);
+            int revision = physics.World.Revision;
+
+            SetClearance(actors.Source, 1000, 250, 500);
+            Assert.IsTrue(TryQuery(actors, null, 124, out var crouching, Array.Empty<float>()));
+            Assert.IsTrue(crouching.Result.DirectPathClear);
+            int queries = actors.Cache.NavigationQueryCount;
+            SetClearance(actors.Source, 1000, 250, 1500);
+            Assert.IsTrue(TryQuery(actors, null, 124, out var raised, Array.Empty<float>()));
+            Assert.IsFalse(raised.Result.DirectPathClear);
+            Assert.Greater(actors.Cache.NavigationQueryCount, queries);
+            Assert.AreEqual(revision, physics.World.Revision);
+        }
+
+        [Test]
+        public void TargetAndExcludedLayer_AreIgnoredButDynamicLowObstacleBlocks()
+        {
+            CharacterTestCharacterPhysicsRuntime physics = CreatePhysics();
+            using ActorFixture actors = CreateActors(physics, 0f, 2f);
+            SetClearance(actors.Source, 2000, 250, 1000);
+            AddBounds(physics.World, 127, 8, Position(-0.2f, 0f, -0.2f), Position(0.2f, 2f, 0.2f),
+                physics.GetEntityId(actors.Source));
+            AddBounds(physics.World, 128, 8, Position(1.8f, 0f, -0.2f), Position(2.2f, 2f, 0.2f),
+                physics.GetEntityId(actors.Target));
+            AddBounds(physics.World, 125, 2, Position(0.5f, 0f, -1f), Position(0.75f, 0.6f, 1f));
+            actors.Cache.BeginFrame(new RuntimeFrame(34), actors.Module, physics);
+            Assert.IsTrue(TryQuery(actors, null, 125, out var clear, Array.Empty<float>()));
+            Assert.IsTrue(clear.Result.DirectPathClear);
+            var service = new CharacterTestCombatPhysicsNavigationService(physics);
+            Assert.IsTrue(service.TryResolveMove(actors.Source, actors.Target, 0.1f, out var fallback));
+            Assert.IsTrue(fallback.DirectPathClear);
+
+            AddBounds(physics.World, 126, 8, Position(0.5f, 0f, -1f), Position(0.75f, 0.6f, 1f));
+            Assert.IsTrue(TryQuery(actors, null, 125, out var blocked, Array.Empty<float>()));
+            Assert.IsFalse(blocked.Result.DirectPathClear);
+            Assert.AreEqual(Vector2.zero, blocked.Result.Move);
+            Assert.IsTrue(service.TryResolveMove(actors.Source, actors.Target, 0.1f, out fallback));
+            Assert.IsFalse(fallback.DirectPathClear);
+        }
+
         [Test]
         public void DirectPath_SkipsAStarAndPublishesGraphWitness()
         {

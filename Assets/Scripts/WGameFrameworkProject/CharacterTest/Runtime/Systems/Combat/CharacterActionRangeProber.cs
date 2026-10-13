@@ -77,7 +77,7 @@ namespace MxFramework.Game.CharacterTest
             long range = (long)measurement.SearchMaxMillimeters - measurement.SearchMinMillimeters;
             long sampleCount = (range + measurement.StepMillimeters - 1) / measurement.StepMillimeters + 1;
             if (sampleCount > MaximumGridSamples) { complete(Failure(CharacterActionProberStatus.Unsupported, "SampleBudgetExceeded")); yield break; }
-            if (session.Action.Category != CharacterActionCategory.BasicAttack)
+            if (session.Action.Category != CharacterActionCategory.BasicAttack && !CharacterActionProjectileReference.IsCandidate(session.Action))
                 { complete(Failure(CharacterActionProberStatus.Unsupported, "ActionEvaluatorUnsupported")); yield break; }
             string dummyHash = CharacterActionContentHashUtility.ComputeReferenceDummyHash(measurement.ReferenceDummy);
             if (dummyHash != CharacterActionContentHashUtility.ComputeReferenceDummyHash(session.ReferenceDummy))

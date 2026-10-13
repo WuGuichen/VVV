@@ -414,7 +414,7 @@ namespace MxFramework.CharacterControl
                 : request.SourceKind;
         }
 
-        private static int ResolveActionIntentId(CharacterActionRequest request)
+        internal static int ResolveActionIntentId(CharacterActionRequest request)
         {
             if ((request.ActionIntentId > 0))
                 return request.ActionIntentId;
@@ -791,11 +791,15 @@ namespace MxFramework.CharacterControl
                     "CharacterAction runtime is not configured.");
 
             CharacterActionExecutionResult execution = _requests.Tick();
+            CharacterActionInstance instance = execution.ActiveInstance;
+            long instanceId = instance?.InstanceId ?? 0L;
             CharacterActionRequest request = _hasActiveRequest ? _activeRequest : default;
             CharacterActionResult dispatch = DispatchExecution(execution, request, frame);
-            if (!dispatch.Success)
+            // A terminal event can synchronously start the queued action and reset this pooled instance.
+            // Its initial sample belongs to Submit, not to the completed Tick operation.
+            if (!dispatch.Success || (instance != null && instance.InstanceId != instanceId))
                 return dispatch;
-            return DispatchRootMotion(request, frame, execution.ActiveInstance);
+            return DispatchRootMotion(request, frame, instance);
         }
 
         public CharacterActionResult CompleteExternal(
@@ -973,6 +977,7 @@ namespace MxFramework.CharacterControl
                     return CharacterActionResult.Accepted(ToActionInstanceId(evt.InstanceId));
 
                 case CharacterActionRunnerEventKind.TrackEventFired:
+                case CharacterActionRunnerEventKind.TrackLifecycle:
                     CharacterActionDispatchOutcome track = _dispatch.DispatchTrack(evt, operationRequest, frame);
                     return track.Accepted
                         ? CharacterActionResult.Accepted()
@@ -1191,6 +1196,8 @@ namespace MxFramework.CharacterControl
                 && left.SourceId == right.SourceId
                 && left.Entity.Equals(right.Entity)
                 && left.Kind == right.Kind
+                && CharacterActionRequestCoordinator.ResolveActionIntentId(left)
+                    == CharacterActionRequestCoordinator.ResolveActionIntentId(right)
                 && left.CombatActionId == right.CombatActionId
                 && left.GameplayAbilityId == right.GameplayAbilityId
                 && left.TargetGameplayEntityId.Equals(right.TargetGameplayEntityId)

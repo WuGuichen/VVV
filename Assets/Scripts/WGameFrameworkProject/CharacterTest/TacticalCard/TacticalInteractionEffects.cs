@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MxFramework.Combat.Hit;
 using MxFramework.Gameplay;
 using MxFramework.Runtime;
 
@@ -39,6 +40,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal const int ReceiptStage = 354;
         internal const int ReceiptTurn = 355;
         internal const int Accessories = 356;
+        internal const int ProducerKind = 357, ProducerId = 358, ProducerGeneration = 359, ProducerOccurrence = 360;
     }
 
     // Candidate discriminators only. Publication/definition ID allocation belongs to the repository owner.
@@ -84,10 +86,11 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal readonly long Frame;
         internal readonly GameplayEntityId Attacker, Target;
         internal readonly int ActionInstance, Trace;
-        internal TacticalInteractionReceipt(ulong stage, ulong turn, long frame, GameplayEntityId attacker, GameplayEntityId target, int actionInstance, int trace)
-        { Stage = stage; Turn = turn; Frame = frame; Attacker = attacker; Target = target; ActionInstance = actionInstance; Trace = trace; }
-        public override int GetHashCode() => unchecked((int)(Stage ^ (Stage >> 32) ^ Turn ^ (Turn >> 32) ^ (ulong)Frame) * 397 ^ Attacker.GetHashCode() * 31 ^ Target.GetHashCode() * 17 ^ ActionInstance ^ Trace);
-        public bool Equals(TacticalInteractionReceipt other) => Stage == other.Stage && Turn == other.Turn && Frame == other.Frame && Attacker == other.Attacker && Target == other.Target && ActionInstance == other.ActionInstance && Trace == other.Trace;
+        internal readonly CombatHitProducerIdentity ProducerIdentity;
+        internal TacticalInteractionReceipt(ulong stage, ulong turn, long frame, GameplayEntityId attacker, GameplayEntityId target, int actionInstance, int trace, CombatHitProducerIdentity producerIdentity = default)
+        { ProducerIdentity = producerIdentity; Stage = stage; Turn = turn; Frame = frame; Attacker = attacker; Target = target; ActionInstance = actionInstance; Trace = trace; }
+        public override int GetHashCode() => unchecked((int)(Stage ^ (Stage >> 32) ^ Turn ^ (Turn >> 32) ^ (ulong)Frame) * 397 ^ Attacker.GetHashCode() * 31 ^ Target.GetHashCode() * 17 ^ ActionInstance ^ Trace ^ ProducerIdentity.GetHashCode());
+        public bool Equals(TacticalInteractionReceipt other) => Stage == other.Stage && Turn == other.Turn && Frame == other.Frame && Attacker == other.Attacker && Target == other.Target && ActionInstance == other.ActionInstance && Trace == other.Trace && ProducerIdentity.Equals(other.ProducerIdentity);
     }
 
     internal struct TacticalInteractionSlot
@@ -102,7 +105,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
     internal sealed class TacticalInteractionSnapshot
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         public int Version { get; set; } = CurrentVersion;
         public ulong Stage { get; set; }
         public ulong Turn { get; set; }
@@ -152,7 +155,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             for (int i = 0; i < Receipts.Length; i++)
             {
                 var receipt = Receipts[i];
-                if (receipt.Stage != Stage || receipt.Turn != Turn || receipt.Frame < 0 || receipt.Frame > LastReceiptFrame || receipt.Frame > frame || !receipt.Attacker.IsValid || !receipt.Target.IsValid) return false;
+                if (!receipt.HasValidProducer || receipt.Stage != Stage || receipt.Turn != Turn || receipt.Frame < 0 || receipt.Frame > LastReceiptFrame || receipt.Frame > frame || !receipt.Attacker.IsValid || !receipt.Target.IsValid) return false;
                 if (!unique.Add(receipt.ToReceipt()) || (i > 0 && Receipts[i - 1].Frame > receipt.Frame)) return false;
             }
             if (Receipts.Length == 0 ? LastReceiptFrame != -1 : Receipts[Receipts.Length - 1].Frame != LastReceiptFrame) return false;
@@ -166,9 +169,23 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         public long Frame;
         public GameplayEntityId Attacker, Target;
         public int ActionInstance, Trace;
+        public int ProducerKind;
+        public ulong ProducerId, ProducerGeneration, ProducerOccurrence;
+        internal bool HasValidProducer => ProducerKind == 0
+            ? ProducerId == 0 && ProducerGeneration == 0 && ProducerOccurrence == 0
+            : ProducerKind >= 1 && ProducerKind <= (int)CombatHitProducerKind.DerivedDamage && ProducerId != 0;
+        internal CombatHitProducerIdentity ProducerIdentity => ProducerKind == 0 ? default
+            : new CombatHitProducerIdentity((CombatHitProducerKind)ProducerKind, ProducerId, ProducerGeneration, ProducerOccurrence);
+        internal void AddProducerHash(ref RuntimeHashAccumulator hash, int kindField, int idField, int generationField, int occurrenceField)
+        {
+            if (ProducerKind == 0) return; // Preserve hashes for existing non-spatial receipts.
+            hash.AddInt(kindField, ProducerKind); hash.AddLong(idField, unchecked((long)ProducerId));
+            hash.AddLong(generationField, unchecked((long)ProducerGeneration)); hash.AddLong(occurrenceField, unchecked((long)ProducerOccurrence));
+        }
         internal TacticalInteractionReceiptData(in TacticalInteractionReceipt value)
-        { Stage = value.Stage; Turn = value.Turn; Frame = value.Frame; Attacker = value.Attacker; Target = value.Target; ActionInstance = value.ActionInstance; Trace = value.Trace; }
-        internal TacticalInteractionReceipt ToReceipt() => new TacticalInteractionReceipt(Stage, Turn, Frame, Attacker, Target, ActionInstance, Trace);
+        { ProducerKind = (int)value.ProducerIdentity.Kind; ProducerId = value.ProducerIdentity.Id;
+            ProducerGeneration = value.ProducerIdentity.Generation; ProducerOccurrence = value.ProducerIdentity.Occurrence; Stage = value.Stage; Turn = value.Turn; Frame = value.Frame; Attacker = value.Attacker; Target = value.Target; ActionInstance = value.ActionInstance; Trace = value.Trace; }
+        internal TacticalInteractionReceipt ToReceipt() => new TacticalInteractionReceipt(Stage, Turn, Frame, Attacker, Target, ActionInstance, Trace, ProducerIdentity);
     }
 
     /// <summary>One actor generation's effect authority. No clock, action, card or resource copy is owned here.</summary>
@@ -325,6 +342,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             for (int i = 0; i < _receipts.Count; i++) {
                 var receipt = _receipts[i]; hash.AddLong(TacticalInteractionHashFields.ReceiptStage, unchecked((long)receipt.Stage)); hash.AddLong(TacticalInteractionHashFields.ReceiptTurn, unchecked((long)receipt.Turn)); hash.AddLong(TacticalInteractionHashFields.ReceiptFrame, receipt.Frame); hash.AddInt(TacticalInteractionHashFields.AttackerIndex, receipt.Attacker.Index); hash.AddInt(TacticalInteractionHashFields.AttackerGeneration, receipt.Attacker.Generation);
                 hash.AddInt(TacticalInteractionHashFields.ReceiptTargetIndex, receipt.Target.Index); hash.AddInt(TacticalInteractionHashFields.ReceiptTargetGeneration, receipt.Target.Generation); hash.AddInt(TacticalInteractionHashFields.ActionInstance, receipt.ActionInstance); hash.AddInt(TacticalInteractionHashFields.Trace, receipt.Trace);
+                receipt.AddProducerHash(ref hash, TacticalInteractionHashFields.ProducerKind, TacticalInteractionHashFields.ProducerId, TacticalInteractionHashFields.ProducerGeneration, TacticalInteractionHashFields.ProducerOccurrence);
             }
             AddAccessoryHash(ref hash);
         }

@@ -123,6 +123,9 @@ Docs 维护工程文档；[StorySource/玩法基石](../StorySource/玩法基石
 | 状态 | 文档 | 用途 |
 |------|------|------|
 | Guide | `USAGE.md` | 最小接入示例和组合方式。 |
+| Guide | [多机器 Issue 协作执行规范](Guides/MULTI_MACHINE_ISSUE_EXECUTION.md) | 统筹指派机器、用户自行开启执行会话、同一 Issue 评论交接及证据验收；适用范围由该规范明确。 |
+| Draft | [模块检查会话职责登记](Guides/MODULE_CHECK_SESSION_REGISTRY.md) | 按当前模块／程序集／工具入口划分检查和复验职责；实际会话、缺口和分批建立状态以登记表为准。 |
+| Guide | [代码快照镜像](../Tools/RepositoryMirror/README.md) | 固定 Gitea 提交导出代码白名单，先本地预览再按实际授权发布指定镜像分支。 |
 | Guide | `AGENT_GAME_CREATION_GUIDE.md` | Agent 制作小游戏 / Demo / Runtime Showcase 的强制规范。 |
 | Guide | `Guides/LEVEL_EDITOR_QUICK_PLACEMENT_GUIDE.md` | 当前关卡编辑器的放置、复制、重新放置、保存、撤销和 Scene 右键操作。 |
 | Current | `CHARACTER_TEST_GENESIS_VALIDATION_SCENE_FRAMEWORK_DESIGN.md` | CharacterTest 创世验证场框架 v0.4：P1 已实现 ScenePlan、Zone / Route / Waypoint、Station Spatial Program、5 个模板、owner-backed 一键脚手架、结构 / 几何门禁、量化空间诊断 hash 与 SceneView overlay；P2 executable cache、runner、observer 和 Runtime inspection 仍是 Target。 |

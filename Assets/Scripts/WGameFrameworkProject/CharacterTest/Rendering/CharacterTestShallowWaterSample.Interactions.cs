@@ -8,9 +8,10 @@ namespace MxFramework.Game.CharacterTest
 {
     internal sealed partial class CharacterTestShallowWaterSession
     {
-        private static readonly int RippleCountId=Shader.PropertyToID("_WgWaterRippleCount");
         private static readonly int RipplesId=Shader.PropertyToID("_WgWaterRipples");
         private static readonly int ShapesId=Shader.PropertyToID("_WgWaterRippleShape");
+        private static readonly int TilesId=Shader.PropertyToID("_WgWaterRippleTiles");
+        private static readonly int SheenId=Shader.PropertyToID("_WgWaterRippleSheen");
         private readonly CharacterTestShallowWaterRipples _ripples=new CharacterTestShallowWaterRipples();
         private CharacterTestCharacterRuntimeModule _runtime;
         private const int MaximumTrackedSubjects=128;
@@ -28,12 +29,16 @@ namespace MxFramework.Game.CharacterTest
             UnbindInteractions(); _runtime=runtime;
             if(runtime==null)return;
             runtime.PresentationMotionObserved+=Motion;
+            runtime.PhysicalContactMotionObserved+=ObserveSplashMotion;
             runtime.PhysicalContactObserved+=Contact;
+            runtime.World.EntitiesCleared+=ClearSplashParticles;
         }
         private void UnbindInteractions()
         {
-            if(_runtime!=null){_runtime.PresentationMotionObserved-=Motion;_runtime.PhysicalContactObserved-=Contact;}
-            _runtime=null;ClearRipples();
+            if(_runtime!=null){_runtime.PresentationMotionObserved-=Motion;_runtime.PhysicalContactObserved-=Contact;
+                _runtime.PhysicalContactMotionObserved-=ObserveSplashMotion;
+                _runtime.World.EntitiesCleared-=ClearSplashParticles;}
+            _runtime=null;ClearRipples();ClearSplashParticles();
         }
         public void ClearRipples() { _ripples.Clear();Array.Clear(_tracks,0,_tracks.Length);_motionFrame=-1; }
         private bool OnWater(Vector3 position,float tolerance=.15f)
@@ -41,11 +46,12 @@ namespace MxFramework.Game.CharacterTest
             Vector3 local=LocalToWorld.inverse.MultiplyPoint3x4(position);
             return Settings!=null && Mathf.Abs(local.x)<=Settings.Size.x*.5f && Mathf.Abs(local.z)<=Settings.Size.y*.5f && Mathf.Abs(local.y)<=tolerance;
         }
-        public bool EmitRipple(Vector3 position,float amplitude)
+        public bool EmitRipple(Vector3 position,float amplitude, int priority=1)
         {
-            if(!SurfaceEnabled||!RipplesEnabled||!OnWater(position))return false;
+            if(!SurfaceEnabled||!RipplesEnabled||!OnWater(position)||Settings.EffectiveRippleLimit == 0)return false;
+            _ripples.SetLimit(Settings.EffectiveRippleLimit);
             _ripples.Expire((float)Clock,Settings.RippleLifetime);
-            _ripples.Add(new Vector2(position.x,position.z),(float)Clock,amplitude,Settings.RippleWidth);return true;
+            _ripples.Add(new Vector2(position.x,position.z),(float)Clock,amplitude,Settings.RippleWidth,priority:priority,merge:true);return true;
         }
         private void Contact(CombatPhysicalContactEvent contact)
         {
@@ -53,10 +59,11 @@ namespace MxFramework.Game.CharacterTest
             var point=new Vector3(ToFloat(contact.Point.X),ToFloat(contact.Point.Y),ToFloat(contact.Point.Z));
             if(ToFloat(contact.Normal.Y)<.5f)return;
             if(EmitRipple(point,Settings.FootstepAmplitude))FootstepRipples++;
+            EmitContactSplash(contact,point);
         }
         private void Motion(CharacterTestCharacterRuntimeWorld world,CharacterTestCharacterMotionSystem motion,RuntimeFrame frame)
         {
-            if(!SurfaceEnabled||!RipplesEnabled||Settings==null)return;
+            if(!SurfaceEnabled||!RipplesEnabled||Settings==null||Settings.EffectiveRippleLimit==0)return;
             if(frame.Value<=_motionFrame)ClearRipples();_motionFrame=frame.Value;
             float spacingSquared=Settings.WakeSpacing*Settings.WakeSpacing;
             for(int n=0;n<world.Entities.Count;n++)
@@ -71,21 +78,15 @@ namespace MxFramework.Game.CharacterTest
                 float distance=(point-track.Position).sqrMagnitude;
                 if(!entity.IsGrounded||distance>9||!OnWater(point)){track.Position=point;continue;}
                 if(distance>=spacingSquared)
-                {if(EmitRipple(point,Settings.FootstepAmplitude*.6f))MovementRipples++;track.Position=point;}
+                {if(EmitRipple(point,Settings.FootstepAmplitude*.6f,0))MovementRipples++;track.Position=point;}
             }
             for(int i=0;i<motion.LandingEventCount;i++)
             {
                 var landing=motion.GetLandingEvent(i);var t=landing.Entity.Transform;
                 var point=new Vector3(t.XMillimeters*.001f,t.YMillimeters*.001f,t.ZMillimeters*.001f);
                 float strength=Settings.LandingAmplitude*Mathf.Clamp(landing.DownwardSpeedMillimetersPerSecond/4000f,.25f,1);
-                if(EmitRipple(point,strength))LandingRipples++;
+                if(EmitRipple(point,strength,2))LandingRipples++;
             }
-        }
-        private void WriteRipples(MaterialPropertyBlock block)
-        {
-            _ripples.Expire((float)Clock,Settings.RippleLifetime);
-            block.SetInt(RippleCountId,RipplesEnabled?_ripples.Count:0);
-            block.SetVectorArray(RipplesId,_ripples.Sources);block.SetVectorArray(ShapesId,_ripples.Shapes);
         }
         private static float ToFloat(Fix64 value) => (float)(value.RawValue / (double)Fix64.Scale);
     }

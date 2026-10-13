@@ -2,10 +2,85 @@
 
 > Status: Current
 >
-> Version: v0.13 | 2026-10-01 | 依赖：Settings noEngine；Settings.Audio -> Audio；Settings.Input -> Input；Settings.Graphics -> Unity/Rendering；Settings.UI -> Settings/Input；CharacterTest FairyGUI -> UI.FairyGUI
+> Version: v0.14 | 2026-10-12 | 依赖：Settings noEngine；Settings.Audio -> Audio；Settings.Input -> Input；Settings.Graphics -> Unity/Rendering；Settings.UI -> Settings/Input；CharacterTest FairyGUI -> UI.FairyGUI
 > 代码：`Packages/com.vincent.wgameframework/Settings*/`
+> Code-Doc: `Packages/com.vincent.wgameframework/Settings/MxGraphicsSettings.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Settings/MxSettingsProfileJson.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Settings.UI/MxSettingsUi*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/Runtime/CharacterTest*Settings*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiSettingsPanel*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/Generated/CharacterTestFairyGuiSettingsPanel*.g.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Settings/SettingsUiModelTests.cs`
 
 Settings 模块保存用户偏好 profile，并把 profile 应用到已有框架能力。它不承载 gameplay 权威状态，不进入 Runtime SaveState、Replay、Runtime hash 或网络同步。
+
+## 游戏内水面质量（2026-10-11）
+
+CharacterTest 的 **设置 → 画面 → 水面反射 / 交互涟漪** 位于语言行下方，使用正式
+Composer-owned `MxCharacterTestSettingsUi/SettingsPanel` 的 label/value/前后按钮。
+`MxGraphicsSettings.WaterQuality`、`MxGraphicsSettingKey.WaterQuality` 与
+`MxSettingsUiPresenter.SetWaterQuality(...)` 接入既有 working profile。
+JSON 新增可选 `graphics.waterQuality`，保持 `mx.settings.v1`；旧文件缺省为
+Default=0，允许 Low=2/Medium=3/High=4/Ultra=5，不允许 Disabled=1。
+为兼容已有偏好，旧 High=4 继续表示镜像相机；新增 Ultra=5 在水面 UI 中
+表示“高（SSPR）”。这是水面特有的兼容映射，阴影、雾和涟漪不接受 Ultra。
+其它画面 setter 复制 graphics 时必须保留该字段。
+
+反射选项按“场景默认 / 低（SSPR）/ 中（SSPR）/ 高（SSPR）/ 镜像反射”循环，
+对应存储值 0/2/3/5/4。三个 SSPR 档分别映射 Performance/Balanced/SsprHigh，
+镜像选项映射旧 Quality（序列化值 3 保留），新增 SsprHigh 的序列化值为 4。
+具体预算与算法见
+[浅水工程说明](../Guides/SHALLOW_WATER_SAMPLE.md#性能档与有界涟漪2026-10-11)。
+场景默认沿用 authored QualityTier，不等同固定某个档位。
+
+`MxGraphicsSettings.RippleQuality`、`MxGraphicsSettingKey.RippleQuality` 与
+`SettingsUi.SetRippleQuality(...)` 独立控制交互涟漪。JSON 可选字段为
+`graphics.rippleQuality`（仍是 mx.settings.v1），允许 Default=0、Disabled=1、
+Low=2、Medium=3、High=4；旧文件缺省 Default。玩家显示“场景默认 / 关闭 /
+低 / 中 / 高”。关闭不停止背景水纹或水花粒子；低/中/高控制局部纹理精度、
+覆盖范围和更新频率，共用安全波包预算。所有 graphics copy/setter 保留两项。
+Applier 同时合成反射与涟漪偏好；仅当两者都为 Default 时释放运行时副本，
+单项恢复 Default 不得丢失另一项覆盖。
+
+局部涟漪场接入后的定向 Runner 为 `da7d91b368fa4309a51fe6531cc08679`，
+63/63 通过（含水面 GPU/缓存策略、Settings、真实发布面板）。实际 Play 中
+点击涟漪按钮依次显示关闭/低/中/高，已保存反射 Medium 不变；再改反射为
+High，涟漪草稿仍为 High；取消重开恢复已保存偏好且 Dirty=false。画面页
+按 46 px 行距排列两列，水面反射与交互涟漪在语言行之后，HDR 提示保持独立
+底行。最终画面与交互记录位于 `Temp/RippleField/player-settings.png`、
+`player-ui.json`。这轮只使用取消验证实际用户文件，应用/保存/重载走隔离文件
+回归，不覆盖用户原有偏好。当前 Editor 资源模式直接加载已发布 bytes。
+
+切换箭头只修改草稿；Apply 使用原有应用并保存流程，Cancel/关闭回到已保存
+profile。重开游戏由 CharacterTestSettingsRuntime 恢复该项。项目私有
+CharacterTestWaterSettingsApplier 拥有 HideAndDontSave 参数副本，通过非序列化
+RuntimeSettingsOverride 供 water session 使用；Default 和 Dispose 恢复之前的
+引用，不修改 Scene 或共享参数资产。无浅水的场景也可保存偏好，无需创建水面。
+这是新增的明确自动恢复项；其它 Graphics 项原有自动应用策略不变。
+
+面板布局、命令和绑定经 generation spec → contract → Composer helper
+Apply/Publish → generated manifest/binder 交付；只修改关卡编辑器不构成玩家入口。
+蓝图与契约位于 `ArtSource/UIKits/MxUiFoundation/screens/character_test_settings.ui-screen.json`
+和 `contracts/character_test_settings.ui-composer-binding-contract.json`。
+
+本轮验证：水面/偏好定向 16/16、Settings foundation/UI model 39/39、正式发布
+面板加载/binder/command sink 3/3。原生 Play 点击实际箭头连续显示低（SSPR）、
+中（SSPR）、高（镜面），已保存 profile 保持 Default；实际取消按钮关闭面板，
+重开恢复 Default 且 Dirty=false。Apply/Save/重新加载与 authored asset 保持不变
+由隔离临时存储测试验证，未通过实际面板写入用户已有偏好文件。
+最后编译 job `fffb3c2eb8a84b9197cef3ae5902c7e3` 确认 refresh、真实编译、
+domain reload、Editor ready、Console errors=0。当前场景是 Editor 资源模式，
+本轮验证读取新的正式发布 bytes；未重建 Offline Player bundles。
+
+生成器 review report 确认 settings manifest/binder current；全局
+`--check-generated` 在其它主菜单 Composer contract stale 检查处失败，本轮
+未重写无关主菜单契约，不声明全局生成检查通过。实际交互和最终布局证据
+位于本地 `Temp/WaterSSPR/player-settings-*.json` 与 `player-settings-water.png`。
+上述水面入口阶段的 Play 截图是首次交互验证图，暴露了原 HDR 提示与新增行重叠；随后已通过
+Composer 重新发布布局：水面控件底边 y=633，HDR 提示 y=637、height=20，
+footer divider y=660，且按钮列与抗锯齿/语言对齐。最终布局按真实发布 XML
+核对；共享 Editor 的其它测试/编译与 Play 恢复发生重叠后，未再取得最终 Play
+截图，因此旧图不作为最终布局图。原 CharacterTestScene 已 clean 重开恢复。
 
 ## 1. 模块边界
 

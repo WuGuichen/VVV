@@ -112,6 +112,93 @@ namespace MxFramework.Tests.Game.CharacterTest
             finally { UnityEngine.Object.DestroyImmediate(actor); }
         }
 
+        [TestCase(1f, "combat_run_start_f", 0f)]
+        [TestCase(-1f, "combat_run_start_b", 0f)]
+        [TestCase(-1f, "combat_run_start_b", 90f)]
+        [TestCase(-1f, "combat_run_start_b", -90f)]
+        [TestCase(-1f, "combat_run_start_b", 180f)]
+        public void LocomotionTransition_InterruptedStopResumesForCurrentMovement(float moveY, string startClipName, float turnAfterRestartDegrees)
+        {
+            const float step = 1f / 60f;
+            const string packageRoot = "Assets/MxFrameworkGenerated/CharacterPackages/000001";
+            const string clipRoot = "Assets/Art/MxFramework/Characters/CombatGirlSword/AnimationClips/CombatLocomotion/";
+            var package = CharacterImportedPackageJson.LoadFromDirectory(packageRoot);
+            Assert.IsTrue(CharacterRuntimeAnimationResources.TryCreateBinding(package, out var binding, out _));
+            var source = AssetDatabase.LoadAssetAtPath<GameObject>(packageRoot + "/prefabs/000001_character_preview.prefab");
+            var startClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(clipRoot + startClipName + ".anim");
+            var stopClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(clipRoot + "combat_run_stop_f.anim");
+            Assert.IsNotNull(source);
+            Assert.IsNotNull(startClip);
+            Assert.IsNotNull(stopClip);
+            Assert.Less(startClip.length + 3f * step, stopClip.length, "The replacement must end before the old hold.");
+            GameObject actor = UnityEngine.Object.Instantiate(source);
+            try
+            {
+                var controller = actor.AddComponent<CharacterRuntimeLocomotionBlendController>();
+                controller.UseExternalRuntimeTick = true;
+                controller.Configure(actor.transform.Find("ModelRoot"), actor.GetComponentInChildren<Animator>(), Array.Empty<AnimationClip>());
+                var resources = new ResourceManager();
+                resources.RegisterProvider(new CharacterTestEditorAnimationAssetProvider());
+                resources.AddCatalog(new ResourceCatalog("test.interrupted-locomotion", binding.ResourcePackageId,
+                    CharacterTestCharacterAnimationResources.CreateCatalogEntries(binding)));
+                Assert.IsTrue(CharacterTestCharacterAnimationResources.TryConfigureLocomotion(controller,
+                    resources, binding, actor.name, NullRuntimeLogger.Instance));
+                var view = new CharacterTestRuntimeCharacterView(new CharacterTestCharacterEntityId(3), actor,
+                    null, null, controller);
+                var forward = new CharacterTestCharacterAnimationComponent(Vector2.up, 1f, true, false);
+                view.SyncAnimation(CharacterTestCharacterAnimationComponent.IdleGrounded, new RuntimeFrame(0));
+                for (int frame = 1; frame <= 90; frame++)
+                {
+                    view.SyncAnimation(forward, new RuntimeFrame(frame));
+                    controller.TickRuntimeAnimation(step, frame);
+                }
+
+                // Releasing the first direction for one frame starts a longer non-looping stop clip.
+                view.SyncAnimation(CharacterTestCharacterAnimationComponent.IdleGrounded, new RuntimeFrame(91));
+                Assert.IsTrue(controller.IsLocomotionBlendSuppressed);
+                StringAssert.EndsWith("combat_run_stop_f", controller.LastActionAnimationResult.ClipKey.Id);
+                controller.TickRuntimeAnimation(step, 91);
+                var moving = new CharacterTestCharacterAnimationComponent(new Vector2(0f, moveY), 1f, true, false);
+                view.SyncAnimation(moving, new RuntimeFrame(92));
+                Assert.IsTrue(controller.IsLocomotionBlendSuppressed, "Keep the new start clip's own playback hold.");
+                StringAssert.EndsWith(startClipName, controller.LastActionAnimationResult.ClipKey.Id);
+                if (turnAfterRestartDegrees != 0f)
+                {
+                    controller.TickRuntimeAnimation(step, 92);
+                    actor.transform.rotation = Quaternion.Euler(0f, turnAfterRestartDegrees, 0f);
+                    float yawRadians = turnAfterRestartDegrees * Mathf.Deg2Rad;
+                    moving = new CharacterTestCharacterAnimationComponent(
+                        new Vector2(Mathf.Sin(yawRadians), -Mathf.Cos(yawRadians)), 1f, true, false);
+                    view.SyncAnimation(moving, new RuntimeFrame(93));
+                    Assert.IsFalse(controller.IsLocomotionBlendSuppressed,
+                        "A start clip for the old local direction must release the pose when facing changes.");
+                    Assert.IsEmpty(controller.LastActionKey);
+                    controller.TickRuntimeAnimation(step, 93);
+                    Assert.Less(Quaternion.Angle(Quaternion.Euler(0f, turnAfterRestartDegrees, 0f), actor.transform.rotation), 0.001f,
+                        "Presentation must preserve the authority-facing root rotation.");
+                }
+                else
+                {
+                    for (int i = 0; i < Mathf.CeilToInt(startClip.length / step) + 2; i++)
+                    {
+                        view.SyncAnimation(moving, new RuntimeFrame(92 + i));
+                        controller.TickRuntimeAnimation(step, 92 + i);
+                    }
+                }
+
+                Assert.IsFalse(controller.IsLocomotionBlendSuppressed, "The completed start must not retain the old stop deadline.");
+                Assert.IsTrue(controller.LastAnimationResult.Success);
+                var snapshot = controller.CreateAnimationSnapshot();
+                bool movementLoopRestored = false;
+                foreach (var layer in snapshot.LayerStates)
+                    if (layer.LayerId == controller.LocomotionBlend2DDefinition.LayerId)
+                        movementLoopRestored = layer.Blend2DId == controller.ActiveBlendId && layer.Blend2DWeights.Count > 0;
+                Assert.IsTrue(movementLoopRestored,
+                    "The movement loop must already be restored before the old stop would have ended.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(actor); }
+        }
+
         [Test]
         public void PlayerActions_LoadFormalExportFromStreamingAssetsWithoutProjectDirectories()
         {

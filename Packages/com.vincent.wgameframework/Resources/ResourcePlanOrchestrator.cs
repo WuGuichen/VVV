@@ -578,6 +578,8 @@ namespace MxFramework.Resources
         {
             get
             {
+                if (IsClaimed)
+                    return ResourcePlanPreparationError.None;
                 if (IsOwnershipUnavailable)
                     return new ResourcePlanPreparationError(ResourcePlanPreparationErrorCode.HandleOwnershipUnavailable, default);
                 if (IsReleasing || IsReleased)
@@ -783,21 +785,7 @@ namespace MxFramework.Resources
                     return false;
             }
 
-            for (int i = 0; i < result.RequestedKeys.Count; i++)
-            {
-                int matchingHandleCount = 0;
-                for (int j = 0; j < result.Handle.Handles.Count; j++)
-                {
-                    ResourceHandle<object> handle = result.Handle.Handles[j];
-                    if (handle != null && !handle.IsReleased && handle.Key == result.RequestedKeys[i])
-                        matchingHandleCount++;
-                }
-
-                if (matchingHandleCount != 1)
-                    return false;
-            }
-
-            return true;
+            return result.Handle.HasCompleteAcquisitions(_resourceManager, result.RequestedKeys);
         }
 
         internal static ResourcePlanPreparation Invalid(

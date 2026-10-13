@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Reflection;
 using MxFramework.Demo.MarbleMaze;
 using MxFramework.Runtime;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace MxFramework.Tests.Demo.MarbleMaze
 {
@@ -231,6 +234,142 @@ namespace MxFramework.Tests.Demo.MarbleMaze
             runner.EnqueueCommand(3, MarbleMazeCommand.Checkpoint, targetId: 1);
             runner.RunFrames(5);
             return runner;
+        }
+    }
+
+    public class MarbleMazeAppFlowDemoTests
+    {
+        [TestCase(0.2f)]
+        [TestCase(0f)]
+        public void OnEnable_BootHoldAutomaticallyQueuesGameplayForFollowingTick(float bootHoldSeconds)
+        {
+            using (var fixture = new AppFlowDemoFixture(bootHoldSeconds))
+            {
+                Assert.AreEqual(MarbleMazeAppFlowDemo.BootStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+                if (bootHoldSeconds > 0f)
+                {
+                    fixture.TickAt(bootHoldSeconds / 2d);
+                    Assert.AreEqual(MarbleMazeAppFlowDemo.BootStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                    Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+                }
+
+                fixture.TickAt(bootHoldSeconds);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.BootStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsTrue(fixture.Demo.AppSnapshot.HasPendingTransition);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.MenuStateId, fixture.Demo.AppSnapshot.PendingStateId);
+
+                fixture.TickAt(bootHoldSeconds + 0.1d);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.MenuStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsTrue(fixture.Demo.AppSnapshot.HasPendingTransition);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.PendingStateId);
+                Assert.IsTrue(fixture.Demo.AppSnapshot.LastResult.Success);
+
+                fixture.TickAt(bootHoldSeconds + 0.2d);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+                fixture.TickAt(bootHoldSeconds + 0.3d);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+                CollectionAssert.IsEmpty(fixture.Host.Errors);
+            }
+        }
+
+        [Test]
+        public void Update_FinishAndPlayableResetKeepDeferredTransitions()
+        {
+            using (var fixture = new AppFlowDemoFixture(0f))
+            using (var runner = new MarbleMazeRuntimeRunner(new MarbleMazeOptions(checkpointCount: 1)))
+            {
+                fixture.SetPlayableRunner(runner);
+                fixture.TickAt(0d);
+                fixture.TickAt(0.1d);
+                fixture.TickAt(0.2d);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+
+                runner.EnqueueCommand(0, MarbleMazeCommand.Checkpoint, targetId: 0);
+                runner.EnqueueCommand(1, MarbleMazeCommand.Finish);
+                runner.TickFrame(0);
+                runner.TickFrame(1);
+                fixture.SetPlayableNextFrame(2L); // The inactive adapter uses the runner's next command frame.
+                Assert.IsTrue(fixture.Playable.Snapshot.IsFinished);
+
+                fixture.Update();
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsTrue(fixture.Demo.AppSnapshot.HasPendingTransition);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.FinishedStateId, fixture.Demo.AppSnapshot.PendingStateId);
+                fixture.Update();
+                Assert.AreEqual(MarbleMazeAppFlowDemo.FinishedStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+                fixture.Update();
+                Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+
+                fixture.ResetPlayable(); // Real EnqueueReset emits the subscribed ResetRequested event.
+                Assert.AreEqual(MarbleMazeAppFlowDemo.FinishedStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsTrue(fixture.Demo.AppSnapshot.HasPendingTransition);
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.PendingStateId);
+                fixture.ResetPlayable(); // A repeated event must preserve the same pending transition.
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.PendingStateId);
+                runner.TickFrame(2);
+                Assert.IsFalse(fixture.Playable.Snapshot.IsFinished);
+                fixture.Update();
+                Assert.AreEqual(MarbleMazeAppFlowDemo.GameplayStateId, fixture.Demo.AppSnapshot.CurrentStateId);
+                Assert.IsFalse(fixture.Demo.AppSnapshot.HasPendingTransition);
+                CollectionAssert.IsEmpty(fixture.Host.Errors);
+                fixture.SetPlayableRunner(null);
+            }
+        }
+
+        private sealed class AppFlowDemoFixture : IDisposable
+        {
+            private const BindingFlags PrivateInstance = BindingFlags.NonPublic | BindingFlags.Instance;
+            private readonly GameObject _root;
+
+            public AppFlowDemoFixture(float bootHoldSeconds)
+            {
+                // Keep the physics component's lifecycle inactive: no UI, input or view setup.
+                _root = new GameObject("MarbleMazeAppFlowTest");
+                _root.SetActive(false);
+                Playable = _root.AddComponent<MarbleMazePhysicsDemo>();
+                Demo = _root.AddComponent<MarbleMazeAppFlowDemo>();
+                SetField(Demo, "_playable", Playable);
+                SetField(Demo, "_bootHoldSeconds", bootHoldSeconds);
+                Invoke(Demo, "OnEnable");
+                Host = (RuntimeHost)typeof(MarbleMazeAppFlowDemo).GetField("_host", PrivateInstance).GetValue(Demo);
+            }
+
+            public MarbleMazeAppFlowDemo Demo { get; }
+            public MarbleMazePhysicsDemo Playable { get; }
+            public RuntimeHost Host { get; }
+
+            public void TickAt(double elapsedSeconds)
+            {
+                SetField(Demo, "_elapsedSeconds", elapsedSeconds);
+                long frame = (long)typeof(MarbleMazeAppFlowDemo).GetField("_frame", PrivateInstance).GetValue(Demo);
+                Host.Tick(frame, 0d, elapsedSeconds);
+                SetField(Demo, "_frame", frame + 1);
+            }
+
+            public void Update() => Invoke(Demo, "Update");
+            public void ResetPlayable() => Invoke(Playable, "EnqueueReset");
+            public void SetPlayableRunner(MarbleMazeRuntimeRunner runner) => SetField(Playable, "_runner", runner);
+            public void SetPlayableNextFrame(long frame) => SetField(Playable, "_frame", frame);
+
+            public void Dispose()
+            {
+                Invoke(Demo, "OnDisable");
+                UnityEngine.Object.DestroyImmediate(_root);
+            }
+
+            private static void SetField(object target, string name, object value)
+            {
+                target.GetType().GetField(name, PrivateInstance).SetValue(target, value);
+            }
+
+            private static void Invoke(object target, string name)
+            {
+                target.GetType().GetMethod(name, PrivateInstance).Invoke(target, null);
+            }
         }
     }
 }

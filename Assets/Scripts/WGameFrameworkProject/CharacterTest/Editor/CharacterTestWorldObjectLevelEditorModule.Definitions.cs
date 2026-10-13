@@ -5,13 +5,14 @@ using MxFramework.Config.Levels;
 using MxFramework.Editor;
 using MxFramework.Editor.Levels;
 using MxFramework.Resources;
+using Newtonsoft.Json.Linq;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace MxFramework.Game.CharacterTest.Editor
 {
-    public sealed partial class CharacterTestWorldObjectLevelEditorModule
+    public sealed partial class CharacterTestWorldObjectLevelEditorModule : IMxLevelEditorAssetSavePaths
     {
         private CharacterTestWorldObjectDefinitionCatalog ActiveDefinitionCatalog =>
             _definitionCompileResult?.Catalog ?? CharacterTestWorldObjectSceneSource.BuiltInCatalog;
@@ -28,9 +29,11 @@ namespace MxFramework.Game.CharacterTest.Editor
             // construction did; the next Definitions/Placement use rebuilds and revalidates it.
             _contentProjection = null;
             string path = CharacterTestWorldObjectDefinitionCatalogLoader.DefaultAuthoringPath;
-            if (File.Exists(path)
+            string source = File.Exists(path) ? File.ReadAllText(path) : null;
+            _definitionSourceHash = source == null ? null : CharacterTestLevelCatalog.Hash(source);
+            if (source != null
                 && CharacterTestWorldObjectDefinitionJson.TryLoadAuthoring(
-                    File.ReadAllText(path),
+                    source,
                     out CharacterTestWorldObjectDefinitionAuthoringDocument document,
                     out _))
             {
@@ -42,6 +45,63 @@ namespace MxFramework.Game.CharacterTest.Editor
             }
 
             CompileDefinitions();
+        }
+
+        /// <summary>LowFreqAlloc: declares every definition file written by the coordinated save.</summary>
+        public void CollectAssetSavePaths(List<string> paths)
+        {
+            if (!_definitionsDirty)
+                return;
+            paths.Add(CharacterTestWorldObjectDefinitionCatalogLoader.DefaultAuthoringPath);
+            paths.Add(CharacterTestWorldObjectDefinitionCatalogLoader.DefaultGeneratedRuntimePath);
+            paths.Add("Assets/StreamingAssets/"
+                + CharacterTestWorldObjectDefinitionCatalogLoader.DefaultPlayerMirrorRelativePath);
+        }
+
+        private string ReadDefinitionSourceHash()
+        {
+            string path = CharacterTestWorldObjectDefinitionCatalogLoader.DefaultAuthoringPath;
+            return File.Exists(path) ? CharacterTestLevelCatalog.Hash(File.ReadAllText(path)) : null;
+        }
+
+        private void RequireDefinitionSourceUnchanged()
+        {
+            if (_definitionsDirty && !string.Equals(_definitionSourceHash, ReadDefinitionSourceHash(), StringComparison.Ordinal))
+                throw new InvalidOperationException("对象定义源文件已被其他入口修改或移除："
+                    + CharacterTestWorldObjectDefinitionCatalogLoader.DefaultAuthoringPath
+                    + "。定义草稿保留，请先处理冲突再显式重载。");
+        }
+
+        private JObject CaptureDefinitionReloadState()
+        {
+            return new JObject {
+                ["document"] = CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(_definitionDocument),
+                ["dirty"] = _definitionsDirty, ["sourceHash"] = _definitionSourceHash,
+                ["undoBaseline"] = _definitionUndoSession?.SavedBaseline };
+        }
+
+        private void RestoreDefinitionReloadState(JObject state)
+        {
+            if (state == null)
+                return; // Recovery records written before definitions were included.
+            CharacterTestWorldObjectDefinitionJson.TryLoadAuthoring(
+                (string)state["document"], out var document, out _);
+            // Semantic errors are valid unsaved drafts; malformed recovery data must fail closed.
+            if (document == null || document.Format != CharacterTestWorldObjectDefinitionFormats.AuthoringV1
+                || document.SchemaVersion != CharacterTestWorldObjectDefinitionFormats.SchemaVersion)
+                throw new InvalidOperationException("对象定义恢复草稿无法解析；恢复记录保留。");
+            bool dirty = (bool)state["dirty"];
+            string sourceHash = (string)state["sourceHash"];
+            _definitionUndoSession?.Retire();
+            _definitionUndoSession = null;
+            _definitionDocument = document;
+            _definitionSourceHash = sourceHash;
+            _definitionsDirty = dirty;
+            _contentProjection = null;
+            CompileDefinitions();
+            EnsureDefinitionUndoSession();
+            if (state["undoBaseline"]?.Type == JTokenType.String)
+                _definitionUndoSession.SetSavedBaseline((string)state["undoBaseline"]);
         }
 
         internal void InitializeForCombatLevelPrepareTests(
@@ -326,14 +386,16 @@ namespace MxFramework.Game.CharacterTest.Editor
 
         private void RestoreDefinitionSnapshot(string snapshot)
         {
-            if (CharacterTestWorldObjectDefinitionJson.TryLoadAuthoring(
-                    snapshot,
-                    out CharacterTestWorldObjectDefinitionAuthoringDocument document,
-                    out _))
-            {
-                _definitionDocument = document;
-                CompileDefinitions();
-            }
+            CharacterTestWorldObjectDefinitionJson.TryLoadAuthoring(
+                snapshot,
+                out CharacterTestWorldObjectDefinitionAuthoringDocument document,
+                out _);
+            // Undo restores editing history, including semantic errors; save validity is separate.
+            if (document == null || document.Format != CharacterTestWorldObjectDefinitionFormats.AuthoringV1
+                || document.SchemaVersion != CharacterTestWorldObjectDefinitionFormats.SchemaVersion)
+                throw new InvalidOperationException("对象定义 Undo 草稿无法解析或格式不受支持；当前草稿保留。");
+            _definitionDocument = document;
+            CompileDefinitions();
         }
 
         private void RefreshAfterDefinitionUndo()

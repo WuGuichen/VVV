@@ -148,11 +148,13 @@ namespace MxFramework.CharacterApplication
             }
 
             var candidateStates = new List<EquipmentStateConfig>();
+            bool hasMissingStateConfig = false;
             for (int i = 0; i < schema.AllowedStateIds.Length; i++)
             {
                 EquipmentStateConfig state = FindState(stateConfigs, schema.AllowedStateIds[i]);
                 if (state == null)
                 {
+                    hasMissingStateConfig = true;
                     diagnostics.Add(
                         CharacterDiagnosticSeverity.Error,
                         CharacterDiagnosticCode.MissingEquipmentStateConfig,
@@ -170,7 +172,7 @@ namespace MxFramework.CharacterApplication
                 candidateStates.Add(state);
             }
 
-            if (diagnostics.Count > 0 && candidateStates.Count == 0)
+            if (hasMissingStateConfig)
                 return new EquipmentStateResolveResult(EquipmentStateResolveStatus.MissingEquipmentStateConfig, default, null, Array.Empty<EquipmentStateId>(), uniqueWeapons.ToArray(), diagnostics.ToArray());
 
             EquipmentStateConfig best = null;

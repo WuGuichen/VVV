@@ -22,6 +22,12 @@
 
 Pose与VFX独立预算，读取所有显式gameplay camera的最高屏幕需求、可见性、重要性和未知状态；阴影按投影光线与receiver union判断，离屏投影者仍可要求完整pose。`AdvancePresentationState`推进表现时钟／Blend phase／权重，`EvaluateCurrentPose`求值并发布；暂停、teleport、restore或资源切换使策略失效并恢复，不追播漏掉的表现帧。
 
+Blend 表现检查点同时保存采样 slot 时间与下一次同步的循环相位；在 deferred `AdvancePresentationState` 后恢复时保留两者的区别，后续状态推进不采用目标 backend 的旧相位。旧检查点缺相位时按已保存采样时间重建，不能补出未记录的 deferred 推进；具体兼容边界见[Animation 精确姿态恢复](../Interfaces/Animation.md#rollback--runtime-ai-lab-精确姿态恢复)。这只补足低频检查点状态，不改变 pose cadence、event/root-motion 准入或每帧推进。
+
+Animation backend 的 Stop／pending 请求生命周期见[Animation 使用约定](../Interfaces/Animation.md#使用约定)。已被 Stop 作废但尚未终态的 clip operation 继续保留在待处理队列，由 `Tick` 或 `AdvancePresentationState` 回收迟到 handle；队列非空时仍不允许推迟 pose evaluation。该修复不改变本页 cadence、首次求值、event/root-motion 保护与发布边界；本页同步是相关源码变更后的合同复核，不增加 LOD 性能或视觉验收结论。
+
+2026-10-12 的 Blend 淡出 Stop 修复沿用同一状态推进路径：有权重的 1D / 2D slots 转入 outgoing，零权重缓存即时释放，`AdvancePresentationState` 继续按原淡出时钟推进并在完成时回收 handles；已有 outgoing 不重置进度。具体停止边界见[Animation State Cache](../Interfaces/Animation.md#unity-playables-state-cache)。本次只同步停止生命周期，不改变 pose cadence、骨骼求值准入或 LOD 性能结论。
+
 浅水样区的显式反射相机通过 `RegisterReflectionCamera` 加入同一观察集合，
 要求同场景 `MxSceneRenderingAuxiliaryCamera` 标记、Reflection kind 和既有
 有效 Game camera 准入。GameManager 在既有表现遍历前更新镜像视图并登记，

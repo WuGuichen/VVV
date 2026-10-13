@@ -282,7 +282,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (_resolvingReservationId != 0) return false;
             if (ResolvingAction == null || ResolvingAction.InstanceId != committedInstanceId ||
                 ResolvingAction.Version != committedVersion) return false;
+            if (!MarkFixedExhaustion()) return false;
             MoveAfterUse(ResolvingAction);
+            _resolvingFixedPayment = null;
             ResolvingAction = null;
             _replenishmentAvailable = true;
             ReplenishHand();
@@ -312,7 +314,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         private void MoveAfterUse(TacticalCardInstance card)
         {
-            bool exhaust = card.Definition.DestinationAfterUse == CardDestination.Exhaust;
+            bool exhaust = card.Definition.DestinationAfterUse == CardDestination.Exhaust
+                || _resolvingFixedPayment != null && _resolvingFixedPayment.Record.BattleCardInstance == card.InstanceId
+                    && _resolvingFixedPayment.Record.Assembly.DoubleEdgeParameters.Shattered;
             card.MoveTo(exhaust ? CardZone.ExhaustPile : CardZone.DiscardPile);
             (exhaust ? _exhaustPile : _discardPile).Add(card);
         }

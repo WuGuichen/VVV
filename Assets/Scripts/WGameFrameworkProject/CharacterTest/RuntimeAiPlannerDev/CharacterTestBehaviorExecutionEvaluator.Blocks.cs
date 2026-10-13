@@ -219,7 +219,7 @@ namespace MxFramework.Game.CharacterTest
                 _state.ActionOwner = -1;
                 _state.ActionInstanceId = 0;
                 _runtime.ObserveOwnedAction(0L);
-                Stop();
+                StopNaturally();
                 return true;
             }
             return false;

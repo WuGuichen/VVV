@@ -35,7 +35,7 @@ namespace MxFramework.CharacterApplication
     /// <summary>Helpers for building slot-scoped equipment match rule tokens.</summary>
     public static class EquipmentMatchRuleToken
     {
-        /// <summary>Creates a slot-scoped match token such as "mainHand:blade".</summary>
+        /// <summary>Creates a numeric slot-scoped match token such as "1:blade".</summary>
         /// <remarks>Allocation: LowFreqAlloc. Use while building configs, not inside simulation ticks.</remarks>
         public static string Create(int slotId, string token)
         {

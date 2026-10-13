@@ -97,6 +97,8 @@ namespace MxFramework.Game.CharacterTest
                     ? L(textProvider, "ui.character_test.settings.current", "当前")
                     : FormatFloat(graphics.ShadowDistance),
                 DirectionalShadowQualityText = FormatDirectionalShadowQuality(graphics.DirectionalShadowQuality, textProvider),
+                WaterQualityText = FormatWaterQuality(graphics.WaterQuality, textProvider),
+                RippleQualityText = FormatRippleQuality(graphics.RippleQuality, textProvider),
                 ShadowCascadeCountText = FormatOptionalInt(graphics.ShadowCascadeCount, textProvider),
                 LocalShadowResolutionText = FormatOptionalInt(graphics.AdditionalLightsShadowmapResolution, textProvider),
                 HdrModeText = (graphics.HdrOutput.Mode == MxHdrOutputMode.Enabled ||
@@ -145,6 +147,30 @@ namespace MxFramework.Game.CharacterTest
                 case MxGraphicsFeatureQuality.Medium: return L(textProvider, "ui.character_test.settings.shadow_quality.medium", "中");
                 case MxGraphicsFeatureQuality.High: return L(textProvider, "ui.character_test.settings.shadow_quality.high", "高");
                 default: return L(textProvider, "ui.character_test.settings.shadow_quality.default", "默认");
+            }
+        }
+
+        private static string FormatWaterQuality(MxGraphicsFeatureQuality quality, IMxUiTextProvider textProvider)
+        {
+            switch (quality)
+            {
+                case MxGraphicsFeatureQuality.Low: return L(textProvider, "ui.character_test.settings.water_quality.low", "低（SSPR）");
+                case MxGraphicsFeatureQuality.Medium: return L(textProvider, "ui.character_test.settings.water_quality.medium", "中（SSPR）");
+                case MxGraphicsFeatureQuality.Ultra: return L(textProvider, "ui.character_test.settings.water_quality.sspr_high", "高（SSPR）");
+                case MxGraphicsFeatureQuality.High: return L(textProvider, "ui.character_test.settings.water_quality.planar", "镜像反射");
+                default: return L(textProvider, "ui.character_test.settings.water_quality.default", "场景默认");
+            }
+        }
+
+        private static string FormatRippleQuality(MxGraphicsFeatureQuality quality, IMxUiTextProvider textProvider)
+        {
+            switch (quality)
+            {
+                case MxGraphicsFeatureQuality.Disabled: return L(textProvider, "ui.character_test.settings.ripple_quality.off", "关闭");
+                case MxGraphicsFeatureQuality.Low: return L(textProvider, "ui.character_test.settings.ripple_quality.low", "低");
+                case MxGraphicsFeatureQuality.Medium: return L(textProvider, "ui.character_test.settings.ripple_quality.medium", "中");
+                case MxGraphicsFeatureQuality.High: return L(textProvider, "ui.character_test.settings.ripple_quality.high", "高");
+                default: return L(textProvider, "ui.character_test.settings.ripple_quality.default", "场景默认");
             }
         }
 

@@ -125,6 +125,14 @@ namespace MxFramework.Game.CharacterTest
                 material.SetFloat(BattleReadinessId, Mathf.Clamp01(value));
         }
 
+        internal void SetPreviewQuality(Fgui.GComponent card, int quality)
+        { if (_shells.TryGetValue(card, out var material)) material.SetFloat("_Quality", Mathf.Clamp(quality, 0, 2)); }
+
+        // Lab-only accessory projection keeps the authored shell and text geometry.
+        // Bind resets the original rectangle before each pooled face is projected.
+        internal void SetAccessoryGraphicLayout(Fgui.GComponent card)
+        { if (_shells.TryGetValue(card, out var material)) material.SetVector("_CardIllustrationRect", new Vector4(.1765f, .475f, .447f, .32f)); }
+
         public void Dispose()
         {
             foreach (var pair in _shells)

@@ -15,7 +15,6 @@ namespace MxFramework.Editor.CharacterAction
             CharacterActionTrackEventKind.SetMovementMode,
             CharacterActionTrackEventKind.ApplyImpulse,
             CharacterActionTrackEventKind.LockMovement,
-            CharacterActionTrackEventKind.SetControlScale,
             CharacterActionTrackEventKind.SetCollisionProfile,
             CharacterActionTrackEventKind.SetVerticalVelocity,
             CharacterActionTrackEventKind.IgnoreGravity,
@@ -42,23 +41,24 @@ namespace MxFramework.Editor.CharacterAction
 
             AddToggle(parent, "使用 RootMotion", action.MotionTrack.UsesRootMotion, value => action.MotionTrack.UsesRootMotion = value);
             BuildRootMotionInspector(parent, action);
+            if (!string.IsNullOrEmpty(action.MotionTrack.ControlScaleMigrationIssue))
+                parent.Add(new HelpBox(action.MotionTrack.ControlScaleMigrationIssue, HelpBoxMessageType.Error));
             MotionTrackEventJsonDto[] events = action.MotionTrack.Events ?? Array.Empty<MotionTrackEventJsonDto>();
             for (int i = 0; i < events.Length; i++)
-                AddMotionEvent(parent, action, events, i);
+                if (!events[i].ControlScaleGenerated && events[i].Kind != "SetControlScale")
+                    AddMotionEvent(parent, action, events, i);
 
             if (action.MotionTrack.RootMotion == null)
             {
                 AddButtonRow(parent,
                     ("添加 RootMotion", () => AddRootMotion(action)),
                     ("添加运动冲量", () => AddMotionEvent(action)),
-                    ("设置控制倍率", () => AddControlScaleEvent(action)),
                     ("禁用运动轨道", () => ApplyStructuralChange(() => action.MotionTrack = null, UiRefreshScope.Tracks)));
             }
             else
             {
                 AddButtonRow(parent,
                     ("添加运动冲量", () => AddMotionEvent(action)),
-                    ("设置控制倍率", () => AddControlScaleEvent(action)),
                     ("移除 RootMotion", () => RemoveRootMotion(action)),
                     ("禁用运动轨道", () => ApplyStructuralChange(() => action.MotionTrack = null, UiRefreshScope.Tracks)));
             }

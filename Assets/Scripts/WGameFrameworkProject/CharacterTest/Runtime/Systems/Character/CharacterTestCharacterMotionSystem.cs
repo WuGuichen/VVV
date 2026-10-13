@@ -640,7 +640,7 @@ namespace MxFramework.Game.CharacterTest
             short desiredMoveX = 0;
             short desiredMoveY = 0;
             int moveInputMagnitude = 0;
-            if (entity.BattleState.CanMoveByInput)
+            if (entity.BattleState.CanMoveByInput && !entity.SuppressesThirdActiveMotion)
             {
                 ClampMoveMilli(entity.Input.MoveXMilli, entity.Input.MoveYMilli, out moveX, out moveY);
                 ResolveWorldMoveMilli(entity, moveX, moveY, out desiredMoveX, out desiredMoveY);
@@ -716,7 +716,7 @@ namespace MxFramework.Game.CharacterTest
 
             int impulseY = requestFrame.HasImpulse
                 ? requestFrame.ImpulseVelocityY
-                : entity.Action.JumpImpulseYMillimetersPerSecond;
+                : entity.SuppressesThirdActiveMotion ? 0 : entity.Action.JumpImpulseYMillimetersPerSecond;
             if (prePhysics.JumpImpulseApplied)
             {
                 _traceRecorder?.JumpMotionImpulse(
@@ -1253,7 +1253,7 @@ namespace MxFramework.Game.CharacterTest
                 entity.CoyoteTimeFramesRemaining,
                 entity.Action.MovementLocked,
                 (int)entity.Action.MovementMode,
-                entity.Action.JumpImpulseYMillimetersPerSecond,
+                entity.SuppressesThirdActiveMotion ? 0 : entity.Action.JumpImpulseYMillimetersPerSecond,
                 entity.Action.MovementControlScaleMilli,
                 entity.Action.RotationControlScaleMilli,
                 entity.SurfaceBounceSpeedCapYMillimetersPerSecond,
@@ -1654,6 +1654,7 @@ namespace MxFramework.Game.CharacterTest
             IReadOnlyList<CharacterTestCharacterMotionRequest> requests = entity.MotionRequests;
             for (int i = 0; i < requests.Count; i++)
             {
+                if (entity.SuppressesThirdMotion(requests[i].ThirdSource, requests[i].ThirdChannel)) continue;
                 CharacterMotionRequest request = requests[i].ToCharacterMotionRequest();
                 accumulator.Accumulate(
                     in request,

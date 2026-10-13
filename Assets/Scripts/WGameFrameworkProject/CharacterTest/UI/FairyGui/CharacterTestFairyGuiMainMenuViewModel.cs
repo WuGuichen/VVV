@@ -16,6 +16,9 @@ namespace MxFramework.Game.CharacterTest
         public int TacticalPhase { get; set; }
         public bool TacticalBusy { get; set; }
         public bool TacticalSettlementSaved { get; set; }
+        public int TacticalRewardState { get; set; }
+        public bool TacticalRewardClaimFailed { get; set; }
+        public bool TacticalRewardClaiming { get; set; }
         public bool HasTacticalCheckpoint { get; set; }
     }
 
@@ -125,6 +128,9 @@ namespace MxFramework.Game.CharacterTest
             builder.Add(status != null ? status.TacticalPhase : 0);
             builder.Add(status != null && status.TacticalBusy);
             builder.Add(status != null && status.TacticalSettlementSaved);
+            builder.Add(status != null ? status.TacticalRewardState : 0);
+            builder.Add(status != null && status.TacticalRewardClaimFailed);
+            builder.Add(status != null && status.TacticalRewardClaiming);
             builder.Add(status != null && status.HasTacticalCheckpoint);
             builder.Add(status != null ? (int)status.NetworkSessionKind : 0);
             builder.Add(status != null ? status.RuntimeFrame : 0L);

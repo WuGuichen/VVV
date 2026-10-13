@@ -57,6 +57,12 @@ namespace MxFramework.Editor.CharacterAction.Timeline
                 case "motion":
                     trackKind = TimelineTrackKind.Motion;
                     return true;
+                case "movementControl":
+                    trackKind = TimelineTrackKind.MovementControl;
+                    return true;
+                case "rotationControl":
+                    trackKind = TimelineTrackKind.RotationControl;
+                    return true;
                 case "animation":
                     trackKind = TimelineTrackKind.Animation;
                     return true;
@@ -81,6 +87,8 @@ namespace MxFramework.Editor.CharacterAction.Timeline
                 TimelineTrackKind.Phases => "phase",
                 TimelineTrackKind.TransitionWindow => "transitionWindow",
                 TimelineTrackKind.Motion => "motion",
+                TimelineTrackKind.MovementControl => "movementControl",
+                TimelineTrackKind.RotationControl => "rotationControl",
                 TimelineTrackKind.Animation => "animation",
                 TimelineTrackKind.Combat => "combat",
                 TimelineTrackKind.Gameplay => "gameplay",

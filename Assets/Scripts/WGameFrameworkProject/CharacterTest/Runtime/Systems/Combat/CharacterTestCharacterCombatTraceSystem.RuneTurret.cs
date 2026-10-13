@@ -158,7 +158,7 @@ namespace MxFramework.Game.CharacterTest
                 return;
             }
 
-            _projectileSpawnRequests.Enqueue(new CombatProjectileSpawnRequest(
+            var spawnRequest = new CombatProjectileSpawnRequest(
                 ToCombatFrame(frame),
                 definition.DefinitionId,
                 _physicsRuntime.GetEntityId(entity),
@@ -171,7 +171,10 @@ namespace MxFramework.Game.CharacterTest
                 StablePositiveId(CharacterTestCharacterActionConfigSource.RuneTurretDeployProjectileImpactStableEventId),
                 request.Metadata.LocalFrame,
                 sourceOrder,
-                effectiveLifetimeFrames));
+                effectiveLifetimeFrames);
+            var root = entity.CaptureDoubleEdgeSource(request.Metadata.InstanceId);
+            if (!EnqueueAccessoryProjectile(spawnRequest, root, _entityLookup.AccessoryState?.SecondBatchRoot(root) ?? default,
+                frame.Value, true)) return;
 
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 frame,
@@ -285,7 +288,7 @@ namespace MxFramework.Game.CharacterTest
             if (!direction.TryNormalize(out direction))
                 direction = new FixVector3(Fix64.Zero, Fix64.Zero, Fix64.One);
 
-            _projectileSpawnRequests.Enqueue(new CombatProjectileSpawnRequest(
+            var spawnRequest = new CombatProjectileSpawnRequest(
                 ToCombatFrame(frame),
                 shotDefinition.DefinitionId,
                 new CombatEntityId(fired.SourceCombatEntityId),
@@ -297,8 +300,9 @@ namespace MxFramework.Game.CharacterTest
                 fired.ActionInstanceId,
                 StablePositiveId(CharacterTestCharacterActionConfigSource.RuneTurretShotProjectileImpactStableEventId),
                 fired.LocalFrame,
-                fired.SourceOrder));
-            return true;
+                fired.SourceOrder);
+            var source = _entityLookup.AccessoryState?.FindProducer(5, fired.RuntimeId, 0) ?? default;
+            return EnqueueAccessoryProjectile(spawnRequest, source.Root, source.Source, frame.Value, false);
         }
 
         private void CreateRuneTurretFromProjectileImpact(
@@ -354,6 +358,7 @@ namespace MxFramework.Game.CharacterTest
             string deployMode,
             string reason)
         {
+            if (!AllowsProjectileAttack(projectile)) return;
             FixVector3 center = ProjectPoisonBottlePoolCenterToGround(point);
             FixVector3 forward = NormalizeProjectileDirection(projectile.Direction);
             CharacterTestRuneTurretDeployResult result = _runeTurretRuntime.CreateTurret(
@@ -368,6 +373,7 @@ namespace MxFramework.Game.CharacterTest
                 projectile.LocalFrame,
                 projectile.SpawnSequence,
                 projectile.ActionInstanceId);
+            if (result.Success) BindProjectileChildProducer(5, result.Deployed.RuntimeId, projectile, frame);
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 frame,
                 caster.Id.Value,

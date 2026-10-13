@@ -61,6 +61,9 @@ namespace MxFramework.Combat.GameplayBridge
     {
         public const string DefaultSystemId = "mxframework.bridge.combat.on_hit_buff_application";
 
+        /// <summary>Optional caller correlation for the existing Gameplay Buff terminal result contract.</summary>
+        public Func<HitResolveResult, int, GameplayBuffRequestCorrelation> RequestCorrelation { get; set; }
+
         private readonly CombatEntityGameplayMap _entityMap;
         private readonly GameplayBuffRequestBuffer _buffRequests;
         private readonly Func<IReadOnlyList<HitResolveResult>> _getHitResults;
@@ -139,11 +142,12 @@ namespace MxFramework.Combat.GameplayBridge
             for (int i = 0; i < onHitBuffs.Length; i++)
             {
                 CombatHitBuffApplicationConfig config = onHitBuffs[i];
-                _buffRequests.EnqueueApply(
+                _buffRequests.Enqueue(new GameplayBuffApplicationRequest(GameplayBuffApplicationRequestKind.Apply,
                     targetEntityId,
                     config.BuffId,
                     sourceId: result.TraceId,
-                    traceId: GetTraceIdentity(result.TraceId));
+                    traceId: GetTraceIdentity(result.TraceId), commandId: 0,
+                    correlation: RequestCorrelation != null ? RequestCorrelation(result, config.BuffId) : default));
                 summary.RequestedBuffCount++;
             }
         }

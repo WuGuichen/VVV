@@ -43,8 +43,10 @@ namespace MxFramework.Tests.Items
             internal GameSlice Slice => Owner?.Current ?? Initial;
             internal TacticalMixedPlayerCardRuntime Mixed => Slice.Services.Modules.MixedPlayerTacticalStage;
             internal Fixture(bool publishedPreparations = false, bool formalPublishedResources = false,
-                Func<TacticalCardDefinition, TacticalCardDefinition> transformPlayerDefinition = null)
+                Func<TacticalCardDefinition, TacticalCardDefinition> transformPlayerDefinition = null,
+                int? executionBudgetTicks = null)
             {
+                if (executionBudgetTicks.HasValue) Config.ExecutionBudgetTicks = executionBudgetTicks.Value;
                 var content = CharacterTestRuntimeAiLabCardTrialContent.Load(); var selection = content.CreateDefault();
                 selection.InitialHand.Clear(); foreach (string id in TacticalInteractionTrialCards.Ids) {
                     TacticalInteractionTrialCards.TryCreate(id, out var utility);

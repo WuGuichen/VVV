@@ -24,10 +24,33 @@ namespace MxFramework.Combat.GameplayBridge
         private readonly Action<DamageResolvedEvent> _publishDamageResolvedEvent;
         private readonly Action<HitPresentationEvent> _publishHitPresentationEvent;
         private readonly Action<ArmorBreakEvent> _publishArmorBreakEvent;
+        private readonly ICombatHpDebitPolicy _hpDebitPolicy;
         private readonly Dictionary<int, string> _traceIdStrings =
             new Dictionary<int, string>(TraceIdStringCacheInitialCapacity);
+        private readonly Dictionary<GameplayEntityId, int> _batchRemainingHp =
+            new Dictionary<GameplayEntityId, int>(64);
 
         public CombatDamageApplicationSystem(
+            CombatEntityGameplayMap entityMap,
+            GameplayComponentWorld componentWorld,
+            GameplayGuardPressureSystem guardPressureSystem,
+            Func<IReadOnlyList<HitResolveResult>> getHitResults,
+            Func<HitResolveResult, DamageProfileResolveResult> getDamagePayload,
+            int hpAttributeId,
+            List<RuntimeCommand> outputCommands,
+            IList<DamageTelemetryRow> telemetryRows = null,
+            Action<DamageResolvedEvent> publishDamageResolvedEvent = null,
+            Action<HitPresentationEvent> publishHitPresentationEvent = null,
+            Action<ArmorBreakEvent> publishArmorBreakEvent = null,
+            string systemId = DefaultSystemId,
+            GameplaySystemPhase phase = GameplaySystemPhase.Resolution,
+            int priority = 60)
+            : this(null, entityMap, componentWorld, guardPressureSystem, getHitResults, getDamagePayload,
+                hpAttributeId, outputCommands, telemetryRows, publishDamageResolvedEvent, publishHitPresentationEvent,
+                publishArmorBreakEvent, systemId, phase, priority) { }
+
+        public CombatDamageApplicationSystem(
+            ICombatHpDebitPolicy hpDebitPolicy,
             CombatEntityGameplayMap entityMap,
             GameplayComponentWorld componentWorld,
             GameplayGuardPressureSystem guardPressureSystem,
@@ -54,6 +77,7 @@ namespace MxFramework.Combat.GameplayBridge
             _publishDamageResolvedEvent = publishDamageResolvedEvent;
             _publishHitPresentationEvent = publishHitPresentationEvent;
             _publishArmorBreakEvent = publishArmorBreakEvent;
+            _hpDebitPolicy = hpDebitPolicy;
             SystemId = systemId ?? string.Empty;
             Phase = phase;
             Priority = priority;
@@ -69,7 +93,11 @@ namespace MxFramework.Combat.GameplayBridge
             IsEnabled = enabled;
         }
 
-        /// <remarks>NoAlloc on the steady-state path after registration/initialization; invalid-call and exception paths may allocate diagnostics.</remarks>
+        /// <remarks>
+        /// NoAlloc after target capacity and caller-owned buffers have warmed up.
+        /// HP commands must be consumed or discarded between calls; batch HP projection ends with this Tick.
+        /// Invalid-call and exception paths may allocate diagnostics.
+        /// </remarks>
         public void Tick(GameplaySystemContext context)
         {
             if (!IsEnabled)
@@ -79,8 +107,15 @@ namespace MxFramework.Combat.GameplayBridge
             if (results == null || results.Count == 0)
                 return;
 
-            for (int i = 0; i < results.Count; i++)
-                Apply(context, results[i]);
+            try
+            {
+                for (int i = 0; i < results.Count; i++)
+                    Apply(context, results[i]);
+            }
+            finally
+            {
+                _batchRemainingHp.Clear();
+            }
         }
 
         private void Apply(GameplaySystemContext context, HitResolveResult result)
@@ -89,6 +124,8 @@ namespace MxFramework.Combat.GameplayBridge
             bool hasGameplayTarget = _entityMap.TryGetGameplayId(result.TargetId, out GameplayEntityId targetEntityId);
             int hpBefore = 0;
             bool hasHpAttribute = hasGameplayTarget && TryReadCurrentAttribute(targetEntityId, _hpAttributeId, out hpBefore);
+            if (hasHpAttribute && _batchRemainingHp.TryGetValue(targetEntityId, out int remainingHp))
+                hpBefore = remainingHp;
             int finalDamage = 0;
 
             if (hasGameplayTarget && result.Kind == HitResolveKind.Blocked)
@@ -99,7 +136,16 @@ namespace MxFramework.Combat.GameplayBridge
             {
                 int armorAdjustedDamage = ApplyArmorIntegrity(context.Frame, targetEntityId, result);
                 finalDamage = hpBefore > 0 ? Math.Min(armorAdjustedDamage, hpBefore) : 0;
+                if (_hpDebitPolicy != null)
+                {
+                    int limited = _hpDebitPolicy.LimitHpDebit(result, targetEntityId, hpBefore, finalDamage);
+                    if (limited < 0 || limited > finalDamage)
+                        throw new InvalidOperationException("combat:HpDebitPolicyOutsideBudget");
+                    finalDamage = limited;
+                }
                 AppendHpDamageCommand(context, targetEntityId, finalDamage, result.TraceId);
+                if (finalDamage > 0)
+                    _batchRemainingHp[targetEntityId] = hpBefore - finalDamage;
             }
 
             int hpAfter = result.IsAcceptedDamage && hasHpAttribute

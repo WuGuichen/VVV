@@ -58,7 +58,9 @@ namespace MxFramework.Game.CharacterTest
         public const int GroundPointTractionSchemaVersionValue = 39;
         public const int PositionRecallSchemaVersionValue = 40;
         public const int FixedAssemblySchemaVersionValue = 41;
-        public const int SchemaVersionValue = FixedAssemblySchemaVersionValue;
+        public const int DoubleEdgeSchemaVersionValue = 42;
+        public const int SecondBatchSchemaVersionValue = 43;
+        public const int SchemaVersionValue = SecondBatchSchemaVersionValue;
 
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
@@ -194,7 +196,8 @@ namespace MxFramework.Game.CharacterTest
             RuntimeFrame frame,
             CharacterTestNetworkSnapshotDocument document,
             bool preserveLocalPredictedEntity,
-            Func<CharacterTestNetworkFixedAssemblySnapshot[], long, bool> frozenPausedPreflight = null)
+            Func<CharacterTestNetworkFixedAssemblySnapshot[], long, bool> frozenPausedPreflight = null,
+            Func<long[][], long, bool> frozenDoubleEdgePreflight = null)
         {
             _authorityAvailabilityGuard?.Invoke();
             if (document == null)
@@ -209,7 +212,7 @@ namespace MxFramework.Game.CharacterTest
             }
 
             document.NormalizeForSchema(document.SchemaVersion);
-            return ApplyDocument(frame, document, preserveLocalPredictedEntity, frozenPausedPreflight);
+            return ApplyDocument(frame, document, preserveLocalPredictedEntity, frozenPausedPreflight, frozenDoubleEdgePreflight);
         }
 
         internal NetworkSnapshotApplyResult ApplyRollbackSnapshot(
@@ -263,12 +266,13 @@ namespace MxFramework.Game.CharacterTest
             RuntimeFrame frame,
             CharacterTestNetworkSnapshotDocument document,
             bool preserveLocalPredictedEntity,
-            Func<CharacterTestNetworkFixedAssemblySnapshot[], long, bool> frozenPausedPreflight = null)
+            Func<CharacterTestNetworkFixedAssemblySnapshot[], long, bool> frozenPausedPreflight = null,
+            Func<long[][], long, bool> frozenDoubleEdgePreflight = null)
         {
             _authorityAvailabilityGuard?.Invoke();
             if (_characterRuntimeModule == null)
                 return NetworkSnapshotApplyResult.Failed("CharacterTest runtime module is missing.");
-            var fixedAssemblyPreflight = ValidateFixedAssemblyImport(document, frozenPausedPreflight);
+            var fixedAssemblyPreflight = ValidateFixedAssemblyImport(document, frozenPausedPreflight, frozenDoubleEdgePreflight);
             if (!fixedAssemblyPreflight.Success) return fixedAssemblyPreflight;
 
             // Validate nested identity protocols before any entity, runtime or resource is changed.
@@ -591,6 +595,11 @@ namespace MxFramework.Game.CharacterTest
         private long ComputeStateHashCore(RuntimeFrame frame, CharacterTestRuntimeAiPlannerStateSnapshot plannerState)
         {
             RuntimeHashAccumulator accumulator = CreateStateHashAccumulator(frame);
+            var doubleEdge = _characterRuntimeModule?.World.DoubleEdgeState;
+            if (doubleEdge != null && doubleEdge.HasState) {
+                accumulator.BeginObject(NetworkRootStateFieldIds.DoubleEdgeStage, RuntimeHashSchemaIds.NetworkSnapshotDoubleEdgeStage, 2);
+                doubleEdge.AddHash(ref accumulator); accumulator.EndObject();
+            }
             AddCommandStateHash(accumulator);
             AddCharacterEntitiesHash(accumulator, _characterRuntimeModule != null
                 ? _characterRuntimeModule.Entities
@@ -638,7 +647,7 @@ namespace MxFramework.Game.CharacterTest
 
         private static bool IsSupportedSchemaVersion(int schemaVersion)
         {
-            return schemaVersion == SchemaVersionValue || schemaVersion == PositionRecallSchemaVersionValue;
+            return schemaVersion == SchemaVersionValue || schemaVersion == FixedAssemblySchemaVersionValue || schemaVersion == PositionRecallSchemaVersionValue;
         }
 
         private bool TryResolveRestoredCombatTarget(
@@ -722,6 +731,11 @@ namespace MxFramework.Game.CharacterTest
         public long ComputeOwnedStateHash(RuntimeFrame frame, int ownedEntityId)
         {
             RuntimeHashAccumulator accumulator = CreateStateHashAccumulator(frame);
+            var doubleEdge = _characterRuntimeModule?.World.DoubleEdgeState;
+            if (doubleEdge != null && doubleEdge.HasState) {
+                accumulator.BeginObject(NetworkRootStateFieldIds.DoubleEdgeStage, RuntimeHashSchemaIds.NetworkSnapshotDoubleEdgeStage, 2);
+                doubleEdge.AddHash(ref accumulator); accumulator.EndObject();
+            }
             AddCommandStateHash(accumulator);
             AddCharacterEntitiesHash(
                 accumulator,
@@ -784,6 +798,11 @@ namespace MxFramework.Game.CharacterTest
         public long ComputeNonOwnedStateHash(RuntimeFrame frame, int ownedEntityId)
         {
             RuntimeHashAccumulator accumulator = CreateStateHashAccumulator(frame);
+            var doubleEdge = _characterRuntimeModule?.World.DoubleEdgeState;
+            if (doubleEdge != null && doubleEdge.HasState) {
+                accumulator.BeginObject(NetworkRootStateFieldIds.DoubleEdgeStage, RuntimeHashSchemaIds.NetworkSnapshotDoubleEdgeStage, 2);
+                doubleEdge.AddHash(ref accumulator); accumulator.EndObject();
+            }
             AddCommandStateHash(accumulator);
             AddCharacterEntitiesHashExcluding(
                 accumulator,
@@ -1399,6 +1418,7 @@ namespace MxFramework.Game.CharacterTest
                     _commandModule != null && _commandModule.RuntimeAiBehaviorSelectionUnlocked,
                 Characters = characters,
                 FixedAssemblyState = CaptureFixedAssemblyState(frame.Value),
+                DoubleEdgeStage = _characterRuntimeModule?.World.DoubleEdgeState.CaptureProjection(),
                 BodyPartStates = CharacterTestBodyPartStateNetworkSnapshotCodec.Capture(
                     _characterRuntimeModule?.Entities),
                 AuthorityPoseTerrainStates =
@@ -1482,6 +1502,8 @@ namespace MxFramework.Game.CharacterTest
     {
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         internal CharacterTestNetworkFixedAssemblySnapshot[] FixedAssemblyState { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        internal long[][] DoubleEdgeStage { get; set; }
         public int SchemaVersion { get; set; }
         public long Frame { get; set; }
         public string LocalPeerId { get; set; }
@@ -1659,6 +1681,7 @@ namespace MxFramework.Game.CharacterTest
                 RuntimeAiBehaviorSelectionUnlocked = RuntimeAiBehaviorSelectionUnlocked,
                 Characters = CharacterTestNetworkCharacterSnapshot.CloneArray(Characters),
                 FixedAssemblyState = FixedAssemblyState == null ? null : Array.ConvertAll(FixedAssemblyState, row => row?.Clone()),
+                DoubleEdgeStage = DoubleEdgeStage == null ? null : Array.ConvertAll(DoubleEdgeStage, row => row == null ? null : (long[])row.Clone()),
                 BodyPartStates =
                     CharacterTestBodyPartStateNetworkSnapshotCodec.CloneCanonicalArray(BodyPartStates),
                 AuthorityPoseTerrainStates =

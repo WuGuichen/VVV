@@ -1,10 +1,10 @@
 # CharacterTest Runtime AI Lab Behavior Workbench
 
-> 2026-10-10 新玩法已定、待实现：[主卡与配件基石](../../StorySource/玩法基石/行动卡与交互效果卡设计基石.md)取代独立准备卡先出牌设计，固定预装与随机双牌库共用基础。本文下述CardTrial选准备卡、独立确认、opt-in及试用参数均为现有旧合同实现；新的组合试验入口与迁移任务归[开发方案](../Plans/TacticalCardAssemblyDevelopmentPlan.md)。底层行为制作／时间轴观察继续保留，不因配件设计撤除。本次未操作Lab或运行验证。
+> 2026-10-11 新玩法已定，固定组合已接线并取得部分GameView证据：[主卡与配件基石](../../StorySource/玩法基石/行动卡与交互效果卡设计基石.md)取代独立准备卡先出牌设计，固定预装与随机双牌库共用基础。本文下述CardTrial选准备卡、独立确认、opt-in及试用参数按旧合同范围读取；新组合入口与最新16/16 Runner、实际扣费／推离和待验边界归[开发方案3.9](../Plans/TacticalCardAssemblyDevelopmentPlan.md#39-固定组合原生修复与图形检查点2026-10-11部分验收)。底层行为制作／时间轴观察保留；2026-10-10视觉验收不覆盖新增组合条件文本。
 
 > Status: Guide
 >
-> Date: 2026-10-10（独立配置与观察页；下文历史设计保留原范围）
+> Date: 2026-10-11（固定组合测试配置；下文历史设计保留原范围）
 >
 > Scope: 真实出牌试验的当前入口／owner／边界见第一节；后续总体工作台内容包含历史设计与目标，不表示全部已交付。
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/*CardTrial*.cs`
@@ -49,7 +49,80 @@
 - 实际页面读取费用／卡区／准备状态、世界帧、事务revision及角色身份。`Content.Load`、`Describe`和已有卡面投影从正式已发布目录取得角色／卡／动作名称与描述；字段、枚举及默认值继续由这些源与编译／发布投影维护，本文不复制一份默认数值表。
 - 临时Lab配置不打开玩家持久化service/store，返回行为观察释放独立会话并重置原观察。不能据此宣称正式玩家库存、整场战斗存档、联网恢复或有限R2外的恢复已接线。
 
-### 独立配置页与试验观察（2026-10-10，已实现）
+### 固定组合测试配置（2026-10-11，源码已接；图形部分验收）
+
+已有动作主卡的装配入口复用正式发布的选择列表和picker控件：可更换动作、选择普通卡或固定组合测试模式，再选银／金／彩测试槽数及各槽借力／推离／破势或空槽。降低品质前须明确清除超出容量的配件；同名重复当前明确不支持，不静默截断或替换。未修改Composer XML、blueprint或bytes。本入口仍使用已有CardTrial session与命令提交链，固定组合交真实Driver／Deck／Time／Host联合入口。
+
+Freeze生成独立的Lab虚拟主卡／配件实例和固定输入快照，测试费用明确为各配件1、借力回复2、破势扣最多2，推离沿已有明确测试参数；这些不是正式默认数值，也不打开真实玩家Items／SaveGame或授予库存。空槽允许出牌；配置固定组合时不能同时带入旧独立准备／测试工具卡，普通模式仍保留旧探针。Clone、条件比较、备用组合副本均保留自己的装配状态。配置与待确认说明复用真实冻结费用证明；HUD与条件页读取已付款journal、实际预留和消费，固定模式隐藏且不校验旧准备费。查询不会付费、激活或移动牌，确认重新准入。
+
+Lab配置6项Editor已编译fixture直接调用通过，首次缺显式DurationTurns导致1项失败已修复并复验；这是数据冻结专项，不是Unity Test Runner或图形输入验收。完整接线、门禁、其他13项原生调用及剩余工作见[开发方案3.8](../Plans/TacticalCardAssemblyDevelopmentPlan.md#38-固定组合真实接线检查点2026-10-11工作树已合入可玩验收未完成)。
+
+408d1b38阶段的实际Unity EditMode Runner16/16通过费用投影、退出／死亡、第二动作取消／中断及private恢复。该阶段GameView正式控件回调选定彩卡三配件并确认，实际付3、动势50→47，真实攻击触发推离且目标位置改变；借力／破势仍Armed进入第2回合。Planning修改配置／继续保持同一Stage、F138、动势47与一次commit，没有重复付款或激活。当时1280的完整条件文字过小；后续471156bc工作树已完成六行显示修订，1280／1920实拍为16／24物理像素，完整Tooltip无裁剪。尚待借力／破势真实防御、执行中暂停、图形完整快照恢复及自然鼠标输入；回调与private fixture恢复不替代这些验收。各阶段证据与保护检查归[开发方案3.9](../Plans/TacticalCardAssemblyDevelopmentPlan.md#39-固定组合原生修复与图形检查点2026-10-11部分验收)。
+
+49b79397后的历史检查点仅准备两文件隔离显示候选；该检查点没有调用Editor／编译，后续实施以开发方案3.9为准。当时破势缺少对手防御内容选择；下述手测配置已补该入口。图形完整恢复仍无本页入口／重新绑定接缝，不把“继续”或同条件重试当快照恢复。
+
+### 实验台、站位与装配页（2026-10-11，当前工作区）
+
+用户已确认独立实验入口、角色站位页和并排卡组装配页的操作与视觉方案。本轮从 Composer 的 CardTrial 配方和 C# 控件合同物化并发布 `MxCharacterTestRuntimeAiLabUi`；使用现行浅色磨砂面、冰蓝晶石边缘及正式共享卡面，没有将生成的整屏效果图当作运行时面板。
+
+- 首屏只提供开始、同条件重试、继续当前试验、角色与站位、卡组装配及底层行为编辑入口，并显示只读角色／位置／朝向／卡组摘要；不展开配置表单。
+- 站位页按角色选择正式角色、编辑 X／Z／朝向，也可在俯视画布拖动；可添加或移除额外 AI 对手。初始动势、种子沿用同一临时试验配置。保存返回更新摘要，取消返回恢复本页编辑前的配置，不修改已冻结会话。
+- 装配页同时显示左侧具体牌实例及右侧主卡、配件；点击主卡加入当前角色卡组，选牌后点击配件填入空槽，选中槽位后替换，也可拖入明确槽位。配件可移除；同模板的其他牌实例不被改写。银／金／彩分别展示 1／2／3 槽及当前效果、主卡与配件确认费用。品质降低前先明确移除超出槽数的配件，不静默截断，也不增加卡组数量上限或人为兼容池。
+- 位置、朝向、各角色牌与动作、额外对手及实例配件均参与 Clone／条件比较／Freeze。显式清空 AI 卡组不偷偷补入默认牌；原单对手字段与预设 API 仅保留旧调用兼容。开始和重试仍进入原 session／deployment／Driver 权威链；观察页暂停、继续和结束由现有时间／会话 owner 处理。结束后保留本次冻结配置供同条件重试。
+- 底层行为入口返回已有行为工作台。本轮不改行为编辑器、正式玩家库存、正式卡／动作版本或 AI 组合执行协议。AI 组合、配件搭配点移／回返等既有未支持执行路径仍在正式冻结／启动边界明确拒绝并保留草稿；可自由配置不等于这些执行接缝已完成，不将技术边界改写为配件兼容规则。
+
+正式包物化／发布／产物核对回执：`Logs/UiComposerPublish/7200d0553c614025a77a4ebbf54accda.json`。本轮定向 EditMode 配置测试 **15/15 通过、0 失败、0 跳过**（job `fa1f4dc920594c35a922dc0659bd34fa`），覆盖手动站位／额外角色冻结以及显式空 AI 卡组不被补入默认牌。编译 job `fb127428c8f34dd6b9a7266bf2f95c4b` 的持久证据确认 refresh completed、编译开始／结束、2 个程序集零错误、domain reload observed、Editor ready 与当时 Console error 0；MCP 跨域重载调用断连，迟到的 status 查询结果为 timed_out，不把该复合调用描述为成功。运行时资源已由正式 `Build Global Player Resources` 入口生成，其报告见 `Assets/Config/MxFramework/ResourceBuildReports/global_resource_build_report.json`。本地自包含 `lab-experiment-entry.html` 同步现行素材／字体，并验证保存返回与配件交互。
+
+图形交互、真实配件消费与新增多对手实战没有在本轮自动游玩；后续手测从实验台分别进入站位和装配页，不再使用下文历史预设选择器作为主流程。编译、配置测试和包发布不能替代 Unity Game View 的画面与点击验收。
+
+### 配件图标卡面微调（2026-10-12，当前工作区）
+
+用户确认沿用原卡壳、插画窗、标题、费用和描述布局，仅微调插画窗右上角的配件列。本轮未采用整套卡面重排，也没有修改 `CardShellStudy/ShellArtwork.png`、共享卡面配方或正式材质资产。图标槽由 CardTrial 专用受控组件叠在原卡面上；主插画仅在该实例的临时材质中略向左让位，其他卡面消费者仍沿用原位置。
+
+- 2026-10-12，`images/tactical_accessory_icons_v1` 的 20 张 128×128 透明灰阶原图以 `ui.icon.tactical.accessory.*` 登记，并通过 Composer helper 随 Lab 包发布；当时保留原 PNG 内容。2026-10-13 的彩色替换见下节。隐藏的 `RuntimeAiLabTrialAccessoryArtwork` 只提供已发布贴图，不是可执行配件目录。
+- 装配牌右上角按银／金／彩显示 1／2／3 个图标槽，点击槽位选中后可替换或移除；候选配件行显示相同原图，拖放沿用原实例装配接口。手牌图标只读，输入继续交给整张牌。组件复用时明确清理空槽、选中及交互状态。
+- 卡面保留主卡说明，配件名称、完整条件和支付说明在对应详情与 Tooltip 中展示；左上费用继续读取原主卡＋配件确认费用投影，不参与准入、扣费或效果触发。
+- 本轮只接表现层：真实候选与执行仍为既有借力、推离、破势，未把图形登记当作五张旧准备卡迁移或其余候选机制已实现，也未新增卡组数量限制或兼容池。
+
+发布回执 `Logs/UiComposerPublish/0700b709e54948b09ac61d6523c95667.json` 确认源组件、包、图集及生成清单核对成功。Unity 实际 EditMode UI 检查 **4/4 通过、0 失败、0 跳过**，job `079b7dc9f2524a9f9815c831e7f717b9`，覆盖全部原图从真实包加载、装配／手牌槽位置边界以及池化控件的状态清理；检查不进入 Play Mode。编译 job `094f767350714522b3d05dfd2cc6427b` 确认 refresh completed、compilation started/finished、零编译错误、domain reload observed、Editor ready 与 Console error 0；统一调用在重载时断连，迟到 status 为 timed_out，因此不把复合调用描述为成功。Game View 实际画面、鼠标命中、拖放及运行效果仍待手测，本轮未启动自动游玩或提交 Git。
+
+### 配件图标彩色替换（2026-10-13）
+
+按用户要求，通过 UI Art Resource Library 的同路径 PNG 替换接口，将上述 20 张图标采用已生成的彩色版本，保留原文件名、128×128 透明规格及全部稳定资源 ID。库内这 20 项的说明同步为彩色；其他资源语义保持一致。上色沿用粗壮符号、油画厚涂和钢笔笔线，以蓝灰防御、青绿动势、暖红攻击／伤害等内容色辅助辨认，不新增品质编码。原路径原图、64／32 预览、图像清单和总览同步采用彩色；历史黑白包为 `ArtSource/UIKits/MxUiFoundation/exports/tactical-accessory-icons-grayscale-20261012.zip`。
+
+Composer 回执 `Logs/UiComposerPublish/ce18fdf57e654367a2974ea6dbeea0df.json` 的 Apply、Publish、源包与产物核对阶段成功，包内 20 张源 PNG 均与彩色源图哈希一致，图集已更新。该回执的 Unity 阶段因未指定实例而失败；补选当前项目实例后，验证 job `8999a6c813014631890efd242dee89f8` 确认刷新完成、70 个程序集编译结束且无编译错误、domain reload observed、Editor ready 与当前 Console error 0，但调用重载断连、后续 status 为 timed_out，因此只记录分步核对结果，不宣称统一验证成功。随后经正式 Build Global Player Resources 入口完成运行时资源生成；构建报告与 artifact set 一致，24 项生成产物逐项哈希核对一致。菜单调用返回超时，以已提交产物及 Editor 完成日志确认构建。此次为图片替换和发布，未运行新的测试或 Game View 交互验收。
+
+运行时资源由正式菜单 `MxFramework/Resources/Build Global Player Resources` 更新。菜单调用返回 timeout，但实际 Editor 日志记录生成完成，`global_resource_artifact_set.json` 与 `global_resource_build_report.json` 在 2026-10-12 11:53:44（Asia/Shanghai）写入同一 `sourceInputFingerprint=sha256:43fc86a0ff6597dc8687bb3be75650a882ec90519e5ada5337c6eacac0e05a4c`；资源报告位于 `Assets/Config/MxFramework/ResourceBuildReports/`，本地 bundle／catalog 不进入版本化内容。
+
+### 固定装配摘要重算修正（2026-10-12，当前工作区）
+
+固定装配卡确认出牌此前复用了只读费用查询，遇到 `ActionSummary:Stale:MeasurementInputsChanged` 会直接拒绝，实际没有进入已有自动重建入口。确认现改用允许摘要修复的准备路径：先由隔离探针按当前动作与资源重建并重新查询，再继续费用证明、付款及 Host 联合发布；重建失败仍不付款或启动动作。卡面费用查询继续只读，缺失轨迹／挂点烘焙仍拒绝，摘要测量不能补齐源资源。HUD 仅在诊断包含实际 `auto-repair` 失败记录时显示“自动重建失败”。
+
+初次定位通过只读核对用户暂停 Play 会话的反馈与调用链完成。退出 Play 后，新回归用例的摘要序列化类型命名空间错误已修正；Unity 验证作业 `f10423bc51a941d5994984935791c6bb` 通过 refresh、编译开始／结束、domain reload、Editor ready 与 Console error 0。
+
+定向 EditMode 作业 `5e87e59f086442d4afc456954e59e468` **5/5 通过**：摘要过期／缺失时费用查询不改缓存或付款，确认出牌重建摘要且不推进活动世界；重复费用查询、投影与实付一致、重复确认不重复付款。首次作业启动状态超时，实际 Runner 报告 1 通过／4 失败，失败均来自本地摘要已过期的初始只读查询；实际确认用例重建缓存后，第二次作业上述五项完整通过。未自动进入 Play、操作 Game View 或提交 Git；图形手测仍由用户进行。
+
+### 固定装配手测入口（2026-10-11 历史预设记录，已被实验台流程取代）
+
+> 下文保留原手测数值及历史证据；旧头像选择器和预设按钮不再作为当前页面操作说明。
+
+打开已有场景 `Assets/Scenes/CharacterTestRuntimeAiLabScene.unity`，进入Play，在实验设置页点击「真实出牌测试」。配置页点击**对手头像**，选择「手测：借力」「手测：推离」或「手测：破势」，点击「确认选择」，再点击「开始试验」。选择预设只替换当前Lab草稿，不自动开始战斗；已有会话时，开始试验会要求确认重开。双方为Forest Ranger，初始动势50、种子73、战前冻结的近距离起点相距1.2米，初始手牌为一张银色主卡和一个固定配件；备用牌按已有Lab规则生成独立组合副本。
+
+| 预设 | 玩家主卡／装配动作／配件 | 对手行为 | 手测观察点 |
+| --- | --- | --- | --- |
+| 借力 | 迎面固守／普通防御459／借力 | 常规移动接敌出招／持剑四连击第1段455 | 确认费1，50→49；合格直接攻击被格挡或招架后，Tooltip应显示实际回复量，最多2；未命中时保持待触发 |
+| 推离 | 常规移动接敌出招／455／推离 | 常规移动接敌出招／455 | 确认费1；合格直接攻击后消费一次并提交推离，结合实际场景观察位移与碰撞限制 |
+| 破势 | 常规移动接敌出招／455／破势 | 迎面固守／普通防御459 | 确认费1；直接攻击被目标格挡或招架后，Tooltip应显示实际削减目标可用动势，最多2；仍走真实对手账本 |
+
+出牌时点击手牌，按页面提示选择对手并确认；观察页条件区读取真实已付费用与配件状态，完整实际回复／削减量在原观察Tooltip中。再次尝试可用「试验操作 → 同条件重试」；换预设用「试验操作 → 修改配置 → 对手头像」，开始时确认重开。也可在同一对手选择器分别更换角色、已发布普通行为牌、合格动作和默认／近距离起点。对手固定组合、旧独立准备、点移／回返暂未接入此对手配置入口；这是试验工具的能力边界，不能改写为配件装配兼容规则。
+
+`Configuration.Clone`／条件比较／Freeze保留对手牌与动作、起点，已冻结会话不受后续草稿编辑影响；冻结条件Tooltip同步读取这些字段。安装与行为执行继续使用原`TacticalAutoBattleRuntimeInstaller`和AI Planner，未伪造格挡、命中、动势或位移，没有打开玩家持久化service/store。此次未改Composer产物、正式卡／动作内容、场景或profile资产。
+
+Unity门禁job `b9e8069539b042449bce263dd848450c`完整通过refresh、编译开始／结束、domain reload、Editor ready与Console error 0；三种预设在实际Editor DLL进行只读Load／Clone／Freeze内容预检，取得精确牌引用、459／455绑定、银卡一槽和确认费1，没有建立战斗会话。用户要求改为手测交付后，停止自动游玩并恢复原场景与环境；新预设没有自动Play／点击／触发验收，不重新声明历史16/16通过。此前借力在主行为结束后仍待触发的证据保留，借力／破势真实消费、完整GUI快照恢复仍未验收。当前Lab实际10个静态碰撞体及导航输入超出原单地板私有恢复能力，原生只读边界探针拒绝`snapshot:actual-physics-fixed-floor-required`，前后F595、动势49和一次commit均不变；此拒绝不代表GUI恢复入口已实现。
+
+末次对手选牌预览修正保留当前对手的实际动作绑定，最终Unity门禁job `638bb65e5d5a42fabc1d852438de52de`通过refresh、编译开始／结束、domain reload、Editor ready与Console error 0；此为收尾编译回执，没有再次Play或运行测试。
+
+### 独立配置页与试验观察（2026-10-10 历史布局，当前配置页见实验台章节）
 
 真实出牌测试分为独立不透明「试验配置」页与保留场景的「试验观察」页。初版使用紧凑列表；用户后续要求正式卡面与角色头像，当前配置页左侧以头像选择双方角色并编辑初始参数，右侧以横向可滚动的正式卡面显示初始手牌。卡牌和动作通过目录选择界面直接选取，支持复制、替换和移除。观察页不展示配置表单，只提供出牌、取消、冻结条件、同条件重试和修改配置。
 
@@ -276,3 +349,48 @@ Composer-owned `MxCharacterTestRuntimeAiLabUi` 已采用同级 Timeline、自动
 行为配方时间轴使用帧作为唯一单位。每条 Timeline 有独立局部 `0f`，但共享比例尺；Predicate 显示具体事实与比较值，LocalFrame 显示具体帧，PrimaryActionSignal 显示动作实例和原因码。当前 Timeline、本地播放头、命中的 Event 和 pending 跳转直接来自 v5 运行状态，不以 planned interval 冒充已发生历史。完整 RuntimeFrame Seek/Replay、候选比较和决策解释仍由运行测试表面承担；workspace process lock、协作导出、正式分类与生产级审批/签名/分发/回滚仍是后续工作。
 
 玩家自由卡组的 internal foundation、`6` 槽/`10` 费、整卡解锁、每角色卡组存档、Published Behavior Card catalog、战前 authority 锁定、离线玩家 FairyGUI 卡组页与战斗反馈已经按阶段 1–5 验收。Runtime AI Lab 继续复用同一个玩家卡组服务和隔离 COW Draft；来源 revision/semantic/content hash 随 Draft 持久化。当前正式项目行为卡发布为 Logic v10、运行合同 7；v9 卡只允许先认证再迁移，已运行的 contract-6 程序不会静默恢复。append-only 本地 Publish 会重新验证 SubjectScope、权威引用、玩家合法性和 catalog lineage，不隐式执行 `Apply F+1`。生产 catalog 分发/审批/签名/回滚以及正式多人账号与匹配接入仍未实现。
+
+
+### 前三批配件的可见 Lab UI 与已提交状态（2026-10-12，独立候选待原生验收）
+
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestRuntimeAiLabFixedAssembly.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestRuntimeAiLabCardTrialConfiguration.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.FixedAssembly.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestTacticalAccessoryDisplay.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.Readouts.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestTacticalAccessoryStateDisplay.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalAccessory*Ui*Tests.cs`
+
+本候选基于Gate782已安装UI r3与二三批当前冻结实现，继续使用实际 `openDecks → Experiment` 页、256×74说明框、原选择／拖拽／替换／移除和联合Attach／付款链。Lab来源保留旧三种试验定义，并读取 `TacticalAccessoryThirdBatchPublication.CreateWithPreviousBatches` 的冻结九卡：可见项合计12。费用逐项读取execution／manifest；后六种补全中文名称、精简规则与单字短标，详细倍率来自冻结配置／实际规则参数。不恢复旧第二UI overlay，也不增加kind4–6上限。
+
+这只是明确的Lab虚拟试验副本，不能解释为九种正式持有或正式发布。当前隔离正式加载文件仍只有第一批三种；九卡candidate JSON、发布／grant／append-only迁移及主项目接入仍由公共owner负责，本候选不写其数据、不改主卡品质或测试库存。旧手动配置helper与旧选择列表同步改为查定义来源，保留未知类型／未知费用回退，不猜值。
+
+第三批状态复用已有观察readout、冻结条件的状态摘要及原Tooltip，读取 `TacticalDoubleEdgeBattleState.TryGetThirdReadout` 并按actor／Stage／commit／execution／具体主卡匹配已确认付款journal。显示硬币真实面与受益者、pending等待敌人或bound实际攻击、实际期限；玻璃输出待兑现／风险待付、风险已付与已结算；铁王座显示精确绑定执行及当前生效标志。硬币动作Ended与冻结已生成来源的硬期限分别陈述，不把动作结束误写成所有来源立即失效。未提交、不匹配journal或重入无回执时清空状态，不在预览开奖。显示查询没有RNG抽取、消费、运行事件或额外付款。
+
+代码／测试／说明只在 `.agent/accessory-three-batch-visible-ui-20261012`，未安装共享或隔离项目、未操作Unity或修改Composer。确定性展示用例覆盖九卡JSON完全相等、真实费用、现有Attach与实例隔离、实际硬币receipt／enemy binding及风险状态转换；不把它们当作二三批规则重审。原生需由唯一Editor owner在1920×1080与1280×720复验真实12项列表、后六种鼠标流程、手牌／待确认费用及状态阶段／重入。九卡完整正常可玩和正式持有／发布仍须公共owner后续实际接线证据。第四批继续暂停，Fireball独立入口缺口不由本UI候选解决。
+
+### 可见配件说明布局与原生 fixture r2（2026-10-12，隔离候选待原生复验）
+
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.Experiment.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalAccessoryVisibleDeckUiTests.cs`
+
+r1 已在 Gate782 按原审核 SHA 安装。原生 Runner 的38项中32通过、6失败：第一批三种说明的实测高度71超过64，旧借力／推离同为71、破势为94；另三种拖拽 fixture 在 EditMode 创建 FairyGUI Stage，引发仅允许 Play 的 DontDestroyOnLoad 错误及后续未完成初始化错误。另行 Play 调用原 fixture 仅作为运行上下文诊断，不能代替 Runner 总体通过。两种真实分辨率的六组 Confirm→ACK→自然完成已有6/6证据，均按第一批定义费用1／2／2单次联合付款；此结果不关闭文字裁切问题。
+
+r2 仅调整 C# 显示绑定与 fixture 生命周期，不改正式定义、费用、付款或 Composer 发布资产。发布行仍为276×116：顶部36px图标与完整名称，下方256×74正文框完整保留“费用＋说明”；名称20号、正文17号，不靠缩字或删文字适配。复用时重置上述尺寸、位置与字号，图标／单字回退继续使用原发布资源。正文实际字体宽高、行内边界及可见窗口边界须原生检查后才能判通过。
+
+原七项 fixture 的测试方法／参数和行为断言保留，改用本仓已有 `UnitySetUp → EnterPlayMode`、`UnityTearDown → ExitPlayMode` 路由，由 Unity TestRunner 管理 Play 上下文；不跳过失败、不手动反射执行后宣称 Runner 通过。新增两项从真实场景 controller 的 `OpenCardTrial`、可见 `openDecks` 按钮进入当前 Deck，读取实际 virtual list 的六种定义，检查完整费用／说明、原字号、窗口范围及新旧图标复用；不注入私有 Picker、Draft 或 manifest。协调者运行该套件前须打开 `CharacterTestRuntimeAiLabScene`，新窗口用例切换 transient draft persistence 后只观察配置 UI。
+
+候选封存于 `.agent/accessory-visible-deck-repair-20261012/review-r2`；旧失败和六组付款证据保留。离线编译／纯用例不能证明字体和真实窗口已修好，仍须独审后由唯一 Editor owner 跑原38项＋新2项及1920×1080／1280×720实际页面。自动指针仅可描述为 FairyGUI CustomInput 的命中和事件，不称物理 OS 鼠标；浮动预览截图与结构证明分别报告。第四批继续暂停，Fireball 的独立阻碍未由本包解决。
+
+### 可见装配页第一批入口补丁（2026-10-12，r1隔离原生部分通过）
+
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.Experiment.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.Accessories.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestRuntimeAiLabFixedAssembly.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalAccessoryVisibleDeck*.cs`
+
+freeze92-r2＋UI v2 的实际 Game View 仍只有旧三种配件：当前 `openDecks` 页由 `Experiment.BindExperiment` 接管 `initialHand` 的 `RenderAssembledCard`，动作按钮走 Action Picker，旧 Assembly Picker 的第一批扩展不能覆盖此页。本隔离候选把右侧 `accessoryOffers` 改为读取 `AvailableDefinitions()` 的真实 Lab 定义，不再以固定数量或行号推算种类；当前来源只含旧三种与已评审第一批三种，后两批正式目录未纳入。后续扩展从定义来源接入，展示端不另列费用表。
+
+列表保留发布组件的横向滚动，并显示种类数与滚动提示。完整名称、定义费用和效果分开显示，Tooltip 保留精确身份；缺美术时复用正式发布槽组件显示单字短标，未知输入显示通用短标。拖拽也使用该发布组件预览并携带实际 kind，原图标恢复时清理短标；结束、取消、离开装配页及释放 surface 清理本页拖拽预览与监听。点击、明确槽位拖入与替换共用 `TryEquip`，仍由现有 Freeze／Attach 构造主卡 manifest、联合确认付款；UI 不扣费、不提交独立配件。复制和品质切换清除旧槽选择，移除后清除旧错误反馈。
+
+补丁只封存在独立 `.agent/accessory-visible-deck-repair-20261012`，未写共享 UI、未修改 Composer XML／发布 bytes，未操作 Unity。离线编译与确定性装配用例只能证明源码和定义／manifest 路由；新增原生组件 fixture、1920×1080／1280×720、横向滚动、真实点击／拖拽／替换／移除、确认 ACK／一次扣费、重入与存活会话复用必须由唯一协调者执行后才可称完整可玩。模块合同仍归 [CharacterTest TacticalCard](../Interfaces/CharacterTest.TacticalCard.md)。

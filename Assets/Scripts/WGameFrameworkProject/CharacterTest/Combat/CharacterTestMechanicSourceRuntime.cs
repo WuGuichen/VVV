@@ -554,7 +554,7 @@ namespace MxFramework.Game.CharacterTest
         public int SkippedMissingGameplayTargetCount { get; }
     }
 
-    internal sealed class CharacterTestMechanicSourceRuntime
+    internal sealed partial class CharacterTestMechanicSourceRuntime
     {
         private static readonly IReadOnlyList<RuntimeCommand> EmptyRuntimeCommands =
             Array.Empty<RuntimeCommand>();
@@ -584,8 +584,10 @@ namespace MxFramework.Game.CharacterTest
             CharacterTestMechanicSourceDefinitionRegistry definitions,
             GameplayBuffDefinitionRegistry buffDefinitions,
             GameplayBuffRequestBuffer buffRequests = null,
-            GameplayComponentTargetingService targetingService = null)
+            GameplayComponentTargetingService targetingService = null,
+            int accessoryProducerKind = 0)
         {
+            _accessoryProducerKind = accessoryProducerKind;
             _definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
             _buffDefinitions = buffDefinitions ?? throw new ArgumentNullException(nameof(buffDefinitions));
             _buffRequests = buffRequests ?? new GameplayBuffRequestBuffer();
@@ -595,7 +597,7 @@ namespace MxFramework.Game.CharacterTest
             _buffApplicationSystem = new GameplayBuffApplicationSystem(
                 _buffDefinitions,
                 _buffRequests,
-                "character_test.mechanic_source.buff_application");
+                "character_test.mechanic_source.buff_application", resultSink: _accessoryBuffResults);
             _buffProjectionSystem = new GameplayBuffEffectProjectionSystem(
                 _buffDefinitions,
                 "character_test.mechanic_source.buff_projection");
@@ -816,6 +818,8 @@ namespace MxFramework.Game.CharacterTest
                 for (int i = 0; i < _sources.Count; i++)
                 {
                     ActiveMechanicSource source = _sources[i];
+                    var lineage = world.DoubleEdgeState.FindProducer(_accessoryProducerKind, source.RuntimeSourceId, 0);
+                    if (world.DoubleEdgeState.SuppressesAttack(lineage.Root)) continue;
                     if (source.Definition.Shape != CharacterTestMechanicSourceShape.Sphere)
                         continue;
                     if (!ShouldTickSource(source, frame))
@@ -870,12 +874,13 @@ namespace MxFramework.Game.CharacterTest
                 if (effect.Kind != CharacterTestMechanicEffectKind.ApplyBuffOnTick)
                     continue;
 
-                _buffRequests.EnqueueApply(
+                _buffRequests.Enqueue(new GameplayBuffApplicationRequest(GameplayBuffApplicationRequestKind.Apply,
                     targetEntityId,
                     effect.BuffId,
                     sourceId: source.Definition.SourceId,
                     traceId: new RuntimeTraceIdentity(CharacterTestFrameworkTraceKinds.CombatRuntimeEffectVfx, source.SourceGameplayEntityId.Index, source.RuntimeSourceId, source.TraceId),
-                    commandId: 0);
+                    commandId: 0, correlation: _accessoryProducerKind > 0
+                        ? new GameplayBuffRequestCorrelation(source.RuntimeSourceId, effectIndex, _accessoryProducerKind) : default));
                 appliedCount++;
             }
 
@@ -937,7 +942,9 @@ namespace MxFramework.Game.CharacterTest
                 _commandState,
                 componentWorld: world.GameplayComponentWorld);
             _buffCleanupSystem.Tick(context);
+            _accessoryBuffResults.Prepare(_buffRequests.Count);
             _buffApplicationSystem.Tick(context);
+            PublishAccessoryBuffOrigins(world, frame);
             _buffProjectionSystem.Tick(context);
         }
 

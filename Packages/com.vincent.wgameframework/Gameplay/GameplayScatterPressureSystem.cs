@@ -78,7 +78,13 @@ namespace MxFramework.Gameplay
         }
 
         /// <remarks>NoAlloc on the steady-state path after registration/initialization; invalid-call and exception paths may allocate diagnostics.</remarks>
-        public void Tick(GameplaySystemContext context)
+        public void Tick(GameplaySystemContext context) => ApplyPending(context, recover: true);
+
+        /// <summary>Consumes queued pressure requests without advancing per-frame recovery.</summary>
+        /// <remarks>NoAlloc after capacity warmup. The frame owner calls Tick once after all causal rounds.</remarks>
+        public void ApplyPendingRequests(GameplaySystemContext context) => ApplyPending(context, recover: false);
+
+        private void ApplyPending(GameplaySystemContext context, bool recover)
         {
             try
             {
@@ -95,7 +101,7 @@ namespace MxFramework.Gameplay
                 for (int i = 0; i < _requests.Count; i++)
                     ApplyRequest(context, componentWorld, store, _requests[i]);
 
-                Recover(context, store);
+                if (recover) Recover(context, store);
             }
             finally
             {

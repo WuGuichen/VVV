@@ -53,6 +53,14 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal readonly Func<bool> ExternalAuthorityIsCurrent;
         private readonly Dictionary<int, TacticalFixedAssemblyRestoreWitness> _fixedAssemblyWitnesses;
         private readonly string _fixedAssemblyResources, _fixedAssemblyProjection;
+        private readonly TacticalDoubleEdgeBattleState _doubleEdgeWitness;
+        private readonly string _doubleEdgeProjection;
+        private readonly string _doubleEdgeProjectiles;
+        internal bool MatchesDoubleEdge(long[][] projection, long frame)
+            => frame == Frame && _doubleEdgeProjection == JsonConvert.SerializeObject(projection);
+        internal TacticalDoubleEdgeBattleState CloneDoubleEdgeWitness() => _doubleEdgeWitness.CloneTrusted();
+        internal bool MatchesDoubleEdgeProjectiles(object projection)
+            => !_doubleEdgeWitness.HasState || _doubleEdgeProjectiles == JsonConvert.SerializeObject(projection);
         private readonly string _idleExecutionIdentity;
         private readonly string _idleExecutionDeck;
         internal bool MatchesIdleExecutionIdentity(TacticalIdleExecutionSnapshot state)
@@ -91,6 +99,10 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             _fixedAssemblyResources = _fixedAssemblyWitnesses.Count == 0 ? null :
                 JsonConvert.SerializeObject(CharacterTestPausedSessionCodec.CaptureMomentum(current, this));
             _fixedAssemblyProjection = JsonConvert.SerializeObject(current.Services.Network.CreateSnapshotParticipant().CaptureFixedAssemblyState(Frame));
+            _doubleEdgeWitness = current.CharacterRuntime.World.DoubleEdgeState.CloneTrusted();
+            _doubleEdgeProjection = JsonConvert.SerializeObject(_doubleEdgeWitness.CaptureProjection());
+            _doubleEdgeProjectiles = JsonConvert.SerializeObject(current.Services.Network.CreateSnapshotParticipant()
+                .CaptureRollbackDocument(new RuntimeFrame(Frame)).Projectiles);
             EffectProviders = CharacterTestPausedSessionCodec.EffectProviderShape(
                 current.Services.Network.CreateSnapshotParticipant().CaptureRollbackDocument(new RuntimeFrame(Frame)));
             CostAttributes = current.AbilityRuntime.Definitions.CreateSnapshot().SelectMany(a => a.Costs)
@@ -209,8 +221,11 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             // Restore must prove the current world's idle boundary too, not just the incoming document.
             var network = slice.Services.Network.CreateSnapshotParticipant().CaptureRollbackDocument(new RuntimeFrame(c.Frame));
             SessionSnapshotCheck.Require(ValidateFixedAssemblyProjection(network.FixedAssemblyState, c, c.Frame), "current-fixed-assembly-projection-changed");
+            SessionSnapshotCheck.Require(c.MatchesDoubleEdge(network.DoubleEdgeStage, c.Frame), "current-double-edge-witness-changed");
+            SessionSnapshotCheck.Require(c.MatchesDoubleEdgeProjectiles(network.Projectiles), "current-double-edge-projectiles-changed");
             SessionSnapshotCheck.Require(EffectProviderShape(network) == c.EffectProviders, "actual-effect-provider-shape");
             ValidateInactiveNetwork(network);
+            SessionSnapshotCheck.Require(slice.CharacterRuntime.CombatTraceSystem.AccessoryTimelinesIdle, "active-timeline-provider-required");
             ValidateWorldJoins(slice.CharacterRuntime.World.GameplayComponentWorld, network, map, c);
             mixed.Stage.CaptureSessionState();
             ValidateCurrentInteractionsAndResources(slice, c);
@@ -254,14 +269,17 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal static void ValidateInactiveNetwork(CharacterTestNetworkSnapshotDocument n)
         {
             SessionSnapshotCheck.Require(n != null && (n.SchemaVersion == CharacterTestNetworkSnapshotParticipant.SchemaVersionValue ||
-                n.SchemaVersion == CharacterTestNetworkSnapshotParticipant.PositionRecallSchemaVersionValue && n.FixedAssemblyState == null) &&
+                n.SchemaVersion == CharacterTestNetworkSnapshotParticipant.FixedAssemblySchemaVersionValue && n.DoubleEdgeStage == null ||
+                n.SchemaVersion == CharacterTestNetworkSnapshotParticipant.PositionRecallSchemaVersionValue && n.FixedAssemblyState == null && n.DoubleEdgeStage == null) &&
                 n.Characters != null && n.Characters.Length == 2 && n.MovableNaturalObjects != null && n.MovableNaturalObjects.Length == 0 &&
                 n.Characters.All(r => r != null && r.Health > 0 && r.ActionState != CharacterTestActionStateId.Running &&
                     r.ActionRunnerActiveInstanceId == 0 && r.HitStunFramesRemaining == 0 &&
                     r.InputWorldMoveXMilli == 0 && r.InputWorldMoveYMilli == 0 &&
                     r.InputMoveXMilli == 0 && r.InputMoveYMilli == 0 && !r.JumpPressed && !r.AttackPrimaryPressed && !r.AttackSecondaryPressed &&
                     !r.DodgePressed && r.IsGrounded), "active-character-or-object");
-            foreach (var value in new object[] { n.Projectiles, n.HookPulls, n.ArcMines, n.RuneTurrets,
+            // Active projectiles are admitted only with the separate exact frozen stage/projectile witnesses below.
+            // All other active effect providers retain the bounded paused protocol's previous rejection.
+            foreach (var value in new object[] { n.DoubleEdgeStage == null ? n.Projectiles : null, n.HookPulls, n.ArcMines, n.RuneTurrets,
                 n.AreaConfinement, n.PoisonBottlePools, n.PhysicalShields }) {
                 SessionSnapshotCheck.Require(value == null || !JObject.FromObject(value).Descendants().OfType<JArray>().Any(a => a.Count != 0),
                     "active-effect-provider-required");
@@ -310,6 +328,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             var network = slice.Services.Network.CreateSnapshotParticipant().CaptureRollbackDocument(new RuntimeFrame(c.Frame));
             SessionSnapshotCheck.Require(EffectProviderShape(network) == c.EffectProviders, "actual-effect-provider-shape");
             ValidateInactiveNetwork(network);
+            SessionSnapshotCheck.Require(slice.CharacterRuntime.CombatTraceSystem.AccessoryTimelinesIdle, "active-timeline-provider-required");
             ValidateWorldJoins(slice.CharacterRuntime.World.GameplayComponentWorld, network, c.Actors, c);
             var document = new CharacterTestPausedSessionDocument {
                 Capability = c.PhysicsStatic == null ? CharacterTestPausedPhysics.HeadlessCapability : CharacterTestPausedPhysics.FloorCapability,
@@ -357,6 +376,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             SessionSnapshotCheck.Require(c.MatchesIdleExecutionDeck(d.Deck), "actual-idle-execution-deck-witness");
             ValidateFixedAssemblyWitnesses(d.Interactions, d.Motion, d.Deck, c, d.CompletedFrame);
             SessionSnapshotCheck.Require(ValidateFixedAssemblyProjection(network.FixedAssemblyState, c, d.CompletedFrame), "actual-fixed-assembly-network-witness");
+            SessionSnapshotCheck.Require(c.MatchesDoubleEdge(network.DoubleEdgeStage, d.CompletedFrame), "actual-double-edge-network-witness");
+            SessionSnapshotCheck.Require(c.MatchesDoubleEdgeProjectiles(network.Projectiles), "actual-double-edge-projectile-witness");
             var options = c.CreateFreshOptions();
             SessionSnapshotCheck.Require(options != null && options.Resources == null && options.AudioService == null && !options.CreateCharacterViews &&
                 !options.EnableStoryBootstrap && !options.EnableLocalInputCommands && !options.NavigationBuildInput.HasValue &&
@@ -390,7 +411,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 candidate.CharacterRuntime.ImportPausedCharacterProjection(network, d.Actors, d.NextRuntimeEntity, c.Frame);
                 var applied = candidate.Services.Network.CreateSnapshotParticipant().ApplyRollbackDocument(new RuntimeFrame(c.Frame), network,
                     preserveLocalPredictedEntity: false,
-                    frozenPausedPreflight: (rows, frame) => ValidateFixedAssemblyProjection(rows, c, frame));
+                    frozenPausedPreflight: (rows, frame) => ValidateFixedAssemblyProjection(rows, c, frame),
+                    frozenDoubleEdgePreflight: (rows, frame) => c.MatchesDoubleEdge(rows, frame));
                 SessionSnapshotCheck.Require(applied.Success, "actual-network-import:" + applied.Message);
                 SessionSnapshotCheck.Require(CharacterTestPausedPhysics.CaptureWorld(candidate) == c.PhysicsWorld, "actual-restored-physics-projection");
                 candidate.RestoreDetachedPausedClock(c.Frame, d.ElapsedSeconds);
@@ -398,6 +420,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                     d.NextCommandSequence, Array.Empty<RuntimeCommand>()));
                 candidate.Services.Modules.MixedPlayerTacticalStage.RestorePausedMixedState(d);
                 RestoreInteractionsAndResources(candidate, d, c, previous);
+                candidate.CharacterRuntime.World.DoubleEdgeState = c.CloneDoubleEdgeWitness();
+                SessionSnapshotCheck.Require(candidate.CharacterRuntime.CombatTraceSystem.RestoreAccessoryTimelineIdentity(
+                    candidate.CharacterRuntime.World.DoubleEdgeState.TimelineNextInstanceId), "timeline-identity-restore");
                 SessionSnapshotCheck.Require(SameMap(MapActors(candidate, c), c.Actors), "actual-restored-identity");
                 CaptureWorld(world, c.Frame); // Unknown stores or missing provider coverage still reject before publication.
                 // Check integrity after typed semantic checks, retaining their precise rejection reasons.
@@ -413,10 +438,12 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             var actual = Capture(candidate, c);
             var previousNetwork = JsonConvert.DeserializeObject<CharacterTestNetworkSnapshotDocument>(source.Network);
-            if (previousNetwork.SchemaVersion == CharacterTestNetworkSnapshotParticipant.PositionRecallSchemaVersionValue
-                && previousNetwork.FixedAssemblyState == null && c.FixedAssemblyWitnessCount == 0) {
+            if (previousNetwork.DoubleEdgeStage == null && (previousNetwork.SchemaVersion == CharacterTestNetworkSnapshotParticipant.FixedAssemblySchemaVersionValue
+                || previousNetwork.SchemaVersion == CharacterTestNetworkSnapshotParticipant.PositionRecallSchemaVersionValue
+                && previousNetwork.FixedAssemblyState == null && c.FixedAssemblyWitnessCount == 0)) {
                 var network = JsonConvert.DeserializeObject<CharacterTestNetworkSnapshotDocument>(actual.Network);
-                if (network.FixedAssemblyState != null) return false;
+                if (network.DoubleEdgeStage != null || previousNetwork.SchemaVersion == CharacterTestNetworkSnapshotParticipant.PositionRecallSchemaVersionValue
+                    && network.FixedAssemblyState != null) return false;
                 network.SchemaVersion = previousNetwork.SchemaVersion;
                 actual.Network = JsonConvert.SerializeObject(network);
                 actual.StateHash = ComputeContentHash(actual);

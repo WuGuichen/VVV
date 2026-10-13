@@ -697,3 +697,11 @@ GameplayComponentWorldSaveState 和 ComponentWorldHashSchemaVersion 均为 2；h
 CreateSnapshot/TryCopySnapshot 仍是按 index 排序的 live-entity projection；RestoreSnapshot/Registry.RestoreEntities 是显式导入此 projection 的兼容入口，不承诺 allocator 的确定性续建。正式保存/恢复和完整 checkpoint 应使用 allocation state。既有 GameplayComponentWorldNetworkState binary schema 1 无法表达 dead slots，保持 wire/schema 兼容，但有 dead slots 的 capture 或含 index 孔的 candidate 明确返回 UnsupportedSchema，不再伪装 full-comparable 恢复。所有槽存活且 index 连续时仍保留原 schema 1 编码与恢复。
 
 战术单卡 CharacterTestTacticalCardSession 已有正式 capture/restore 及同一权威世界续跑测试；这不能替代整场 StageRun、牌堆/账本与 CommandPump 的统一战斗中 checkpoint。当前 Continue 只恢复战斗外 profile/整备/结算合同不变。新确定性入口仍驱动真实牌堆、动量和时间 owner；完整战术 queue/receipt/Story 与单卡 restore 交由指定 Unity owner 验证，未新增战斗中存档功能。
+
+## 同帧派生与逐轮消费（2026-10-12）
+
+`IAbilityEffectTimelineStartGate` 是可选同步出生准入，在真实 instance id 分配前检查；拒绝不推进 allocator。`AbilityEffectTimelineRuntimeModule.PumpFrameZero(frame, maximumInstances=256)` 仅执行本帧新出生实例的 local frame 0，可继续处理子实例，不推进已有时间轴第二次；超预算明确失败，不延后一帧。`IsIdle` 同时检查活动与待生队列；`TryRestoreIdleIdentity` 只可向全新 idle runtime 导入正 NextInstanceId，不能回退已使用实例。其 RuntimeHash schema 2004 升为 version 2，field 15 覆盖 next id。
+
+`GameplayScatterPressureSystem.ApplyPendingRequests(context)` 只消费当前请求，供同帧因果轮 owner 使用；调用者在全部轮次后仅调用一次 `Tick` 执行恢复。普通调用者只调 Tick 的行为保留。`GameplayBuffRequestBuffer.Enqueue(in GameplayBuffApplicationRequest)` 保留完整 correlation 与原队列顺序，来源 owner 必须等待成功应用结果，不能把排队当实际 Buff 出生。以上 API 不包含项目卡牌规则，也不引用 Unity。
+
+CharacterTest 使用这些接缝的合同与待验边界见[第二批实施交接](../Tasks/TACTICAL_ACCESSORY_SECOND_BATCH_IMPLEMENTATION.md)。

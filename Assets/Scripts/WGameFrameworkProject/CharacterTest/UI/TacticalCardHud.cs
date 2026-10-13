@@ -488,7 +488,7 @@ namespace MxFramework.Game.CharacterTest
         private void SelectOne() { EnsureCursorVisible(); if(UsesFairyBattlePresentation)TryDirectPlayHandSlot(1);else TrySelectHandSlot(1); }
         private void SelectTwo() { EnsureCursorVisible(); if(UsesFairyBattlePresentation)TryDirectPlayHandSlot(2);else TrySelectHandSlot(2); }
         private void Confirm() { EnsureCursorVisible(); TryConfirmExecution(); }
-        private void Cancel() { EnsureCursorVisible(); if(DirectPlayActive)CancelDirectPlay();else TryCancelPending(); }
+        private void Cancel() { if(BattleCancelInputBlocked)return; EnsureCursorVisible(); if(DirectPlayActive)CancelDirectPlay();else TryCancelPending(); }
         private void Restart() { EnsureCursorVisible(); TryRequestRestart(); }
         private void Recover() { EnsureCursorVisible(); TryRequestRecovery(); }
         private static string DescribeCommandFeedback(TacticalStageRejection rejection, string issue)
@@ -500,7 +500,9 @@ namespace MxFramework.Game.CharacterTest
                     || issue.StartsWith("execution-input:", StringComparison.Ordinal))
                     return "前往地点未完成：" + issue;
                 if (issue.IndexOf("ActionSummary:", StringComparison.Ordinal) >= 0)
-                    return "出牌未执行：动作测量摘要不可用，自动重建失败。\n" + issue;
+                    return (issue.IndexOf("auto-repair", StringComparison.Ordinal) >= 0
+                        ? "出牌未执行：动作测量摘要不可用，自动重建失败。\n"
+                        : "出牌未执行：动作测量摘要不可用。\n") + issue;
                 return "出牌未执行：" + issue;
             }
             return "操作未执行：" + rejection;

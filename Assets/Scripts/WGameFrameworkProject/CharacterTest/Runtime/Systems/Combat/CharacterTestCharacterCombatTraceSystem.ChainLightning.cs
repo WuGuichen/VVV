@@ -186,7 +186,8 @@ namespace MxFramework.Game.CharacterTest
                 _entityLookup.ResolveTargetState(queryResult.TargetEntityId),
                 ChainLightningMaxTargets - segmentIndex);
             var hitKey = new CharacterTestResolvedHitKey(candidate);
-            SetAccessoryAwareDamagePayload(hitKey, damage, CharacterTestAccessoryHitEvidence.Derived);
+            SetAccessoryAwareDamagePayload(hitKey, damage, ActionRequestEvidence(source, request, candidate.TargetId, frame,
+                unchecked((ulong)(uint)segmentIndex + 1), CharacterTestAccessoryHitEvidence.Derived));
             _hitZonesByHit[hitKey] = hitZone;
             _gameplayProfiledCandidates.Add(candidate);
             RecordChainLightningArcVfx(

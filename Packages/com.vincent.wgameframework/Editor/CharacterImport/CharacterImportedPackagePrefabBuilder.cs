@@ -142,7 +142,7 @@ namespace MxFramework.Editor.CharacterImport
 
     public static partial class CharacterImportedPackagePrefabBuilder
     {
-        private const string BuilderVersion = "CharacterImportedPackagePrefabBuilder.v2.8";
+        private const string BuilderVersion = "CharacterImportedPackagePrefabBuilder.v2.9";
         private const string DefaultImportedPackageRoot = "Assets/MxFrameworkGenerated/CharacterPackages/000001";
         private const string PreviewScenePath = "Assets/Scenes/MxFramework/CharacterImportedPreview.unity";
         private const string CalibrationScenePath = "Assets/Scenes/MxFramework/CharacterLocomotionCalibration.unity";
@@ -354,6 +354,9 @@ namespace MxFramework.Editor.CharacterImport
                     : "Imported package could not be loaded.";
                 return CreateFailedBuildResult(root, failMsg);
             }
+
+            if (!ValidateGeneratedPackageMaterialTargets(package, root, out string materialTargetIssue))
+                return CreateFailedBuildResult(root, materialTargetIssue);
 
             string prefabPath = GetPreviewPrefabPath(package);
             string prefabInputHash = ComputePrefabBuildInputHash(package, root);
@@ -573,13 +576,6 @@ namespace MxFramework.Editor.CharacterImport
                 return string.Empty;
             }
 
-            if (importAssets)
-            {
-                AssetDatabase.ImportAsset(
-                    root,
-                    ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceSynchronousImport);
-            }
-
             CharacterImportedPackage package;
             CharacterRuntimeSpawnResult spawnResult;
             try
@@ -591,6 +587,19 @@ namespace MxFramework.Editor.CharacterImport
             {
                 Debug.LogError("MxFramework Character Preview: failed to load imported package: " + ex.Message);
                 return string.Empty;
+            }
+
+            if (!ValidateGeneratedPackageMaterialTargets(package, root, out string materialTargetIssue))
+            {
+                Debug.LogError("MxFramework Character Preview: " + materialTargetIssue);
+                return string.Empty;
+            }
+
+            if (importAssets)
+            {
+                AssetDatabase.ImportAsset(
+                    root,
+                    ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceSynchronousImport);
             }
 
             if (!spawnResult.IsSuccess)

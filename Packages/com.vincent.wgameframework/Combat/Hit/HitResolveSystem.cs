@@ -207,7 +207,7 @@ namespace MxFramework.Combat.Hit
                 staggerFrames,
                 knockback,
                 candidate.PhysicsHit.Point,
-                candidate.PhysicsHit.Normal);
+                candidate.PhysicsHit.Normal).WithProducerIdentity(candidate.ProducerIdentity);
         }
     }
 }

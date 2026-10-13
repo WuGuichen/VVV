@@ -52,6 +52,116 @@ namespace MxFramework.Tests.Game.CharacterTest
 {
     public sealed partial class CharacterTestIntegrationContractTests
     {
+        [TestCase(0f, 0f)]
+        [TestCase(0.5f, 0.5f)]
+        [TestCase(1f, 1f)]
+        [TestCase(2f, 3f)]
+        [TestCase(10f, 10f)]
+        public void CharacterMotion_ControlKeysScaleActiveSpeedAndYaw(float movementScale, float rotationScale)
+        {
+            var world = CreateRuntimeWorldWithLocalPlayer(out var entity);
+            var motion = new CharacterTestCharacterMotionSystem();
+            motion.SetMovementProfile(CreateMovementRuntime(runSpeed: 4f, acceleration: 10000f, deceleration: 10000f, turnSpeed: 360f));
+            entity.SetAction(CharacterTestCharacterActionComponent.None);
+            entity.SetInput(new CharacterTestCharacterInputComponent(Vector2.right, jumpPressed: false, jumpHeld: false));
+            entity.EnqueueMotionRequest(CharacterTestCharacterMotionRequest.ControlScale(movementScale, rotationScale,
+                CharacterMovementMode.Idle, CharacterTestCharacterActionConfigSource.LightAttackActionId, 9001));
+            motion.Tick(world, CharacterTestDeterministicUnits.DefaultTickRate);
+            Assert.AreEqual(4f * movementScale, entity.HorizontalVelocity.magnitude, 0.002f);
+            Assert.AreEqual(6f * rotationScale, entity.Transform.YawDegrees, 0.002f);
+        }
+
+        [Test]
+        public void CharacterActionRuntime_PublishedLightAttackCompletesWithAuthoredMotionEvents()
+        {
+            var world = CreateRuntimeWorldWithLocalPlayer(out var entity);
+            var runtime = CharacterTestCharacterActionConfigSource.Load();
+            runtime.BindRuntimeWorld(world);
+            Assert.IsTrue(runtime.IsReady);
+            Assert.IsTrue(runtime.TryStartIntent(entity,
+                CharacterTestCharacterActionConfigSource.LightAttackIntentId, new RuntimeFrame(0)));
+            Assert.DoesNotThrow(() =>
+            {
+                for (int i = 0; i < 512 && entity.Action.ActiveActionId.IsValid; i++)
+                {
+                    runtime.TickEntity(entity);
+                }
+            });
+            Assert.AreEqual(CharacterActionId.None, entity.Action.ActiveActionId);
+            Assert.AreEqual(1f, entity.Action.MovementControlScale);
+            Assert.AreEqual(1f, entity.Action.RotationControlScale);
+        }
+
+        [TestCase(false, 0f)]
+        [TestCase(false, 2f)]
+        [TestCase(false, 10f)]
+        [TestCase(true, 0f)]
+        public void CharacterActionProjection_NewStateEventsUsePersistedOrderAndRestoreLowerContribution(bool collision, float upperScale)
+        {
+            var world = CreateRuntimeWorldWithLocalPlayer(out var entity);
+            var writer = new CharacterTestCharacterActionProjectionWriter();
+            writer.BindRuntimeWorld(world);
+            var kind = collision
+                ? CharacterActionTrackEventKind.SetCollisionProfile
+                : CharacterActionTrackEventKind.SetControlScale;
+            // New authored identities need not exist in the compiled legacy catalog.
+            // Reverse numeric IDs and dispatch order so neither can substitute for persisted priority.
+            var lower = new CharacterActionTrackDispatchEvent(
+                CharacterActionTrackKind.Motion, kind, frame: 0, stableEventId: int.MaxValue,
+                endFrame: 3, movementControlScale: 0.5f, rotationControlScale: 0.75f,
+                collisionProfileId: CharacterTestColliderPostureComponent.LowProfileId, stableEventOrder: 1);
+            var upper = new CharacterActionTrackDispatchEvent(
+                CharacterActionTrackKind.Motion, kind, frame: 0, stableEventId: int.MaxValue - 1,
+                endFrame: 2, movementControlScale: upperScale, rotationControlScale: upperScale,
+                collisionProfileId: CharacterTestColliderPostureComponent.ReviveLowProfileId, stableEventOrder: 2);
+            var buffer = new CharacterActionRunnerEventBuffer();
+
+            void Apply(CharacterActionTrackDispatchEvent dispatch, CharacterActionTrackLifecyclePhase phase)
+            {
+                var actionId = CharacterTestCharacterActionConfigSource.LightAttackActionId;
+                var lifecycle = new CharacterActionTrackLifecycleEvent(
+                    1, actionId, 0, phase, CharacterActionTrackLifecycleBoundary.BeforeFrame,
+                    phase == CharacterActionTrackLifecyclePhase.Exit
+                        ? CharacterActionTrackExitReason.ActionFinished : CharacterActionTrackExitReason.None,
+                    dispatch);
+                buffer.Clear();
+                buffer.MutableEvents.Add(new CharacterActionRunnerEvent(
+                    CharacterActionRunnerEventKind.TrackLifecycle, 1, 1, actionId,
+                    CharacterActionInstanceState.Running, 0,
+                    CharacterActionPhaseKind.None, CharacterActionPhaseKind.None,
+                    dispatch, trackLifecycle: lifecycle));
+                writer.ApplyOperation(world.CharacterComponents, entity.Id,
+                    new CharacterActionExecutionResult(CharacterActionExecutionStatus.NoOp, null, buffer, null));
+            }
+
+            Apply(upper, CharacterActionTrackLifecyclePhase.Active);
+            Apply(lower, CharacterActionTrackLifecyclePhase.Active);
+            if (collision)
+                Assert.AreEqual(CharacterTestColliderPostureComponent.ReviveLowProfileId, entity.ColliderPosture.ActionProfileId);
+            else
+            {
+                Assert.AreEqual(upperScale, entity.Action.MovementControlScale);
+                Assert.AreEqual(upperScale, entity.Action.RotationControlScale);
+            }
+
+            Apply(upper, CharacterActionTrackLifecyclePhase.Exit);
+            if (collision)
+                Assert.AreEqual(CharacterTestColliderPostureComponent.LowProfileId, entity.ColliderPosture.ActionProfileId);
+            else
+            {
+                Assert.AreEqual(0.5f, entity.Action.MovementControlScale);
+                Assert.AreEqual(0.75f, entity.Action.RotationControlScale);
+            }
+
+            Apply(lower, CharacterActionTrackLifecyclePhase.Exit);
+            if (collision)
+                Assert.IsFalse(entity.ColliderPosture.HasActionOverride);
+            else
+            {
+                Assert.AreEqual(1f, entity.Action.MovementControlScale);
+                Assert.AreEqual(1f, entity.Action.RotationControlScale);
+            }
+        }
 
 [Test]
         public void AnimationSystem_ConsumesBufferedActionAnimationRequest_WhenActionFrameRequestWasCleared()

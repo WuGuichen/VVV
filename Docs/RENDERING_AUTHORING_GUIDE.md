@@ -1,6 +1,6 @@
 # MxFramework Rendering Authoring Guide
 
-> Version 0.2 | 2026-10-01
+> Version 0.3 | 2026-10-12
 >
 > Status: Current
 >
@@ -134,13 +134,14 @@ Use `IMxRenderPass` for a concrete pass with fixed metadata:
 
 Use `IMxRenderPassProvider` when the pass set depends on camera kind, SceneView, Preview, reflection camera, or runtime toggles. Providers collect passes into `IMxRenderPassRegistry` from `CollectPasses(...)`.
 
-The project shallow-water sample uses one existing feature provider, one bounded
-reflection camera and an owned persistent RTHandle. Its surface pass belongs only
-to the bound source Game camera; no reflection graph includes the water pass.
-The reflection camera carries `MxSceneRenderingAuxiliaryCamera`, so explicit
-scene lighting/shadow providers reuse world resources. Water composition copies
-the current camera's opaque color within its graph before writing the surface;
-it does not export borrowed lighting-frame handles. See the
+The project shallow-water sample uses one existing feature provider for the bound
+Game camera and prepared Scene previews; no reflection graph includes the water pass.
+Performance/Balanced tiers project bounded screen-space inputs into transient SSPR
+textures in each receiving camera's graph. Quality uses a bounded reflection camera
+and an owned persistent RTHandle; `MxSceneRenderingAuxiliaryCamera` permits shared
+world lighting/shadow resources. The backends are mutually exclusive. Refraction
+alone requires the water-owned scene-color copy; SSPR borrows the current graph's
+opaque color/depth without exporting their handles. See the
 [sample guide](Guides/SHALLOW_WATER_SAMPLE.md) for creation, tuning, cleanup and
 the current validation boundary.
 

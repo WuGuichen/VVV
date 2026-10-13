@@ -2883,6 +2883,47 @@ namespace MxFramework.Animation
                 _blend2DWeights[i] = blend2DWeights[i];
         }
 
+        /// <summary>Captures the continuation phase used by the next looping Blend synchronization.</summary>
+        /// <remarks>
+        /// The original constructor remains available and leaves this state unspecified.
+        /// A captured phase may exceed one after deferred presentation advancement.
+        /// </remarks>
+        public MxAnimationLayerPlaybackState(
+            MxAnimationLayerId layerId,
+            MxAnimationLayerStatus status,
+            float weight,
+            float startWeight,
+            float targetWeight,
+            float weightTransitionElapsedSeconds,
+            float weightTransitionDurationSeconds,
+            string weightTransitionPolicyId,
+            string weightTransitionCorrelationId,
+            MxAnimationBlendKind activeBlendKind,
+            string activeBlendId,
+            MxAnimationQuantizedParameter blendParameter,
+            MxAnimationQuantizedParameter blend2DParameterX,
+            MxAnimationQuantizedParameter blend2DParameterY,
+            float blendFadeElapsedSeconds,
+            float blendFadeDurationSeconds,
+            IReadOnlyList<MxAnimationPlaybackSlotState> slots,
+            IReadOnlyList<MxAnimationBlend1DWeight> blend1DWeights,
+            IReadOnlyList<MxAnimationBlend2DWeight> blend2DWeights,
+            double? blendNormalizedPhase)
+            : this(layerId, status, weight, startWeight, targetWeight,
+                weightTransitionElapsedSeconds, weightTransitionDurationSeconds,
+                weightTransitionPolicyId, weightTransitionCorrelationId,
+                activeBlendKind, activeBlendId, blendParameter, blend2DParameterX, blend2DParameterY,
+                blendFadeElapsedSeconds, blendFadeDurationSeconds, slots, blend1DWeights, blend2DWeights)
+        {
+            BlendNormalizedPhase = blendNormalizedPhase;
+        }
+
+        /// <summary>
+        /// Next synchronization phase, distinct from the currently sampled slot times;
+        /// null identifies a legacy snapshot without continuation phase state.
+        /// </summary>
+        public double? BlendNormalizedPhase { get; }
+
         public MxAnimationLayerId LayerId { get; }
         public MxAnimationLayerStatus Status { get; }
         public float Weight { get; }

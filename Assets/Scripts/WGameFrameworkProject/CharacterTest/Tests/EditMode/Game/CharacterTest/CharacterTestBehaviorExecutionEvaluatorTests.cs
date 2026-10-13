@@ -10,6 +10,54 @@ namespace MxFramework.Tests.Game.CharacterTest
 {
     public sealed class CharacterTestBehaviorExecutionEvaluatorTests
     {
+        [Test][Category("DoubleEdgeNative")]
+        public void EmptyWholeMainCompletesNaturallyButGenericStopDoesNot()
+        {
+            var runtime = new RuntimeStub();
+            var program = Builder(1).Build().Execution;
+            var natural = new CharacterTestBehaviorExecutionEvaluator(program, runtime);
+            Assert.IsTrue(natural.Start(0)); Tick(natural, runtime, 1); Tick(natural, runtime, 2);
+            Assert.IsTrue(natural.NaturallyCompleted);
+            var cancelled = new CharacterTestBehaviorExecutionEvaluator(program, new RuntimeStub());
+            Assert.IsTrue(cancelled.Start(0)); cancelled.Stop(false);
+            Assert.AreEqual(CharacterTestRuntimeAiLabLogicRuntimeState.Completed, cancelled.State);
+            Assert.IsFalse(cancelled.NaturallyCompleted);
+            var failed = new CharacterTestBehaviorExecutionEvaluator(program, new RuntimeStub());
+            Assert.IsTrue(failed.Start(0)); failed.Stop(true); Assert.IsFalse(failed.NaturallyCompleted);
+        }
+
+        [Test][Category("DoubleEdgeNative")]
+        public void NaturalTerminalProvenanceSurvivesTypedCopyAndChangesHash()
+        {
+            var runtime = new RuntimeStub(); var program = Builder(1).Build().Execution;
+            var evaluator = new CharacterTestBehaviorExecutionEvaluator(program, runtime);
+            Assert.IsTrue(evaluator.Start(0)); Tick(evaluator, runtime, 1); Tick(evaluator, runtime, 2);
+            var state = evaluator.CreateSnapshot(); Assert.IsTrue(state.NaturalCompletionRequested);
+            var restored = new CharacterTestBehaviorExecutionEvaluator(program, new RuntimeStub());
+            Assert.IsTrue(restored.TryRestoreSnapshot(state)); Assert.IsTrue(restored.NaturallyCompleted);
+            var a = new RuntimeHashAccumulator(1, 1); state.AddHash(a, 1);
+            state.NaturalCompletionRequested = false;
+            var b = new RuntimeHashAccumulator(1, 1); state.AddHash(b, 1);
+            Assert.AreNotEqual(a.ToHash(), b.ToHash()); Assert.IsTrue(restored.NaturallyCompleted);
+        }
+        [TestCase(5f, 0f, 0f, false)]
+        [TestCase(5f, 0f, 1f, true)]
+        [TestCase(0.5f, 0f, 1f, false)]
+        [TestCase(5f, 0.001f, 0f, false)]
+        public void ApproachTarget_PreservesNavigationStopAndArrival(float distance, float navigationX, float navigationZ, bool expectMovement)
+        {
+            var builder = Builder();
+            var movement = new CharacterTestBehaviorExecutionMovement(CharacterTestRuntimeAiLabMovementStrategy.ApproachTarget,
+                CharacterTestRuntimeAiLabMovementTargetKind.CurrentCombatTarget, CharacterTestBehaviorDistanceMetric.HurtboxSurfaceClearance,
+                0, 0, 0, 1f, 1f, 1f, 0);
+            builder.AddMovement("approach", "main", 0, 10, movement);
+            var runtime = new RuntimeStub { Distance = distance, NavigationMove = new Vector2(navigationX, navigationZ) };
+            var evaluator = new CharacterTestBehaviorExecutionEvaluator(builder.Build().Execution, runtime);
+            Assert.IsTrue(evaluator.Start(0));
+            Tick(evaluator, runtime, 1);
+            Assert.AreEqual(expectMovement ? runtime.NavigationMove : Vector2.zero, runtime.Move);
+        }
+
         [TestCase(0.5f, 30f)]
         [TestCase(5f, 0f)]
         [Category("VisibleApproachCompletion")]
@@ -529,6 +577,7 @@ namespace MxFramework.Tests.Game.CharacterTest
             public float? FacingAngle;
             public bool ActionAllowed = true, AcceptAction = true;
             public float Distance = 5f;
+            public Vector2 NavigationMove = Vector2.right;
             public int StartRequests, StopRequests, LastRequestedAction, EvaluateCount;
             public Vector2 Move; public CharacterTestBehaviorControlInput Control;
             public CharacterTestRuntimeAiLabBehaviorRecipeOrchestrationState ActionCommandState { get; private set; }
@@ -566,7 +615,7 @@ namespace MxFramework.Tests.Game.CharacterTest
             }
             public bool IsSubjectAvailable(CharacterTestRuntimeAiLabBehaviorRecipeConditionSubjectKind subject) => subject != CharacterTestRuntimeAiLabBehaviorRecipeConditionSubjectKind.CurrentCombatTarget || TargetExists;
             public bool TrySampleMovement(in CharacterTestBehaviorExecutionMovement movement, out CharacterTestRuntimeAiLabMovementTargetSample sample)
-            { sample = new CharacterTestRuntimeAiLabMovementTargetSample(TargetExists, Distance, Vector2.right, Vector2.right); return TargetExists; }
+            { sample = new CharacterTestRuntimeAiLabMovementTargetSample(TargetExists, Distance, Vector2.right, NavigationMove); return TargetExists; }
             public bool TrySampleTurn(in CharacterTestBehaviorExecutionTurn turn, out int x, out int z)
             { x = turn.Target == CharacterTestRuntimeAiLabMovementTargetKind.WorldPosition ? CharacterTestDeterministicUnits.MetersToMillimeters(turn.X) : 1000;
                 z = turn.Target == CharacterTestRuntimeAiLabMovementTargetKind.WorldPosition ? CharacterTestDeterministicUnits.MetersToMillimeters(turn.Z) : 1000; return TargetExists; }

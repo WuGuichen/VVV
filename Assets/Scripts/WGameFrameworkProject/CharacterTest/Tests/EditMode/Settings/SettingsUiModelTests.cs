@@ -32,7 +32,10 @@ namespace MxFramework.Tests.Settings
 
             Assert.IsFalse(view.Dirty);
             Assert.AreEqual("profile-ui", view.ProfileId);
-            Assert.AreEqual(13, graphics.ItemCount);
+            Assert.AreEqual(16, graphics.ItemCount);
+            Assert.IsNotNull(FindItem(graphics, MxSettingsUiItemKey.GraphicsRippleQuality));
+            Assert.IsNotNull(FindItem(graphics, MxSettingsUiItemKey.GraphicsDirectionalShadowQuality));
+            Assert.IsNotNull(FindItem(graphics, MxSettingsUiItemKey.GraphicsWaterQuality));
             Assert.IsNull(FindItem(graphics, MxSettingsUiItemKey.GraphicsQualityPreset));
             Assert.IsNotNull(FindItem(graphics, MxSettingsUiItemKey.GraphicsResolution));
             Assert.IsNotNull(FindItem(graphics, MxSettingsUiItemKey.GraphicsWindowMode));

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "source": {
+    "url": "http://192.168.1.210:3002/vincent/WGameFramework.git",
+    "branch": "main",
+    "name": "vincent/WGameFramework",
+    "bypass_proxy": true
+  },
+  "targets": {
+    "github": {
+      "url": "https://github.com/WuGuichen/VVV.git",
+      "branch": "code-mirror",
+      "bypass_proxy": false
+    }
+  },
+  "profile": {
+    "roots": ["Assets/", "Packages/", "Tools/", "Docs/"],
+    "extensions": [
+      ".cs", ".asmdef", ".asmref", ".shader", ".cginc", ".hlsl", ".compute",
+      ".uxml", ".uss", ".py", ".ps1", ".sh", ".bat", ".cmd",
+      ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".html", ".css",
+      ".csproj", ".props", ".targets", ".sln", ".c", ".h", ".cpp", ".hpp",
+      ".cmake", ".xml", ".toml", ".md"
+    ],
+    "filenames": ["AGENTS.md", "README.md", "LICENSE", "LICENSE.md", "NOTICE", "package.json", "CMakeLists.txt"],
+    "extra_files": [
+      "AGENTS.md", "README.md", "LICENSE", "LICENSE.md",
+      "Packages/manifest.json", "Packages/packages-lock.json",
+      "ProjectSettings/ProjectVersion.txt",
+      "Tools/RepositoryMirror/code-mirror.json"
+    ],
+    "exclude_prefixes": ["Docs/Tasks/", "Docs/Plans/", "Docs/Reviews/", "Docs/Archive/"],
+    "exclude_files": [],
+    "include_file_meta": true,
+    "max_file_bytes": 5242880
+  }
+}

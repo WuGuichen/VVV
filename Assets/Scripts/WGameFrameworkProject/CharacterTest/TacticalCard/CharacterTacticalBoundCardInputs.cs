@@ -90,6 +90,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             int actionId, CharacterTestTacticalInputRequirements requirements,
             out CharacterTestTacticalCardInputs inputs, out string issue)
         {
+            if (actionId > 0 && _runtime.ActionRuntime.Registry.TryGetAction(new CharacterActionId(actionId), out var measuredAction)
+                && CharacterActionProjectileReference.IsCandidate(measuredAction))
+                measurement = CharacterActionProjectileReference.Measurement();
             if (TryPrepareBoundActionOnce(entity, measurement, actionId, requirements, out inputs, out issue)) return true;
             string originalIssue = issue;
             if (!_allowSummaryRepair || !IsRepairableSummaryIssue(originalIssue)) return false;
@@ -115,7 +118,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             if (!CharacterTestTacticalCardInputs.TryPrepare(_runtime.ActionRuntime, entity, _runtime.PhysicsRuntime,
                 _runtime.CombatTraceSystem.BakedTraceSource, _runtime.CombatTraceSystem.WeaponTraceBindingResolver,
-                _metrics, measurement, out inputs, out issue, actionId, requirements)) return false;
+                _metrics, measurement, out inputs, out issue, actionId, requirements, _runtime.CombatTraceSystem.ReferenceProjectiles)) return false;
             inputs = inputs.WithSimulationTickRate(_runtime.SimulationTickRate); return true;
         }
 

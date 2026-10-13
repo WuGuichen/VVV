@@ -66,6 +66,9 @@ namespace MxFramework.Tests.Combat.Projectiles
             CombatProjectileRuntimeState afterSpawn = runtime.CreateStateSnapshot();
 
             Assert.AreEqual(1, spawnFrame.Spawns.Count);
+            Assert.IsTrue(spawnFrame.Spawns[0].HasRequest);
+            Assert.AreEqual(Request(new CombatFrame(0)), spawnFrame.Spawns[0].Request,
+                "Live birth must preserve the accepted request, including its source order.");
             Assert.AreEqual(0, spawnFrame.Impacts.Count);
             Assert.AreEqual(1, afterSpawn.ActiveCount);
             Assert.AreEqual(FixVector3.Zero, afterSpawn.ActiveProjectiles[0].Position);

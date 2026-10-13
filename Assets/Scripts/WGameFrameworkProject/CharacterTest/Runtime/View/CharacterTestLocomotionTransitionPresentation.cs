@@ -82,6 +82,13 @@ namespace MxFramework.Game.CharacterTest
 
             if (moving && TryResolveMovementTokens(animation, out int currentSpeed, out int currentDirection))
             {
+                // Turning changes the local movement direction while an old start clip still owns the pose.
+                // Resume the current blend instead of completing a phase authored for the previous direction.
+                if (_wasMoving && IsPlaying && currentDirection != _lastDirection)
+                {
+                    _locomotion.ResumeLocomotionBlend();
+                    _activeActionKey = null;
+                }
                 _lastSpeed = currentSpeed;
                 _lastDirection = currentDirection;
             }
@@ -101,12 +108,13 @@ namespace MxFramework.Game.CharacterTest
                 TransitionFadeSeconds,
                 targetStartOffsetSeconds: 0f,
                 playbackSpeed: 1f,
-                suppressLocomotionBlendSeconds: durationSeconds,
                 correlationId: "character-test.locomotion-transition:"
                     + entityId + ":" + bindingId + ":" + frame.Value);
             if (!accepted)
                 return false;
 
+            // A new phase replaces the previous clip, so its hold must replace the previous deadline too.
+            _locomotion.ReplaceLocomotionBlendSuppressionForSeconds(durationSeconds);
             _activeActionKey = _locomotion.LastActionKey;
 
             traceRecorder?.Locomotion(

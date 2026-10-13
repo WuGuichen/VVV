@@ -5,7 +5,7 @@ using MxFramework.Combat.Core;
 namespace MxFramework.Combat.Hit
 {
     /// <summary>Owns range-scoped hit-target state contributions without allowing one source to clear another.</summary>
-    /// <remarks>LowFreqAlloc when source/entity high-water marks grow; steady-state updates are NoAlloc.</remarks>
+    /// <remarks>LowFreqAlloc when source/entity or bulk-cleanup high-water marks grow; steady-state updates are NoAlloc.</remarks>
     public sealed class HitTargetStateContributionStore
     {
         public const HitTargetStateFlags AllowedTransientFlags =
@@ -19,6 +19,7 @@ namespace MxFramework.Combat.Hit
             new Dictionary<ContributionKey, HitTargetStateFlags>();
         private readonly Dictionary<CombatEntityId, HitTargetStateFlags> _resolved =
             new Dictionary<CombatEntityId, HitTargetStateFlags>();
+        private readonly List<ContributionKey> _cleanupKeys = new List<ContributionKey>();
 
         public int Count => _contributions.Count;
 
@@ -51,7 +52,7 @@ namespace MxFramework.Combat.Hit
         {
             if (entityId.IsNone || actionInstanceId <= 0)
                 return 0;
-            int removed = RemoveWhere(key => key.EntityId.Equals(entityId) && key.ActionInstanceId == actionInstanceId);
+            int removed = RemoveMatching(entityId, actionInstanceId);
             if (removed > 0)
                 RebuildResolved(entityId);
             return removed;
@@ -61,7 +62,7 @@ namespace MxFramework.Combat.Hit
         {
             if (entityId.IsNone)
                 return 0;
-            int removed = RemoveWhere(key => key.EntityId.Equals(entityId));
+            int removed = RemoveMatching(entityId, 0);
             _resolved.Remove(entityId);
             return removed;
         }
@@ -70,6 +71,7 @@ namespace MxFramework.Combat.Hit
         {
             _contributions.Clear();
             _resolved.Clear();
+            _cleanupKeys.Clear();
         }
 
         public HitTargetStateFlags ResolveFlags(CombatEntityId entityId)
@@ -89,17 +91,20 @@ namespace MxFramework.Combat.Hit
             return output.Count - startCount;
         }
 
-        private int RemoveWhere(Predicate<ContributionKey> predicate)
+        private int RemoveMatching(CombatEntityId entityId, long actionInstanceId)
         {
             if (_contributions.Count == 0)
                 return 0;
-            var keys = new List<ContributionKey>();
+            _cleanupKeys.Clear();
             foreach (ContributionKey key in _contributions.Keys)
-                if (predicate(key))
-                    keys.Add(key);
-            for (int i = 0; i < keys.Count; i++)
-                _contributions.Remove(keys[i]);
-            return keys.Count;
+                if (key.EntityId.Equals(entityId)
+                    && (actionInstanceId == 0 || key.ActionInstanceId == actionInstanceId))
+                    _cleanupKeys.Add(key);
+            int removed = _cleanupKeys.Count;
+            for (int i = 0; i < removed; i++)
+                _contributions.Remove(_cleanupKeys[i]);
+            _cleanupKeys.Clear();
+            return removed;
         }
 
         private void RebuildResolved(CombatEntityId entityId)

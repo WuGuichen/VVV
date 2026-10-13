@@ -29,6 +29,7 @@ internal static class UiComposerAuthoringTests
         MaterializesBlueprintContainersAndValidatesStructure();
         MaterializesAndSynchronizesControlledListNode();
         AuthorsWorkspaceResourcesRecipesAndReferences();
+        RunComponentPathCollisions();
         WorkspaceApplyPreflightValidatesTheCompleteBlueprint();
         WorkspaceApplyRollsBackWhenQueueingFails();
         QueueProbeUsesReadOnlyHelperAction();
@@ -40,6 +41,79 @@ internal static class UiComposerAuthoringTests
     public static void RunIconOnlyButtonCentering()
     {
         IconOnlyButtonsRemainCenteredWhenInstancesResize();
+    }
+
+    public static void RunComponentPathCollisions()
+    {
+        var cases = new[]
+        {
+            ("ui.component.button.generic", "GenericButton", "ui.component.test.second", "GenericButton"),
+            ("ui.component.button.generic", "GenericButton", "ui.component.test.second", "genericbutton"),
+            ("ui.component.button.generic", "", "ui.component.test.generic", " "),
+            ("ui.component.button.generic", "generic", "ui.component.test.generic", ""),
+            ("ui.component.button.generic", "", "ui.component.test.second", "GENERIC")
+        };
+        foreach (var (firstId, firstName, secondId, secondName) in cases)
+        {
+            using TempUiComposerProject temp = TempUiComposerProject.Create();
+            UiComposerAuthoringState state = UiComposerService.ReadState(temp.Root, UiComposerService.DemoScreenId);
+            Require(!state.Diagnostics.Any(item => item.Severity == "error"), "Baseline demo must be valid.");
+            UiComponentRecipe first = state.ComponentRecipes.Recipes.Single(item => item.ComponentId == firstId);
+            UiComponentRecipe second = JsonSerializer.Deserialize<UiComponentRecipe>(JsonSerializer.Serialize(first));
+            first.FairyGuiComponentName = firstName;
+            second.ComponentId = secondId;
+            second.FairyGuiComponentName = secondName;
+            second.DefaultSize.Width += 40;
+            state.ComponentRecipes.Recipes = state.ComponentRecipes.Recipes.Append(second).ToArray();
+            state.Blueprint.Nodes.Single(item => item.Name == "btnSecondary").Component.ComponentRecipeId = secondId;
+            string recipePath = Path.Combine(temp.Root, UiComposerService.DefaultRecipeCatalogPath);
+            string originalRecipes = File.ReadAllText(recipePath);
+
+            UiComposerWorkspacePlan save = UiComposerService.PlanSaveRecipes(temp.Root, state.Screen.ScreenId, state.RecipeCatalogHash, state.ComponentRecipes);
+            Require(save.Blocked, "Same effective component path must block recipe save.");
+            Require(save.Diagnostics.Any(item => item.Code == "UICOMP020" && item.Path.EndsWith("#" + firstId, StringComparison.Ordinal)), "Collision must locate the first recipe.");
+            Require(save.Diagnostics.Any(item => item.Code == "UICOMP020" && item.Path.EndsWith("#" + secondId, StringComparison.Ordinal)), "Collision must locate the second recipe.");
+            Require(save.Diagnostics.Where(item => item.Code == "UICOMP020").All(item => item.Message.Contains(firstId) && item.Message.Contains(secondId)), "Collision messages must identify both recipes.");
+            bool saveRejected = false;
+            try { UiComposerService.SaveRecipes(temp.Root, state.Screen.ScreenId, state.RecipeCatalogHash, state.ComponentRecipes); }
+            catch (InvalidOperationException) { saveRejected = true; }
+            Require(saveRejected && File.ReadAllText(recipePath) == originalRecipes, "Blocked save must preserve the catalog.");
+
+            UiComposerWorkspacePlan workspace = UiComposerService.PlanWorkspace(temp.Root, state.Screen.ScreenId, Hashes(state), state.ResourceCatalog, state.ComponentRecipes, state.Blueprint);
+            Require(workspace.Blocked && workspace.Diagnostics.Any(item => item.Code == "UICOMP020"), "Unified preflight must block the same collision.");
+            bool applyRejected = false;
+            try { UiComposerService.ApplyWorkspace(temp.Root, state.Screen.ScreenId, Hashes(state), state.ResourceCatalog, state.ComponentRecipes, state.Blueprint); }
+            catch (InvalidOperationException) { applyRejected = true; }
+            Require(applyRejected && File.ReadAllText(recipePath) == originalRecipes, "Blocked apply must preserve the catalog.");
+            Require(!Directory.Exists(Path.Combine(temp.Root, "FGUIProject", ".agent")), "Blocked apply must not queue helper writes.");
+
+            File.WriteAllText(recipePath, JsonSerializer.Serialize(state.ComponentRecipes));
+            UiComposerAuthoringState diskCollision = UiComposerService.ReadState(temp.Root, state.Screen.ScreenId);
+            UiComposerOperationPlan blocked = UiComposerService.PlanApply(temp.Root, state.Screen.ScreenId, Hashes(diskCollision));
+            Require(blocked.Blocked && blocked.Materialization == null && blocked.Diagnostics.Any(item => item.Code == "UICOMP020"), "Disk catalog collisions must block materialization even if a recipe is unused.");
+            File.WriteAllText(recipePath, originalRecipes);
+
+            second.FairyGuiComponentName = "T07UniqueProbe";
+            Require(!UiComposerService.PlanSaveRecipes(temp.Root, state.Screen.ScreenId, state.RecipeCatalogHash, state.ComponentRecipes).Blocked, "Distinct effective names must remain saveable.");
+            Require(!UiComposerService.PlanWorkspace(temp.Root, state.Screen.ScreenId, Hashes(state), state.ResourceCatalog, state.ComponentRecipes, state.Blueprint).Blocked, "Distinct names must preserve existing binding contracts.");
+            UiComposerWorkspaceState saved = UiComposerService.SaveRecipes(temp.Root, state.Screen.ScreenId, state.RecipeCatalogHash, state.ComponentRecipes);
+            UiComposerService.SaveBlueprint(temp.Root, state.Screen.ScreenId, saved.AuthoringState.BlueprintHash, state.Blueprint);
+            UiComposerAuthoringState unique = UiComposerService.ReadState(temp.Root, state.Screen.ScreenId);
+            UiComposerOperationPlan plan = UiComposerService.PlanApply(temp.Root, state.Screen.ScreenId, Hashes(unique));
+            Require(!plan.Blocked && plan.Materialization.Components.Length == 2, "Two used, uniquely named recipes must materialize.");
+            Require(plan.Materialization.Components.Select(item => item.ComponentRelativePath).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 2, "Unique recipes need independent files.");
+            Require(plan.Materialization.Components.Select(item => item.Token).Distinct(StringComparer.Ordinal).Count() == 2, "Unique recipes need independent tokens.");
+            Require(UiComposerService.PlanSaveRecipes(temp.Root, state.Screen.ScreenId, state.RecipeCatalogHash, state.ComponentRecipes).Blocked, "Collision validation must preserve stale hash guards.");
+        }
+
+        using TempUiComposerProject compositeTemp = TempUiComposerProject.Create();
+        UiComposerAuthoringState compositeState = UiComposerService.ReadState(compositeTemp.Root, UiComposerService.DemoScreenId);
+        UiComponentRecipe button = compositeState.ComponentRecipes.Recipes.Single(item => item.ComponentId == "ui.component.button.generic");
+        UiComponentRecipe composite = compositeState.ComponentRecipes.Recipes.First(item => item.ComponentType == "Composite");
+        composite.FairyGuiComponentName = button.FairyGuiComponentName;
+        Require(UiComposerService.PlanSaveRecipes(compositeTemp.Root, compositeState.Screen.ScreenId, compositeState.RecipeCatalogHash, compositeState.ComponentRecipes).Diagnostics.Any(item => item.Code == "UICOMP020" && item.Path.EndsWith("#" + composite.ComponentId, StringComparison.Ordinal)), "Controlled Composite recipes must share the path uniqueness gate.");
+        composite.FairyGuiComponentName = "../UnsafeComponent";
+        Require(UiComposerService.PlanSaveRecipes(compositeTemp.Root, compositeState.Screen.ScreenId, compositeState.RecipeCatalogHash, compositeState.ComponentRecipes).Diagnostics.Any(item => item.Code == "UICOMP019"), "Server component names must obey the helper filename alphabet.");
     }
 
     public static void RunPlayerGuidancePackage()

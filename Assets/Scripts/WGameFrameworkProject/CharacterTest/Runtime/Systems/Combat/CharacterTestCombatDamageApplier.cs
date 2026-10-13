@@ -130,6 +130,7 @@ namespace MxFramework.Game.CharacterTest
             _scatterImpactResolvedEvents.Clear();
             _scatterPressureBandChangedEvents.Clear();
             _cohesionBreakEvents.Clear();
+            _cohesionReactionCursor = 0;
             _scatterPressureTraces.Clear();
             _deathEvents.Clear();
             _resolutionCommandState.Clear();
@@ -144,13 +145,17 @@ namespace MxFramework.Game.CharacterTest
             Func<HitResolveResult, DamageProfileResolveResult> resolvePayload,
             IReadOnlyDictionary<CharacterTestResolvedHitKey, CharacterTestHitZoneResolution> hitZonesByHit = null,
             CharacterTestTraceRecorder traceRecorder = null,
-            Func<HitResolveResult, CharacterTestAccessoryHitEvidence> resolveAccessoryEvidence = null)
+            Func<HitResolveResult, CharacterTestAccessoryHitEvidence> resolveAccessoryEvidence = null,
+            Func<HitResolveResult, TacticalCard.TacticalSecondBatchHitDecision> resolveSecondBatchDecision = null)
         {
             if (world == null)
                 return;
 
+            if (world.DoubleEdgeState.HasSecondBatch && resolveSecondBatchDecision == null)
+                throw new InvalidOperationException("accessory:SharedRoundOwnerRequired");
             actionRuntime?.BindRuntimeWorld(world);
             IReadOnlyList<HitResolveResult> safeResults = results ?? EmptyHitResolveResults;
+            _secondBatchDecisions = resolveSecondBatchDecision;
             EnsureFrameCapacity(safeResults.Count);
             ConfigureEntityLookup(world);
             for (int i = 0; i < safeResults.Count; i++)
@@ -174,24 +179,41 @@ namespace MxFramework.Game.CharacterTest
                     for (int resultIndex = 0; resultIndex < safeResults.Count; resultIndex++)
                     {
                         var result = safeResults[resultIndex];
+                        var payload = resolvePayload(result);
+                        var evidence = resolveAccessoryEvidence != null ? resolveAccessoryEvidence(result) : default;
+                        var decision = _secondBatchDecisions != null ? _secondBatchDecisions(result) : default;
+                        if (decision.SuppressAttackJudgment || decision.IsReplay)
+                            throw new InvalidOperationException("accessory:SuppressedHitReachedDamageApplier");
+                        _nonLethalHp = decision.NonLethalHp;
+                        _applyingInteractionDerived = evidence.Producer == CharacterTestAccessoryHitProducer.InteractionMark;
+                        result = ApplyDoubleEdgeScale(world, result, payload, evidence, decision.DamageScaleMilli);
                         _singleDamageResult[0] = result;
                         var target = FindEntityByCombatId(result.TargetId);
                         int hpBeforeCommit = target == null ? 0 : world.GetCurrentAttribute(target.GameplayEntityId, CharacterTestCharacterAttributeIds.Hp);
                         _damageApplicationCommands.Clear();
+                        // The round owner has already de-duplicated complete physical receipts. Each debit is its own
+                        // serialized transaction; the old trace-only attribute token must not swallow another root.
+                        if (resolveSecondBatchDecision != null) _attributeCommandState.Clear();
                         GetDamageApplicationSystem(world).Tick(resolutionContext);
                         CommitInteractionHpCommands(world, frame);
                         int hpAfterCommit = target == null ? 0 : world.GetCurrentAttribute(target.GameplayEntityId, CharacterTestCharacterAttributeIds.Hp);
-                        var payload = resolvePayload(result);
-                        CommitInteractionReceipt(world, frame, result, payload, System.Math.Max(0, hpBeforeCommit - hpAfterCommit), hpBeforeCommit > 0);
-                        if (resolveAccessoryEvidence != null)
-                            CommitAccessoryOutcome(world, frame, result, payload, resolveAccessoryEvidence(result), hpBeforeCommit > 0);
+                        var actualAttacker = FindEntityByCombatId(result.AttackerId);
+                        bool currentAttacker = !evidence.Attacker.IsValid || actualAttacker != null && actualAttacker.GameplayEntityId == evidence.Attacker;
+                        if (currentAttacker) {
+                            CommitInteractionReceipt(world, frame, result, payload, System.Math.Max(0, hpBeforeCommit - hpAfterCommit), hpBeforeCommit > 0);
+                            if (resolveAccessoryEvidence != null)
+                                CommitAccessoryOutcome(world, frame, result, payload, evidence, hpBeforeCommit > 0);
+                        }
+                        if (target != null && hpAfterCommit <= 0) { world.DoubleEdgeState.RevokePair(target.GameplayEntityId); world.DoubleEdgeState.ThirdActorDeparted(target.GameplayEntityId, frame.Value); }
                     }
-                    ApplyDerivedMarkRequests(world, frame, resolutionContext);
+                    if (resolveSecondBatchDecision == null) ApplyDerivedMarkRequests(world, frame, resolutionContext);
                 }
                 finally
                 {
                     _currentDamageResults = EmptyHitResolveResults;
                     _currentDamagePayloadResolver = null;
+                    _nonLethalHp = false;
+                    _applyingInteractionDerived = false;
                 }
             }
 
@@ -204,12 +226,15 @@ namespace MxFramework.Game.CharacterTest
                     _attributeCommandState));
             }
 
-            _bodyPartDamageBridge.CompleteAuthorityFrame(frame.Value);
+            if (resolveSecondBatchDecision == null) _bodyPartDamageBridge.CompleteAuthorityFrame(frame.Value);
             _damageApplicationCommands.Clear();
 
             ApplyDeathTransitions(world, actionRuntime, frame, safeResults, traceRecorder);
             for (int i = 0; i < world.Entities.Count; i++)
-                if (!world.Entities[i].CombatState.IsAlive) world.Entities[i].InteractionEffects.Clear();
+                if (!world.Entities[i].CombatState.IsAlive) {
+                    world.Entities[i].InteractionEffects.Clear();
+                    world.DoubleEdgeState.RevokePair(world.Entities[i].GameplayEntityId);
+                }
             EnqueueCohesionLimitRequests(world, actionRuntime);
             using (ScatterPressureRequestsMarker.Auto())
             {
@@ -218,10 +243,19 @@ namespace MxFramework.Game.CharacterTest
             }
 
             HoldBrokenRecoveryForLaunchedSpecialHits(world, frame);
-            _scatterPressureSystem.Tick(resolutionContext);
+            if (resolveSecondBatchDecision == null) _scatterPressureSystem.Tick(resolutionContext);
+            else _scatterPressureSystem.ApplyPendingRequests(resolutionContext);
             ApplyCohesionBreakReactions(world, actionRuntime, frame);
             ApplyLaunchSpecialHitReactions(world, actionRuntime, frame, safeResults, resolvePayload, hitZonesByHit);
             ApplyHitReactions(world, actionRuntime, frame, safeResults, resolvePayload, hitZonesByHit);
+        }
+
+        internal void CompleteAccessoryFrame(CharacterTestCharacterRuntimeWorld world,
+            CharacterTestCharacterActionRuntime actionRuntime, RuntimeFrame frame)
+        {
+            _bodyPartDamageBridge.CompleteAuthorityFrame(frame.Value);
+            _scatterPressureSystem.Tick(CreateGameplayContext(world, frame, EmptyRuntimeCommands, _resolutionCommandState));
+            ApplyCohesionBreakReactions(world, actionRuntime, frame);
         }
 
         private void EnsureFrameCapacity(int resultCount)
@@ -285,7 +319,7 @@ namespace MxFramework.Game.CharacterTest
             _damageApplicationMap = entityMap;
             _damageApplicationComponentWorld = componentWorld;
             _damageApplicationSystem = new CombatDamageApplicationSystem(
-                entityMap,
+                this, entityMap,
                 componentWorld,
                 null,
                 _getCurrentDamageResults,
@@ -413,7 +447,7 @@ namespace MxFramework.Game.CharacterTest
                         impact.KnockbackVelocity,
                         CharacterMovementMode.Idle,
                         payload.Usage.ActionId,
-                        payload.Usage.StableEventId));
+                        payload.Usage.StableEventId).WithThirdSource(ThirdMotionSource(world, result, payload.Usage.SourceKind), TacticalCard.TacticalThirdBatchMotionChannel.OrdinaryKnockback));
                 }
 
                 UpdateTelemetryImpact(i, impact);
@@ -477,6 +511,8 @@ namespace MxFramework.Game.CharacterTest
             return CharacterTestHitZoneResolution.Default;
         }
 
+        private int _cohesionReactionCursor;
+
         private void ApplyCohesionBreakReactions(
             CharacterTestCharacterRuntimeWorld world,
             CharacterTestCharacterActionRuntime actionRuntime,
@@ -485,9 +521,9 @@ namespace MxFramework.Game.CharacterTest
             if (_cohesionBreakEvents.Count == 0)
                 return;
 
-            for (int i = 0; i < _cohesionBreakEvents.Count; i++)
+            for (; _cohesionReactionCursor < _cohesionBreakEvents.Count; _cohesionReactionCursor++)
             {
-                CohesionBreakEvent breakEvent = _cohesionBreakEvents[i];
+                CohesionBreakEvent breakEvent = _cohesionBreakEvents[_cohesionReactionCursor];
                 CharacterTestCharacterEntity entity = FindEntity(breakEvent.EntityId);
                 if (entity == null || !entity.BattleState.CanReceiveHpDamage)
                     continue;
@@ -516,7 +552,8 @@ namespace MxFramework.Game.CharacterTest
             for (int i = 0; i < results.Count; i++)
             {
                 HitResolveResult result = results[i];
-                if (!result.IsAcceptedDamage || result.StaggerFrames <= 0)
+                bool oathAttempt = _secondBatchDecisions != null && _secondBatchDecisions(result).AttemptOrdinaryInterrupt;
+                if (!result.IsAcceptedDamage || result.StaggerFrames <= 0 && !oathAttempt)
                     continue;
 
                 CharacterTestCharacterEntity target = FindEntityByCombatId(result.TargetId);
@@ -539,7 +576,7 @@ namespace MxFramework.Game.CharacterTest
                         scatterPressure.LastCohesionBreakFrame);
                 CharacterTestHitReactionResult reaction =
                     CharacterTestHitReactionResolver.Resolve(result, payload, reactionState);
-                if (!reaction.ShouldReact)
+                if (!reaction.ShouldReact && !oathAttempt)
                     continue;
 
                 CharacterReactionContextBuildResult reactionContext =

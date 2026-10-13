@@ -4,6 +4,36 @@ using MxFramework.Core.Math;
 
 namespace MxFramework.Combat.Hit
 {
+    /// <summary>Stable identity of the physical producer and its authored occurrence.
+    /// It supplements action identity; it never replaces action/target/frame metadata.</summary>
+    public enum CombatHitProducerKind { None = 0, ProjectileDirect = 1, ProjectileArea = 2, ProjectilePeriodic = 3, EffectTimeline = 4, DerivedDamage = 5 }
+
+    public readonly struct CombatHitProducerIdentity : IEquatable<CombatHitProducerIdentity>, IComparable<CombatHitProducerIdentity>
+    {
+        public CombatHitProducerIdentity(CombatHitProducerKind kind, ulong id, ulong generation, ulong occurrence)
+        {
+            if (kind <= CombatHitProducerKind.None || kind > CombatHitProducerKind.DerivedDamage || id == 0)
+                throw new ArgumentOutOfRangeException(nameof(id));
+            Kind = kind; Id = id; Generation = generation; Occurrence = occurrence;
+        }
+        public CombatHitProducerKind Kind { get; }
+        public ulong Id { get; }
+        public ulong Generation { get; }
+        public ulong Occurrence { get; }
+        public bool IsValid => Kind != CombatHitProducerKind.None && Id != 0;
+        public bool Equals(CombatHitProducerIdentity other) => Kind == other.Kind && Id == other.Id
+            && Generation == other.Generation && Occurrence == other.Occurrence;
+        public override bool Equals(object value) => value is CombatHitProducerIdentity other && Equals(other);
+        public int CompareTo(CombatHitProducerIdentity other)
+        {
+            int c = ((int)Kind).CompareTo((int)other.Kind); if (c == 0) c = Id.CompareTo(other.Id);
+            if (c == 0) c = Generation.CompareTo(other.Generation);
+            return c == 0 ? Occurrence.CompareTo(other.Occurrence) : c;
+        }
+        public override int GetHashCode()
+        { unchecked { return (((int)Kind * 397 ^ Id.GetHashCode()) * 397 ^ Generation.GetHashCode()) * 397 ^ Occurrence.GetHashCode(); } }
+    }
+
     public readonly struct HitResolveResult : IEquatable<HitResolveResult>
     {
         public HitResolveResult(
@@ -42,7 +72,13 @@ namespace MxFramework.Combat.Hit
             Knockback = knockback;
             HitPointWorld = hitPointWorld;
             HitNormalWorld = hitNormalWorld;
+            ProducerIdentity = default;
         }
+
+        public CombatHitProducerIdentity ProducerIdentity { get; }
+        private HitResolveResult(in HitResolveResult value, CombatHitProducerIdentity identity)
+        { this = value; ProducerIdentity = identity; }
+        public HitResolveResult WithProducerIdentity(CombatHitProducerIdentity identity) => new HitResolveResult(this, identity);
 
         public CombatEntityId AttackerId { get; }
 
@@ -72,7 +108,8 @@ namespace MxFramework.Combat.Hit
 
         public bool Equals(HitResolveResult other)
         {
-            return AttackerId.Equals(other.AttackerId)
+            return ProducerIdentity.Equals(other.ProducerIdentity)
+                && AttackerId.Equals(other.AttackerId)
                 && TargetId.Equals(other.TargetId)
                 && ActionId == other.ActionId
                 && ActionInstanceId == other.ActionInstanceId
@@ -107,7 +144,7 @@ namespace MxFramework.Combat.Hit
                 hash = (hash * 397) ^ Knockback.GetHashCode();
                 hash = (hash * 397) ^ HitPointWorld.GetHashCode();
                 hash = (hash * 397) ^ HitNormalWorld.GetHashCode();
-                return hash;
+                return ProducerIdentity.IsValid ? (hash * 397) ^ ProducerIdentity.GetHashCode() : hash;
             }
         }
     }

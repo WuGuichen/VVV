@@ -2,6 +2,10 @@
 
 > 状态：MVP Implemented
 > Status: Current
+> 更新：2026-10-12，Blend 淡出 Stop 与缓存释放语义（#779），以及回放循环相位恢复（#781）。
+> Code-Doc: `Packages/com.vincent.wgameframework/Animation/MxAnimationContracts.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Animation.Unity/UnityPlayablesAnimationBackend.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Animation/UnityPlayablesAnimationBackendTests.cs`
 > 来源：`Docs/Tasks/MX_ANIMATION_01_DESIGN_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_07_NETWORK_PRESENTATION_SYNC_CONTRACT.md`、`Docs/Tasks/MX_ANIMATION_08_CLIP_REGISTRY_MAPPING_EDITOR.md`、`Docs/Tasks/MX_ANIMATION_09_LAYER_WEIGHT_AVATAR_MASK.md`、`Docs/Tasks/MX_ANIMATION_10_WARMUP_RESOURCE_VERSION_VALIDATION.md`、`Docs/Tasks/MX_ANIMATION_12_1D_LOCOMOTION_BLEND_DEMO.md`、`Docs/Tasks/MX_ANIMATION_13_BAKE_MVP.md`、Gitea Issue #94、Gitea Issue #95、Gitea Issue #106、Gitea Issue #107、Gitea Issue #108、Gitea Issue #109、Gitea Issue #110、Gitea Issue #111、Gitea Issue #112、Gitea Issue #123、Gitea Issue #124、Gitea Issue #125、Gitea Issue #126、Gitea Issue #127、Gitea Issue #129、Gitea Issue #130
 > 实现边界：`MxFramework.Animation` noEngine contract 已落地，包含 mapping、presentation sync、warmup、presentation event timeline、dispatch sink、1D / 2D blend DTO/weight evaluation、skeleton / avatar / clip / bake compatibility validation、扩展 bake artifact/hash/diagnostics、backend cache diagnostics、资源版本校验、provider-switchable animation package loading expectation 和 Mod animation package override merge；`MxFramework.Animation.Unity` 提供 Unity Playables backend、内部 graph / clip playable / layer mixer / blend mixer / diagnostics 抽象、actor-scoped playable state cache、layer weight、AvatarMask 加载和 1D / 2D clip blend；`MxFramework.Combat.Animation.Unity` 提供 Combat 到 MxAnimation 的 Unity 表现桥；`MxFramework.CharacterControl.Animation` 提供 Character Control 到 MxAnimation 的 noEngine locomotion / reaction 表现适配；`MxFramework.Editor.Animation` 提供 clip registry authoring / export / validation、event timeline preview、Workstation timeline event editor / scrubber、bake report tool 和 compatibility profile extractor。
 
@@ -155,8 +159,10 @@ MxAnimation 的网络表现同步契约只恢复 presentation state，不实现�
 
 - 当前、outgoing 和 blend clip 的 key、播放时间、速度、权重和 fade 状态。
 - layer 当前/目标权重和 layer transition 进度。
-- active 1D/2D blend id、量化参数、权重表和 blend fade 进度。
+- active 1D/2D blend id、量化参数、权重表、blend fade 进度及下一次同步使用的 `BlendNormalizedPhase`。该 continuation phase 与当前 slot 采样时间分开保存，包含 deferred `AdvancePresentationState` 已推进但尚未采样的相位；恢复后同样的 Tick／状态推进与未中断分支一致。
 - 恢复完成后调用 `PlayableGraph.Evaluate(0)`，只重建当前姿态，不额外推进 presentation delta。
+
+`MxAnimationLayerPlaybackState` 保留原构造签名，并新增可显式传入 nullable `BlendNormalizedPhase` 的重载。新 backend 捕获完整相位；旧构造生成的状态为 null，恢复时从首个有效 looping Blend slot 的采样时间重建归一化相位，不沿用目标 backend 的旧相位。旧状态没有保存 deferred 下一相位，因此只能恢复已有采样相位，不能保证丢失的 deferred 推进。显式 NaN、Infinity 或负相位在修改 graph／资源前被拒绝。
 
 调用方只能在对应逻辑帧的 presentation 完成后捕获该状态。该接口不适合直接接入每帧 network prediction history；需要高频 rollback 的模块仍应恢复玩法权威状态，再由表现层重新派生，或另行实现预分配的 presentation history。
 
@@ -336,7 +342,11 @@ CharacterTest 的共享 Combat Sword Locomotion 配置复用普通 `MxAnimationA
 
 `<dir>` 固定为 `f/fl/l/bl/b/br/r/fr`。Idle -> Moving 与 Moving -> Idle 使用同一 2D calculator 的 dominant loop Clip 选择速度环和方向；移动期间 Walk/Run 或方向变化只更新 Blend，不重复触发相位片段。原地转身只消费确定性输入已经给出的 `TurnInPlaceYawMilliDegrees`：绝对值小于 45 度不播，45 到不足 135 度选 90，135 度及以上选 180。
 
-这些 action 只属于 View presentation。死亡、正式 CharacterAction、受控反应、Airborne 和表现暂停优先；相位片段使用实际 Clip 时长抑制基础 Blend，结束后恢复当前输入。所有绑定的 `rootMotionPolicy` 必须保持 `Ignore`，不得写回 CharacterTest Transform、yaw、碰撞、SaveState、network snapshot、replay 或 state hash。
+停步期间重新按移动方向键会进入对应起步片段。起步播放期间若角色继续转向，当前本地方向由同一 dominant loop calculator 判定已改变，则退出旧方向片段的 suppression，切回当前 2D Blend，不重新触发另一段起步；方向不变时保留该片段自己的完整等待期限。该规则只取消仍由 locomotion transition 持有的表现片段，不改变权威 yaw、速度或正式 CharacterAction 的播放权限。
+
+在已有 CrossFade 尚未完成时，以非零淡出时间返回 1D/2D Blend，Unity backend 保留当前仍有权重的所有 outgoing 片段及当前片段，以它们此刻的实际权重重新开始定义或请求给出的淡出，并同步淡入新的 Blend。切换的第一帧不得丢弃仍贡献姿态的旧片段；后续参数更新继续这次过渡，不重置进度；过渡结束后释放旧片段。
+
+这些 action 只属于 View presentation。死亡、正式 CharacterAction、受控反应、Airborne 和表现暂停优先；相位片段使用实际 Clip 时长抑制基础 Blend，结束后恢复当前输入。新的启停或原地转身片段成功替换旧片段时，通过 `CharacterRuntimeLocomotionBlendController.ReplaceLocomotionBlendSuppressionForSeconds` 将等待期限替换为新片段的剩余时长，保留当前 Action key；请求失败不得改变原等待期限。普通 `SuppressLocomotionBlendForSeconds` 仍只延长已有等待，供正式动作和受控反应刷新使用，不能因本次修复缩短它们的 hold。所有绑定的 `rootMotionPolicy` 必须保持 `Ignore`，不得写回 CharacterTest Transform、yaw、碰撞、SaveState、network snapshot、replay 或 state hash。
 
 ## Character Control Presentation Bridge
 
@@ -386,6 +396,8 @@ CharacterTest 的共享 Combat Sword Locomotion 配置复用普通 `MxAnimationA
 - Event Timeline Preview 是 #110 的最小可视化入口：它复用导出 DTO 展示/复制事件时间轴摘要，编辑仍通过 registry serialized fields 完成。
 - `MxAnimationSetDefinition.DefaultClip` 和 `FallbackClip` 是 backend 生命周期内的 resident clip。加载成功后常驻到 backend `Release`，并在 diagnostics 中标记为 resident。
 - 普通 play/crossfade clip 由 backend 自己通过 `IResourceManager.LoadAsync<AnimationClip>` 获取 handle；stop、fade 完成、destroy 或 release 后释放。
+- `Stop` 接受后立即作废目标 layer 已排队的 play/crossfade（含 fallback）加载，并清空该 layer 的 next clip；有 fade duration 时现有 current/outgoing 按原淡出合同结束。已成功但尚未轮询的请求 handle 当场释放；未完成操作先请求取消，未进入终态时保留到后续 Tick/表现状态推进排空，迟到成功仅释放一次 handle，迟到失败不改变 layer、不启动 fallback，也不输出过期 required-clip 错误。其他 layer 的请求、resident default/fallback 和 AvatarMask 加载不被 Stop 作废；Stop 后新请求正常生效。
+- backend `Release` 取消尚未完成的 clip operation，并回收队列中已完成的成功 handle（包括 Stop 已作废、在下一次 Tick 前完成的请求），不将其转为 playable。
 - 当前 `ResourceManager.LoadAsync<T>` 是 immediate operation wrapper；backend 仍以 operation 状态处理，diagnostics 可显示 loading / failure。
 - crossfade outgoing clip handle 保持到 outgoing playable 权重归零并从 graph 断开后才释放。
 - requested clip 加载失败后按顺序尝试 fallback clip；fallback 也失败时 layer 进入 failed state，并记录 `ResourceError`。
@@ -431,6 +443,7 @@ The legacy Unity procedural rig in `MxFramework.Character.RuntimeSpawn.Unity` re
 - 同一 `MxAnimationBlend1DDefinition` 或 `MxAnimationBlend2DDefinition` 在参数变化时保留该 blend 已加载过的 clip slots；已加载 slot 权重归零后仍可作为 cached playable 留在 graph 中，`ActivePlayableCount` 只统计权重大于 0 的 blend slot。
 - 同一 locomotion blend 中的 looping slots 共享归一化循环相位；backend 按当前权重计算共同 cycle rate，并按各 Clip 长度设置实际 playable speed，避免 Walk/Run 不同周期在连续混合时逐步错相。诊断仍保留每个 binding 的请求 playback speed。
 - `Stop`、普通 `Play` 切出 blend、backend `Release`、actor destroy，以及 fade out 权重归零后的 outgoing slot detached 都会释放 backend 拥有的 handles；resident default/fallback 仍保持到 backend `Release`。
+- 1D / 2D Blend 的非零时长 `Stop` 将当前有权重的 slots 按各自实际权重转入 outgoing 淡出，零权重 cached slots 当场断开并释放。停止期间不再推进 Blend fade-in 或恢复 `Playing`；所有 outgoing 完成后为 `Stopped`。已在淡出的 outgoing 保留原有时长和进度，因此尚未结束的 action → Blend 过渡可能延长最终停止时间；其他 layer、resident default/fallback 和 layer mask 的所有权不变。零时长 `Stop` 仍立即释放该 layer 全部 clip slots。
 - `MxAnimationDiagnosticSnapshot.Cache` 输出 cache hit/miss、resident clip 数量、cached/active playable 数量，以及当前 `ResourceManager` loaded/ref count，供 smoke demo、MCP 手测和回归测试观察资源是否持续增长。
 
 ## 测试入口
@@ -455,6 +468,7 @@ Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Animation/
 - animation package expectation、provider-switchable catalog validation、missing bake/profile diagnostics 和 package warmup preload。
 - Mod animation package override 的 stable hash、action/mask/blend/bake override、base hash mismatch、package missing resource、compatibility rejection 和 warmup handle release。
 - play / stop state transition 和非 resident handle release。
+- queued play/crossfade 在 Stop 前后完成的失效与 exact-once handle 回收、取消后仍成功/失败的迟到终态、有淡出的 current/outgoing、Stop 后新请求（含同 key）、其他 layer/resident/mask 加载隔离，以及 Release 在下一次 Tick 前回收已停止请求。
 - requested clip load failure fallback 到 resident fallback，并输出 diagnostics。
 - crossfade 期间 outgoing handle 保持到 fade 完成后释放。
 - backend release destroy graph 并释放 default、fallback 和当前 clip handles。

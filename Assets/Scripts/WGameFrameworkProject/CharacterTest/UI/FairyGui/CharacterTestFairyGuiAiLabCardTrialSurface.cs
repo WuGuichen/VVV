@@ -69,8 +69,10 @@ namespace MxFramework.Game.CharacterTest
                 ?? throw new InvalidOperationException("独立真实出牌测试需要已发布的 FairyGUI 组件。");
             ValidateControls(_root, CharacterTestAiLabCardTrialControlContract.RootControls);
             _root.opaque = false;
+            Required("setupBackdrop").touchable = true;
             foreach (var spec in CharacterTestAiLabCardTrialControlContract.RootControls)
-                if (spec.Kind == "text" || spec.Kind == "graph") Required(spec.Name).touchable = false;
+                if (spec.Kind == "text" || spec.Kind == "graph" || spec.Kind == "image") Required(spec.Name).touchable = false;
+            Required("setupBackdrop").touchable = true;
             foreach (string name in new[] { "configurationBackground", "headerBackground", "footerBackground", "pickerBackground", "restartShield", "conditionsDetailBackground", "trialMenuBackground" })
                 Required(name).touchable = true;
             _configurationControls = Controls(CharacterTestAiLabCardTrialControlContract.ConfigurationControls);
@@ -95,7 +97,7 @@ namespace MxFramework.Game.CharacterTest
             _frozenHand.numItems = _session.FrozenHand?.Count ?? 0;
             _momentum = Required("initialMomentum").asTextInput; _seed = Required("seed").asTextInput; _cost = Required("preparationCost").asTextInput;
             _player = Button("player", () => OpenPicker(TrialPickerMode.Player));
-            _opponent = Button("opponent", () => OpenPicker(TrialPickerMode.Opponent));
+            _opponent = Button("opponent", () => OpenPicker(TrialPickerMode.OpponentSetup));
             Button("addHand", () => OpenPicker(TrialPickerMode.AddCard));
             _start = Button("start", RequestStart);
             _resume = Button("resumeTrial", () => { _session.ResumeTrial(); RefreshPage(); });
@@ -104,7 +106,7 @@ namespace MxFramework.Game.CharacterTest
             Button("editConfiguration", () => { _conditionsDetailsVisible = false; _session.EditConfiguration(); RefreshPage(); });
             Button("showConditions", () => { _trialMenuOpen = false; _conditionsDetailsVisible = !_conditionsDetailsVisible; RefreshPage(); });
             Button("closeConditions", () => { _conditionsDetailsVisible = false; RefreshPage(); });
-            Button("returnObservation", () => _session.ReturnToObservation());
+            Button("returnObservation", BackToEntry);
             Button("leaveTrial", () => _session.ReturnToObservation());
             _confirm = Button("confirm", () => _session.Hud?.TryConfirmExecution());
             _cancel = Button("cancel", () => _session.Hud?.TryCancelPending());
@@ -120,6 +122,7 @@ namespace MxFramework.Game.CharacterTest
             _hand.opaque = false;
             _configuration.SetVirtual(); _hand.SetVirtual();
             BindPicker();
+            BindExperiment();
             RefreshConfiguration(); RefreshPage(); Tick();
         }
 
@@ -139,7 +142,7 @@ namespace MxFramework.Game.CharacterTest
                 var item = root.GetChild(control.Name);
                 bool valid = control.Kind == "input" ? item is Fgui.GTextInput : control.Kind == "text" ? item is Fgui.GTextField
                     : control.Kind == "graph" ? item is Fgui.GGraph : control.Kind == "list" ? item is Fgui.GList
-                    : control.Kind == "view" ? item is Fgui.GComponent : item is Fgui.GButton;
+                    : control.Kind == "view" ? item is Fgui.GComponent : control.Kind == "image" ? item is Fgui.GImage : item is Fgui.GButton;
                 if (!valid) throw new InvalidOperationException("试验 Composer 控件类型不匹配：" + control.Name);
             }
         }
@@ -163,15 +166,21 @@ namespace MxFramework.Game.CharacterTest
             var face = root.GetChild("face").asCom;
             if (!_cardData.TryGetValue(card.Definition, out var data)) _cardData.Add(card.Definition, data = hud.GetBattleCardPresentationData(index));
             CharacterTestFairyGuiPlayerCardPresentation.Initialize(face);
+            if (card.Definition.FixedAssembly != null) data.Cost = card.Definition.FixedAssembly.MainConfirmationCost
+                + card.Definition.FixedAssembly.AccessoryConfirmationCost;
             CharacterTestFairyGuiPlayerCardPresentation.Bind(face, data, 34); _skin.Bind(face, data);
+            if (card.Definition.FixedAssembly != null) _skin.SetPreviewQuality(face, (int)card.Definition.FixedAssembly.Quality - 1);
+            BindHandAccessories(root, card.Definition.FixedAssembly);
+            if (card.Definition.FixedAssembly != null) _skin.SetAccessoryGraphicLayout(face);
             face.SetScale(220f / 378f, 220f / 378f);
             root.opaque = true; root.alpha = card.Zone == CardZone.Hand && hud.CanSelectHandSlot(index) ? 1 : .65f;
             face.GetChild("focus").visible = card.Zone == CardZone.PendingAction;
+            string fixedDetail = FixedCardDetail(card, out _);
             string notice = card.Zone == CardZone.PendingAction ? (hud.HandCardNeedsWorldPoint(index)
                 ? "点击有效地面位置，再确认；也可取消待确认。" : "点击确认出牌，或取消待确认。")
                 : hud.CanSelectHandSlot(index) ? "点击此牌选择，再点击确认出牌。" : hud.GetHandSlotUseNotice(index);
             root.onClick.Set(context => { context.StopPropagation(); hud.TrySelectHandSlot(index); });
-            _tooltips.Bind(root, CharacterTestFairyGuiTacticalDescriptionHints.TooltipText(data) + "\n\n" + notice,
+            _tooltips.Bind(root, CharacterTestFairyGuiTacticalDescriptionHints.TooltipText(data) + "\n\n" + fixedDetail + "\n\n" + notice,
                 new MxFairyGuiTooltipOptions(preferredPlacement: MxFairyGuiTooltipPlacement.Above, minimumTextWidth: 320, maximumTextWidth: 560, allowPin: false));
         }
 
@@ -202,7 +211,8 @@ namespace MxFramework.Game.CharacterTest
             if (_disposed) return;
             _disposed = true; _navigator.ReleaseView(CharacterTestRuntimeAiLabCardTrialIds.ViewId);
             if (_ownsNavigator) _navigator.Dispose();
-            _tooltips.Dispose(); _skin.Dispose(); _characterImages.Dispose(); _cardData.Clear(); _previewFaces.Clear(); _root = null;
+            DisposePlacementMarkers();
+            _tooltips.Dispose(); _skin.Dispose(); _characterImages.Dispose(); _cardData.Clear(); _previewFaces.Clear(); _fixedFeeViews.Clear(); _fixedFeeViewStage = null; _root = null;
         }
     }
 }

@@ -24,10 +24,26 @@ namespace MxFramework.Game.CharacterTest
         internal CharacterTestRuntimeAiLabCardTrialConfiguration Draft { get; private set; }
         internal bool IsOpen { get; private set; }
         internal bool OwnsSession { get; private set; }
-        internal bool CanReset => OwnsSession && _frozen != null;
+        internal bool CanReset => _frozen != null;
+        internal bool IsTrialPaused => _configurationPause != null;
         internal string Issue { get; private set; } = "";
-        internal string FrozenConditions => _frozen == null ? "尚未建立试验会话。"
-            : $"玩家：{Content.Character(_frozen.PlayerCharacterId).DisplayName}\n对手：{Content.Character(_frozen.OpponentCharacterId).DisplayName}\n初始动势 {_frozen.InitialMomentum} · 种子 {_frozen.Seed} · 测试准备费用 {_frozen.PreparationCost}\n初始手牌 {_frozen.InitialHand.Count} 张";
+        internal string FrozenParticipants => _frozen == null ? "尚未建立试验会话。"
+            : $"玩家：{Content.Character(_frozen.PlayerCharacterId).DisplayName}\n对手：{Content.Character(_frozen.OpponentCharacterId).DisplayName}";
+        internal string FrozenConditions => _frozen == null ? FrozenParticipants
+            : FrozenParticipants + $"\n初始动势 {_frozen.InitialMomentum} · 种子 {_frozen.Seed}{(_frozen.InitialHand.Exists(card => card.FixedAssembly) ? " · 固定组合测试" : " · 旧测试准备费用 " + _frozen.PreparationCost)}\n初始手牌 {_frozen.InitialHand.Count} 张"
+                + "\n对手行为：" + Content.Describe(_frozen.OpponentCard ?? Content.DefaultActionCard(_frozen.OpponentCharacterId))
+                + DescribePlacements();
+        private string DescribePlacements()
+        {
+            string text = "";
+            for (int i = 0; i < _frozen.ParticipantCount; i++)
+            {
+                var position = _frozen.PositionAt(i);
+                text += $"\n角色 {i + 1}：X {position.x:0.##} · Z {position.z:0.##} · 朝向 {_frozen.FacingAt(i):0.##}°";
+                foreach (var card in _frozen.DeckAt(i)) text += "\n" + Content.Describe(card) + " · " + CharacterTestRuntimeAiLabFixedAssembly.Summary(card);
+            }
+            return text;
+        }
         internal bool HasConfigurationChanges => _frozen != null && !Draft.HasSameConditions(_frozen);
         internal IReadOnlyList<CharacterTestRuntimeAiLabCardTrialSelection> FrozenHand => _frozen?.InitialHand;
         internal int FrozenPlayerCharacterId => _frozen?.PlayerCharacterId ?? 0;
@@ -150,6 +166,17 @@ namespace MxFramework.Game.CharacterTest
             if (!IsOpen || !OwnsSession) return;
             Page = CharacterTestAiLabCardTrialPage.Observation;
             ReleaseConfigurationPause();
+        }
+        internal void PauseTrial()
+        { EditConfiguration(); if (OwnsSession) Page = CharacterTestAiLabCardTrialPage.Observation; }
+        internal void RestoreDraft(CharacterTestRuntimeAiLabCardTrialConfiguration value)
+        { if (value != null) Draft = value.Clone(); }
+        internal void EndTrial()
+        {
+            var frozen = _frozen;
+            if (!ReturnToObservation()) return;
+            _frozen = frozen;
+            Open();
         }
         private void ReleaseConfigurationPause()
         {

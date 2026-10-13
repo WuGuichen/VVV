@@ -88,3 +88,30 @@
 ## 制作测试单卡库
 
 角色测试库和全角色共用测试库位于项目 `Authoring/RuntimeAiLab/TestCards/`，保存基础卡完整配置的独立副本及动作绑定。它们不是玩家当前持有清单，不从基础行为 ActionSet 授权，也不授予动作。基础卡库继续制作／发布；手动测试选卡使用配置后的测试库。仅显式保存更新库版本，本机恢复草稿不影响其他角色。详见[测试卡库说明](../Tasks/CHARACTER_CONFIGURED_TEST_CARD_LIBRARIES.md)。
+
+## 固定战胜奖励（2026-10-11）
+
+奖励r2实现已方法级合入当前工作树，固定配方、菜单接线、权威说明与Composer消息文本区同批交付。正式实现与已执行验证范围分开记录；隔离开发和冻结review材料保留在本地任务目录，未修改真实玩家存档。
+
+奖励复用原PlayerService的四类持有与原ProgressCandidate/SaveGame owner。`CharacterTacticalRewardRecipe`来自正式`tactical_slice_rewards.json`，schema `mx.character-test.tactical-fixed-rewards.v1`，显式RecipeId/Revision/Entries；每个Entry是一份授予，不携带玩家、RequestId、版本预期或帧身份。当前测试配方仅1张已发布`tactical.bound-action` r2/hash `7107346772390999808`。不会因为配件正式配置缺失补造配件或改写Items registry。
+
+最小切片将奖励给本场唯一玩家控制的**角色物品实例**；OwnerId和角色实例由冻结deployment确定，不能用模板、对手或领取时的新控制角色替代。主卡与动作进入该实例持有；角色/配件若在明确配方中出现，仍进入明确属于同Owner的真实库存容器。败北/平局不建奖励，旧settlement不追补，遗留无持有实例的验证入口不发奖励。Pending阶段先领取或保存退出，暂不进入下一场/下一关；这不是永久经济或关卡规则。
+
+胜利先固化并持久化Pending entitlement：BattleId、配方版本、目标归属、精确引用、显示名称、内容/请求指纹、稳定每项RequestId。显示从该清单读取，重开不重新读取今日配方生成奖励。领取请求仅指定当前进度中的BattleId，经应用RuntimeHost的Simulation命令进入PlayerService。
+
+结算状态文本先判断`TacticalSettlementSaved`：首次胜负页面及内存清单不代表保存完成，未成功显示“结算尚未保存”，Busy显示“正在保存结算…”。只有确认同份胜负与Pending已提交，才显示“奖励待领取”并允许确认。无奖励、Pending、失败或过时的领取标志都不能绕过该优先级。
+
+领取持有player mutation gate，在私有detached staging service上复用单项授予校验及原allocator/Items acquisition ledger；其no-I/O store、私有状态和空订阅不会发布真实内存或写逐项存档。任一项无效/容量不足/归属错误/精确内容变化则丢弃整份候选。全部成功后，库存、角色持有、allocator、ledger、整备及Claimed收据一次进入原checkpoint envelope/CAS，**持久成功后**才发布玩家状态。存档失败保留原Pending与原库存，重试从原清单重建整批。单项GrantContentAtTick的既有“逻辑提交再Flush”语义不变，不能将直接循环调用当成此领奖事务。
+
+进度容器升级为`mx.character-test.tactical-slice-progress.v2`；仍用原slot/codec，player内层保留v5/v6。v1可读但不追补；带奖励却标为v1的文档拒绝。profile Revision在同一owner内拒绝旧candidate/archive覆盖，底层CAS拒绝其他store实例旧writer。queued save取得write gate后再捕获，不能擦掉Claimed。写入报错先精确读回；若磁盘等于本次整份候选，确认已提交并发布；若与旧发布及本候选均不同，停止写入要求重开，不用新CAS head覆盖其他writer。
+
+重开复核Pending没有已授予的关联RequestId、Claimed收据与真实ledger/实例记录匹配；不自动补发/修复。打开优先展示Pending奖励；已领取记录保留并去重。正式目录变更令Pending无法授予时明确报错并保留原清单，不换奖。含领奖记录的profile不允许旧section reset只清库存；新进度沿原独立profile创建。
+
+成功保存的Pending在领取期间进程结束后恢复为Pending或Claimed。终局产生到第一次Pending持久化完成前，尚无磁盘终局证据；强制杀进程不能保证恢复未提交胜利。正常保存退出等待checkpoint。这一边界不能靠UI或幂等接口消除，也没有新增战斗执行快照。
+
+已核验：实际源码离线库存回归132/132（113既有库存回归、19奖励）、Runtime菜单/保存屏障13/13；完整Runtime离线编译通过。主树Unity Editor直接fixture 33/33，原生EditMode Runner 33/33（19事务、13菜单、1正式配方与真实物理存档组合根）通过。Composer publish-all成功，8个新增资产meta由Unity导入。main同步后编译10程序集无错误，refresh完成、domain reload、Editor ready与Console error=0均有证据；MCP跨重载断线，恢复状态为timed_out，保留工具超时限制。Play、GUI故障重试、冷组合根重开和尺寸视觉仍逐项验收，不将Runner或.NET强杀探针计为Unity Player进程重开。
+
+追加验收（2026-10-11）：保存回读统一解析序列化 JSON，修复 ISO 时间 Date/String token 差异导致的伪写入冲突；同服务失败重试与物理写盘后回执丢失回归覆盖。Unity完整refresh/compile/domain reload/ready与Console0通过，原生EditMode Runner现35/35。受控已持久化Pending夹具通过发布FairyGUI绑定回调验证重复点击仅一次保存、处理中不发布库存、保存失败完整回滚、同服务重试整批Claimed、返回整备，以及全新物理store/服务组合根冷重开后AlreadyClaimed不写盘；角色实例1卡6→7、新卡未绑定、其他角色未变。实际GameView的1920×1080/1280×720待领取、处理中、成功清单与归属完整可读；失败长诊断尾部有裁切。实际自然战斗仍未观察到玩家胜利（剑角色456/457与法师测试装配败北，458开放上界及461缺前摇拒绝原因另记）；不把该受控Pending夹具、Runner或冷组合根作为自然胜利、OS输入或Unity Player进程重开。保存结算重试成功后旧失败文案残留和长失败文案显示修复仍待办。证据级别与回执保留于本地 .agent/tactical-rewards-20261011/native/resume2-acceptance-receipt.json，真实玩家存档未修改。
+
+
+阶段追加验收（2026-10-11）：确定性弱敌夹具已走通真实HUD出牌、命中死亡、阵营1胜利判定→正式固定奖励页→确认领取及整批保存→返回整备。隔离rwd1011-ui03角色实例1/owner1使用合法正式action:457；敌方HP1仅在Deploying且行为未安装时初始化，玩家HP100，终局HP为敌0/玩家51；无战斗中改血或结算注入，正式平衡与真实存档未改。显示层修正经同服务真实保存失败→正式回调重试成功确认旧提示清除；领奖失败后重试期间仍显示处理中，重复回调只一笔保存，成功主卡6→7且原绑定不变。1920×1080、1280×720下失败短提示、完整固定奖励和归属均可读，完整内部故障原因保留。Unity默认compile全证据通过/Console0。本地证据：.agent/tactical-rewards-20261011/native/resume3-acceptance-receipt.json。验收是Editor内正式GUI绑定回调、确定性初始弱敌及GameView截图，不是OS鼠标点击或Unity Player进程重启；前一阶段35/35 Runner与组合根冷恢复证据保持原边界，本阶段未重复Runner。保存层独审通过后的两份源码未改。

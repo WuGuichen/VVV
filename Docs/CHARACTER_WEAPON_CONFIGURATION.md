@@ -6,6 +6,8 @@
 >
 > Implementation: Character Application 8.0、Global Weapon Library 6.0、CharacterAction Source、Authoring Compiler、事务迁移与 CharacterStudio 均以本契约为准。
 
+2026-10-13 实现说明复核：HUD 只有在动作摘要诊断包含 `auto-repair` 时提示“自动重建失败”；只读摘要不可用显示原始不可用诊断。该提示区分不改变动作测量、确认准备、付款或预算合同。
+
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Editor/CharacterTestActionBrowserCatalogExporter.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestActionUseAuthority.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestActionUseFailure.cs`
@@ -33,6 +35,8 @@
 
 ## 1. 核心结论
 
+角色材质发布仍由资源目录与 Prefab builder 管理。Compiler 对不同资源身份的生成材质目标碰撞返回 `CharacterGeneratedMaterialTargetCollision / ImportBlocked`，在文件或 Profile 发布前停止；组合武器引用、动作覆盖及公共武器材质契约保持原语义。碰撞规则与既有路径／GUID 兼容说明见 [角色资源包制作说明](CHARACTER_RESOURCE_PACKAGE_AUTHORING.md#资源包结构)。
+
 组合武器配置是项目公共配置，不属于某个角色。角色只保存公共组合 ID、默认选择和确有差异的行为覆盖：
 
 ```text
@@ -58,6 +62,10 @@ Character Application 8.0
 `角色非空覆盖 > 公共默认`。
 
 2026-10-11 当前源码：CharacterTest 的能力动作通过实体当前装备的 ActionSet 解析 `AbilityBindings`；未声明角色专属绑定时回退到共享 Ability 动作，同一 Ability 出现重复绑定时返回无效动作。动作准入、卡牌费用查询和实际提交按这一有效动作检查能力归属，共享 Ability 继续拥有冷却与资源成本。角色 000010 的法杖技能配置和既有原生验证范围见[角色技能说明](Guides/CHARACTER_000010_STAFF_ABILITIES.md)；本段源码复核不增加运行验收结论。
+
+2026-10-11 固定组合动作付款接缝已进入当前工作树：组合确认只支付主卡／配件并预留可证明的动作预算；实际动作仍由上述有效Ability的原费用／CD owner提交。预留额度只在付费收据绑定的actor index／generation、execution、reservation token、program identity、动作及同一个已解析Costs对象都匹配时，由同步命令scope借给本次实际Ability提交；普通动作不能使用这份预留，重复命令先经既有收据去重。作用域在命令结束时退出，取消或自然终态经宿主清理ACK后释放未执行额度，不退已经成功的组合确认费。新增实际费用／CD／身份拒绝专项7项fixture直接调用通过；这不代表GameView或完整战斗可玩验收，证据与有限预算诊断见[固定组合开发检查点](Plans/TacticalCardAssemblyDevelopmentPlan.md#38-固定组合真实接线检查点2026-10-11工作树已合入可玩验收未完成)。
+
+最新动作收尾检查点：实际Unity Test Runner16/16含正预算起手前／后退出、Host销毁、真实Combat死亡和第二动作取消／中断。固定owner释放不被死亡／受击的普通移动准入挡住，仍验证原source与input-owner；动作池化重用时以成功起手revision、原action／instance／frame和真实Timeline终态复核，不能继承上一动作Finished或reaction状态。GameView仅取得ActionId455实际扣组合费3和推离证据，借力／破势防御触发、图形恢复仍待验；具体作业与当前范围见[开发方案3.9](Plans/TacticalCardAssemblyDevelopmentPlan.md#39-固定组合原生修复与图形检查点2026-10-11部分验收)。未改变实际装备／Ability解析、CD或正式动作数值。
 
 没有覆盖时必须自动继承公共默认，不复制数据，不创建隐式角色私有配置。主副手槽位永远来自公共组合，角色不得覆盖。
 

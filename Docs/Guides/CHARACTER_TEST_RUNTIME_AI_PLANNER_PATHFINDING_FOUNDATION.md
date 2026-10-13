@@ -81,10 +81,12 @@ L1 应补的基础能力：
 M1 已落地在 CharacterTest runtime 内部边界，不新增 `MxFramework.AI` 公共 API，也不改 Runtime AI Planner JSON schema。
 
 Agent 和后续系统接入时按以下规则使用共享数据：
-- `CharacterTestCombatPhysicsNavigationService` 和 `CharacterTestPerceptionFrameCache.TryGetNavigation` 都使用 `CombatCapsuleQuery` 做 L1 local probe。胶囊半径来自 `physicsRuntime.GetCharacterHalfExtents(source)` 的 X/Z 最大值，高度写入 cache key 与诊断摘要；实际移动权威仍在 `CharacterTestCharacterMotionSystem`。
+- `CharacterTestCombatPhysicsNavigationService` 和 `CharacterTestPerceptionFrameCache.TryGetNavigation` 共用 `CharacterTestNavigationClearanceProbe`，使用一次 `CombatObbQuery` 做 L1 全高保守 local probe（2026-10-11，Issue #758）。半径来自当前姿态 half extents 的 X/Z 最大值，高度和实际中心进入 query；box 沿移动方向包围扫过的 standing capsule，包含两端半径范围，避免腰部单横向胶囊漏检矮墙/上部障碍。下缘排除 motor skin，只有 grounded 角色再排除 `MaxStepHeight`；实际移动权威仍在 `CharacterTestCharacterMotionSystem`。
 - `CharacterTestNavigationSample` 是当前帧只读派生数据，可供 Runtime AI Planner、Debug/HUD 或后续 Play Monitor 读取：`Result`、`QueryShape`、`LayerMask`、`ClearanceRadiusMillimeters`、`ClearanceHeightMillimeters`、`CombatQueryCount`、`DirectPathHitCount`、`SelectedPathHitCount`、`NearestObstacleEntityId`、`NearestObstacleBodyId`、`NearestObstacleDistance`。
 - 消费者不得保存或公开底层 `List<CombatQueryResult>`；需要“是否阻挡、命中数量、最近阻挡体、候选角选择”时直接读 sample 字段。
-- navigation cache key 覆盖 frame 生命周期、source/target、attack range、profile key、probe min/max、candidate count、query shape、layer mask、clearance radius/height；同帧同参数复用，下一帧或 clearance/profile 变化会刷新。
+- navigation cache key 覆盖 frame 生命周期、source/target、attack range、profile key、probe min/max、candidate count、query shape、layer mask、clearance radius/height/实际中心及 grounded 状态；同帧同参数复用，下一帧或 clearance/profile/跨台阶资格变化会刷新。
+- direct、waypoint、candidate 每段维持一次 CombatPhysics query，sample 的 `QueryShape=SweptObb` 如实表示查询形状；复用结果列表，warmed 后不新增分配。矩形端部角落可能产生比圆胶囊更保守的拒绝；它不是精确 capsule cast，也不代替电机对台阶/斜坡的最终判断。共享 graph 的 standing capsule/grid build 保持原有实现，不新增第二张图。
+- 回归入口为 `CharacterTestNavigationPerceptionTests` 的全高障碍、低墙 detour/stop、ground/step、空中 cache witness、posture center 和 dynamic mask 对照；原生测试/compile 的具体候选及回执维护于 Issue #758，测试定义不等于已运行通过。
 - Runtime AI Planner 仍通过 `ICharacterTestAiNavigationService.TryResolveMove` 取得移动建议；`TargetLastSeenAgeFrames`、`TargetThreatScore`、score/cost、strafe/reaction 状态仍归 Runtime AI Planner agent state。
 - 这仍是 L1 局部 steering 基础，不是 L2 graph/A*；不要把该 sample 解释为长距离可达性承诺。
 

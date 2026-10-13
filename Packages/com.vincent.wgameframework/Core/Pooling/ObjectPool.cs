@@ -10,7 +10,8 @@ namespace MxFramework.Core.Pooling
         private readonly Action<T> _onGet;
         private readonly Action<T> _onRelease;
         private readonly Stack<T> _inactive;
-        private readonly HashSet<T> _active;
+        private readonly Dictionary<T, ulong> _active;
+        private ulong _nextLeaseId;
         private readonly int _maxSize;
 
         public ObjectPool(
@@ -31,7 +32,7 @@ namespace MxFramework.Core.Pooling
             _onGet = onGet;
             _onRelease = onRelease;
             _inactive = new Stack<T>(defaultCapacity);
-            _active = new HashSet<T>(ReferenceEqualityComparer<T>.Instance);
+            _active = new Dictionary<T, ulong>(ReferenceEqualityComparer<T>.Instance);
             _maxSize = maxSize;
         }
 
@@ -41,16 +42,35 @@ namespace MxFramework.Core.Pooling
 
         public int CountAll => CountInactive + CountActive;
 
+        /// <summary>Gets an item and invokes onGet after registering it as active.</summary>
+        /// <remarks>
+        /// If onGet throws, only this Get's still-active lease is removed and the original exception is rethrown.
+        /// The pool does not cache, release or dispose the failed lease.
+        /// An explicit Release or a later lease created by a reentrant callback is preserved.
+        /// </remarks>
         public T Get()
         {
             T item = _inactive.Count > 0 ? _inactive.Pop() : _create();
             if (item == null)
                 throw new InvalidOperationException("Pool create function returned null.");
 
-            if (!_active.Add(item))
+            if (_active.ContainsKey(item))
                 throw new InvalidOperationException("Pool create function returned an item that is already active.");
 
-            _onGet?.Invoke(item);
+            ulong leaseId = unchecked(++_nextLeaseId);
+            _active.Add(item, leaseId);
+
+            try
+            {
+                _onGet?.Invoke(item);
+            }
+            catch
+            {
+                if (_active.TryGetValue(item, out ulong activeLeaseId) && activeLeaseId == leaseId)
+                    _active.Remove(item);
+                throw;
+            }
+
             return item;
         }
 

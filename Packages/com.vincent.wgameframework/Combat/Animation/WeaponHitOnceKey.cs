@@ -1,5 +1,6 @@
 using System;
 using MxFramework.Combat.Core;
+using MxFramework.Combat.Hit;
 
 namespace MxFramework.Combat.Animation
 {
@@ -20,8 +21,12 @@ namespace MxFramework.Combat.Animation
             ActionInstanceId = actionInstanceId;
             TraceId = traceId;
             TargetEntityId = targetEntityId;
+            ProducerIdentity = default;
         }
 
+        public WeaponHitOnceKey(int actionInstanceId, int traceId, CombatEntityId targetEntityId, CombatHitProducerIdentity identity)
+            : this(actionInstanceId, traceId, targetEntityId) { ProducerIdentity = identity; }
+        public CombatHitProducerIdentity ProducerIdentity { get; }
         public int ActionInstanceId { get; }
 
         public int TraceId { get; }
@@ -30,7 +35,7 @@ namespace MxFramework.Combat.Animation
 
         public bool Equals(WeaponHitOnceKey other)
         {
-            return ActionInstanceId == other.ActionInstanceId
+            return ProducerIdentity.Equals(other.ProducerIdentity) && ActionInstanceId == other.ActionInstanceId
                 && TraceId == other.TraceId
                 && TargetEntityId.Equals(other.TargetEntityId);
         }
@@ -47,7 +52,7 @@ namespace MxFramework.Combat.Animation
                 int hash = ActionInstanceId;
                 hash = (hash * 397) ^ TraceId;
                 hash = (hash * 397) ^ TargetEntityId.Value;
-                return hash;
+                return ProducerIdentity.IsValid ? (hash * 397) ^ ProducerIdentity.GetHashCode() : hash;
             }
         }
     }

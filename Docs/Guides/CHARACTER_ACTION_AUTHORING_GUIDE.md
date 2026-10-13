@@ -2,7 +2,7 @@
 
 > Status: Guide
 >
-> Version 0.3.0 | 2026-08-23
+> Version 0.4.0 | 2026-10-12
 >
 > This guide defines the long-term formal authoring plan for `MxFramework.CharacterAction`.
 > It is the development contract for turning the current pure C# action layer into configurable,
@@ -39,6 +39,24 @@ It must not replace:
 ---
 
 ## 2. Current State
+
+### 当前控制倍率标记
+
+角色动作时间轴在运动轨道下固定显示“移动控制倍率”和“旋转控制倍率”两行，两行默认全程为 1。双击对应行或使用右键“插入倍率标记”，在该帧插入当前倍率；选中后只编辑帧和值。值可为 0 到 10，阶梯式生效，覆盖至下一标记或动作退出。需要提前恢复时插入值为 1 的标记。拖动到同轴已有标记的帧不会制造重复；删除标记接续前一个值，删除全部标记恢复全程默认 1。操作使用原有 Undo/Redo 事务。
+
+标记控制主动移动速度和转向速率，不缩放 RootMotion、冲量、外力。普通事件菜单不再添加“设置控制倍率”；其他运动事件仍保留。动作结束、打断、取消、切换后旧贡献退出，新动作从自己的标记开始。
+
+时间轴所有单帧标记统一使用直角矩形主体和矩形中心节点，信息提示也使用矩形；主体宽度与游标一致，占当前缩放下的一帧宽。较小缩放保留透明命中区域，选中和拖动行为保持原合同。
+
+移动和旋转控制倍率各占一行 22px 高的紧凑行；16px 数值色带和标记垂直居中，标题与时间轴行同步对齐。
+
+制作数据保存 `motionTrack.movementControlKeys[]` 和 `rotationControlKeys[]`，每项包含 `frame/value/stableEventId`；正式投影另携带准备好的数值排序。共享 noEngine 投影生成只读区间，编辑器不把派生区间当独立事件编辑，恢复 Common 制作源时也不反写这些事件。旧数据按逐帧有效值转换，区间结束时的恢复值会变成标记。打开只转换内存，保存才写回；无法转换时保留原内容并阻止覆盖。动作缩短后保留越界标记，修正前不能保存。
+
+当前 Common 动作库已按这一规则转换；Light Attack 在第 0 帧把移动倍率设为 0，在第 17 帧把旋转倍率设为 0，退出后恢复 1。回归入口为 `CharacterActionControlScaleTimelineTests`，覆盖独立轴、区间终点重投影、旧重叠窗口、删除恢复、往返与 0–10 派发。测试定义本身不代表实际运行结果。
+
+> Code-Doc: `Packages/com.vincent.wgameframework/CharacterAction/CharacterActionControlScaleJsonProjection.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Editor/CharacterAction/CharacterActionControlScaleAuthoring.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Editor/CharacterAction/Timeline/*ControlScale*.cs`
 
 The code already has the runtime contracts:
 

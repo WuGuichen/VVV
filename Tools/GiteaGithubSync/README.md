@@ -2,8 +2,13 @@
 
 Manual one-way mirror for Gitea Issues and PR metadata.
 
-Gitea remains the project control plane. GitHub is only a non-LFS Git mirror and
-public/backup metadata mirror. This tool does not make GitHub authoritative.
+For code snapshots, use [RepositoryMirror](../RepositoryMirror/README.md).
+This metadata tool does not synchronize Git code, and code snapshot publication
+does not authorize Issue or PR metadata publication.
+
+Gitea remains the primary Git repository and Git LFS authority. GitHub is a
+non-LFS mirror. This tool does not make GitHub authoritative or establish a
+mandatory task workflow; see [ADR-001](../../Docs/Decisions/ADR-001-Version-Control-Gitea.md).
 
 ## What It Syncs
 

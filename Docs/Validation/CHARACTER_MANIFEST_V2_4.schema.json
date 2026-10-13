@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://specs.mxframework.io/schemas/character-manifest-v2.4.json",
+  "title": "CharacterPackageManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packageId",
+    "stableId",
+    "displayName",
+    "version",
+    "kind",
+    "packageSchemaVersion",
+    "coordinateConvention",
+    "hashes",
+    "assetEntries",
+    "featureFlags"
+  ],
+  "properties": {
+    "packageId": { "type": "string", "pattern": "^[0-9]{6}$" },
+    "stableId": { "type": "string", "pattern": "^charpkg\\.[0-9]{6}$" },
+    "displayName": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+    },
+    "kind": { "type": "string", "enum": ["Character"] },
+    "packageSchemaVersion": { "type": "string", "enum": ["2.4.0"] },
+    "coordinateConvention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upAxis", "forwardAxis", "handedness", "unitScaleMeters", "rotationStorage"],
+      "properties": {
+        "upAxis": { "type": "string", "enum": ["YPositive"] },
+        "forwardAxis": { "type": "string", "enum": ["ZPositive"] },
+        "handedness": { "type": "string", "enum": ["LeftHanded", "RightHanded"] },
+        "unitScaleMeters": { "type": "number", "const": 1.0 },
+        "rotationStorage": { "type": "string", "enum": ["Quaternion"] }
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "hashStatus"],
+      "properties": {
+        "algorithm": { "type": "string", "enum": ["sha256"] },
+        "hashStatus": { "type": "string", "enum": ["Valid", "PendingCalculation", "Dirty"] },
+        "sourcePackageHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      },
+      "oneOf": [
+        {
+          "properties": { "hashStatus": { "const": "Valid" } },
+          "required": ["sourcePackageHash"]
+        },
+        {
+          "properties": { "hashStatus": { "enum": ["PendingCalculation", "Dirty"] } }
+        }
+      ]
+    },
+    "assetEntries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseMesh",
+        "bodyColliders",
+        "bodyParts",
+        "skeletonHierarchy",
+        "applicationConfig",
+        "attributesConfig",
+        "actionsConfig"
+      ],
+      "properties": {
+        "baseMesh": { "type": "string", "pattern": "^resources/models/[a-zA-Z0-9_\\-\\.]+\\.fbx$" },
+        "animations": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^resources/animations/[a-zA-Z0-9_\\-\\.]+\\.fbx$" }
+        },
+        "bodyColliders": { "type": "string", "const": "geometry/body_colliders.json" },
+        "bodyParts": { "type": "string", "const": "geometry/body_parts.json" },
+        "skeletonHierarchy": { "type": "string", "const": "geometry/skeleton_hierarchy.json" },
+        "bodyGeometry": {
+          "type": ["string", "null"],
+          "pattern": "^geometry/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "contactPoints": {
+          "type": ["string", "null"],
+          "pattern": "^geometry/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "sockets": {
+          "type": ["string", "null"],
+          "pattern": "^geometry/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "weaponSlots": {
+          "type": ["string", "null"],
+          "pattern": "^geometry/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "applicationConfig": { "type": "string", "const": "config/character_application.json" },
+        "attributesConfig": { "type": "string", "const": "config/character_attributes.json" },
+        "actionsConfig": { "type": "string", "const": "config/character_actions.json" },
+        "damageZones": {
+          "type": ["string", "null"],
+          "pattern": "^config/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "paletteBinding": {
+          "type": ["string", "null"],
+          "pattern": "^config/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "paletteUsage": {
+          "type": ["string", "null"],
+          "pattern": "^config/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "clothConfig": {
+          "type": ["string", "null"],
+          "pattern": "^config/[a-zA-Z0-9_\\-\\.]+\\.json$"
+        },
+        "paletteTexture": {
+          "type": ["string", "null"],
+          "pattern": "^resources/textures/[a-zA-Z0-9_\\-\\.]+\\.png$"
+        }
+      }
+    },
+    "featureFlags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enableClothPhysics", "enableWeaponBake", "enableDamageZones", "enableContactMotionBake"],
+      "properties": {
+        "enableClothPhysics": { "type": "boolean" },
+        "enableWeaponBake": { "type": "boolean" },
+        "enableDamageZones": { "type": "boolean" },
+        "enableContactMotionBake": { "type": "boolean" },
+        "enableSecondaryBones": { "type": "boolean" }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "stableId", "versionRange", "optional"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["framework", "weaponPackage", "actionLibrary"] },
+          "stableId": { "type": "string" },
+          "versionRange": { "type": "string" },
+          "optional": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

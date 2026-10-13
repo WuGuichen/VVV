@@ -724,10 +724,9 @@ def resolve_target_beat_id(target: str, slug_to_id: Dict[str, int]) -> Optional[
     normalized = target.strip().lower()
     if normalized in {"0", "complete", "end-graph", "graph-complete"}:
         return 0
-    parsed = coerce_int(target)
-    if parsed is not None:
-        return parsed
-    return slug_to_id.get(target)
+    if target in slug_to_id:
+        return slug_to_id[target]
+    return coerce_int(target)
 
 
 def validate_story_draft(draft: Any) -> List[Diagnostic]:

@@ -19,7 +19,7 @@ namespace MxFramework.Game.CharacterTest
             CharacterTestAccessoryHitEvidence evidence = default)
         {
             _damagePayloadsByHit[key] = payload;
-            if (evidence.Producer == CharacterTestAccessoryHitProducer.Unknown) _accessoryEvidenceByHit.Remove(key);
+            if (evidence.Producer == CharacterTestAccessoryHitProducer.Unknown && !evidence.Lineage.IsValid && !evidence.DoubleEdgeSource.IsValid) _accessoryEvidenceByHit.Remove(key);
             else _accessoryEvidenceByHit[key] = evidence;
         }
     }

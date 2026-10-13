@@ -25,7 +25,7 @@ namespace MxFramework.Game.CharacterTest
 
         internal static bool TryCompute(CharacterActionConfig action, CharacterTestCharacterEntity source,
             CharacterTestCharacterPhysicsRuntime physics, ICharacterTestBakedWeaponTraceSource bakedSource,
-            ICharacterTestWeaponTraceBindingResolver bindings, out string hash, out string issue)
+            ICharacterTestWeaponTraceBindingResolver bindings, out string hash, out string issue, CharacterActionProjectileReferenceCatalog combat = null, bool requireProjectileCatalog = false)
         {
             hash = string.Empty;
             issue = string.Empty;
@@ -82,6 +82,20 @@ namespace MxFramework.Game.CharacterTest
                     }
                     dependencies.Add(dependency);
                 }
+            }
+            if (CharacterActionProjectileReference.IsCandidate(action) && (combat != null || requireProjectileCatalog))
+            {
+                if (combat == null) { issue = "ProjectileMeasurementProviderMissing"; return false; }
+                if (!combat.TryGetReferenceProjectile(action, out var evt, out var profile, out var definition, out issue)) return false;
+                string clip = ResolveAnimationClipKey(action, evt.Frame);
+                bool baked = bakedSource != null && !string.IsNullOrEmpty(clip)
+                    && TryGetSocket(bakedSource, source, clip, profile.Origin.SocketId, evt.Frame, out _);
+                var projectile = new JObject { ["executor"] = CharacterActionProjectileReference.ExecutorFingerprint,
+                    ["profile"] = ToToken(profile), ["definition"] = ToToken(definition), ["clip"] = clip,
+                    ["usesSocketBake"] = baked };
+                if (baked && TryGetSocket(bakedSource, source, clip, profile.Origin.SocketId, evt.Frame, out var socket))
+                    projectile["socket"] = ToToken(socket);
+                dependencies.Add(projectile);
             }
             hash = Hash(content);
             return true;

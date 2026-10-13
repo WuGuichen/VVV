@@ -10,6 +10,76 @@ namespace MxFramework.Tests.CharacterAction
     public sealed class CharacterActionAuthoringDocumentSessionTests
     {
         [Test]
+        public void ControlKey_ValueAndDeletionUndoRedoRestoreOwnedDraft()
+        {
+            using (var graph = new TemporaryProjectionGraph())
+            {
+                var action = new CharacterActionJsonDto { ActionId = 301, DisplayName = "Control history fixture",
+                    Category = "Movement", TimelineAuthority = "CharacterAuthored", DurationFrames = 8,
+                    MotionTrack = new MotionTrackJsonDto { MovementControlKeys = new[] {
+                        new ControlScaleKeyJsonDto { Frame = 0, Value = 0f, StableEventId = 1, StableEventOrder = 1 } },
+                        RotationControlKeys = Array.Empty<ControlScaleKeyJsonDto>() } };
+                File.WriteAllText(graph.CommonLibrarySource.ActionsPath, Newtonsoft.Json.JsonConvert.SerializeObject(
+                    new CharacterActionsJsonDocument { SchemaVersion = CharacterActionJsonImporter.CurrentActionLibrarySchemaVersion,
+                        Actions = new[] { action } }, CharacterActionAuthoringJsonService.JsonSettings));
+                var session = CharacterActionAuthoringDocumentSession.Load(graph.ProfileSource,
+                    new[] { graph.ActionSetSource }, new[] { graph.CommonLibrarySource });
+                var window = UnityEngine.ScriptableObject.CreateInstance<CharacterActionAuthoringWindow>();
+                object Invoke(string name, params object[] args) => typeof(CharacterActionAuthoringWindow).GetMethod(name,
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(window, args);
+                CharacterActionJsonDto Draft() => session.ActionLibraries[0].Document.Actions[0];
+                try
+                {
+                    Invoke("AdoptDocumentSession", session);
+                    Invoke("ApplyFieldChange", (Action)(() => Draft().MotionTrack.MovementControlKeys[0].Value = 2f), true);
+                    Assert.AreEqual(2f, Draft().MotionTrack.MovementControlKeys[0].Value);
+                    Invoke("UndoEdit");
+                    Assert.AreEqual(0f, Draft().MotionTrack.MovementControlKeys[0].Value);
+                    Invoke("RedoEdit");
+                    Assert.AreEqual(2f, Draft().MotionTrack.MovementControlKeys[0].Value);
+                    Invoke("ApplyFieldChange", (Action)(() => Draft().MotionTrack.MovementControlKeys = Array.Empty<ControlScaleKeyJsonDto>()), true);
+                    Assert.AreEqual(1f, CharacterActionControlScaleAuthoring.Evaluate(Draft(), false, 0));
+                    Invoke("UndoEdit");
+                    Assert.AreEqual(2f, Draft().MotionTrack.MovementControlKeys[0].Value);
+                    Invoke("RedoEdit");
+                    Assert.AreEqual(0, Draft().MotionTrack.MovementControlKeys.Length);
+                }
+                finally { UnityEngine.Object.DestroyImmediate(window); }
+            }
+        }
+
+        [Test]
+        public void ControlKeys_SaveReloadRegeneratesRangesAndRejectsShortenedActionWithoutWriting()
+        {
+            using (var graph = new TemporaryProjectionGraph())
+            {
+                var session = CharacterActionAuthoringDocumentSession.Load(graph.ProfileSource,
+                    new[] { graph.ActionSetSource }, new[] { graph.CommonLibrarySource });
+                var action = new CharacterActionJsonDto { ActionId = 301, DisplayName = "Control fixture",
+                    Category = "Movement", TimelineAuthority = "CharacterAuthored", DurationFrames = 8,
+                    MotionTrack = new MotionTrackJsonDto { MovementControlKeys = new[] {
+                        new ControlScaleKeyJsonDto { Frame = 2, Value = 2f, StableEventId = 1 } },
+                        RotationControlKeys = Array.Empty<ControlScaleKeyJsonDto>() } };
+                session.ActionLibraries[0].Document.Actions = new[] { action };
+                session.SaveAllDirty();
+                JObject saved = JObject.Parse(File.ReadAllText(graph.CommonLibrarySource.ActionsPath));
+                Assert.IsTrue(saved["actions"][0]["motionTrack"]["events"][0].Value<bool>("controlScaleGenerated"));
+                Assert.AreEqual(7, saved["actions"][0]["motionTrack"]["events"][0].Value<int>("endFrame"));
+                var reloaded = CharacterActionAuthoringDocumentSession.Load(graph.ProfileSource,
+                    new[] { graph.ActionSetSource }, new[] { graph.CommonLibrarySource });
+                var draft = reloaded.ActionLibraries[0].Document.Actions[0];
+                Assert.AreEqual(0, draft.MotionTrack.Events.Length);
+                Assert.AreEqual(2f, draft.MotionTrack.MovementControlKeys[0].Value);
+                Assert.IsFalse(reloaded.ActionLibraries[0].State.IsDirty);
+                string before = File.ReadAllText(graph.CommonLibrarySource.ActionsPath);
+                draft.DurationFrames = 2;
+                Assert.Throws<InvalidOperationException>(() => reloaded.SaveAllDirty());
+                Assert.AreEqual(before, File.ReadAllText(graph.CommonLibrarySource.ActionsPath));
+                Assert.AreEqual(2, draft.MotionTrack.MovementControlKeys[0].Frame);
+            }
+        }
+
+        [Test]
         public void SaveScope_PreparedProfileBundleAndLibraryPreserveFreshJsonAndUnknownFields()
         {
             using (var graph = new TemporaryProjectionGraph())

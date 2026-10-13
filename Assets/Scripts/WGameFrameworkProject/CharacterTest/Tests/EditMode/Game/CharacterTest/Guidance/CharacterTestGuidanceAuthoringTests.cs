@@ -935,6 +935,27 @@ namespace MxFramework.Tests.Game.CharacterTest.Guidance
         }
 
         [Test]
+        public void CompletionBeforePreparePreservesGuidanceDraftDirtyAndUndoBaseline()
+        {
+            var module = new CharacterTestGuidanceLevelEditorModule();
+            module.SetDocumentPathForTests("Assets/Temp/CharacterTestGuidanceUnprepared_" + Guid.NewGuid().ToString("N") + ".missing.json");
+            module.OnEnable();
+            module.AddBlankStepForTests();
+            module.MutateForTests("修改标题", document => document.Steps[0].Content.Title.Fallback = "未准备的新草稿");
+            Assert.IsTrue(module.IsDirty);
+            string before = Newtonsoft.Json.JsonConvert.SerializeObject(module.DocumentForTests);
+            var undo = (CharacterTestLevelEditorDocumentUndoSession)typeof(CharacterTestGuidanceLevelEditorModule)
+                .GetField("_undoSession", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(module);
+            string baseline = undo.SavedBaseline;
+            ((IMxLevelEditorSaveParticipant)module).CompleteCoordinatedSave(false, "前置模块 prepare 失败");
+            Assert.IsTrue(module.IsDirty);
+            Assert.AreEqual(before, Newtonsoft.Json.JsonConvert.SerializeObject(module.DocumentForTests));
+            Assert.AreEqual(baseline, undo.SavedBaseline);
+            ((IMxLevelEditorSaveParticipant)module).CompleteCoordinatedSave(false, "重复失败通知");
+            Assert.IsTrue(module.IsDirty);
+        }
+
+        [Test]
         public void CoordinatedSave_PreservesSiblingPayloadAndRollsBackDocumentAndCacheOnTailFailure()
         {
             string folderPath = "Assets/Temp/CharacterTestGuidanceTransaction_"

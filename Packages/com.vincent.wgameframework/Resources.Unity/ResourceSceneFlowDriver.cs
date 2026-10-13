@@ -7,22 +7,57 @@ using UnityEngine.SceneManagement;
 
 namespace MxFramework.Resources.Unity
 {
-    public sealed class ResourceSceneFlowDriver : ISceneFlowDriver
+    public sealed class ResourceSceneFlowDriver : ISceneFlowDriver, IDisposable
     {
+        private static readonly HashSet<ResourceSceneFlowDriver> RetiringDrivers = new HashSet<ResourceSceneFlowDriver>();
+        private static readonly HashSet<string> LoadingScenePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly IResourceCatalogQuery _catalogQuery;
         private readonly SceneAssetBundleProvider _sceneProvider;
         private readonly Dictionary<string, SceneAssetBundleHandle> _loadedScenes = new Dictionary<string, SceneAssetBundleHandle>(StringComparer.Ordinal);
+        private readonly Dictionary<string, Scene> _ownedScenes = new Dictionary<string, Scene>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ResourceSceneFlowOperation> _unloadingScenes = new Dictionary<string, ResourceSceneFlowOperation>(StringComparer.Ordinal);
+        private readonly List<ResourceSceneFlowOperation> _pendingOperations = new List<ResourceSceneFlowOperation>();
+        private readonly List<string> _retirementKeys = new List<string>();
+        private readonly Func<Scene, AsyncOperation> _unloadScene;
+        private bool _retiring;
+        private bool _draining;
+        private bool _drainAgain;
+        private SceneFlowError _retirementError;
 
         public ResourceSceneFlowDriver(IResourceCatalogQuery catalogQuery, SceneAssetBundleProvider sceneProvider)
+            : this(catalogQuery, sceneProvider, null)
+        {
+        }
+
+        public ResourceSceneFlowDriver(IResourceCatalogQuery catalogQuery, SceneAssetBundleProvider sceneProvider,
+            Func<Scene, AsyncOperation> unloadScene)
         {
             _catalogQuery = catalogQuery ?? throw new ArgumentNullException(nameof(catalogQuery));
             _sceneProvider = sceneProvider ?? throw new ArgumentNullException(nameof(sceneProvider));
+            _unloadScene = unloadScene ?? (scene => SceneManager.UnloadSceneAsync(scene));
         }
 
         public int LoadedSceneCount => _loadedScenes.Count;
+        public bool IsRetiring => _retiring;
+        public bool IsRetired => _retiring && _loadedScenes.Count == 0 && _pendingOperations.Count == 0;
+        public SceneFlowError RetirementError => _retirementError;
+
+        /// <summary>Begins asynchronous retirement; repeated calls retry an outstanding unload failure.</summary>
+        /// <remarks>LowFreqAlloc. Unity completion callbacks retain and drain ownership without a session Tick.</remarks>
+        public void Dispose()
+        {
+            if (IsRetired) return;
+            _retiring = true;
+            _retirementError = SceneFlowError.None;
+            RetiringDrivers.Add(this);
+            DrainRetirement();
+        }
 
         public ISceneFlowOperation LoadScene(SceneFlowRequest request)
         {
+            if (_retiring || _loadedScenes.ContainsKey(request.SceneKey ?? string.Empty))
+                return ResourceSceneFlowOperation.Failed(request.SceneKey, SceneFlowErrorCode.Busy,
+                    "Scene driver is retiring or already owns this scene key.");
             ResourceKey key = CreateSceneKey(request.SceneKey);
             if (!key.IsValid)
             {
@@ -53,11 +88,29 @@ namespace MxFramework.Resources.Unity
                 return ResourceSceneFlowOperation.Failed(request.SceneKey, ToSceneFlowError(bundleLoad.Error, request.SceneKey));
 
             SceneAssetBundleHandle handle = bundleLoad.Value;
+            if (!LoadingScenePaths.Add(handle.ScenePath))
+            {
+                _sceneProvider.Release(handle);
+                return ResourceSceneFlowOperation.Failed(request.SceneKey, SceneFlowErrorCode.Busy,
+                    "Another resource scene load is already using this scene path.");
+            }
+            Scene ownedScene = default;
+            UnityEngine.Events.UnityAction<Scene, LoadSceneMode> captureScene = (scene, mode) =>
+            {
+                if (string.Equals(scene.path, handle.ScenePath, StringComparison.OrdinalIgnoreCase)) ownedScene = scene;
+            };
+            SceneManager.sceneLoaded += captureScene;
+            Action stopCapture = () =>
+            {
+                SceneManager.sceneLoaded -= captureScene;
+                LoadingScenePaths.Remove(handle.ScenePath);
+            };
             try
             {
                 AsyncOperation operation = SceneManager.LoadSceneAsync(handle.ScenePath, GetLoadSceneMode(request.LoadMode));
                 if (operation == null)
                 {
+                    stopCapture();
                     _sceneProvider.Release(handle);
                     return ResourceSceneFlowOperation.Failed(
                         request.SceneKey,
@@ -65,14 +118,22 @@ namespace MxFramework.Resources.Unity
                         "Unity SceneManager.LoadSceneAsync returned null for resource scene '" + handle.ScenePath + "'.");
                 }
 
-                return ResourceSceneFlowOperation.FromAsync(
+                var tracked = ResourceSceneFlowOperation.FromAsync(
                     request.SceneKey,
                     operation,
-                    () => CompleteLoad(request, handle),
-                    () => _sceneProvider.Release(handle));
+                    () => { stopCapture(); CompleteLoad(request, handle, ownedScene); },
+                    () =>
+                    {
+                        stopCapture();
+                        if (!_loadedScenes.TryGetValue(request.SceneKey, out SceneAssetBundleHandle retained)
+                            || !ReferenceEquals(retained, handle)) _sceneProvider.Release(handle);
+                    });
+                TrackOperation(tracked);
+                return tracked;
             }
             catch (Exception exception)
             {
+                stopCapture();
                 _sceneProvider.Release(handle);
                 return ResourceSceneFlowOperation.Failed(
                     request.SceneKey,
@@ -93,12 +154,16 @@ namespace MxFramework.Resources.Unity
             }
 
             _loadedScenes.TryGetValue(sceneKey, out SceneAssetBundleHandle handle);
-            Scene scene = handle != null
-                ? SceneManager.GetSceneByPath(handle.ScenePath)
+            if (_unloadingScenes.TryGetValue(sceneKey, out ResourceSceneFlowOperation pending)) return pending;
+            Scene scene = handle != null && _ownedScenes.TryGetValue(sceneKey, out Scene ownedScene)
+                ? ownedScene
                 : SceneManager.GetSceneByName(Path.GetFileNameWithoutExtension(sceneKey));
 
             if (!scene.IsValid() || !scene.isLoaded)
             {
+                if (handle != null && SceneManager.GetSceneByPath(handle.ScenePath).isLoaded)
+                    return ResourceSceneFlowOperation.Failed(sceneKey, SceneFlowErrorCode.DriverFailure,
+                        "Scene ownership could not be confirmed; its bundle remains retained.");
                 if (handle != null)
                     CompleteUnload(sceneKey, handle);
                 return ResourceSceneFlowOperation.Succeeded(sceneKey);
@@ -106,19 +171,21 @@ namespace MxFramework.Resources.Unity
 
             try
             {
-                AsyncOperation operation = SceneManager.UnloadSceneAsync(scene);
+                AsyncOperation operation = _unloadScene(scene);
                 if (operation == null)
                 {
-                    if (handle != null)
-                        CompleteUnload(sceneKey, handle);
-                    return ResourceSceneFlowOperation.Succeeded(sceneKey);
+                    return ResourceSceneFlowOperation.Failed(sceneKey, SceneFlowErrorCode.DriverFailure,
+                        "Unity SceneManager.UnloadSceneAsync returned null; scene ownership remains retained.");
                 }
 
-                return ResourceSceneFlowOperation.FromAsync(
+                var tracked = ResourceSceneFlowOperation.FromAsync(
                     sceneKey,
                     operation,
                     () => CompleteUnload(sceneKey, handle),
                     null);
+                _unloadingScenes[sceneKey] = tracked;
+                TrackOperation(tracked);
+                return tracked;
             }
             catch (Exception exception)
             {
@@ -135,30 +202,81 @@ namespace MxFramework.Resources.Unity
             return new ResourceKey(sceneKey, ResourceTypeIds.Scene);
         }
 
-        private void CompleteLoad(SceneFlowRequest request, SceneAssetBundleHandle handle)
+        private void CompleteLoad(SceneFlowRequest request, SceneAssetBundleHandle handle, Scene ownedScene)
         {
-            if (request.LoadMode == SceneFlowLoadMode.Single)
-                ReleaseAllLoadedScenes();
-
-            if (_loadedScenes.TryGetValue(request.SceneKey, out SceneAssetBundleHandle existing))
-                _sceneProvider.Release(existing);
-
             _loadedScenes[request.SceneKey] = handle;
+            _ownedScenes[request.SceneKey] = ownedScene;
+            if (!ownedScene.IsValid() || !ownedScene.isLoaded)
+                throw new InvalidOperationException("Loaded scene ownership could not be confirmed; its bundle remains retained.");
+            if (request.LoadMode == SceneFlowLoadMode.Single)
+                ReleasePreviousLoadedScenes(request.SceneKey);
         }
 
         private void CompleteUnload(string sceneKey, SceneAssetBundleHandle handle)
         {
-            _loadedScenes.Remove(sceneKey);
-            if (handle != null)
+            if (handle != null && _loadedScenes.TryGetValue(sceneKey, out SceneAssetBundleHandle current)
+                && ReferenceEquals(current, handle))
+            {
+                if (_ownedScenes.TryGetValue(sceneKey, out Scene scene) && scene.isLoaded)
+                    throw new InvalidOperationException("Scene is still loaded; its bundle cannot be released.");
                 _sceneProvider.Release(handle);
+                _loadedScenes.Remove(sceneKey);
+                _ownedScenes.Remove(sceneKey);
+            }
+            _unloadingScenes.Remove(sceneKey);
         }
 
-        private void ReleaseAllLoadedScenes()
+        private void ReleasePreviousLoadedScenes(string currentSceneKey)
         {
-            foreach (SceneAssetBundleHandle handle in _loadedScenes.Values)
-                _sceneProvider.Release(handle);
+            var keys = new List<string>(_loadedScenes.Keys);
+            for (int i = 0; i < keys.Count; i++)
+                if (!string.Equals(keys[i], currentSceneKey, StringComparison.Ordinal))
+                    CompleteUnload(keys[i], _loadedScenes[keys[i]]);
+        }
 
-            _loadedScenes.Clear();
+        private void TrackOperation(ResourceSceneFlowOperation operation)
+        {
+            _pendingOperations.Add(operation);
+            operation.ObserveCompletion(DrainRetirement);
+        }
+
+        private void DrainRetirement()
+        {
+            if (_draining) { _drainAgain = true; return; }
+            do
+            {
+                _drainAgain = false;
+                _draining = true;
+                try
+                {
+                    for (int i = _pendingOperations.Count - 1; i >= 0; i--)
+                    {
+                        ResourceSceneFlowOperation operation = _pendingOperations[i];
+                        if (!operation.IsDone) continue;
+                        _pendingOperations.RemoveAt(i);
+                        if (!operation.Success)
+                        {
+                            _unloadingScenes.Remove(operation.SceneKey);
+                            if (_retiring && _loadedScenes.ContainsKey(operation.SceneKey))
+                                _retirementError = operation.Error;
+                        }
+                    }
+                    if (_retiring && _retirementError.IsNone)
+                    {
+                        _retirementKeys.Clear();
+                        foreach (string key in _loadedScenes.Keys) _retirementKeys.Add(key);
+                        for (int i = 0; i < _retirementKeys.Count; i++)
+                        {
+                            string key = _retirementKeys[i];
+                            if (_unloadingScenes.ContainsKey(key)) continue;
+                            ISceneFlowOperation unload = UnloadScene(key);
+                            if (unload.IsDone && !unload.Success) { _retirementError = unload.Error; break; }
+                        }
+                    }
+                    if (IsRetired) RetiringDrivers.Remove(this);
+                }
+                finally { _draining = false; }
+            } while (_drainAgain);
         }
 
         private static LoadSceneMode GetLoadSceneMode(SceneFlowLoadMode loadMode)
@@ -186,6 +304,7 @@ namespace MxFramework.Resources.Unity
             private bool _finalized;
             private bool _success;
             private SceneFlowError _error;
+            private Action _completion;
 
             private ResourceSceneFlowOperation(
                 string sceneKey,
@@ -232,13 +351,27 @@ namespace MxFramework.Resources.Unity
                 }
             }
 
-            public static ISceneFlowOperation FromAsync(
+            public static ResourceSceneFlowOperation FromAsync(
                 string sceneKey,
                 AsyncOperation operation,
                 Action onSucceeded,
                 Action onFailed)
             {
                 return new ResourceSceneFlowOperation(sceneKey, operation, onSucceeded, onFailed);
+            }
+
+            public void ObserveCompletion(Action completion)
+            {
+                _completion = completion;
+                _operation.completed += OnCompleted;
+                if (IsDone) OnCompleted(_operation);
+            }
+
+            private void OnCompleted(AsyncOperation operation)
+            {
+                operation.completed -= OnCompleted;
+                FinalizeIfDone();
+                _completion?.Invoke();
             }
 
             public static ISceneFlowOperation Succeeded(string sceneKey)
@@ -273,15 +406,29 @@ namespace MxFramework.Resources.Unity
                 _success = !_failedImmediately && _operation != null;
                 if (_success)
                 {
-                    _onSucceeded?.Invoke();
-                    _error = SceneFlowError.None;
-                    return;
+                    try
+                    {
+                        _onSucceeded?.Invoke();
+                        _error = SceneFlowError.None;
+                        return;
+                    }
+                    catch (Exception exception)
+                    {
+                        _success = false;
+                        _error = new SceneFlowError(SceneFlowErrorCode.DriverFailure, SceneKey,
+                            "Resource scene completion failed: " + exception.Message, exception);
+                    }
                 }
-
-                _error = _immediateError.IsNone
-                    ? new SceneFlowError(SceneFlowErrorCode.OperationFailed, SceneKey, "Resource scene flow operation failed.")
-                    : _immediateError;
-                _onFailed?.Invoke();
+                else
+                    _error = _immediateError.IsNone
+                        ? new SceneFlowError(SceneFlowErrorCode.OperationFailed, SceneKey, "Resource scene flow operation failed.")
+                        : _immediateError;
+                try { _onFailed?.Invoke(); }
+                catch (Exception exception)
+                {
+                    _error = new SceneFlowError(SceneFlowErrorCode.DriverFailure, SceneKey,
+                        "Resource scene failure cleanup failed: " + exception.Message, exception);
+                }
             }
         }
     }

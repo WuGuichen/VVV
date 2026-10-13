@@ -1,0 +1,33 @@
+#pragma kernel BuildRippleField
+#pragma target 5.0
+
+RWTexture2D<float4> _RippleOutput;
+int _RippleResolution;
+float4 _WgWaterRippleRect;
+float4 _WgWaterRipples[32], _WgWaterRippleShape[32], _WgWaterRippleSheen[8], _WgWaterRippleTiles[256];
+
+[numthreads(8,8,1)]
+void BuildRippleField(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint)_RippleResolution)) return;
+    float2 uv = (id.xy + .5) / _RippleResolution;
+    float2 world = _WgWaterRippleRect.xy + uv / _WgWaterRippleRect.z;
+    uint2 tile = min((uint2)(uv * 16), 15u);
+    uint4 bytes = (uint4)_WgWaterRippleTiles[tile.y * 16 + tile.x];
+    uint mask = bytes.x | (bytes.y << 8) | (bytes.z << 16) | (bytes.w << 24);
+    float2 slope = 0; float crest = 0;
+    [loop] while (mask != 0)
+    {
+        uint n = firstbitlow(mask); mask &= mask - 1;
+        float4 r = _WgWaterRipples[n], shape = _WgWaterRippleShape[n];
+        float2 delta = world - r.xy; float distanceSquared = dot(delta, delta);
+        if (distanceSquared < shape.z || distanceSquared > shape.w) continue;
+        float distance = sqrt(distanceSquared), wave = distance - r.z;
+        float envelope = exp(-wave * wave * shape.x);
+        float sine, cosine; sincos(wave * shape.y, sine, cosine);
+        slope += delta / max(.05, distance) * (-sine * shape.y - 2 * wave * shape.x * cosine) * r.w * envelope;
+        crest += cosine * envelope * _WgWaterRippleSheen[n / 4][n % 4];
+    }
+    // Every texel is written, including empty tiles: cached fields never retain expired wave pixels.
+    _RippleOutput[id.xy] = float4(slope, crest, 0);
+}

@@ -41,6 +41,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         private ulong _executionId;
         private long _lastTick = -1;
         private CharacterActionInstance _actionInstance;
+        private ulong _acknowledgedActionRevision;
         private bool _actionStarted;
         private bool _timelineCompleted;
         private bool _faulted;
@@ -67,8 +68,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal bool IsCardAvailable(TacticalCardDefinition definition) => EvaluateCardAvailability(definition).IsLegal;
         internal CardPlayEvaluation EvaluateCardAvailability(TacticalCardDefinition definition)
         {
-            // Until the joint owner is connected, a frozen assembly cannot silently run as a bare action.
-            if (definition?.FixedAssembly != null)
+            // The fixed Driver entry owns final joint admission; unsupported mechanism mains remain closed.
+            if (definition?.FixedAssembly != null && (!(definition is TacticalActionCardDefinition fixedMain)
+                || !fixedMain.HasPublishedBehavior || fixedMain.PointMove != null || fixedMain.PositionRecall != null))
                 return new CardPlayEvaluation(CardPlayFailure.CharacterUnavailable, definition.BaseMomentumCost, 0);
             if (!ReferenceEquals(_runtime.FindEntityById(_entity.Id.Value), _entity)
                 || !_entity.CombatState.IsAlive || !_entity.BattleState.CanStartNormalAction
@@ -412,23 +414,27 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         private void ReadActionFacts()
         {
             var owned = _session.AcknowledgedActionInstance;
-            if (owned != null && _actionInstance == null)
+            bool changed = owned != null && (!ReferenceEquals(owned, _actionInstance)
+                || _acknowledgedActionRevision != _session.AcknowledgedActionRevision);
+            if (changed)
             {
-                _actionInstance = owned;
+                _actionInstance = owned; _acknowledgedActionRevision = _session.AcknowledgedActionRevision;
                 _actionStarted = true;
+                _timelineCompleted = false;
             }
-            // Frame-local diagnostics are cleared again by damage processing. The admitted
-            // authority instance retains its terminal state after the gateway removes it.
+            // The receipt's terminal state survives gateway removal and pooled-object replacement.
             if (_actionInstance == null) return;
-            var state = _actionInstance.State;
-            if (state == CharacterActionInstanceState.Finished) _timelineCompleted = true;
-            else if (state == CharacterActionInstanceState.Cancelled || state == CharacterActionInstanceState.Interrupted)
+            var state = _session.AcknowledgedActionState;
+            if (state == CharacterActionInstanceState.None && _admitted?.Zone == CardZone.Resolving)
+                SetFault("execution:OwnedActionTerminalReceiptUnavailable");
+            _timelineCompleted = state == CharacterActionInstanceState.Finished;
+            if (state == CharacterActionInstanceState.Cancelled || state == CharacterActionInstanceState.Interrupted)
             {
                 _timelineCompleted = false;
                 if (_admitted?.Zone == CardZone.Resolving)
                     SetFault("execution:ActionInterrupted");
             }
-            if (_observedActionState == state) return;
+            if (!changed && _observedActionState == state) return;
             _observedActionState = state;
             ActionStateChanged?.Invoke(_executionId, state);
         }

@@ -71,6 +71,11 @@ The module includes shared water settings and the owner in the existing coordina
 save snapshots. This adds no package-to-project dependency or gameplay JSON schema;
 usage and native evidence remain in the linked sample guide.
 
+Project water quality tiers, same-graph SSPR compute passes, capture-based planar-camera
+cadence, copy-free composition and per-view cached local ripple fields are project-owned implementation details.
+They preserve this package's camera/resource contracts; budgets, approximation and
+validation limits are maintained in the [shallow-water guide](../Guides/SHALLOW_WATER_SAMPLE.md#性能档与有界涟漪2026-10-11).
+
 `MxSceneLightingProvider` implements `IMxRenderPassProvider`/`IDisposable`, accepts explicit data, Look, sun, camera and shader references, and exposes functional visibility/radiance update counters and estimated persistent bytes. `SetCapsules` copies at most 32 supplied capsules without per-call allocations. `SetTargetCamera(Camera, bool previewInSceneView)` retargets camera work without reallocating or invalidating world resources; a null camera suspends collection and retains the cache. `SetMotionVectorsRequired(bool)` explicitly requests motion input; `MotionVectorsRequired` also includes Look debug mode 3. Both setters reject a disposed provider. `MxSceneRenderingConfiguration.RequireMotionVectors` defaults false and supplies the explicit consumer request. The session temporarily enables skinned motion only while requested, restores prior settings, owns registration/unregistration and resets camera history; other URP effects retain independent motion requirements. The `SourceLayout` maps consumer material properties and normalized profile diffuse fractions without embedding project shader names in the framework.
 
 `MxSceneLightingFrameData : ContextItem` publishes borrowed `TextureHandle` fields `Irradiance`, `SceneColor`, `Depth`, `Normals`, `Motion`, plus `Camera`, `ColorDescriptor`, `ColorSpace`, `PreExposure` and `HistoryGeneration`. SceneColor publication occurs at `BeforeRenderingPostProcessing`, order -100; consumers must record later within the same camera graph and declare their resource reads. Handles expire with that graph. Motion is optional: consumers must request it and check handle validity; GI does not request it by default. `PreExposure=1` means this provider applies no pre-exposure, not that all future post effects preserve exposure. `SetHistoryGeneration(int)` propagates the scene history generation to this context. Camera/scene identity must also participate in a temporal consumer's history key. Runtime changes to `TargetCamera` update the existing provider, reset camera history and retain world buffers/counters. Explicit `Rebind()` remains a full resource rebuild for regenerated assets or changed world configuration; disabling/unloading still releases resources. No export-copy or DLSS SDK contract is implied.
@@ -159,6 +164,8 @@ and GPU medium sampling with known isotropic/directional energy. Existing
 
 ## 1. Subject Identity
 
+> Code-Doc: `Packages/com.vincent.wgameframework/Rendering/RenderSubjectIdentity.cs`
+
 ```csharp
 public readonly struct MxRenderSubjectId : IEquatable<MxRenderSubjectId>
 {
@@ -189,6 +196,9 @@ Rules:
 - Rendering public APIs use `MxRenderSubjectId`, not source module entity ids.
 - `MxRenderSubjectId` values are stable for the lifetime of a subject registration.
 - Released ids may be reused only after the registry can prove no active binding, SharedRT writer, or publisher event references the old subject.
+- `MxRenderSubjectRegistry.Clear()` invalidates all active registrations before release notifications. Consumers clean references using the old complete subject id during those notifications; generation advancement and free-queue rebuilding follow. Slots with outstanding references remain unavailable.
+- After reference cleanup, `Clear()` preserves the configured slot capacity, including slots released before the call or made available during release notifications. Repeated calls without active registrations do not lose available slots or emit duplicate release notifications. Reusing a slot produces a new generation; old complete subject ids remain invalid.
+- Registry `Clear()` invalidates registrations across its maps. `RenderSubjectMap<TSourceId>.Clear()` releases only that map's registrations.
 - Public API names must not expose game-specific identity terms.
 
 ## 2. Rendering Context
@@ -1048,6 +1058,20 @@ Editor-only automatic probe layout: `MxSceneLightingBuilder.ResolveProbeQuality`
 
 ### Fixed directional triangle visibility (v1)
 
+The disabled-camera binding is still type-correct: `MxRenderingPipelineFeature`
+owns a transient 1x1 random-write `R32_UInt` RenderTexture dynamic-depth fallback
+after checking `Render`/`LoadStore` support, binds it at creation and
+before each camera, and clears shadow enable/data-present state. RenderGraph
+tracks the fallback read; an active provider overwrites it with the real atlas.
+The owning RTHandle releases the RenderTexture on disposal. The receiver uses
+integer `Load`; no `Texture2D` creation requiring `Sample` support is used. This
+preserves the `Texture2D<uint>` receiver contract on Metal. The 2026-10-11 Metal
+Editor check confirmed the fallback format, supported usages and CharacterTest
+startup; compilation used persisted evidence/native Console fallback after a
+validator transport interruption. Active dynamic-atlas and other-platform
+acceptance are unchanged. Evidence and limits are maintained in
+`Docs/Guides/DIRECTIONAL_TRIANGLE_SHADOWS.md`.
+
 `MxDirectionalShadowData` format v2 owns two persistent RFloat nearest-depth maps for a fixed high-detail center and full peripheral coverage. `Depth`/`Rectangle` describe the center; `PeripheralDepth`/`PeripheralRectangle` describe the full scene. Both share fixed direction, light axes and a depth slab. `CenterBounds`, `TextureBudgetResolution`, `TransitionWidth`, world bounds and source fingerprint preserve authoring intent. `TextureBytes` counts both distinct textures. The two-map `Initialize` overload supplies these values; the original overload aliases one texture to both regions for explicit single-region callers. `MxDirectionalShadowBaker` explicitly persists geometry/alpha coverage in Edit mode. This direct-light visibility asset is independent of the scene-GI transport/cache.
 
 `MxDirectionalShadowProvider` accepts this asset, a triangle Compute program, owning scene and preview scope. `MxSceneRenderingConfiguration` adds opt-in directional visibility, dynamic enablement, SceneView scope, resolution, world bias/filter and a nonserialized generic caster filter. CullDirectionalShadowsToReceivers and the nonserialized CollectDirectionalShadowReceiverCameras adapter define the conservative union of permitted three-dimensional receiver scopes; missing/invalid scopes retain all casters. StaticDirectionalShadowCastingStateValid invalidates custom non-Renderer casting inputs. `MxDirectionalShadowCoverage.Resolver` maps material/property-block coverage; the optional OverrideResolver overlays live blocks on the current epoch shared-material result, while its absence preserves the original Resolver fallback; project shader identifiers do not belong to the framework. Its defaults cover ordinary base-map cutouts.
@@ -1129,3 +1153,29 @@ MxScenePresentationData.CreateConsumer 与 IMxScenePresentationConsumer 为外�
 `MxSceneRenderingConfiguration.DynamicShadowResolutionOverride` is nonserialized; zero selects authored `DynamicShadowResolution`. `EffectiveDynamicShadowResolution` exposes that choice. The directional provider normalizes the effective value to a power of two within 128..4096. `Settings.Graphics` owns the player preference adapter; Rendering does not depend on Settings.
 
 Changing the effective size invalidates same-frame dynamic reuse and presentation-pose demand. The next eligible base camera rebuilds the dynamic field before binding the resized target; existing late-camera receiver-scope checks remain active. Replacement allocates the texture and RTHandle before releasing the previous target. Failed texture creation or handle allocation destroys the replacement and retains the old owner. Static texture ownership, baked plane coverage, Cast Shadows admission, coupled static/dynamic visibility, filter sampling, triangle budget and the candidate-pixel safety budget are unchanged.
+
+
+Project shallow water optionally consumes existing body-part physical contact
+events through CharacterTestCharacterRuntimeModule.PhysicalContactObserved.
+TryResolvePhysicalContactPresentation normalizes the existing physical entity ID
+and resolves registration-cached part semantics without generating contacts. Explicit
+CharacterBodyPartKind takes precedence; imported Custom/Bone rows reuse declared
+abstract left/right-foot socket roles and their parent-part relation in geometry.
+Numeric part IDs and bone-name guesses are not semantic sources.
+PhysicalContactMotionObserved observes the current world at the existing
+presentation contact frame immediately before PhysicalContactObserved. This
+avoids comparing an advanced presentation frame with the completed simulation
+frame; the existing ripple motion observation is unchanged.
+Current publishing still uses the pre-existing PresentationAudio/PresentationOnly
+sampling eligibility; no full rendering surface router is claimed.
+
+CharacterTestShallowWaterSession owns a bounded local water-splash ParticleSystem
+pool and its framework resource scope. Admission requires a real Foot/Started
+floor contact, actual immersion within water depth/rectangle, stable observed
+motion, deduplication/cooldown, and receiver distance/visibility and burst budget.
+Landing observation changes strength only when a same-frame foot contact arrives.
+Game and Scene receivers observe the same views without multiplying emissions.
+All water-splash authoring remains in the existing scene-rendering shallow-water
+panel. Views, random state, clock and settings do not enter runtime authority,
+VfxRuntimeModule, hash, replay or save state. Native visual/lifecycle validation
+must be reported separately from staged source/contract checks.

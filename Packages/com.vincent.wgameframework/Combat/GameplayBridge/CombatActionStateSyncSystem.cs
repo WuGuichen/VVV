@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MxFramework.Combat.Animation;
 using MxFramework.Combat.Core;
 using MxFramework.Gameplay;
@@ -12,6 +13,7 @@ namespace MxFramework.Combat.GameplayBridge
         private readonly CombatEntityGameplayMap _entityMap;
         private readonly GameplayComponentWorld _componentWorld;
         private readonly Func<CombatEntityId, CombatActionState?> _queryActionState;
+        private readonly List<CombatEntityId> _combatIds = new List<CombatEntityId>();
 
         public CombatActionStateSyncSystem(
             CombatEntityGameplayMap entityMap,
@@ -39,22 +41,23 @@ namespace MxFramework.Combat.GameplayBridge
             IsEnabled = enabled;
         }
 
-        /// <remarks>NoAlloc on the steady-state path after registration/initialization; invalid-call and exception paths may allocate diagnostics.</remarks>
+        /// <remarks>NoAlloc after ID buffer and component store capacity warm-up, provided the query delegate does not allocate. New high-water marks and exception paths may allocate.</remarks>
         public void Tick(GameplaySystemContext context)
         {
             if (!IsEnabled)
                 return;
 
-            CombatEntityId[] combatIds = _entityMap.CreateCombatIdSnapshot();
-            if (combatIds.Length == 0)
+            _combatIds.Clear();
+            _entityMap.CopyCombatIds(_combatIds);
+            if (_combatIds.Count == 0)
                 return;
 
             GameplayComponentStore<CombatActionStateComponent> store =
                 _componentWorld.GetOrCreateStore<CombatActionStateComponent>();
 
-            for (int i = 0; i < combatIds.Length; i++)
+            for (int i = 0; i < _combatIds.Count; i++)
             {
-                CombatEntityId combatId = combatIds[i];
+                CombatEntityId combatId = _combatIds[i];
                 CombatActionState? state = _queryActionState(combatId);
                 if (!_entityMap.TryGetGameplayId(combatId, out GameplayEntityId gameplayId))
                     continue;

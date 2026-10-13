@@ -774,6 +774,8 @@ namespace MxFramework.Game.CharacterTest
             int clearanceRadiusMillimeters = ToMillimeters(ResolveClearanceRadius(clearanceHalfExtents));
             int clearanceHeightMillimeters = ToMillimeters(
                 clearanceHalfExtents.Y + clearanceHalfExtents.Y);
+            FixVector3 clearanceCenter = ResolveEntityCenter(source);
+            bool clearanceGrounded = source.IsGrounded;
             int candidateCount = candidateAngles != null ? candidateAngles.Length : 0;
             int physicsWorldRevision = _physicsRuntime.World.Revision;
             CharacterTestNavigationGraph graph = navigationSession?.Graph;
@@ -804,10 +806,12 @@ namespace MxFramework.Game.CharacterTest
                     && entry.NavigationProfileKey == navigationProfileKey
                     && entry.ProbeMinMillimeters == probeMinMillimeters
                     && entry.ProbeMaxMillimeters == probeMaxMillimeters
-                    && entry.QueryShape == CharacterTestNavigationProbeShape.Capsule
+                    && entry.QueryShape == CharacterTestNavigationProbeShape.SweptObb
                     && entry.LayerMask == layerMask.Value
                     && entry.ClearanceRadiusMillimeters == clearanceRadiusMillimeters
                     && entry.ClearanceHeightMillimeters == clearanceHeightMillimeters
+                    && entry.ClearanceCenter.Equals(clearanceCenter)
+                    && entry.ClearanceGrounded == clearanceGrounded
                     && entry.CandidateCount == candidateCount
                     && entry.PhysicsWorldRevision == physicsWorldRevision
                     && entry.GraphRevision == graphRevision
@@ -844,10 +848,12 @@ namespace MxFramework.Game.CharacterTest
                 navigationProfileKey,
                 probeMinMillimeters,
                 probeMaxMillimeters,
-                CharacterTestNavigationProbeShape.Capsule,
+                CharacterTestNavigationProbeShape.SweptObb,
                 layerMask.Value,
                 clearanceRadiusMillimeters,
                 clearanceHeightMillimeters,
+                clearanceCenter,
+                clearanceGrounded,
                 candidateCount,
                 physicsWorldRevision,
                 graphRevision,
@@ -1326,7 +1332,7 @@ namespace MxFramework.Game.CharacterTest
                         directPathClear: true,
                         targetInAttackRange: true,
                         selectedCandidateIndex: -1),
-                    CharacterTestNavigationProbeShape.Capsule,
+                    CharacterTestNavigationProbeShape.SweptObb,
                     layerMask.Value,
                     clearanceRadiusMillimeters,
                     clearanceHeightMillimeters,
@@ -1374,7 +1380,7 @@ namespace MxFramework.Game.CharacterTest
                         directPathClear: true,
                         targetInAttackRange: geometry.DistanceMeters <= attackRange,
                         selectedCandidateIndex: -1),
-                    CharacterTestNavigationProbeShape.Capsule,
+                    CharacterTestNavigationProbeShape.SweptObb,
                     layerMask.Value,
                     clearanceRadiusMillimeters,
                     clearanceHeightMillimeters,
@@ -1465,7 +1471,7 @@ namespace MxFramework.Game.CharacterTest
                                     directPathClear: false,
                                     targetInAttackRange: false,
                                     selectedCandidateIndex: -1),
-                                CharacterTestNavigationProbeShape.Capsule,
+                                CharacterTestNavigationProbeShape.SweptObb,
                                 layerMask.Value,
                                 clearanceRadiusMillimeters,
                                 clearanceHeightMillimeters,
@@ -1531,7 +1537,7 @@ namespace MxFramework.Game.CharacterTest
                         directPathClear: false,
                         targetInAttackRange: false,
                         selectedCandidateIndex: i),
-                    CharacterTestNavigationProbeShape.Capsule,
+                    CharacterTestNavigationProbeShape.SweptObb,
                     layerMask.Value,
                     clearanceRadiusMillimeters,
                     clearanceHeightMillimeters,
@@ -1565,7 +1571,7 @@ namespace MxFramework.Game.CharacterTest
                     directPathClear: false,
                     targetInAttackRange: false,
                     selectedCandidateIndex: candidateCount),
-                CharacterTestNavigationProbeShape.Capsule,
+                CharacterTestNavigationProbeShape.SweptObb,
                 layerMask.Value,
                 clearanceRadiusMillimeters,
                 clearanceHeightMillimeters,
@@ -1717,10 +1723,9 @@ namespace MxFramework.Game.CharacterTest
                 ToFix64(direction.x),
                 Fix64.Zero,
                 ToFix64(direction.y));
-            Fix64 clearanceRadius = ResolveClearanceRadius(clearanceHalfExtents);
             var header = new CombatQueryHeader(
                 queryId: NavigationQueryId + querySlot,
-                kind: CombatQueryKind.Capsule,
+                kind: CombatQueryKind.Obb,
                 sourceEntityId: _physicsRuntime.GetEntityId(source),
                 traceId: NavigationQueryId,
                 actionId: 0,
@@ -1728,12 +1733,10 @@ namespace MxFramework.Game.CharacterTest
                 layerMask);
 
             _queryResults.Clear();
-            _physicsRuntime.World.QueryCapsule(
-                new CombatCapsuleQuery(
-                    header,
-                    origin,
-                    origin + (probeDirection * probeLength),
-                    clearanceRadius),
+            _physicsRuntime.World.Query(
+                CharacterTestNavigationClearanceProbe.CreateQuery(
+                    header, _physicsRuntime, source, origin, probeDirection, probeLength,
+                    clearanceHalfExtents),
                 _queryResults);
             NavigationQueryCount++;
             for (int i = 0; i < _queryResults.Count; i++)
@@ -1790,7 +1793,8 @@ namespace MxFramework.Game.CharacterTest
                 nearMovableObject = true;
                 nearUsefulObject = true;
                 nearHazard = HasHazardPotency(obj);
-                return;
+                if (nearHazard)
+                    return;
             }
         }
 
@@ -1859,7 +1863,7 @@ namespace MxFramework.Game.CharacterTest
             }
 
             Fix64 centerOffsetY = _physicsRuntime != null
-                ? _physicsRuntime.CharacterHalfExtents.Y
+                ? _physicsRuntime.GetCharacterCenterOffsetY(entity)
                 : Fix64.Zero;
             return fallbackPosition + new FixVector3(Fix64.Zero, centerOffsetY, Fix64.Zero);
         }
@@ -2028,6 +2032,8 @@ namespace MxFramework.Game.CharacterTest
                 int layerMask,
                 int clearanceRadiusMillimeters,
                 int clearanceHeightMillimeters,
+                FixVector3 clearanceCenter,
+                bool clearanceGrounded,
                 int candidateCount,
                 int physicsWorldRevision,
                 int graphRevision,
@@ -2050,6 +2056,8 @@ namespace MxFramework.Game.CharacterTest
                 LayerMask = layerMask;
                 ClearanceRadiusMillimeters = clearanceRadiusMillimeters;
                 ClearanceHeightMillimeters = clearanceHeightMillimeters;
+                ClearanceCenter = clearanceCenter;
+                ClearanceGrounded = clearanceGrounded;
                 CandidateCount = candidateCount;
                 PhysicsWorldRevision = physicsWorldRevision;
                 GraphRevision = graphRevision;
@@ -2073,6 +2081,8 @@ namespace MxFramework.Game.CharacterTest
             public int LayerMask { get; }
             public int ClearanceRadiusMillimeters { get; }
             public int ClearanceHeightMillimeters { get; }
+            public FixVector3 ClearanceCenter { get; }
+            public bool ClearanceGrounded { get; }
             public int CandidateCount { get; }
             public int PhysicsWorldRevision { get; }
             public int GraphRevision { get; }

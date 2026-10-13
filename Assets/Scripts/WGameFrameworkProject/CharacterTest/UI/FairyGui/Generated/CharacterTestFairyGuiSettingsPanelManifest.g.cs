@@ -119,7 +119,15 @@ namespace MxFramework.Game.CharacterTest
                             new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.AudioMuteToggle, @"Button"),
                             new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.ResetInput, @"Button"),
                             new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.CancelChanges, @"Button"),
-                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.Apply, @"Button")
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.Apply, @"Button"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.WaterQualityLabel, @"Text"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.WaterQualityValue, @"Text", bindPath: @"WaterQualityText"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.WaterQualityPrev, @"Button"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.WaterQualityNext, @"Button"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.RippleQualityLabel, @"Text"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.RippleQualityValue, @"Text", bindPath: @"RippleQualityText"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.RippleQualityPrev, @"Button"),
+                            new MxFairyGuiNamedControl(CharacterTestFairyGuiSettingsPanelIds.RippleQualityNext, @"Button")
                         },
                         LocalizedTexts = new MxFairyGuiLocalizedTextBinding[]
                         {
@@ -127,6 +135,8 @@ namespace MxFramework.Game.CharacterTest
                             new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.AntiAliasingLabel, @"ui.character_test.settings.anti_aliasing", fallbackText: @"抗锯齿"),
                             new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.ShadowDistanceLabel, @"ui.character_test.settings.shadow_distance", fallbackText: @"阴影距离"),
                             new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityLabel, @"ui.character_test.settings.directional_shadow_quality", fallbackText: @"阴影质量"),
+                            new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.WaterQualityLabel, @"ui.character_test.settings.water_quality", fallbackText: @"水面反射"),
+                            new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.RippleQualityLabel, @"ui.character_test.settings.ripple_quality", fallbackText: @"交互涟漪"),
                             new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountLabel, @"ui.character_test.settings.shadow_cascades", fallbackText: @"阴影级联数"),
                             new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.LocalShadowResolutionLabel, @"ui.character_test.settings.local_shadow_resolution", fallbackText: @"局部灯阴影图集"),
                             new MxFairyGuiLocalizedTextBinding(CharacterTestFairyGuiSettingsPanelIds.HdrLabel, @"ui.character_test.settings.hdr.label", fallbackText: @"HDR 显示"),
@@ -155,7 +165,11 @@ namespace MxFramework.Game.CharacterTest
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.AntiAliasingPrevious, CharacterTestFairyGuiSettingsPanelIds.AntiAliasingPrev, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.AntiAliasingNext, CharacterTestFairyGuiSettingsPanelIds.AntiAliasingNext, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.DirectionalShadowQualityPrevious, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityPrev, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
+                            new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.WaterQualityPrevious, CharacterTestFairyGuiSettingsPanelIds.WaterQualityPrev, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
+                            new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.RippleQualityPrevious, CharacterTestFairyGuiSettingsPanelIds.RippleQualityPrev, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.DirectionalShadowQualityNext, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityNext, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
+                            new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.WaterQualityNext, CharacterTestFairyGuiSettingsPanelIds.WaterQualityNext, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
+                            new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.RippleQualityNext, CharacterTestFairyGuiSettingsPanelIds.RippleQualityNext, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.ShadowCascadeCountPrevious, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountPrev, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.ShadowCascadeCountNext, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountNext, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),
                             new MxFairyGuiCommandBinding(CharacterTestFairyGuiSettingsPanelCommandIds.LocalShadowResolutionPrevious, CharacterTestFairyGuiSettingsPanelIds.LocalShadowResolutionPrev, new MxUiFeedbackPolicy(MxUiFeedbackKind.Click, MxUiFeedbackKind.None, MxUiFeedbackKind.None)),

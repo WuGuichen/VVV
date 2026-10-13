@@ -240,7 +240,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             var mainIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var main in config.MainCards)
             {
-                if (main == null || !Valid(main.Card) || main.Card.InstanceId != 0 || catalog.ExactCard(main.Card)?.HasActionSlot != true
+                if (main == null || !Valid(main.Card) || main.Card.InstanceId != 0 || catalog.ExactCard(main.Card)?.CanBeAssemblyMain != true
                     || !mainIds.Add(main.Card.CardId + "@" + main.Card.Revision))
                     throw new JsonSerializationException("TACTICAL_ASSEMBLY_MAIN_DEFINITION_INVALID");
                 SlotCount(main.Quality);

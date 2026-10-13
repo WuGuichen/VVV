@@ -2,9 +2,14 @@
 
 > Status: Guide
 >
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/RuntimeAiPlanner/CharacterTestRuntimeAiPlannerRuntime.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestBehaviorExecutionEvaluator.cs`
+>
 > Date: 2026-07-17
 >
 > 本文的 AI 指 **Runtime AI Planner**：`MxFramework.AI` 模块和 CharacterTest 专用运行时行为决策适配层。本文不记录 AIAction Config、Authoring AI Assist 或 Development Agent 工作流。
+
+2026-10-12：BehaviorExecution evaluator 增加 `NaturalCompletionRequested`，仅整卡自然时间线结束、显式 ReturnToPlanner 和无后继的终结动作块设置。外部 `Stop(false)` 即使旧状态为 Completed 也不等于自然成功；黑洞口袋据此冻结终止帧及中心。typed clone/restore 保留该事实；为true时 execution hash 使用v6、字段77，为false时省略并保留旧hash布局。Host在实际终止边界发布来源，恢复不能靠传入JSON伪造可信配件提交。第一批实际ACK通道同时登记所有三卡的共同 `TacticalDirectAttackStamp`，不以是否装破碎幻想为登记条件。原生验证尚待统一协调者，见[实施交接](../Tasks/TACTICAL_DOUBLE_EDGE_ACCESSORY_IMPLEMENTATION.md)。
 
 ## 定位
 
@@ -280,6 +285,8 @@ Runtime AI Planner 行为扩展前，CharacterTest 先补了专用数据准备�
 
 缓存只保存当前帧可重算的派生数据：距离、角度、方向、视线遮挡、直线路径、候选移动、附近障碍/可移动物/危险/可用物等。它不进入 SaveState、network snapshot、replay/result hash，也不改变 Runtime AI Planner JSON schema。`target.lastSeenAgeFrames`、`target.threatScore`、action score/cost、strafe side、reaction delay 等跨帧决策状态仍归 Runtime AI Planner agent state 管理。
 
+正式 Attack Opportunity adapter 提供锁定 Hurtbox 距离与 witness，但不覆盖导航 move。原生活动卡执行器消费 `Facts.MoveDirection` 时保留 waypoint／局部候选方向及 zero stop；即使目标仍在停止距离外，zero 也不能退回直线接近。回归入口为 `CharacterTestRuntimeAiPlannerFormalizationTests.PathfindingPlanner_FormalHurtboxAdapterPreservesNavigationThroughActiveCard`（正式 adapter、Committed Frame Geometry、导航→Facts→活动卡→控制命令）和 `CharacterTestBehaviorExecutionEvaluatorTests.ApproachTarget_PreservesNavigationStopAndArrival`（stop／微小输入／绕行／到达对照）；定义存在不代表已运行通过，实际原生 Runner 与障碍场景回执记录在 Issue #748。
+
 该路径属于 Tick 高频路径，warmed 后按 `NoAlloc after initialization` 约束维护：集合在构造或扩容阶段准备，帧内查询复用小 struct 和预分配 query buffer；不得引入 LINQ、每帧临时集合、字符串拼接、反射、Unity 对象查找或 `unsafe`。
 
 ### Agent 使用共享帧缓存的规则
@@ -293,8 +300,8 @@ Runtime AI Planner 行为扩展前，CharacterTest 先补了专用数据准备�
 | source-target 距离、平方距离、dx/dz、归一化方向、目标中心、方位角、朝向差/dot | `TryGetTargetGeometry(frame, source, target, out sample)` | 同帧同 source/target 只构建一次；投射物只复用目标中心、delta、方向和距离，不把友军/死亡/射程/ballistic 校验并入缓存 |
 | 最近目标 | `TryFindNearestTarget(frame, source, relationFilter, maxDistance, tiePolicy, out geometry, out target)` | Runtime AI Planner 使用 `OpposingTeam` + `First`，保持旧平方距离最近敌人语义；目标锁定使用 `AnyOther` + `Last`，保持最近非自身目标且同距离后者覆盖的旧语义 |
 | 视线遮挡和可见性 | `TryGetVisibility(frame, source, target, perceptionSettings, out sample)` | 只读取 `LineOfSightBlocked`、`TargetVisible`、hit count、nearest id/distance 等派生摘要；不要传出底层 query result list |
-| 直线路径、候选移动、attack range 判断 | `TryGetNavigation(source, target, attackRange, navigationProfileKey, probeMinLength, probeMaxLength, candidateAngles, out sample)` | L1 使用 CombatPhysics capsule probe；读取 `QueryShape`、`LayerMask`、`ClearanceRadiusMillimeters`、`ClearanceHeightMillimeters`、query/hit count、nearest obstacle 和 selected candidate 摘要；`navigationProfileKey` 必须随候选角、probe 长度等策略变化，cache key 还会覆盖 query shape、layer mask 和 clearance，避免不同策略/体型误复用 |
-| 地表、附近可移动物、障碍、危险、可用物 | `TryGetEnvironment(frame, entity, perceptionSettings, out sample)` | 只保存当前帧环境摘要；跨帧记忆或威胁评分仍归对应 agent state 管理 |
+| 直线路径、候选移动、attack range 判断 | `TryGetNavigation(source, target, attackRange, navigationProfileKey, probeMinLength, probeMaxLength, candidateAngles, out sample)` | L1 使用一次 CombatPhysics 全高保守 OBB probe（`QueryShape=SweptObb`），cached/fallback 共用构造；读取 `LayerMask`、`ClearanceRadiusMillimeters`、`ClearanceHeightMillimeters`、query/hit count、nearest obstacle 和 selected candidate 摘要；`navigationProfileKey` 随候选角、probe 长度变化，cache key 还覆盖 query shape、layer mask、clearance 半径/高度/实际中心及 grounded 状态，避免同帧姿态或跨台阶资格变化后误复用 |
+| 地表、附近可移动物、障碍、危险、可用物 | `TryGetEnvironment(frame, entity, perceptionSettings, out sample)` | 对半径内合法可移动物体按“是否存在”聚合 movable/useful/hazard；普通物体不能截断后续危险物扫描，cached/fallback 仅在三个物体摘要均为 true 时短路。危险沿用任一非零 potency 规则、半径边界包含等距；保留同帧复用、下一帧清空及 warmed NoAlloc（Issue #760）。只保存当前帧摘要，跨帧记忆或威胁评分仍归 agent state |
 
 接入新消费者时：
 

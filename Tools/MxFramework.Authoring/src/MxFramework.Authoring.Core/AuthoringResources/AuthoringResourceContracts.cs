@@ -109,6 +109,7 @@ namespace MxFramework.Authoring
         public const string AudioSemanticCueMissing = "AUTH_RES_AUDIO_SEMANTICS_CUE_MISSING";
         public const string AudioSemanticCueDuplicate = "AUTH_RES_AUDIO_SEMANTICS_DUPLICATE_CUE";
         public const string AudioSemanticEventMissing = "AUTH_RES_AUDIO_SEMANTICS_EVENT_MISSING";
+        public const string AudioCueDefaultParameterMissing = "AUTH_RES_AUDIO_CUE_DEFAULT_PARAMETER_MISSING";
         public const string AudioSemanticIncomplete = "AUTH_RES_AUDIO_SEMANTICS_INCOMPLETE";
         public const string AudioSemanticStatusInvalid = "AUTH_RES_AUDIO_SEMANTICS_STATUS_INVALID";
         public const string AudioSemanticReplacementRejected = "AUTH_RES_AUDIO_REPLACEMENT_REJECTED";

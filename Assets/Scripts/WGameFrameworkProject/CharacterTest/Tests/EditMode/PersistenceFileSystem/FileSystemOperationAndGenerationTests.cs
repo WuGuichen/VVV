@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -260,6 +261,239 @@ namespace MxFramework.Tests.PersistenceFileSystem
 
             Assert.That(after - before, Is.Zero);
             Assert.That(sink, Is.Not.Zero);
+        }
+
+        [Test]
+        public void Operation_ConcurrentTryGetResultPublishesCompleteStruct()
+        {
+            ExerciseResultPublicationRace(
+                generation => new SaveGameCommitResult(new SaveGameGeneration(generation)),
+                (actual, expected) => actual.Generation.Equals(expected.Generation));
+        }
+
+        [Test]
+        public void Operation_ConcurrentTryGetResultPublishesSameReference()
+        {
+            ExerciseResultPublicationRace(
+                generation => new PublishedReferenceResult(generation),
+                (actual, expected) => ReferenceEquals(actual, expected)
+                    && actual != null && actual.Generation == expected.Generation);
+        }
+
+        [TestCase(SaveGameOperationStatus.Succeeded)]
+        [TestCase(SaveGameOperationStatus.Failed)]
+        [TestCase(SaveGameOperationStatus.Cancelled)]
+        [TestCase(SaveGameOperationStatus.TimedOut)]
+        public void Operation_TryGetResultRequiresPublishedSuccess(SaveGameOperationStatus terminalStatus)
+        {
+            var capacity = new FileSystemWorkerCapacity();
+            var expected = new SaveGameCommitResult(new SaveGameGeneration(7));
+            using var release = new ManualResetEventSlim(false);
+            FileSystemSaveGameOperation<SaveGameCommitResult> operation =
+                FileSystemSaveGameOperation<SaveGameCommitResult>.Start(
+                    new SaveGameOperationId("result-validity"), capacity, context =>
+                    {
+                        release.Wait();
+                        switch (terminalStatus)
+                        {
+                            case SaveGameOperationStatus.Succeeded:
+                                return context.TryEnterPublishing()
+                                    ? FileSystemOperationCompletion<SaveGameCommitResult>.Success(expected)
+                                    : FileSystemOperationCompletion<SaveGameCommitResult>.Cancelled();
+                            case SaveGameOperationStatus.Failed:
+                                return FileSystemOperationCompletion<SaveGameCommitResult>.Failure(
+                                    new SaveGameError(SaveGameErrorCode.IoFailure,
+                                        SaveGameOperationPhase.None, "fixture", "Expected failure."));
+                            case SaveGameOperationStatus.TimedOut:
+                                return FileSystemOperationCompletion<SaveGameCommitResult>.TimedOut();
+                            default:
+                                return FileSystemOperationCompletion<SaveGameCommitResult>.Cancelled();
+                        }
+                    });
+            try
+            {
+                Assert.That(SpinWait.SpinUntil(() => operation.Status == SaveGameOperationStatus.Running, 5000), Is.True);
+                Assert.That(operation.TryGetResult(out SaveGameCommitResult running), Is.False);
+                Assert.That(running.Generation.Value, Is.Zero);
+            }
+            finally
+            {
+                release.Set();
+            }
+            Assert.That(SpinWait.SpinUntil(() => operation.HasWorkerCompletion, 5000), Is.True);
+            Assert.That(operation.TryGetResult(out SaveGameCommitResult beforePoll), Is.False);
+            Assert.That(beforePoll.Generation.Value, Is.Zero);
+            operation.Poll();
+
+            for (int query = 0; query < 32; query++)
+            {
+                Assert.That(operation.TryGetResult(out SaveGameCommitResult result),
+                    Is.EqualTo(terminalStatus == SaveGameOperationStatus.Succeeded));
+                Assert.That(result.Generation.Value,
+                    Is.EqualTo(terminalStatus == SaveGameOperationStatus.Succeeded ? 7UL : 0UL));
+                operation.RequestCancel();
+                operation.Poll();
+                Assert.That(operation.Status, Is.EqualTo(terminalStatus));
+            }
+        }
+
+        [Test]
+        public void Operation_PendingTryGetResultReturnsDefault()
+        {
+            var capacity = new FileSystemWorkerCapacity(1);
+            Assert.That(capacity.TryAcquire(out FileSystemWorkerCapacityLease lease), Is.True);
+            try
+            {
+                FileSystemSaveGameOperation<SaveGameCommitResult> operation =
+                    FileSystemSaveGameOperation<SaveGameCommitResult>.Start(
+                        new SaveGameOperationId("result-pending"), capacity,
+                        context => FileSystemOperationCompletion<SaveGameCommitResult>.Success(
+                            new SaveGameCommitResult(new SaveGameGeneration(7))));
+                Assert.That(operation.Status, Is.EqualTo(SaveGameOperationStatus.Pending));
+                Assert.That(operation.TryGetResult(out SaveGameCommitResult result), Is.False);
+                Assert.That(result.Generation.Value, Is.Zero);
+            }
+            finally
+            {
+                lease.Dispose();
+            }
+        }
+
+        [Test]
+        public void Operation_StructAndReferenceResultQueriesAllocateZeroBytes()
+        {
+            ExerciseResultQueryNoAlloc(new SaveGameCommitResult(new SaveGameGeneration(9)));
+            ExerciseResultQueryNoAlloc(new PublishedReferenceResult(9));
+        }
+
+        private static void ExerciseResultQueryNoAlloc<TResult>(TResult expected)
+        {
+            var operation = FileSystemSaveGameOperation<TResult>.Start(
+                new SaveGameOperationId("result-noalloc"), new FileSystemWorkerCapacity(),
+                context => context.TryEnterPublishing()
+                    ? FileSystemOperationCompletion<TResult>.Success(expected)
+                    : FileSystemOperationCompletion<TResult>.Cancelled());
+            Assert.That(SpinWait.SpinUntil(() => operation.HasWorkerCompletion, 5000), Is.True);
+            operation.Poll();
+            for (int warmup = 0; warmup < 32; warmup++)
+                operation.TryGetResult(out _);
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            int successfulQueries = 0;
+            TResult last = default;
+            for (int query = 0; query < 4096; query++)
+            {
+                operation.Poll();
+                operation.RequestCancel();
+                if (operation.TryGetResult(out last)) successfulQueries++;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.That(allocated, Is.Zero);
+            Assert.That(successfulQueries, Is.EqualTo(4096));
+            Assert.That(last, Is.EqualTo(expected));
+        }
+
+        private static void ExerciseResultPublicationRace<TResult>(
+            Func<ulong, TResult> createResult,
+            Func<TResult, TResult, bool> matches)
+        {
+            var race = new ResultPublicationRace<TResult>(matches);
+            var reader = new Thread(race.ReadResults) { IsBackground = true };
+            var capacity = new FileSystemWorkerCapacity();
+            reader.Start();
+            try
+            {
+                for (ulong generation = 1; generation <= 2048; generation++)
+                {
+                    TResult expected = createResult(generation);
+                    var operation = FileSystemSaveGameOperation<TResult>.Start(
+                        new SaveGameOperationId("result-race"), capacity,
+                        context => context.TryEnterPublishing()
+                            ? FileSystemOperationCompletion<TResult>.Success(expected)
+                            : FileSystemOperationCompletion<TResult>.Cancelled());
+                    Assert.That(SpinWait.SpinUntil(() => operation.HasWorkerCompletion, 5000), Is.True);
+                    var entry = new ResultPublicationRace<TResult>.Entry(operation, expected);
+                    Volatile.Write(ref race.Current, entry);
+                    Assert.That(SpinWait.SpinUntil(() => ReferenceEquals(Volatile.Read(ref race.Seen), entry)
+                        || Volatile.Read(ref race.Failure) != null, 5000), Is.True);
+                    Thread.SpinWait(8);
+                    operation.Poll();
+                    Assert.That(SpinWait.SpinUntil(() => ReferenceEquals(Volatile.Read(ref race.Completed), entry)
+                        || Volatile.Read(ref race.Failure) != null, 5000), Is.True);
+                    Assert.That(Volatile.Read(ref race.Failure), Is.Null);
+                    Assert.That(operation.Status, Is.EqualTo(SaveGameOperationStatus.Succeeded));
+                }
+            }
+            finally
+            {
+                Volatile.Write(ref race.Stop, 1);
+                Assert.That(reader.Join(5000), Is.True, "Result reader did not stop.");
+            }
+            Assert.That(race.SuccessfulReads, Is.GreaterThanOrEqualTo(2048));
+        }
+
+        private sealed class PublishedReferenceResult
+        {
+            public PublishedReferenceResult(ulong generation) { Generation = generation; }
+            public ulong Generation { get; }
+        }
+
+        private sealed class ResultPublicationRace<TResult>
+        {
+            public sealed class Entry
+            {
+                public Entry(FileSystemSaveGameOperation<TResult> operation, TResult expected)
+                {
+                    Operation = operation;
+                    Expected = expected;
+                }
+                public FileSystemSaveGameOperation<TResult> Operation { get; }
+                public TResult Expected { get; }
+            }
+
+            private readonly Func<TResult, TResult, bool> _matches;
+            public Entry Current;
+            public Entry Seen;
+            public Entry Completed;
+            public string Failure;
+            public int Stop;
+            public long SuccessfulReads;
+
+            public ResultPublicationRace(Func<TResult, TResult, bool> matches) { _matches = matches; }
+
+            public void ReadResults()
+            {
+                try
+                {
+                    while (Volatile.Read(ref Stop) == 0)
+                    {
+                        Entry entry = Volatile.Read(ref Current);
+                        if (entry == null) { Thread.SpinWait(1); continue; }
+                        bool hasResult = entry.Operation.TryGetResult(out TResult result);
+                        Volatile.Write(ref Seen, entry);
+                        if (hasResult)
+                        {
+                            SuccessfulReads++;
+                            if (!_matches(result, entry.Expected))
+                            {
+                                Volatile.Write(ref Failure, "TryGetResult returned true with a different or default result.");
+                                return;
+                            }
+                            Volatile.Write(ref Completed, entry);
+                        }
+                        else if (!EqualityComparer<TResult>.Default.Equals(result, default))
+                        {
+                            Volatile.Write(ref Failure, "TryGetResult returned false with a non-default result.");
+                            return;
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Volatile.Write(ref Failure, exception.ToString());
+                }
+            }
         }
 
         [Test]

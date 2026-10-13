@@ -9,7 +9,40 @@ namespace MxFramework.Game.CharacterTest
 {
     internal enum CharacterTestNavigationProbeShape
     {
-        Capsule = 1
+        Capsule = 1,
+        SweptObb = 2
+    }
+
+    internal static class CharacterTestNavigationClearanceProbe
+    {
+        // A single conservative box encloses the swept standing capsule, including its end caps.
+        // Ground skin and the motor's grounded step allowance are excluded from the lower band.
+        internal static CombatPhysicsQuery CreateQuery(
+            CombatQueryHeader header,
+            CharacterTestCharacterPhysicsRuntime physics,
+            CharacterTestCharacterEntity source,
+            FixVector3 origin,
+            FixVector3 direction,
+            Fix64 length,
+            FixVector3 halfExtents)
+        {
+            direction.TryNormalize(out FixVector3 forward);
+            Fix64 radius = Fix64.Max(halfExtents.X, halfExtents.Z);
+            Fix64 skin = Fix64.Max(physics.SkinWidth, Fix64.FromRaw(1));
+            Fix64 lowerAllowance = skin + (source.IsGrounded ? physics.MaxStepHeight : Fix64.Zero);
+            Fix64 height = halfExtents.Y + halfExtents.Y;
+            lowerAllowance = Fix64.Min(lowerAllowance, height);
+            Fix64 halfLength = length * Fix64.Half;
+            FixVector3 center = origin + forward * halfLength
+                + new FixVector3(Fix64.Zero, lowerAllowance * Fix64.Half, Fix64.Zero);
+            return CombatPhysicsQuery.From(new CombatObbQuery(
+                header,
+                center,
+                new FixVector3(halfLength + radius, (height - lowerAllowance) * Fix64.Half, radius),
+                forward,
+                new FixVector3(Fix64.Zero, Fix64.One, Fix64.Zero),
+                new FixVector3(-forward.Z, Fix64.Zero, forward.X)));
+        }
     }
 
     public readonly struct CharacterTestAiNavigationResult
@@ -144,7 +177,7 @@ namespace MxFramework.Game.CharacterTest
                 _probeMinLength,
                 _probeMaxLength,
                 _candidateAngles,
-                CharacterTestNavigationProbeShape.Capsule,
+                CharacterTestNavigationProbeShape.SweptObb,
                 obstacleLayerMask,
                 clearanceHalfExtents);
         }
@@ -254,10 +287,9 @@ namespace MxFramework.Game.CharacterTest
                 ToFix64(direction.x),
                 Fix64.Zero,
                 ToFix64(direction.y));
-            Fix64 clearanceRadius = ResolveClearanceRadius(self);
             var header = new CombatQueryHeader(
                 queryId: NavigationQueryId + candidateIndex + 1,
-                kind: CombatQueryKind.Capsule,
+                kind: CombatQueryKind.Obb,
                 sourceEntityId: _physicsRuntime.GetEntityId(self),
                 traceId: NavigationQueryId,
                 actionId: 0,
@@ -265,12 +297,10 @@ namespace MxFramework.Game.CharacterTest
                 layerMask: _physicsRuntime.MotionObstacleLayerMask);
 
             _queryResults.Clear();
-            _physicsRuntime.World.QueryCapsule(
-                new CombatCapsuleQuery(
-                    header,
-                    origin,
-                    origin + (probeDirection * probeLength),
-                    clearanceRadius),
+            _physicsRuntime.World.Query(
+                CharacterTestNavigationClearanceProbe.CreateQuery(
+                    header, _physicsRuntime, self, origin, probeDirection, probeLength,
+                    _physicsRuntime.GetCharacterHalfExtents(self)),
                 _queryResults);
             CombatEntityId ignoredTargetEntityId = _physicsRuntime.GetEntityId(target);
             for (int i = 0; i < _queryResults.Count; i++)
@@ -295,13 +325,6 @@ namespace MxFramework.Game.CharacterTest
                 ToFix64(entity.Transform.X),
                 ToFix64(entity.Transform.Y) + _physicsRuntime.GetCharacterCenterOffsetY(entity),
                 ToFix64(entity.Transform.Z));
-        }
-
-        private Fix64 ResolveClearanceRadius(CharacterTestCharacterEntity entity)
-        {
-            FixVector3 halfExtents = _physicsRuntime.GetCharacterHalfExtents(entity);
-            Fix64 radius = halfExtents.X > halfExtents.Z ? halfExtents.X : halfExtents.Z;
-            return radius < Fix64.Zero ? Fix64.Zero : radius;
         }
 
         private static Vector2 Rotate(Vector2 direction, float degrees)

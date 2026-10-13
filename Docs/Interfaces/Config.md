@@ -1,6 +1,12 @@
 # Config 接口
 
 > Status: Current
+>
+> 版本 2026-10-13 | Issue #790
+>
+> Code-Doc: `Packages/com.vincent.wgameframework/Config/ConfigValidation.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Config/ConfigTableValidation.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Config/ConfigProviderTests.cs`
 
 ## 职责
 
@@ -23,6 +29,7 @@ Config 提供配置访问、表结构、校验、多语言 key、AI/Editor 友�
 | `LocalizedTextKey` / `ILocalizationProvider` | 多语言 key 和文本提供者 |
 | `LocalizationTsvLoader` / `LocalizationTsvLoadResult` | 读取 `key<TAB><locale...>` TSV，填充 `MemoryLocalizationProvider` 并输出 locales、keys 和结构化 issues |
 | `ConfigTableValidator` | 表级校验 |
+| `IConfigReferenceProvider` / `ConfigValidator` | 收集配置行引用并校验目标存在性 |
 | `ConfigAuthoring` | TSV 模板和结构化报告 |
 | Buff config factory | Retired in Buff v2; register `GameplayBuffDefinitionRegistry` from Gameplay composition roots instead |
 | `ConfigModifierFactory<TConfig>` | 配置驱动 Modifier 创建 |
@@ -53,6 +60,9 @@ Config 提供配置访问、表结构、校验、多语言 key、AI/Editor 友�
 
 - `id <= 0` 非法；`0` 保留为 invalid。
 - `GetConfig<T>` 缺失时抛异常；无异常流程用 `TryGetConfig` 或 `GetConfigResult`。
+- `ConfigTableValidator` 和 `ConfigValidator.ValidateReferences<T>` 的运行时类型引用通过 `IConfigProvider.ContainsConfig<TTarget>(id)` 点查询；`ConfigRegistry` 继续经当前已注册 provider 的 `TryGetConfig<TTarget>` 分派。不会为每条引用读取目标整表。
+- 引用查询委托按 target type 在一次 Validate 内绑定并复用；不跨调用保留 provider、目标行或存在性结果。provider 替换、清空或行数据修改后，下一次校验读取当前内容。原有 required/optional、Severity、行/字段、诊断文本与顺序不变；动态类型绑定异常及 provider 调用的 `TargetInvocationException` 包装保持。
+- 配置校验仍为低频 `AllocByDesign`：源行快照、字段反射/装箱、引用收集、报告及单次校验的类型查询绑定仍可能分配；该优化不声明整个校验零分配。`MemoryConfigProvider.GetAllConfigs<T>` 保持按调用返回快照的行为。
 - 业务表中的多语言字段保存 `LocalizedTextKey`，具体语言文本由 `ILocalizationProvider` 提供。
 - `LocalizationTsvLoader.LoadFromText(string)` 固定要求 header 第一列为 `key`，后续列为 locale id；空 key 输出 error，空文本输出 warning，重复 key/locale 输出 warning 且后值覆盖前值。
 - 字段使用枚举或 flags 时只保存 `enumId`，枚举值由 `ConfigEnumRegistry` 统一解释。
@@ -83,3 +93,19 @@ Config 提供配置访问、表结构、校验、多语言 key、AI/Editor 友�
 ## 测试入口
 
 `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Config/`
+
+`ConfigProviderTests`、`ConfigTableTests` 和同文件的 `ConfigReferenceValidationTests` 覆盖两个引用入口的重复引用无目标快照、不同目标类型（含 struct）、默认同类型表解析、provider 替换/清空与行增删、required/optional、Severity/HasErrors、精确诊断顺序/内容、null/非法目标类型和 provider 异常包装。
+
+### Issue #790 的 Mac 离线对照
+
+2026-10-13 在 macOS 26.6 / arm64、.NET SDK 9.0.306 / Runtime 9.0.10，使用基线 `1a67c7753c5f5f7ee3a0412d8a1e09ce23981803` 的原样 Config 根目录源码与本次候选分别构建同一独立 Release 探针。两个 validator 的基线源码与提报 commit `e5a10eaef8229ff0627bb69626770e69585f5377` 一致。每种输入含 N 个 owner、N 个 target（ID 1..N），所有 owner 引用 target ID=N；表入口使用 registry，接口入口使用默认 memory provider。构造在测量区间外，两轮均设置 `DOTNET_TieredCompilation=0`，预热 8 次，以下为 15 次样本的中位数。计时/分配使用无 observer 的真实路径，调用计数另用转发 observer 核对，不以 Windows 数字作为 Mac 基线。
+
+| N | 表级分配：原实现 → 候选 | 表级耗时：原实现 → 候选 | 接口引用分配：原实现 → 候选 | 接口引用耗时：原实现 → 候选 |
+|---:|---:|---:|---:|---:|
+| 250 | 572,184 → 8,696 B | 0.610166 → 0.024584 ms | 582,576 → 19,088 B | 0.626625 → 0.012291 ms |
+| 500 | 2,144,184 → 16,696 B | 2.282500 → 0.052959 ms | 2,164,984 → 37,496 B | 2.342208 → 0.025625 ms |
+| 1,000 | 8,288,184 → 32,696 B | 8.768250 → 0.109125 ms | 8,329,776 → 74,288 B | 9.059584 → 0.048084 ms |
+
+三个规模的两个入口，目标 `GetAllConfigs` 调用均由 N 次降至 0 次，目标快照物化行数由 N² 降至 0，目标点查询为 N 次。源行枚举仍保留一次快照；目标与源是同一类型时，该源快照也不会被当作可复用的目标数据缓存。38 个 NUnit fixture cases 已离线直接调用通过（既有 19 + 新增 19）；新测试对原样基线只有 4 个“拒绝目标快照”case 失败，其余 34 个通过，候选为 38/38。完整本地探针、基线快照/manifest、构建日志及两轮结果保留在 `.agent/issue-790/`，不作为版本化源码交付。
+
+这些是本机离线逻辑和合成输入的测量，不据此承诺跨机耗时或实际帧率收益。本轮另在 Unity 6000.6.3f1 原生 EditMode Runner 执行上述三个 fixture，38/38 通过、0 failed、0 skipped；脚本门禁确认 refresh completed、compilation started/finished、domain reload observed、Editor ready 和 Console error count=0。回执 job 分别为 `217332da585d44ce9a9c6e1c7df6bb1a`（测试）与 `6573e621f29b43fcb16da795371e54ca`（编译）。Player/IL2CPP 和正式配置规模未覆盖；原 F06 独立轻量复核仍待执行，修复入 main 不代表 Issue 已验收关闭。

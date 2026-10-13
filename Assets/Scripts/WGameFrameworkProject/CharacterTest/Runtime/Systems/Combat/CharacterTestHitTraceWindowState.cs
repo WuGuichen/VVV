@@ -1293,7 +1293,8 @@ namespace MxFramework.Game.CharacterTest
                 request.HitEvent,
                 request.HitVolume,
                 request.Metadata.StableEventId,
-                request.Metadata.LocalFrame));
+                request.Metadata.LocalFrame,
+                entity.FreezeDoubleEdgeTrace(hitWindowId, request.Metadata.InstanceId, frame.Value)));
             traceRecorder?.AttackCombat(
                 frame,
                 entity.Id.Value,

@@ -80,7 +80,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         public bool AttackerWasAlive, TargetWasAlive, TargetRemainsAlive;
         public long DirectionX, DirectionZ;
         internal TacticalInteractionReceipt Key => new TacticalInteractionReceipt(Identity.Stage, 0,
-            Identity.Frame, Identity.Attacker, Identity.Target, Identity.ActionInstance, Identity.Trace);
+            Identity.Frame, Identity.Attacker, Identity.Target, Identity.ActionInstance, Identity.Trace, Identity.ProducerIdentity);
     }
 
     internal struct TacticalAccessoryConsumptionData
@@ -116,7 +116,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             for (int i = 0; i < Receipts.Length; i++)
             {
                 var r = Receipts[i]; var id = r.Identity;
-                if (r.Sequence != (ulong)i + 1 || id.Stage != stage || id.Turn == 0 || id.Turn > turn
+                if (!id.HasValidProducer || r.Sequence != (ulong)i + 1 || id.Stage != stage || id.Turn == 0 || id.Turn > turn
                     || id.Frame < 0 || id.Frame > frame || (i > 0 && id.Frame < Receipts[i - 1].Identity.Frame)
                     || !id.Attacker.IsValid || !id.Target.IsValid || id.Attacker == id.Target
                     || (id.Attacker != actor && id.Target != actor) || id.ActionInstance <= 0 || id.Trace <= 0
@@ -207,6 +207,15 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal ulong AccessoryReceiptSequence => (ulong)_accessoryReceipts.Count;
         internal int AccessoryActivationCount => _accessories.Count;
         internal TacticalAccessoryCombatState AccessoryAt(int index) => _accessories[index];
+        /// <remarks>NoAlloc. Reads the committed combat owner's consumption delta, never predicts a hit.</remarks>
+        internal bool TryReadAccessoryConsumption(ulong activationId, out TacticalAccessoryConsumptionData consumption)
+        {
+            for (int i = 0; i < _accessoryConsumptions.Count; i++)
+                if (_accessoryConsumptions[i].ActivationId == activationId)
+                { consumption = _accessoryConsumptions[i]; return true; }
+            consumption = default; return false;
+        }
+
 
         /// <summary>Private frozen batch. The caller prepares every other participant before publishing it.
         /// No simulation step, callback or reentrant admission is allowed between preparation and publication.</summary>
@@ -313,8 +322,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 || receipt.AttackDirection.Z < -Fix64.One || receipt.AttackDirection.Z > Fix64.One
                 || receipt.Outcome < MxFramework.Combat.Hit.HitResolveKind.Damage
                 || receipt.Outcome > MxFramework.Combat.Hit.HitResolveKind.Evaded) return 0;
-            var id = new TacticalInteractionReceipt(Stage, Turn, receipt.Frame, receipt.Attacker, receipt.Target, receipt.ActionInstance, receipt.Trace);
-            var key = new TacticalInteractionReceipt(Stage, 0, receipt.Frame, receipt.Attacker, receipt.Target, receipt.ActionInstance, receipt.Trace);
+            var id = new TacticalInteractionReceipt(Stage, Turn, receipt.Frame, receipt.Attacker, receipt.Target, receipt.ActionInstance, receipt.Trace, receipt.ProducerIdentity);
+            var key = new TacticalInteractionReceipt(Stage, 0, receipt.Frame, receipt.Attacker, receipt.Target, receipt.ActionInstance, receipt.Trace, receipt.ProducerIdentity);
             if (_accessorySeen.Contains(key) || _accessoryReceipts.Count == MaxReceipts || receipt.Sequence != AccessoryReceiptSequence + 1
                 || (_accessoryReceipts.Count > 0 && receipt.Frame < _accessoryReceipts[_accessoryReceipts.Count - 1].Identity.Frame)) return 0;
             _accessoryMutationVersion++;
@@ -397,7 +406,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 hash.AddInt(9, id.ActionInstance); hash.AddInt(10, id.Trace); hash.AddInt(11, r.SourceKind); hash.AddInt(12, r.Origin); hash.AddInt(13, r.Outcome);
                 hash.AddLong(14, r.DirectionX); hash.AddLong(15, r.DirectionZ); hash.AddInt(16, r.ActionId);
                 hash.AddInt(17, r.TargetMassGrams); hash.AddInt(18, r.TargetPushScaleMilli); hash.AddBool(19, r.AttackerWasAlive);
-                hash.AddBool(20, r.TargetWasAlive); hash.AddBool(21, r.TargetRemainsAlive); hash.EndElement();
+                hash.AddBool(20, r.TargetWasAlive); hash.AddBool(21, r.TargetRemainsAlive); id.AddProducerHash(ref hash, 22, 23, 24, 25); hash.EndElement();
             }
             hash.EndArray(); hash.BeginArray(4, _accessoryConsumptions.Count);
             for (int i = 0; i < _accessoryConsumptions.Count; i++)

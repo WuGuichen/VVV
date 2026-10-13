@@ -1,15 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using UnityEngine;
 
 namespace MxFramework.Resources.Unity
 {
+    /// <remarks>LowFreqAlloc. File hashing and native bundle access require the Unity main thread.</remarks>
     public sealed class AssetBundleProvider : IResourceProvider
     {
         public const string Id = "assetBundle";
         public const string ExternalId = "externalAssetBundle";
+
+        // Only successful loads performed here establish provenance. Unity's bundle name is not source evidence.
+        private static readonly Dictionary<AssetBundle, SharedBundleRecord> SharedBundles = new Dictionary<AssetBundle, SharedBundleRecord>();
+        private static readonly StringComparer SourcePathComparer = Path.DirectorySeparatorChar == '\\'
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
         private readonly string _bundleRootPath;
         private readonly string _providerId;
@@ -23,7 +31,7 @@ namespace MxFramework.Resources.Unity
 
         public AssetBundleProvider(string bundleRootPath, string providerId, IAssetBundleDependencyProvider dependencyProvider = null)
         {
-            _bundleRootPath = bundleRootPath ?? string.Empty;
+            _bundleRootPath = Path.GetFullPath(string.IsNullOrEmpty(bundleRootPath) ? "." : bundleRootPath);
             _providerId = string.IsNullOrWhiteSpace(providerId) ? Id : providerId;
             _dependencyProvider = dependencyProvider ?? EmptyAssetBundleDependencyProvider.Instance;
         }
@@ -87,7 +95,8 @@ namespace MxFramework.Resources.Unity
             if (!bundleError.IsNone)
             {
                 ReleaseBundles(loadedBundles);
-                return ResourceLoadResult<object>.Failed(bundleError);
+                return ResourceLoadResult<object>.Failed(new ResourceError(
+                    bundleError.Code, context.Key, ProviderId, bundleError.Message, bundleError.Address));
             }
 
             System.Type assetType = UnityResourceTypeResolver.Resolve(context.Entry.TypeId);
@@ -164,45 +173,74 @@ namespace MxFramework.Resources.Unity
                     "AssetBundle name is missing.");
             }
 
-            if (_bundles.TryGetValue(bundleName, out BundleRecord existing))
-            {
-                existing.RefCount++;
-                loadedBundles.Add(bundleName);
-                return ResourceError.None;
-            }
-
             string fullPath = Path.Combine(_bundleRootPath, bundleName);
-            if (!File.Exists(fullPath))
+            try
             {
-                return new ResourceError(
-                    ResourceErrorCode.NotFound,
-                    default,
-                    ProviderId,
-                    "AssetBundle file was not found.",
-                    fullPath);
-            }
+                fullPath = Path.GetFullPath(fullPath);
+                if (!File.Exists(fullPath))
+                {
+                    return new ResourceError(ResourceErrorCode.NotFound, default, ProviderId,
+                        "AssetBundle file was not found.", fullPath);
+                }
 
-            if (TryFindLoadedBundle(bundleName, fullPath, out AssetBundle borrowedBundle))
+                // Keep the source open without write sharing through the native load and provenance registration.
+                using (var source = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    string sourceHash = ComputeSourceHash(source);
+                    if (_bundles.TryGetValue(bundleName, out BundleRecord existing))
+                    {
+                        if (!MatchesSource(existing.Shared, fullPath, sourceHash) || !IsBundleLoaded(existing.Bundle))
+                            return SourceIdentityError(fullPath, sourceHash, existing.Shared);
+
+                        existing.RefCount++;
+                        loadedBundles.Add(bundleName);
+                        return ResourceError.None;
+                    }
+
+                    ResourceError reuseError = FindLoadedBundle(bundleName, fullPath, sourceHash, out SharedBundleRecord shared);
+                    if (!reuseError.IsNone)
+                        return reuseError;
+
+                    if (shared == null)
+                    {
+                        AssetBundle bundle = AssetBundle.LoadFromFile(fullPath);
+                        if (bundle == null)
+                        {
+                            return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                                "AssetBundle failed to load from the requested source.", fullPath);
+                        }
+
+                        try
+                        {
+                            source.Position = 0;
+                            if (!string.Equals(sourceHash, ComputeSourceHash(source), StringComparison.Ordinal))
+                            {
+                                UnloadBundleIfAlive(bundle);
+                                return SourceIdentityError(fullPath, sourceHash, null);
+                            }
+                        }
+                        catch
+                        {
+                            UnloadBundleIfAlive(bundle);
+                            throw;
+                        }
+
+                        shared = new SharedBundleRecord(bundle, fullPath, sourceHash);
+                        SharedBundles[bundle] = shared;
+                    }
+
+                    shared.LeaseCount++;
+                    _bundles.Add(bundleName, new BundleRecord(shared));
+                    loadedBundles.Add(bundleName);
+                    return ResourceError.None;
+                }
+            }
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException
+                || exception is ArgumentException || exception is NotSupportedException)
             {
-                _bundles.Add(bundleName, new BundleRecord(borrowedBundle, ownsBundle: false));
-                loadedBundles.Add(bundleName);
-                return ResourceError.None;
+                return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                    "AssetBundle source identity could not be verified: " + exception.Message, fullPath);
             }
-
-            AssetBundle bundle = AssetBundle.LoadFromFile(fullPath);
-            if (bundle == null)
-            {
-                return new ResourceError(
-                    ResourceErrorCode.ProviderFailed,
-                    default,
-                    ProviderId,
-                    "AssetBundle failed to load.",
-                    fullPath);
-            }
-
-            _bundles.Add(bundleName, new BundleRecord(bundle, ownsBundle: true));
-            loadedBundles.Add(bundleName);
-            return ResourceError.None;
         }
 
         private void ReleaseBundles(List<string> bundleNames)
@@ -221,8 +259,16 @@ namespace MxFramework.Resources.Unity
                 return;
 
             _bundles.Remove(bundleName);
-            if (record.OwnsBundle)
-                UnloadBundleIfAlive(record.Bundle);
+            SharedBundleRecord shared = record.Shared;
+            shared.LeaseCount--;
+            if (shared.LeaseCount > 0)
+                return;
+
+            if (SharedBundles.TryGetValue(shared.Bundle, out SharedBundleRecord registered)
+                && ReferenceEquals(registered, shared))
+                SharedBundles.Remove(shared.Bundle);
+            if (IsBundleLoaded(shared.Bundle))
+                UnloadBundleIfAlive(shared.Bundle);
         }
 
         private static void UnloadBundleIfAlive(AssetBundle bundle)
@@ -240,27 +286,69 @@ namespace MxFramework.Resources.Unity
             }
         }
 
-        private static bool TryFindLoadedBundle(string bundleName, string fullPath, out AssetBundle bundle)
+        private ResourceError FindLoadedBundle(string bundleName, string fullPath, string sourceHash, out SharedBundleRecord shared)
         {
             string normalizedBundleName = NormalizeBundleName(bundleName);
             string fileName = Path.GetFileName(bundleName);
-            string fullFileName = Path.GetFileName(fullPath);
+            ResourceError conflict = ResourceError.None;
             foreach (AssetBundle loaded in AssetBundle.GetAllLoadedAssetBundles())
             {
                 if (loaded == null)
                     continue;
 
+                SharedBundles.TryGetValue(loaded, out SharedBundleRecord known);
+                if (known != null && known.Bundle != loaded)
+                    known = null;
+                if (known != null && MatchesSource(known, fullPath, sourceHash))
+                {
+                    shared = known;
+                    return ResourceError.None;
+                }
+
                 string loadedName = NormalizeBundleName(loaded.name);
                 if (string.Equals(loadedName, normalizedBundleName, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(loaded.name, fileName, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(loaded.name, fullFileName, StringComparison.OrdinalIgnoreCase))
+                    || (known != null && (SourcePathComparer.Equals(known.SourcePath, fullPath)
+                        || string.Equals(Path.GetFileName(known.SourcePath), fileName, StringComparison.OrdinalIgnoreCase))))
                 {
-                    bundle = loaded;
-                    return true;
+                    conflict = SourceIdentityError(fullPath, sourceHash, known);
                 }
             }
 
-            bundle = null;
+            shared = null;
+            return conflict;
+        }
+
+        private ResourceError SourceIdentityError(string fullPath, string sourceHash, SharedBundleRecord loaded)
+        {
+            string loadedSource = loaded == null ? "unknown or unregistered"
+                : "'" + loaded.SourcePath + "' sha256:" + loaded.SourceHash;
+            return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                "AssetBundle source identity conflict or invalidated native bundle. Requested '" + fullPath
+                + "' sha256:" + sourceHash + "; loaded source: " + loadedSource + ".", fullPath);
+        }
+
+        private static bool MatchesSource(SharedBundleRecord record, string fullPath, string sourceHash)
+        {
+            return SourcePathComparer.Equals(record.SourcePath, fullPath)
+                && string.Equals(record.SourceHash, sourceHash, StringComparison.Ordinal);
+        }
+
+        private static string ComputeSourceHash(Stream stream)
+        {
+            using (SHA256 hash = SHA256.Create())
+                return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", string.Empty);
+        }
+
+        private static bool IsBundleLoaded(AssetBundle bundle)
+        {
+            if (bundle == null)
+                return false;
+            foreach (AssetBundle loaded in AssetBundle.GetAllLoadedAssetBundles())
+            {
+                if (loaded == bundle)
+                    return true;
+            }
             return false;
         }
 
@@ -271,16 +359,30 @@ namespace MxFramework.Resources.Unity
 
         private sealed class BundleRecord
         {
-            public BundleRecord(AssetBundle bundle, bool ownsBundle)
+            public BundleRecord(SharedBundleRecord shared)
             {
-                Bundle = bundle;
-                OwnsBundle = ownsBundle;
+                Shared = shared;
                 RefCount = 1;
             }
 
-            public AssetBundle Bundle { get; }
-            public bool OwnsBundle { get; }
+            public AssetBundle Bundle => Shared.Bundle;
+            public SharedBundleRecord Shared { get; }
             public int RefCount { get; set; }
+        }
+
+        private sealed class SharedBundleRecord
+        {
+            public SharedBundleRecord(AssetBundle bundle, string sourcePath, string sourceHash)
+            {
+                Bundle = bundle;
+                SourcePath = sourcePath;
+                SourceHash = sourceHash;
+            }
+
+            public AssetBundle Bundle { get; }
+            public string SourcePath { get; }
+            public string SourceHash { get; }
+            public int LeaseCount { get; set; }
         }
     }
 }

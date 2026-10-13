@@ -27,8 +27,10 @@ namespace MxFramework.Game.CharacterTest
         internal bool DirectPlayActive => _directPlayCard != null;
         internal bool DirectPlayNeedsPoint => DirectPlayActive && NeedsPoint;
         internal bool BattleInputBlocked => _inventoryOpen || _automaticBattlePresentation
-            || _preparationManager?.RuntimeContext?.UiRuntime?.HasTacticalLoading == true
+            || _preparationManager?.RuntimeContext?.UiRuntime?.BlocksTacticalBattleInput == true
             || _preparationManager?.RuntimeContext?.UiRuntime?.FairyGuiSettingsPanelHost?.IsOpen == true;
+        internal bool BattleCancelInputBlocked => BattleInputBlocked
+            || _preparationManager?.RuntimeContext?.UiRuntime?.OwnsTacticalCancelInput == true;
         internal void OpenBattleSettings() => _preparationManager?.RuntimeContext?.UiRuntime?.FairyGuiSettingsPanelHost?.Open();
 
         internal bool TryDirectPlayHandSlot(int slot, TacticalWorldPoint? point = null)
@@ -135,7 +137,7 @@ namespace MxFramework.Game.CharacterTest
         {
             if (!DirectPlayActive) return;
             _directCancelRequested = true;
-            if (CanCancelPending) _directCancelSubmitted = TryCancelPending();
+            if (!_directCancelSubmitted && CanCancelPending) _directCancelSubmitted = TryCancelPending();
         }
         private void CaptureDirectPlayRejection()
         {

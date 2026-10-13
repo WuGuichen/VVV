@@ -416,6 +416,13 @@ namespace MxFramework.ApplicationStartup
             RuntimeOperationError terminalError = _operation.Error;
             IApplicationStartupInnerErrorDetail terminalDetail = _operation.InnerErrorDetail;
 
+            if (terminalStatus == RuntimeOperationStatus.Succeeded)
+            {
+                // A successful drain still owns a completed step that needs compensation.
+                _completedWeight += descriptor.ProgressWeight;
+                _completedCount++;
+            }
+
             if (State == ApplicationStartupState.Draining)
             {
                 _drainedOperationStatus = terminalStatus;
@@ -435,8 +442,6 @@ namespace MxFramework.ApplicationStartup
 
             if (terminalStatus == RuntimeOperationStatus.Succeeded)
             {
-                _completedWeight += descriptor.ProgressWeight;
-                _completedCount++;
                 _forwardIndex++;
                 _operation = null;
                 CurrentStepId = default;

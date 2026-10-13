@@ -64,6 +64,18 @@ namespace MxFramework.Game.CharacterTest
             int staticColliderCount,
             string sourceDescription,
             Fix64 groundSnapDistance)
+            : this(world, obstacleLayerMask, characterHalfExtents, skinWidth, maxStepHeight,
+                staticColliderCount, sourceDescription, groundSnapDistance, staticReferenceMotion: false)
+        {
+        }
+
+        // Static reference worlds still expose the production character collision proxy to projectiles.
+        // Only their motor queries omit actors, so distance-search poses cannot depenetrate each other.
+        // Ordinary constructors retain the production motion-layer contract.
+        internal CharacterTestCharacterPhysicsRuntime(
+            CombatPhysicsWorld world, CombatPhysicsLayerMask obstacleLayerMask, FixVector3 characterHalfExtents,
+            Fix64 skinWidth, Fix64 maxStepHeight, int staticColliderCount, string sourceDescription,
+            Fix64 groundSnapDistance, bool staticReferenceMotion)
         {
             World = world;
             ObstacleLayerMask = obstacleLayerMask;
@@ -71,7 +83,7 @@ namespace MxFramework.Game.CharacterTest
             DynamicCharacterObstacleLayerMask = CombatPhysicsLayerMask.FromLayer(DynamicCharacterLayer);
             DynamicMovableObjectObstacleLayerMask = CombatPhysicsLayerMask.FromLayer(DynamicMovableObjectLayer);
             BodyPresenceLayerMask = CombatPhysicsLayerMask.FromLayer(BodyPresenceLayer);
-            MotionObstacleLayerMask = obstacleLayerMask
+            MotionObstacleLayerMask = staticReferenceMotion ? obstacleLayerMask : obstacleLayerMask
                 .AddLayer(DynamicCharacterLayer)
                 .AddLayer(DynamicMovableObjectLayer);
             CharacterHalfExtents = characterHalfExtents;

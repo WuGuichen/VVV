@@ -652,6 +652,80 @@ namespace MxFramework.Tests.PersistenceFileSystem
             Assert.That(File.Exists(GenerationPath(slot, 4)), Is.True);
         }
 
+        [Test]
+        public void RET007_ReadUncertaintyPreservesPreviousAndPublishedSuccess(
+            [Values(false, true)] bool previousTombstone,
+            [Values(false, true)] bool deleteHead,
+            [Values(SaveGameErrorCode.QuotaExceeded, SaveGameErrorCode.IoFailure, SaveGameErrorCode.PermissionDenied)] SaveGameErrorCode fault)
+        {
+            var slot = new SaveGameSlotId("slot");
+            FileSystemSaveGameStore store = _factory.CreateStore(null);
+            AssertCommit(store, slot, 0, "one");
+            if (previousTombstone)
+            {
+                var deleted = Complete(store.Delete(new SaveGameDeleteRequest(Profile, slot,
+                    new SaveGameGeneration(1), Time.AddSeconds(1), Build())));
+                Assert.That(deleted.Status, Is.EqualTo(SaveGameOperationStatus.Succeeded));
+            }
+            else AssertCommit(store, slot, 1, "two");
+
+            _backend.RetentionReadPath = GenerationPath(slot, 2);
+            _backend.RetentionPublishedPath = GenerationPath(slot, 3);
+            _backend.RetentionReadFault = fault;
+            _backend.RetentionReadPending = true;
+            SaveGameWarning warning;
+            if (deleteHead)
+            {
+                var head = Complete(store.Delete(new SaveGameDeleteRequest(Profile, slot,
+                    new SaveGameGeneration(2), Time.AddSeconds(2), Build())));
+                Assert.That(head.Status, Is.EqualTo(SaveGameOperationStatus.Succeeded), head.Error.ToString());
+                Assert.That(head.Result.Generation.Value, Is.EqualTo(3UL));
+                warning = head.Result.Warning;
+            }
+            else warning = AssertCommit(store, slot, 2, "three").Result.Warning;
+            Assert.That(_backend.RetentionReadPending, Is.False, "Fault must occur after generation 3 is published.");
+            Assert.That(warning, Is.EqualTo(SaveGameWarning.RetentionCleanupFailed));
+            AssertGenerations(slot, 1, 2, 3);
+
+            var exact = Complete(store.Read(new SaveGameReadRequest(Profile, slot,
+                SaveGameReadSelection.Exact(new SaveGameGeneration(2)))));
+            Assert.That(exact.Error.Code, Is.EqualTo(previousTombstone ? SaveGameErrorCode.SlotDeleted : SaveGameErrorCode.None));
+            if (!previousTombstone) Assert.That(exact.Result.SelectedGeneration.Value, Is.EqualTo(2UL));
+
+            // The successful publication remains the CAS head even though retention warned.
+            var stale = Complete(store.Commit(new SaveGameCommitRequest(Profile, slot, new SaveGameGeneration(2),
+                new SaveGameEncodedEnvelope(EncodeSave(slot, 3, "stale")))));
+            Assert.That(stale.Error.Code, Is.EqualTo(SaveGameErrorCode.GenerationConflict));
+            File.WriteAllBytes(GenerationPath(slot, 3), Corrupt(File.ReadAllBytes(GenerationPath(slot, 3))));
+            var recovered = Complete(store.Read(new SaveGameReadRequest(Profile, slot, SaveGameReadSelection.Current,
+                SaveGameRecoveryPolicy.PrimaryThenLastKnownGood)));
+            if (previousTombstone)
+            {
+                Assert.That(recovered.Status, Is.EqualTo(SaveGameOperationStatus.Failed));
+                Assert.That(recovered.Error.Code, Is.EqualTo(SaveGameErrorCode.IntegrityFailed));
+            }
+            else
+            {
+                Assert.That(recovered.Status, Is.EqualTo(SaveGameOperationStatus.Succeeded), recovered.Error.ToString());
+                Assert.That(recovered.Result.OriginalGeneration.Value, Is.EqualTo(3UL));
+                Assert.That(recovered.Result.SelectedGeneration.Value, Is.EqualTo(2UL));
+                Assert.That(recovered.Result.RecoverySource, Is.EqualTo(SaveGameRecoverySource.LastKnownGood));
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RET008_CorruptOrUnsupportedPreviousStillAllowsBoundedCleanup(bool unsupported)
+        {
+            var slot = new SaveGameSlotId("slot");
+            WriteSave(slot, 1, "one");
+            byte[] previous = EncodeSave(slot, 2, "two");
+            WriteBytes(slot, 2, unsupported ? UnsupportedVersion(previous) : Corrupt(previous));
+            var head = AssertCommit(_factory.CreateStore(null), slot, 2, "three");
+            Assert.That(head.Result.Warning, Is.EqualTo(SaveGameWarning.None));
+            AssertGenerations(slot, 1, 3);
+        }
+
         private ISaveGameOperation<SaveGameCommitResult> AssertCommit(
             FileSystemSaveGameStore store,
             SaveGameSlotId slot,
@@ -849,7 +923,7 @@ namespace MxFramework.Tests.PersistenceFileSystem
             }
         }
 
-        private sealed class TestBackend : IFileSystemBackend
+        private sealed class TestBackend : IFileSystemBackend, IFileSystemIoFailureClassifier
         {
             private readonly IFileSystemBackend _inner;
             public TestBackend(IFileSystemBackend inner) { _inner = inner; }
@@ -860,6 +934,13 @@ namespace MxFramework.Tests.PersistenceFileSystem
             public bool ThrowGenerationDelete { get; set; }
             public int GenerationDeleteFailureCount { get; private set; }
             public bool ThrowGetEntries { get; set; }
+            public string RetentionReadPath { get; set; }
+            public string RetentionPublishedPath { get; set; }
+            public SaveGameErrorCode RetentionReadFault { get; set; }
+            public bool RetentionReadPending { get; set; }
+            public FileSystemIoFailureKind Classify(IOException exception) =>
+                RetentionReadFault == SaveGameErrorCode.QuotaExceeded
+                    ? FileSystemIoFailureKind.QuotaExceeded : FileSystemIoFailureKind.Unknown;
 
             public FileSystemEntryStatus GetStatus(string path)
             {
@@ -879,6 +960,14 @@ namespace MxFramework.Tests.PersistenceFileSystem
 
             public Stream OpenRead(string path)
             {
+                if (RetentionReadPending && string.Equals(path, RetentionReadPath, StringComparison.Ordinal)
+                    && File.Exists(RetentionPublishedPath))
+                {
+                    RetentionReadPending = false;
+                    if (RetentionReadFault == SaveGameErrorCode.PermissionDenied)
+                        throw new UnauthorizedAccessException("injected retention read denial");
+                    throw new IOException("injected retention read failure");
+                }
                 if (!string.IsNullOrEmpty(UnauthorizedReadPath)
                     && string.Equals(path, UnauthorizedReadPath, StringComparison.OrdinalIgnoreCase))
                 {

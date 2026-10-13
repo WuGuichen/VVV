@@ -12,12 +12,19 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         { _interactionRuntime = runtime; _interactionActor = actor; _interactionTarget = target; SyncInteractionTurn(); }
         private void SyncInteractionTurn()
         {
+            var state = _interactionRuntime?.World.DoubleEdgeState;
+            if (state != null && StageRunId != 0 && TurnIndex != 0) {
+                if (state.Stage == 0) state.Bind(StageRunId, TurnIndex, unchecked((uint)_seed ^ 0xC01F4CE1U));
+                else state.AdvanceTurn(StageRunId, TurnIndex);
+            }
             var actor = _interactionActor?.Invoke();
             if (actor != null && actor.GameplayEntityId == _player && actor.CombatState.IsAlive && TurnIndex != 0)
                 actor.InteractionEffects.AdvanceTurn(StageRunId, TurnIndex, _player);
         }
         private void ClearInteractionEffects()
         {
+            if (_interactionRuntime?.World.DoubleEdgeState.Stage == StageRunId)
+                _interactionRuntime.World.DoubleEdgeState = new TacticalDoubleEdgeBattleState();
             var actor = _interactionActor?.Invoke();
             if (actor?.InteractionEffects?.Stage == StageRunId) actor.InteractionEffects.Clear();
         }

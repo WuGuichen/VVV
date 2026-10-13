@@ -68,6 +68,8 @@ namespace MxFramework.Game.CharacterTest
         public int FlowEvent { get; set; } = -1;
         public bool FinishRequested { get; set; }
         public bool FailureRequested { get; set; }
+        public bool NaturalCompletionRequested { get; set; }
+        public bool ShouldSerializeNaturalCompletionRequested() => NaturalCompletionRequested;
         public int LastTriggeredEvent { get; set; } = -1;
         public int[] Counts { get; set; } = Array.Empty<int>();
         public int[] LastExecutions { get; set; } = Array.Empty<int>();
@@ -116,6 +118,7 @@ namespace MxFramework.Game.CharacterTest
             target.JumpTarget = JumpTarget;
             target.FlowEvent = FlowEvent;
             target.FinishRequested = FinishRequested;
+            target.NaturalCompletionRequested = NaturalCompletionRequested;
             target.FailureRequested = FailureRequested;
             target.LastTriggeredEvent = LastTriggeredEvent;
             target.EndReason = EndReason; target.StopStartedFrame = StopStartedFrame;
@@ -154,7 +157,9 @@ namespace MxFramework.Game.CharacterTest
         private static T[] Copy<T>(T[] values) => values == null ? Array.Empty<T>() : (T[])values.Clone();
         public void AddHash(RuntimeHashAccumulator hash, int key = 1)
         {
-            hash.BeginObject(key, BehaviorExecutionStateHashFields.SchemaId, Version == BehindTargetVersion ? 5 : Version == LegacyVersion ? 3 : BehaviorExecutionStateHashFields.SchemaVersion);
+            hash.BeginObject(key, BehaviorExecutionStateHashFields.SchemaId, NaturalCompletionRequested ? 6
+                : Version == BehindTargetVersion ? 5 : Version == LegacyVersion ? 3 : BehaviorExecutionStateHashFields.SchemaVersion);
+            if (NaturalCompletionRequested) hash.AddBool(BehaviorExecutionStateHashFields.NaturalCompletion, true);
             hash.AddInt(BehaviorExecutionStateHashFields.ExecutionStateVersion, Version); hash.AddInt(BehaviorExecutionStateHashFields.ExecutionStateFormat, ProgramFormat);
             hash.AddLong(BehaviorExecutionStateHashFields.ExecutionStateIdentity, ProgramIdentity); hash.AddInt(BehaviorExecutionStateHashFields.State, State); hash.AddInt(BehaviorExecutionStateHashFields.Timeline, Timeline);
             hash.AddInt(BehaviorExecutionStateHashFields.ExecutionStateEntity, EntityId);
@@ -224,6 +229,8 @@ namespace MxFramework.Game.CharacterTest
             if (runtime is ICharacterTestBehaviorExecutionContinuationRuntime continuation) continuation.AttachExecutionEvaluator(this);
         }
         public CharacterTestRuntimeAiLabLogicRuntimeState State => (CharacterTestRuntimeAiLabLogicRuntimeState)_state.State;
+        internal bool NaturallyCompleted => State == CharacterTestRuntimeAiLabLogicRuntimeState.Completed
+            && _state.NaturalCompletionRequested && !_state.FailureRequested;
         public int CurrentTimelineIndex => _state.Timeline;
         internal bool NeedsPrimaryAttackFact(int frame)
         {
@@ -289,6 +296,7 @@ namespace MxFramework.Game.CharacterTest
             _state.MovementOwner = -1; _state.TurnOwner = -1; _state.ActionOwner = -1; _state.ActionInstanceId = 0;
             _state.PendingAction = -1; _state.StopPending = false; _state.JumpTarget = -1; _state.FlowEvent = -1;
             _state.FinishRequested = false; _state.FailureRequested = false; _state.LastTriggeredEvent = -1;
+            _state.NaturalCompletionRequested = false;
             Array.Clear(_state.Counts, 0, _state.Counts.Length); Array.Clear(_state.Results, 0, _state.Results.Length);
             Array.Clear(_state.CommitFailureReasons, 0, _state.CommitFailureReasons.Length);
             Array.Clear(_state.CommitFailureDetails, 0, _state.CommitFailureDetails.Length);
@@ -305,8 +313,13 @@ namespace MxFramework.Game.CharacterTest
             _runtime.ObserveOwnedAction(0L);
         }
         public void Stop(bool failed = false)
+            => RequestStop(failed, false);
+        private void StopNaturally() => RequestStop(false, true);
+        private void RequestStop(bool failed, bool natural)
         {
-            if (State == CharacterTestRuntimeAiLabLogicRuntimeState.Inactive) return;
+            if (State == CharacterTestRuntimeAiLabLogicRuntimeState.Inactive
+                || State == CharacterTestRuntimeAiLabLogicRuntimeState.Completed || State == CharacterTestRuntimeAiLabLogicRuntimeState.Failed) return;
+            _state.NaturalCompletionRequested = natural && !_state.FailureRequested;
             if (_state.StopStartedFrame < 0) _state.StopStartedFrame = _state.LastWorldFrame;
             if (_state.EndReason == 0) _state.EndReason = (int)(failed ? CharacterTestBehaviorExecutionEndReason.ActionRejected : CharacterTestBehaviorExecutionEndReason.Completed);
             _state.FinishRequested = true; _state.FailureRequested |= failed; _state.JumpTarget = -1;
@@ -338,7 +351,7 @@ namespace MxFramework.Game.CharacterTest
         {
             if (!UpdateExecutionBlocks(frame)) return;
             var timeline = _program.Timelines[_state.Timeline];
-            if (_state.LocalFrame >= timeline.DurationFrames) { Stop(); return; }
+            if (_state.LocalFrame >= timeline.DurationFrames) { StopNaturally(); return; }
             CompleteExpiredControls(frame);
             int move = -1, turn = -1, action = -1, jump = -1;
             Vector2 movement = Vector2.zero; float movementSpeed = 1f; int moveLimit = -1;
@@ -383,7 +396,7 @@ namespace MxFramework.Game.CharacterTest
                 {
                     Record(index, frame); SetResult(index, CharacterTestRuntimeAiLabBehaviorRecipeEventRuntimeResult.Completed);
                     _state.LastTriggeredEvent = index; _state.LastSampledFrame = _state.LocalFrame;
-                    Emit(events, frame, index, CharacterTestRuntimeAiLabLogicEventKind.TransitionCommitted); Stop(); return;
+                    Emit(events, frame, index, CharacterTestRuntimeAiLabLogicEventKind.TransitionCommitted); StopNaturally(); return;
                 }
                 if (evt.Kind == CharacterTestRuntimeAiLabBehaviorRecipeEventOperationKind.EnterTimeline)
                 { if (jump < 0) jump = index; continue; }
@@ -508,7 +521,8 @@ namespace MxFramework.Game.CharacterTest
                 return CharacterTestBehindTargetResolver.Resolve(move, sample, ref _state.Stopped[index], ref _state.RearOrbitSides[index], out limit);
             }
             limit = -1; Vector2 toward = sample.TowardTarget.sqrMagnitude > 0.0001f ? sample.TowardTarget.normalized : sample.NavigationMove.normalized;
-            Vector2 navigation = sample.NavigationMove.sqrMagnitude > 0.0001f ? sample.NavigationMove.normalized : toward;
+            // A sampled zero is a navigation stop, not permission to move directly toward the target.
+            Vector2 navigation = sample.NavigationMove.sqrMagnitude > 0.0001f ? sample.NavigationMove.normalized : Vector2.zero;
             if (move.IsOptimalRange)
             {
                 if (_state.Stopped[index] && (sample.Distance < move.Minimum || sample.Distance > move.Maximum)) _state.Stopped[index] = false;
@@ -785,6 +799,7 @@ namespace MxFramework.Game.CharacterTest
             if (source == null || source.Version != SnapshotVersion(_program)
                 || source.ProgramFormat != CharacterTestBehaviorExecutionProgram.CurrentFormatVersion || source.ProgramIdentity != _program.Identity
                 || source.EntityId != _state.EntityId || source.ActionInstanceId < 0 || (source.StopPending && source.PendingAction >= 0)
+                || source.NaturalCompletionRequested && !source.FinishRequested
                 || !Enum.IsDefined(typeof(CharacterTestRuntimeAiLabLogicRuntimeState), source.State)
                 || source.Timeline < -1 || source.Timeline >= _program.Timelines.Length || source.LocalFrame < 0
                 || source.Counts?.Length != count || source.LastExecutions?.Length != count || source.Results?.Length != count || source.CommitFailureReasons?.Length != count || source.CommitFailureDetails?.Length != count || source.CommitFailureDetailIds?.Length != count
@@ -818,6 +833,7 @@ namespace MxFramework.Game.CharacterTest
 
     internal static class BehaviorExecutionStateHashFields
     {
+        internal const int NaturalCompletion = 77;
         internal const int RearOrbitSides = 71, RearOrbitSideValue = 72, RearOrbitSidesPresent = 73;
         internal const int RearTargetIds = 74, RearTargetIdValue = 75, RearTargetIdsPresent = 76;
         internal const int AttackWaitBlock = 65, AttackWaitTarget = 66, AttackWaitInstance = 67;

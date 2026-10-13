@@ -91,6 +91,14 @@ Character Resource Package 是源头。Unity 项目不是外部编辑器的前�
 
 ## 资源包结构
 
+> Code-Doc: `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/CharacterResourceMappingV2Producer.cs`
+> Code-Doc: `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/CharacterPackages/CharacterAuthoringCompiler.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Editor/CharacterImport/CharacterImportedPackagePrefabBuilder*.cs`
+
+材质描述的最终目标沿用 `<packageRoot>/materials/<sanitizedPackageId>_<sanitizedDescriptorId>.mat`；`descriptorId` 来自 `.material.json` 文件名，目录和 `sourceAssetPath` 不参与目标命名。无碰撞包保留原路径，重复导入复用现有 `.mat` 并保留其 GUID。不同资源身份的最终材质目标必须唯一：发布器按清理文件名后的完整路径做忽略大小写比较；同名、仅大小写不同、或 `Shared.Detail` 与 `Shared_Detail` 等清理后同名的输入，返回 `CharacterGeneratedMaterialTargetCollision` 和 `ImportBlocked`，禁止发布 Profile 和执行项目写入计划。作者需为这些描述设置清理后仍不同的文件名及对应 `importHints.targetRelativePath`；仅改变目录、ResourceKey、StableId、内容 hash 或源材质名不能消除目标碰撞。
+
+Unity Prefab builder 在复用缓存或写入生成资产之前执行同样的目标唯一性预检，直接材质绑定入口也先检查完整目录；检测到碰撞时返回失败，不先修改已有材质、renderer 引用、Prefab 或生成缓存。此次采用阻断方案，不迁移正式资产，不改变 Runtime 材质语义。聚焦离线回归入口为 Authoring Tests 的 `character-material-collision`；Editor 回归为 `CharacterImportedPackagePrefabBuilderTests.MaterialTargetCollision_BlocksBeforeWritingExistingAssets`（含目录、大小写和清理碰撞），以及 `BuildPrefab_MaterialDescriptorPathMatchesV2FinalAssetContract` 的路径与重复导入 GUID 检查。测试定义不代替实际运行证据。
+
 第一版建议使用目录包作为权威格式，归档文件只作为分发格式。
 
 ```text

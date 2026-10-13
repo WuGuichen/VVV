@@ -1092,7 +1092,7 @@ namespace MxFramework.Tests.CharacterImport
             string shieldPath = CreatePrefabAsset(AssetRoot + "/kite_shield.prefab");
             string texturePath = CreateTextureAsset(TextureRoot + "/body_albedo.png");
             AssignNamedSourceMaterial(bodyPath, "Source Body");
-            WriteRuntimeEquipmentPackageFiles(bodyPath, katanaPath, shieldPath, texturePath);
+            WriteMaterialDescriptorPackageFiles(bodyPath, katanaPath, shieldPath, texturePath);
             string descriptorPath = WritePackageMaterialDescriptor(
                 "Body",
                 "Source Body.mat",
@@ -1144,7 +1144,115 @@ namespace MxFramework.Tests.CharacterImport
                 {
                     Material[] materials = renderers[rendererIndex].sharedMaterials;
                     for (int materialIndex = 0; materialIndex < materials.Length; materialIndex++)
-                        Assert.AreSame(material, materials[materialIndex]);
+                        Assert.AreEqual(material, materials[materialIndex]);
+                }
+                string guid = AssetDatabase.AssetPathToGUID(expectedMaterialPath);
+                byte[] meta = File.ReadAllBytes(expectedMaterialPath + ".meta");
+                GameObject repeatedInstance = PrefabUtility.InstantiatePrefab(bodyPrefab) as GameObject;
+                try
+                {
+                    object repeatedStatus = bind.Invoke(null, new object[] { package, TempRoot, repeatedInstance.transform });
+                    Assert.AreEqual("bodyMaterialBound", statusProperty.GetValue(repeatedStatus));
+                }
+                finally
+                {
+                    if (repeatedInstance != null)
+                        UnityEngine.Object.DestroyImmediate(repeatedInstance);
+                }
+                AssetDatabase.SaveAssets();
+                Assert.AreEqual(guid, AssetDatabase.AssetPathToGUID(expectedMaterialPath));
+                CollectionAssert.AreEqual(meta, File.ReadAllBytes(expectedMaterialPath + ".meta"));
+                Assert.AreEqual(material, AssetDatabase.LoadAssetAtPath<Material>(expectedMaterialPath));
+            }
+            finally
+            {
+                if (instance != null)
+                    UnityEngine.Object.DestroyImmediate(instance);
+            }
+        }
+
+        [TestCase("Shared", "Shared")]
+        [TestCase("Shared", "shared")]
+        [TestCase("Shared.Detail", "Shared_Detail")]
+        public void MaterialTargetCollision_BlocksBeforeWritingExistingAssets(string firstName, string secondName)
+        {
+            EnsureTempRoot();
+            string bodyPath = CreatePrefabAsset(AssetRoot + "/body.prefab");
+            string katanaPath = CreatePrefabAsset(AssetRoot + "/katana.prefab");
+            string shieldPath = CreatePrefabAsset(AssetRoot + "/kite_shield.prefab");
+            string texturePath = CreateTextureAsset(TextureRoot + "/body_albedo.png");
+            AssignNamedSourceMaterial(bodyPath, "Source Body");
+            WriteMaterialDescriptorPackageFiles(bodyPath, katanaPath, shieldPath, texturePath);
+            string firstPath = WritePackageMaterialDescriptor("a/" + firstName, "Source Body.mat",
+                "char.test.texture.body_albedo", tint: Color.red);
+            AddMaterialDescriptorToUnityCatalog("char.test.material.probe_a", firstPath);
+            var package = CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(TempRoot));
+            GameObject instance = PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(bodyPath)) as GameObject;
+            MethodInfo bind = BuilderType.GetMethod("ApplyPackageMaterialDescriptorBindings", BindingFlags.NonPublic | BindingFlags.Static);
+            try
+            {
+                Assert.IsNotNull(instance);
+                object baseline = bind.Invoke(null, new object[] { package, TempRoot, instance.transform });
+                Type statusType = baseline.GetType();
+                Assert.AreEqual("bodyMaterialBound", statusType.GetProperty("Status").GetValue(baseline));
+                string materialPath = (string)statusType.GetProperty("MaterialPath").GetValue(baseline);
+                Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+                Assert.AreEqual(Color.red, material.GetColor("_Color"));
+                Assert.IsFalse(material.IsKeywordEnabled("_ALPHATEST_ON"));
+                string guid = AssetDatabase.AssetPathToGUID(materialPath);
+
+                var hair = new GameObject("Hair");
+                hair.transform.SetParent(instance.transform, false);
+                var sourceHair = new Material(material.shader) { name = "Source Hair" };
+                AssetDatabase.CreateAsset(sourceHair, AssetRoot + "/source_hair.mat");
+                hair.AddComponent<MeshRenderer>().sharedMaterial = sourceHair;
+                Renderer[] renderers = instance.GetComponentsInChildren<Renderer>();
+                Material[][] rendererMaterials = renderers.Select(r => r.sharedMaterials).ToArray();
+                string secondPath = WritePackageMaterialDescriptor("b/" + secondName, "Source Hair.mat",
+                    "char.test.texture.body_albedo", "AlphaClip", 0.17f, 2450, Color.blue);
+                AddMaterialDescriptorToUnityCatalog("char.test.material.probe_b", secondPath);
+                AssetDatabase.SaveAssets();
+
+                string previousMessage = null;
+                for (int attempt = 0; attempt < 2; attempt++)
+                {
+                    if (attempt == 1)
+                    {
+                        string catalogPath = ConfigRoot + "/unity_resource_catalog.json";
+                        JObject catalog = JObject.Parse(File.ReadAllText(catalogPath));
+                        catalog["entries"] = new JArray(((JArray)catalog["entries"]).Reverse());
+                        File.WriteAllText(catalogPath, catalog.ToString(Formatting.Indented));
+                        AssetDatabase.ImportAsset(catalogPath, ImportAssetOptions.ForceUpdate);
+                    }
+                    package = CharacterImportedPackageJson.LoadFromDirectory(Path.GetFullPath(TempRoot));
+                    var bytesBefore = Directory.GetFiles(TempRoot, "*", SearchOption.AllDirectories)
+                        .ToDictionary(path => path, File.ReadAllBytes);
+                    object blocked = bind.Invoke(null, new object[] { package, TempRoot, instance.transform });
+                    Assert.AreEqual(Color.red, material.GetColor("_Color"), "Collision preflight must run before modifying an existing material.");
+                    Assert.AreEqual("packageMaterialDescriptorInvalid", statusType.GetProperty("Status").GetValue(blocked));
+                    string message = (string)statusType.GetProperty("Message").GetValue(blocked);
+                    StringAssert.Contains("CharacterGeneratedMaterialTargetCollision", message);
+                    StringAssert.Contains("char.test.material.probe_a", message);
+                    StringAssert.Contains("char.test.material.probe_b", message);
+                    if (previousMessage != null)
+                        Assert.AreEqual(previousMessage, message);
+                    previousMessage = message;
+
+                    CharacterImportedPackagePrefabBuildResult report = CharacterImportedPackagePrefabBuilder.BuildPrefabWithReport(TempRoot, false);
+                    Assert.AreEqual("Failed", report.Status);
+                    StringAssert.Contains("CharacterGeneratedMaterialTargetCollision", report.Message);
+                    UnityEngine.TestTools.LogAssert.Expect(LogType.Error, "MxFramework Character Preview: " + message);
+                    Assert.IsEmpty(CharacterImportedPackagePrefabBuilder.BuildPrefab(TempRoot, false));
+                    AssetDatabase.SaveAssets();
+                    string[] filesAfter = Directory.GetFiles(TempRoot, "*", SearchOption.AllDirectories);
+                    CollectionAssert.AreEquivalent(bytesBefore.Keys, filesAfter, "Preflight must create no prefab, material or cache output.");
+                    foreach (string file in filesAfter)
+                        CollectionAssert.AreEqual(bytesBefore[file], File.ReadAllBytes(file), file);
+                    Assert.AreEqual(guid, AssetDatabase.AssetPathToGUID(materialPath));
+                    Assert.AreEqual(Color.red, material.GetColor("_Color"));
+                    Assert.IsFalse(material.IsKeywordEnabled("_ALPHATEST_ON"));
+                    for (int i = 0; i < renderers.Length; i++)
+                        CollectionAssert.AreEqual(rendererMaterials[i], renderers[i].sharedMaterials);
                 }
             }
             finally
@@ -2856,6 +2964,22 @@ namespace MxFramework.Tests.CharacterImport
                 });
         }
 
+        private static void WriteMaterialDescriptorPackageFiles(string bodyPath, string katanaPath, string shieldPath, string texturePath)
+        {
+            EnsureFolderPath(ConfigRoot);
+            EnsureFolderPath(TempRoot + "/package_cache");
+            File.WriteAllText(ConfigRoot + "/character_config_patch.json",
+                "{\"format\":\"mx.characterApplicationConfigPatchBundle.v1\",\"runtimeCharacterId\":1,\"patch\":{\"entries\":[]}}");
+            File.WriteAllText(ConfigRoot + "/geometry_binding.json",
+                "{\"format\":\"mx.characterGeometryBinding.v8\",\"schemaVersion\":\"8.0\",\"packageId\":\"test_package\",\"features\":0}");
+            File.WriteAllText(ConfigRoot + "/resource_catalog_mapping.json",
+                "{\"format\":\"mx.characterResourceMapping.v1\",\"packageId\":\"test_package\",\"entries\":[]}");
+            WriteUnityResourceCatalog(bodyPath, katanaPath, shieldPath, texturePath);
+            WriteImportReport();
+            AssetDatabase.ImportAsset(ConfigRoot, ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(TempRoot + "/package_cache", ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
+        }
+
         private static void WriteRuntimeEquipmentPackageFiles(string bodyPath, string katanaPath, string shieldPath)
         {
             WriteRuntimeEquipmentPackageFiles(bodyPath, katanaPath, shieldPath, string.Empty);
@@ -2905,7 +3029,8 @@ namespace MxFramework.Tests.CharacterImport
             string albedoTextureResourceKey,
             string surfaceMode = "Opaque",
             float alphaCutoff = 0.5f,
-            int renderQueue = 2000)
+            int renderQueue = 2000,
+            Color? tint = null)
         {
             string descriptorPath = TempRoot + "/resources/materials/descriptors/" + descriptorId + ".material.json";
             EnsureFolderPath(Path.GetDirectoryName(descriptorPath)?.Replace('\\', '/'));
@@ -2926,6 +3051,12 @@ namespace MxFramework.Tests.CharacterImport
                     }
                 }
             };
+            if (tint.HasValue)
+                descriptor["colors"] = new JArray(new JObject
+                {
+                    ["name"] = "_Color",
+                    ["value"] = new JObject { ["r"] = tint.Value.r, ["g"] = tint.Value.g, ["b"] = tint.Value.b, ["a"] = tint.Value.a }
+                });
             File.WriteAllText(descriptorPath, descriptor.ToString(Formatting.Indented));
             AssetDatabase.ImportAsset(descriptorPath, ImportAssetOptions.ForceUpdate);
             return descriptorPath;

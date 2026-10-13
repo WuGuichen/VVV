@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace MxFramework.Config
 {
@@ -72,6 +73,7 @@ namespace MxFramework.Config
                 throw new ArgumentNullException(nameof(provider));
 
             var report = new ConfigValidationReport();
+            var lookup = new ConfigReferenceLookup(provider);
             var references = new List<ConfigReference>();
             foreach (T config in provider.GetAllConfigs<T>())
             {
@@ -92,7 +94,7 @@ namespace MxFramework.Config
                     continue;
                 }
 
-                bool exists = Contains(provider, reference.TargetType, reference.TargetId);
+                bool exists = lookup.Contains(reference.TargetType, reference.TargetId);
                 if (!exists)
                 {
                     report.Add(new ConfigValidationIssue(
@@ -105,23 +107,42 @@ namespace MxFramework.Config
 
             return report;
         }
+    }
 
-        private static bool Contains(IConfigProvider provider, Type type, int id)
+    // Bind each target type once per validation; never cache providers or query results across calls.
+    internal sealed class ConfigReferenceLookup
+    {
+        private static readonly MethodInfo ContainsMethod = typeof(IConfigProvider).GetMethod(nameof(IConfigProvider.ContainsConfig));
+        private readonly IConfigProvider _provider;
+        private Dictionary<Type, Func<int, bool>> _queries;
+
+        public ConfigReferenceLookup(IConfigProvider provider)
         {
-            foreach (object config in GetAll(provider, type))
-            {
-                if (config is IConfigData data && data.Id == id)
-                    return true;
-            }
-
-            return false;
+            _provider = provider;
         }
 
-        private static System.Collections.IEnumerable GetAll(IConfigProvider provider, Type type)
+        public bool Contains(Type type, int id)
         {
-            System.Reflection.MethodInfo method = typeof(IConfigProvider).GetMethod(nameof(IConfigProvider.GetAllConfigs));
-            System.Reflection.MethodInfo generic = method.MakeGenericMethod(type);
-            return (System.Collections.IEnumerable)generic.Invoke(provider, null);
+            if (_queries == null)
+                _queries = new Dictionary<Type, Func<int, bool>>();
+
+            // MakeGenericMethod retains the existing null/invalid target-type exception contract.
+            if (type == null || !_queries.TryGetValue(type, out Func<int, bool> query))
+            {
+                MethodInfo method = ContainsMethod.MakeGenericMethod(type);
+                query = (Func<int, bool>)method.CreateDelegate(typeof(Func<int, bool>), _provider);
+                _queries.Add(type, query);
+            }
+
+            try
+            {
+                return query(id);
+            }
+            catch (Exception exception)
+            {
+                // Provider failures were wrapped by MethodInfo.Invoke in the original validators.
+                throw new TargetInvocationException(exception);
+            }
         }
     }
 }

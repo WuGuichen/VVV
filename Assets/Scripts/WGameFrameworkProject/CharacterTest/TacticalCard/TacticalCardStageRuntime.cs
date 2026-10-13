@@ -9,7 +9,7 @@ using UnityEngine;
 namespace MxFramework.Game.CharacterTest.TacticalCard
 {
     /// <summary>One GameSlice's tactical composition. All world work stays on its original RuntimeHost.</summary>
-    internal sealed partial class TacticalCardStageRuntime : RuntimeModule, ITacticalExecutionInputPort, ITacticalPointSelectionPort, ITacticalBehindPreviewPort, ITacticalExecutionRetirementPort, IStoryRuntimeCommandResultSink
+    internal sealed partial class TacticalCardStageRuntime : RuntimeModule, ITacticalExecutionInputPort, ITacticalPointSelectionPort, ITacticalBehindPreviewPort, ITacticalExecutionRetirementPort, ITacticalFixedExecutionPort, ITacticalFixedFeeReadoutPort, ITacticalFixedCleanupPort, ITacticalFixedTerminalPort, IStoryRuntimeCommandResultSink
     {
         private readonly CharacterTestSliceModules _modules;
         private readonly CharacterTestTacticalStageAuthoringDocument _config;
@@ -102,6 +102,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             _outbox?.Tick(context);
             _modules.RuntimeAiPlannerCommands?.SetBootstrapDecisionsSuppressed(true);
             _adapter?.SetContext(null, new RuntimeFrame(context.FrameIndex));
+            if (Stage.HasReleasedCleanup) { Stage.ReconcileReleasedCleanup(); return; }
             if (Stage.Health == TacticalStageHealth.Running) _adapter?.Tick();
         }
 
@@ -109,6 +110,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal void AfterWorldTick(RuntimeFrame frame, double delta, double elapsed)
         {
             if (_disposed) return;
+            Stage.ReconcileReleasedCleanup();
             _story.Drain();
             if (_player == null && Stage.Health == TacticalStageHealth.Running && _modules.CharacterRuntime.Entities.Count == 2)
             {
@@ -202,6 +204,26 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (_restartRequested && evt.Kind == StoryEventKind.StepStarted && evt.GraphId == CharacterTestStoryIds.BootstrapGraph &&
                 evt.StepId == CharacterTestStoryIds.Steps.LevelStartRegionLine) RestartReady = true;
         }
+
+        public bool TryCommitFixed(TacticalCardInstance card, TacticalDeckManager deck, TacticalTimeCoordinator time,
+            MomentumLedger ledger, in TacticalExecutionInput input, out ulong executionId,
+            out TacticalFixedCardPaymentCommit payment, out string issue)
+        {
+            executionId = 0; payment = null; issue = "execution:ActorNotBound";
+            return _adapter != null && _adapter.TryCommitFixed(card, deck, time, ledger, input, out executionId, out payment, out issue);
+        }
+        public bool TryReadFixedFees(TacticalCardInstance card, out TacticalFixedCardFeePlan fees, out string issue)
+        {
+            fees = null; issue = "fixed-fee:ActorNotBound";
+            return _adapter != null && _adapter.TryReadFixedFees(card, out fees, out issue);
+        }
+        public void SetFixedReleaseObserver(ulong executionId, Action onActorRetired)
+            => _adapter?.SetFixedReleaseObserver(executionId, onActorRetired);
+        public ExecutionObservation ReconcileFixedRelease(ulong executionId)
+            => _adapter?.ReconcileFixedRelease(executionId) ?? default;
+        public void FinishFixedRelease(ulong executionId) => _adapter?.FinishFixedRelease(executionId);
+        public void CancelFixed(ulong executionId) => _adapter?.CancelFixed(executionId);
+        public bool IsNaturalFixedCompletion(ulong executionId) => _adapter?.IsNaturalFixedCompletion(executionId) == true;
 
         public bool TryPrepare(TacticalCardInstance card, out string issue)
         {

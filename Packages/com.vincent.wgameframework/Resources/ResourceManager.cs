@@ -263,6 +263,7 @@ namespace MxFramework.Resources
 
             if (!(loaded.Value is T value))
             {
+                ReleaseKey(resolved.PackageKey, allowRetain: false);
                 return Fail<ResourceHandle<T>>(new ResourceError(
                     ResourceErrorCode.TypeMismatch,
                     resolved.PackageKey,

@@ -1,8 +1,11 @@
 # Runtime 接口
 
 > Status: Current
+> Code-Doc: `Packages/com.vincent.wgameframework/Runtime/RuntimeHashSchemaIds.cs`
 >
 > Runtime Foundation Host Core v0.1 + Frame / Command / Replay Core v0.1 + fixed typed command envelope + trusted source authorization/exogenous replay filtering + hard-bounded atomic batch admission + SaveState Contract v0 + authoritative root-header composition + end-of-Tick checkpoint/quiescence barrier + shared restore profile/bounded UTF-8 JSON 已实现（2026-07-20）。本页记录 `MxFramework.Runtime` 当前公共接口和边界。
+
+2026-10-12补充：`RuntimeHashSchemaIds.NetworkSnapshotDoubleEdgeStage = 1018` 为CharacterTest阶段级双刃状态注册独立schema ID，v1根字段367。通用Runtime不持有此游戏状态；结构与私有恢复边界见[双刃配件交接](../Tasks/TACTICAL_DOUBLE_EDGE_ACCESSORY_IMPLEMENTATION.md)。
 
 ## 职责
 
@@ -464,3 +467,7 @@ graph、corridor、navigation sample 和 Runtime AI Lab path diagnostics 都是�
 `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Runtime/RuntimeCheckpointBarrierTests.cs`
 
 `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Ability/RuntimeAbilitySliceRuntimeFoundationTests.cs`
+
+## 第二批配件涉及的 hash 版本（2026-10-12）
+
+CharacterTest document schema 43 使用 Stage hash 对象 1018/version 2，增加因果轮、出生谱系、首击/每敌消费、延迟来源及身份分配字段；Gameplay Timeline contributor 2004/version 2 新增 field 15 NextInstanceId。完整、owned、non-owned 三条生产路径必须使用同一 Stage schema。旧 hash 不应与新版本直接比较；只读投影不授予恢复权威。边界与协调者待执行检查见[第二批实施交接](../Tasks/TACTICAL_ACCESSORY_SECOND_BATCH_IMPLEMENTATION.md)。

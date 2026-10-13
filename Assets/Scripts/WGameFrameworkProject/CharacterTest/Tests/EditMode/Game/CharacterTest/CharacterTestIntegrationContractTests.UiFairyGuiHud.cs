@@ -3344,6 +3344,8 @@ namespace MxFramework.Tests.Game.CharacterTest
                     AntiAliasingText = "4",
                     ShadowDistanceText = "120",
                     DirectionalShadowQualityText = "中",
+                    WaterQualityText = "中（SSPR）",
+                    RippleQualityText = "高",
                     ShadowCascadeCountText = "3",
                     LocalShadowResolutionText = "2048",
                     VSyncCount = 1,
@@ -3364,6 +3366,8 @@ namespace MxFramework.Tests.Game.CharacterTest
                 Assert.AreEqual("按键设置", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.PageTitle));
                 Assert.AreEqual("4", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.AntiAliasingValue));
                 Assert.AreEqual("中", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityValue));
+                Assert.AreEqual("中（SSPR）", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityValue));
+                Assert.AreEqual("高", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityValue));
                 Assert.AreEqual("3", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountValue));
                 Assert.AreEqual("2048", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.LocalShadowResolutionValue));
                 Assert.AreEqual("画面与阴影", SettingsPanelText(root, CharacterTestFairyGuiSettingsPanelIds.GraphicsHeader));

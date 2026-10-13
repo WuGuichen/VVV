@@ -167,13 +167,21 @@ namespace MxFramework.Game.CharacterTest
 
         private sealed class CharacterBodyPartContactRegistration
         {
-            public CharacterBodyPartContactRegistration(CharacterBodyPartContactRuntimeBinding[] bindings)
+            public CharacterBodyPartContactRegistration(CharacterBodyPartContactRuntimeBinding[] bindings,
+                CharacterBodyPartConfig[] bodyParts, CharacterImportedGeometryBinding geometry)
             {
                 Bindings = bindings ?? Array.Empty<CharacterBodyPartContactRuntimeBinding>();
                 Kinematics = new CharacterBodyPartContactKinematicState[Bindings.Length];
+                // Compile presentation semantics at registration, never from contact/render Tick.
+                PartKinds = new CharacterBodyPartKind[Bindings.Length];
+                if (bodyParts == null) return;
+                for (int i = 0; i < Bindings.Length; i++)
+                    PartKinds[i] = ResolveRegisteredContactPartKind(Bindings[i].Config, bodyParts, geometry);
             }
 
             public CharacterBodyPartContactRuntimeBinding[] Bindings { get; }
+
+            public CharacterBodyPartKind[] PartKinds { get; }
 
             public CharacterBodyPartContactKinematicState[] Kinematics { get; }
 

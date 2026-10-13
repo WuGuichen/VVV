@@ -104,6 +104,8 @@ namespace MxFramework.Game.CharacterTest
         public string AntiAliasingText { get; set; } = "Current";
         public string ShadowDistanceText { get; set; } = "Current";
         public string DirectionalShadowQualityText { get; set; } = "Current";
+        public string WaterQualityText { get; set; } = "Current";
+        public string RippleQualityText { get; set; } = "Current";
         public string ShadowCascadeCountText { get; set; } = "Current";
         public string LocalShadowResolutionText { get; set; } = "Current";
         public string HdrModeText { get; set; } = "Off";
@@ -167,6 +169,8 @@ namespace MxFramework.Game.CharacterTest
             AppendToken(builder, viewModel.AntiAliasingText);
             AppendToken(builder, viewModel.ShadowDistanceText);
             AppendToken(builder, viewModel.DirectionalShadowQualityText);
+            AppendToken(builder, viewModel.WaterQualityText);
+            AppendToken(builder, viewModel.RippleQualityText);
             AppendToken(builder, viewModel.ShadowCascadeCountText);
             AppendToken(builder, viewModel.LocalShadowResolutionText);
             AppendToken(builder, viewModel.HdrModeText);

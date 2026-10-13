@@ -38,7 +38,7 @@ namespace MxFramework.Game.CharacterTest
 
     /// <summary>Owns one character's atomic card binding; retained immutable programs do not grant startup permission.</summary>
     /// <remarks>Preparation, compile, start validation and restore are LowFreqAlloc. This class is never polled by Tick.</remarks>
-    internal sealed class CharacterTestTacticalCardBinding
+    internal sealed partial class CharacterTestTacticalCardBinding
     {
         private readonly ICharacterTestTacticalCardInputSource _inputs;
         private CharacterTestTacticalCardCompilation _compiled;

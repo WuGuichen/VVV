@@ -4,6 +4,8 @@
 
 > 依赖：Unity Input System | 代码：`Packages/com.vincent.wgameframework/Input/`
 
+> Code-Doc: `Packages/com.vincent.wgameframework/Input/InputService.cs`
+
 Input 模块把 Unity Input System 作为底层采集层，只向业务暴露意图快照、瞬时命令和上下文控制。业务脚本不应直接读取 `Keyboard.current`、`Gamepad.current` 或散落持有 `InputAction`。
 
 ## 1. 模块边界
@@ -107,6 +109,15 @@ input.Commands.PeekForFrame(
 
 ## 4. 上下文栈
 
+`InputService` 的 context 状态与采集生命周期分别维护。组件停用或所属 GameObject 不活跃时，
+`OnDisable()` 关闭已缓存的 Action Map 并清空 Snapshot；此时释放已有 exclusive / overlay scope、
+调用 `SetContext()` / `PushContext()`，或直接修改公开 `Contexts` 栈，仍正常更新 context 状态，
+但不会因 context 变化重新启用 Map。`IsContextEnabled()` 表示栈内的逻辑权限，不代表服务正在采集输入。
+
+重新启用服务沿用既有 `OnEnable()` 合同：重置命令队列和采集帧，使用序列化的初始 context
+清空并重建基础栈，再应用 Map 状态；不会保留停用期间的临时栈。被该重置移除的旧 scope
+随后释放不会影响新栈。`DefaultInputService` 在此基础上继续添加 Debug overlay。
+
 `SetContext()` 会清空已有上下文并设置单一基础上下文：
 
 ```csharp
@@ -132,6 +143,10 @@ scope.Dispose();
 读取输入权限时应使用 `IsContextEnabled(InputContext.Gameplay)` 判断某个 context 是否仍在启用集合中，而不是只看 `CurrentContext`。例如 Debug UI 作为 overlay 打开时，`CurrentContext` 可以是 `Debug`，但 Gameplay map 仍然启用；此时 Character Control / Combat Showcase 这类 gameplay 组合根仍应能读取移动和动作命令。需要独占阻断 Gameplay 时，使用默认 `InputContextPolicy.Exclusive`。
 
 `ContainsContext(context)` 只表示某个 context 是否存在于 stack 中，不表示它当前可用。Gameplay 组合根如果需要自动恢复 `Gameplay` scope，必须先检查 `ContainsContext(InputContext.UI)` / `Rebinding` / `Cutscene` 等屏蔽状态，避免在玩家 modal 打开期间把 Gameplay 或 Debug 输入重新压到 UI 之上。
+
+`InputService` 的逻辑 context 栈与采集生命周期分别管理。组件 disabled 或 GameObject inactive 时，`OnDisable()` 关闭全部缓存 Action Map 并清空 Snapshot；释放旧 exclusive/overlay scope、调用 `SetContext()`，或直接通过 `Contexts.Set/Push/Clear` 及返回的 scope 的 `Dispose()` 更新逻辑栈，都不会重新启用 Map。`CurrentContext`、`ContainsContext()` 和 `IsContextEnabled()` 仍反映逻辑栈，不能据此判定停用服务的采集状态。
+
+重新启用服务时，现有 `OnEnable()` 合同保持：重置命令帧和命令队列，并通过 `SetContext(_initialContext)` 清空旧栈、恢复配置的初始 context；停用期间的临时 context 不会延续为新的基础 context。active 状态下 overlay/exclusive 与 scope Dispose 的 Map 应用语义保持不变。
 
 ## 4.1 Cursor scope
 
@@ -204,5 +219,7 @@ Unity 场景中可使用 `DebugUiOverlayInputBridge` 把同一 GameObject 上的
 ## 8. 测试入口
 
 - `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Input/InputCoreTests.cs`
+- `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Input/InputServiceLifecycleTests.cs`：停用期间的 context/scope 与真实 DebugUiInputAdapter 释放、重新启用及 active 回归；使用 Unity 自动生命周期与真实 InputActionMap。
+  原生 EditMode Runner 使用仅测试的 `ExecuteAlways` 服务，由 Unity 派发 enable/disable 回调；覆盖组件／GameObject 停用、旧 scope 释放、公开栈修改、真实 Debug adapter 释放和重新启用。该隔离测试不代表玩家场景生命周期顺序或设备输入穿透已验收。
 - `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/DebugUI/DebugUiInputAdapterTests.cs`
 - 测试覆盖上下文栈 overlay/exclusive、命令队列排序/迟到拒绝、Fake/Recorded 输入源。

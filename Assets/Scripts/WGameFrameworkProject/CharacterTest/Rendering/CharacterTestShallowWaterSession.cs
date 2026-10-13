@@ -14,9 +14,9 @@ namespace MxFramework.Game.CharacterTest
     {
         internal GameManager Owner { get; }
         internal CharacterTestShallowWaterConfiguration Configuration { get; }
-        internal CharacterTestShallowWaterSettings Settings => Configuration.Settings;
+        internal CharacterTestShallowWaterSettings Settings => Configuration.RuntimeSettingsOverride != null ? Configuration.RuntimeSettingsOverride : Configuration.Settings;
         internal bool SurfaceEnabled => Configuration.SurfaceEnabled;
-        internal bool ReflectionEnabled => Configuration.ReflectionEnabled;
+        internal bool ReflectionEnabled => Configuration.ReflectionEnabled && Settings.UsePlanarReflection && Settings.ReflectionStrength > 0;
         internal bool RipplesEnabled => Configuration.RipplesEnabled;
         internal bool IsActive => !_disposed && Owner != null && Owner.isActiveAndEnabled;
         internal Vector3 Position => Configuration.Position;
@@ -36,10 +36,13 @@ namespace MxFramework.Game.CharacterTest
         private int _width, _height;
         private bool _disposed;
         private bool _reflectionWanted, _reflectionValid, _renderRequestInProgress;
+        private WaterReflectionSchedule _reflectionSchedule;
+        private int _reflectionBudget;
         private int _renderContextDepth;
         public UnityCamera ReflectionCamera => _reflection;
         public RenderTexture ReflectionTexture => _reflectionTarget?.rt;
         public int SurfaceDraws { get; private set; }
+        public int SurfaceColorCopies { get; private set; }
         public int ReflectionRenders { get; private set; }
         public bool ReflectionReady => _reflectionValid && ReflectionTexture != null && ReflectionTexture.IsCreated();
         public string Issue { get; private set; } = string.Empty;
@@ -55,12 +58,12 @@ namespace MxFramework.Game.CharacterTest
             RenderPipelineManager.beginContextRendering += BeginContext;
             RenderPipelineManager.endContextRendering += EndContext;
             RenderPipelineManager.endCameraRendering += EndCamera;
-            PrepareView(); BindInteractions();
+            PrepareView(); BindInteractions(); TickSplashes();
         }
         internal void Tick()
         {
             if (Application.isPlaying && Owner?.RuntimeContext?.Paused != true) _clock += Time.deltaTime;
-            PrepareView(); BindInteractions();
+            PrepareView(); BindInteractions(); TickSplashes();
         }
         private void BeginContext(ScriptableRenderContext context, List<UnityCamera> cameras) => _renderContextDepth++;
         private void EndContext(ScriptableRenderContext context, List<UnityCamera> cameras) => _renderContextDepth = Mathf.Max(0, _renderContextDepth - 1);
@@ -69,16 +72,18 @@ namespace MxFramework.Game.CharacterTest
             if (camera != _reflection) { EndSceneReflection(camera); return; }
             ReflectionRenders++;
             _reflectionValid = ReflectionTexture != null && ReflectionTexture.IsCreated() && camera.targetTexture == ReflectionTexture;
+            _reflectionSchedule.Record(_source, Time.realtimeSinceStartupAsDouble);
         }
         /// <summary>NoAlloc after camera/RT warmup. Also called before presentation pose admission.</summary>
         public void PrepareView()
         {
             if (!IsActive) return;
             if (Owner == null || Settings == null) { SuspendView("Assign the scene owner and water settings."); return; }
+            _ripples.Expire((float)Clock, Settings.RippleLifetime);
             var config = Owner.SceneRendering;
             if (config?.Feature == null || !config.Feature.isActive || config.TargetCamera == null || Settings.SurfaceShader == null)
             { SuspendView("Assign scene renderer, source camera and the shallow-water shader."); return; }
-            if (_source != config.TargetCamera) { _source = config.TargetCamera; _source.TryGetComponent(out _sourceData); }
+            if (_source != config.TargetCamera) { ReleaseTarget(); _source = config.TargetCamera; _source.TryGetComponent(out _sourceData); }
             if (_sourceData == null) { SuspendView("Source camera requires its existing URP camera data."); return; }
             if (!_source.isActiveAndEnabled || _sourceData.renderType != CameraRenderType.Base)
             { SuspendView("Source camera must be an active URP Base camera."); return; }
@@ -108,22 +113,31 @@ namespace MxFramework.Game.CharacterTest
             _auxiliary.SourceCamera = _source;
             Vector2 size = Settings.Size;
             GeometryUtility.CalculateFrustumPlanes(_source, _frustum);
-            bool visible = GeometryUtility.TestPlanesAABB(_frustum, SurfaceBounds(Position, Rotation, size));
+            bool visible = _source.transform.position.y > Position.y + .006f
+                && GeometryUtility.TestPlanesAABB(_frustum, SurfaceBounds(Position, Rotation, size));
             bool reflect = SurfaceEnabled && ReflectionEnabled && visible;
+            if (!visible || !RipplesEnabled || Settings.EffectiveRippleLimit == 0 || _ripples.Count == 0) _gameRippleField.Release();
             _reflectionWanted = reflect;
             // Play cameras use the normal depth-ordered camera loop. Edit preview owns its render request.
             _reflection.enabled = reflect && Application.isPlaying;
             if (!reflect)
             { _lod?.UnregisterGameplayCamera(_reflection); ReleaseTarget(); Issue = string.Empty; RefreshScenePreviews(); return; }
             if (!EnsureTarget()) return;
+            int budget = ReflectionBudget;
+            if (_reflectionBudget != budget) { _reflectionBudget = budget; _reflectionValid = false; }
+            bool render = !Application.isPlaying || _reflectionSchedule.IsDue(_source, Time.realtimeSinceStartupAsDouble,
+                ReflectionReady, Settings.EffectiveReflectionRate);
+            _reflection.enabled = render && Application.isPlaying;
+            // Keep both the texture and its capture projection together on skipped frames.
+            if (!render) { RefreshScenePreviews(); return; }
             _reflection.CopyFrom(_source);
             _reflection.enabled = Application.isPlaying; _reflection.targetTexture = _reflectionTarget.rt;
             _reflection.depth = _source.depth - 1;
             _reflection.cullingMask = _source.cullingMask & Settings.ReflectionLayers.value & ~(1 << 5);
-            _reflection.farClipPlane = Mathf.Min(_source.farClipPlane, Settings.ReflectionDistance);
+            _reflection.farClipPlane = Mathf.Min(_source.farClipPlane, Settings.EffectiveReflectionDistance);
             _reflection.useOcclusionCulling = false; _reflection.allowMSAA = false;
             _reflectionData.renderType = CameraRenderType.Base;
-            _reflectionData.renderPostProcessing = false; _reflectionData.renderShadows = _sourceData.renderShadows;
+            _reflectionData.renderPostProcessing = false; _reflectionData.renderShadows = Settings.UseReflectionShadows && _sourceData.renderShadows;
             _reflectionData.requiresColorOption = CameraOverrideOption.Off;
             _reflectionData.requiresDepthOption = CameraOverrideOption.On;
             _reflectionData.volumeLayerMask = 0; _reflectionData.antialiasing = AntialiasingMode.None;
@@ -153,10 +167,10 @@ namespace MxFramework.Game.CharacterTest
         }
         private bool EnsureTarget()
         {
-            float scale = Mathf.Clamp(Settings.ReflectionScale,.1f,1);
+            float scale = Settings.EffectiveReflectionScale;
             int width = Mathf.Max(64, Mathf.RoundToInt(_source.pixelWidth * scale));
             int height = Mathf.Max(64, Mathf.RoundToInt(_source.pixelHeight * scale));
-            float clamp = Mathf.Min(1, Settings.ReflectionMaximumEdge / (float)Mathf.Max(width,height));
+            float clamp = Mathf.Min(1, Settings.EffectiveReflectionEdge / (float)Mathf.Max(width,height));
             width = Mathf.Max(64, Mathf.RoundToInt(width*clamp)); height = Mathf.Max(64, Mathf.RoundToInt(height*clamp));
             var cached = _reflectionTarget?.rt;
             if (cached != null && _reflectionColorView != null && cached.IsCreated()
@@ -182,6 +196,14 @@ namespace MxFramework.Game.CharacterTest
         }
         private static bool SupportedDepth(GraphicsFormat format) => format != GraphicsFormat.None
             && SystemInfo.IsFormatSupported(format, GraphicsFormatUsage.Render);
+        private int ReflectionBudget => HashCode.Combine(Settings.QualityTier, Settings.EffectiveReflectionDistance,
+            Settings.ReflectionLayers.value, Settings.UseReflectionShadows, Position.y);
+        internal bool SurfaceVisible(UnityCamera camera, Plane[] planes)
+        {
+            if (!SurfaceEnabled || camera == null || camera.transform.position.y <= Position.y + .006f) return false;
+            GeometryUtility.CalculateFrustumPlanes(camera, planes);
+            return GeometryUtility.TestPlanesAABB(planes, SurfaceBounds(Position, Rotation, Settings.Size));
+        }
         internal void BindPresentationLod(CharacterTestPresentationLod lod)
         {
             if (!ReferenceEquals(_lod,lod))
@@ -216,6 +238,8 @@ namespace MxFramework.Game.CharacterTest
         }
         private void SuspendView(string issue)
         {
+            _gameRippleField.Release();
+            ClearSplashParticles();
             ReleaseScenePreviews();
             Issue = issue;
             _reflectionWanted = false;
@@ -228,11 +252,13 @@ namespace MxFramework.Game.CharacterTest
         public void Dispose()
         {
             if (_disposed) return; _disposed = true;
+            _gameRippleField.Release();
             RenderPipelineManager.beginContextRendering -= BeginContext;
             RenderPipelineManager.endContextRendering -= EndContext;
             RenderPipelineManager.endCameraRendering -= EndCamera;
             _reflectionWanted = _reflectionValid = _renderRequestInProgress = false; _renderContextDepth = 0;
             UnbindInteractions();
+            ReleaseSplashes();
             ReleaseScenePreviews();
             _lod?.UnregisterGameplayCamera(_reflection); _lod = null;
             _pipeline?.UnregisterProvider(SurfacePass.Name); _pipeline = null; _pass = null;
@@ -242,5 +268,26 @@ namespace MxFramework.Game.CharacterTest
         }
         private static void DestroyOwned(UnityEngine.Object value)
         { if (value == null) return; if (Application.isPlaying) UnityEngine.Object.Destroy(value); else UnityEngine.Object.DestroyImmediate(value); }
+    }
+
+    /// <summary>Capture-based cadence: repeated preparation never consumes an update before it renders.</summary>
+    internal struct WaterReflectionSchedule
+    {
+        private double _lastRender;
+        private Vector3 _position;
+        private Quaternion _rotation;
+        private Matrix4x4 _projection;
+        internal bool IsDue(UnityCamera camera, double now, bool ready, int rate)
+        {
+            return !ready || rate <= 0 || now < _lastRender || now - _lastRender >= 1d / rate
+                || (camera.transform.position - _position).sqrMagnitude > 4
+                || Quaternion.Angle(camera.transform.rotation, _rotation) > 12
+                || !_projection.Equals(camera.projectionMatrix);
+        }
+        internal void Record(UnityCamera camera, double now)
+        {
+            _lastRender = now; _position = camera.transform.position; _rotation = camera.transform.rotation;
+            _projection = camera.projectionMatrix;
+        }
     }
 }

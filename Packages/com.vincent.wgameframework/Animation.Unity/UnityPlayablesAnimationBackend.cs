@@ -219,6 +219,8 @@ namespace MxFramework.Animation.Unity
                 return MxAnimationBackendResult.Succeeded(default, "Layer was already stopped.");
             }
 
+            InvalidatePendingClipLoads(layerId);
+            layer.NextClipKey = default;
             float fade = request != null ? Math.Max(0f, request.FadeOutDurationSeconds) : 0f;
             if (fade <= 0f)
             {
@@ -227,6 +229,7 @@ namespace MxFramework.Animation.Unity
             }
             else
             {
+                MoveBlendSlotsToOutgoing(layer, fade);
                 MoveCurrentToOutgoing(layer, fade);
                 layer.Status = MxAnimationLayerStatus.FadingOut;
             }
@@ -439,20 +442,36 @@ namespace MxFramework.Animation.Unity
             float blendFadeDuration = Math.Max(0f, fadeDurationSeconds);
             bool blendChanged = layer.ActiveBlendKind != blendKind
                 || !string.Equals(layer.ActiveBlendId, resolvedBlendId, StringComparison.Ordinal);
+            bool beginBlendFade = blendFadeDuration > 0f && layer.Current != null;
             if (blendChanged)
             {
-                ReleaseOutgoingSlots(layer);
+                if (!beginBlendFade)
+                    ReleaseOutgoingSlots(layer);
                 ReleaseBlendSlots(layer);
                 layer.BlendNormalizedPhase = 0d;
             }
-            else if (layer.BlendFadeDurationSeconds <= 0f)
+            else if (layer.BlendFadeDurationSeconds <= 0f && !beginBlendFade)
             {
                 ReleaseOutgoingSlots(layer);
             }
 
-            bool beginBlendFade = blendFadeDuration > 0f && layer.Current != null;
             if (beginBlendFade)
             {
+                // An interrupted crossfade's pose includes all outgoing clips, not just Current.
+                // Retain their sampled weights and fade the complete pose over the new duration.
+                for (int i = layer.Outgoing.Count - 1; i >= 0; i--)
+                {
+                    ClipSlot outgoing = layer.Outgoing[i];
+                    if (outgoing.Weight <= Epsilon)
+                    {
+                        layer.Outgoing.RemoveAt(i);
+                        DetachAndReleaseSlot(layer, outgoing);
+                        continue;
+                    }
+                    outgoing.TargetWeight = outgoing.Weight;
+                    outgoing.FadeElapsedSeconds = 0f;
+                    outgoing.FadeDurationSeconds = blendFadeDuration;
+                }
                 MoveCurrentToOutgoing(layer, blendFadeDuration);
                 layer.BlendFadeElapsedSeconds = 0f;
                 layer.BlendFadeDurationSeconds = blendFadeDuration;
@@ -709,7 +728,8 @@ namespace MxFramework.Animation.Unity
                     layer.BlendFadeDurationSeconds,
                     slots,
                     layer.BlendWeights,
-                    layer.Blend2DWeights));
+                    layer.Blend2DWeights,
+                    layer.BlendNormalizedPhase));
             }
 
             layers.Sort((left, right) => string.CompareOrdinal(
@@ -815,6 +835,8 @@ namespace MxFramework.Animation.Unity
                             break;
                     }
                 }
+
+                layer.BlendNormalizedPhase = ResolveRestoredBlendPhase(layer, saved.BlendNormalizedPhase);
             }
 
             EvaluateCurrentPose();
@@ -853,6 +875,28 @@ namespace MxFramework.Animation.Unity
             }
         }
 
+        private static double ResolveRestoredBlendPhase(LayerRuntime layer, double? savedPhase)
+        {
+            if (savedPhase.HasValue)
+                return savedPhase.Value;
+
+            // Legacy snapshots contain sampled times only. Rebuild that phase rather
+            // than retaining the destination backend's unrelated continuation state.
+            for (int i = 0; i < layer.BlendSlots.Count; i++)
+            {
+                ClipSlot slot = layer.BlendSlots[i];
+                AnimationClip clip = slot.Handle != null ? slot.Handle.Value : null;
+                if (clip == null || clip.length <= 0.0001f || !slot.Loop)
+                    continue;
+
+                double phase = slot.Playable.GetTime() / clip.length;
+                if (!double.IsNaN(phase) && !double.IsInfinity(phase))
+                    return phase - Math.Floor(phase);
+            }
+
+            return 0d;
+        }
+
         private static bool TryValidatePlaybackState(
             MxAnimationPlaybackState state,
             out ResourceKey invalidKey,
@@ -867,6 +911,15 @@ namespace MxFramework.Animation.Unity
                 if (layer == null)
                 {
                     error = "Playback state contains a null layer.";
+                    return false;
+                }
+
+                if (layer.BlendNormalizedPhase.HasValue
+                    && (double.IsNaN(layer.BlendNormalizedPhase.Value)
+                        || double.IsInfinity(layer.BlendNormalizedPhase.Value)
+                        || layer.BlendNormalizedPhase.Value < 0d))
+                {
+                    error = "Playback state contains an invalid Blend continuation phase.";
                     return false;
                 }
 
@@ -924,7 +977,12 @@ namespace MxFramework.Animation.Unity
 
             _released = true;
             for (int i = 0; i < _pendingLoads.Count; i++)
-                _pendingLoads[i].Operation.Cancel();
+            {
+                PendingLoad pending = _pendingLoads[i];
+                if (!pending.Operation.IsDone)
+                    pending.Operation.Cancel();
+                ReleaseCompletedClipLoad(pending);
+            }
             _pendingLoads.Clear();
 
             for (int i = 0; i < _pendingMaskLoads.Count; i++)
@@ -1032,6 +1090,37 @@ namespace MxFramework.Animation.Unity
             return MxAnimationBackendResult.Queued(request.ClipKey, "Clip load queued.");
         }
 
+        private void InvalidatePendingClipLoads(MxAnimationLayerId layerId)
+        {
+            for (int i = _pendingLoads.Count - 1; i >= 0; i--)
+            {
+                PendingLoad pending = _pendingLoads[i];
+                if (pending.Purpose != LoadPurpose.Request || pending.LayerId != layerId)
+                    continue;
+
+                // Cancellation may be advisory. Keep unfinished operations so their
+                // eventual successful handles can be reclaimed without applying playback.
+                pending.Invalidated = true;
+                if (!pending.Operation.IsDone)
+                    pending.Operation.Cancel();
+                if (!pending.Operation.IsDone)
+                    continue;
+
+                _pendingLoads.RemoveAt(i);
+                ReleaseCompletedClipLoad(pending);
+            }
+        }
+
+        private void ReleaseCompletedClipLoad(PendingLoad pending)
+        {
+            if (!pending.Operation.IsDone)
+                return;
+
+            ResourceLoadResult<ResourceHandle<AnimationClip>> result = pending.Operation.Result;
+            if (result.Success && result.Value != null && !result.Value.IsReleased)
+                _resourceManager.Release(result.Value);
+        }
+
         private void ProcessPendingLoads()
         {
             for (int i = _pendingLoads.Count - 1; i >= 0; i--)
@@ -1041,6 +1130,11 @@ namespace MxFramework.Animation.Unity
                     continue;
 
                 _pendingLoads.RemoveAt(i);
+                if (pending.Invalidated)
+                {
+                    ReleaseCompletedClipLoad(pending);
+                    continue;
+                }
                 if (pending.Purpose == LoadPurpose.Resident)
                     CompleteResidentLoad(pending);
                 else
@@ -2270,6 +2364,7 @@ namespace MxFramework.Animation.Unity
             }
 
             public LoadPurpose Purpose { get; }
+            public bool Invalidated { get; set; }
             public bool AllowFallback { get; }
             public MxAnimationRequestKind RequestKind { get; }
             public MxAnimationLayerId LayerId { get; }

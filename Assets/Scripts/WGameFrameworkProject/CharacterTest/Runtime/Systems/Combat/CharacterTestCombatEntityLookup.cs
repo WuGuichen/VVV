@@ -10,6 +10,8 @@ namespace MxFramework.Game.CharacterTest
         private readonly Dictionary<int, CharacterTestCharacterEntity> _entitiesById =
             new Dictionary<int, CharacterTestCharacterEntity>(128);
         private CharacterTestCharacterRuntimeWorld _world;
+        internal TacticalCard.TacticalDoubleEdgeBattleState AccessoryState => _world?.DoubleEdgeState;
+        internal CharacterTestCharacterRuntimeWorld RuntimeWorld => _world;
         private HitTargetStateContributionStore _targetStateContributions;
 
         public void Configure(

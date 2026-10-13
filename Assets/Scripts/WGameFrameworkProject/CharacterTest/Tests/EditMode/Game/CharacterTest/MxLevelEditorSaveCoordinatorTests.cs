@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using MxFramework.Editor.Levels;
+using MxFramework.Game.CharacterTest;
+using MxFramework.Game.CharacterTest.Editor;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -219,6 +222,52 @@ namespace MxFramework.Tests.Game.CharacterTest
             Assert.IsFalse(saved);
             Assert.That(message, Does.Contain("simulated failure after Look write"));
             Assert.AreEqual("saved-look", File.ReadAllText(ToFullPath(assetPath)));
+            Assert.IsTrue(_scene.isDirty);
+        }
+
+        [Test]
+        public void WorldDefinitionsDeclareAllThreeArtifactPathsOnlyWhenDirty()
+        {
+            var module = new CharacterTestWorldObjectLevelEditorModule();
+            var owner = (object)module as IMxLevelEditorAssetSavePaths;
+            Assert.IsNotNull(owner);
+            var paths = new List<string>();
+            owner.CollectAssetSavePaths(paths);
+            Assert.IsEmpty(paths);
+            typeof(CharacterTestWorldObjectLevelEditorModule).GetField("_definitionsDirty",
+                BindingFlags.Instance | BindingFlags.NonPublic).SetValue(module, true);
+            owner.CollectAssetSavePaths(paths);
+            CollectionAssert.AreEquivalent(new[] {
+                CharacterTestWorldObjectDefinitionCatalogLoader.DefaultAuthoringPath,
+                CharacterTestWorldObjectDefinitionCatalogLoader.DefaultGeneratedRuntimePath,
+                "Assets/StreamingAssets/" + CharacterTestWorldObjectDefinitionCatalogLoader.DefaultPlayerMirrorRelativePath
+            }, paths);
+            Assert.AreEqual(3, paths.Count);
+        }
+
+        [Test]
+        public void WriteFailureRestoresAllThreeDefinitionArtifactSnapshots()
+        {
+            string[] paths = { _folderPath + "/definitions.json", _folderPath + "/generated.json", _folderPath + "/mirror.json" };
+            foreach (string path in paths)
+            {
+                File.WriteAllText(ToFullPath(path), "saved:" + path);
+                AssetDatabase.ImportAsset(path);
+            }
+            var writer = new FakeSaveModule("definitions", _documentPath, _root, () => {
+                foreach (string path in paths)
+                {
+                    File.WriteAllText(ToFullPath(path), "edited:" + path);
+                    AssetDatabase.ImportAsset(path);
+                }
+            }, assetPaths: paths);
+            var failing = new FakeSaveModule("failing", _documentPath, _root,
+                () => throw new IOException("failure after definition projections"));
+            Assert.IsFalse(MxLevelEditorSaveCoordinator.TrySaveModules(
+                new IMxLevelEditorModule[] { writer, failing }, out string message));
+            Assert.That(message, Does.Contain("failure after definition projections"));
+            foreach (string path in paths)
+                Assert.AreEqual("saved:" + path, File.ReadAllText(ToFullPath(path)));
             Assert.IsTrue(_scene.isDirty);
         }
 

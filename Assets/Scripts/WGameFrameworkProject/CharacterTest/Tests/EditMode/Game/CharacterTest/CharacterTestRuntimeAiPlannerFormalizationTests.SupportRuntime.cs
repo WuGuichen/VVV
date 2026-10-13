@@ -166,7 +166,9 @@ namespace MxFramework.Tests.Game.CharacterTest
                         })
                 },
                 perceptionSettings: CharacterTestRuntimeAiPlannerPerceptionSettings.CreateDefault(),
-                movementSettings: movementSettings);
+                movementSettings: movementSettings,
+                nextStateId: global::MxFramework.Tests.Game.CharacterTest.MigrationFixtureIds.Id0060 + 1,
+                nextActionId: 920901);
         }
 
         private static CharacterTestCharacterEntity Spawn(

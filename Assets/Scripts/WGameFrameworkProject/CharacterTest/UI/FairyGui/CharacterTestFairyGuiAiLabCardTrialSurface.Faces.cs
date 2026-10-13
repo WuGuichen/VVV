@@ -8,12 +8,12 @@ namespace MxFramework.Game.CharacterTest
 {
     internal sealed partial class CharacterTestFairyGuiAiLabCardTrialSurface
     {
-        private readonly Dictionary<(string Card, string Action, int Character, int Fee), CharacterTestCardUiPreviewData> _previewFaces = new();
+        private readonly Dictionary<(string Card, string Action, int Character, int Fee, string Assembly), CharacterTestCardUiPreviewData> _previewFaces = new();
 
         // LowFreqAlloc: projects exact published source and bindings without freezing a deployment or starting a trial.
         private CharacterTestCardUiPreviewData PreviewFace(CharacterTestRuntimeAiLabCardTrialSelection selection, int characterId, int fee)
         {
-            var key = (selection.CardId, selection.TacticalActionId ?? "", characterId, fee);
+            var key = (selection.CardId, selection.TacticalActionId ?? "", characterId, fee, CharacterTestRuntimeAiLabFixedAssembly.Summary(selection));
             if (_previewFaces.TryGetValue(key, out var cached)) return cached;
             var metadata = _session.Content.Catalog.Card(selection.CardId);
             int cost = selection.CardId == CharacterTestRuntimeAiLabCardTrialSelection.TestPreparationId ? fee : CardCost(selection.CardId);
@@ -39,6 +39,11 @@ namespace MxFramework.Game.CharacterTest
                 CharacterTestTacticalCardPresentationProjection.Project(source, document, data, inputs, issue, names,
                     _session.CardTextProvider, _session.CardFrameSeconds, notes);
             }
+            if (selection.FixedAssembly)
+            {
+                int accessoryCost = CharacterTestRuntimeAiLabFixedAssembly.ConfirmationCost(selection);
+                data.Cost = CharacterTestTacticalAccessoryDisplay.TotalCost(data.Cost, accessoryCost);
+            }
             if (_previewFaces.Count >= 256) _previewFaces.Clear();
             // A failed metrics preparation can become available after the existing role resources finish loading.
             if (source == null || data.Prepared) _previewFaces[key] = data;
@@ -56,16 +61,21 @@ namespace MxFramework.Game.CharacterTest
             face.SetScale(scale, scale);
             face.opaque = true;
             face.GetChild("focus").visible = selected;
-            _tooltips.Bind(face, CharacterTestFairyGuiTacticalDescriptionHints.TooltipText(data),
+            string detail = CharacterTestFairyGuiTacticalDescriptionHints.TooltipText(data);
+            if (selection.FixedAssembly) detail += "\n\n固定配件：" + CharacterTestRuntimeAiLabFixedAssembly.Summary(selection)
+                + "\n确认付主卡＋配件费，预留动作预算；实际起手另付动作费／开始CD。";
+            _tooltips.Bind(face, detail,
                 new MxFramework.UI.FairyGui.MxFairyGuiTooltipOptions(preferredPlacement: MxFramework.UI.FairyGui.MxFairyGuiTooltipPlacement.Above,
                     minimumTextWidth: 320, maximumTextWidth: 560, allowPin: false));
         }
 
-        private CharacterTestRuntimeAiLabCardTrialSelection PreviewSelection(string cardId)
+        private CharacterTestRuntimeAiLabCardTrialSelection PreviewSelection(string cardId, int characterId = 0)
         {
-            string action = _pickerMode == TrialPickerMode.ReplaceCard && _pickerIndex >= 0
-                ? _session.Draft.InitialHand[_pickerIndex].TacticalActionId : "";
-            action = _session.Content.ResolveActionBinding(cardId, _session.Draft.PlayerCharacterId, action);
+            string action = _pickerMode == TrialPickerMode.OpponentCard && _session.Draft.OpponentCard?.CardId == cardId
+                ? _session.Draft.OpponentCard.TacticalActionId
+                : _pickerMode == TrialPickerMode.ReplaceCard && _pickerIndex >= 0
+                ? EditingDeck[_pickerIndex].TacticalActionId : "";
+            action = _session.Content.ResolveActionBinding(cardId, characterId == 0 ? EditingCharacter : characterId, action);
             return new CharacterTestRuntimeAiLabCardTrialSelection(cardId, action);
         }
 

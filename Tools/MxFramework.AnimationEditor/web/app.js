@@ -4195,9 +4195,10 @@ function getTimelineMetadata(timeline, key) {
   return timeline?.metadata?.[key] || "";
 }
 
-function getTimelineDurationSeconds(timeline, group) {
-  const clip = (group?.clips || []).find(item => item.clipId === timeline?.clipId);
-  return Number(timeline?.metadata?.durationSeconds || clip?.metadata?.durationSeconds || 1);
+function getTimelineDurationSeconds(timeline, group, clipId = timeline?.clipId) {
+  const clip = (group?.clips || []).find(item => item.clipId === clipId);
+  const durationOverride = clipId === timeline?.clipId ? timeline?.metadata?.durationSeconds : undefined;
+  return Number(durationOverride || clip?.metadata?.durationSeconds || 1);
 }
 
 function getTimelineFrameCount(timeline, domain) {
@@ -4244,7 +4245,6 @@ function updateEventPayloadTemplate(eventItem) {
 function getTimelineDiagnostics(group, timeline) {
   const diagnostics = [];
   const localClipIds = new Set(getLocalClipIds(group));
-  const duration = getTimelineDurationSeconds(timeline, group);
   if (!timeline.clipId) {
     diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_CLIP_EMPTY", message: "Timeline 缺少本地 clipId。" });
   } else if (!localClipIds.has(timeline.clipId)) {
@@ -4268,6 +4268,7 @@ function getTimelineDiagnostics(group, timeline) {
       diagnostics.push({ tone: "error", code: "ANIM_TIMELINE_EVENT_CLIP_MISSING", message: `Event ${index + 1} 引用的 clipId ${clipId} 不存在于当前 Group。` });
     }
 
+    const duration = getTimelineDurationSeconds(timeline, group, clipId);
     const domain = eventItem.timeDomain || timeline.timeDomain || "Seconds";
     const time = Number(eventItem.time || 0);
     if (domain === "Normalized" && (time < 0 || time > 1)) {

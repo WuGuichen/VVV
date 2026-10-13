@@ -1,6 +1,21 @@
 # Resources 接口
 
 > Status: Current
+> 文档版本：2026-10-13.1
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources/ResourceManager.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources/ResourceHandle.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources/ResourceGroupHandle.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources/ResourcePreloadService.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources/ResourcePlanOrchestrator.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Resources/ResourcePlanOrchestratorTests.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Resources/ResourceManagerTests.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources.Unity/ResourceSceneFlowDriver.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources.Unity/GlobalResourceRuntimeBootstrap.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources.Unity/AssetBundleProvider.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Resources.Unity/RemoteBundleProvider.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Resources/RemoteBundleProviderTests.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Resources/AssetBundleProviderTests.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/Tests/Repository/PlayMode/Resources/ResourceSceneFlowPlayModeTests.cs`
 
 ## 职责
 
@@ -59,6 +74,10 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 ## 使用约定
 
 - 配置和 Gameplay 只保存 `ResourceKey`，不保存 Unity 路径或 `UnityEngine.Object`。
+- `AssetBundleProvider`（含 `externalAssetBundle`）仅复用由本实现实际 `LoadFromFile` 成功登记的同源 native bundle；来源身份是构造时固定的完整规范根路径、目标完整规范路径及文件 SHA-256。包名、basename、assetName、CLR 类型和 `PackageId` 均不能证明内容来源。路径以 `Path.GetFullPath` 归一，Windows 按忽略大小写比较，其余平台按 ordinal 比较；不解析符号链接，也不把异路径相同字节视为同源。
+- 每次 provider 实际加载请求（含本地 bundle record 命中）重新核对磁盘 SHA-256 和 native bundle 存活。已加载的同名包属于异根、同路径内容已变化或由 Unity/其他 provider 提前加载但来源未登记时，返回带请求 Key、ProviderId、规范目标路径及身份冲突说明的 `ProviderFailed`；依赖冲突沿原合同包装为 `DependencyInvalid`。拒绝不新增引用，已取得的依赖按逆序回滚，不卸载冲突对象或其他 owner 的 bundle。
+- 同源跨 provider 复用采用共享 native bundle lease；各 provider 仍保有自身 `LoadedBundleCount` / `GetBundleRefCount`，最后一个 provider record 释放后才卸载该实现加载的 bundle。加载方先释放不会失效借用方的资产。外部未登记 bundle 的旧按名静默借用已收紧为明确拒绝，即使调用方知道它由同一路径加载；需要复用时通过本 provider 建立资源 ownership，不提供仅凭调用方声明登记来源的入口。登记只在当前 managed domain 有效，domain reload 后仍存活但失去登记的 native bundle 同样按未知来源拒绝。
+- 来源验证是 Unity 主线程上的 `LowFreqAlloc` 文件读取／SHA-256 流程，不应置于 Tick 高频路径。新加载时保持源文件只读打开并在 native load 后再次核对摘要，读文件/验证失败返回 `ProviderFailed` 并释放本次创建的 bundle；部署新内容应先释放旧 ownership。`ResourceManager` 已持有同 Key 的成功 record 仍按既有缓存合同 acquire，不代表每次 handle acquire 都重读磁盘。这里不保证可并发修改已加载 bundle 文件，也不改变 Scene/RemoteBundle provider 的独立 ownership 合同。
 - 普通 Resource Catalog 覆盖 Unity 资产和 provider 资源，例如 `AudioClip`、`AnimationClip`、`Texture2D`、`GameObject`、AssetBundle 和 RemoteBundle。FMOD bank `.bank` 文件和 FMOD event path/guid 不进入普通 Catalog；它们通过 Audio/FMOD 设置、`AudioEventDefinition` 和后续单独批准的 bank manifest/provider 管理。
 - `ResourceKey.Id` 使用小写命名空间，允许小写字母、数字、`.`、`_`、`-`。
 - Character Resource Package 的 package-local `ResourceKey` 生成规则为 `char.<packageId>.<typeSegment>.<localId>[.<variant>]`，其中 `animation` 的 key segment 固定为 `anim`；所有段落先归一为小写、`.`、`_`、`-` 和数字。
@@ -72,6 +91,8 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - CharacterStudio package 写入使用 manifest、resource catalog、application、geometry 和 validation 等同一保存事务所拥有文档的 `sha256` revision 做低频乐观并发控制；保存与 schema migration 都携带 `expectedRevision`，磁盘变化返回 `CHARACTER_PACKAGE_WRITE_CONFLICT` / HTTP 409，只有显式 `force` 才覆盖。独立 endpoint 管理的 import-material state 不混入该 revision。
 - `PackageId` 非空时精确路由到指定包；为空时使用合并后的全局 entry。
 - 重复释放 handle 不抛异常，但会记录 `HandleReleased` 诊断错误。
+- `ImmediateResourceOperation<T>` 在创建时已经终结：`IsDone=true`、`Progress=1`，`Result` 保持原成功／失败值，`IsCancelled` 只表示原终态是否为 `ResourceErrorCode.Cancelled`。完成后一次或多次 `Cancel()` 均为 `NoAlloc` 无操作，不改写错误、丢弃成功 handle 或提前释放消费者所有权。`ResourceManager.LoadAsync<T>` 的成功 handle 继续由调用方通过 `Release(handle)` 精确释放；预取消 token 不获取引用，预取消结果及其它失败结果在迟到取消后保持稳定。None/KeepAlive 与多 owner 的聚焦回归见 `ResourceManagerTests`；preload 的在途 safe-drain 规则继续独立适用。
+- `Load<T>` 在 Provider 成功后发现 CLR 类型不匹配或 null 时，返回 `TypeMismatch` 并精确撤销本次获取的一份引用；归零时释放该 record 及其依赖，失败回滚不进入 None/Timed/KeepAlive/Budgeted 的保留流程。已有预加载 owner 与独立依赖 owner 的引用及 handle 继续有效，修正 Provider 注册后没有旧的无主 record 遮蔽重试。Provider 调用前的类型拒绝不获取引用；`LoadAsync<T>` 沿用相同规则。聚焦回归见 `ResourceManagerTests`。
 - M1 只提供 noEngine 契约和 `MemoryResourceProvider`，不加载 Unity asset。
 - M2 提供 Unity `ResourcesProvider`，只用于 Demo、小样例和少量常驻资源。
 - `ResourcesProvider` 通过 `UnityEngine.Resources.Load` 加载，缺失资源返回 `ResourceErrorCode.NotFound`。
@@ -82,6 +103,10 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - AssetBundle 依赖由 `IAssetBundleDependencyProvider` 提供，Provider 加载 asset 前先加载依赖 bundle。
 - bundle ref-count 归零后调用 `AssetBundle.Unload(true)`。
 - Scene 不走普通 `IResourceManager.Load<T>` 对象资源加载。`ResourceTypeIds.Scene` entry 由 `ResourceSceneFlowDriver` 读取，provider 必须是 `sceneAssetBundle`，地址为 `bundleName|Assets/.../*.unity`。
+- Offline bootstrap 明确拥有内部创建的 `ResourceSceneFlowDriver`，`GlobalResourceRuntimeServices.Dispose` 会开始其异步退休；原有 service 构造入口对外部注入的 driver 保持不拥有语义，新增显式 `ownsSceneFlowDriver` 重载仅接受 ResourceSceneFlowDriver。原有构造器签名保留。Scene handle 不在 ResourceManager loaded records 内，不能用 `ReleaseAllLoaded` 代替这条退休边界。
+- `ResourceSceneFlowDriver.Dispose` 阻止新加载，保留进行中的 load/unload，依靠 Unity `AsyncOperation.completed` 回调持续收口，不依赖已退休会话继续 Tick。加载的 native Scene 身份单独归属 driver；晚成功先入 owned 表再卸载，卸载完成且 Scene 已不再 loaded 才释放对应 scene bundle/dependency 引用。共享依赖按 provider ref-count 保留，不影响其他 live session；不执行全局 AssetBundle unload。重复 Dispose 不重复释放，已显式卸载的句柄也不再次释放。同 key 的重复加载及同 path 的重叠资源加载返回 Busy，避免不明确的 Scene 归属。
+- `Dispose` 表示退休开始，异步清理完成由 driver `IsRetired`／service `SceneRetirementComplete` 判断。异常或 null unload operation 保留 acquired 句柄，driver `RetirementError`／service `SceneRetirementError` 提供失败债务；静态退休登记持续持有 owner，不能把未完成误报为完成。保留服务/driver 后重复 Dispose 可重试。调用方不得在退休后继续加载；这些 load/unload/retirement API 属于 LowFreqAlloc，Runtime/noEngine 边界不新增 UnityEditor 依赖。
+- 原生回归入口 `ResourceSceneRetirementPlayModeTests` 在 Editor 生成独立双场景 bundle 和共享材质 dependency，检查正常卸载/退休重建、进行中的 load/unload、外部 driver、共享 live session、失败/空卸载债务及普通资源 exact-once。夹具只在构建调用上启用 `ENABLE_UNITY_COLLECTIONS_CHECKS`，匹配 Unity 6000.6 的 Collections API，不改变项目发布设置；这些 Editor PlayMode 场景/bundle 证据不代表完整 Player 发布构建通过。
 - `GlobalResourceRuntimeMode.Editor` 在 Unity Editor 中通过已注册的 `IGlobalResourceEditorRuntimeFactory` 从 `global_resource_mapping_profile.v2.json` 的唯一 compiled plan 生成内存 catalog / preload groups，并使用 `editorAssetDatabase` 直读项目内最新资源；不要求先重建 AssetBundle。
 - Editor SceneFlow 使用 `EditorSceneFlowDriver` 和 `EditorSceneManager.LoadSceneAsyncInPlayMode` 读取 `Scene` entry 的 `Assets/.../*.unity` 路径，可加载未加入 Build Settings 的开发场景。
 - `GlobalResourceRuntimeMode.Offline` 是 Player 本地模拟路径。它先读取 `global_resource_artifact_set.json`，逐项校验必需文件和 SHA-256，再从 manifest 指定的相对路径加载 catalog / mounts / preload / dependency；缺文件、混代、target 不符或 identity/fingerprint 不一致均在注册 Provider 前失败。
@@ -118,9 +143,12 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - `ResourcePreloadOperation.Cancel()` 或已取消的 `CancellationToken` 会 latch cancellation、停止启动新 load，并对所有已启动 operation 发出一次协作取消；它继续轮询非协作 operation 到真实 terminal，逐个释放 late-success handle，只有全部在途工作达到 safe terminal 后才以 `ResourceErrorCode.Cancelled` 结束。
 - `FailFast=true` 的首次失败同样进入 safe-drain：停止补位、协作取消并继续轮询全部已启动 operation；任何失败前已完成或 drain 期间 late-success 的 handle 都 exact-once release，失败结果不携带可 acquire 的 partial group。
 - 当前 `ResourceManager.LoadAsync` 仍兼容 noEngine immediate 语义；Unity Provider 的异步能力必须在 Unity 主线程轮询或完成，不能假设 worker thread 可触碰 `UnityEngine.Object` / `AssetBundle` API。
-- `ResourcePreloadService.ReleaseGroup` 幂等；调用方释放 group 后，底层逐个调用 `IResourceManager.Release`。
+- `ResourcePreloadResult.RequestedKeys` 保留去重后的原始请求身份；成功 group 内部按实际完成顺序保存每次原请求与 manager 返回 handle 的关联及 manager owner。handle 的 `Key` 保持实际解析后的 package/variant 身份。两个不同逻辑请求可以解析到同一 record，但各自拥有独立 handle/ref，不按 resolved key 再次去重。关联只在初始化、获取完成和结果构建时分配，steady polling 不重新解析 catalog 或创建集合。
+- `ResourcePreloadService.ReleaseGroup` 幂等；只接受同一 manager 产生且尚未转移的 group，底层逐个调用 `IResourceManager.Release`。外来 manager 或没有内部获取关联来源的 group 无操作，不能借伪造 group 回收 live session 的引用；普通 partial failure 仍保留其真实成功获取供调用方释放，取消的 late-success drain 保持独立适用。
 - `ResourceManager.SealRuntimeConfiguration()` 是低频一次性冻结点：identity 绑定 manager instance、provider instance/type/id、完整 catalog entry topology、variant profile 与预计算 diagnostic fingerprint；重复 seal 返回同一 identity。seal 后 `RegisterProvider`、`AddCatalog`、`SetVariantProfile` fail-closed，identity 的公开读取和 `TryGetRuntimeConfigurationIdentity` 为 `NoAlloc`。
 - `ResourcePlanOrchestrator.Prepare(identity, plan)` 创建 internal-construction 的 owner-bound `ResourcePlanPreparation`；其 steady `Status` / `Progress` / `Error` 轮询初始化后 `NoAlloc`。`AcquirePrepared` 只接受同 manager、同 orchestrator owner、同完整 `PlanFingerprint` 且 fully successful 的 preparation，并通过 `ResourcePlanAcquireResult` typed error 在 ownership transfer 前拒绝 incomplete、failed、cross-manager、cross-plan、foreign-owner 与 repeated acquire。
+- fully successful 的身份校验使用该 sealed manager 的实际 preload 获取关联：每个原请求须恰有一份获取，handle 非空、处于 Loaded 且对象引用唯一；原始请求的完整 id/type/package/variant 不能被替换。合法 package 补全、profile/fallback variant、label warmup 与逻辑别名按关联验收，不要求原请求 key 与 resolved handle key 相等。缺失、伪造、重复 handle 或替换 RequestedKeys 返回 `PreparationResultInvalid`，只回收该 candidate 的真实 ownership；acquire 后 preparation 的 `Error` 保持 None，session 继续负责释放已转移的 handles。聚焦回归入口为 `ResourcePlanOrchestratorTests`。
+- 2026-10-13 Issue #791 实施方证据：同一 Resources 候选的纯离线 `ResourcePlanOrchestratorTests` / `ResourcePreloadServiceTests` 43/43；Unity 6000.6.3f1 原生上述两组加 `ResourceManagerTests` 93/93，`validate_unity_scripts` 确认 refresh completed、compilation started/finished、domain reload observed、Editor ready 和 Console error 0。合法解析场景各轮询 1000 次测得零分配。此为实施方自验，原 F11 owner 独立复核待执行；不包含 Player 或自然场景验收。文档健康检查仍报基线已有的 `Application.md` 第 5 行 Code-Doc 格式错误，该无关文档未在本任务修改。
 - strong acquire 会把成功 group 的 handles exact-once 转移给独立 `ResourcePlanSession`；尚未 acquire 的 candidate preparation 必须在 rollback/放弃时调用幂等、非阻塞的 `Release()` / `Dispose()`，并保留 lease、继续轮询 `Status`，直到从 `Releasing` 到达 `Released` 后 rollback 才算完成。该过程只释放自身 preload ownership，acquire 后再 dispose 不会释放 session。candidate session rollback/release 同样只释放自身 handles，不改变同一 sealed configuration 上已有 live session 的引用或 plan。旧 `Preload` / `Acquire(ResourcePlan, ResourcePreloadResult)` API 保留兼容，但 startup SessionBridge 只能消费 strong preparation lease。
 - MxAnimation warmup 直接复用 `ResourcePreloadService`。animation set 只声明 `ResourceKey` / label / group id；版本、hash 和 partial failure diagnostics 由 Animation 层包装，不新增 `MxFramework.Animation.Resources`。
 - 同一资源被 warmup group 和其它 consumer 同时持有时，释放 warmup group 只减少该 group 的引用；底层卸载仍由 `ResourceManager` ref-count / retain policy 决定。
@@ -139,6 +167,14 @@ Resources 提供纯 C# 的资源引用、Catalog、Provider、Handle、引用计
 - M6C 已新增 `RemoteBundleProvider`，ProviderId 为 `remoteBundle`，位于 `MxFramework.Resources.Unity`。
 - RemoteBundle address 继续使用 `bundleName|assetName`；`providerData.url` 指向 bundle source，`providerData.cacheKey` 控制缓存文件名。
 - RemoteBundle hash 使用 `ResourceCatalogEntry.Hash`，支持 `sha256:<hex>` 或裸 hex；hash mismatch 返回 `ProviderFailed`。
+- RemoteBundle 每次实际 Provider 请求（含同名活跃 record 命中）先解析本次 entry 的 bundle URL、预期摘要及规范缓存路径。URL 仍按 `url.<bundleName>`、`dependency.<bundleName>.url`、主包 `url`、`baseUrl` 的既有顺序解析；摘要仍优先 `hash.<bundleName>`，主包回退 entry.Hash。file URL／本地路径使用 `Path.GetFullPath`，Windows 忽略路径大小写，其余平台 ordinal；HTTP 等非文件 URL 按解析后原字符串 ordinal 比较，不解析符号链接或推断重定向等价。
+- BundleRecord 绑定该次请求的规范来源及 native load 前后核对的实际 SHA-256；活跃同名包只在来源相同、native bundle 仍存活且本次非空预期摘要匹配实际内容时增引用。摘要比较忽略十六进制大小写及可选 `sha256:` 前缀；先前未声明摘要的 record 也记录实际摘要，后续带正确摘要的 entry 可以共享。cacheKey 只决定磁盘存储位置，不能证明来源；同源同内容 entry 使用不同 cacheKey 仍允许共享活跃 record，不为此生成第二份磁盘文件。
+- 来源失配、摘要失配或 native 失效在增引用前返回带本次 Key、ProviderId、所需规范缓存路径及冲突说明的 `ProviderFailed`。依赖沿同一检查路径，失败包装为 `DependencyInvalid` 并保留依赖目标路径；本次已取得的依赖逆序回滚，不替换／卸载旧 owner。缺资产仍回滚本次引用；合法引用归零才卸载本 Provider 自己加载且仍存活的 bundle。不新增跨 Provider 借用或共享登记，也不改变 AssetBundleProvider 的来源／lease 合同。
+- 冷加载先重新计算缓存字节的 SHA-256；本次非空预期摘要与当前磁盘字节匹配时即可直接加载，不要求来源元数据、同一 Provider 或源在线，也不增加 FetchCount。该规则同样适用于新 Provider、LRU 身份逐出、来源 locator 改变但摘要仍匹配，以及缓存字节更新后匹配新请求摘要的情况；旧身份摘要不能覆盖本次有效内容证明。磁盘字节不匹配本次摘要时重新获取当前来源并核对；源不可用或获取内容仍失配则拒绝，不能退回无摘要来源证明。
+- 无摘要请求依赖磁盘缓存来源身份：同一 Provider 成功 native load 前后核对的规范来源和实际 SHA-256 按规范缓存路径保留托管元数据；native 引用释放不删除该记录。当前来源与已记录来源相同且磁盘字节摘要仍匹配时，即使源已离线，也可直接冷加载且不增加 FetchCount。缺文件或字节被改写会使该路径身份失效；未知身份或改变来源必须重新获取源，不能因文件存在或 cacheKey 相同默许复用。失败的新来源或摘要请求不会抹去字节仍完整的旧来源身份。
+- 身份表是当前 Provider 实例的纯元数据，没有 Unity Object、native bundle、文件流引用，也不挂到跨 Provider 或跨 domain 的全局状态；以规范缓存路径去重，重复 native 加载或身份替换只占一项；LRU 上限为 256 项，命中更新使用顺序，超限仅逐出最旧身份，不删除磁盘文件、卸载 native bundle 或改变原生引用。逐出身份、重建 Provider、domain reload 或既存缓存的未知身份只影响没有预期摘要的来源证明；有效预期摘要匹配磁盘字节时仍保持离线冷加载可用性，不增加持久化 sidecar/schema。
+- 来源身份表示规范 locator 和已成功加载的缓存内容快照；不对相同 URL 的远端内容做实时刷新。无摘要同源 warm entry 仍可共享已加载快照；内容换代应声明新摘要并先释放旧 ownership。摘要证明加载字节，不证明服务器身份、权限或签名。
+- 重新取源时先写本次唯一临时下载文件，摘要通过才覆盖 cacheKey 文件；失败清理本次临时文件，保留已有缓存。此顺序也避免本地源文件与缓存路径相同时先删除源。文件哈希及 native 存活检查是 Unity 主线程 `LowFreqAlloc` 路径。新 native load 期间以只读共享打开缓存文件，并在加载后再次核对摘要；文件读取／身份核对失败返回 typed error，不登记 ownership。该流程不是远端实时刷新或跨进程并发写缓存协议；ResourceManager 对同完整 Key 已成功 record 的既有 acquire 缓存合同不变。
 - RemoteBundle 当前支持 file URL 和同步 UnityWebRequest 下载；不做重试、断点续传、签名、权限授权或 CDN 发布工具。
 - Runtime Showcase 资源测试已改用 `mxframework.samples` catalog：`RuntimeVerticalSliceRunner` 在 Editor Play Mode 通过 `TempImportedResourceCatalogEditorBootstrap` 注册的 `MemoryResourceProvider` 跑 package / StartScreen / Combat / StatusEffects / MagicEffects warmup，再用 `ResourceKeyConfigProfile.CreateSample()` 直接加载 Katana、StatusAura、StartScreen 贴图和 MagicEffects AudioClip，并在同一轮测试中释放 handles / groups。MagicEffects warmup 也包含 `vfx.magic.fireball` prefab，用于验证 VFX `GameObject` 样例能通过同一 catalog 路径预热。
 

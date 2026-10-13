@@ -158,11 +158,13 @@ namespace MxFramework.Game.CharacterTest
             CombatHitEventConfig hitEvent,
             CharacterActionHitVolumeConfig hitVolume,
             int stableEventId,
-            int startFrame)
+            int startFrame,
+            TacticalCard.TacticalDirectAttackStamp doubleEdgeSource = default)
         {
             EntityId = entityId;
             ActionId = actionId;
             SourceInstanceId = sourceInstanceId;
+            DoubleEdgeSource = doubleEdgeSource;
             SourceActionInstanceId = sourceActionInstanceId;
             HitWindowId = hitWindowId <= 0 ? 0 : hitWindowId;
             EquipmentSlotId = equipmentSlotId;
@@ -177,6 +179,7 @@ namespace MxFramework.Game.CharacterTest
         public int EntityId { get; }
         public CharacterActionId ActionId { get; }
         public long SourceInstanceId { get; }
+        internal TacticalCard.TacticalDirectAttackStamp DoubleEdgeSource { get; }
         public int SourceActionInstanceId { get; }
         public int HitWindowId { get; }
         public int EquipmentSlotId { get; }
@@ -255,12 +258,12 @@ namespace MxFramework.Game.CharacterTest
     internal readonly struct CharacterTestResolvedHitKey : IEquatable<CharacterTestResolvedHitKey>
     {
         public CharacterTestResolvedHitKey(HitCandidate candidate)
-            : this(candidate.AttackerId, candidate.TargetId, candidate.ActionInstanceId, candidate.TraceId, candidate.Frame)
+            : this(candidate.AttackerId, candidate.TargetId, candidate.ActionInstanceId, candidate.TraceId, candidate.Frame, candidate.ProducerIdentity)
         {
         }
 
         public CharacterTestResolvedHitKey(HitResolveResult result)
-            : this(result.AttackerId, result.TargetId, result.ActionInstanceId, result.TraceId, result.Frame)
+            : this(result.AttackerId, result.TargetId, result.ActionInstanceId, result.TraceId, result.Frame, result.ProducerIdentity)
         {
         }
 
@@ -269,15 +272,17 @@ namespace MxFramework.Game.CharacterTest
             CombatEntityId targetId,
             int actionInstanceId,
             int traceId,
-            CombatFrame frame)
+            CombatFrame frame, CombatHitProducerIdentity producerIdentity)
         {
             AttackerId = attackerId;
             TargetId = targetId;
             ActionInstanceId = actionInstanceId < 0 ? 0 : actionInstanceId;
             TraceId = traceId < 0 ? 0 : traceId;
             Frame = frame;
+            ProducerIdentity = producerIdentity;
         }
 
+        public CombatHitProducerIdentity ProducerIdentity { get; }
         public CombatEntityId AttackerId { get; }
         public CombatEntityId TargetId { get; }
         public int ActionInstanceId { get; }
@@ -286,7 +291,7 @@ namespace MxFramework.Game.CharacterTest
 
         public bool Equals(CharacterTestResolvedHitKey other)
         {
-            return AttackerId.Equals(other.AttackerId)
+            return ProducerIdentity.Equals(other.ProducerIdentity) && AttackerId.Equals(other.AttackerId)
                 && TargetId.Equals(other.TargetId)
                 && ActionInstanceId == other.ActionInstanceId
                 && TraceId == other.TraceId
@@ -307,7 +312,7 @@ namespace MxFramework.Game.CharacterTest
                 hash = (hash * 397) ^ ActionInstanceId;
                 hash = (hash * 397) ^ TraceId;
                 hash = (hash * 397) ^ Frame.Value;
-                return hash;
+                return ProducerIdentity.IsValid ? (hash * 397) ^ ProducerIdentity.GetHashCode() : hash;
             }
         }
     }

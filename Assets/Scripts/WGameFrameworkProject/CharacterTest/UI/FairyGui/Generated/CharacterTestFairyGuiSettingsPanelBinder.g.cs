@@ -58,7 +58,11 @@ namespace MxFramework.Game.CharacterTest
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.AntiAliasingValue, viewModel.AntiAliasingText);
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.ShadowDistanceLabel, L("ui.character_test.settings.shadow_distance", "阴影距离"));
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityLabel, L("ui.character_test.settings.directional_shadow_quality", "阴影质量"));
+            BindText(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityLabel, L("ui.character_test.settings.water_quality", "水面反射"));
+            BindText(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityLabel, L("ui.character_test.settings.ripple_quality", "交互涟漪"));
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityValue, viewModel.DirectionalShadowQualityText);
+            BindText(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityValue, viewModel.WaterQualityText);
+            BindText(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityValue, viewModel.RippleQualityText);
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountLabel, L("ui.character_test.settings.shadow_cascades", "阴影级联数"));
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountValue, viewModel.ShadowCascadeCountText);
             BindText(root, CharacterTestFairyGuiSettingsPanelIds.LocalShadowResolutionLabel, L("ui.character_test.settings.local_shadow_resolution", "局部灯阴影图集"));
@@ -97,7 +101,11 @@ namespace MxFramework.Game.CharacterTest
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.AntiAliasingPrev, "<", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.AntiAliasingPrevious, null, false, checkMode: false);
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.AntiAliasingNext, ">", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.AntiAliasingNext, null, false, checkMode: false);
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityPrev, "<", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.DirectionalShadowQualityPrevious, null, false, checkMode: false);
+            BindButton(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityPrev, "<", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.WaterQualityPrevious, null, false, checkMode: false);
+            BindButton(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityPrev, "<", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.RippleQualityPrevious, null, false, checkMode: false);
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityNext, ">", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.DirectionalShadowQualityNext, null, false, checkMode: false);
+            BindButton(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityNext, ">", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.WaterQualityNext, null, false, checkMode: false);
+            BindButton(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityNext, ">", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.RippleQualityNext, null, false, checkMode: false);
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountPrev, "<", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.ShadowCascadeCountPrevious, null, false, checkMode: false);
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountNext, ">", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.ShadowCascadeCountNext, null, false, checkMode: false);
             BindButton(root, CharacterTestFairyGuiSettingsPanelIds.LocalShadowResolutionPrev, "<", viewModel.CanEdit, CharacterTestFairyGuiSettingsPanelCommandIds.LocalShadowResolutionPrevious, null, false, checkMode: false);
@@ -198,7 +206,11 @@ namespace MxFramework.Game.CharacterTest
                     CharacterTestFairyGuiSettingsPanelIds.AntiAliasingPrev,
                     CharacterTestFairyGuiSettingsPanelIds.AntiAliasingNext,
                     CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityPrev,
+                    CharacterTestFairyGuiSettingsPanelIds.WaterQualityPrev,
+                    CharacterTestFairyGuiSettingsPanelIds.RippleQualityPrev,
                     CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityNext,
+                    CharacterTestFairyGuiSettingsPanelIds.WaterQualityNext,
+                    CharacterTestFairyGuiSettingsPanelIds.RippleQualityNext,
                     CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountPrev,
                     CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountNext,
                     CharacterTestFairyGuiSettingsPanelIds.LocalShadowResolutionPrev,

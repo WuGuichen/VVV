@@ -1,23 +1,52 @@
 # CharacterTest 半即时卡牌核心
 
 > Status: Current
-> Version: 0.5 | 当前流程核对：2026-10-10；下方历史验收保留原日期
+> Version: 0.9 | 当前流程核对：2026-10-12；前三批限定交付／ACK复验已同步，下方历史验收保留原日期
 > 2026-10-05 当前源码：混合切片把卡牌费用账本接入角色动势，冷却复用实际动作的跨卡权威；HP归零后 IsAlive 为 false，破聚不等于死亡。玩法权威仍见[角色与卡组底层数据设计](../../StorySource/玩法基石/角色与卡组底层数据设计.md)。历史账本、旧卡定义及验收记录按原日期读取，不构成当前默认玩法或本次新增运行证据。
 > 2026-09-11 Task 1–3、T4-A/B/C/D 是历史 Runtime Slice 分阶段记录；场景、HUD、混合切片及战斗外 checkpoint 此后已进入主树。完整自然游玩验收仍需对应实际回执，不能由“已主合”推定。
 >
-> 2026-10-10 最新玩法已定：所有打出的牌启动行动，原准备等非行动卡改为随主卡统一出牌的配件；固定预装组合牌与随机双牌库装配均须实现。唯一玩法权威是[主卡与配件基石v0.5](../../StorySource/玩法基石/行动卡与交互效果卡设计基石.md)。本轮只实施下述数据／持有／战斗外保存基础；完整工程目标、费用／CD接缝、五卡迁移和阶段验收归[开发方案](../Plans/TacticalCardAssemblyDevelopmentPlan.md)。下文旧Action／Utility、独立准备确认、单Deck与旧试用数值不构成新玩法；基础Unity原生证据见下段，组合牌可玩验收尚未执行。
+> 最新玩法：所有打出的牌启动行动，原准备等非行动卡改为随主卡统一出牌的配件；固定预装组合牌与随机双牌库装配均须实现。唯一玩法权威是[主卡与配件基石v0.6](../../StorySource/玩法基石/行动卡与交互效果卡设计基石.md)。固定组合已进入下述联合入口；完整工程目标、五卡迁移与最新限定交付归[开发方案3.10](../Plans/TacticalCardAssemblyDevelopmentPlan.md#310-前三批主工程限定交付2026-10-12)。下文旧Action／Utility、独立准备确认、单Deck与旧试用数值按历史范围读取，不构成新玩法。
 
-候选效果能力的源码与接线边界见[借力、推离、破势的隔离说明](../Tasks/TACTICAL_ACCESSORY_COMBAT_CANDIDATES.md)。这批能力尚未进入统一出牌或生产效果宿主，不能作为配件迁移完成的证据；牵连、留痕仍有明确缺口。
+> 最新主工程交付：前三批Runtime、正式九卡JSON/meta与UI已实装，连续第二回合ACK修复已由原生与真实可见序列复验；准确封存、编译timed_out、暂停／到期／重入边界见[九配件交付说明](../Tasks/TACTICAL_ACCESSORY_NINE_DELIVERY.md#latest-main-accepted-delivery)。Git未提交推送，#792冷准备未解决、第四批暂停；Geometry仅文档与首步准备。旧段落按其历史窗口读取，不把旧待验表述继续当成当前阻断。
+
+候选效果能力的源码与接线边界见[借力、推离、破势说明](../Tasks/TACTICAL_ACCESSORY_COMBAT_CANDIDATES.md)。三候选已进入固定组合联合入口；GameView已有推离和实际扣费证据，借力／破势的图形触发及正式内容发布尚未完成；牵连、留痕仍有明确缺口。
+
+2026-10-12第一批早期冻结记录（最新限定交付见上）：双刃配件（决斗邀请／破碎幻想／黑洞口袋）已接固定组合付款、真实ACK、窗口/弹体出生来源、伤害倍率、实例Exhaust、Motion、阶段snapshot/hash与可信暂停副本，并增加待发布配置及有限旧库存迁移。规则158项和生产核心离线验证见[实施交接](../Tasks/TACTICAL_DOUBLE_EDGE_ACCESSORY_IMPLEMENTATION.md)。协调者已通过隔离编译、实际入场、两种真实停止ACK清理和启动保存/CAS部分原生用例；全新阶段整回合暴露的自然终态接口转发缺口已修复，待原生复验，发布和游玩尚未验收。随机双库和自动AI联合owner未由本批实现。
+
+第一批整审修复：Driver 异常/超时通过既有退出清理通道收到匹配停止ACK后才故障暂停，恰好一次释放预算并兑现Exhaust，不补牌、不加回合、不退费；已放弃执行须阶段重启，不能恢复旧结算收据。启动组合根显式记录库存目录迁移，已有源进度也须先整档CAS保存，再发布服务并启用自动保存；失败或过期写入者不得发布迁移候选。原57项生产测试为新增5项与既有52项；修复回归及待原生执行的真实启动三例另有冻结证据，不覆盖原回执。
+
+清理观测合同与原freeze68／70历史检查点（后续复验见最新交付）：匹配执行的 terminal、owned-intents-released、commands-acknowledged 缺一不可。停止收据已就绪时 `ReleaseControl` 可同步完成全部清理，不能要求外部必先看到 `HasReleasedCleanup=true`。freeze68原生13/14通过，真实同步/异步清理完整终态及旧阶段拒绝再准入均通过，全新阶段整回合仍失败。实际 Driver 收到的是 Stage 包装，Mixed/单卡两层均须实现 `ITacticalFixedTerminalPort` 并转发精确 execution ID 的 adapter 自然收据，不能只有 adapter 实现。当前补齐转发后离线70项通过，原68项及逐项断言数保留，换回旧Runtime恰好两个接口回归失败；真实完整回合、自然收据、ACK、Exhaust与场生成仍由协调者复验。原始失败与各轮冻结均保留。
+
+入场回归修复及当时编译记录（不补签全部入场用例）：清理协调只在 Suspended 且持有 ExecutionFault 或 RecoveryTimeout 原因时同步故障健康状态；新 Stage 未初始化的 Suspended 和入场菜单暂停均不能触发故障。未预先 Initialize 的真实 Story/Spawn/settle 入场两例通过，离线生产回归当前64项；实际 MixedStage 入场原生用例仅完成源码编译，交由统一协调者执行。证据与剩余验收见上方任务文档。
 
 命名空间：`MxFramework.Game.CharacterTest.TacticalCard`。源码属于已有 `MxFramework.Game.CharacterTest` 程序集；测试属于已有 `MxFramework.Tests`，不增加程序集依赖。纯规则不引用 UnityEngine；Unity 适配器允许 UnityEngine，所有 Runtime 源码禁止 UnityEditor。
 
+> 2026-10-11固定组合接线已进入当前工作树：Driver／Deck／Time／detached Host联合准备、实际World账本付款与配件journal、Derived命令身份及既有收据去重、原Ability动作费用／CD、终态清理ACK后释放预算，范围与证据归[开发方案3.8](../Plans/TacticalCardAssemblyDevelopmentPlan.md#38-固定组合真实接线检查点2026-10-11工作树已合入可玩验收未完成)。AI Lab已有显式测试装配配置及现有发布控件绑定；正式配件发布、库存UI、图形可玩、随机双库仍未验收。下文P1及旧prepare说明按其历史范围阅读。
+
+> 2026-10-11历史检查点：实际Unity EditMode Test Runner **16/16**，含只读费用投影、正预算退出／死亡、第二动作取消／中断、真实已付款private owner恢复。费用显示沿同一冻结合同，确认重新证明；执行后读实际journal／预留／消费。退出用独立owner清理接缝，精确ACK后释放预算，不产生正常完成或奖励；动作实例池化重用时凭revision及原action／instance／frame的Timeline终态判定，缺证据拒绝。GameView实际付3、动势50→47并触发推离，Planning往返无重复付款；1280×720全文过小，执行中暂停、借力／破势、图形恢复和自然鼠标输入未验收，布局候选尚未合入。源码／作业／保护边界归[开发方案3.9](../Plans/TacticalCardAssemblyDevelopmentPlan.md#39-固定组合原生修复与图形检查点2026-10-11部分验收)，19项历史fixture直接调用不改称Runner。
+
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/*FixedAssembly*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestTacticalCard*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestBehaviorExecutionHost.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestRuntimeAiLabBehaviorCardRuntimeOverlay.RuntimeBridge*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestRuntimeAiLabCardTrialConfiguration.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTest*Fixed*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestAbilityCostAuthority.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestActionUseAuthority.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestCharacterRuntimeModule*.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Commands/CharacterTestRuntimeCommandRegistry.cs`
+
 ## 主卡／配件持有与装配数据基础（2026-10-10）
+
+本节保留P1当日API与证据范围；2026-10-11奖励owner的后续授予／保存接缝改动不由本节签收，不能把下述历史“无奖励入口”读成更新后全工作树结论。固定组合最新证据及49b79397后的隔离准备归开发方案3.9。
 
 `CharacterTacticalPlayerService`仍是唯一持有owner。[CardAssembly扩展](../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/CharacterTacticalPlayerService.CardAssembly.cs)提供`GrantContentAtTick`四类单项显式授予、`TryReadOwnedContent`detached查询；主卡归真实角色卡实例，动作仍是角色实例学习记录，角色／配件归现有Items allocator和容器owner。没有批量授予、发奖抽选或领取UI接口。各类具体授予复用同一个Items获取账本，重复同载荷返回原身份／AlreadyCommitted，复用请求ID改载荷或类别拒绝；失败候选不发布或消耗计数器。
 
 [装配配置与规则](../../Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard/CharacterTacticalCardAssembly.cs)为显式opt-in：主卡精确发布引用及银／金／彩1／2／3槽；配件精确版本、Items定义ID和作者固定触发／失败／生命周期合同标识。配置hash由定义内容稳定排序计算；玩家选引用，不能覆盖合同。当前行为主卡子集未迁移零动作槽机制卡或五张准备卡，合同标识也尚无效果执行接线。
 
-`SetCharacterCardAssemblyAtTick`修改具体持有牌实例，校验owner、Simulation帧、角色与player revision、精确引用及容量，经原角色候选一次逻辑发布。`TryFreezeCardAssembly`以同一校验支持固定／随机模式的数据快照，不代表已满足动作、目标、费用、随机抽取或合法出牌条件。空槽可存草案，不决定空槽能否出牌。同名重复、同副本重复与跨牌共享请求因规则未定明确报告当前不支持；并非正式玩法禁令。当前副本API每次创建一份可寻址实例，作者堆叠上限不强制为1；批量堆叠／转移／消耗未开放。
+`SetCharacterCardAssemblyAtTick`修改具体持有牌实例，校验owner、Simulation帧、角色与player revision、精确引用及容量，经原角色候选一次逻辑发布。`TryFreezeCardAssembly`以同一校验支持固定／随机模式的数据快照，不代表已满足动作、目标、费用、随机抽取或合法出牌条件。空槽可存草案，后续批准的固定组合联合入口允许空槽出牌。同名重复、同副本重复与跨牌共享请求因规则未定明确报告当前不支持；并非正式玩法禁令。当前副本API每次创建一份可寻址实例，作者堆叠上限不强制为1；批量堆叠／转移／消耗未开放。
 
 进度显式扩为`tactical-player.v6`：玩家AccessoryItems，角色可选CardAcquisitions／CardAssemblies；旧v5不能携带新记录。结构恢复与精确配置复核分开，缺失／过期定义拒绝且保留存档；目录刷新、读取或配置不补造持有。组合根加载可选正式`tactical_card_assembly.json`，接受v5／v6；需要配件／装配配置而缺文件时不进入Ready。继续经原ProgressCandidate／Store联合保存和SaveGame CAS，逻辑提交不等于durable保存，失败重试Flush不再授予；不新增战斗会话保存。
 
@@ -43,7 +72,7 @@ Planning 暂停世界。玩家存活、处于自由态、无受控原因、无�
 
 现有共用前置仅包括完整目标尺寸净空、安全停止重定位、导航共用和四项新增测试；原生/离线定向31项通过仅覆盖这些基础及既有回返/牵引/Query-Step，不证明替身受击事务、统一体型owner、尺度消费者或新快照已完成。源码和证据单一入口为[任务09](../../StorySource/玩法基石/任务/任务09_替身准备与体型切换基础.md)。
 
-玩法权威统一见[主基石v0.5](../../StorySource/玩法基石/行动卡与交互效果卡设计基石.md)：主卡与配件仅上节基础已实施，执行迁移待完成；体型到期安全还原及可能延长缩小的后果保留，比例、期限、费用和其他合同未因此全获批准。旧替身预存位置／失败受击方案已否定，新合同仍未定；本轮基础授权不扩大该机制实施范围。
+玩法权威统一见[主基石v0.6](../../StorySource/玩法基石/行动卡与交互效果卡设计基石.md)：主卡与配件仅上节基础已实施，执行迁移待完成；体型到期安全还原及可能延长缩小的后果保留，比例、期限、费用和其他合同未因此全获批准。旧替身预存位置／失败受击方案已否定，新合同仍未定；本轮基础授权不扩大该机制实施范围。
 
 独立AI Lab真实出牌试验的入口、CardTrial／Deck／Stage owner、测试准备事务与验收边界统一见[工作台工程权威](../Guides/CHARACTER_TEST_RUNTIME_AI_LAB_BEHAVIOR_WORKBENCH.md#真实出牌试验当前实现与边界)。本模块仍拥有正式战术费用、卡区与状态合同；测试准备不代表正式替身／体型，本文不复制专项完成状态。
 
@@ -276,6 +305,14 @@ Task 3 的 `TacticalSingleCardDriver.TryCommit` 先确认正式执行器准入�
 
 上述协调器正常调用的 NoAlloc 断言属于对应聚焦测试，构造允许分配。下述是 Task 3 的历史适配边界；此后命中奖励由 T4-C 扩展，场景组合与战斗外 checkpoint 已接入，但完整战斗世界 SaveState/Replay 恢复仍不属于 Continue。
 
+## HUD 取消输入所有权（Issue #753）
+
+- 战斗 HUD 的原始 Esc／右键拖牌入口、`InputSnapshot.CancelPressed` 选点入口和取消按钮遵守同一 UI 输入所有权。设置或其他顶层 modal 打开时不提交后台 `CancelPending`，不清除待出牌身份、选点或费用预留；点选更新暂停并隐藏战场预览，恢复后重用原 Pending 状态。
+- `CharacterTestUiRuntime` 从现有 modal 输入 scope 的进入／释放记录渲染帧，关闭当帧继续阻挡战斗输入，到下一帧自动失效。取消路由在调用顶层 focus bridge 前记录同帧所有权，popup 的 Cancel 优先于 modal，已关闭 popup 的同一次 Cancel 不再进入后台 HUD。popup 的普通 outside-pointer／目标点击仍沿原合同，不把所有 popup 点击变成全局 modal。
+- 用户输入门控位于 HUD／BattleView 的入口，不放进通用 stage 或 `TryCancelPending`。内部 `CancelDirectPlay` 和已请求的自动失败回滚仍可清理并释放预留；同一 direct-play 取消已经成功入队后，选点、拖牌和 Tick 重复读取不会再次入队，入队失败仍可重试。
+- 2026-10-12 实施方离线证据：基线 `5b3d87c306f092b4627058081b2949e3bbdb976e`，原样抽取生产 HUD／drag／点选／UI Runtime scope 与输入路由，在受控 Unity、UI 和命令端口中回归设置打开、关闭同帧、popup 优先取消、下一帧正常取消、双入口去重及内部清理，49/49 通过。隔离源码编译及 focused 测试源码编译通过，输出与依赖冻结在本地 `.agent/issue-753/`，不写共享 Editor 的 Library 或程序集。
+- 原生回归入口为 `TacticalBattleCancelInputTests`、`TacticalDirectPlayTests` 及 `CharacterTestUiRuntime_Configure_EnablesSettingsPanelWhenSettingsRuntimeProvided` 集成夹具。新增输入夹具使用真实 InputSystem 按钮与生产 HUD／command pump，但受控 modal scope 不替代正式设置面板。Editor 仍由其他任务占用：Unity refresh／compile／domain reload／ready／Console、原生 Runner 与正式 `TacticalCardDemoScene` 设置开关／popup 操作均待交接后验证；离线通过不构成 GUI 验收或 Issue 关闭。
+
 ## 执行与 Unity 时间适配（Task 3）
 
 - `UnityTacticalTimeAdapter(float simulationTimeScale=1)` 实现 `ITacticalTimeAdapter`，同步设置 `Time.timeScale`，保留可配置的运行流速；`SetSimulationTimeScale` 不会解开已有暂停。`PauseRevision` 提供轮询标记，避免回调重入协调器。不修改固定步长或刚体速度。正常暂停/恢复 NoAlloc；构造及修改流速拒绝非有限、非正值。
@@ -412,3 +449,86 @@ Main完整150/150原生（0失败/跳过），原canonical23及断言保留；�
 
 
 C1重基后离线回执：基线 `cbc1409f4e1ce25f54b9aceb4af709c3bd3e14e4`，当前1079/362 Runtime编译通过，86/86纯回归通过，规范扫描无新增问题。当前七个native测试/fixture源文件及364引用编译通过、原生执行0。使用这批新编译Runtime与测试程序集在独立Mono执行用户出牌修复三项（显式WorldPosition提前到达、末尾卡行为释放保留物理Recovery、后续编排不提前跳过），3/3通过；该离线结果不替代实际场景及后续出牌原生验收。没有Unity操作、提交、数值配置或正式ID变更。自由Recovery可进入Planning，但私有v3恢复仍拒绝活动动作，本次没有扩展恢复范围。原生精确过滤与逐文件hash见本批 `action-cooldown-cost-closeout-main-r1/native-validation-plan.json` 交接回执，由唯一Unity owner统一执行。
+
+## 固定战胜奖励接口（2026-10-11）
+
+奖励r2接口已进入当前工作树；玩法操作及数据owner见[角色战术内容](../Guides/CHARACTER_TACTICAL_CONTENT.md#固定战胜奖励2026-10-11)。不新增框架模块，不改变单项授予的逻辑提交语义。
+
+| 接缝 | 已实现合同 |
+| --- | --- |
+| `FreezeBattleRewards(recipe, battleId, characterId, owner)` | 低频、detached。读取正式精确引用/获取范围，固定稳定每项请求、内容/请求指纹及显示；不授予、不写盘。输入配方不得带运行/玩家身份 |
+| `ClaimBattleRewardsAsync(progress, battleId, RuntimeTickContext)` | 从应用Simulation命令进入。Busy/Rejected/SaveFailed不发布整批；Claimed在同checkpoint持久后发布；AlreadyClaimed不写盘、不新建实例。领取期间阻挡现有player/config mutation，所有observer在提交之后 |
+| `ProgressCandidate.ClaimRewardsAsync` | 内部player gate与profile write gate配合；库存/allocator/ledger/preparation/Claimed一起Commit。排队普通Save取得gate后捕获；profile Revision及原SaveGame CAS拒绝过期writer/archive |
+| settlement Rewards | `mx.character-test.battle-rewards.v1`固定清单；Pending/Claimed与终态Receipts。BattleId+固定清单指纹不允许重复回调改载荷，旧Pending回调不能降级Claimed |
+| progress容器 | 新`mx.character-test.tactical-slice-progress.v2`；原slot/codec及player v5/v6继续使用。v1无奖励记录不追补，v1带Rewards拒绝。收据必须能在真实获取ledger/对应实例记录中复核 |
+| 菜单 | 先判SettlementSaved：未保存为“结算尚未保存”/Busy“正在保存结算…”，确认提交后才待领取。显示固定清单及明确角色实例；确认领取、处理中禁用、失败重试、成功返回整备。Pending不能同配置重赛，可保存退出。重开优先恢复原Pending；不恢复战斗现场 |
+
+配方当前只含1张正式`tactical.bound-action` r2/hash `7107346772390999808`，测试角色归属来自deployment唯一玩家控制实例。四类批授予可在明确、已发布且适配的配方中验证；没有配件正式配置就不能发配件，也不扩大角色目录。随机奖励、下一关、奖励经济和全队分配不在本轮范围。
+
+已核验：实际源码离线库存回归132/132（113既有库存回归、19奖励）、Runtime菜单/保存屏障13/13；完整Runtime离线编译通过。主树Unity Editor直接fixture 33/33，原生EditMode Runner 33/33（19事务、13菜单、1正式配方与真实物理存档组合根）通过。Composer publish-all成功，8个新增资产meta由Unity导入。main同步后编译10程序集无错误，refresh完成、domain reload、Editor ready与Console error=0均有证据；MCP跨重载断线，恢复状态为timed_out，保留工具超时限制。Play、GUI故障重试、冷组合根重开和尺寸视觉仍逐项验收，不将Runner或.NET强杀探针计为Unity Player进程重开。
+
+失败回读将磁盘 checkpoint、候选快照与已发布快照统一从序列化 JSON 解析后比较，避免 ISO 时间字符串的 Date/String token 差异误判外部写入。未写入的失败保留原状态，支持同一服务实例直接重试；候选已落盘但完成回执丢失则确认该 checkpoint，真实分歧仍拒绝覆盖。
+
+追加验收（2026-10-11）：保存回读统一解析序列化 JSON，修复 ISO 时间 Date/String token 差异导致的伪写入冲突；同服务失败重试与物理写盘后回执丢失回归覆盖。Unity完整refresh/compile/domain reload/ready与Console0通过，原生EditMode Runner现35/35。受控已持久化Pending夹具通过发布FairyGUI绑定回调验证重复点击仅一次保存、处理中不发布库存、保存失败完整回滚、同服务重试整批Claimed、返回整备，以及全新物理store/服务组合根冷重开后AlreadyClaimed不写盘；角色实例1卡6→7、新卡未绑定、其他角色未变。实际GameView的1920×1080/1280×720待领取、处理中、成功清单与归属完整可读；失败长诊断尾部有裁切。实际自然战斗仍未观察到玩家胜利（剑角色456/457与法师测试装配败北，458开放上界及461缺前摇拒绝原因另记）；不把该受控Pending夹具、Runner或冷组合根作为自然胜利、OS输入或Unity Player进程重开。保存结算重试成功后旧失败文案残留和长失败文案显示修复仍待办。证据级别与回执保留于本地 .agent/tactical-rewards-20261011/native/resume2-acceptance-receipt.json，真实玩家存档未修改。
+
+显示修正（2026-10-11）：结算保存成功后恢复实际胜负/平局提示；发布菜单以短提示呈现未保存结算或未完成领取，完整内部失败原因继续保留于原StatusMessage/ProgressIssue。处理中仍优先显示进度，固定清单与归属不删减。本次不改变保存事务、奖励状态或schema。已验证同服务保存失败→正式菜单重试→成功清除旧提示，以及1920×1080/1280×720领奖失败短提示、奖励清单和角色归属完整可读。Unity默认compile证据完整通过，Console0。
+
+本阶段真实胜利入口已通过确定性弱敌夹具：隔离存档rwd1011-ui03，受控角色实例1/owner1合法学习并绑定正式action:457；调用正式TryDeployPreparedCore，在Deploying且行为未安装时零delta初始化tick生成双方，再以World属性接口预置敌方HP1，玩家HP100。没有战斗中改血、调用CompleteBattle或注入胜负。真实HUD出牌至敌方HP0/玩家HP51，正式判定阵营1获胜并生成原BattleId的Pending固定奖励；领取失败保留全量player，重复回调只产生一笔重试，成功后主卡6→7、Bindings4未变，正式返回整备。故障显示验证在自然胜利已保存的Pending上构建全新带gate的store/服务组合根，再由同服务真实保存失败和重试产生状态，未替换活动readonly store。证据见本地.agent/tactical-rewards-20261011/native/resume3-acceptance-receipt.json；这是Unity Editor内正式绑定回调与渲染验收，未执行OS鼠标输入或Unity Player进程重启。弱敌仅为隔离初始配置，正式平衡和真实玩家存档未改。
+
+## 第二批配件：04／08／18（2026-10-12，生产合同与历史冻结）
+
+v3 执行定义新增 NoTurningBack／NonLethalOath／OnePunch，分别 fee 1／1／2；与 v2 DoubleEdge payload 互斥。精确候选 `tactical_card_assembly.double-edge-six.v2.json` 合并第一批三条。现有 Items／装配 consumer 共用校验与联合付款；有限旧 registry 迁移支持 legacy 和第一批到六条，保持完整 progress save/CAS。自动 AI 无联合 owner 时先拒绝，不接玩家抽弃循环。
+
+Stage 在实际 ACK 上创建来源，生产者冻结 BirthRound／CausalTrigger，完整因果轮汇集排序、全叶预检、共同消费并发布唯一接受子集。04 使用实际完整回合与冻结方向；08 在护甲后逐次限制 HP；18 消费整个 commit 的首个 Damage/Blocked/Parried，后续攻击副作用统一抑制，host 与动画继续。private paused 仅从可信完整帧 witness 恢复；要求 Timeline idle 并保留 allocator，普通网络聚合恢复不放行。
+
+单卡合同、生产者覆盖、离线失败对照与正式入口阻碍见[第二批实施交接](../Tasks/TACTICAL_ACCESSORY_SECOND_BATCH_IMPLEMENTATION.md)。本节保留生产合同与当时冻结边界；现已随前三批实装和限定交付，实际签署范围见[九配件说明](../Tasks/TACTICAL_ACCESSORY_NINE_DELIVERY.md#latest-main-accepted-delivery)，不将旧第一批测试或候选JSON代作第二批全矩阵验收。
+
+
+
+### 第二批多弹体 P1：生产身份与已出生效果（已实装；历史补丁证据保留）
+
+公共命中键保留 attacker/target/action instance/trace/frame，并追加真实生产者 Kind/Id/Generation/Occurrence。实际弹体的 native ID/SpawnSequence 贯穿候选、命中结果、伤害 payload/部位缓存索引、配件 decision/receipt、延迟 impact 匹配；缩放与派生 mark 复制时不丢失父身份。Timeline 使用原生 instance ID 和 authored event ID；周期弹体使用原生 ID/SpawnSequence 与帧 occurrence；派生 mark 使用完整 64 位来源节点。
+
+叶子的 SourceNode 绑定真实 ID/出生代次；RootOccurrence 对这些生产者使用 `(Kind << 32) | Occurrence`，使同源 direct/area/periodic 阶段保持独立。当前生产 occurrence 范围为 32 位，超界拒绝，不能截断碰撞。旧无生产者身份路径继续使用其既有 occurrence。精确父命中收据和 causal round 规则沿用 r2，不将普通 Impact 视作 accepted。完整轮收集后稳定排序；逆序收集应保持相同 winner/hash。
+
+延迟出生回调只携带原始 spawn request，因此同一请求不得登记不同父收据；冲突在修改状态前拒绝。同请求、同父收据仍幂等。实际多个子弹体须由原生请求字段（包括 SourceOrder）提供不同请求身份。
+
+交互效果及配件交互消费收据也保存生产者身份，并纳入去重与共同 hash。`TacticalInteractionSnapshot.CurrentVersion` 为 2，receipt DTO 使用可序列化的 Kind/Id/Generation/Occurrence 字段，恢复先验证再构建身份；旧 v1 快照拒绝，不能把旧弹体收据默认为完整的新身份。新的暂停快照仍需通过既有可信 admission/clone 校验。
+
+Stage 绑定期间出生的 Timeline 保存不可变来源 actor generation、team 和属性值；与弹体出生来源一样参与可信 clone、hash 和只读投影。来源实体移除或代次不匹配后，Timeline 战斗事件、周期弹体以及两种 projectile damage resolver 路径使用冻结出生来源，不提前跳过，也不读取同 ID 新实体的属性。Timeline 子代可沿精确来源祖先继承冻结 actor。此处不改变 OnePunch 抑制、死亡目标过滤、主卡执行或 AI 抽弃规则。
+
+验证范围：独立补丁使用四个程序集显式 source-link 离线编译，保留原 263 项与原独审双弹体探针；新增逆序 winner/hash、父收据、延迟请求冲突、相位 occurrence、JSON/hash/clone 边界。原有三个 NoAlloc 失败单独保留。原生补充 fixture 包含双弹体完整汇总/伤害链和 Timeline/周期弹体移除来源前后对照，仅编译；执行由统一 Git/Unity 协调者安排。该离线补丁当时未签原生／发布；后续限定交付的克隆完整Trace/body-part桥2/2另有回执，不冒称上述所有producer路径或旧NoAlloc均已重跑。
+
+
+## 第三批Stage配件生产合同（已实装；原隔离候选历史保留）
+
+Execution v4只接受玻璃大炮、幸运硬币、铁王座的专属参数，费用及来源共同进入固定装配fingerprint。联合提交沿既有Host/Deck/Time/ledger事务发布Stage coin ledger与效果；公开随机结果不在预览中产生。Runtime AI Planner不接入玩家抽弃循环。
+
+第三批Stage聚合在hash field13 / projection row17使用内部schema1，包含RNG收据、完整ACK与出生、接受根、因果轮、生命周期和身份分配器；使用现有可信暂停聚合恢复，普通网络输入不能自行构造信任。`TacticalAccessoryThirdBatchReadout`是UI只读入口，读投影不抽数。
+
+第三批已随主工程前三批限定交付；初始规则／接缝交接见[已有第三批handoff](../Tasks/TACTICAL_ACCESSORY_THIRD_BATCH_HANDOFF.md)，现行正式发布、原生／UI及未覆盖范围见[九配件说明](../Tasks/TACTICAL_ACCESSORY_NINE_DELIVERY.md#latest-main-accepted-delivery)。初始隔离候选不替代后续字节与回执。
+
+
+### 第三批 r2：已确认终态后的来源出生资格（隔离修补）
+
+实际接受新的 trace/projectile/derived 来源时，Stage owner 先保留其物理身份，再检查已确认的同 actor generation／stage／execution Host 终态和精确 ACK 终态。终态已成立则不向叶子发布新的 SourceBorn 资格；不能用 SourceBorn 的 phase 排序早于 HostEnded/AttackEnded，倒推出该来源仍可获得玻璃大炮或幸运硬币加成。同帧命中与下一帧延迟命中均适用。
+
+终态之前实际已接受的来源仍保留原资格，包括出生事件尚在当前因果轮排队的情况；该来源精确重放保持幂等。不能在出生或终态回调中提前排空未完成的伤害轮，也不能撤销已出生来源的硬币资格。物理登记、既有终态与 pending 事件继续使用现有共同 hash／可信 clone；此次不新增状态字段或改变 schema。玻璃大炮原本可在后续新物理 ACK 上结算的期限合同不变。
+
+此修补为第三批 r1 独审 P1 的独立 r2 增量；原独立六用例保留原测试体，另有同帧先出生后终态、重放及可信恢复对照。离线结果见 r2 修补交接，不代表 Unity 或正式发布已通过。
+
+ACK eligibility for a direct projectile follows the same loaded request-to-spawn-profile-to-projectile-definition lookup used by the actual projectile spawn path. Generated character-specific request IDs are eligible when their referenced definition has DirectHit policy; a hardcoded legacy request switch must not decide enemy-coin binding. Missing profiles/definitions and non-direct policies remain ineligible.
+
+
+## Nine-accessory publication and progress compatibility
+
+The explicit nine-accessory publisher, unchanged grant authority, exact prior assembly migration and evidence boundary are maintained in [九配件正式发布与进度兼容](../Tasks/TACTICAL_ACCESSORY_NINE_DELIVERY.md). This isolated source package does not itself establish main-project publication or visible-play acceptance.
+
+
+### Physical ACK identity across accepted-action cleanup (isolated repair, 2026-10-12)
+
+Natural finish, external completion, cancel-only, orchestration termination and lifecycle release clear the CharacterTest action payload while retaining the actor-local runner NextInstanceId. Removing the gateway at an accepted terminal restarted allocation at 1 while the Stage retained its prior ACK; the next turn then correctly rejected the reused identity as ConflictingPhysicalAck. ReleaseCompleted uses the existing terminal/idle gateway restore contract, which is already represented by runner snapshot/hash. Stage/execution/actor generation/instance/revision matching and frozen source identities are unchanged; no new schema or allocator is introduced.
+
+An exact historical ACK replay remains read-only after its terminal: it returns the original receipt without reopening the attack or publishing another event. A changed accepted frame or eligibility for that physical identity still rejects without mutation. A new physical action receives a new instance; it cannot retag the previous ACK or delayed projectile with the current execution. Existing coin receipts and RNG continuation are preserved.
+
+The original isolated candidate reproduced Stage1/actor(2,1)/F32 accepted/F113 ended/F143 ACK reuse against the pre-repair Runtime; the second eligibility was unknown and both possibilities were tested. Its 117 offline cases remain historical candidate evidence. The independently reviewed repair is now installed in Main: native 13/13 covers gateway cleanup and idle runner/trusted Stage-clone recovery, and real continuous second-turn play, Planning pause/resume, typed expiry and end/reentry have passed within the delivery receipt scope. Old ACK/source identities and RNG receipts remain unchanged; the old F143 error is retained. A full private paused-session owner/world transaction was not newly run. Compile facts are complete while the custom tool returned timed_out; Git remains uncommitted/unpushed. See [the current delivery scope](../Tasks/TACTICAL_ACCESSORY_NINE_DELIVERY.md#latest-main-accepted-delivery).

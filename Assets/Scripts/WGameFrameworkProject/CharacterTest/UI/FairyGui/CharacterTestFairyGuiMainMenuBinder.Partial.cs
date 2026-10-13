@@ -27,8 +27,11 @@ namespace MxFramework.Game.CharacterTest
                 var restart = root.GetChild(CharacterTestFairyGuiMainMenuIds.Restart)?.asButton;
                 if (restart != null) restart.text = phase == TacticalCard.TacticalPreparationState.Home ? "新建进度（保留旧进度）"
                     : phase == TacticalCard.TacticalPreparationState.Completed ? (viewModel.Status.TacticalSettlementSaved ? "相同配置重试" : "重试保存结算") : "返回整备";
+                if (restart != null && viewModel.Status.TacticalRewardState == (int)TacticalCard.CharacterTacticalRewardState.Pending)
+                    restart.text = "请先领取奖励";
                 var close = root.GetChild(CharacterTestFairyGuiMainMenuIds.Close)?.asButton;
-                if (close != null) close.text = phase == TacticalCard.TacticalPreparationState.Home ? "保存并退出" : "保存并返回首页";
+                if (close != null) close.text = phase == TacticalCard.TacticalPreparationState.Home
+                    || viewModel.Status.TacticalRewardState == (int)TacticalCard.CharacterTacticalRewardState.Pending ? "保存并退出" : "保存并返回首页";
             }
         }
 

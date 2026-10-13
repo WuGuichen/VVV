@@ -28,7 +28,7 @@ namespace MxFramework.Game.CharacterTest
     }
 
     /// <summary>Shared formal adapter for a single compiled behavior binding. The caller owns world Tick and command consumption.</summary>
-    internal sealed class CharacterTestBehaviorExecutionHost
+    internal sealed partial class CharacterTestBehaviorExecutionHost
     {
         private readonly CharacterTestRuntimeAiLabCompiledLogicProgram _program;
         private readonly CharacterTestCharacterRuntimeModule _world;
@@ -56,9 +56,13 @@ namespace MxFramework.Game.CharacterTest
         public CharacterTestRuntimeAiLabLogicRuntimeState State => _evaluator?.State ?? CharacterTestRuntimeAiLabLogicRuntimeState.Inactive;
         public int LocalFrame => _evaluator?.LocalFrame ?? 0;
         internal CharacterTestBehaviorExecutionEndReason EndReason => _evaluator?.EndReason ?? CharacterTestBehaviorExecutionEndReason.None;
+        internal bool NaturallyCompleted => _evaluator?.NaturallyCompleted == true;
         public long OwnedActionInstanceId => _evaluator?.OwnedActionInstanceId ?? 0L;
         // The command receipt survives until the next evaluator Tick, including a one-frame action.
         internal MxFramework.CharacterAction.CharacterActionInstance AcknowledgedActionInstance => _runtime?.LastAcknowledgedActionInstance;
+        internal ulong AcknowledgedActionRevision => _runtime?.AcknowledgedActionRevision ?? 0;
+        internal MxFramework.CharacterAction.CharacterActionInstanceState AcknowledgedActionState
+            => _runtime?.AcknowledgedActionState ?? MxFramework.CharacterAction.CharacterActionInstanceState.None;
         internal bool HasPendingActionCommand => _runtime != null
             && _runtime.ActionCommandState == CharacterTestRuntimeAiLabBehaviorRecipeOrchestrationState.Pending;
         public string LastFailureReason { get; private set; } = string.Empty;
@@ -84,7 +88,7 @@ namespace MxFramework.Game.CharacterTest
         {
             if (_evaluator == null || entity == null || entity.Id.Value != _entityId) return false;
             Prepare(entity, facts, frame); _evaluator.Tick(CheckedFrame(frame), LatestEvents);
-            if (Flush(entity, frame)) return true;
+            if (Flush(entity, frame)) { _runtime.PublishDoubleEdgeTerminal(frame); return true; }
             _evaluator.Stop(true); Flush(entity, frame); return false;
         }
         /// <remarks>NoAlloc. Reconciles a completed world frame without ticking the behavior a second time.</remarks>
@@ -100,7 +104,7 @@ namespace MxFramework.Game.CharacterTest
             // Completed-frame commands have already been consumed; release ownership at the next boundary.
             var releaseFrame = new RuntimeFrame(completedFrame.Value + 1);
             Prepare(entity, facts, releaseFrame);
-            if (Flush(entity, releaseFrame)) return true;
+            if (Flush(entity, releaseFrame)) { _runtime.PublishDoubleEdgeTerminal(completedFrame); return true; }
             _evaluator.Stop(true);
             return false;
         }
@@ -139,7 +143,7 @@ namespace MxFramework.Game.CharacterTest
         private bool Flush(CharacterTestCharacterEntity entity, RuntimeFrame frame)
         {
             if (!_runtime.TryBuildIntent(out var intent)) return true;
-            RuntimeCommandValidationResult result = CharacterTestBehaviorExecutionCommandWriter.Submit(frame, entity.Id.Value, intent, _submit);
+            RuntimeCommandValidationResult result = CharacterTestBehaviorExecutionCommandWriter.Submit(frame, entity.Id.Value, intent, _submit, _fixedPayment);
             _runtime.RecordCommandResult(result.Success);
             if (!result.Success) LastFailureReason = result.Error.Message;
             return result.Success;
@@ -194,7 +198,7 @@ namespace MxFramework.Game.CharacterTest
     internal static class CharacterTestBehaviorExecutionCommandWriter
     {
         internal static RuntimeCommandValidationResult Submit(RuntimeFrame frame, int entityId, in CharacterTestRuntimeAiLabRuntimeIntent intent,
-            Func<RuntimeCommand, RuntimeCommandValidationResult> submit)
+            Func<RuntimeCommand, RuntimeCommandValidationResult> submit, TacticalCard.TacticalFixedCardPaymentCommit fixedPayment = null)
         {
             RuntimeCommandValidationResult result = default;
             if (intent.HasExecutionControl)
@@ -209,6 +213,8 @@ namespace MxFramework.Game.CharacterTest
                 action = new RuntimeCommand(frame, action.SourceId, action.CommandId, action.TargetId, action.Payload0, action.Payload1, 2,
                     traceId: action.TraceId, envelope: new RuntimeCommandEnvelope(CharacterTestRuntimeCommandFactory.BehaviorStopEnvelopeTypeId, 1,
                         RuntimeCommandProvenanceKind.Unspecified, data0: intent.OrchestrationExpectedInstanceId));
+            if (fixedPayment != null && intent.OrchestrationOperation == CharacterTestBehaviorRecipeOrchestrationOperation.ReplaceCharacterAction)
+                action = fixedPayment.BindCommand(action);
             return submit(action);
         }
     }

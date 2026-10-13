@@ -511,7 +511,8 @@ namespace MxFramework.Editor.CharacterAction
             };
 
             actionSetsJson = JsonConvert.SerializeObject(actionSetsDocument, JsonSettings);
-            actionsJson = JsonConvert.SerializeObject(actionsDocument, JsonSettings);
+            foreach (var action in model.Actions) CharacterActionControlScaleAuthoring.Prepare(action);
+            actionsJson = CharacterActionControlScaleAuthoring.Publish(JsonConvert.SerializeObject(actionsDocument, JsonSettings));
             reactionProfilesJson = JsonConvert.SerializeObject(reactionProfilesDocument, JsonSettings);
             landingProfilesJson = JsonConvert.SerializeObject(landingProfilesDocument, JsonSettings);
         }

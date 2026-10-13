@@ -765,6 +765,13 @@ namespace MxFramework.Gameplay
             out FixVector3 anchorPosition);
     }
 
+    /// <summary>Optional synchronous birth admission. Receives the actual reserved provider identity before publication.</summary>
+    public interface IAbilityEffectTimelineStartGate
+    {
+        /// <remarks>NoAlloc after owner buffers warm. A rejection leaves the timeline allocator and queues unchanged.</remarks>
+        bool TryAcceptTimelineStart(int instanceId, in AbilityEffectTimelineContext context, RuntimeFrame frame);
+    }
+
     public interface IAbilityEffectTimelineEventSink
     {
         void OnAbilityEffectTimelineEvent(AbilityEffectTimelineEventDispatch dispatch);
@@ -857,6 +864,16 @@ namespace MxFramework.Gameplay
         public AbilityEffectTimelineRegistry Timelines { get; }
         public int MaxChildDepth { get; }
         public int ActiveInstanceCount => _instances.Count;
+        public int NextInstanceId => _nextInstanceId;
+        public bool IsIdle => _instances.Count == 0 && _pendingStarts.Count == 0;
+
+        /// <summary>Restores the allocator only into a fresh, idle runtime. The caller supplies trusted saved state.</summary>
+        /// <remarks>NoAlloc. Never rewinds an already-used runtime or imports active instances.</remarks>
+        public bool TryRestoreIdleIdentity(int nextInstanceId)
+        {
+            if (!IsIdle || _nextInstanceId != 1 || nextInstanceId <= 0) return false;
+            _nextInstanceId = nextInstanceId; return true;
+        }
 
         public bool ContainsActiveInstance(int instanceId)
         {
@@ -885,7 +902,12 @@ namespace MxFramework.Gameplay
             if (!Timelines.TryGet(context.EffectTimelineId, out AbilityEffectTimelineDefinition timeline))
                 return new AbilityEffectTimelineStartResult(false, 0, "MissingEffectTimeline");
 
-            int instanceId = _nextInstanceId++;
+            if (_nextInstanceId <= 0 || _nextInstanceId == int.MaxValue)
+                return new AbilityEffectTimelineStartResult(false, 0, "InstanceIdentityExhausted");
+            int instanceId = _nextInstanceId;
+            if (_eventSink is IAbilityEffectTimelineStartGate gate && !gate.TryAcceptTimelineStart(instanceId, context, frame))
+                return new AbilityEffectTimelineStartResult(false, 0, "StartGateRejected");
+            _nextInstanceId++;
             var instance = new ActiveInstance(instanceId, timeline, context, frame, childDepth);
             _pendingStarts.Add(instance);
             return new AbilityEffectTimelineStartResult(true, instanceId, string.Empty);
@@ -905,6 +927,27 @@ namespace MxFramework.Gameplay
             }
 
             FlushPendingStarts();
+        }
+
+        /// <summary>Runs only newly born frame-zero events at this exact simulation frame.
+        /// Existing timelines retain their local frame. The caller repeats causal rounds before advancing time.</summary>
+        /// <remarks>NoAlloc after provider capacity warms; deterministic budget failure does not defer remaining work.</remarks>
+        public int PumpFrameZero(RuntimeFrame frame, int maximumInstances = 256)
+        {
+            if (maximumInstances <= 0) throw new ArgumentOutOfRangeException(nameof(maximumInstances));
+            int advanced = 0;
+            bool again;
+            do {
+                again = false; FlushPendingStarts();
+                for (int i = _instances.Count - 1; i >= 0; i--) {
+                    var instance = _instances[i];
+                    if (instance.LocalFrame != 0 || instance.StartFrame.Value != frame.Value) continue;
+                    if (advanced >= maximumInstances) throw new InvalidOperationException("timeline:FrameZeroBudgetExceeded");
+                    TickInstance(instance, frame); advanced++; again = true;
+                    if (instance.IsComplete) _instances.RemoveAt(i);
+                }
+            } while (again && _pendingStarts.Count != 0);
+            return advanced;
         }
 
         private static readonly Comparison<AbilityEffectTimelineInstanceSnapshot> HashInstanceComparison =
@@ -1087,7 +1130,7 @@ namespace MxFramework.Gameplay
         }
 
         public int HashSchemaId => RuntimeHashSchemaIds.AbilityEffectTimeline;
-        public int HashSchemaVersion => 1;
+        public int HashSchemaVersion => 2;
         public int ContributorId { get; }
 
         public void Contribute(RuntimeHashContext context, RuntimeHashAccumulator accumulator)
@@ -1096,6 +1139,7 @@ namespace MxFramework.Gameplay
                 throw new ArgumentNullException(nameof(accumulator));
 
             accumulator.AddInt(F_moduleId, _module.ModuleIdentity);
+            accumulator.AddInt(15, _module.NextInstanceId);
             accumulator.AddLong(F_definition_hash, _module.Timelines.PreparedContentHash);
             accumulator.AddLong(F_identityMapping, _module.Timelines.PreparedIdentityHash);
             _instances.Clear();

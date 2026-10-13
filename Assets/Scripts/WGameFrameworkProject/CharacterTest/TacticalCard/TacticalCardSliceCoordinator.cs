@@ -28,7 +28,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         private bool _presentationFault;
         private string _battleId;
         private CharacterTacticalBattleSettlement _settlement;
-        internal bool IsBusy => _busy;
+        internal bool IsBusy => _busy || CharacterTacticalServices.Player?.RewardCommitInFlight == true;
         internal bool SettlementSaved => _settlementSaved;
         internal TacticalDeployment BattleDeployment => _autoBattleDeployment;
         public TacticalPreparationState State { get; private set; } = TacticalPreparationState.Home;
@@ -84,6 +84,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal void NotifyPreparationReady(string message)
         {
             EnsureDependencies();
+            _publishedLevelSlice = null; _publishedLevelRunId = 0;
             if (_application == null) { _hud?.SetPreparationState(State, message); return; }
             _presentationFault = false;
             MoveToPhase(TacticalPreparationState.Preparation);
@@ -161,10 +162,12 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 return;
             }
             TacticalMixedPlayerCardRuntime mixedPlayer = services.Modules.MixedPlayerTacticalStage;
-            if (mixedPlayer?.OutcomeReady == true)
-            { CompleteBattle(mixedPlayer.WinningTeamId, mixedPlayer.IsDraw); return; }
-            if (mixedPlayer?.PlayerDefeated == true)
-                _hud?.SetAutomaticBattlePresentation(true);
+            if (mixedPlayer != null)
+            {
+                if (mixedPlayer.OutcomeReady) CompleteBattle(mixedPlayer.WinningTeamId, mixedPlayer.IsDraw);
+                else if (mixedPlayer.PlayerDefeated) _hud?.SetAutomaticBattlePresentation(true);
+                return; // The mixed runtime owns outcome publication and execution cleanup.
+            }
             var aliveTeams = services.CharacterEntities.Where(entity => entity.CombatState.IsAlive)
                 .Select(entity => entity.Team.TeamId).Distinct().ToArray();
             if (aliveTeams.Length > 1) return;
@@ -179,7 +182,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             {
                 EnsureDependencies();
                 TacticalBattlePreparationService preparation = CharacterTacticalServices.Preparation;
-                if (_busy || Loading.Running || State != TacticalPreparationState.Preparation) { issue = "正在处理流程，请稍候。"; return false; }
+                if (IsBusy || Loading.Running || State != TacticalPreparationState.Preparation) { issue = "正在处理流程，请稍候。"; return false; }
                 if (CharacterTacticalServices.RoleBindings?.PendingCount > 0) { issue = "请等待动作装配命令完成。"; return false; }
                 if (preparation == null || !preparation.EnsurePlayerControlledEntity(out issue)) return false;
                 if (preparation == null || !preparation.ValidateForBattle(out issue)) return false;
@@ -212,6 +215,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             try
             {
                 _autoBattleDeployment = deployment;
+                RememberRewardRecipient(deployment);
                 _autoBattleInstalled = false;
                 _gameManager.RuntimeContext.SessionBuilder.RebuildTacticalBattleSession(deployment);
                 _battleId = Guid.NewGuid().ToString("N"); _settlement = null; _settlementSaved = false;
@@ -239,6 +243,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (_gameManager?.RuntimeContext?.SessionBuilder == null) { issue = "整备服务尚未准备就绪。"; return false; }
             if (!TacticalDeployment.TryCreate(heroId, opponentId, out var deployment, out issue))
             { StatusMessage = issue; _hud?.SetPreparationState(State, issue); return false; }
+            RememberRewardRecipient(deployment);
+            _battleId = Guid.NewGuid().ToString("N"); _settlement = null; _settlementSaved = false;
             var cache = _gameManager.CharacterSceneCache;
             if (cache == null || cache.CharacterInstanceCount < 2)
             {
@@ -315,6 +321,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             EnsureDependencies();
             var context = _gameManager?.RuntimeContext;
             if (context?.SessionBuilder == null || _busy) return false;
+            if (RewardState == (int)CharacterTacticalRewardState.Pending)
+            { StatusMessage = "请先确认领取奖励，或保存并退出；待领取奖励将在重开时恢复。"; ShowResultMenu(); return false; }
             if (_settlement != null && !_settlementSaved)
             { StatusMessage = "结算尚未保存，请重试保存后再离开。"; ShowResultMenu(); return false; }
             var battle = context.Slice?.Services.Modules.TacticalStage;
@@ -380,7 +388,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                     () => LoadingCurrent(attempt) && ReferenceEquals(_gameManager?.RuntimeContext, context) && ReferenceEquals(context?.Slice, previousSlice));
                 if (result != TacticalCheckpointTransition.Published)
                 { if (LoadingCurrent(attempt)) { StatusMessage = result == TacticalCheckpointTransition.SaveRejected ? CharacterTacticalServices.ProgressIssue : "流程已变更，未替换当前会话。"; FailLoading(attempt, StatusMessage, result != TacticalCheckpointTransition.SavedWithoutPublication); } return; }
-                _autoBattleDeployment = null; _autoBattleInstalled = false; _settlement = null;
+                _autoBattleDeployment = null; _autoBattleInstalled = false; _settlement = null; RewardSummary = string.Empty; _rewardClaimFailed = false;
                 _gameManager.RuntimeContext.MainMenuVisible = false;
                 _gameManager.RuntimeContext.MainMenuCoordinator.SetPaused(false);
                 _gameManager.RuntimeContext.UiRuntime?.CloseMainMenu();
@@ -401,9 +409,15 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         internal void RequestStartOrContinue()
         {
-            if (_busy || Loading.Running) return;
+            if (IsBusy || Loading.Running) return;
             if (_presentationFault) { ReturnToPreparation("正在重试界面与整备恢复。"); return; }
-            if (State == TacticalPreparationState.Completed) { if (!_settlementSaved) RequestSaveSettlement(); else ReturnToPreparation(); return; }
+            if (State == TacticalPreparationState.Completed)
+            {
+                if (!_settlementSaved) RequestSaveSettlement();
+                else if (RewardState == (int)CharacterTacticalRewardState.Pending) RequestClaimRewards();
+                else ReturnToPreparation();
+                return;
+            }
             if (State != TacticalPreparationState.Home)
             {
                 _gameManager.RuntimeContext.MainMenuVisible = false;
@@ -417,11 +431,26 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         internal void RequestNewGameOrRetry()
         {
-            if (_busy || Loading.Running) return;
+            if (IsBusy || Loading.Running) return;
             if (_presentationFault) { ReturnToPreparation("正在重试界面与整备恢复。"); return; }
             if (State == TacticalPreparationState.Completed)
             {
                 if (!_settlementSaved) { RequestSaveSettlement(); return; }
+                if (RewardState == (int)CharacterTacticalRewardState.Pending) { RequestClaimRewards(); return; }
+                if (OwnsPublishedLevelBattle)
+                {
+                    var previousLevelSlice = _gameManager.RuntimeContext.Slice;
+                    try { _gameManager.LoadLevel(_gameManager.RuntimeContext.ActiveLevelId); }
+                    catch (TacticalSessionPresentationException error) { HandlePresentationFault(error); }
+                    catch (Exception error)
+                    {
+                        if (!ReferenceEquals(_gameManager.RuntimeContext.Slice, previousLevelSlice))
+                            HandlePresentationFault(new TacticalSessionPresentationException("关卡会话已切换，重试界面操作失败：" + error.Message, error));
+                        else StatusMessage = "关卡重试失败，保留结算会话：" + error.Message;
+                        _hud?.SetPreparationState(State, StatusMessage);
+                    }
+                    return;
+                }
                 TacticalDeployment frozen = _autoBattleDeployment;
                 if (frozen == null) { ReturnToPreparation(); return; }
                 var previousSlice = _gameManager.RuntimeContext.Slice;
@@ -453,7 +482,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         internal bool RequestLoadProfile(string profileId, out string issue)
         {
-            if (_busy || Loading.Running || (State != TacticalPreparationState.Preparation && State != TacticalPreparationState.Home))
+            if (IsBusy || Loading.Running || (State != TacticalPreparationState.Preparation && State != TacticalPreparationState.Home))
             { issue = "请先返回整备或首页，再选择进度。"; return false; }
             if (!CharacterTacticalServices.Profiles.Any(profile => profile.ProfileId == profileId))
             { issue = "所选进度已不存在，请重新选择。"; return false; }
@@ -492,6 +521,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 _gameManager.RuntimeContext.MainMenuVisible = false;
                 _gameManager.RuntimeContext.MainMenuCoordinator.SetPaused(false);
                 _gameManager.RuntimeContext.UiRuntime?.CloseMainMenu();
+                if (RestorePendingReward()) return;
                 NotifyPreparationReady(newGame ? "新进度已建立，原进度保留。可在“预设与开战”→“工作配置”中选择旧进度。"
                     : profileId != null ? "已切换所选进度，恢复其整备；战斗从确认出战后重新开始。" : "已继续最近保存的整备，请确认出战。");
             }
@@ -511,7 +541,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             if (_settlement != null) return;
             _settlement = new CharacterTacticalBattleSettlement
-            { BattleId = _battleId ?? Guid.NewGuid().ToString("N"), WinningTeamId = winner, Draw = draw, CompletedAtUtc = DateTime.UtcNow.ToString("O") };
+            { BattleId = _battleId ?? Guid.NewGuid().ToString("N"), WinningTeamId = winner, PlayerTeamId = _rewardPlayerTeam, Draw = draw, CompletedAtUtc = DateTime.UtcNow.ToString("O") };
             MoveToPhase(TacticalPreparationState.Completed);
             _gameManager.RuntimeContext.MainMenuCoordinator.SetPaused(true);
             Time.timeScale = 0f;
@@ -520,16 +550,18 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         }
 
         internal void RequestSaveSettlement()
-        { if (_busy || Loading.Running || _settlement == null) return; _busy = true; _ = SaveSettlementAsync(); }
+        { if (IsBusy || Loading.Running || _settlement == null) return; _busy = true; _ = SaveSettlementAsync(); }
         private async Task SaveSettlementAsync()
         {
             long attempt = BeginLoading(TacticalLoadingOperation.Settlement, TacticalLoadingStage.SavingSettlement);
             try
             {
+                FreezeSettlementRewards();
                 bool saved = await CharacterTacticalServices.SaveProgressAsync(_settlement);
                 if (!LoadingCurrent(attempt)) return;
                 _settlementSaved = saved;
                 if (!saved) { StatusMessage = CharacterTacticalServices.ProgressIssue; FailLoading(attempt, StatusMessage); }
+                else StatusMessage = _settlement.Draw ? "双方同时失去战斗能力，平局。" : "阵营 " + _settlement.WinningTeamId + " 获胜。";
             }
             catch (Exception error) { if (LoadingCurrent(attempt)) { StatusMessage = "结算保存失败：" + error.Message; FailLoading(attempt, StatusMessage); } }
             finally { FinishLoading(attempt); if (this != null && isActiveAndEnabled && Loading.Attempt == attempt) ShowResultMenu(); }
@@ -558,8 +590,14 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         internal void RequestCloseOrExit()
         {
+            if (RewardState == (int)CharacterTacticalRewardState.Pending)
+            {
+                if (IsBusy || Loading.Running) return;
+                if (!_settlementSaved) { RequestSaveSettlement(); return; }
+                _busy = true; _ = SaveAndExitAsync(); return;
+            }
             if (State != TacticalPreparationState.Home) { BeginReturnToPreparation("已保存进度并返回首页。", true); return; }
-            if (_busy || Loading.Running) return; _busy = true; _ = SaveAndExitAsync();
+            if (IsBusy || Loading.Running) return; _busy = true; _ = SaveAndExitAsync();
         }
         private async Task SaveAndExitAsync()
         {
@@ -607,6 +645,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             _applicationHost.RegisterModule(new CharacterTacticalRoleBindingRuntimeModule(
                 () => CharacterTacticalServices.RoleBindings,
                 () => State == TacticalPreparationState.Preparation && !_busy && !_presentationFault));
+            _applicationHost.RegisterModule(new RewardClaimRuntimeModule(this));
             _applicationHost.Initialize(); _applicationHost.Start();
         }
         private void MoveToPhase(TacticalPreparationState phase)

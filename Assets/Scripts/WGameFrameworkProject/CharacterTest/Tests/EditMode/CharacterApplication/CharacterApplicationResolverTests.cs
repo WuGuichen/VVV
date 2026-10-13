@@ -76,6 +76,177 @@ namespace MxFramework.Tests.CharacterApplication
             CollectionAssert.AreEqual(new[] { fixture.SingleSwordState.StateId }, result.MatchedStateIds);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void EquipmentStateResolver_CompleteStateCatalog_SelectsUniqueHighestPriority(bool reverseAllowedStates)
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            EquipmentStateConfig low = CreateMatchingState(fixture, 770010, 0);
+            EquipmentStateConfig high = CreateMatchingState(fixture, 770011, 20);
+            EquipmentSchemaConfig schema = fixture.CreateSchemaWithStates(reverseAllowedStates
+                ? new[] { high.StateId, low.StateId }
+                : new[] { low.StateId, high.StateId });
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                schema, fixture.SingleSwordLoadout, fixture.Weapons, new[] { low, high });
+
+            Assert.AreEqual(EquipmentStateResolveStatus.Success, result.Status);
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreSame(high, result.ActiveState);
+            Assert.AreEqual(high.StateId, result.ActiveStateId);
+            CollectionAssert.AreEquivalent(new[] { low.StateId, high.StateId }, result.MatchedStateIds);
+            Assert.IsEmpty(result.Diagnostics);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void EquipmentStateResolver_PartialStateCatalog_RejectsRemainingMatch(bool reverseAllowedStates, bool provideHighPriority)
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            EquipmentStateConfig low = CreateMatchingState(fixture, 770010, 0);
+            EquipmentStateConfig high = CreateMatchingState(fixture, 770011, 20);
+            EquipmentSchemaConfig schema = fixture.CreateSchemaWithStates(reverseAllowedStates
+                ? new[] { high.StateId, low.StateId }
+                : new[] { low.StateId, high.StateId });
+            EquipmentStateConfig available = provideHighPriority ? high : low;
+            EquipmentStateConfig missing = provideHighPriority ? low : high;
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                schema, fixture.SingleSwordLoadout, fixture.Weapons, new[] { available });
+
+            AssertMissingEquipmentState(result);
+            Assert.AreEqual(1, result.Diagnostics.Length);
+            AssertMissingStateDiagnostic(result.Diagnostics[0], schema, missing.StateId);
+            Assert.AreEqual(1, result.EquippedWeapons.Length);
+            Assert.AreSame(fixture.Sword, result.EquippedWeapons[0].Weapon);
+            Assert.AreEqual("weapon.instance.sword.001", result.EquippedWeapons[0].WeaponInstanceStableId);
+        }
+
+        [Test]
+        public void EquipmentStateResolver_PartialStateCatalog_ReportsEveryMissingReference()
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            EquipmentStateConfig available = CreateMatchingState(fixture, 770010, 0);
+            var firstMissing = new EquipmentStateId(770011);
+            var secondMissing = new EquipmentStateId(770012);
+            EquipmentSchemaConfig schema = fixture.CreateSchemaWithStates(new[]
+                { firstMissing, available.StateId, secondMissing });
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                schema, fixture.UnarmedLoadout, fixture.Weapons, new[] { available });
+
+            AssertMissingEquipmentState(result);
+            Assert.AreEqual(2, result.Diagnostics.Length);
+            AssertMissingStateDiagnostic(result.Diagnostics[0], schema, firstMissing);
+            AssertMissingStateDiagnostic(result.Diagnostics[1], schema, secondMissing);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void EquipmentStateResolver_MissingStateCatalog_ReturnsFailureWithoutActiveState(bool nullCatalog)
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            EquipmentSchemaConfig schema = fixture.CreateSchemaWithStates(new[]
+                { fixture.UnarmedState.StateId, fixture.SingleSwordState.StateId });
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                schema, fixture.UnarmedLoadout, fixture.Weapons,
+                nullCatalog ? null : Array.Empty<EquipmentStateConfig>());
+
+            AssertMissingEquipmentState(result);
+            Assert.AreEqual(2, result.Diagnostics.Length);
+            AssertMissingStateDiagnostic(result.Diagnostics[0], schema, fixture.UnarmedState.StateId);
+            AssertMissingStateDiagnostic(result.Diagnostics[1], schema, fixture.SingleSwordState.StateId);
+        }
+
+        [Test]
+        public void EquipmentStateResolver_ExplicitMissingState_ReturnsLoadoutDiagnostic()
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            var loadout = new EquipmentLoadoutConfig(
+                new EquipmentLoadoutId(760010), "equip_loadout.explicit_missing",
+                fixture.EquipmentSchema.EquipmentSchemaId, fixture.SingleSwordState.StateId,
+                Array.Empty<EquipmentLoadoutSlotEntry>());
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                fixture.EquipmentSchema, loadout, fixture.Weapons, new[] { fixture.UnarmedState });
+
+            AssertMissingEquipmentState(result);
+            Assert.AreEqual(1, result.Diagnostics.Length);
+            Assert.AreEqual(EquipmentLoadoutConfig.TableName, result.Diagnostics[0].SourceTable);
+            Assert.AreEqual(loadout.Id, result.Diagnostics[0].SourceId);
+            Assert.AreEqual(loadout.StableId, result.Diagnostics[0].SourceStableId);
+            Assert.AreEqual(nameof(EquipmentLoadoutConfig.EquipmentStateId), result.Diagnostics[0].Field);
+        }
+
+        [Test]
+        public void EquipmentStateResolver_ExplicitAvailableState_PreservesSelectionWithOtherStatesMissing()
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            var loadout = new EquipmentLoadoutConfig(
+                new EquipmentLoadoutId(760010), "equip_loadout.explicit_available",
+                fixture.EquipmentSchema.EquipmentSchemaId, fixture.SingleSwordState.StateId,
+                Array.Empty<EquipmentLoadoutSlotEntry>());
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                fixture.EquipmentSchema, loadout, fixture.Weapons, new[] { fixture.SingleSwordState });
+
+            Assert.AreEqual(EquipmentStateResolveStatus.Success, result.Status);
+            Assert.IsTrue(result.IsSuccess);
+            Assert.AreSame(fixture.SingleSwordState, result.ActiveState);
+            Assert.AreEqual(fixture.SingleSwordState.StateId, result.ActiveStateId);
+            CollectionAssert.AreEqual(new[] { fixture.SingleSwordState.StateId }, result.MatchedStateIds);
+            Assert.IsEmpty(result.Diagnostics);
+        }
+
+        [Test]
+        public void EquipmentStateResolver_CompleteStateCatalogWithPriorityTie_PreservesStructuredFailure()
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            EquipmentStateConfig first = CreateMatchingState(fixture, 770010, 20);
+            EquipmentStateConfig second = CreateMatchingState(fixture, 770011, 20);
+            EquipmentSchemaConfig schema = fixture.CreateSchemaWithStates(new[] { first.StateId, second.StateId });
+
+            EquipmentStateResolveResult result = EquipmentStateResolver.Resolve(
+                schema, fixture.UnarmedLoadout, fixture.Weapons, new[] { first, second });
+
+            Assert.AreEqual(EquipmentStateResolveStatus.MultipleMatchingStates, result.Status);
+            Assert.IsFalse(result.IsSuccess);
+            Assert.IsNull(result.ActiveState);
+            Assert.IsFalse(result.ActiveStateId.IsValid);
+            CollectionAssert.AreEqual(new[] { first.StateId, second.StateId }, result.MatchedStateIds);
+            Assert.AreEqual(1, result.Diagnostics.Length);
+            AssertDiagnostic(result.Diagnostics, CharacterDiagnosticCode.EquipmentStateTie);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CharacterPackageResolver_PartialStateCatalog_PreservesErrorWithoutActiveState(bool reverseAllowedStates)
+        {
+            IronVanguardFixture fixture = IronVanguardFixture.Create();
+            EquipmentStateConfig low = CreateMatchingState(fixture, 770010, 0);
+            EquipmentStateConfig high = CreateMatchingState(fixture, 770011, 20);
+            EquipmentSchemaConfig schema = fixture.CreateSchemaWithStates(reverseAllowedStates
+                ? new[] { high.StateId, low.StateId }
+                : new[] { low.StateId, high.StateId });
+
+            CharacterPackageResolveResult complete = CharacterPackageResolver.Resolve(
+                CreatePackageRequestWithStates(fixture, schema, new[] { low, high }));
+            CharacterPackageResolveResult partial = CharacterPackageResolver.Resolve(
+                CreatePackageRequestWithStates(fixture, schema, new[] { low }));
+
+            Assert.IsFalse(complete.ValidationReport.HasErrors);
+            Assert.AreEqual(high.StateId, complete.ResolvedProfile.ActiveEquipmentStateId);
+            Assert.IsTrue(partial.ValidationReport.HasErrors);
+            Assert.IsFalse(partial.ResolvedProfile.ActiveEquipmentStateId.IsValid);
+            CharacterDiagnostic[] missing = partial.ValidationReport.Issues
+                .Where(diagnostic => diagnostic.Code == CharacterDiagnosticCode.MissingEquipmentStateConfig).ToArray();
+            Assert.AreEqual(1, missing.Length);
+            AssertMissingStateDiagnostic(missing[0], schema, high.StateId);
+        }
+
         [Test]
         public void EquipmentStateResolver_HandAgnosticDefinitionSupportsDualAndOffHandOnlyInstances()
         {
@@ -362,6 +533,49 @@ namespace MxFramework.Tests.CharacterApplication
             Assert.IsTrue(diagnostics.Any(diagnostic => diagnostic.Code == code), "Expected diagnostic " + CharacterDiagnosticCodes.ToStableCode(code));
         }
 
+        private static EquipmentStateConfig CreateMatchingState(IronVanguardFixture fixture, int stateId, int priority)
+        {
+            return new EquipmentStateConfig(
+                new EquipmentStateId(stateId), "mx.equipment_state.catalog_test." + stateId,
+                fixture.EquipmentSchema.EquipmentSchemaId, priority, Array.Empty<EquipmentMatchRule>(),
+                default, fixture.UnarmedActionSet.ActionSetId, fixture.UnarmedState.AnimationProfileId,
+                Array.Empty<string>());
+        }
+
+        private static CharacterPackageResolveRequest CreatePackageRequestWithStates(
+            IronVanguardFixture fixture, EquipmentSchemaConfig schema, EquipmentStateConfig[] states)
+        {
+            return new CharacterPackageResolveRequest(
+                fixture.Character, fixture.Attributes, fixture.BodyProfile, fixture.BodyParts,
+                schema, fixture.UnarmedLoadout, states, fixture.Weapons, fixture.AbilityLoadouts,
+                fixture.CombatActionSets, fixture.Presentation, knownAbilityIds: fixture.KnownAbilityIds);
+        }
+
+        private static void AssertMissingEquipmentState(EquipmentStateResolveResult result)
+        {
+            Assert.AreEqual(EquipmentStateResolveStatus.MissingEquipmentStateConfig, result.Status);
+            Assert.IsFalse(result.IsSuccess);
+            Assert.IsNull(result.ActiveState);
+            Assert.IsFalse(result.ActiveStateId.IsValid);
+            Assert.IsEmpty(result.MatchedStateIds);
+            Assert.IsNotEmpty(result.Diagnostics);
+            Assert.IsTrue(result.Diagnostics.All(diagnostic => diagnostic.IsError
+                && diagnostic.Code == CharacterDiagnosticCode.MissingEquipmentStateConfig
+                && diagnostic.StableCode == "CHAR_MISSING_EQUIPMENT_STATE"));
+        }
+
+        private static void AssertMissingStateDiagnostic(
+            CharacterDiagnostic diagnostic, EquipmentSchemaConfig schema, EquipmentStateId missingStateId)
+        {
+            Assert.AreEqual(CharacterDiagnosticSeverity.Error, diagnostic.Severity);
+            Assert.AreEqual(CharacterDiagnosticCode.MissingEquipmentStateConfig, diagnostic.Code);
+            Assert.AreEqual(EquipmentSchemaConfig.TableName, diagnostic.SourceTable);
+            Assert.AreEqual(schema.Id, diagnostic.SourceId);
+            Assert.AreEqual(schema.StableId, diagnostic.SourceStableId);
+            Assert.AreEqual(nameof(EquipmentSchemaConfig.AllowedStateIds), diagnostic.Field);
+            StringAssert.Contains(missingStateId.Value.ToString(), diagnostic.Message);
+        }
+
         private sealed class IronVanguardFixture
         {
             public CharacterConfig Character { get; private set; }
@@ -528,8 +742,36 @@ namespace MxFramework.Tests.CharacterApplication
                 SingleSwordLoadout = new EquipmentLoadoutConfig(new EquipmentLoadoutId(760002), "mx.loadout.iron_vanguard.single_sword", EquipmentSchema.EquipmentSchemaId, new[] { new EquipmentLoadoutSlotEntry(1, Sword.WeaponId, "weapon.instance.sword.001") });
                 SwordShieldLoadout = new EquipmentLoadoutConfig(new EquipmentLoadoutId(760003), "mx.loadout.iron_vanguard.sword_shield", EquipmentSchema.EquipmentSchemaId, new[] { new EquipmentLoadoutSlotEntry(1, Sword.WeaponId, "weapon.instance.sword.001"), new EquipmentLoadoutSlotEntry(2, Shield.WeaponId, "weapon.instance.shield.001") });
                 UnarmedState = new EquipmentStateConfig(new EquipmentStateId(770001), "mx.equipment_state.iron_vanguard.unarmed", EquipmentSchema.EquipmentSchemaId, 0, new[] { new EquipmentMatchRule(Array.Empty<int>(), new[] { 1, 2 }, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>()) }, new AbilityLoadoutId(0), new CombatActionSetId(800001), "anim.iron_vanguard.unarmed", Array.Empty<string>());
-                SingleSwordState = new EquipmentStateConfig(new EquipmentStateId(770002), "mx.equipment_state.iron_vanguard.single_sword", EquipmentSchema.EquipmentSchemaId, 10, new[] { new EquipmentMatchRule(new[] { 1 }, new[] { 2 }, new[] { "mainHand:OneHandMelee" }, new[] { "mainHand:blade" }, Array.Empty<string>()) }, new AbilityLoadoutId(0), new CombatActionSetId(800002), "anim.iron_vanguard.single_sword", Array.Empty<string>());
-                SwordShieldState = new EquipmentStateConfig(new EquipmentStateId(770003), "mx.equipment_state.iron_vanguard.sword_shield", EquipmentSchema.EquipmentSchemaId, 20, new[] { new EquipmentMatchRule(new[] { 1, 2 }, Array.Empty<int>(), new[] { "mainHand:OneHandMelee", "offHand:Shield" }, new[] { "mainHand:blade", "offHand:shield" }, Array.Empty<string>()) }, new AbilityLoadoutId(790004), new CombatActionSetId(800003), "anim.iron_vanguard.sword_shield", Array.Empty<string>());
+                SingleSwordState = new EquipmentStateConfig(
+                    new EquipmentStateId(770002), "mx.equipment_state.iron_vanguard.single_sword", EquipmentSchema.EquipmentSchemaId, 10,
+                    new[]
+                    {
+                        new EquipmentMatchRule(
+                            new[] { 1 }, new[] { 2 },
+                            new[] { EquipmentMatchRuleToken.Create(CharacterEquipmentSlotIds.MainHand, WeaponCategory.OneHandMelee.ToString()) },
+                            new[] { EquipmentMatchRuleToken.Create(CharacterEquipmentSlotIds.MainHand, CharacterWeaponTagIds.Blade) },
+                            Array.Empty<string>())
+                    },
+                    new AbilityLoadoutId(0), new CombatActionSetId(800002), "anim.iron_vanguard.single_sword", Array.Empty<string>());
+                SwordShieldState = new EquipmentStateConfig(
+                    new EquipmentStateId(770003), "mx.equipment_state.iron_vanguard.sword_shield", EquipmentSchema.EquipmentSchemaId, 20,
+                    new[]
+                    {
+                        new EquipmentMatchRule(
+                            new[] { 1, 2 }, Array.Empty<int>(),
+                            new[]
+                            {
+                                EquipmentMatchRuleToken.Create(CharacterEquipmentSlotIds.MainHand, WeaponCategory.OneHandMelee.ToString()),
+                                EquipmentMatchRuleToken.Create(CharacterEquipmentSlotIds.OffHand, WeaponCategory.Shield.ToString())
+                            },
+                            new[]
+                            {
+                                EquipmentMatchRuleToken.Create(CharacterEquipmentSlotIds.MainHand, CharacterWeaponTagIds.Blade),
+                                EquipmentMatchRuleToken.Create(CharacterEquipmentSlotIds.OffHand, CharacterWeaponTagIds.Shield)
+                            },
+                            Array.Empty<string>())
+                    },
+                    new AbilityLoadoutId(790004), new CombatActionSetId(800003), "anim.iron_vanguard.sword_shield", Array.Empty<string>());
             }
 
             private void CreateAbilities()

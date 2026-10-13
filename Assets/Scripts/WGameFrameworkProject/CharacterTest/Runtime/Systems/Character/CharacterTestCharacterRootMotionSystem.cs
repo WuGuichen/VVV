@@ -102,7 +102,7 @@ namespace MxFramework.Game.CharacterTest
                         new Vector3(0f, verticalDelta, 0f),
                         CharacterTestCharacterMotionRequestSpace.World,
                         action.ActionId,
-                        motionTrack.VerticalRootMotion.SourceAnimationEventId));
+                        motionTrack.VerticalRootMotion.SourceAnimationEventId).WithThirdSource(entity.CurrentThirdAttack, TacticalCard.TacticalThirdBatchMotionChannel.RootTranslation));
                 }
             }
             if (!motionTrack.UsesRootMotion)
@@ -205,7 +205,7 @@ namespace MxFramework.Game.CharacterTest
                     : CharacterTestCharacterMotionRequestSpace.Local,
                 action.ActionId,
                 rootMotion.SourceAnimationEventId,
-                ToMotionObstaclePolicy(rootMotion.ObstaclePolicy)));
+                ToMotionObstaclePolicy(rootMotion.ObstaclePolicy)).WithThirdSource(entity.CurrentThirdAttack, TacticalCard.TacticalThirdBatchMotionChannel.RootTranslation));
         }
 
         private static CharacterMotionObstaclePolicy ToMotionObstaclePolicy(

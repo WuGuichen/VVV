@@ -265,6 +265,8 @@ namespace MxFramework.Game.CharacterTest
             return value > max ? max : value;
         }
 
+        public static int ClampControlScaleMilli(int value) => Clamp(value, 0, 10000);
+
         public static int ClampScaleMilli(int value)
         {
             return Clamp(value, 0, CharacterTestDeterministicUnits.ScaleFactorScale);
@@ -704,7 +706,7 @@ namespace MxFramework.Game.CharacterTest
         }
     }
 
-    public sealed class CharacterTestCharacterEntity
+    public sealed partial class CharacterTestCharacterEntity
     {
         private readonly CharacterTestComponentWorld _componentWorld;
         private readonly List<CharacterAuthoritySecondaryPoseSample> _authorityPoseSamplesBeforeTick;

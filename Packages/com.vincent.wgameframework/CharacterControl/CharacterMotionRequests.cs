@@ -61,6 +61,7 @@ namespace MxFramework.CharacterControl
     public readonly struct CharacterMotionRequest
     {
         public const int DefaultControlScaleMilli = 1000;
+        public const int MaximumControlScaleMilli = 10000;
 
         public CharacterMotionRequest(
             CharacterMotionRequestKind kind,
@@ -116,7 +117,7 @@ namespace MxFramework.CharacterControl
             if (value < 0)
                 return 0;
 
-            return value > DefaultControlScaleMilli ? DefaultControlScaleMilli : value;
+            return value > MaximumControlScaleMilli ? MaximumControlScaleMilli : value;
         }
     }
 
@@ -710,8 +711,8 @@ namespace MxFramework.CharacterControl
         {
             if (float.IsNaN(value) || value <= 0f)
                 return 0;
-            if (float.IsPositiveInfinity(value) || value >= 1f)
-                return CharacterMotionRequest.DefaultControlScaleMilli;
+            if (float.IsPositiveInfinity(value) || value >= 10f)
+                return CharacterMotionRequest.MaximumControlScaleMilli;
 
             return (int)Math.Round(
                 value * CharacterMotionRequest.DefaultControlScaleMilli,

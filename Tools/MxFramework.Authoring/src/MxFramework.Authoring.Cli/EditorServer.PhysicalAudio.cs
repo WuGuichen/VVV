@@ -107,6 +107,10 @@ internal static partial class EditorServer
                 "AUTH_AUDIO_PHYSICAL_PREVIEW_BINDING_MISSING",
                 "解析结果缺少 Basis、Cue 或 Event binding，无法交给 Unity 试听。");
 
+        AuthoringResourceDiagnostic missingDefault = FindActiveCueDefaultParameterError(semantic, snapshot);
+        if (missingDefault != null)
+            return PhysicalAudioPreviewApiResponse.Invalid(missingDefault.Code, missingDefault.Message);
+
         string physicalManifestJson = JsonSerializer.Serialize(physical, jsonOptions);
         string physicalManifestHash = CharacterPackageHashUtility.ComputeTextSha256(physicalManifestJson);
         string semanticManifestHash = CharacterPackageHashUtility.ComputeTextSha256(JsonSerializer.Serialize(semantic, jsonOptions));

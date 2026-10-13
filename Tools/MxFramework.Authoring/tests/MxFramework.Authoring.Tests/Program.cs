@@ -75,10 +75,22 @@ internal static class Program
                 Console.WriteLine("FairyGUI atlas resource checks passed.");
                 return 0;
             }
+            if (args.Length == 1 && args[0] == "character-material-collision")
+            {
+                ResourceMappingProfileV2Tests.RunCharacterMaterialCollisionChecks();
+                Console.WriteLine("Character material collision checks passed: 3 groups.");
+                return 0;
+            }
             if (args.Length == 1 && args[0] == "resource-mapping")
             {
                 ResourceMappingProfileV2Tests.RunAll();
                 Console.WriteLine("ResourceMappingProfileV2Tests passed.");
+                return 0;
+            }
+            if (args.Length == 1 && args[0] == "character-resource-mapping")
+            {
+                ResourceMappingProfileV2Tests.RunCharacterSyncChecks();
+                Console.WriteLine("Character resource mapping synchronization tests passed.");
                 return 0;
             }
             if (args.Length == 1 && args[0] == "animation-profile-slots")
@@ -139,6 +151,11 @@ internal static class Program
             {
                 CharacterPackageTests.RunCharacterUnityImportBridge();
                 Console.WriteLine("Character Unity import bridge tests passed.");
+                return 0;
+            }
+            if (args.Length == 1 && args[0] == "character-import-verification")
+            {
+                CharacterImportVerificationTests.Run();
                 return 0;
             }
             if (args.Length == 1 && args[0] == "character-export-layout")
@@ -283,6 +300,12 @@ internal static class Program
             {
                 UiComposerAuthoringTests.RunIconOnlyButtonCentering();
                 Console.WriteLine("UI Composer icon-only button centering test passed.");
+                return 0;
+            }
+            if (args.Length == 1 && args[0] == "ui-composer-component-paths")
+            {
+                UiComposerAuthoringTests.RunComponentPathCollisions();
+                Console.WriteLine("UI Composer component path collision tests passed.");
                 return 0;
             }
             if (args.Length == 1 && args[0] == "ui-composer")

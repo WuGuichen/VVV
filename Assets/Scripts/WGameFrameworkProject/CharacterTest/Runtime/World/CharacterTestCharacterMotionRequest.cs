@@ -1,6 +1,7 @@
 using MxFramework.CharacterAction;
 using MxFramework.CharacterControl;
 using UnityEngine;
+using MxFramework.Game.CharacterTest.TacticalCard;
 
 namespace MxFramework.Game.CharacterTest
 {
@@ -76,8 +77,10 @@ namespace MxFramework.Game.CharacterTest
             int stableEventId,
             bool deterministic,
             bool bypassGroundDamping = false,
-            CharacterMotionObstaclePolicy obstaclePolicy = CharacterMotionObstaclePolicy.Default)
+            CharacterMotionObstaclePolicy obstaclePolicy = CharacterMotionObstaclePolicy.Default,
+            TacticalThirdBatchAttack thirdSource = default, TacticalThirdBatchMotionChannel thirdChannel = default)
         {
+            ThirdSource = thirdSource; ThirdChannel = thirdChannel;
             Kind = kind;
             XRaw = xRaw;
             YRaw = yRaw;
@@ -85,8 +88,8 @@ namespace MxFramework.Game.CharacterTest
             Space = space;
             MovementMode = movementMode;
             LocksMovement = lockMovement;
-            MovementControlScaleMilli = CharacterTestDeterministicMath.ClampScaleMilli(movementControlScaleMilli);
-            RotationControlScaleMilli = CharacterTestDeterministicMath.ClampScaleMilli(rotationControlScaleMilli);
+            MovementControlScaleMilli = CharacterTestDeterministicMath.ClampControlScaleMilli(movementControlScaleMilli);
+            RotationControlScaleMilli = CharacterTestDeterministicMath.ClampControlScaleMilli(rotationControlScaleMilli);
             HasMovementControlScale = hasMovementControlScale;
             HasRotationControlScale = hasRotationControlScale;
             SourceActionId = sourceActionId;
@@ -118,6 +121,12 @@ namespace MxFramework.Game.CharacterTest
         public int StableEventId { get; }
         public bool BypassesGroundDamping { get; }
         public CharacterMotionObstaclePolicy ObstaclePolicy { get; }
+        internal TacticalThirdBatchAttack ThirdSource { get; }
+        internal TacticalThirdBatchMotionChannel ThirdChannel { get; }
+        internal CharacterTestCharacterMotionRequest WithThirdSource(in TacticalThirdBatchAttack source, TacticalThirdBatchMotionChannel channel)
+            => new CharacterTestCharacterMotionRequest(Kind, XRaw, YRaw, ZRaw, Space, MovementMode, LocksMovement,
+                MovementControlScaleMilli, RotationControlScaleMilli, HasMovementControlScale, HasRotationControlScale,
+                SourceActionId, StableEventId, true, BypassesGroundDamping, ObstaclePolicy, source, channel);
         public bool HasValue => Kind != CharacterTestCharacterMotionRequestKind.None;
 
         /// <remarks>NoAlloc after initialization.</remarks>

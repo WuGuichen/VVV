@@ -58,12 +58,13 @@ namespace MxFramework.Config
             var report = new ConfigTableValidationReport();
             ConfigSchema schema = table.Schema;
             resolver = resolver ?? table;
+            var lookup = new ConfigReferenceLookup(resolver);
 
             ValidateSchema(schema, report);
             foreach (T row in table.Rows)
             {
                 ValidateId(schema, row, report);
-                ValidateReferences(schema, row, resolver, report);
+                ValidateReferences(schema, row, lookup, report);
                 ValidateLocalization(schema, row, localizationProvider, report);
             }
 
@@ -114,7 +115,7 @@ namespace MxFramework.Config
             }
         }
 
-        private static void ValidateReferences<T>(ConfigSchema schema, T row, IConfigProvider resolver, ConfigTableValidationReport report) where T : IConfigData
+        private static void ValidateReferences<T>(ConfigSchema schema, T row, ConfigReferenceLookup lookup, ConfigTableValidationReport report) where T : IConfigData
         {
             for (int i = 0; i < schema.ReferenceRules.Count; i++)
             {
@@ -135,7 +136,7 @@ namespace MxFramework.Config
                     continue;
                 }
 
-                if (!Contains(resolver, rule.TargetType, targetId))
+                if (!lookup.Contains(rule.TargetType, targetId))
                 {
                     report.Add(new ConfigTableValidationIssue(rule.Severity, ConfigError.NotFound, schema.TableName, row.Id, rule.FieldName, $"Missing config reference. Field={rule.FieldName}, Target={rule.TargetType.FullName}:{targetId}."));
                 }
@@ -214,20 +215,6 @@ namespace MxFramework.Config
 
             FieldInfo field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public);
             return field != null ? field.GetValue(row) : null;
-        }
-
-        private static bool Contains(IConfigProvider provider, Type type, int id)
-        {
-            MethodInfo method = typeof(IConfigProvider).GetMethod(nameof(IConfigProvider.GetAllConfigs));
-            MethodInfo generic = method.MakeGenericMethod(type);
-            var all = (System.Collections.IEnumerable)generic.Invoke(provider, null);
-            foreach (object item in all)
-            {
-                if (item is IConfigData data && data.Id == id)
-                    return true;
-            }
-
-            return false;
         }
     }
 }

@@ -7,6 +7,7 @@
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Game/CharacterTest/CharacterTestCardUiPreviewTests.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestTacticalApproachActionHint.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/UI/FairyGui/CharacterTestFairyGuiAiLabCardTrialSurface.*.cs`
 > 当前核对：2026-10-09；本轮 Unity EditMode 限定测试27/27（旧动作预览4、识别7、准备卡16），五张正式准备卡效果 Tooltip 已在真实 GameView 验证；Player 编译结果另见当轮构建回执。
 
 独立意图的卡面只显示核心行为，省去句末标点；规则、参数、朝向、时限、超时与完成条件保留在 `DescriptionDetails` 和参数浮窗。已识别的段提供 `DetailsText`，由同一 C# 投影聚合详细说明。整备和战斗手牌 Tooltip 均展示详细说明，出招的动作选择入口保留。缺少装配或测量数据时沿用占位与诊断，不推定执行就绪。Step 后撤目前只有功能槽，没有独立意图源，不据此生成新行为。
@@ -46,3 +47,15 @@ CLI 的可选 `generated.utilityFace` 保留 `mx.tactical-card.utility-face.v1`�
 接敌／等待／出招旧事件模板的提示识别按实际执行合同检查显式等待节点、移动／转向与时间顺序，不以已停用的 `CharacterAction.ConditionRoot` 作为短句或测量提示准入条件。等待 Gate 的存活、距离、朝向条件继续严格核对；当前无动作条件与历史保留条件得到相同提示。距离参数采用已验证的 `SelectedRange` 首个闭合命中区间，并在忽略更远区间时保留明确提示；整备与配置卡一致性测试先等待真实自动测量完成，再对同一精确正式版本比较正文、参数及存储不变性。此改动只修正显示识别，不改变播放动作、测量或发布语义。
 
 AI Lab 真实出牌试用界面的整张卡悬停绑定既有 `TooltipText(data)`（正文与效果详情），并保留当前出牌操作提示；采用现有 Tooltip 服务处理边界放置、离开隐藏和 owner 释放。隐藏试用界面时立即隐藏 Tooltip。纯准备效果没有动作测量参数，不因此丢失效果窗口、每回合限制和清理说明。
+
+## AI Lab 固定装配显示接入（2026-10-11 当前工作区）
+
+卡片试用的固定装配消费继续复用上述描述投影、卡壳与 Tooltip 服务。配置预览在既有投影上叠加当前固定配件摘要和费用提示；预览缓存身份包含装配摘要，避免更换配件后沿用旧预览。固定组合模式隐藏旧测试准备费用输入，并拒绝混入旧独立准备／测试工具卡；这不是正式玩家库存装配 UI 已完成的声明。
+
+战斗手牌费用取实际 `FixedAssembly.MainConfirmationCost + AccessoryConfirmationCost`，Tooltip 在既有 `TooltipText(data)` 后附加 `FixedCardDetail`。观测读数消费 `TacticalFixedAssemblyReadout` 的费用计划、确认回执和效果状态，区分确认费用、行动预留以及实际起手费用／CD；显示缓存不准入、确认或支付卡牌。当前实现入口为 `CharacterTestFairyGuiAiLabCardTrialSurface.cs` 及其 `Faces`、`Configuration`、`Readouts`、`FixedAssembly` 分文件。
+
+条件区的常驻正文保留冻结玩家／对手、当前牌区、已付费用／预留状态和配件摘要；初始动势、种子和起手张数保存在同一冻结配置的完整正文中，由原观察 Tooltip 展开。当前彩色主卡三配件付款后为6行，沿原204逻辑像素区域和24字号，无额外Shrink；1280×720与1920×1080实拍分别为16／24物理像素，完整Tooltip未裁剪。实现只分开`FrozenParticipants`摘要与`FrozenConditions`完整说明，不改变冻结、费用、激活或生命周期。
+
+本次只扩展 AI Lab 的显示消费，未修改 CLI 的 `generated.description`／`descriptionFlow` 生成契约，也未把旧 Utility 显示自动迁移成正式配件发布投影。实施证据及尚未完成的正式发布、其他效果画面和玩家装配 UI 见[固定装配工程说明](../Plans/TacticalCardAssemblyDevelopmentPlan.md#39-固定组合原生修复与图形检查点2026-10-11部分验收)。新HEAD `471156bc`已通过完整Unity编译门禁及本次1280／1920的实际配置／付款读数和Tooltip核对；GUI证据为正式控件回调，不是OS鼠标输入，也不代表历史16/16在新HEAD重新运行。
+
+后续手测配置将对手牌／装配动作和战前起点加入同一`FrozenConditions`完整正文，常驻`FrozenParticipants`仍为两个角色摘要。对手卡预览按实际对手角色准备动作，不能套用玩家资格。三个手测预设仅通过编译与内容冻结预检，新增Tooltip正文和预设操作未自动重拍或进行战斗验收；入口与观察点归[工作台手测说明](../Guides/CHARACTER_TEST_RUNTIME_AI_LAB_BEHAVIOR_WORKBENCH.md#固定装配手测入口2026-10-11编译与内容预检通过手测待用户执行)。

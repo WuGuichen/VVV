@@ -48,6 +48,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal bool TryRefreshPublishedCards(CharacterTacticalCardDefinition[] cards, out int invalidOwnedReferences, out string issue)
         {
             invalidOwnedReferences = 0;
+            if (MutationBlocked) { issue = "领奖或重置正在处理中。"; return false; }
             CharacterTacticalCardDefinition[] staged;
             Dictionary<string, HashSet<string>> availability;
             try
@@ -267,7 +268,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         }
         internal bool OwnsCard(string character, string card) => Find(character)?.Cards.Any(c => c.CardId == card) == true;
         internal CharacterTacticalCardReference FindCard(string character, string card) => Clone(Find(character)?.Cards.Find(c => c.CardId == card));
-        internal bool IsCardUsable(string character, string card) => !_resetting && character != null
+        internal bool IsCardUsable(string character, string card) => !MutationBlocked && character != null
             && _usableCards.TryGetValue(character, out var cards) && cards.Contains(card);
 
         private void RebuildAvailability() => _usableCards = BuildAvailability(_catalog);
@@ -497,7 +498,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             try
             {
-                if (_resetting || definitions == null || containers == null)
+                if (MutationBlocked || definitions == null || containers == null)
                     return Fail("普通物品配置不可用。", out issue);
                 var layouts = new InventoryContainer[containers.Length];
                 var ids = new HashSet<int>();
@@ -580,7 +581,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             long expectedRevision, long expectedFrame, RuntimeTickContext context, out ItemInstanceId instanceId, out string issue)
         {
             instanceId = default; issue = string.Empty;
-            if (_resetting || _characterItemDefinitions == null || request == null || !request.RequestId.IsValid
+            if (MutationBlocked || _characterItemDefinitions == null || request == null || !request.RequestId.IsValid
                 || request.SourceKind != ItemAcquisitionSourceKind.DirectGrant || request.Costs.Length != 0 || request.Grants.Length != 0
                 || !ownerId.IsValid || string.IsNullOrWhiteSpace(displayName)
                 || expectedFrame < 0 || context.Stage != RuntimeTickStage.Simulation || context.FrameIndex != expectedFrame
@@ -644,7 +645,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal bool TryRenameCharacterItemAtTick(ItemInstanceId instanceId, InventoryOwnerId ownerId, string displayName,
             long expectedCharacterRevision, long expectedRevision, long expectedFrame, RuntimeTickContext context, out string issue)
         {
-            if (_resetting || _characterItemDefinitions == null || string.IsNullOrWhiteSpace(displayName)
+            if (MutationBlocked || _characterItemDefinitions == null || string.IsNullOrWhiteSpace(displayName)
                 || !instanceId.IsValid || !ownerId.IsValid || expectedFrame < 0
                 || context.Stage != RuntimeTickStage.Simulation || context.FrameIndex != expectedFrame)
                 return Fail("角色改名参数或指定逻辑帧不可用。", out issue);
@@ -818,7 +819,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             out InventoryStore inventory, out ItemAcquisitionLedger ledger, out string issue)
         {
             candidate = null; character = null; inventory = null; ledger = null;
-            if (_resetting || _characterItemDefinitions == null || !id.IsValid || !owner.IsValid || frame < 0
+            if (MutationBlocked || _characterItemDefinitions == null || !id.IsValid || !owner.IsValid || frame < 0
                 || context.Stage != RuntimeTickStage.Simulation || context.FrameIndex != frame)
                 return Fail("角色实例命令参数或逻辑帧不可用。", out issue);
             try
@@ -913,7 +914,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             RuntimeTickContext context, out string issue)
         {
             issue = string.Empty;
-            if (_resetting || _itemDefinitions == null || request == null || !request.RequestId.IsValid
+            if (MutationBlocked || _itemDefinitions == null || request == null || !request.RequestId.IsValid
                 || settlementId < 0 || context.Stage != RuntimeTickStage.Simulation || context.FrameIndex != expectedFrame)
             {
                 issue = "物品事务未配置或不在指定逻辑帧。";
@@ -1008,6 +1009,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         internal Task<bool> FlushAsync()
         {
+            if (_rewardCommitInFlight) return Task.FromResult(false);
             if (_saving != null && !_saving.IsCompleted) return _saving;
             _saving = SaveLoopAsync(); return _saving;
         }
@@ -1032,7 +1034,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         /// <summary>The composition root must retire its active battle before calling this method.</summary>
         internal async Task<bool> ResetAsync()
         {
-            if (_resetting) return false;
+            if (MutationBlocked) return false;
             _resetting = true;
             try
             {
@@ -1054,7 +1056,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             if (UsesCharacterItemTacticalProgress) { state = null; return Fail("请指定角色物品实例；模板不能写入实例进度。", out issue); }
             state = Find(character); issue = string.Empty;
-            return !_resetting && state != null || Fail("角色清单不可用或正在清档。", out issue);
+            return !MutationBlocked && state != null || Fail("角色清单不可用或正在清档。", out issue);
         }
         private void ValidateState() => ValidateState(_state);
 

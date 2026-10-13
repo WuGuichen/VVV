@@ -70,7 +70,13 @@ namespace MxFramework.Combat.Hit
             TargetState = targetState;
             ResolvePriority = resolvePriority;
             IncomingDirection = incomingDirection;
+            ProducerIdentity = default;
         }
+
+        public CombatHitProducerIdentity ProducerIdentity { get; }
+        private HitCandidate(in HitCandidate value, CombatHitProducerIdentity identity)
+        { this = value; ProducerIdentity = identity; }
+        public HitCandidate WithProducerIdentity(CombatHitProducerIdentity identity) => new HitCandidate(this, identity);
 
         public CombatEntityId AttackerId { get; }
 
@@ -103,7 +109,7 @@ namespace MxFramework.Combat.Hit
         /// </summary>
         public FixVector3 IncomingDirection { get; }
 
-        public WeaponHitOnceKey HitOnceKey => new WeaponHitOnceKey(ActionInstanceId, TraceId, TargetId);
+        public WeaponHitOnceKey HitOnceKey => new WeaponHitOnceKey(ActionInstanceId, TraceId, TargetId, ProducerIdentity);
 
         public int CompareTo(HitCandidate other)
         {
@@ -125,12 +131,14 @@ namespace MxFramework.Combat.Hit
                 return compare;
             }
 
-            return ActionInstanceId.CompareTo(other.ActionInstanceId);
+            compare = ActionInstanceId.CompareTo(other.ActionInstanceId);
+            return compare == 0 ? ProducerIdentity.CompareTo(other.ProducerIdentity) : compare;
         }
 
         public bool Equals(HitCandidate other)
         {
-            return AttackerId.Equals(other.AttackerId)
+            return ProducerIdentity.Equals(other.ProducerIdentity)
+                && AttackerId.Equals(other.AttackerId)
                 && TargetId.Equals(other.TargetId)
                 && ActionId == other.ActionId
                 && ActionInstanceId == other.ActionInstanceId
@@ -167,7 +175,7 @@ namespace MxFramework.Combat.Hit
                 hash = (hash * 397) ^ (int)TargetState;
                 hash = (hash * 397) ^ ResolvePriority;
                 hash = (hash * 397) ^ IncomingDirection.GetHashCode();
-                return hash;
+                return ProducerIdentity.IsValid ? (hash * 397) ^ ProducerIdentity.GetHashCode() : hash;
             }
         }
     }

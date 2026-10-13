@@ -213,6 +213,10 @@ private static void AssertPublishedSettingsPanelControlTypes()
                     panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.AntiAliasingNext));
                 Assert.IsInstanceOf<Fgui.GButton>(
                     panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityNext));
+                Assert.IsInstanceOf<Fgui.GButton>(panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.WaterQualityNext));
+                Assert.IsInstanceOf<Fgui.GButton>(panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.RippleQualityNext));
+                Assert.IsInstanceOf<Fgui.GTextField>(panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.RippleQualityValue));
+                Assert.IsInstanceOf<Fgui.GTextField>(panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.WaterQualityValue));
                 Assert.IsInstanceOf<Fgui.GButton>(
                     panel.GetChild(CharacterTestFairyGuiSettingsPanelIds.ShadowCascadeCountNext));
                 Assert.IsInstanceOf<Fgui.GButton>(
@@ -3786,6 +3790,14 @@ private static Fgui.GComponent CreateSettingsPanelRoot()
             AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.ShadowDistanceLabel);
             AddNetworkPanelInput(root, CharacterTestFairyGuiSettingsPanelIds.ShadowDistanceInput);
             AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityLabel);
+            AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityLabel);
+            AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityLabel);
+            AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityValue);
+            AddNetworkPanelButton(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityPrev);
+            AddNetworkPanelButton(root, CharacterTestFairyGuiSettingsPanelIds.RippleQualityNext);
+            AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityValue);
+            AddNetworkPanelButton(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityPrev);
+            AddNetworkPanelButton(root, CharacterTestFairyGuiSettingsPanelIds.WaterQualityNext);
             AddCombatHudText(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityValue);
             AddNetworkPanelButton(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityPrev);
             AddNetworkPanelButton(root, CharacterTestFairyGuiSettingsPanelIds.DirectionalShadowQualityNext);

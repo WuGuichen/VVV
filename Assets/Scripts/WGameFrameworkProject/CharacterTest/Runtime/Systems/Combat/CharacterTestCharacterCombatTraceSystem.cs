@@ -181,8 +181,6 @@ namespace MxFramework.Game.CharacterTest
             new List<CharacterTestBodyHitVolumeCacheKey>();
         private readonly List<CombatQueryResult> _tornadoDamageQueryResults = new List<CombatQueryResult>();
         private readonly List<CombatQueryResult> _chainLightningQueryResults = new List<CombatQueryResult>();
-        private readonly CharacterTestDynamicFieldTargetIndex _tornadoDamageTargetIndex =
-            new CharacterTestDynamicFieldTargetIndex();
         private readonly CombatProjectileFrameEventBuffer _projectileFrameEvents =
             new CombatProjectileFrameEventBuffer();
         private readonly List<CombatProjectileActiveView> _activeProjectileViews =
@@ -197,6 +195,7 @@ namespace MxFramework.Game.CharacterTest
         private readonly List<ActiveHookPullState> _activeHookPulls = new List<ActiveHookPullState>();
         private readonly List<HitCandidate> _timelineProfiledCandidates = new List<HitCandidate>();
         private readonly List<HitCandidate> _tornadoDamagePayloadCandidates = new List<HitCandidate>();
+        private readonly HashSet<CombatEntityId> _tornadoDamageSelectedTargets = new HashSet<CombatEntityId>();
         private readonly List<CharacterTestAreaConfinementActivatedZone> _areaConfinementActivatedZones =
             new List<CharacterTestAreaConfinementActivatedZone>();
         private readonly List<CharacterTestAreaConfinementCancelledChannel> _areaConfinementCancelledChannels =
@@ -247,10 +246,6 @@ namespace MxFramework.Game.CharacterTest
         private Func<CharacterTestCombatTargetHandle> _lockedCombatTargetProvider;
         private CharacterTestPerceptionFrameCache _perceptionFrameCache;
         private RuntimeFrame _frame;
-        private CharacterTestCharacterRuntimeWorld _tornadoDamageIndexedWorld;
-        private CharacterTestCharacterPhysicsRuntime _tornadoDamageIndexedPhysicsRuntime;
-        private long _tornadoDamageIndexedFrame = -1L;
-        private bool _hasTornadoDamageTargetIndex;
 
         public CharacterTestCharacterCombatTraceSystem(IRuntimeLogger logger = null)
             : this(
@@ -275,6 +270,7 @@ namespace MxFramework.Game.CharacterTest
                 _damageResolver,
                 _entityLookup,
                 _projectileDefinitions);
+            _projectileImpactResolver.Spawned = OnAccessoryProjectileBorn;
             _bakedTraceSource = bakedTraceSource ?? CharacterTestDefaultBakedWeaponTraceSource.Instance;
             _bindingResolver = bindingResolver ?? CharacterTestDefaultWeaponTraceBindingResolver.Instance;
             _traceProvider = new CharacterTestBakedWeaponTraceProvider(
@@ -901,7 +897,10 @@ namespace MxFramework.Game.CharacterTest
                 _gameplayProfiledCandidates.Clear();
                 _timelineProfiledCandidates.Clear();
                 _tornadoDamagePayloadCandidates.Clear();
+                _tornadoDamageSelectedTargets.Clear();
                 _results.Clear();
+                _deferredAccessoryImpacts.Clear();
+                _accessoryCarrierHits.Clear();
                 _gameplayQueryResults.Clear();
                 _timelineQueryResults.Clear();
                 _directHitTraceQueryResults.Clear();
@@ -1087,23 +1086,10 @@ namespace MxFramework.Game.CharacterTest
             using (ApplyDamageMarker.Auto())
             {
                 RecordHitPointDebugFrames(frame.Value);
-                _damageApplier.Apply(
-                    world,
-                    actionRuntime,
-                    frame,
-                    _results,
-                    _resolveDamagePayload,
-                    _hitZonesByHit,
-                    _traceRecorder,
-                    _resolveAccessoryEvidence);
+                ApplyAccessoryRounds(world, actionRuntime, frame);
                 BuildWeaponHitAudioEvents(frame);
                 if (_areaConfinementRuntime.CancelPendingForDamageEvents(_damageApplier.DamageResolvedEvents, frame) > 0)
                     SpawnAreaConfinementCancelledChannelVfx(frame);
-            }
-
-            using (OnHitBuffsMarker.Auto())
-            {
-                _guardAuraRuntime.ApplyOnHitBuffs(world, _physicsRuntime, frame, _results, _resolveOnHitBuffs);
             }
 
             using (TracePublishMarker.Auto())

@@ -69,6 +69,7 @@ namespace MxFramework.Game.CharacterTest
         }
         private CharacterTestRuntimeAiPlannerFactState ResolveBehaviorActionFacts(RuntimeFrame frame, int entity, int resource)
         {
+            if (_fixedActionScope != null) return _fixedActionScope.Facts;
             for (int i = _behaviorReceiptObservers.Count - 1; i >= 0; i--)
                 if (_behaviorReceiptObservers[i].TryGetTarget(out var receiver) && receiver is ICharacterTestBehaviorActionContext context
                     && context.TryGetActionFacts(frame, entity, resource, out var facts)) return facts;
@@ -107,7 +108,16 @@ namespace MxFramework.Game.CharacterTest
             int receiptIndex=commandSequence>=0?_behaviorCommandReceipts.Begin(commandSource,commandSequence,actor,(int)operation,resourceId,traceId,commandPayload2,commandEnvelope):-1;
             _behaviorCommandApplying=true;
             try {
-            bool success = TryApplyBehaviorRecipeOrchestrationCore(frame, targetEntityId, operation, resourceId, traceId, out message, out CharacterTestBehaviorOrchestrationReason reasonCode, out CharacterTestActionUseFailure failureDetails);
+            bool success;
+            CharacterTestBehaviorOrchestrationReason reasonCode = default;
+            CharacterTestActionUseFailure failureDetails = default;
+            bool fixedCommand = commandPayload2 == 3 || commandEnvelope.TypeId == TacticalCard.TacticalFixedCardPaymentCommit.CommandEnvelopeType;
+            if (fixedCommand && (commandPayload2 != 3 || commandSequence < 0
+                || operation != CharacterTestBehaviorRecipeOrchestrationOperation.ReplaceCharacterAction
+                || !TryEnterFixedActionScope(frame, targetEntityId, resourceId, commandSource, traceId, commandEnvelope)))
+            { success = false; message = "BehaviorRecipe.FixedPaymentIdentityRejected"; }
+            else success = TryApplyBehaviorRecipeOrchestrationCore(frame, targetEntityId, operation, resourceId, traceId,
+                out message, out reasonCode, out failureDetails);
             long instance = 0;
             ActionRuntime?.TryGetActiveActionPresentationState(new CharacterTestCharacterEntityId(targetEntityId), out instance, out _, out _, out _);
             var receipt = new CharacterTestBehaviorOrchestrationReceipt(frame, targetEntityId, operation, resourceId, success, instance, reasonCode, message, failureDetails);
@@ -118,7 +128,7 @@ namespace MxFramework.Game.CharacterTest
                 else _behaviorReceiptObservers.RemoveAt(i);
             }
             return success;
-            } finally {_behaviorCommandApplying=false;}
+            } finally {ExitFixedActionScope(); _behaviorCommandApplying=false;}
         }
     }
 }

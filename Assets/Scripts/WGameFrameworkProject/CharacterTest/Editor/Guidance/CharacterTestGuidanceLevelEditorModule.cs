@@ -338,12 +338,12 @@ namespace MxFramework.Game.CharacterTest.Editor
 
         bool IMxLevelEditorSaveParticipant.TryPrepareSave(out string failureMessage)
         {
+            _dirtyBeforePreparedSave = _dirty;
             EnsureLoaded();
             string sourcePath = ToFullPath(DocumentPath);
             _documentIdentity.RequireSave(DocumentPath, EditorSceneManager.GetActiveScene().path, _envelope,
                 File.Exists(sourcePath) ? File.ReadAllText(sourcePath) : null, ModuleName);
             if (CharacterTestJoinedLevelSaveContext.TryGet(DocumentPath, out var joined)) _envelope = joined;
-            _dirtyBeforePreparedSave = _dirty;
             _cacheApplied = false;
             if (!_authoringEditable)
             {
@@ -421,6 +421,12 @@ namespace MxFramework.Game.CharacterTest.Editor
                 _saveState = SaveCompletionState.TailFailed;
                 _dirty = false;
                 RefreshAll(message + " 教学数据与缓存已提交；未执行 post-commit 回滚。");
+                return;
+            }
+
+            if (_saveState == SaveCompletionState.Idle)
+            {
+                RefreshAll(message);
                 return;
             }
 

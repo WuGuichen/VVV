@@ -1,7 +1,7 @@
 # 当前场景浅水样区
 
 > Status: Current
-> 状态：historical D3D11 Game/Scene evidence retained; latest panel-integration Editor state and overlap isolation unconfirmed | 2026-10-10
+> 状态：低/中/高档 SSPR 与独立交互涟漪已接入，镜像反射单独保留；Player 帧耗时待实测 | 2026-10-12
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Rendering/CharacterTestShallowWater*.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/RuntimeAiPlannerDev/CharacterTestRuntimeAiPlannerDevPreviewOverlay.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Editor/CharacterTestShallowWaterAuthoring.cs`
@@ -13,10 +13,272 @@
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestCharacterRuntimeModule.RenderingMotion.cs`
 > Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Runtime/Systems/Character/CharacterTestPhysicalAudioSystem.cs`
 > Code-Doc: `Assets/Art/WGame/Shaders/Environment/ShallowWater.shader`
+> Code-Doc: `Assets/Art/WGame/Shaders/Environment/ShallowWaterSSPR.compute`
+> Code-Doc: `Assets/Art/WGame/Shaders/Environment/ShallowWaterRipples.compute`
+> Code-Doc: `Assets/Config/MxFramework/Rendering/ShallowWater/*.asset`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Rendering/ShallowWaterTests.cs`
 > Code-Doc: `Packages/com.vincent.wgameframework/Rendering/MxSceneRenderingAuxiliaryCamera.cs`
 > Code-Doc: `Packages/com.vincent.wgameframework/Rendering/MxSceneLightingProvider.cs`
 > Code-Doc: `Packages/com.vincent.wgameframework/Rendering/MxDirectionalShadowProvider.cs`
 > Code-Doc: `Packages/com.vincent.wgameframework/Rendering/MxRenderingPipelineFeature.cs`
+
+## 性能档与有界涟漪（2026-10-11）
+
+现行入口为 **Mx 关卡编辑器 → 场景渲染 → 浅水 → 性能档位**。
+这是关卡制作入口；玩家入口为 **游戏内设置 → 画面 → 水面反射 / 交互涟漪**，位于
+语言行下方。两项偏好独立应用/保存到个人 settings profile，通过独立运行时副本
+覆盖场景预算；场景默认还原关卡选择，退出不改参数资产。字段、草稿和保存
+语义见 [Settings 接口](../Interfaces/Settings.md#游戏内水面质量2026-10-11)。
+`CharacterTestShallowWaterSettings.QualityTier` 提供以下预算；切换预设只改变
+派生预算，不覆盖原有自定义参数、水色、波形和场景开关。旧资产缺少字段时
+以 `Custom=0` 保留旧参数；新建浅水通过 authoring 默认选择 Performance。
+本次通过 Unity 保存的 CharacterTestScene、CharacterTestRuntimeAiLabScene、
+TacticalCardDemoScene 三份正式参数均选择 Performance，原自定义数值保留。
+TacticalCardDemoScene 同时由 Unity 补写此前缺省的水花字段默认值。三份参数
+均通过 Unity 绑定正式 ShallowWaterSSPR.compute，原水花引用未变。
+
+| 反射档位 | 实时倒影 | 折射 / 水面颜色复制 |
+| --- | --- | --- |
+| Performance 性能优先 | SSPR：1/4 宽高、最长边 256、3×3 深度加权柔和重建，逐绘制帧计算 | 无，预乘透明混合 |
+| Balanced 中档 | SSPR：1/2 宽高、最长边 512、5×5 深度加权重建、最远 min(40, authored distance) 米 | 无 |
+| SsprHigh 高档 | SSPR：3/4 宽高、最长边 1024、5×5 深度加权重建，沿用 authored distance | 无 |
+| Quality 镜像反射 | 1/2 宽高、最长边 1024、逐帧；沿用 authored distance 和源相机阴影开关 | 开启，折射强度为 0 时也跳过复制 |
+| Custom 自定义 | 镜像相机 / SSPR / 仅环境反光；SSPR 最大边硬限 1024；刷新率与阴影/层过滤仅用于镜像相机 | 独立开关 |
+
+环境 SH 是环境色近似，不包含建筑、角色或天空贴图的精确镜像，作为 SSPR
+缺失像素的回退。SSPR 复用本接收相机的不透明颜色和深度，不重新渲染场景；
+不会包含原颜色/深度中缺失的屏幕外物体、遮挡背面、通常的透明物体。
+ReflectionLayers 只过滤镜像相机，SSPR 沿用源相机可见内容。原配置的
+ReflectionEnabled 为总反光开关，关闭后 SSPR 与环境近似也停用。
+Scene 预览使用同一算法预算，各相机在自己的 RenderGraph 内生成临时纹理；
+三个 SSPR 档均不保留镜像相机 RT，也不启动该相机；均按接收相机绘制帧计算。
+
+自定义镜像相机的运行时刷新率从实际完成的 capture 计时。跳帧时纹理和 capture VP 成对保留；
+首次/失效 RT、档位/反射预算变化、镜头移动超过 2 米、旋转超过 12 度、
+镜头投影变化或时间倒退立即刷新，故切镜帧可突破稳定镜头的频率上限。
+Edit 预览继续采用既有按需刷新，不能用它验证 Play 的限频调度。
+反射强度为 0、视锥外或水面下方停止倒影；水面 pass 自身也按接收相机
+视锥及水面朝向剔除，避免离屏仍复制全屏颜色。SSPR 模式要求 URP opaque
+texture（当前项目原本已启用）及深度；复用同图资源，不新增水面专用全屏复制。
+不能因此宣称整条管线没有颜色复制成本。仅环境反光模式只要求深度。
+
+### SSPR 实现与边界
+
+SSPR 在原 SurfacePass 内记录 Clear / Project / Resolve 三个 compute pass，
+没有新增 RendererFeature。输入采样网格与输出使用相同有界分辨率，避免
+只缩小输出、仍扫描 4K 全屏。Project 从深度重建世界位置，过滤水面下方与
+天空，将位置关于水面镜像并投影回当前相机。使用 R32_UInt 原子最小值选取
+最近倒影深度。输入像素数不超过 262144 时保留 14 位量化深度＋18 位源序号；
+更大网格使用 12 位深度＋20 位源序号，支持最大 1024×1024，避免源索引溢出。
+同深度确定性选取源序号，最高深度桶保留，故全 1 恒为空值。深度量化步长
+分别约 far/16382、far/4094；65 m 范围下高分辨率路径约 1.59 cm，不能把
+更高空间分辨率当作更高深度排序精度，也不承诺极近共面候选的精确排序。
+
+重建只处理浅水范围内的接收区域。所有 SSPR 使用 `ResolveSoft`：低档读取
+原投影表的 3×3 邻域，中/高档读取 5×5；以中心有效像素或最近有效邻居的倒影深度为基准，
+拒绝深度差达到 max(0.15 m, 基准深度×4%) 的候选；其余候选按空间 tent
+权重与深度接近程度合成。缺失样本降低覆盖率，已拒绝的其它深度层不参与
+归一化，避免前后景串色及不必要的暗边。有效区域也进行轻微颜色过滤，
+取舍为更柔和的轮廓和较低的高频清晰度，不能恢复 256 网格遗漏的细物体。
+低/中/高的颜色柔化混合权重分别为 1 / .55 / .3，覆盖率抗锯齿始终完整保留；
+有效中心像素在中/高档保留更多颜色细节，空洞仍使用加权结果。Custom 采用
+.55 颜色混合与其补洞半径，半径 0 时不填缺失中心，仍过滤有效像素。
+原 `Resolve` 仅保留为原始重建回归参考，不再由生产 SSPR pass 选择。
+不迭代扩散、不存历史帧。源屏幕边界与扰动后屏幕边界淡出；
+输出 HDR 颜色按置信度预乘，双线性过滤时不会把空洞黑色混入边缘。
+无法补足的像素回到环境 SH。水面涟漪仍通过采样偏移
+扰动倒影；这不是逐波纹几何法线的精确光线追踪。
+
+每相机两张 transient 纹理为 4 B/px 的投影表和 8 B/px 的反射颜色，均由
+RenderGraph 管理。16:9、最长边 256/512/1024 时合计约 0.422/1.688/6.75 MiB，未含
+管线自身的颜色/深度资源及分配对齐。没有 compute、缺少绑定或必要 UAV
+格式、任一生产内核在当前图形后端不受支持、立体相机/非 2D 目标、缺少 opaque
+color 时不启动 SSPR，显示诊断并回退环境。内核名称存在不等于可执行，初始化
+必须同时检查 Clear / Project / ResolveSoft 的 `ComputeShader.IsSupported`。
+当前纹理原子最小值路径在 Unity 6000.6.3f1 / Apple M4 Metal 上的 Project 内核
+不受支持，因此该后端回退环境反光；实时 SSPR 的 Metal/Vulkan/XR 验收仍未完成。
+相机模式和 SSPR 互斥。
+
+### 低档 SSPR 柔和重建验证（2026-10-11）
+
+以下是先行低档阶段的历史证据；现行中/高档统一重建以本节前述实现为准。
+
+该改动仅替换 Performance 的第三阶段 kernel，仍是 Clear/Project/Resolve 三个
+pass、两张有界纹理，最长边仍为 256。没有增加全分辨率水面采样、时域历史
+或独立模糊纹理。代价是低分辨率有效接收像素最多 9 次源颜色采样，原路径
+最多 1 次；这不是免费抗锯齿，也不保证消除运动时的屏幕空间缺失/闪烁。
+
+编译 job `a5ca27aadd7d4494a317065e22fea6a5` 通过 refresh、compile、domain
+reload、Editor ready、Console errors=0。随后清理 HLSL 循环变量/整数除法
+warning，强制导入后 compute messages 为空。ShallowWaterTests 原生 Runner
+`03a1f446c44c42c68a233c8f6e382673` 为 22/22；最终 shader 的新旧 resolve GPU
+定向复验 job `504ca93d8347410a8ef252183fa279e9` 为 2/2。覆盖高频棋盘颜色
+平滑、前后深度层不串色、边界/空洞覆盖率 0.75/0.25、预乘颜色及下一帧归零。
+
+1920×1080 CharacterTestScene 同一临时视角前后渲染均为 SSPR 256×144、
+镜像相机渲染=0，场景与参数恢复 clean；已查看 before.png / after.png，墙体
+和障碍倒影边缘更柔和。控制比较临时关闭背景坡度、倒影扰动与交互涟漪，
+其它独立微尘仍可能变化，不作整帧逐像素差值验收。
+
+RTX 3060 Ti 上以 256×144、半幅有效接收区测试 128 次 resolve 批次，三轮
+均摊同步提交加回读等待时间：原 resolve 0.00825/0.00872/0.00780 ms，
+柔和 resolve 0.01078/0.01929/0.01055 ms。它只说明该合成负载下的额外工作
+量级，不是独立 GPU 时间或 Player 帧耗时承诺，且不含完整投影管线成本。
+证据保存于本地 `Temp/SsprAA/{before,after,cost}.json` 及对应 PNG。
+
+### 中/高档 SSPR 统一重建（2026-10-11）
+
+三个预设现均使用深度加权颜色重建及覆盖率平滑，中/高档为有界 5×5 支持。
+柔化权重只调节有效中心的颜色细节，不削弱覆盖率平滑；空洞继续使用完整
+加权结果。没有增加计算阶段或纹理种类，高档提高输入/输出像素预算。
+高档像素数达到中档的 4 倍、低档的 16 倍；每像素最多 25 次颜色采样，
+不能把之前 256 的计时直接外推到 1024。
+
+编译 job `d5a6368753c64523a985ba84bb68273d` 确认完整 refresh/compile/domain
+reload/ready、Console errors=0，compute messages 为空。原生 Runner
+`5534021a17e84a8796ad63c77247f24b` 为 65/65，覆盖两种位宽的清理/投影、
+1024×1024 GPU 源像素索引超过 262143 后仍正确取色、3×3/5×5 的细节与
+覆盖率、旧镜像偏好 4 保留及新增高档偏好 5 的 JSON roundtrip。
+
+1920×1080 同一临时相机原生渲染确认：低/中/高 SSPR 分别 256×144、
+512×288、1024×576，每档 SSPR=1/镜像相机=0；镜像选项为 SSPR=0/相机=1。
+已查看中/高截图，恢复后 Scene/Settings dirty=false。截图与结构化回执在
+`Temp/SsprTiers/`。尚无 Player GPU 计时、移动设备或跨后端验收。
+
+实际 Play 设置页通过现有按钮循环验证：场景默认 → 低（SSPR）→ 中（SSPR）→
+高（SSPR）→ 镜像反射；高档文字完整可见，交互涟漪仍独立保持低档。
+`Temp/SsprTiers/player-settings-high.png` 为界面回执。取消后水面偏好恢复原有
+Medium，未写入新偏好；退出 Play 后原场景 clean、Console errors=0。
+
+### 独立交互涟漪与局部纹理场
+
+`RippleQuality` 与反射 `QualityTier` 无关，默认 Low。所有启用档位共用
+`MaximumRipples` 安全预算（默认/最大 32），不再按反射低/中/高限制为 8/16/32。
+玩家的“场景默认”保留该 authoring 档位；关闭只停用交互波包，背景水纹和
+独立水花粒子保持原有开关。新 compute 引用由 Unity 保存至三份正式参数资产。
+
+| 涟漪档位 | 纹理 | 局部覆盖边长 | 基础刷新率 | 每视图颜色纹理 |
+| --- | --- | --- | --- | --- |
+| Low | 256×256 | 24 m | 30 Hz | 0.5 MiB |
+| Medium | 512×512 | 32 m | 30 Hz | 2 MiB |
+| High | 1024×1024 | 48 m | 60 Hz | 8 MiB |
+| Custom | 128–1024，2 的幂 | 8–64 m | 15–60 Hz | 随分辨率 |
+
+波包来自真实接触/移动/落地。同类事件在 80 ms、18 cm 内合并，保留较强
+振幅与最初相位，避免密集重复接触叠亮。溢出优先淘汰移动尾波，其次普通
+接触，最后落地；同优先级淘汰最旧。无空槽时低优先级不挤掉高优先级。
+这只是本地表现，不改变 gameplay、物理接触、回放或网络事件。
+
+CPU 预计算半径、衰减、波峰强度，为当前世界坐标局部区域构建 16×16
+保守环带掩码；GPU 在有界纹理上计算解析波形，输出 RG 坡度和 B 波峰。
+主水面 shader 只采样该纹理，不再逐像素循环波包。环带外先以距离平方拒绝，
+4 个 Gaussian 宽度的尾部截断与原方案相同；计算结果存为 RGBA16F 后有
+半精度量化、双线性滤波及范围边界淡出，不宣称最终像素完全相同。
+
+区域跟随当前视图中心射线与水平水面的交点，并限制在水面矩形内；中心
+按纹理格点对齐。焦点移动不超过覆盖边长的 1/8 时保留旧世界坐标区域，
+避免纹理随着相机小幅运动滑动。切镜/重定位、预算变化、新有效事件、时钟
+回退会立即重建，所以事件密集时可高于基础刷新率。暂停时间不前进时复用
+缓存；没有波包、关闭交互涟漪、水面离屏、Scene 视图关闭或 session 释放时
+释放对应目标。每次构建写满目标，包括空格，避免过期波纹残留。
+只存在远处、尚不能传播到当前区域的波包时，也在分配纹理前跳过；允许之后
+传播入界的环带再次激活该视图。
+
+Game 和各可见 Scene 视图各自拥有 RT 与上传快照，不交叉覆盖排队的图数据。
+这意味着打开多个 Scene 窗口会增加预算；上述 MiB 是单视图、未计分配对齐。
+没有 compute/UAV 能力或缺少计算资源时报告诊断、停止交互涟漪纹理，背景
+水纹继续显示。本轮未实现二维高度场传播、岸边反弹或真实流体模拟。
+
+局部纹理场验证（2026-10-11）：
+
+- 编译 job `6b3a7279c7cf40aab9564d0848685f87` 确认完整 refresh/compile/domain
+  reload/ready 证据，Console errors=0。Ripple compute messages 为空。
+- EditMode job `da7d91b368fa4309a51fe6531cc08679`：63/63、0 skipped。包括
+  独立偏好复制/JSON 往返/运行时副本、合并与优先级溢出、传播入界、暂停/回退
+  调度、原生 GPU 64×64 全像素对照原解析坡度与波峰（half 容差 .001），
+  过期后的全图归零，以及正式发布设置面板的控件类型/binder/命令回归。
+- 原生 RenderGraph 合成波包检查中，Low/Medium/High 实际产生 256/512/1024
+  纹理，坡度数据非零、各首次更新一次；同一时钟重复绘制和 0.1 m 相机移动
+  更新数为 0，10 m 切镜更新一次。关闭/清空波包后 RT 为 null。Game 相机及
+  参数引用在 finally 恢复，scene/settings dirty=false。记录在
+  `Temp/RippleField/capture.json`；field-data.png 是纹理通道诊断图，不是水面颜色图。
+- RTX 3060 Ti、1920×1080、32 个固定合成波包进行了三轮同步 RenderRequest
+  加 GPU readback 等待的对比。解析参考中位数为 5.68/7.00/7.17 ms，低档场
+  为 5.82/7.13/7.48 ms，中档场为 5.71/5.93/7.62 ms。为避免把静止缓存误算
+  成加速，场路径强制每次重建。计时包含 Editor 提交、场景渲染和回读阻塞，
+  有明显轮间漂移；**没有证明稳定加速**，不是独立 GPU 或 Player 帧耗时。
+  原解析 shader 来自本轮改动前快照，临时 shader/material 全部释放；原始数据
+  在 `Temp/RippleField/comparison.json`。目前可确认的是工作量/刷新/内存预算
+  与视觉反馈分离，不能据此宣称 FPS 提升。
+
+本轮尚未覆盖 Player build、移动设备、XR、长时间动态角色场景及高档显存
+压力；多 Scene 窗口预算应单独计入。正式性能收益仍需 Player GPU profiling。
+
+SSPR 原生验证见本节末；以下是接入 SSPR **之前**的性能档/涟漪阶段证据，
+其中 Performance/Balanced 算法及纹理数不能作为当前配置说明：
+
+- `validate_unity_scripts` job `3b889e10c4514a7082e05b8a7c812684` 确认
+  refresh completed、compilation started/finished、domain reload、Editor ready、Console errors=0。
+- 原生 EditMode Runner job `a354504ae2a540f2a9b57ac669b7986a`：ShallowWaterTests
+  11/11，通过档位往返、刷新节奏、切镜/时钟恢复、缩容保新、旋转环带保守覆盖、
+  bit31、过期清空和稀疏筛选等断言。
+- CharacterTestScene 临时检查视角、1280×720 RenderRequest 实际渲染：Performance
+  surface=1/copy=0/reflection=0/owned RT=0；Balanced surface=1/copy=0，倒影
+  320×180/0.879 MiB；Quality surface=1/copy=1，倒影 640×360/3.516 MiB。
+  禁用水面和转向水面视锥外均为 surface=0/copy=0；离屏反射 RT=0。
+  `SurfaceColorCopies` 是本 session 的 Game/Scene 合计实际执行计数，不是全管线复制总数。
+- 使用临时合成波包验证 Quality→Balanced→Performance 后活动数量 32→16→8；
+  原波包对象、相机、档位与开关在 finally 恢复，scene/settings dirty=false。
+  已查看各档场景截图；合成波包不证明真实脚步接触链已重新验收。
+- 独立 32 波包、72×50 m 均匀散布诊断：256 格候选对从朴素 8192 降为 200
+  （97.56%）；4096 次变化时钟的 CPU 构建合计 117.65 ms，平均 28.72 µs，
+  当前线程 managed allocation=0 B。这是 CPU 微基准和均匀网格工作量，
+  不是 GPU 加速比例，也不代表密集重叠波包或真实画面覆盖率。
+- 当前水面 shader 支持且无编译 error；共享方向阴影 include 有两条
+  potentially-uninitialized warning，本轮未修改该模块。原生 Console 最后读取 errors=0。
+  Code standards 两项 report-only 提示命中原有空 Execute 与项目水面 Tick 时间读取，
+  本轮未新增同类路径。
+
+该阶段证据在本地 `Temp/WaterPerformance/` 下的 capture.json、ripple-capture.json、
+ripple-work.json 与各档 PNG。未进入 Play，未测 Player GPU/整帧耗时、15 Hz
+实际相机循环或移动镜头缓存视觉连续性；Scene 多窗口与其它后端沿用历史边界。
+下方历史计时不代表这些档位或优化后的耗时，实际 FPS 收益仍需代表性 Player 测量。
+
+### SSPR 原生验证（2026-10-11）
+
+- 最后源码验证 job `d1fee12793c4453f9813ad6edc5729ad` 确认 refresh completed、
+  compilation started/finished、domain reload observed、Editor ready、Console errors=0。
+  新 compute shader 的 GetComputeShaderMessages 返回空数组。
+- EditMode Runner job `a586f34e41b6493eae443be39c1c716e`：14/14 passed、0 skipped。
+  除原涟漪与镜像相机回归外，验证有界输入/输出、投影 key 最近深度与稳定 tie、
+  空值保留；GPU fixture 在原生 compute 上对已知 8×8 深度/颜色执行三阶段，
+  精确核对镜像源像素及反射颜色，然后把下一帧深度清空，确认 key 和 alpha
+  不残留上一帧内容。
+- CharacterTestScene 的临时 1280×720 检查视角：Performance 为 256×144，
+  Balanced 为 512×288；两档均执行一次 SSPR、镜像相机渲染=0、水面专用
+  color copy=0、镜像 RT=0。Quality 为 SSPR=0、镜像相机=1、copy=1。
+  截图已查看，可见墙体/障碍倒影；低档边缘更粗糙，遮挡背面不保证完整。
+- 缺失 compute 时 SSPR=0、surface=1，报告环境回退；关闭总反光时
+  SSPR=0、surface=1；水面离屏时 SSPR=0、surface=0，均无镜像 RT。
+  临时相机/设置在 finally 恢复，Scene 与 Settings 均未遗留 dirty 状态。
+- 最后原生 Console errors=0，10 条 warning 均指向未改动的 Editor API
+  弃用/程序集枚举位置；没有 SSPR warning。定向 Code standards 仍仅有
+  上述两项既有 report-only 提示。
+
+本地证据：`Temp/WaterSSPR/capture.json`、`fallback.json`、Performance.png、
+Balanced.png、Quality.png。未跑 Player 构建/GPU 计时，没有 FPS 或毫秒收益
+结论；未重验 Play 动态角色、Scene 多窗口、Metal/Vulkan/XR。SSPR 的屏幕
+缺失信息和低分辨率细物体遗漏由环境回退处理，不能等同完整镜像相机。
+
+## Metal 共享渲染初始化（2026-10-11）
+
+`CharacterTestShallowWaterSession.PrepareView()` 读取 `Feature.Pipeline` 时会初始化
+共享渲染 Feature。方向阴影备用资源现使用经过 `Render`／`LoadStore` 支持检查的
+`R32_UInt RenderTexture`，避免 `Texture2D` 的 `Sample` 格式检查在 Metal 上使
+浅水预览初始化报错。相机先绑定备用资源，正式阴影 Provider 再覆盖真实 atlas。
+此修正没有改变浅水参数、反射、涟漪或场景资产；Metal 启动与编译证据及未覆盖
+范围见 [方向阴影工程说明](DIRECTIONAL_TRIANGLE_SHADOWS.md#disabled-camera-integer-texture-binding-2026-10-11)，
+不能把共享初始化检查当作浅水视觉或交互验收。
 
 ## Mx 关卡编辑器中的浅水编辑（2026-10-10）
 
@@ -441,3 +703,60 @@ Settings asset 可调材质响应、尺寸、反射预算和波包参数；旧 c
 CPU/GPU 数据与不确定性继续按上一节读取，不重复扩大测试。
 该 A/B 测量早于最后的五个 debug renderer 过滤改动，未重跑最终版本
 benchmark，不能把数值当成最终版本的精确成本。
+
+
+## 脚踩水花首版
+
+入口仍是 **Mx 关卡编辑器 → 场景渲染 → 浅水 → 脚踩水花**。水花开关归
+GameManager.ShallowWater，Prefab、大小、最小深度、速度、冷却和预算归同一参数资产。
+“准备水花资源”生成正式 material / prefab 并绑定水面参数；绑定可 Undo，保存由
+现有关卡编辑器水面参数事务执行。新建的可复用资源独立保留，Undo 绑定不删除资源。
+生成器仅保存本次新建的材质；已有脏材质被复用时保留其未保存状态与磁盘版本。
+
+物理层 CombatPhysicalContactEvent 经角色模块 PhysicalContactObserved 转发；
+TryResolvePhysicalContactPresentation 复用既有 Combat→Character ID 转换，读取注册期
+缓存的部位语义：优先已声明的 PartKind；导入 Bone 行为 Custom 时复用 geometry 中
+已声明的 left_foot/right_foot 抽象骨骼角色及其 ParentPartId 关联，不猜测骨骼名称。
+当前采样只覆盖既有 PresentationAudio / PresentationOnly 接触配置，
+没有新增 collider、raycast、动画定时脚步或逐帧碰撞采样，也没有完整 surface router。
+水花运动观察在现有 TickPresentation 的接触发布前执行，使用同一展示帧号；
+模拟 CurrentFrame 已推进时不以模拟帧号与展示接触强行比较。原有涟漪运动观察保持不变。
+
+仅足部 Started、向上地面法线、真正浸水、稳定运动且有近处可见 Game/Scene receiver
+时发射。水深由真实 contact.Point 相对已知水平水面计算，要求 .006m 以上且不超过
+MaximumWaterDepth；X/Z 使用旋转后水域矩形。发射 X/Z 保留真实接触点，Y 投影到
+水面上方 .003m。落地事件只提供增强强度，须匹配同帧足部接触，并只发一次落地 burst。
+不使用实体 root 作为假脚点，移动尾波不会发射水滴。
+
+初次注册、静止低速、重复事件、冷却、未观察/已移除实体、时钟回退、明确位置召回
+以及超出运动速度容许的位移均抑制喷溅。回退/世界清空清理粒子和接触缓存。
+
+固定粒子池默认 12 个 burst（硬上限 16），每个最多 24 粒子；每帧最多 4 次、
+默认每秒 16 次（可配置上限 32），默认距离 30m、每脚冷却 .18s。
+粒子生命 .28–.5s，.85s 强制完成上限。饱和直接跳过，不动态扩容或排队。
+池预热后发射/推进无托管分配；脚部 metadata 只在既有注册/刷新时编译。
+
+水花为浅水 session 私有表现资源 scope，复用框架 ResourceManager / Catalog / Memory
+Provider / typed Handle；不会挂载或修改已封存全局 Catalog。共享 Prefab 不归该 scope
+销毁；临时 views 与 handle 在禁用、资源替换、session Dispose 和 Play 退出时清理。
+ParticleSystem 使用 World 空间和单一手动表现时钟，暂停时不推进，Game/Scene 不重复发射。
+Prefab stopAction 必须为 None，禁止自行 Destroy/Disable/Callback；对象已被 Scene
+销毁时安全跳过。清理逐对象执行，handle/provider 通过 finally 收尾，未完成的对象销毁
+可重试；清理错误进入诊断，不把失败当作完成。
+随机只使用局部粒子随机序列，不消耗 UnityEngine.Random，也不进入权威 hash/save/replay。
+
+材质复用已存在的 Water_drop_nomipmap.png 银白 glint，使用 WGame/ShallowWaterDroplets
+Shader；没有新第三方包。水面仍为平面涟漪，水花为独立的向上粒子。
+
+验收需分别记录：完整 Unity compile/ready/errors、正常 Unity focused runner 结果、
+实际脚踩与落地像素、静止/干地/平台/瞬移反例、资源加载/回收、暂停/禁用/Play 退出。
+隔离策略检查与语法检查不替代这些原生证据。
+
+2026-10-11 在 Unity 6000.6.3f1 的 CharacterTestScene 完成最终源码编译与
+正常 EditMode runner 28/28（失败/跳过均为 0）。原生验证已覆盖真实足部触地行走、
+跳起后同帧落地足部接触、静止收尾、手动暂停、session 禁用再启用、真实 SceneManager
+卸载和 GameManager Play 退出。行走与落地分别观察到 14/21 个银白水滴并检查实际像素；
+最终退出资源句柄释放一次，粒子和临时对象为 0，原生 Console error 为 0。
+当前原生验收边界：两条干地路线未越过现有障碍，平台与拥挤预算场景未执行；
+该场景角色未绑定召回 StageRun，真实召回、世界清空和现场 Prefab 替换未执行。
+对应策略/资源回归通过，不能替代上述原生场景验收。

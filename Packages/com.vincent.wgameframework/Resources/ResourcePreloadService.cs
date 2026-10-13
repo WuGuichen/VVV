@@ -44,7 +44,7 @@ namespace MxFramework.Resources
 
         public void ReleaseGroup(ResourceGroupHandle handle)
         {
-            if (handle == null || !handle.TryMarkReleased())
+            if (handle == null || !handle.IsOwnedBy(_resourceManager) || !handle.TryMarkReleased())
                 return;
 
             for (int i = handle.Handles.Count - 1; i >= 0; i--)
@@ -96,6 +96,7 @@ namespace MxFramework.Resources
             private readonly List<ResourceKey> _requestedKeys;
             private readonly CancellationToken _cancellationToken;
             private readonly List<ResourceHandle<object>> _handles;
+            private readonly List<ResourceKey> _acquiredKeys;
             private readonly List<ResourceError> _errors;
             private readonly List<InFlightLoad> _inFlight;
             private int _nextIndex;
@@ -121,6 +122,7 @@ namespace MxFramework.Resources
                 _requestedKeys = requestedKeys ?? new List<ResourceKey>();
                 _cancellationToken = cancellationToken;
                 _handles = new List<ResourceHandle<object>>(_requestedKeys.Count);
+                _acquiredKeys = new List<ResourceKey>(_requestedKeys.Count);
                 _errors = new List<ResourceError>(_requestedKeys.Count);
                 _inFlight = new List<InFlightLoad>(Math.Min(_requestedKeys.Count, _plan.MaxConcurrentLoads));
                 _result = PendingResult();
@@ -254,7 +256,7 @@ namespace MxFramework.Resources
                         if (_plan.FailFast)
                         {
                             _stopStarting = true;
-                            _owner.ReleaseHandles(_handles);
+                            ReleaseAcquiredHandles();
                             RequestCancelInFlight();
                             return true;
                         }
@@ -278,7 +280,7 @@ namespace MxFramework.Resources
                 if (_inFlight.Count != 0)
                     return;
 
-                var handle = new ResourceGroupHandle(_plan.GroupId, _handles);
+                var handle = new ResourceGroupHandle(_plan.GroupId, _handles, _resourceManager, _acquiredKeys);
                 var preloadResult = new ResourcePreloadResult(_plan.GroupId, handle, _requestedKeys, _errors);
                 _result = ResourceLoadResult<ResourcePreloadResult>.Loaded(preloadResult);
                 _isDone = true;
@@ -294,7 +296,7 @@ namespace MxFramework.Resources
                 _cancelRequested = true;
                 _stopStarting = true;
                 _cancellationKey = key;
-                _owner.ReleaseHandles(_handles);
+                ReleaseAcquiredHandles();
                 RequestCancelInFlight();
             }
 
@@ -304,7 +306,7 @@ namespace MxFramework.Resources
                     return;
 
                 _isCancelled = true;
-                _owner.ReleaseHandles(_handles);
+                ReleaseAcquiredHandles();
                 ResourceError error = new ResourceError(
                     ResourceErrorCode.Cancelled,
                     _cancellationKey,
@@ -334,7 +336,10 @@ namespace MxFramework.Resources
                         if (_stopStarting)
                             _resourceManager.Release(result.Value);
                         else
+                        {
                             _handles.Add(result.Value);
+                            _acquiredKeys.Add(load.Key);
+                        }
                     }
                     else if (result.Success)
                     {
@@ -352,7 +357,7 @@ namespace MxFramework.Resources
                     if (completeOnFailFast && _plan.FailFast && _errors.Count > 0 && !_stopStarting)
                     {
                         _stopStarting = true;
-                        _owner.ReleaseHandles(_handles);
+                        ReleaseAcquiredHandles();
                         RequestCancelInFlight();
                     }
                 }
@@ -363,6 +368,12 @@ namespace MxFramework.Resources
             private void AddError(ResourceError error)
             {
                 _errors.Add(error);
+            }
+
+            private void ReleaseAcquiredHandles()
+            {
+                _owner.ReleaseHandles(_handles);
+                _acquiredKeys.Clear();
             }
 
             private void RequestCancelInFlight()

@@ -266,6 +266,12 @@ namespace MxFramework.Input
 
         private void ApplyContextStack()
         {
+            // Context scopes may change while the service is disabled; keep collection stopped.
+            if (!isActiveAndEnabled)
+            {
+                return;
+            }
+
             _cache.ApplyContexts(_contexts);
         }
 

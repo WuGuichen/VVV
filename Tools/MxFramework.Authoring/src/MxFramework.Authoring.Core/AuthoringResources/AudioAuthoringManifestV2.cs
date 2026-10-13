@@ -372,6 +372,7 @@ namespace MxFramework.Authoring
 
         /// <summary>Compiles Active cues plus explicitly controlled Events to the startup runtime catalog.</summary>
         /// <remarks>LowFreqAlloc. Publication builds a complete immutable DTO graph.</remarks>
+        /// <exception cref="InvalidOperationException">An included Cue has a default parameter absent from its Event Definition.</exception>
         public static AudioRuntimeCatalogDocument CompileRuntimeCatalog(
             AudioSemanticManifestDocument manifest,
             string manifestHash,
@@ -730,11 +731,23 @@ namespace MxFramework.Authoring
                     Add(report, CharacterAuthoringValidationSeverity.Error, "AUTH_AUDIO_CUE_RUNTIME_ID_DUPLICATE", cue.AudioCueId, "cues/" + i + "/runtimeCueId", "Cue runtime id must be unique and stay in 500000-599999.");
                 if (!eventIds.Contains(cue.EventDefinitionId))
                     Add(report, CharacterAuthoringValidationSeverity.Error, AuthoringResourceDiagnosticCodes.AudioSemanticEventMissing, cue.AudioCueId, "cues/" + i + "/eventDefinitionId", "Cue references a missing Event Definition.");
+                AudioEventAuthoringDefinition audioEvent = FindEventDefinition(manifest, cue.EventDefinitionId);
+                if (audioEvent != null)
+                {
+                    for (int p = 0; p < (cue.DefaultParameters?.Count ?? 0); p++)
+                    {
+                        string parameterName = cue.DefaultParameters[p]?.Name;
+                        if (FindParameter(audioEvent, parameterName) == null)
+                            Add(report, CharacterAuthoringValidationSeverity.Error,
+                                AuthoringResourceDiagnosticCodes.AudioCueDefaultParameterMissing,
+                                cue.AudioCueId, "cues/" + i + "/defaultParameters/" + p + "/name",
+                                MissingCueDefaultParameterMessage(cue, audioEvent, parameterName));
+                    }
+                }
                 if (!IsLifecycle(cue.Lifecycle))
                     Add(report, CharacterAuthoringValidationSeverity.Error, "AUTH_AUDIO_CUE_LIFECYCLE_INVALID", cue.AudioCueId, "cues/" + i + "/lifecycle", "Cue lifecycle must be Draft, Active, or Archived.");
                 if (string.Equals(cue.Lifecycle, AudioCueLifecycles.Active, StringComparison.Ordinal))
                 {
-                    AudioEventAuthoringDefinition audioEvent = FindEventDefinition(manifest, cue.EventDefinitionId);
                     if (!HasValidAuditionEvidence(cue, audioEvent, snapshotHash))
                         Add(report, CharacterAuthoringValidationSeverity.Info, AuthoringResourceDiagnosticCodes.AudioSemanticAuditionRecommended, cue.AudioCueId, "cues/" + i + "/auditionEvidence", "Active Cue has no current optional Unity/FMOD audition review.");
                     if (string.IsNullOrWhiteSpace(cue.DisplayName) || string.IsNullOrWhiteSpace(cue.Purpose) || string.IsNullOrWhiteSpace(cue.Context))
@@ -885,14 +898,23 @@ namespace MxFramework.Authoring
                 MissingPolicy = cue.MissingPolicy,
                 Labels = new List<string>(cue.Tags ?? new List<string>())
             };
-            for (int i = 0; i < cue.DefaultParameters.Count; i++)
+            for (int i = 0; i < (cue.DefaultParameters?.Count ?? 0); i++)
             {
                 AudioCueDefaultParameter source = cue.DefaultParameters[i];
                 AudioParameterAuthoringDefinition parameter = FindParameter(audioEvent, source?.Name);
-                if (source != null && parameter != null)
-                    result.DefaultParameters.Add(new AudioRuntimeParameterValue { ParameterId = parameter.RuntimeParameterId, Value = source.Value });
+                if (parameter == null)
+                    throw new InvalidOperationException(AuthoringResourceDiagnosticCodes.AudioCueDefaultParameterMissing
+                        + ": " + MissingCueDefaultParameterMessage(cue, audioEvent, source?.Name));
+                result.DefaultParameters.Add(new AudioRuntimeParameterValue { ParameterId = parameter.RuntimeParameterId, Value = source.Value });
             }
             return result;
+        }
+
+        private static string MissingCueDefaultParameterMessage(
+            AudioCueAuthoringDefinition cue, AudioEventAuthoringDefinition audioEvent, string parameterName)
+        {
+            return "Cue '" + cue.AudioCueId + "' default parameter '" + (parameterName ?? string.Empty)
+                + "' is not declared by its Event Definition '" + audioEvent.Id + "'.";
         }
 
         private static AudioRuntimeEventDefinition BuildRuntimeEvent(AudioEventAuthoringDefinition source, AudioBusAuthoringDefinition bus)

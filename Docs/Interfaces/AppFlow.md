@@ -42,6 +42,7 @@ MxFramework.Runtime
 - `RegisterState` 使用项目层稳定 `StateId`，重复 ID 返回结构化失败或抛出明确异常，不能静默覆盖。
 - `Start(initialStateId, reason)` 立即进入初始状态；未注册状态必须可诊断。
 - `RequestTransition(targetStateId, reason)` 只登记 pending transition；真正的 `Exit` / `Enter` 在下一次 `Tick` 开始时执行，避免 state 在自身 `Tick` 中被重入退出。
+- 应用 pending transition 的 `Exit` / `Enter` 回调期间调用 `RequestTransition` 会返回 `TransitionInProgress`，不会排队；自动连续流转应在状态 `Tick` 中请求，下一次 `Tick` 再应用。此限制指 pending transition 的应用阶段，不包括 `Start` 的初始 `Enter`。
 - 同一时间只允许一个 pending transition；重复请求返回结构化失败。
 - AppFlow 不定义 `Boot`、`MainMenu`、`Gameplay` 等业务枚举，这些 ID 由项目层注册。
 
@@ -63,8 +64,9 @@ MxFramework.Runtime
 - 正在加载或卸载时拒绝新请求，返回 `SceneFlowErrorCode.Busy`。
 - scene key 为空、空白或映射失败时返回 `SceneFlowErrorCode.InvalidRequest`。
 - driver 调用失败、返回 null operation 或 Unity async operation 返回 null 时返回 `SceneFlowErrorCode.DriverFailure`。
-- Load 成功后更新 `ActiveSceneKey`；`UnloadPreviousScene=true` 且存在上一个 active scene 时，再启动 unload 操作。
-- Driver 失败时保留上一 active scene，并把失败记录到 `LastResult`。
+- Load 成功后更新 `ActiveSceneKey`。`Single` 由 driver 替换所有已加载场景，controller 不再显式卸载旧场景，`UnloadPreviousScene` 在该模式下不触发额外操作；最终 `LastResult` 保持目标场景的 `Succeeded/Load`。
+- `Additive` 由 driver 保留已加载场景；仅当 `UnloadPreviousScene=true`、上一 active scene 非空且与目标 key 不同时，controller 在加载成功后启动一次旧场景 unload。为 false 时保留旧场景。
+- Load 失败时保留上一 active scene，不启动旧场景 unload；失败记录到 `LastResult`。Additive 的后续 unload 失败仍记录为 `Failed/Unload`，`ActiveSceneKey` 保持成功加载的目标 key；显式 `RequestUnload` 的失败处理不变。
 
 ## Unity Adapter 边界
 
@@ -77,6 +79,7 @@ Packages/com.vincent.wgameframework/Runtime.Unity/UnitySceneFlowDriver.cs
 它是唯一允许直接调用 Unity `SceneManager` 的 App / Scene Flow 运行时文件：
 
 - `LoadScene` 校验 `SceneKey` 后调用 `SceneManager.LoadSceneAsync(sceneKey, loadMode)`。
+- `Single` 的场景替换由 Unity 的加载操作完成，不依赖 controller 再次卸载旧场景；其它 driver 必须遵守相同的 Single / Additive 语义。
 - `UnloadScene` 校验 `sceneKey` 后调用 `SceneManager.UnloadSceneAsync(sceneKey)`。
 - Unity 返回 null 或抛出异常时，转换为已完成失败 `ISceneFlowOperation`。
 - Unity adapter 不实现 loading UI，不直接注册项目状态，不修改 RuntimeHost 生命周期语义。
@@ -108,12 +111,6 @@ Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Runtime/AppFlo
 Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Runtime/SceneFlowTests.cs
 ```
 
-建议验证命令：
-
-```text
-dotnet build MxFramework.Tests.csproj --no-restore
-rg "UnityEngine|UnityEditor" Packages/com.vincent.wgameframework/Runtime
-rg "SceneManager" Packages/com.vincent.wgameframework/Runtime Packages/com.vincent.wgameframework/Runtime.Unity
-```
+普通 C# 修改按根 `AGENTS.md` 执行 Unity refresh/compile、等待 Editor ready 并检查 Console error；专项 SceneFlow 回归聚焦运行上述 `SceneFlowTests`，覆盖 Single 的 true/false 对照、Additive 的卸载/保留、load 失败保留旧场景和真实 unload 失败诊断。FakeDriver 模拟 Single 成功时替换已加载场景，不能以不模拟 mode 语义的卸载序列断言替代 Unity 验证。
 
 Unity adapter 可通过最小 PlayMode 或 EditMode fixture 验证：传入无效 scene key 应立即得到失败 operation；传入 build settings 中存在的 scene key 时，operation 进度应随 Unity async operation 推进并最终成功。

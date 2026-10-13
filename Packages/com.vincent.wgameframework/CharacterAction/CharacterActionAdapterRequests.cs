@@ -42,8 +42,8 @@ namespace MxFramework.CharacterAction
             X = x;
             Y = y;
             Z = z;
-            MovementControlScale = Clamp01(movementControlScale);
-            RotationControlScale = Clamp01(rotationControlScale);
+            MovementControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(movementControlScale);
+            RotationControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(rotationControlScale);
             MotionVectorSpace = motionVectorSpace;
             HasMovementControlScale = hasMovementControlScale;
             HasRotationControlScale = hasRotationControlScale;

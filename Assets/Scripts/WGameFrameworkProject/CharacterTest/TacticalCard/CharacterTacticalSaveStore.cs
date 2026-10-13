@@ -123,6 +123,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
     {
         public string ProfileId { get; set; } = string.Empty;
         public string CreatedAtUtc { get; set; } = string.Empty;
+        public long Revision { get; set; }
         public string PlayerJson { get; set; }
         public string PreparationJson { get; set; }
         public List<CharacterTacticalBattleSettlement> Settlements { get; set; } = new();
@@ -132,6 +133,9 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
     {
         public string BattleId { get; set; } = string.Empty;
         public int WinningTeamId { get; set; }
+        public int PlayerTeamId { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public CharacterTacticalRewardBundle Rewards { get; set; }
         public bool Draw { get; set; }
         public string CompletedAtUtc { get; set; } = string.Empty;
     }
@@ -141,6 +145,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         private readonly ICharacterTacticalStateStore _store;
         private readonly SemaphoreSlim _commits = new(1, 1);
         private CharacterTacticalProgressDocument _published;
+        private bool _writeConflict;
         internal bool HasCheckpoint => _published.Profiles.Count != 0;
         internal string ActiveProfileId => _published.ActiveProfileId;
         internal CharacterTacticalProgressProfile[] ListProfiles()
@@ -152,7 +157,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             _store = store ?? throw new ArgumentNullException(nameof(store));
             _published = json == null ? new CharacterTacticalProgressDocument()
                 : JsonConvert.DeserializeObject<CharacterTacticalProgressDocument>(json);
-            if (_published?.Schema != "mx.character-test.tactical-slice-progress.v1" || _published.Profiles == null
+            if (_published == null || (_published.Schema != "mx.character-test.tactical-slice-progress.v1"
+                && _published.Schema != CharacterTacticalRewardRules.ProgressSchema) || _published.Profiles == null
                 || _published.Profiles.Any(profile => profile == null || string.IsNullOrWhiteSpace(profile.ProfileId)
                     || profile.Settlements == null || profile.Settlements.Any(result => result == null || string.IsNullOrWhiteSpace(result.BattleId))
                     || profile.Settlements.Select(result => result.BattleId).Distinct(StringComparer.Ordinal).Count() != profile.Settlements.Count
@@ -162,6 +168,16 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 || (_published.Profiles.Count == 0 && !string.IsNullOrEmpty(_published.ActiveProfileId))
                 || (_published.Profiles.Count != 0 && !_published.Profiles.Any(profile => profile.ProfileId == _published.ActiveProfileId)))
                 throw new JsonSerializationException("TACTICAL_SLICE_CHECKPOINT_INVALID");
+            foreach (var profile in _published.Profiles)
+            {
+                if (profile.Revision < 0) throw new JsonSerializationException("TACTICAL_PROFILE_REVISION_INVALID");
+                foreach (var result in profile.Settlements)
+                {
+                    if (result.Rewards != null && _published.Schema != CharacterTacticalRewardRules.ProgressSchema)
+                        throw new JsonSerializationException("TACTICAL_REWARDS_REQUIRE_PROGRESS_V2");
+                    CharacterTacticalRewardRules.Validate(result);
+                }
+            }
         }
 
         internal CharacterTacticalProgressCandidate OpenActive()
@@ -189,20 +205,50 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             await _commits.WaitAsync();
             try
             {
+                if (_writeConflict) throw new InvalidOperationException("进度已被其他写入者变更，请重新打开进度；未覆盖磁盘内容。");
                 var candidate = Clone(_published);
+                var current = candidate.Profiles.Find(value => value.ProfileId == snapshot.ProfileId);
+                if (snapshot.Revision != (current?.Revision ?? 0)) throw new InvalidOperationException("TACTICAL_PROFILE_STALE_WRITER");
+                long nextRevision = checked(snapshot.Revision + 1);
+                var stagedSnapshot = Clone(snapshot); stagedSnapshot.Revision = nextRevision;
                 if (archive != null)
                 {
                     if (archive.ProfileId == snapshot.ProfileId) throw new InvalidOperationException("TACTICAL_PROFILE_ARCHIVE_ID_CONFLICT");
                     int previous = candidate.Profiles.FindIndex(value => value.ProfileId == archive.ProfileId);
-                    if (previous >= 0) candidate.Profiles[previous] = Clone(archive);
-                    else candidate.Profiles.Add(Clone(archive));
+                    if (archive.Revision != (previous >= 0 ? candidate.Profiles[previous].Revision : 0))
+                        throw new InvalidOperationException("TACTICAL_ARCHIVE_STALE_WRITER");
+                    var stagedArchive = Clone(archive); stagedArchive.Revision = checked(archive.Revision + 1);
+                    if (previous >= 0) candidate.Profiles[previous] = stagedArchive;
+                    else candidate.Profiles.Add(stagedArchive);
                 }
                 int index = candidate.Profiles.FindIndex(value => value.ProfileId == snapshot.ProfileId);
-                if (index >= 0) candidate.Profiles[index] = Clone(snapshot);
-                else candidate.Profiles.Add(Clone(snapshot));
+                if (index >= 0) candidate.Profiles[index] = stagedSnapshot;
+                else candidate.Profiles.Add(stagedSnapshot);
+                if (candidate.Profiles.Any(value => value.Settlements.Any(result => result.Rewards != null)))
+                    candidate.Schema = CharacterTacticalRewardRules.ProgressSchema;
                 if (activate || string.IsNullOrEmpty(candidate.ActiveProfileId)) candidate.ActiveProfileId = snapshot.ProfileId;
-                await _store.SaveAsync(JsonConvert.SerializeObject(candidate));
+                string json = JsonConvert.SerializeObject(candidate);
+                try { await _store.SaveAsync(json); }
+                catch
+                {
+                    // A lost completion receipt may follow a durable file commit. Read back before retrying.
+                    // If another writer won, never update the CAS head and silently overwrite its checkpoint.
+                    string recovered;
+                    try { recovered = await _store.LoadAsync(); }
+                    catch { _writeConflict = true; throw; }
+                    Newtonsoft.Json.Linq.JToken disk;
+                    try { disk = recovered == null ? null : Newtonsoft.Json.Linq.JToken.Parse(recovered); }
+                    catch { _writeConflict = true; throw; }
+                    if (!Newtonsoft.Json.Linq.JToken.DeepEquals(disk, Newtonsoft.Json.Linq.JToken.Parse(json)))
+                    {
+                        if (!(disk == null && _published.Profiles.Count == 0)
+                            && !Newtonsoft.Json.Linq.JToken.DeepEquals(disk, Newtonsoft.Json.Linq.JToken.Parse(JsonConvert.SerializeObject(_published))))
+                            _writeConflict = true;
+                        throw;
+                    }
+                }
                 _published = candidate;
+                snapshot.Revision = nextRevision;
             }
             finally { _commits.Release(); }
         }
@@ -210,7 +256,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         private static T Clone<T>(T value) => JsonConvert.DeserializeObject<T>(JsonConvert.SerializeObject(value));
     }
 
-    internal sealed class CharacterTacticalProgressCandidate
+    internal sealed partial class CharacterTacticalProgressCandidate
     {
         private readonly CharacterTacticalProgressStore _owner;
         private CharacterTacticalProgressProfile _profile;
@@ -242,24 +288,19 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             CharacterTacticalProgressProfile archive = null)
         {
             if (_capturePlayer == null || _capturePreparation == null) throw new InvalidOperationException("TACTICAL_PROGRESS_CANDIDATE_NOT_READY");
-            // Capture on the application thread before awaiting a writer; never read live DTOs on Task.Run.
-            string player = _capturePlayer(), preparation = _capturePreparation();
+            // Capture after the serialized write gate, on the application thread; queued saves must observe durable reward publication.
             settlement = settlement == null ? null : JsonConvert.DeserializeObject<CharacterTacticalBattleSettlement>(JsonConvert.SerializeObject(settlement));
             archive = archive == null ? null : JsonConvert.DeserializeObject<CharacterTacticalProgressProfile>(JsonConvert.SerializeObject(archive));
-            if (string.IsNullOrWhiteSpace(player) || string.IsNullOrWhiteSpace(preparation))
-                throw new InvalidOperationException("TACTICAL_PROGRESS_CAPTURE_INVALID");
             await _writes.WaitAsync();
             try
             {
                 var snapshot = JsonConvert.DeserializeObject<CharacterTacticalProgressProfile>(JsonConvert.SerializeObject(_profile));
-                snapshot.PlayerJson = player; snapshot.PreparationJson = preparation;
+                snapshot.PlayerJson = _capturePlayer(); snapshot.PreparationJson = _capturePreparation();
+                if (string.IsNullOrWhiteSpace(snapshot.PlayerJson) || string.IsNullOrWhiteSpace(snapshot.PreparationJson))
+                    throw new InvalidOperationException("TACTICAL_PROGRESS_CAPTURE_INVALID");
                 if (settlement != null)
                 {
-                    if (string.IsNullOrWhiteSpace(settlement.BattleId)) throw new InvalidOperationException("TACTICAL_SETTLEMENT_ID_REQUIRED");
-                    CharacterTacticalBattleSettlement existing = snapshot.Settlements.FirstOrDefault(value => value.BattleId == settlement.BattleId);
-                    if (existing != null && (existing.WinningTeamId != settlement.WinningTeamId || existing.Draw != settlement.Draw))
-                        throw new InvalidOperationException("TACTICAL_SETTLEMENT_CONFLICT");
-                    if (existing == null) snapshot.Settlements.Add(JsonConvert.DeserializeObject<CharacterTacticalBattleSettlement>(JsonConvert.SerializeObject(settlement)));
+                    CharacterTacticalRewardRules.Merge(snapshot.Settlements, settlement);
                 }
                 await _owner.CommitAsync(snapshot, activate, archive);
                 _profile = snapshot;
@@ -293,6 +334,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 await _candidate._writes.WaitAsync();
                 try
                 {
+                    if (_player && _candidate._profile.Settlements.Any(value => value.Rewards != null))
+                        throw new InvalidOperationException("含领奖记录的进度请创建独立新进度；未清空原记录。");
                     var snapshot = JsonConvert.DeserializeObject<CharacterTacticalProgressProfile>(JsonConvert.SerializeObject(_candidate._profile));
                     snapshot.PlayerJson = _player ? json : _candidate._capturePlayer();
                     snapshot.PreparationJson = _player ? _candidate._capturePreparation() : json;

@@ -37,6 +37,7 @@ namespace MxFramework.Game.CharacterTest
 
         private void UpdatePointSelection()
         {
+            if (BattleInputBlocked) { HidePointVisuals(); return; }
             if (!NeedsPoint || _inventoryOpen || _automaticBattlePresentation)
             {
                 if (UpdateBehindDirectionPreview()) { _pointCardInstance = 0; return; }
@@ -50,7 +51,12 @@ namespace MxFramework.Game.CharacterTest
             if (provider != null)
             {
                 var input = provider.Snapshot;
-                if (input.CancelPressed) { if (DirectPlayActive) CancelDirectPlay(); else TryCancelPending(); return; }
+                if (input.CancelPressed)
+                {
+                    if (!BattleCancelInputBlocked)
+                    { if (DirectPlayActive) CancelDirectPlay(); else TryCancelPending(); }
+                    return;
+                }
                 if (!selectionChanged && input.ClickPressed && !PointClickIsOnUi(input.Point))
                 {
                     if (_pointCamera == null) _pointCamera = UnityEngine.Camera.main;

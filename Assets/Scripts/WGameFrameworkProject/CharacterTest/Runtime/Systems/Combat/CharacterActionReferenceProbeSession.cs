@@ -12,7 +12,7 @@ namespace MxFramework.Game.CharacterTest
 {
     /// <summary>Isolated static-reference session that uses the formal completed-frame Attack Opportunity chain.</summary>
     /// <remarks>LowFreqAlloc. No scene, view, live session or authored asset is mutated.</remarks>
-    internal sealed class CharacterActionReferenceProbeSession : IDisposable
+    internal sealed partial class CharacterActionReferenceProbeSession : IDisposable
     {
         private readonly CharacterTestRuntimeAiPlannerAttackOpportunityAdapter _adapter;
         private readonly List<CharacterTestDirectHitTraceSourcePoseOffset> _nominalTrajectory = new List<CharacterTestDirectHitTraceSourcePoseOffset>();
@@ -32,12 +32,14 @@ namespace MxFramework.Game.CharacterTest
             => new CharacterActionReferenceProbeSession(default, dummy, sourceCharacterId, true, equipment, actionRuntime, abilityRuntime);
 
         internal static CharacterActionReferenceProbeSession ForTestAction(int sourceCharacterId,
-            CharacterActionReferenceDummy dummy, int actionId, CharacterTestCharacterEquipmentComponent? equipment = null)
-            => new CharacterActionReferenceProbeSession(new CharacterActionId(actionId), dummy, sourceCharacterId, actionId <= 0, equipment);
+            CharacterActionReferenceDummy dummy, int actionId, CharacterTestCharacterEquipmentComponent? equipment = null,
+            bool projectileCollisionTarget = false)
+            => new CharacterActionReferenceProbeSession(new CharacterActionId(actionId), dummy, sourceCharacterId, actionId <= 0, equipment, projectileCollisionTarget: projectileCollisionTarget);
 
         private CharacterActionReferenceProbeSession(CharacterActionId actionId, CharacterActionReferenceDummy dummy,
             int sourceCharacterId, bool resolveOpener, CharacterTestCharacterEquipmentComponent? equipment,
-            CharacterTestCharacterActionRuntime actionRuntime = null, AbilityRuntimeModule abilityRuntime = null)
+            CharacterTestCharacterActionRuntime actionRuntime = null, AbilityRuntimeModule abilityRuntime = null,
+            bool projectileCollisionTarget = false)
         {
             if (dummy == null) throw new ArgumentNullException(nameof(dummy));
             ReferenceDummy = dummy;
@@ -50,7 +52,7 @@ namespace MxFramework.Game.CharacterTest
             var sourceDefinition = new CharacterTestCharacterDefinition(original.CharacterId, original.DisplayName,
                 original.PrefabKey, 2, original.AnimationBinding, sourceProfile, original.GeneratedPackageRoot);
             var targetProfile = new CharacterTestCharacterPhysicsComponent(dummy.RadiusMillimeters / 1000f,
-                dummy.HeightMillimeters / 1000f, dummy.CenterYMillimeters / 1000f, 80, blocksCharacters: false, canBePushed: false);
+                dummy.HeightMillimeters / 1000f, dummy.CenterYMillimeters / 1000f, 80, blocksCharacters: projectileCollisionTarget, canBePushed: false);
             var targetDefinition = new CharacterTestCharacterDefinition(int.MaxValue, "Reference Dummy", default, 1, default, targetProfile);
             var definitions = new CharacterTestCharacterDefinitionRegistry(new[] { sourceDefinition, targetDefinition });
             var world = new CombatPhysicsWorld();
@@ -61,7 +63,8 @@ namespace MxFramework.Game.CharacterTest
                 new FixVector3(Fix64.FromInt(100), Fix64.Zero, Fix64.FromInt(100))));
             var physics = new CharacterTestCharacterPhysicsRuntime(world, CombatPhysicsLayerMask.FromLayer(1),
                 new FixVector3(Fix64.Half, Fix64.One, Fix64.Half), Fix64.Zero, Fix64.Zero,
-                staticColliderCount: 1, sourceDescription: "nominal-reference-capsule");
+                staticColliderCount: 1, sourceDescription: "nominal-reference-capsule",
+                groundSnapDistance: Fix64.Zero, staticReferenceMotion: projectileCollisionTarget);
             Runtime = new CharacterTestCharacterRuntimeModule(null, NullRuntimeLogger.Instance, definitions: definitions,
                 physicsRuntime: physics, createViews: false, simulationTickRate: 60, actionRuntime: actionRuntime, abilityRuntimeModule: abilityRuntime);
             try
@@ -101,14 +104,26 @@ namespace MxFramework.Game.CharacterTest
         {
             if (_disposed) { hash = string.Empty; issue = "SessionDisposed"; return false; }
             return CharacterActionContentHashUtility.TryCompute(Action, Source, Runtime.PhysicsRuntime,
-                Runtime.CombatTraceSystem.BakedTraceSource, Runtime.CombatTraceSystem.WeaponTraceBindingResolver, out hash, out issue);
+                Runtime.CombatTraceSystem.BakedTraceSource, Runtime.CombatTraceSystem.WeaponTraceBindingResolver, out hash, out issue, Runtime.CombatTraceSystem.ReferenceProjectiles);
         }
 
         internal bool TryEvaluate(int surfaceDistanceMillimeters, out CharacterTestAttackOpportunityResult result, out string issue)
         {
             result = default; issue = string.Empty;
             if (_disposed || surfaceDistanceMillimeters < 0) { issue = "InvalidProbeRequest"; return false; }
+            if (CharacterActionProjectileReference.IsCandidate(Action))
+                return TryEvaluateProjectile(surfaceDistanceMillimeters, out result, out issue);
             if (!EnsureNominalTrajectory(out issue)) return false;
+            if (!TryPositionReference(surfaceDistanceMillimeters, out int frame, out issue)) return false;
+            bool evaluated = _adapter.TryPreviewPrimaryAttack(Source, Target, Action.ActionId, new RuntimeFrame(frame + 1), out result);
+            if (!evaluated || result.Status != CharacterTestAttackOpportunityStatus.Valid)
+            { issue = result.Status + ":" + result.FailureReason; return false; }
+            return true;
+        }
+
+        private bool TryPositionReference(int surfaceDistanceMillimeters, out int frame, out string issue)
+        {
+            frame = -1; issue = string.Empty;
             // Search on the forward side of the unique capsule. Its surface clearance is monotone
             // along this ray; zero selects the contact boundary, not an arbitrary penetrating pose.
             int low = Math.Max(0, -ReferenceDummy.CenterZMillimeters);
@@ -126,12 +141,9 @@ namespace MxFramework.Game.CharacterTest
                 if (!TryPrepareProbePose(middle, out _, out long gap, out issue)) return false;
                 if (gap <= surfaceDistanceMillimeters) low = middle; else high = middle;
             }
-            if (!TryPrepareProbePose(low, out int frame, out long measuredGap, out issue)) return false;
+            if (!TryPrepareProbePose(low, out frame, out long measuredGap, out issue)) return false;
             if (Math.Abs(measuredGap - surfaceDistanceMillimeters) > 1)
             { issue = "ReferenceSurfaceDistanceResolutionMismatch"; return false; }
-            bool evaluated = _adapter.TryPreviewPrimaryAttack(Source, Target, Action.ActionId, new RuntimeFrame(frame + 1), out result);
-            if (!evaluated || result.Status != CharacterTestAttackOpportunityStatus.Valid)
-            { issue = result.Status + ":" + result.FailureReason; return false; }
             return true;
         }
 
@@ -193,6 +205,11 @@ namespace MxFramework.Game.CharacterTest
             string issue;
             if (!TryComputeActionHash(out string currentHash, out issue)) { complete(issue); yield break; }
             if (currentHash == _trajectoryHash) { complete(null); yield break; }
+            if (CharacterActionProjectileReference.IsCandidate(Action))
+            {
+                complete(Runtime.CombatTraceSystem.TryGetReferenceProjectile(Action, out _, out _, out _, out issue) ? null : issue);
+                yield break;
+            }
             _trajectoryHash = null;
             _nominalTrajectory.Clear();
             if (!Action.DurationFrames.HasValue || Action.DurationFrames.Value <= 0 || Action.DurationFrames.Value > 4096)

@@ -34,6 +34,14 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             try { await current.Progress.SaveAsync(settlement: settlement); current.Progress.EnableAutosave(); current.ProgressIssue = string.Empty; return true; }
             catch (Exception error) { current.ProgressIssue = "进度尚未保存：" + error.Message; return false; }
         }
+        internal static CharacterTacticalRewardRecipe RewardRecipe => Opening.Published?.RewardRecipe;
+        internal static CharacterTacticalBattleSettlement ReadPendingReward() => Opening.Published?.Progress?.ReadPendingReward();
+        internal static Task<CharacterTacticalRewardClaimResult> ClaimRewardsAsync(string battleId, MxFramework.Runtime.RuntimeTickContext context)
+        {
+            var current = Opening.Published;
+            return current?.Progress == null ? Task.FromResult(new CharacterTacticalRewardClaimResult(CharacterTacticalRewardClaimStatus.Rejected,
+                "领奖进度尚未就绪。")) : current.Player.ClaimBattleRewardsAsync(current.Progress, battleId, context);
+        }
         internal static string ProgressIssue => Opening.Published?.ProgressIssue ?? Issue;
 
         internal static async Task<CharacterTacticalServiceSet> PrepareNewGameAsync()
@@ -126,16 +134,27 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             _progress = new CharacterTacticalProgressStore(store, await store.LoadAsync());
             CharacterTacticalProgressCandidate candidate = _progress.OpenActive();
             candidate ??= _progress.Create();
-            var services = await BuildCandidateAsync(candidate);
-            // First startup is also a new profile: persist the complete detached aggregate before Opening publishes it.
-            if (!candidate.HasSourceProgress) await candidate.SaveAsync(activate: true);
+            return await OpenCandidateCoreAsync(candidate, Path.Combine(Application.streamingAssetsPath, "MxFramework/CharacterTest"));
+        }
+
+        // Same startup boundary for the real application and isolated content/checkpoint validation.
+        // The caller's Opening cannot publish until the migrated aggregate passes the existing CAS save.
+        internal static async Task<CharacterTacticalServiceSet> OpenCandidateCoreAsync(
+            CharacterTacticalProgressCandidate candidate, string contentDirectory)
+        {
+            var services = await BuildCandidateFromDirectoryAsync(candidate, contentDirectory);
+            if (!candidate.HasSourceProgress || services.InventoryRegistryMigrated) await candidate.SaveAsync(activate: true);
             candidate.EnableAutosave();
             return services;
         }
 
-        private static async Task<CharacterTacticalServiceSet> BuildCandidateAsync(CharacterTacticalProgressCandidate candidate)
+        private static Task<CharacterTacticalServiceSet> BuildCandidateAsync(CharacterTacticalProgressCandidate candidate)
+            => BuildCandidateFromDirectoryAsync(candidate, Path.Combine(Application.streamingAssetsPath, "MxFramework/CharacterTest"));
+
+        private static async Task<CharacterTacticalServiceSet> BuildCandidateFromDirectoryAsync(
+            CharacterTacticalProgressCandidate candidate, string contentDirectory)
         {
-            string path = Path.Combine(Application.streamingAssetsPath, "MxFramework/CharacterTest/tactical_content.json");
+            string path = Path.Combine(contentDirectory, "tactical_content.json");
             var catalog = JsonConvert.DeserializeObject<CharacterTacticalContentCatalog>(File.ReadAllText(path));
             string acquisitionPath = Path.Combine(Path.GetDirectoryName(path), "tactical_acquisition.json");
             var acquisition = JsonConvert.DeserializeObject<CharacterTacticalAcquisitionConfig>(File.ReadAllText(acquisitionPath));
@@ -188,6 +207,14 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 if (assemblyPublication == null && CharacterTacticalAssemblyRules.RequiresConfiguration(saved))
                     throw new InvalidOperationException("此进度的配件或装配需要正式装配配置；原存档保留，未补造定义。");
             }
+            bool inventoryRegistryMigrated = false;
+            if (!isNew && assemblyPublication != null) {
+                string migrated = TacticalDoubleEdgeInventoryMigration.Prepare(playerJson, itemDefinitions, assemblyPublication.Configuration);
+                if (migrated != playerJson) {
+                    await candidate.PlayerStore.SaveAsync(migrated);
+                    inventoryRegistryMigrated = true;
+                }
+            }
             var player = await CharacterTacticalPlayerService.OpenAsync(catalog, defaults, candidate.PlayerStore,
                 addMissingDefaults: false, instantiateTemplateDefaults: false);
             if (!player.ConfigureCharacterItemInventory(itemDefinitions, containers, mapping, out string inventoryIssue))
@@ -206,7 +233,12 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (!preparation.EnsurePlayerControlledEntity(out string controlIssue))
                 throw new InvalidOperationException("正式进度没有可控角色或可用卡：" + controlIssue);
             candidate.Bind(player.CaptureProgressJson, preparation.CaptureProgressJson);
-            return new CharacterTacticalServiceSet(player, preparation, candidate, new InventoryOwnerId(inventoryConfig.PlayerOwnerId));
+            foreach (var settlement in candidate.ReadSettlements()) player.ValidateRewardReceipts(settlement.Rewards);
+            string rewardsPath = Path.Combine(directory, CharacterTacticalRewardRecipe.FileName);
+            var rewards = File.Exists(rewardsPath) ? JsonConvert.DeserializeObject<CharacterTacticalRewardRecipe>(File.ReadAllText(rewardsPath),
+                new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Error }) : null;
+            return new CharacterTacticalServiceSet(player, preparation, candidate, new InventoryOwnerId(inventoryConfig.PlayerOwnerId),
+                inventoryRegistryMigrated) { RewardRecipe = rewards };
         }
 
     }
@@ -214,19 +246,21 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
     internal sealed class CharacterTacticalServiceSet
     {
         internal CharacterTacticalServiceSet(CharacterTacticalPlayerService player, TacticalBattlePreparationService preparation,
-            CharacterTacticalProgressCandidate progress = null, InventoryOwnerId inventoryOwner = default)
+            CharacterTacticalProgressCandidate progress = null, InventoryOwnerId inventoryOwner = default, bool inventoryRegistryMigrated = false)
         {
             Player = player ?? throw new ArgumentNullException(nameof(player));
             Preparation = preparation ?? throw new ArgumentNullException(nameof(preparation));
-            Progress = progress; InventoryOwner = inventoryOwner;
+            Progress = progress; InventoryOwner = inventoryOwner; InventoryRegistryMigrated = inventoryRegistryMigrated;
             RoleBindings = new CharacterTacticalRoleBindingQueue(Player, Preparation, inventoryOwner);
         }
         internal CharacterTacticalPlayerService Player { get; }
         internal TacticalBattlePreparationService Preparation { get; }
         internal CharacterTacticalProgressCandidate Progress { get; }
         internal InventoryOwnerId InventoryOwner { get; }
+        internal bool InventoryRegistryMigrated { get; }
         internal CharacterTacticalRoleBindingQueue RoleBindings { get; }
         internal string ProgressIssue { get; set; } = string.Empty;
+        internal CharacterTacticalRewardRecipe RewardRecipe { get; set; }
 
         /// <remarks>Application-thread preparation transaction. No save, instance replacement or deployment mutation.</remarks>
         internal bool RefreshPublishedCatalog(TacticalPreparationState phase,
@@ -340,6 +374,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
     // Published projection stays at the application composition boundary; saved contracts remain pure.
     internal sealed partial class CharacterTacticalCardDefinition
     {
+        [JsonIgnore] internal bool CanBeAssemblyMain => HasActionSlot || PresentationSource != null && InteractionPreparation == null;
         [JsonIgnore] internal InteractionPreparationPayload InteractionPreparation => PresentationSource?.InteractionPreparation;
         [JsonIgnore] internal TacticalPositionRecallRules PositionRecall => PresentationSource?.PositionRecall;
         [JsonIgnore] internal TacticalPointMoveRules PointMove => PresentationSource?.PointMove;

@@ -164,7 +164,7 @@ namespace MxFramework.Game.CharacterTest
                 return;
             }
 
-            _projectileSpawnRequests.Enqueue(new CombatProjectileSpawnRequest(
+            var spawnRequest = new CombatProjectileSpawnRequest(
                 ToCombatFrame(frame),
                 definition.DefinitionId,
                 _physicsRuntime.GetEntityId(entity),
@@ -177,7 +177,10 @@ namespace MxFramework.Game.CharacterTest
                 CharacterTestCharacterActionConfigSource.ArcMineProjectileImpactStableEventId,
                 request.Metadata.LocalFrame,
                 sourceOrder,
-                effectiveLifetimeFrames));
+                effectiveLifetimeFrames);
+            var root = entity.CaptureDoubleEdgeSource(request.Metadata.InstanceId);
+            if (!EnqueueAccessoryProjectile(spawnRequest, root, _entityLookup.AccessoryState?.SecondBatchRoot(root) ?? default,
+                frame.Value, true)) return;
 
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 frame,
@@ -292,7 +295,8 @@ namespace MxFramework.Game.CharacterTest
                     _entityLookup.ResolveTargetState(queryResult.TargetEntityId),
                     maxTargets - acceptedCount);
                 var hitKey = new CharacterTestResolvedHitKey(candidate);
-                SetAccessoryAwareDamagePayload(hitKey, damage);
+                SetAccessoryAwareDamagePayload(hitKey, damage, ProducerEvidence(4, triggered.RuntimeId, 0,
+                    source, candidate.TargetId, unchecked((ulong)(uint)triggered.RuntimeId)));
                 _hitZonesByHit[hitKey] = hitZone;
                 _gameplayProfiledCandidates.Add(candidate);
                 acceptedCount++;

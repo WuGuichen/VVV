@@ -43,6 +43,7 @@ namespace MxFramework.Editor.CharacterAction
                 if (!changed) continue;
                 JObject candidate = (JObject)generatedAction.DeepClone();
                 MxFramework.CharacterAction.CharacterActionBladeTrailJsonProjection.RemoveGeneratedEvents(candidate);
+                MxFramework.CharacterAction.CharacterActionControlScaleJsonProjection.RemoveGeneratedEvents(candidate);
                 JObject restored = (JObject)Restore(candidate);
                 if (sourceById.TryGetValue(actionId, out JObject original))
                     original.Replace(restored);

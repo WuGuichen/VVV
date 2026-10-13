@@ -161,8 +161,10 @@ namespace MxFramework.Game.CharacterTest
                 sample.NearMovableObject = true;
                 sample.NearUsefulObject = true;
                 if (HasHazardPotency(obj))
+                {
                     sample.NearHazard = true;
-                return;
+                    return;
+                }
             }
         }
 

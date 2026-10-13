@@ -2,13 +2,20 @@
 
 > Status: Current
 >
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Editor/CharacterTestWorldObjectLevelEditorModule.QuickPlacement.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Game/CharacterTest/CharacterTestWorldObjectCopyNativeTests.cs`
+>
 > 阶段：第一阶段快速布置 + 第二阶段 P2.1-P2.4 Runtime Slice
 >
 > 适用范围：CharacterTest 世界对象与场景角色
+>
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Editor/CharacterTestWorldObjectLevelEditorModule.QuickPlacement.cs`
 
 本指南只描述当前已经实现的快速布置、对象定义、Trigger Authoring 与 CharacterTest offline Runtime 检查。继续增加角色、AppFlow、Runtime AI Planner 或其他模块能力前，必须先按 [关卡编辑器能力复用矩阵](../LEVEL_EDITOR_CAPABILITY_REUSE_MATRIX.md) 确认运行时权威和已有 API，再为关卡编辑器补薄适配层。SceneView 的选取、表面落点和预览可以使用 Unity Editor API；正式玩法碰撞、运动和区域判定不能因此改用 Unity Physics 作为权威。
 
 ## 目标
+
+2026-10-13 源码交付复核：复制仍在 Add/Normalize 替换、排序列表前保存规范化源对象引用，随后通过该引用复制属性；本次 QuickPlacement 仅合并局部变量声明的换行，不改变复制行为或验收结论。
 
 第一阶段只解决一个高频闭环：选中对象，放到场景中，调整位置，必要时复制、撤销或删除。界面不按策划、地编、程序或美术拆分岗位，也不增加素材库和常驻工具面板。
 
@@ -51,7 +58,9 @@
 - `复制并放置`：复制真实 GameObject 和玩法配置，并在单次确认后创建新登记。
 - `更多`：对齐网格、仅移除登记、删除场景对象。
 
-复制会保留分组、旋转、缩放和玩法属性，但会生成新的 Transform 引用，以及新的数值 ID 或稳定 ID。静态碰撞体批次第一阶段不支持复制和重新放置。
+复制会保留分组、旋转、缩放和玩法属性，但会生成新的 Transform 引用，以及新的数值 ID 或稳定 ID。World 实例保留启用状态、定义、尺寸来源、ColliderId、分组和说明；关卡点保留启用状态、定义、点类型、分组和说明；区域保留启用状态、定义、区域类型、尺寸来源、分组和说明。副本按名称和分组重新排序后，这些配置仍来自所选原条目，来源和其他登记不变。静态碰撞体批次第一阶段不支持复制和重新放置。
+
+世界对象复制在新增登记前保存来源配置，因此默认副本名（例如 `Probe Copy`）排在 `Probe` 前面、或来源使用自定义分组时，也会保留来源的启用状态、定义、分组和说明。可移动物体与单个静态碰撞体同时保留尺寸来源和 ColliderId；点保留点类型，区域保留区域类型和尺寸来源。列表重排不会改变复制来源，原条目及其他登记不被修改。
 
 多选 Unity Transform 后使用`对齐网格`，会在一次 Undo 中完成所有对象的 X/Z 对齐。
 

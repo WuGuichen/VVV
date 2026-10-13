@@ -271,6 +271,7 @@ namespace MxFramework.Game.CharacterTest
         internal const int FixedAssemblyCommitRestorable = 364;
         internal const int FixedAssemblyCommits = 365;
         internal const int FixedAssemblyJournalPresent = 366;
+        internal const int DoubleEdgeStage = 367; // stage-owned, independent of alive actors
         // 270, 273, 275 and 280 are retired. Material labels are fixed by Kind;
         // contact and potency reasons now carry their complete numeric values.
     }

@@ -4,6 +4,8 @@
 > Scope: Current working contract for the resource system.
 > Goal: make one working path clear before adding more providers, editors, or build features.
 > Design background: `Docs/RESOURCE_MAPPING_CONVERGENCE_PLAN.md` records the convergence rationale. The v2 mapping described below is now the production path.
+> Code-Doc: `Tools/MxFramework.Authoring/src/MxFramework.Authoring.Core/AuthoringResources/AuthoringResourceSelectionResolver.cs`
+> Code-Doc: `Tools/MxFramework.Authoring/tests/AuthoringResourceSelection.Tests/*`
 
 ## Current Main Path
 
@@ -40,6 +42,20 @@ This is the path to make reliable first. Other routes are secondary until this p
 | Runtime `ResourceManager` | Catalog resolve, provider routing, handle lifetime, preload execution, diagnostics | Authoring selection, import, profile editing, Unity build |
 | Runtime `SceneFlow` + Resources.Unity | Resolve `ResourceTypeIds.Scene` entries and load content scenes from scene-only AssetBundles | Treat scenes as normal `Load<T>` object resources or remove the Boot scene requirement |
 | Character/Animation/UI tools | Consume resource selections and save domain data as stable resource references | Own global resource library, invent bundle layout, scan resources independently |
+
+## Authoring Selection Identity
+
+`AuthoringResourceSelectionService.Resolve` treats a non-empty `ResourceStableId` plus `SourceProviderId` as the saved resource identity. Both values must match the same item using ordinal comparison. If that pair no longer exists, resolution returns `Accepted=false` with blocking `AUTH_PICKER_ITEM_MISSING` in the `identity` category. The reason retains the requested stable id, provider and binding kind. It does not search another provider or use a local binding key to substitute a different stable id, and it does not mutate the rejected selection.
+
+When only `SourceProviderId` and a supported local lookup key (`RuntimeResourceKey`, `ProviderResourceKey` or `UnityGuid`) are supplied, lookup remains within that explicit provider. An absent provider allows the existing unique-candidate completion; multiple candidates retain `AUTH_PICKER_ITEM_AMBIGUOUS`, and no candidate retains `AUTH_PICKER_ITEM_MISSING`. Successful resolution still fills the supplied selection through the existing field spec and binding rules. SourceClip can retain its Runtime key and fill an allowed sibling Unity path; EventAudioCue retains its AudioCueId / AudioEventDefinitionId / ResourceSelectionRef output behavior without copying unrelated Runtime bindings into audio references.
+
+Run the focused synthetic regression suite with:
+
+```text
+dotnet run --project Tools/MxFramework.Authoring/tests/AuthoringResourceSelection.Tests/AuthoringResourceSelection.Tests.csproj
+```
+
+This runner references the complete production Authoring Core project and exercises DTOs and resolver calls only. It does not connect to provider discovery, FMOD, Unity Editor or real authoring data. Its evidence covers pure lookup, typed rejection, selection mutation and binding completion; it does not establish browser draft saving, package persistence or Runtime playback.
 
 ## File Ownership
 

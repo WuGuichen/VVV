@@ -22,7 +22,7 @@ namespace MxFramework.Game.CharacterTest.Editor
     {
         internal JObject CaptureReloadState()
             => new JObject { ["dirty"] = _dirty, ["sceneDirty"] = _sceneDirty, ["triggerDirty"] = _triggerDirty,
-                ["undoBaseline"] = _undoSession?.SavedBaseline };
+                ["undoBaseline"] = _undoSession?.SavedBaseline, ["definitions"] = CaptureDefinitionReloadState() };
         internal void RestoreReloadState(MxLevelAuthoringDocument envelope, JObject state)
         {
             EnsureLoaded(); _undoSession?.Retire(); _undoSession = null;
@@ -30,6 +30,7 @@ namespace MxFramework.Game.CharacterTest.Editor
             _dirty = (bool)state["dirty"]; _sceneDirty = (bool)state["sceneDirty"]; _triggerDirty = (bool)state["triggerDirty"];
             EnsureUndoSession();
             if (state["undoBaseline"]?.Type == JTokenType.String) _undoSession.SetSavedBaseline((string)state["undoBaseline"]);
+            RestoreDefinitionReloadState(state["definitions"] as JObject);
             _report = ValidateLoadedDocument(); RebuildRows();
         }
     }

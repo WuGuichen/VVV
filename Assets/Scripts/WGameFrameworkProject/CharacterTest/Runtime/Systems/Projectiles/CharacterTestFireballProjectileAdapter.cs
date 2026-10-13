@@ -1747,6 +1747,13 @@ namespace MxFramework.Game.CharacterTest
             return registry.TryGet(definitionId, out definition);
         }
 
+        /// <summary>Classifies the loaded spawn route, including generated per-character request aliases.</summary>
+        internal static bool IsDirectProjectileRequest(CombatProjectileDefinitionRegistry definitions,
+            CombatProjectileSpawnProfileRegistry profiles, int requestId)
+            => TryResolveSpawnProfile(profiles, requestId, out var profile)
+                && definitions != null && definitions.TryGetByStableId(profile.ProjectileStableId, out var definition)
+                && definition.Impact.PolicyKind == CombatProjectileImpactPolicyKind.DirectHit;
+
         public static bool TryResolveSpawnProfile(
             CombatProjectileSpawnProfileRegistry registry,
             int requestId,
@@ -2144,8 +2151,24 @@ namespace MxFramework.Game.CharacterTest
         }
     }
 
-    internal sealed class CharacterTestFireballProjectileImpactResolver : ICombatProjectileImpactResolver
+    internal sealed class CharacterTestFireballProjectileImpactResolver : ICombatProjectileImpactResolver,
+        ICombatProjectileSpawnObserver, ICombatProjectileImpactRelations, ITeamRelationProvider
     {
+        internal Action<CombatProjectileSpawnEvent> Spawned;
+        private TacticalCard.TacticalDoubleEdgeBattleState.ProjectileActor _relationActor;
+        public void OnProjectileSpawned(in CombatProjectileSpawnEvent birth) => Spawned?.Invoke(birth);
+        public ITeamRelationProvider ResolveTeamRelations(in CombatProjectileSnapshot projectile, ITeamRelationProvider fallback)
+        {
+            _relationActor = _lookup.AccessoryState?.FindProjectileActor(projectile.ProjectileId, projectile.SpawnSequence);
+            return _relationActor == null ? fallback : this;
+        }
+        public bool AreHostile(CombatEntityId a, CombatEntityId b)
+            => _relationActor != null && a.Value == _relationActor.CombatSource
+                && _lookup.FindEntityByCombatId(b) is CharacterTestCharacterEntity target && _relationActor.Team != target.Team.TeamId;
+        public bool AreFriendly(CombatEntityId a, CombatEntityId b) => IsSameTeam(a, b);
+        public bool IsSameTeam(CombatEntityId a, CombatEntityId b)
+            => _relationActor != null && a.Value == _relationActor.CombatSource
+                && _lookup.FindEntityByCombatId(b) is CharacterTestCharacterEntity target && _relationActor.Team == target.Team.TeamId;
         private readonly CharacterTestCombatDamageResolver _damageResolver;
         private readonly CharacterTestCombatEntityLookup _lookup;
         private readonly CombatProjectileDefinitionRegistry _definitions;
@@ -2169,8 +2192,6 @@ namespace MxFramework.Game.CharacterTest
         {
             payload = default;
             CharacterTestCharacterEntity source = _lookup.FindEntityByCombatId(projectile.SourceEntityId);
-            if (source == null)
-                return false;
             if (!_definitions.TryGet(projectile.DefinitionId, out CombatProjectileDefinition definition))
                 return false;
 

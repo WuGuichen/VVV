@@ -24,6 +24,8 @@ namespace MxFramework.Game.CharacterTest
         private static readonly int[] AntiAliasingValues = { 0, 1, 2, 4, 8 };
         private static readonly int[] ShadowResolutionValues = { 0, 256, 512, 1024, 2048, 4096, 8192 };
         private static readonly int[] DirectionalShadowQualityValues = { 0, 2, 3, 4 };
+        private static readonly int[] WaterQualityValues = { 0, 2, 3, 5, 4 };
+        private static readonly int[] RippleQualityValues = { 0, 1, 2, 3, 4 };
         private static readonly int[] ShadowCascadeValues = { 0, 1, 2, 3, 4 };
         private static readonly int[] HdrPaperWhiteValues = { 0, 80, 100, 160, 200, 250, 300, 400 };
         private static readonly int[] HdrPeakValues = { 0, 400, 600, 800, 1000, 1500, 2000, 4000, 5000 };
@@ -154,6 +156,22 @@ namespace MxFramework.Game.CharacterTest
                     break;
                 case CharacterTestFairyGuiSettingsPanelCommandIds.DirectionalShadowQualityNext:
                     CycleDirectionalShadowQuality(1);
+                    LastStatusMessage = L("ui.character_test.settings.status.graphics_changed", "画面设置已更改。");
+                    break;
+                case CharacterTestFairyGuiSettingsPanelCommandIds.WaterQualityPrevious:
+                    CycleWaterQuality(-1);
+                    LastStatusMessage = L("ui.character_test.settings.status.graphics_changed", "画面设置已更改。");
+                    break;
+                case CharacterTestFairyGuiSettingsPanelCommandIds.WaterQualityNext:
+                    CycleWaterQuality(1);
+                    LastStatusMessage = L("ui.character_test.settings.status.graphics_changed", "画面设置已更改。");
+                    break;
+                case CharacterTestFairyGuiSettingsPanelCommandIds.RippleQualityPrevious:
+                    CycleRippleQuality(-1);
+                    LastStatusMessage = L("ui.character_test.settings.status.graphics_changed", "画面设置已更改。");
+                    break;
+                case CharacterTestFairyGuiSettingsPanelCommandIds.RippleQualityNext:
+                    CycleRippleQuality(1);
                     LastStatusMessage = L("ui.character_test.settings.status.graphics_changed", "画面设置已更改。");
                     break;
                 case CharacterTestFairyGuiSettingsPanelCommandIds.ShadowCascadeCountPrevious:
@@ -317,6 +335,20 @@ namespace MxFramework.Game.CharacterTest
             MxGraphicsSettings graphics = _runtime.SettingsUi.WorkingProfile.Graphics ?? MxGraphicsSettings.Default;
             _runtime.SettingsUi.SetDirectionalShadowQuality((MxGraphicsFeatureQuality)CycleValue(
                 DirectionalShadowQualityValues, (int)graphics.DirectionalShadowQuality, direction));
+        }
+
+        private void CycleWaterQuality(int direction)
+        {
+            MxGraphicsSettings graphics = _runtime.SettingsUi.WorkingProfile.Graphics ?? MxGraphicsSettings.Default;
+            _runtime.SettingsUi.SetWaterQuality((MxGraphicsFeatureQuality)CycleValue(
+                WaterQualityValues, (int)graphics.WaterQuality, direction));
+        }
+
+        private void CycleRippleQuality(int direction)
+        {
+            MxGraphicsSettings graphics = _runtime.SettingsUi.WorkingProfile.Graphics ?? MxGraphicsSettings.Default;
+            _runtime.SettingsUi.SetRippleQuality((MxGraphicsFeatureQuality)CycleValue(
+                RippleQualityValues, (int)graphics.RippleQuality, direction));
         }
 
         private void CycleShadowCascades(int direction)

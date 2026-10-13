@@ -9,7 +9,9 @@ using MxFramework.Gameplay;
 namespace MxFramework.Game.CharacterTest.TacticalCard
 {
     // Mechanism candidates, not published card IDs or an independent preparation-card entry point.
-    internal enum TacticalAccessoryCombatKind { BorrowMomentum = 1, PushAway = 2, BreakMomentum = 3 }
+    internal enum TacticalAccessoryCombatKind
+    { BorrowMomentum = 1, PushAway = 2, BreakMomentum = 3, DuelInvitation = 4, ShatteredFantasy = 5, BlackHolePocket = 6,
+        NoTurningBack = 7, NonLethalOath = 8, OnePunch = 9, GlassCannon = 10, LuckyCoin = 11, IronThrone = 12 }
     internal enum TacticalAccessoryDamageOrigin { Unclassified, DirectAttack, Periodic, Derived }
     internal enum TacticalAccessoryCombatStatus { Unarmed, Armed, Consumed, Expired }
     internal enum TacticalAccessoryCombatResult { NoTrigger, Consumed, MissingLedger, InvalidPushEvidence }
@@ -72,14 +74,16 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             GameplayEntityId attacker, GameplayEntityId target, CharacterActionId actionId, int actionInstance, int trace,
             DamageProfileSourceKind sourceKind, TacticalAccessoryDamageOrigin origin, HitResolveKind outcome,
             bool attackerWasAlive, bool targetWasAlive, bool targetRemainsAlive, FixVector3 attackDirection,
-            int targetMassGrams, int targetPushScaleMilli)
+            int targetMassGrams, int targetPushScaleMilli, CombatHitProducerIdentity producerIdentity = default)
         {
+            ProducerIdentity = producerIdentity;
             Stage = stage; Turn = turn; Frame = frame; Sequence = sequence; Attacker = attacker; Target = target;
             ActionId = actionId; ActionInstance = actionInstance; Trace = trace; SourceKind = sourceKind;
             Origin = origin; Outcome = outcome; AttackerWasAlive = attackerWasAlive; TargetWasAlive = targetWasAlive;
             TargetRemainsAlive = targetRemainsAlive; AttackDirection = attackDirection;
             TargetMassGrams = targetMassGrams; TargetPushScaleMilli = targetPushScaleMilli;
         }
+        internal CombatHitProducerIdentity ProducerIdentity { get; }
         internal ulong Stage { get; }
         internal ulong Turn { get; }
         internal long Frame { get; }

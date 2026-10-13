@@ -83,6 +83,10 @@ namespace MxFramework.Gameplay
                 commandId));
         }
 
+        /// <summary>Enqueues a legacy request with optional application-result correlation.</summary>
+        /// <remarks>LowFreqAlloc on queue growth, identical ordering to EnqueueApply/EnqueueRemove.</remarks>
+        public void Enqueue(in GameplayBuffApplicationRequest request) => EnqueueLegacy(request);
+
         public void EnqueueRemove(
             GameplayEntityId targetEntityId,
             int buffId,

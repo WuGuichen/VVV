@@ -1033,7 +1033,7 @@ namespace MxFramework.Game.CharacterTest
             _projection.ApplyOperation(components, entityId, execution, frame);
             if (execution.Accepted && CharacterTestCharacterActionExecutionStore.IsTerminal(execution))
             {
-                _executions.Remove(entityId);
+                _executions.ReleaseCompleted(entityId);
                 components.SetAction(entityId, CharacterTestCharacterActionComponent.None);
             }
 
@@ -1065,7 +1065,7 @@ namespace MxFramework.Game.CharacterTest
             _projection.ApplyOperation(components, entityId, execution, frame);
             if (execution.Accepted && CharacterTestCharacterActionExecutionStore.IsTerminal(execution))
             {
-                _executions.Remove(entityId);
+                _executions.ReleaseCompleted(entityId);
                 components.SetAction(entityId, CharacterTestCharacterActionComponent.None);
             }
 
@@ -1179,7 +1179,7 @@ namespace MxFramework.Game.CharacterTest
             _projection.ApplyOperation(components, entityId, execution, frame);
             if (execution.Accepted && CharacterTestCharacterActionExecutionStore.IsTerminal(execution))
             {
-                _executions.Remove(entityId);
+                _executions.ReleaseCompleted(entityId);
                 components.SetAction(entityId, CharacterTestCharacterActionComponent.None);
             }
             return execution.Accepted;
@@ -1480,7 +1480,7 @@ namespace MxFramework.Game.CharacterTest
             _projection.ApplyOperation(components, entityId, tick, frame);
             if (CharacterTestCharacterActionExecutionStore.IsTerminal(tick))
             {
-                _executions.Remove(entityId);
+                _executions.ReleaseCompleted(entityId);
                 components.SetAction(entityId, CharacterTestCharacterActionComponent.None);
             }
         }
@@ -1548,7 +1548,7 @@ namespace MxFramework.Game.CharacterTest
                 _projection.ApplyOperation(components, entityId, execution, frame);
             }
 
-            _executions.Remove(entityId);
+            _executions.ReleaseCompleted(entityId);
             components.SetAction(entityId, CharacterTestCharacterActionComponent.None);
         }
 

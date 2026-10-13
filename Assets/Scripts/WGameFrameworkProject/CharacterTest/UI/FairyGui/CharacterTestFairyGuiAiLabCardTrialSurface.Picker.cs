@@ -9,7 +9,8 @@ namespace MxFramework.Game.CharacterTest
 {
     internal sealed partial class CharacterTestFairyGuiAiLabCardTrialSurface
     {
-        private enum TrialPickerMode { None, Player, Opponent, AddCard, ReplaceCard, Action }
+        private enum TrialPickerMode { None, Player, Opponent, AddCard, ReplaceCard, Action, Assembly, Accessory,
+            OpponentSetup, OpponentCard, OpponentAction, OpponentDistance }
         private sealed class TrialChoice
         {
             internal string Id, Name, Detail, Kind;
@@ -65,29 +66,79 @@ namespace MxFramework.Game.CharacterTest
         {
             _pickerMode = mode; _pickerIndex = index; _pickerFilter = "全部"; _selectedChoice = null;
             _allChoices.Clear();
-            if (mode == TrialPickerMode.Player || mode == TrialPickerMode.Opponent)
+            if (mode == TrialPickerMode.OpponentSetup)
+            {
+                var draft = _session.Draft;
+                var selected = draft.OpponentCard ?? _session.Content.DefaultActionCard(draft.OpponentCharacterId);
+                _allChoices.Add(new TrialChoice { Id = "role", Name = "选择对手角色", Kind = "试验条件",
+                    Detail = _session.Content.Character(draft.OpponentCharacterId).DisplayName });
+                _allChoices.Add(new TrialChoice { Id = "card", Name = "选择对手行为牌", Kind = "试验条件",
+                    Detail = _session.Content.Describe(selected) });
+                _allChoices.Add(new TrialChoice { Id = "action", Name = "选择对手装配动作", Kind = "试验条件",
+                    Detail = _session.Content.Catalog.Action(selected.TacticalActionId)?.DisplayName ?? "这张牌没有动作槽" });
+                _allChoices.Add(new TrialChoice { Id = "distance", Name = "选择试验起点", Kind = "试验条件",
+                    Detail = draft.CloseStart ? "双方近距离起点：相距1.2米" : "原默认起点" });
+                _allChoices.Add(new TrialChoice { Id = "manual.duel", Name = "手测：决斗邀请", Kind = "手测预设", Detail = "确认费1；显式Lab测试副本，真实联合出牌。" });
+                _allChoices.Add(new TrialChoice { Id = "manual.shattered", Name = "手测：破碎幻想", Kind = "手测预设", Detail = "确认费2；宿主结束后消耗主卡，真实联合出牌。" });
+                _allChoices.Add(new TrialChoice { Id = "manual.blackhole", Name = "手测：黑洞口袋", Kind = "手测预设", Detail = "确认费2；自然完成后生成力场，保持到完整后续回合结算。" });
+                _allChoices.Add(new TrialChoice { Id = "manual.borrow", Name = "手测：借力", Kind = "手测预设",
+                    Detail = "双方 Forest Ranger，近距离起点；玩家普通防御＋借力，对手直接攻击。选择后只准备配置，开始试验仍由你确认。" });
+                _allChoices.Add(new TrialChoice { Id = "manual.push", Name = "手测：推离", Kind = "手测预设",
+                    Detail = "双方 Forest Ranger，近距离起点；玩家直接攻击＋推离，对手直接攻击。选择后只准备配置。" });
+                _allChoices.Add(new TrialChoice { Id = "manual.break", Name = "手测：破势", Kind = "手测预设",
+                    Detail = "双方 Forest Ranger，近距离起点；玩家直接攻击＋破势，对手普通防御。选择后只准备配置。" });
+                _pickerTitle.text = "配置对手与试验起点";
+            }
+            else if (mode == TrialPickerMode.OpponentDistance)
+            {
+                _allChoices.Add(new TrialChoice { Id = "default", Name = "原默认起点", Kind = "试验条件", Detail = "保留原双方出场位置与朝向。" });
+                _allChoices.Add(new TrialChoice { Id = "close", Name = "近距离起点 · 1.2米", Kind = "试验条件", Detail = "在战前冻结双方起点；用于观察普通防御与直接攻击，不在战斗中搬动角色。" });
+                _selectedChoice = _allChoices.Find(item => item.Id == (_session.Draft.CloseStart ? "close" : "default"));
+                _pickerTitle.text = "选择试验起点";
+            }
+            else if (mode == TrialPickerMode.OpponentCard)
+            {
+                foreach (var card in _session.Content.Catalog.Cards)
+                    if (card.InteractionPreparation == null && card.PresentationSource != null
+                        && card.PresentationSource.TryValidatePlayerExecution(out _) && card.PointMove == null && card.PositionRecall == null)
+                        _allChoices.Add(new TrialChoice { Id = card.CardId, Name = CardName(card.CardId), Detail = CardDescription(card.CardId), Kind = CardKind(card.CardId) });
+                var selected = _session.Draft.OpponentCard ?? _session.Content.DefaultActionCard(_session.Draft.OpponentCharacterId);
+                _selectedChoice = _allChoices.Find(item => item.Id == selected.CardId);
+                _pickerTitle.text = "选择对手行为牌";
+            }
+            else if (mode == TrialPickerMode.OpponentAction)
+            {
+                var selected = _session.Draft.OpponentCard ?? _session.Content.DefaultActionCard(_session.Draft.OpponentCharacterId);
+                if (_session.Content.Catalog.Card(selected.CardId)?.HasActionSlot == true)
+                    foreach (var action in _session.Content.EligibleActions(_session.Draft.OpponentCharacterId))
+                        _allChoices.Add(new TrialChoice { Id = action.Id, Name = action.DisplayName, Detail = "当前对手角色可用的正式动作。", Kind = "动作" });
+                _selectedChoice = _allChoices.Find(item => item.Id == selected.TacticalActionId);
+                _pickerTitle.text = "选择对手装配动作";
+            }
+            else if (mode == TrialPickerMode.Player || mode == TrialPickerMode.Opponent)
             {
                 foreach (var character in _session.Content.Characters)
                     _allChoices.Add(new TrialChoice { Id = character.CharacterId.ToString(CultureInfo.InvariantCulture),
                         Name = character.DisplayName, Detail = "已导入并配置战术内容的角色", Kind = "角色" });
-                int current = mode == TrialPickerMode.Player ? _session.Draft.PlayerCharacterId : _session.Draft.OpponentCharacterId;
+                int current = mode == TrialPickerMode.Player ? _session.Draft.PlayerCharacterId : _session.Draft.CharacterAt(Math.Max(1, _selectedRole));
                 _selectedChoice = _allChoices.Find(item => item.Id == current.ToString(CultureInfo.InvariantCulture));
                 _pickerTitle.text = mode == TrialPickerMode.Player ? "选择玩家角色" : "选择对手角色";
             }
+            else if (mode == TrialPickerMode.Assembly || mode == TrialPickerMode.Accessory) BuildAssemblyChoices(mode, index);
             else if (mode == TrialPickerMode.Action)
             {
-                foreach (var action in _session.Content.EligibleActions(_session.Draft.PlayerCharacterId))
+                foreach (var action in _session.Content.EligibleActions(EditingCharacter))
                     _allChoices.Add(new TrialChoice { Id = action.Id, Name = action.DisplayName,
                         Detail = "当前玩家角色可用的正式动作；仅装配到选中的这张卡。", Kind = "动作" });
-                _selectedChoice = _allChoices.Find(item => item.Id == _session.Draft.InitialHand[index].TacticalActionId);
+                _selectedChoice = _allChoices.Find(item => item.Id == EditingDeck[index].TacticalActionId);
                 if (_selectedChoice == null && _allChoices.Count == 1) _selectedChoice = _allChoices[0];
-                _pickerTitle.text = "选择装配动作 · " + CardName(_session.Draft.InitialHand[index].CardId);
+                _pickerTitle.text = "选择装配动作 · " + CardName(EditingDeck[index].CardId);
             }
             else
             {
                 foreach (string id in _cardChoices)
                     _allChoices.Add(new TrialChoice { Id = id, Name = CardName(id), Detail = CardDescription(id), Kind = CardKind(id) });
-                if (mode == TrialPickerMode.ReplaceCard) _selectedChoice = _allChoices.Find(item => item.Id == _session.Draft.InitialHand[index].CardId);
+                if (mode == TrialPickerMode.ReplaceCard) _selectedChoice = _allChoices.Find(item => item.Id == EditingDeck[index].CardId);
                 _pickerTitle.text = mode == TrialPickerMode.AddCard ? "添加初始手牌" : "替换第 " + (index + 1) + " 张手牌";
             }
             _pickerSearch.text = "";
@@ -107,8 +158,8 @@ namespace MxFramework.Game.CharacterTest
                     && (search.Length == 0 || item.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0
                         || item.Detail.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0)) _visibleChoices.Add(item);
             if (_selectedChoice != null && !_visibleChoices.Contains(_selectedChoice)) _selectedChoice = null;
-            bool cards = _pickerMode == TrialPickerMode.AddCard || _pickerMode == TrialPickerMode.ReplaceCard;
-            if (cards) _pickerTitle.text = (_pickerMode == TrialPickerMode.AddCard ? "添加初始手牌" : "替换第 " + (_pickerIndex + 1) + " 张手牌")
+            bool cards = _pickerMode == TrialPickerMode.AddCard || _pickerMode == TrialPickerMode.ReplaceCard || _pickerMode == TrialPickerMode.OpponentCard;
+            if (cards) _pickerTitle.text = (_pickerMode == TrialPickerMode.OpponentCard ? "选择对手行为牌" : _pickerMode == TrialPickerMode.AddCard ? "添加初始手牌" : "替换第 " + (_pickerIndex + 1) + " 张手牌")
                 + " · " + _pickerFilter + " · " + _visibleChoices.Count + " 张";
             foreach (string name in new[] { "pickerAll", "pickerActions", "pickerPreparations", "pickerTools" }) Required(name).visible = cards;
             _choiceList.visible = !cards; _cardChoiceList.visible = cards;
@@ -143,7 +194,8 @@ namespace MxFramework.Game.CharacterTest
             var row = item.asCom; var choice = _visibleChoices[index];
             ValidateControls(row, CharacterTestAiLabCardTrialControlContract.CardChoiceControls);
             var face = row.GetChild("face").asCom;
-            BindPreviewFace(face, PreviewSelection(choice.Id), _session.Draft.PlayerCharacterId, _session.Draft.PreparationCost, 280,
+            int characterId = _pickerMode == TrialPickerMode.OpponentCard ? _session.Draft.OpponentCharacterId : EditingCharacter;
+            BindPreviewFace(face, PreviewSelection(choice.Id, characterId), characterId, _session.Draft.PreparationCost, 280,
                 ReferenceEquals(choice, _selectedChoice));
             Action select = () => { _selectedChoice = choice; _cardChoiceList.RefreshVirtualList(); RefreshPickerDetail(); };
             face.onClick.Set(context => { context.StopPropagation(); select(); });
@@ -156,7 +208,7 @@ namespace MxFramework.Game.CharacterTest
             _pickerApply.title = _pickerMode == TrialPickerMode.Action ? "绑定动作" : _pickerMode == TrialPickerMode.AddCard ? "加入手牌" : "确认选择";
             _pickerDetailTitle.text = _selectedChoice?.Name ?? (_visibleChoices.Count == 0 ? "没有可用候选" : "选择左侧一项");
             _pickerDetail.text = _selectedChoice?.Detail ?? (_visibleChoices.Count == 0 ? "检查角色动作目录，或调整搜索条件。" : "确认前不会修改当前配置。" );
-            bool cards = _pickerMode == TrialPickerMode.AddCard || _pickerMode == TrialPickerMode.ReplaceCard;
+            bool cards = _pickerMode == TrialPickerMode.AddCard || _pickerMode == TrialPickerMode.ReplaceCard || _pickerMode == TrialPickerMode.OpponentCard;
             bool character = _pickerMode == TrialPickerMode.Player || _pickerMode == TrialPickerMode.Opponent;
             _pickerCardPreview.visible = cards && _selectedChoice != null;
             _pickerPortraitPreview.visible = character && _selectedChoice != null;
@@ -164,9 +216,10 @@ namespace MxFramework.Game.CharacterTest
             _pickerDetail.SetSize(cards || character ? 394 : 824, 480);
             if (cards && _selectedChoice != null)
             {
-                BindPreviewFace(_pickerCardPreview, PreviewSelection(_selectedChoice.Id), _session.Draft.PlayerCharacterId,
+                int characterId = _pickerMode == TrialPickerMode.OpponentCard ? _session.Draft.OpponentCharacterId : _session.Draft.PlayerCharacterId;
+                BindPreviewFace(_pickerCardPreview, PreviewSelection(_selectedChoice.Id, characterId), characterId,
                     _session.Draft.PreparationCost, 340);
-                var selection = PreviewSelection(_selectedChoice.Id);
+                var selection = PreviewSelection(_selectedChoice.Id, characterId);
                 var action = _session.Content.Catalog.Action(selection.TacticalActionId);
                 _pickerDetail.text = _session.Content.Catalog.Card(selection.CardId)?.HasActionSlot != true ? "这张卡无需绑定动作。"
                     : action != null ? "装配动作：" + action.DisplayName + "\n\n确认选卡后自动装配；可在配置页更换动作。"
@@ -178,17 +231,67 @@ namespace MxFramework.Game.CharacterTest
         private void ApplyPickerChoice()
         {
             if (_selectedChoice == null) return;
+            if ((_pickerMode == TrialPickerMode.Assembly || _pickerMode == TrialPickerMode.Accessory) && ApplyAssemblyChoice()) return;
             var draft = _session.Draft;
-            if (_pickerMode == TrialPickerMode.Player || _pickerMode == TrialPickerMode.Opponent)
+            if (_pickerMode == TrialPickerMode.OpponentSetup)
+            {
+                if (_selectedChoice.Id.StartsWith("manual.", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        _session.Content.ConfigureAccessoryManualTrial(draft,
+                            _selectedChoice.Id == "manual.duel" ? TacticalAccessoryCombatKind.DuelInvitation
+                            : _selectedChoice.Id == "manual.shattered" ? TacticalAccessoryCombatKind.ShatteredFantasy
+                            : _selectedChoice.Id == "manual.blackhole" ? TacticalAccessoryCombatKind.BlackHolePocket
+                            : _selectedChoice.Id == "manual.borrow" ? TacticalAccessoryCombatKind.BorrowMomentum
+                            : _selectedChoice.Id == "manual.push" ? TacticalAccessoryCombatKind.PushAway : TacticalAccessoryCombatKind.BreakMomentum);
+                        _session.SetIssue(""); ClosePicker(); RefreshConfiguration();
+                    }
+                    catch (Exception error) { _session.SetIssue(error.Message); }
+                    return;
+                }
+                OpenPicker(_selectedChoice.Id == "role" ? TrialPickerMode.Opponent
+                    : _selectedChoice.Id == "card" ? TrialPickerMode.OpponentCard
+                    : _selectedChoice.Id == "action" ? TrialPickerMode.OpponentAction : TrialPickerMode.OpponentDistance);
+                return;
+            }
+            if (_pickerMode == TrialPickerMode.OpponentCard)
+            {
+                draft.OpponentCard = PreviewSelection(_selectedChoice.Id, draft.OpponentCharacterId);
+                _session.SetIssue(""); RefreshConfiguration();
+                if (_session.Content.Catalog.Card(draft.OpponentCard.CardId)?.HasActionSlot == true)
+                    OpenPicker(TrialPickerMode.OpponentAction);
+                else ClosePicker();
+                return;
+            }
+            if (_pickerMode == TrialPickerMode.OpponentAction)
+            {
+                draft.OpponentCard ??= _session.Content.DefaultActionCard(draft.OpponentCharacterId);
+                draft.OpponentCard.TacticalActionId = _selectedChoice.Id;
+            }
+            else if (_pickerMode == TrialPickerMode.OpponentDistance) draft.CloseStart = _selectedChoice.Id == "close";
+            else if (_pickerMode == TrialPickerMode.Player || _pickerMode == TrialPickerMode.Opponent)
             {
                 int character = int.Parse(_selectedChoice.Id, CultureInfo.InvariantCulture);
+                if (_selectedRole > 1)
+                {
+                    draft.SetCharacterAt(_selectedRole, character);
+                    foreach (var selected in EditingDeck) selected.TacticalActionId = _session.Content.ResolveActionBinding(selected.CardId, character, selected.TacticalActionId);
+                    _session.SetIssue(""); ClosePicker(); RefreshConfiguration(); return;
+                }
                 if (_pickerMode == TrialPickerMode.Player)
                 {
                     draft.PlayerCharacterId = character;
                     foreach (var item in draft.InitialHand)
                         item.TacticalActionId = _session.Content.ResolveActionBinding(item.CardId, character, item.TacticalActionId);
                 }
-                else draft.OpponentCharacterId = character;
+                else
+                {
+                    draft.OpponentCharacterId = character;
+                    foreach (var selected in draft.OpponentDeck) selected.TacticalActionId = _session.Content.ResolveActionBinding(selected.CardId, character, selected.TacticalActionId);
+                    if (draft.OpponentCard != null)
+                        draft.OpponentCard.TacticalActionId = _session.Content.ResolveActionBinding(draft.OpponentCard.CardId, character, draft.OpponentCard.TacticalActionId);
+                }
             }
             else if (_pickerMode == TrialPickerMode.Action) draft.InitialHand[_pickerIndex].TacticalActionId = _selectedChoice.Id;
             else

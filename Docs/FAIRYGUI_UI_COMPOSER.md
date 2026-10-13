@@ -1,6 +1,7 @@
 # FairyGUI Semantic UI Composer
 
 > Status: Guide
+> 文档版本：2026-10-12.1
 
 ## Purpose
 
@@ -39,6 +40,23 @@ so Composer feedback metadata alone does not imply audible behavior.
 
 ADR-007 defines conflict handling. Saving a blueprint does not modify FairyGUI.
 Apply and sync are separate hash-guarded operations.
+
+Recipe save, unified preflight and screen/apply validation reject duplicate
+effective `Components/<name>.xml` paths across the recipe catalog (`UICOMP020`),
+including controlled Composite recipes and recipes not used by the current screen.
+The effective name is `fairyGuiComponentName`, or the final segment of `componentId`
+when the name is blank. Names use the helper's ASCII letter/digit/underscore
+alphabet (`UICOMP019`). Paths compare without case on every host to preserve
+Windows compatibility. Diagnostics locate both conflicting recipe IDs; callers
+must choose distinct names rather than relying on renaming or overwrite order.
+The FairyGUI helper independently rejects duplicate component paths in the entire
+payload before accessing the project, pruning components or writing package files.
+Existing hash and binding-contract guards still apply.
+
+The Authoring regression entry is `ui-composer-component-paths`; the helper
+fixture entry is `node Tools/MxFramework.FairyGuiUiComposer/scripts/test_component_path_guard.js`.
+These checks cover planning and write rejection; fixture success alone does not
+prove FairyGUI Editor import, publish or runtime visuals.
 
 ## Current Implementation
 

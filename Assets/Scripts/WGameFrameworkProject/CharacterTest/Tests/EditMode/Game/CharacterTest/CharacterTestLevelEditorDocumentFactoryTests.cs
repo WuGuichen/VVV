@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Linq;
 using MxFramework.Config.Levels;
+using MxFramework.Game.CharacterTest;
 using MxFramework.Game.CharacterTest.Editor;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
@@ -61,6 +63,104 @@ namespace MxFramework.Tests.Game.CharacterTest
             var copy = CharacterTestLevelEditorDocumentFactory.Clone(source, "level.b", false);
             copy.Modules[0].Payload["characters"][0]["stableId"] = "edited";
             Assert.AreEqual(before, MxLevelAuthoringJson.SaveToJson(source));
+        }
+
+        [TestCase("groupId")]
+        [TestCase("cardId")]
+        [TestCase("entryId")]
+        [TestCase("actionId")]
+        [TestCase("resourceKey")]
+        public void CopyPreservesPublishedReferencesThatCollideWithActorIdentity(string field)
+        {
+            var source = Fixture();
+            source.TryGetModule("characterTest.characters", out var characters);
+            var actor = (JObject)characters.Payload["characters"][0];
+            actor["stableId"] = "shared.pin";
+            actor["displayName"] = "shared.pin";
+            actor["behaviorBinding"][field] = "shared.pin";
+            actor["behaviorBinding"]["publishedResource"] = JObject.Parse("{'stableId':'shared.pin'}");
+            source.TryGetModule("characterTest.tacticalStage", out var stage);
+            stage.Payload["playerSpawnStableId"] = "shared.pin";
+            string before = MxLevelAuthoringJson.SaveToJson(source);
+            var copy = CharacterTestLevelEditorDocumentFactory.Clone(source, "level.b", false);
+            copy.TryGetModule("characterTest.characters", out var copiedCharacters);
+            var copiedActor = (JObject)copiedCharacters.Payload["characters"][0];
+            copy.TryGetModule("characterTest.tacticalStage", out var copiedStage);
+            Assert.AreNotEqual("shared.pin", (string)copiedActor["stableId"]);
+            Assert.AreEqual((string)copiedActor["stableId"], (string)copiedStage.Payload["playerSpawnStableId"]);
+            Assert.AreEqual("shared.pin", (string)copiedActor["behaviorBinding"][field]);
+            Assert.AreEqual("shared.pin", (string)copiedActor["behaviorBinding"]["publishedResource"]["stableId"]);
+            Assert.AreEqual("shared.pin", (string)copiedActor["displayName"]);
+            Assert.AreEqual(before, MxLevelAuthoringJson.SaveToJson(source));
+        }
+
+        [Test]
+        public void CopyRekeysOwnedWorldAndGenesisIdentitiesAndTheirTypedReferences()
+        {
+            var source = Fixture();
+            source.Modules.Add(new MxLevelAuthoringModuleDocument { ModuleId = "characterTest.worldObjects", SchemaVersion = 1,
+                Payload = JObject.Parse(@"{'levelId':'level.a','points':[{'stableId':'level.a.point'}],
+                    'regions':[{'stableId':'level.a.region'}],
+                    'movableInstances':[{'instanceStableId':'level.a.movable','definitionStableId':'level.a.player'}]}") });
+            source.TryGetModule("characterTest.genesisValidation", out var genesis);
+            genesis.Payload["groups"] = JArray.Parse("[{'stableId':'level.a.local-group'}]");
+            genesis.Payload["stations"][0]["groupId"] = "level.a.local-group";
+            genesis.Payload["stations"][0]["bindings"] = JObject.Parse(@"{
+                'subjectCharacter':{'stableId':'level.a.player'},
+                'targetMovableObject':{'instanceStableId':'level.a.movable'},
+                'startPoint':{'stableId':'level.a.point'},'resetPoint':{'stableId':'level.a.point'},
+                'observationRegion':{'stableId':'level.a.region'}}");
+            source.TryGetModule("characterTest.gameplayTriggers", out var triggers);
+            triggers.Payload["regionBindings"] = JArray.Parse("[{'regionStableId':'level.a.region'}]");
+            var copy = CharacterTestLevelEditorDocumentFactory.Clone(source, "level.b", false);
+            copy.TryGetModule("characterTest.worldObjects", out var world);
+            copy.TryGetModule("characterTest.genesisValidation", out var copiedGenesis);
+            copy.TryGetModule("characterTest.gameplayTriggers", out var copiedTriggers);
+            Assert.AreEqual("level.b", (string)world.Payload["levelId"]);
+            Assert.AreEqual("level.b.movable", (string)world.Payload["movableInstances"][0]["instanceStableId"]);
+            Assert.AreEqual("level.a.player", (string)world.Payload["movableInstances"][0]["definitionStableId"]);
+            var station = copiedGenesis.Payload["stations"][0];
+            Assert.AreEqual("level.b.local-group", (string)station["groupId"]);
+            Assert.AreEqual("level.b.local-group", (string)copiedGenesis.Payload["groups"][0]["stableId"]);
+            Assert.AreEqual("level.b.player", (string)station["bindings"]["subjectCharacter"]["stableId"]);
+            Assert.AreEqual("level.b.movable", (string)station["bindings"]["targetMovableObject"]["instanceStableId"]);
+            Assert.AreEqual("level.b.point", (string)station["bindings"]["startPoint"]["stableId"]);
+            Assert.AreEqual("level.b.point", (string)station["bindings"]["resetPoint"]["stableId"]);
+            Assert.AreEqual("level.b.region", (string)station["bindings"]["observationRegion"]["stableId"]);
+            Assert.AreEqual("level.b.region", (string)copiedTriggers.Payload["regionBindings"][0]["regionStableId"]);
+        }
+
+        [Test]
+        public void FormalGroupCollisionCopySaveReloadResolvesExactPublishedGroup()
+        {
+            string project = Path.GetDirectoryName(UnityEngine.Application.dataPath);
+            string template = Path.Combine(project, "Assets/Config/MxFramework/Levels/FormalExamples/formal.sword.courtyard.level.json");
+            string templateBefore = File.ReadAllText(template);
+            var source = MxLevelAuthoringJson.LoadFromJson(templateBefore);
+            source.TryGetModule("characterTest.characters", out var characters);
+            var actor = (JObject)characters.Payload["characters"][0];
+            string groupId = (string)actor["behaviorBinding"]["groupId"];
+            actor["stableId"] = groupId;
+            string sourceBefore = MxLevelAuthoringJson.SaveToJson(source);
+            var copy = CharacterTestLevelEditorDocumentFactory.Clone(source, "level.p02.collision", false);
+            string path = Path.Combine(Path.GetTempPath(), "mx-level-copy-" + Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                File.WriteAllText(path, MxLevelAuthoringJson.SaveToJson(copy));
+                var reloaded = MxLevelAuthoringJson.LoadFromJson(File.ReadAllText(path));
+                reloaded.TryGetModule("characterTest.characters", out var reloadedCharacters);
+                var definition = reloadedCharacters.Payload["characters"][0].ToObject<CharacterTestSceneCharacterDefinition>();
+                Assert.AreNotEqual(groupId, definition.StableId);
+                Assert.AreEqual(groupId, definition.BehaviorBinding.GroupId);
+                var catalog = CharacterTestRuntimeAiPlannerProjectCatalogLoader.Load();
+                Assert.IsTrue(catalog.Success, catalog.Diagnostic);
+                var group = CharacterTestLevelBehaviorCompiler.Resolve(reloaded.LevelId, definition, catalog);
+                Assert.AreEqual(groupId, group.StableGroupId);
+                Assert.AreEqual(definition.BehaviorBinding.GroupContentHash, group.ContentHash);
+                Assert.AreEqual(sourceBefore, MxLevelAuthoringJson.SaveToJson(source));
+                Assert.AreEqual(templateBefore, File.ReadAllText(template));
+            }
+            finally { if (File.Exists(path)) File.Delete(path); }
         }
 
         [Test]

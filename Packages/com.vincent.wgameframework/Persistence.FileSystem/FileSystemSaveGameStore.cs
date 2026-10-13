@@ -1156,6 +1156,7 @@ namespace MxFramework.Persistence.FileSystem
                     }
 
                     if (record.Error.Code == SaveGameErrorCode.IoFailure
+                        || record.Error.Code == SaveGameErrorCode.QuotaExceeded
                         || record.Error.Code == SaveGameErrorCode.PermissionDenied)
                     {
                         return SaveGameWarning.RetentionCleanupFailed;

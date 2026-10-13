@@ -345,7 +345,7 @@ namespace MxFramework.CharacterAction
 
         private static bool IsConfigException(Exception ex)
         {
-            return ex is ArgumentException || ex is InvalidOperationException || ex is JsonException;
+            return ex is ArgumentException || ex is InvalidOperationException || ex is JsonException || ex is FormatException;
         }
 
         private static void AddError(

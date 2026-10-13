@@ -9,17 +9,28 @@ using UnityEngine.Networking;
 
 namespace MxFramework.Resources.Unity
 {
+    /// <remarks>LowFreqAlloc. Source identity and native bundle access require the Unity main thread.</remarks>
     public sealed class RemoteBundleProvider : IResourceProvider
     {
         public const string Id = "remoteBundle";
 
+        private static readonly StringComparer SourcePathComparer = Path.DirectorySeparatorChar == '\\'
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
         private readonly string _cacheRootPath;
+        private const int VerifiedCacheIdentityCapacity = 256;
+        // Managed metadata only: independent of native leases, bounded per provider, never shared globally.
+        private readonly Dictionary<string, CachedBundleIdentity> _verifiedCacheIdentities
+            = new Dictionary<string, CachedBundleIdentity>(SourcePathComparer);
+        private readonly LinkedList<string> _verifiedCacheUsage = new LinkedList<string>();
+
         private readonly IAssetBundleDependencyProvider _dependencyProvider;
         private readonly Dictionary<string, BundleRecord> _bundles = new Dictionary<string, BundleRecord>(StringComparer.Ordinal);
 
         public RemoteBundleProvider(string cacheRootPath, IAssetBundleDependencyProvider dependencyProvider = null)
         {
-            _cacheRootPath = cacheRootPath ?? string.Empty;
+            _cacheRootPath = Path.GetFullPath(string.IsNullOrEmpty(cacheRootPath) ? "." : cacheRootPath);
             _dependencyProvider = dependencyProvider ?? EmptyAssetBundleDependencyProvider.Instance;
         }
 
@@ -76,7 +87,7 @@ namespace MxFramework.Resources.Unity
                         context.Key,
                         ProviderId,
                         "RemoteBundle dependency failed: " + dependencyError.Message,
-                        context.Entry.Address));
+                        dependencyError.Address));
                 }
             }
 
@@ -84,7 +95,8 @@ namespace MxFramework.Resources.Unity
             if (!bundleError.IsNone)
             {
                 ReleaseBundles(loadedBundles);
-                return ResourceLoadResult<object>.Failed(bundleError);
+                return ResourceLoadResult<object>.Failed(new ResourceError(
+                    bundleError.Code, context.Key, ProviderId, bundleError.Message, bundleError.Address));
             }
 
             Type assetType = UnityResourceTypeResolver.Resolve(context.Entry.TypeId);
@@ -142,72 +154,220 @@ namespace MxFramework.Resources.Unity
                     "RemoteBundle name is missing.");
             }
 
-            if (_bundles.TryGetValue(bundleName, out BundleRecord existing))
+            string cachedPath = string.Empty;
+            try
             {
-                existing.RefCount++;
-                loadedBundles.Add(bundleName);
-                return ResourceError.None;
+                cachedPath = Path.GetFullPath(GetCachePath(bundleName, entry));
+                if (!TryGetBundleUrl(entry, bundleName, out string url))
+                {
+                    return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                        "RemoteBundle url is missing.", cachedPath);
+                }
+
+                string sourceIdentity = GetSourceIdentity(url, out bool isFileSource);
+                string expectedHash = GetExpectedHash(bundleName, entry);
+                if (_bundles.TryGetValue(bundleName, out BundleRecord existing))
+                {
+                    bool sameSource = existing.IsFileSource == isFileSource
+                        && (isFileSource ? SourcePathComparer.Equals(existing.SourceIdentity, sourceIdentity)
+                            : string.Equals(existing.SourceIdentity, sourceIdentity, StringComparison.Ordinal));
+                    if (!sameSource || !IsBundleLoaded(existing.Bundle))
+                    {
+                        return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                            "RemoteBundle source identity conflict or invalidated native bundle. Requested source '"
+                            + sourceIdentity + "'; loaded source '" + existing.SourceIdentity + "' sha256:"
+                            + existing.ContentHash + ".", cachedPath);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(expectedHash)
+                        && !string.Equals(existing.ContentHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                            "RemoteBundle hash mismatch. Requested sha256:" + expectedHash
+                            + "; loaded sha256:" + existing.ContentHash + ".", cachedPath);
+                    }
+
+                    existing.RefCount++;
+                    loadedBundles.Add(bundleName);
+                    return ResourceError.None;
+                }
+
+                ResourceError cacheError = EnsureCachedBundle(cachedPath, url, sourceIdentity, isFileSource,
+                    expectedHash, out string verifiedContentHash);
+                if (!cacheError.IsNone)
+                    return cacheError;
+
+                // Pin the bytes used for this native load; cacheKey is a storage hint, not provenance.
+                using (FileStream source = File.Open(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    string contentHash = ComputeSha256(source);
+                    if (!string.Equals(contentHash, verifiedContentHash, StringComparison.Ordinal))
+                    {
+                        ForgetVerifiedCacheIdentity(cachedPath);
+                        return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                            "RemoteBundle cached content changed before native load.", cachedPath);
+                    }
+                    if (!string.IsNullOrWhiteSpace(expectedHash)
+                        && !string.Equals(contentHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                            "RemoteBundle hash mismatch before native load.", cachedPath);
+                    }
+
+                    AssetBundle bundle = AssetBundle.LoadFromFile(cachedPath);
+                    if (bundle == null)
+                    {
+                        return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                            "RemoteBundle failed to load cached AssetBundle.", cachedPath);
+                    }
+
+                    try
+                    {
+                        source.Position = 0;
+                        if (!string.Equals(contentHash, ComputeSha256(source), StringComparison.Ordinal))
+                        {
+                            UnloadBundleIfAlive(bundle);
+                            return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                                "RemoteBundle cached content changed during native load.", cachedPath);
+                        }
+                    }
+                    catch
+                    {
+                        UnloadBundleIfAlive(bundle);
+                        throw;
+                    }
+
+                    RememberVerifiedCacheIdentity(cachedPath, sourceIdentity, isFileSource, contentHash);
+                    _bundles.Add(bundleName, new BundleRecord(bundle, sourceIdentity, isFileSource, contentHash));
+                    loadedBundles.Add(bundleName);
+                    return ResourceError.None;
+                }
             }
-
-            ResourceError cacheError = EnsureCachedBundle(bundleName, entry, out string cachedPath);
-            if (!cacheError.IsNone)
-                return cacheError;
-
-            AssetBundle bundle = AssetBundle.LoadFromFile(cachedPath);
-            if (bundle == null)
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException
+                || exception is ArgumentException || exception is NotSupportedException)
             {
-                return new ResourceError(
-                    ResourceErrorCode.ProviderFailed,
-                    default,
-                    ProviderId,
-                    "RemoteBundle failed to load cached AssetBundle.",
-                    cachedPath);
+                return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                    "RemoteBundle source identity could not be verified: " + exception.Message, cachedPath);
             }
-
-            _bundles.Add(bundleName, new BundleRecord(bundle));
-            loadedBundles.Add(bundleName);
-            return ResourceError.None;
         }
 
-        private ResourceError EnsureCachedBundle(string bundleName, ResourceCatalogEntry entry, out string cachedPath)
+        private static string GetSourceIdentity(string url, out bool isFileSource)
         {
-            cachedPath = GetCachePath(bundleName, entry);
-            string expectedHash = GetExpectedHash(bundleName, entry);
-            if (File.Exists(cachedPath) && HashMatches(cachedPath, expectedHash))
-                return ResourceError.None;
-
-            if (File.Exists(cachedPath))
-                File.Delete(cachedPath);
-
-            if (!TryGetBundleUrl(entry, bundleName, out string url))
+            if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
             {
-                return new ResourceError(
-                    ResourceErrorCode.ProviderFailed,
-                    default,
-                    ProviderId,
-                    "RemoteBundle url is missing.",
-                    bundleName);
+                isFileSource = uri.IsFile;
+                return uri.IsFile ? Path.GetFullPath(uri.LocalPath) : url;
             }
 
+            isFileSource = true;
+            return Path.GetFullPath(url);
+        }
+
+        private static bool IsBundleLoaded(AssetBundle bundle)
+        {
+            if (bundle == null)
+                return false;
+
+            foreach (AssetBundle loaded in AssetBundle.GetAllLoadedAssetBundles())
+            {
+                if (loaded == bundle)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private ResourceError EnsureCachedBundle(string cachedPath, string url, string sourceIdentity,
+            bool isFileSource, string expectedHash, out string verifiedContentHash)
+        {
+            verifiedContentHash = string.Empty;
+            if (File.Exists(cachedPath))
+            {
+                string cachedHash = ComputeSha256(cachedPath);
+                // A matching declared SHA-256 proves requested content, even without retained origin metadata.
+                if (!string.IsNullOrWhiteSpace(expectedHash)
+                    && string.Equals(cachedHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    verifiedContentHash = cachedHash;
+                    return ResourceError.None;
+                }
+
+                if (_verifiedCacheIdentities.TryGetValue(cachedPath, out CachedBundleIdentity known))
+                {
+                    if (!string.Equals(known.ContentHash, cachedHash, StringComparison.Ordinal))
+                    {
+                        // The file no longer has the bytes this provider established.
+                        ForgetVerifiedCacheIdentity(cachedPath);
+                    }
+                    else
+                    {
+                        bool sameSource = known.IsFileSource == isFileSource
+                            && (isFileSource ? SourcePathComparer.Equals(known.SourceIdentity, sourceIdentity)
+                                : string.Equals(known.SourceIdentity, sourceIdentity, StringComparison.Ordinal));
+                        if (sameSource && string.IsNullOrWhiteSpace(expectedHash))
+                        {
+                            verifiedContentHash = cachedHash;
+                            _verifiedCacheUsage.Remove(known.UsageNode);
+                            _verifiedCacheUsage.AddLast(known.UsageNode);
+                            return ResourceError.None;
+                        }
+                        // A failed request for another source/digest must not erase valid old provenance.
+                    }
+                }
+            }
+            else
+            {
+                ForgetVerifiedCacheIdentity(cachedPath);
+            }
+
+            // Unknown, changed, or mismatched disk content is never accepted by cacheKey alone.
             string cacheDirectory = Path.GetDirectoryName(cachedPath);
             if (!string.IsNullOrWhiteSpace(cacheDirectory))
                 Directory.CreateDirectory(cacheDirectory);
-            ResourceError fetchError = FetchBundle(url, cachedPath);
-            if (!fetchError.IsNone)
-                return fetchError;
-
-            if (!HashMatches(cachedPath, expectedHash))
+            // Read the requested source before replacing a cache file that may alias that source.
+            string downloadPath = cachedPath + "." + Guid.NewGuid().ToString("N") + ".download";
+            try
             {
-                File.Delete(cachedPath);
-                return new ResourceError(
-                    ResourceErrorCode.ProviderFailed,
-                    default,
-                    ProviderId,
-                    "RemoteBundle hash mismatch.",
-                    url);
-            }
+                ResourceError fetchError = FetchBundle(url, downloadPath);
+                if (!fetchError.IsNone)
+                    return fetchError;
 
-            return ResourceError.None;
+                string downloadHash = ComputeSha256(downloadPath);
+                if (!string.IsNullOrWhiteSpace(expectedHash)
+                    && !string.Equals(downloadHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new ResourceError(ResourceErrorCode.ProviderFailed, default, ProviderId,
+                        "RemoteBundle hash mismatch. Requested sha256:" + expectedHash + ".", url);
+                }
+
+                File.Copy(downloadPath, cachedPath, true);
+                verifiedContentHash = downloadHash;
+                return ResourceError.None;
+            }
+            finally
+            {
+                if (File.Exists(downloadPath))
+                    File.Delete(downloadPath);
+            }
+        }
+
+        private void RememberVerifiedCacheIdentity(string cachedPath, string sourceIdentity, bool isFileSource, string contentHash)
+        {
+            ForgetVerifiedCacheIdentity(cachedPath);
+            if (_verifiedCacheIdentities.Count >= VerifiedCacheIdentityCapacity)
+                ForgetVerifiedCacheIdentity(_verifiedCacheUsage.First.Value);
+
+            LinkedListNode<string> usageNode = _verifiedCacheUsage.AddLast(cachedPath);
+            _verifiedCacheIdentities.Add(cachedPath, new CachedBundleIdentity(sourceIdentity, isFileSource, contentHash, usageNode));
+        }
+
+        private void ForgetVerifiedCacheIdentity(string cachedPath)
+        {
+            if (!_verifiedCacheIdentities.TryGetValue(cachedPath, out CachedBundleIdentity known))
+                return;
+
+            _verifiedCacheIdentities.Remove(cachedPath);
+            _verifiedCacheUsage.Remove(known.UsageNode);
         }
 
         private ResourceError FetchBundle(string url, string cachedPath)
@@ -268,7 +428,8 @@ namespace MxFramework.Resources.Unity
                 return;
 
             _bundles.Remove(bundleName);
-            UnloadBundleIfAlive(record.Bundle);
+            if (IsBundleLoaded(record.Bundle))
+                UnloadBundleIfAlive(record.Bundle);
         }
 
         private static void UnloadBundleIfAlive(AssetBundle bundle)
@@ -371,24 +532,16 @@ namespace MxFramework.Resources.Unity
             return false;
         }
 
-        private static bool HashMatches(string path, string expectedSha256)
-        {
-            if (string.IsNullOrWhiteSpace(expectedSha256))
-                return true;
-            if (!File.Exists(path))
-                return false;
-
-            return string.Equals(ComputeSha256(path), expectedSha256, StringComparison.OrdinalIgnoreCase);
-        }
-
         private static string ComputeSha256(string path)
         {
-            using (SHA256 sha256 = SHA256.Create())
             using (FileStream stream = File.OpenRead(path))
-            {
-                byte[] hash = sha256.ComputeHash(stream);
-                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
-            }
+                return ComputeSha256(stream);
+        }
+
+        private static string ComputeSha256(Stream stream)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+                return BitConverter.ToString(sha256.ComputeHash(stream)).Replace("-", string.Empty).ToLowerInvariant();
         }
 
         private static string NormalizeSha256(string hash)
@@ -429,15 +582,37 @@ namespace MxFramework.Resources.Unity
             return baseUrl + "/" + bundleName;
         }
 
+        private sealed class CachedBundleIdentity
+        {
+            public CachedBundleIdentity(string sourceIdentity, bool isFileSource, string contentHash, LinkedListNode<string> usageNode)
+            {
+                SourceIdentity = sourceIdentity;
+                IsFileSource = isFileSource;
+                ContentHash = contentHash;
+                UsageNode = usageNode;
+            }
+
+            public string SourceIdentity { get; }
+            public bool IsFileSource { get; }
+            public string ContentHash { get; }
+            public LinkedListNode<string> UsageNode { get; }
+        }
+
         private sealed class BundleRecord
         {
-            public BundleRecord(AssetBundle bundle)
+            public BundleRecord(AssetBundle bundle, string sourceIdentity, bool isFileSource, string contentHash)
             {
                 Bundle = bundle;
+                SourceIdentity = sourceIdentity;
+                IsFileSource = isFileSource;
+                ContentHash = contentHash;
                 RefCount = 1;
             }
 
             public AssetBundle Bundle { get; }
+            public string SourceIdentity { get; }
+            public bool IsFileSource { get; }
+            public string ContentHash { get; }
             public int RefCount { get; set; }
         }
     }

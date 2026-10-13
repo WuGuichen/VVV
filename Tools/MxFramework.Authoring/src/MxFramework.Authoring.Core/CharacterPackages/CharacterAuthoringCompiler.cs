@@ -684,6 +684,22 @@ namespace MxFramework.Authoring
             CharacterResourceMappingV2Materialization v2Materialization = CharacterResourceMappingV2Producer.Materialize(package, result.ResourceMapping);
             result.ResourceMappingV2Snapshot = v2Materialization.Snapshot;
             result.ResourceMappingV2Diagnostics = v2Materialization.Diagnostics;
+            foreach (ResourceMappingDiagnostic diagnostic in v2Materialization.Diagnostics)
+            {
+                if (diagnostic.Code != CharacterResourceMappingV2ProducerContracts.MaterialTargetCollision)
+                    continue;
+                issues.Add(new CharacterAuthoringValidationIssue
+                {
+                    Severity = CharacterAuthoringValidationSeverity.Error,
+                    Gate = CharacterAuthoringValidationGate.ImportBlocked,
+                    Code = diagnostic.Code,
+                    SourcePath = "resource_catalog.json",
+                    SourceObjectPath = diagnostic.Path,
+                    Field = "importHints.targetRelativePath",
+                    Message = diagnostic.Message,
+                    SuggestedFix = "Use distinct material descriptor file names and import targets after filename sanitization and case-insensitive comparison."
+                });
+            }
             result.GeneratedConfigPatch = BuildConfigPatch(package, result.GeometryBinding, result.ResourceMapping, identityResolver, issues);
             AddGeneratedConfigDiagnostics(result.GeneratedConfigPatch, issues);
             AnimationAuthoringPackage effectiveAnimationPackage =

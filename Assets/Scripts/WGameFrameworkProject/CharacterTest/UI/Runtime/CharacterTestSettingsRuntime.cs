@@ -32,6 +32,7 @@ namespace MxFramework.Game.CharacterTest
         private IMxHdrOutputRuntime _hdrOutput;
         private IDisposable _ownedHdrOutput;
         private MxDirectionalShadowSettingsApplier _directionalShadowSettings;
+        private CharacterTestWaterSettingsApplier _waterSettings;
 
         public CharacterTestSettingsRuntime(
             string settingsFilePath,
@@ -97,8 +98,17 @@ namespace MxFramework.Game.CharacterTest
 
         public void Dispose()
         {
+            _waterSettings?.Dispose(); _waterSettings = null;
             _directionalShadowSettings?.Dispose(); _directionalShadowSettings = null;
             _ownedHdrOutput?.Dispose(); _ownedHdrOutput = null;
+        }
+
+        public void AttachWaterSettings(Func<CharacterTestShallowWaterConfiguration> configuration)
+        {
+            if (_waterSettings != null) throw new InvalidOperationException("Water settings are already attached.");
+            _waterSettings = new CharacterTestWaterSettingsApplier(configuration);
+            RegisterApplierIfMissing(SettingsService, _waterSettings);
+            LastApplyResult = _waterSettings.Apply(SettingsService.CurrentProfile);
         }
 
         public void SelectPreviousAudioBus()
@@ -197,7 +207,11 @@ namespace MxFramework.Game.CharacterTest
                 inputBindingTargets: CreateDefaultInputBindingTargets(),
                 localizationOptions: localizationOptions);
             runtime.AttachHdrOutput(new MxUnityHdrOutputRuntime(), ownsRuntime: true);
-            if (owner is GameManager manager) runtime.AttachDirectionalShadowSettings(() => manager.SceneRendering);
+            if (owner is GameManager manager)
+            {
+                runtime.AttachDirectionalShadowSettings(() => manager.SceneRendering);
+                runtime.AttachWaterSettings(() => manager.ShallowWater);
+            }
             return runtime;
         }
 

@@ -701,6 +701,16 @@ namespace MxFramework.CharacterRuntimeSpawn.Unity
             InvalidateAppliedLocomotionBlend();
         }
 
+        /// <summary>NoAlloc: replace the remaining locomotion hold without changing the current action clip.</summary>
+        public void ReplaceLocomotionBlendSuppressionForSeconds(float seconds)
+        {
+            if (seconds <= 0f || float.IsNaN(seconds) || float.IsInfinity(seconds))
+                return;
+
+            _suppressLocomotionBlendUntilTime = _runtimeAnimationClock + seconds;
+            InvalidateAppliedLocomotionBlend();
+        }
+
         public void ResumeLocomotionBlend()
         {
             _suppressLocomotionBlendUntilTime = 0f;

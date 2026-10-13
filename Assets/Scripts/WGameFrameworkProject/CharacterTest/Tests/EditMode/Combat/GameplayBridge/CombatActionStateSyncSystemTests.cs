@@ -236,6 +236,216 @@ namespace MxFramework.Tests.Combat.GameplayBridge
             Assert.AreEqual(60, system.Priority);
         }
 
+        [TestCase(2, true, false)]
+        [TestCase(2, false, false)]
+        [TestCase(2, true, true)]
+        [TestCase(2, false, true)]
+        [TestCase(32, true, false)]
+        [TestCase(32, false, false)]
+        [TestCase(32, true, true)]
+        [TestCase(32, false, true)]
+        [TestCase(0, false, false)]
+        [TestCase(0, false, true)]
+        public void Tick_WarmedMappingsDoNotAllocate(int entityCount, bool active, bool usePipeline)
+        {
+            var map = new CombatEntityGameplayMap();
+            var world = new GameplayComponentWorld();
+            var gameplayIds = new GameplayEntityId[entityCount];
+            for (int i = 0; i < entityCount; i++)
+            {
+                gameplayIds[i] = world.CreateEntity();
+                map.Register(Combat(i + 1), gameplayIds[i]);
+            }
+
+            int queryCount = 0;
+            var system = new CombatActionStateSyncSystem(map, world, id =>
+            {
+                queryCount++;
+                return active ? ActiveState(id) : (CombatActionState?)null;
+            });
+            Action tick = CreateTick(system, world, usePipeline);
+
+            AssertWarmedTicksDoNotAllocate(tick);
+
+            Assert.AreEqual(entityCount * 1064, queryCount);
+            Assert.AreEqual(entityCount, map.Count);
+            if (entityCount == 0)
+            {
+                Assert.IsFalse(world.TryGetStore(out GameplayComponentStore<CombatActionStateComponent> emptyStore));
+                return;
+            }
+
+            Assert.IsTrue(world.TryGetStore(out GameplayComponentStore<CombatActionStateComponent> store));
+            Assert.AreEqual(entityCount, store.Count);
+            for (int i = 0; i < entityCount; i++)
+            {
+                CombatActionStateComponent component = GetComponent(world, gameplayIds[i]);
+                Assert.AreEqual(active, component.IsActive);
+                Assert.AreEqual(active ? 1001 + i : 0, component.ActionId);
+                Assert.AreEqual(active ? CombatActionPhase.Active : CombatActionPhase.None, component.Phase);
+                Assert.AreEqual(active ? 7 : 0, component.LocalFrame);
+                Assert.IsFalse(component.IsFinished);
+            }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Tick_DisabledAfterWarmupDoesNotAllocateOrChangeState(bool usePipeline)
+        {
+            var map = new CombatEntityGameplayMap();
+            var world = new GameplayComponentWorld();
+            GameplayEntityId gameplayId = world.CreateEntity();
+            map.Register(Combat(10), gameplayId);
+            int queryCount = 0;
+            var system = new CombatActionStateSyncSystem(map, world, id =>
+            {
+                queryCount++;
+                return ActiveState(id);
+            });
+            Action tick = CreateTick(system, world, usePipeline);
+            tick();
+            system.SetEnabled(false);
+
+            AssertWarmedTicksDoNotAllocate(tick);
+
+            Assert.AreEqual(1, queryCount);
+            Assert.AreEqual(1010, GetComponent(world, gameplayId).ActionId);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Tick_MappingHighWaterGrowthAndClearRetainWarmedCapacity(bool usePipeline)
+        {
+            var map = new CombatEntityGameplayMap();
+            var world = new GameplayComponentWorld();
+            int queryCount = 0;
+            var system = new CombatActionStateSyncSystem(map, world, id =>
+            {
+                queryCount++;
+                return ActiveState(id);
+            });
+            Action tick = CreateTick(system, world, usePipeline);
+            map.Register(Combat(1), world.CreateEntity());
+            tick();
+            for (int i = 2; i <= 32; i++)
+                map.Register(Combat(i), world.CreateEntity());
+
+            AssertWarmedTicksDoNotAllocate(tick);
+
+            Assert.IsTrue(world.TryGetStore(out GameplayComponentStore<CombatActionStateComponent> store));
+            Assert.AreEqual(32, store.Count);
+            int queriesBeforeClear = queryCount;
+            map.Clear();
+            AssertWarmedTicksDoNotAllocate(tick);
+            Assert.AreEqual(32, store.Count);
+            Assert.AreEqual(queriesBeforeClear, queryCount);
+        }
+
+        [Test]
+        public void Tick_MappingChangesRefreshSnapshotInRegistrationOrder()
+        {
+            var map = new CombatEntityGameplayMap();
+            var world = new GameplayComponentWorld();
+            map.Register(Combat(30), world.CreateEntity());
+            map.Register(Combat(10), world.CreateEntity());
+            map.Register(Combat(20), world.CreateEntity());
+            var queried = new List<CombatEntityId>();
+            var system = new CombatActionStateSyncSystem(map, world, id =>
+            {
+                queried.Add(id);
+                return ActiveState(id);
+            });
+            GameplaySystemContext context = CreateContext(world);
+            system.Tick(context);
+            CollectionAssert.AreEqual(new[] { Combat(30), Combat(10), Combat(20) }, queried);
+            queried.Clear();
+            map.RemoveCombat(Combat(10));
+            GameplayEntityId addedGameplayId = world.CreateEntity();
+            GameplayEntityId overwrittenGameplayId = world.CreateEntity();
+            map.Register(Combat(40), addedGameplayId);
+            map.Register(Combat(30), overwrittenGameplayId);
+
+            system.Tick(context);
+
+            CollectionAssert.AreEqual(new[] { Combat(30), Combat(20), Combat(40) }, queried);
+            Assert.AreEqual(3, map.Count);
+            Assert.AreEqual(1030, GetComponent(world, overwrittenGameplayId).ActionId);
+            Assert.AreEqual(1040, GetComponent(world, addedGameplayId).ActionId);
+        }
+
+        [Test]
+        public void Tick_QueryMappingMutationPreservesStartOfTickIdsAndResolvesCurrentMapping()
+        {
+            var map = new CombatEntityGameplayMap();
+            var world = new GameplayComponentWorld();
+            GameplayEntityId firstGameplayId = world.CreateEntity();
+            GameplayEntityId removedGameplayId = world.CreateEntity();
+            GameplayEntityId oldGameplayId = world.CreateEntity();
+            GameplayEntityId replacementGameplayId = world.CreateEntity();
+            GameplayEntityId addedGameplayId = world.CreateEntity();
+            map.Register(Combat(30), firstGameplayId);
+            map.Register(Combat(10), removedGameplayId);
+            map.Register(Combat(20), oldGameplayId);
+            var queried = new List<CombatEntityId>();
+            bool changed = false;
+            var system = new CombatActionStateSyncSystem(map, world, id =>
+            {
+                queried.Add(id);
+                if (!changed)
+                {
+                    changed = true;
+                    map.RemoveCombat(Combat(10));
+                    map.Register(Combat(40), addedGameplayId);
+                    map.Register(Combat(20), replacementGameplayId);
+                }
+                return ActiveState(id);
+            });
+            GameplaySystemContext context = CreateContext(world);
+
+            system.Tick(context);
+
+            CollectionAssert.AreEqual(new[] { Combat(30), Combat(10), Combat(20) }, queried);
+            Assert.IsTrue(world.TryGetStore(out GameplayComponentStore<CombatActionStateComponent> store));
+            Assert.AreEqual(2, store.Count);
+            Assert.IsFalse(store.Contains(removedGameplayId));
+            Assert.IsFalse(store.Contains(oldGameplayId));
+            Assert.IsFalse(store.Contains(addedGameplayId));
+            Assert.AreEqual(1030, GetComponent(world, firstGameplayId).ActionId);
+            Assert.AreEqual(1020, GetComponent(world, replacementGameplayId).ActionId);
+            queried.Clear();
+
+            system.Tick(context);
+
+            CollectionAssert.AreEqual(new[] { Combat(30), Combat(20), Combat(40) }, queried);
+            Assert.AreEqual(3, store.Count);
+            Assert.AreEqual(1040, GetComponent(world, addedGameplayId).ActionId);
+        }
+
+        private static CombatActionState ActiveState(CombatEntityId id)
+        {
+            return new CombatActionState(id, 1000 + id.Value, 7, new CombatFrame(3), CombatActionPhase.Active);
+        }
+
+        private static Action CreateTick(CombatActionStateSyncSystem system, GameplayComponentWorld world, bool usePipeline)
+        {
+            GameplaySystemContext context = CreateContext(world);
+            var pipeline = new GameplaySystemPipeline();
+            pipeline.Add(system);
+            return usePipeline ? (Action)(() => pipeline.Tick(context)) : () => system.Tick(context);
+        }
+
+        private static void AssertWarmedTicksDoNotAllocate(Action tick)
+        {
+            for (int i = 0; i < 64; i++)
+                tick();
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++)
+                tick();
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocated, "1000 warmed ticks must not allocate.");
+        }
+
         private static CombatActionStateComponent GetComponent(GameplayComponentWorld world, GameplayEntityId entityId)
         {
             Assert.IsTrue(world.TryGetStore(out GameplayComponentStore<CombatActionStateComponent> store));

@@ -57,7 +57,10 @@ namespace MxFramework.Game.CharacterTest.Editor
                 if (settings == null)
                 {
                     settings = ScriptableObject.CreateInstance<CharacterTestShallowWaterSettings>();
+                    settings.QualityTier = CharacterTestWaterQuality.Performance;
                     settings.SurfaceShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Art/WGame/Shaders/Environment/ShallowWater.shader");
+                    settings.SsprCompute = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/Art/WGame/Shaders/Environment/ShallowWaterSSPR.compute");
+                    settings.RippleCompute = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/Art/WGame/Shaders/Environment/ShallowWaterRipples.compute");
                     AssetDatabase.CreateAsset(settings, path);
                 }
                 Undo.RecordObject(owner, "创建场景浅水配置");

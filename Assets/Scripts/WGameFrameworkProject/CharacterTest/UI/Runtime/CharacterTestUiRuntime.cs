@@ -544,6 +544,8 @@ namespace MxFramework.Game.CharacterTest
         private long _lastPlayerUiInputQueueGeneration;
         private bool _hasProcessedPlayerUiInputSequence;
         private int _lastPlayerUiNavigateDirection;
+        private int _lastPlayerModalInputFrame = int.MinValue;
+        private int _lastPlayerUiCancelFrame = int.MinValue;
         private long _lastProcessedGuidanceInputSequence;
         private long _lastGuidanceInputQueueFrame;
         private long _lastGuidanceInputQueueGeneration;
@@ -607,6 +609,13 @@ namespace MxFramework.Game.CharacterTest
             _fairyGuiRuntimeShell != null ? _fairyGuiRuntimeShell.Catalog.ViewCount : 0;
         public bool HasNonMainMenuPlayerModalOpen =>
             HasTacticalLoading || CharacterTestUiSurfacePolicy.HasNonMainMenuPlayerModalOpen(CaptureSurfaceState());
+        // Modal input ownership survives closing the view until the next rendered frame.
+        internal bool BlocksTacticalBattleInput => HasTacticalLoading
+            || (_fairyGuiLayerHost != null && _fairyGuiLayerHost.TryGetTopModal(out _))
+            || _lastPlayerModalInputFrame == Time.frameCount;
+        internal bool OwnsTacticalCancelInput => BlocksTacticalBattleInput
+            || _fairyGuiPopupService?.HasOpenPopup == true
+            || _lastPlayerUiCancelFrame == Time.frameCount;
         public bool IsFairyGuiCombatHudConfigured =>
             _fairyGuiCombatHudHost != null && _fairyGuiCombatHudHost.IsConfigured;
         public string LastFairyGuiCombatHudStatus =>
@@ -1187,6 +1196,7 @@ namespace MxFramework.Game.CharacterTest
                     }
                     else if (command.Intent == InputIntent.Cancel)
                     {
+                        _lastPlayerUiCancelFrame = Time.frameCount;
                         focusBridge.Process(topModal, MxFairyGuiFocusNavigationIntent.Cancel);
                     }
                 }
@@ -1872,6 +1882,8 @@ namespace MxFramework.Game.CharacterTest
             _lastPlayerUiInputQueueGeneration = 0L;
             _hasProcessedPlayerUiInputSequence = false;
             _lastPlayerUiNavigateDirection = 0;
+            _lastPlayerModalInputFrame = int.MinValue;
+            _lastPlayerUiCancelFrame = int.MinValue;
             ResetModalPanelRefreshScheduler();
             _lastCombatHudRefreshFrame = int.MinValue;
             _lastPlayerModalOpen = false;
@@ -2632,15 +2644,13 @@ namespace MxFramework.Game.CharacterTest
                 + (message ?? string.Empty);
         }
 
-        private static IMxFairyGuiInputContextBridge CreatePlayerInputBridge(
+        private IMxFairyGuiInputContextBridge CreatePlayerInputBridge(
             IInputProvider inputProvider,
             IMxCursorController cursorController)
         {
-            if (inputProvider == null && cursorController == null)
-                return null;
-
             return new MxFairyGuiInputContextBridge(_ =>
                 new PlayerInteractiveUiScope(
+                    this,
                     inputProvider != null
                         ? inputProvider.PushContext(InputContext.UI, InputContextPolicy.Exclusive)
                         : null,
@@ -2743,17 +2753,24 @@ namespace MxFramework.Game.CharacterTest
 
         private sealed class PlayerInteractiveUiScope : IDisposable
         {
+            private CharacterTestUiRuntime _runtime;
             private IDisposable _inputScope;
             private IDisposable _cursorScope;
 
-            public PlayerInteractiveUiScope(IDisposable inputScope, IDisposable cursorScope)
+            public PlayerInteractiveUiScope(CharacterTestUiRuntime runtime, IDisposable inputScope, IDisposable cursorScope)
             {
+                _runtime = runtime;
+                _runtime._lastPlayerModalInputFrame = Time.frameCount;
                 _inputScope = inputScope;
                 _cursorScope = cursorScope;
             }
 
             public void Dispose()
             {
+                if (_runtime == null) return;
+                _runtime._lastPlayerModalInputFrame = Time.frameCount;
+                _runtime = null;
+
                 IDisposable cursorScope = _cursorScope;
                 _cursorScope = null;
                 cursorScope?.Dispose();

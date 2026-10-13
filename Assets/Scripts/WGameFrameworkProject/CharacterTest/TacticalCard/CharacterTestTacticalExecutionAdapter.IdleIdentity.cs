@@ -75,7 +75,17 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         // never tick/restart a retired host, invent completion, or alter the gameplay pause detector.
         private void ReconcileRetiredReceipt()
         {
-            if (!_retired || _retiredReceiptSealed || _entity.Action.State == CharacterTestActionStateId.Running) return;
+            if (!_retired || _retiredReceiptSealed) return;
+            // A Planning pause can retain freely actionable physical recovery. The world snapshot owns
+            // that running action; this historical receipt owns no further execution or reward.
+            if (_entity.Action.State == CharacterTestActionStateId.Running) {
+                var battle = _entity.BattleState;
+                if (_retiredMode != 0 || _actionInstance == null || _actionInstance.State != CharacterActionInstanceState.Running
+                    || _actionInstance.CurrentPhaseKind != CharacterActionPhaseKind.Recovery || !_entity.CombatState.IsAlive
+                    || _entity.CombatState.IsReacting || !battle.IsValid || battle.DominantReason != CharacterTestBattleStateDominantReason.None
+                    || !battle.CanStartNormalAction || !battle.CanMoveByInput
+                    || !ReferenceEquals(_runtime.ActionRuntime.GetActionInstanceForObservation(_entity.Id), _actionInstance)) return;
+            }
             bool ack = _commands.PendingCommandCount == 0 && _commands.LastCommandErrors.Count == 0 && !_session.HasPendingActionCommand;
             bool released = ack && !_entity.Input.HasActiveMove &&
                 (!_entity.Input.BehaviorControl.IsPresent || _entity.Input.BehaviorControl.IsRelease);

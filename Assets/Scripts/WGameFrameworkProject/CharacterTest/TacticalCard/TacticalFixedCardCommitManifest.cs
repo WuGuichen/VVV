@@ -48,7 +48,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
     /// <summary>Immutable prospective/confirmed joint identity. Only the real joint payment owner may confirm it.
     /// Serialized incoming state never constructs its own trusted authority from this record.</summary>
-    internal sealed class TacticalFixedCardCommitManifest
+    internal sealed partial class TacticalFixedCardCommitManifest
     {
         internal const int FormatVersion = 1;
         private readonly TacticalAccessoryCombatState[] _activations;
@@ -89,6 +89,8 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         internal RuntimeHashDigest Digest { get; }
         internal int ActivationCount => _activations.Length;
         internal TacticalAccessoryCombatState ActivationAt(int index) => _activations[index];
+        internal TacticalDoubleEdgeCommitKey DoubleEdgeKey => new TacticalDoubleEdgeCommitKey(Stage, CommitId,
+            ExecutionId, Actor, BattleCardInstance, Frame);
 
         /// <remarks>LowFreqAlloc. Pure identity/parameter preparation; does not increment counters, reserve,
         /// pay, activate, start execution or change the deck. IDs are proposed by the owning joint transaction.</remarks>
@@ -109,18 +111,20 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                     || input.Source < TacticalExecutionInputSource.Manual || input.Source > TacticalExecutionInputSource.Automatic
                     || input.Kind == TacticalExecutionInputKind.Character && !input.TargetCharacter.IsValid
                     || input.Kind != TacticalExecutionInputKind.Character && input.Kind != TacticalExecutionInputKind.WorldPoint)) return false;
-            var activations = new TacticalAccessoryCombatState[assembly.Accessories.Count];
-            for (int i = 0; i < activations.Length; i++)
+            var activations = new List<TacticalAccessoryCombatState>(assembly.Accessories.Count);
+            for (int i = 0; i < assembly.Accessories.Count; i++)
             {
                 var accessory = assembly.Accessories[i];
+                if (accessory.IsDoubleEdge || accessory.IsSecondBatch || accessory.IsThirdBatch) continue; // Stage-owned lifetime and pre-HP effects have a separate trusted state projection.
                 if (!accessory.TryGetLastTurn(turn, out var lastTurn)) return false;
                 var identity = new TacticalAccessoryActivation(stage, turn, lastTurn, actor, assembly.HeldCardInstance,
                     accessory.ItemInstance, commitId, firstActivationId + (ulong)i, frame, receiptCursor);
                 if (!TacticalAccessoryCombatState.TryArm(accessory.Kind, identity, accessory.MomentumAmount,
-                    accessory.Push, out activations[i])) return false;
+                    accessory.Push, out var activation)) return false;
+                activations.Add(activation);
             }
             record = new TacticalFixedCardCommitManifest(assembly, fees, stage, turn, actor, card.InstanceId, card.Version,
-                commitId, executionId, frame, receiptCursor, reservationToken, input, activations, false);
+                commitId, executionId, frame, receiptCursor, reservationToken, input, activations.ToArray(), false);
             return true;
         }
 

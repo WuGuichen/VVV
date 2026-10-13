@@ -243,12 +243,20 @@ namespace MxFramework.Game.CharacterTest
 
         private static bool IsBehaviorRecipeOrchestrationPayloadValid(RuntimeCommand command)
         {
+            if (command.Payload2 == 3)
+                return command.TargetId > 0 && command.SourceId == CharacterTestRuntimeCommandSources.RuntimeAiPlanner
+                    && command.Payload0 == (int)CharacterTestBehaviorRecipeOrchestrationOperation.ReplaceCharacterAction
+                    && command.Payload1 > 0 && command.Envelope.TypeId == TacticalCard.TacticalFixedCardPaymentCommit.CommandEnvelopeType
+                    && command.Envelope.SchemaVersion == 1 && command.Envelope.Provenance == RuntimeCommandProvenanceKind.Derived
+                    && command.Envelope.Data0 != 0 && command.Envelope.Data1 >= 0 && command.Envelope.Data2 > 0
+                    && command.Envelope.Data3 != 0 && command.Envelope.Data4 != 0 && command.Envelope.Data5 != 0
+                    && command.Envelope.Data6 != 0 && command.Envelope.Data7 != 0;
             if (command.Payload2 == 2)
                 return command.TargetId > 0 && command.Payload0 == (int)CharacterTestBehaviorRecipeOrchestrationOperation.TerminateForReturnToPlanner
                     && command.Payload1 == 0 && command.Envelope.TypeId == CharacterTestRuntimeCommandFactory.BehaviorStopEnvelopeTypeId
                     && command.Envelope.SchemaVersion == 1 && command.Envelope.Provenance == RuntimeCommandProvenanceKind.Unspecified
                     && command.Envelope.Data0 > 0;
-            if (command.TargetId <= 0
+            if (command.TargetId <= 0 || command.Envelope.IsPresent
                 || command.Payload2 != CharacterTestRuntimeCommandFactory.BehaviorRecipeOrchestrationSchemaVersion
                 || !Enum.IsDefined(
                     typeof(CharacterTestBehaviorRecipeOrchestrationOperation),

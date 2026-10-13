@@ -189,6 +189,8 @@ namespace MxFramework.Editor.CharacterAction
             AppendCharacterActionTimelineAddAction(menu, "Character Action/Phase", TimelineTrackKind.Phases, frame);
             AppendCharacterActionTimelineAddAction(menu, "Character Action/切换窗口 / Transition Window", TimelineTrackKind.TransitionWindow, frame);
             AppendCharacterActionTimelineAddAction(menu, "Character Action/Motion", TimelineTrackKind.Motion, frame);
+            AppendCharacterActionTimelineAddAction(menu, "移动控制倍率标记", TimelineTrackKind.MovementControl, frame);
+            AppendCharacterActionTimelineAddAction(menu, "旋转控制倍率标记", TimelineTrackKind.RotationControl, frame);
             AppendCharacterActionTimelineAddAction(menu, "Character Action/Animation", TimelineTrackKind.Animation, frame);
             AppendCharacterActionTimelineAddAction(menu, "Character Action/Combat", TimelineTrackKind.Combat, frame);
             AppendCharacterActionTimelineAddAction(menu, "Character Action/Gameplay", TimelineTrackKind.Gameplay, frame);
@@ -437,6 +439,17 @@ namespace MxFramework.Editor.CharacterAction
                 BuildRootMotionInspector(_timelineInspectorHost, action, timelineInspector: true);
                 AddTimelinePreviewSections(_timelineInspectorHost);
                 AddTimelineTrackListFoldout(_timelineInspectorHost, action);
+                return;
+            }
+
+            if (adapter is ControlScaleTimelineAdapter controlKey)
+            {
+                var card = AddCard(_timelineInspectorHost, controlKey.Rotation ? "旋转控制倍率标记" : "移动控制倍率标记");
+                AddTimelineIntegerField(card, "帧", controlKey.StartFrame,
+                    value => controlKey.SetRange(value, value), requestFullTracksRefresh: true);
+                AddTimelineFloatField(card, "倍率（0–10）", controlKey.Key.Value,
+                    value => controlKey.Key.Value = value, requestFullTracksRefresh: true);
+                card.Add(new Label("从该帧保持到下一标记；动作退出后恢复 1。"));
                 return;
             }
 

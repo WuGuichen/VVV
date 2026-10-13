@@ -1,0 +1,164 @@
+#pragma kernel Clear
+#pragma kernel Project
+#pragma kernel Resolve
+#pragma kernel ResolveSoft
+#pragma target 5.0
+
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+
+Texture2D<float> _SsprDepth;
+Texture2D<float4> _SsprColor;
+RWTexture2D<uint> _SsprKeyWrite;
+Texture2D<uint> _SsprKeyRead;
+RWTexture2D<float4> _SsprOutput;
+SamplerState sampler_PointClamp;
+SamplerState sampler_LinearClamp;
+float4 _SsprSize; // width, height, reciprocal width/height; both input and output are bounded
+float4 _SsprWater; // plane Y, reflection far distance, shallow depth, hole radius
+float4 _SsprBounds;
+int _SsprIndexBits;
+float _SsprFilterStrength;
+float4x4 _SsprView, _SsprVP, _SsprInvVP, _SsprWorldToWater;
+
+uint SourceBits() { return _SsprIndexBits == 20 ? 20u : 18u; }
+uint SourceMask() { return (1u << SourceBits()) - 1u; }
+float DepthLevels() { return (float)((1u << (32u - SourceBits())) - 2u); }
+
+bool WorldAt(float2 uv, out float3 world)
+{
+    float depth = _SsprDepth.SampleLevel(sampler_PointClamp, uv, 0);
+    world = 0;
+#if UNITY_REVERSED_Z
+    if (depth <= .000001) return false;
+#else
+    if (depth >= .999999) return false;
+    depth = lerp(UNITY_NEAR_CLIP_VALUE, 1, depth);
+#endif
+    world = ComputeWorldSpacePosition(uv, depth, _SsprInvVP);
+    return all(isfinite(world));
+}
+
+[numthreads(8,8,1)]
+void Clear(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_SsprSize.xy)) return;
+    _SsprKeyWrite[id.xy] = 0xffffffffu;
+}
+
+[numthreads(8,8,1)]
+void Project(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_SsprSize.xy)) return;
+    float2 uv = (id.xy + .5) * _SsprSize.zw;
+    float3 world;
+    if (!WorldAt(uv, world) || world.y <= _SsprWater.x + .006) return;
+    world.y = 2 * _SsprWater.x - world.y;
+    float eyeDepth = -mul(_SsprView, float4(world, 1)).z;
+    if (eyeDepth <= 0 || eyeDepth >= _SsprWater.y) return;
+    float4 clipPosition = mul(_SsprVP, float4(world, 1));
+    if (clipPosition.w <= .00001) return;
+    float2 reflected = clipPosition.xy / clipPosition.w;
+#if UNITY_UV_STARTS_AT_TOP
+    reflected.y = -reflected.y;
+#endif
+    reflected = reflected * .5 + .5;
+    if (any(reflected < 0) || any(reflected >= 1)) return;
+    uint2 pixel = (uint2)(reflected * _SsprSize.xy);
+    // Atomic nearest-depth winner plus deterministic source-index tie breaking.
+    // The highest depth bucket is reserved so all-ones always means empty.
+    uint depthKey = (uint)(saturate(eyeDepth / _SsprWater.y) * DepthLevels());
+    uint key = (depthKey << SourceBits()) | (id.y * (uint)_SsprSize.x + id.x);
+    InterlockedMin(_SsprKeyWrite[pixel], key);
+}
+
+[numthreads(8,8,1)]
+void Resolve(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_SsprSize.xy)) return;
+    _SsprOutput[id.xy] = 0;
+    float2 uv = (id.xy + .5) * _SsprSize.zw;
+    float3 floorPosition;
+    if (!WorldAt(uv, floorPosition)) return;
+    float3 local = mul(_SsprWorldToWater, float4(floorPosition, 1)).xyz;
+    if (local.y > .006 || local.y < -_SsprWater.z || any(abs(local.xz) > _SsprBounds.xy)) return;
+    uint key = _SsprKeyRead.Load(int3(id.xy, 0));
+    float confidence = 1;
+    if (key == 0xffffffffu)
+    {
+        int radius = (int)_SsprWater.w;
+        int nearest = 100;
+        // Bounded, one-pass hole fill. Never propagate already-filled values or accumulate stale history.
+        [loop] for (int y = -radius; y <= radius; y++) [loop] for (int x = -radius; x <= radius; x++)
+        {
+            int2 p = (int2)id.xy + int2(x, y);
+            if (any(p < 0) || any(p >= (int2)_SsprSize.xy)) continue;
+            uint candidate = _SsprKeyRead.Load(int3(p, 0));
+            int distanceSquared = x*x + y*y;
+            if (candidate != 0xffffffffu && (distanceSquared < nearest || (distanceSquared == nearest && candidate < key)))
+            { nearest = distanceSquared; key = candidate; }
+        }
+        if (key == 0xffffffffu) return;
+        confidence = .65 / max(1, sqrt((float)nearest));
+    }
+    uint source = key & SourceMask();
+    float2 sourceUv = (float2(source % (uint)_SsprSize.x, source / (uint)_SsprSize.x) + .5) * _SsprSize.zw;
+    confidence *= saturate(min(min(sourceUv.x, sourceUv.y), min(1-sourceUv.x, 1-sourceUv.y)) * 20);
+    float3 color = _SsprColor.SampleLevel(sampler_LinearClamp, sourceUv, 0).rgb;
+    _SsprOutput[id.xy] = float4(color * confidence, confidence);
+}
+
+// Bounded tent reconstruction at reflection resolution, with no extra target or history.
+// Missing samples reduce coverage; samples on another depth layer are excluded instead of bleeding colors.
+[numthreads(8,8,1)]
+void ResolveSoft(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_SsprSize.xy)) return;
+    _SsprOutput[id.xy] = 0;
+    float3 floorPosition;
+    if (!WorldAt((id.xy + .5) * _SsprSize.zw, floorPosition)) return;
+    float3 local = mul(_SsprWorldToWater, float4(floorPosition, 1)).xyz;
+    if (local.y > .006 || local.y < -_SsprWater.z || any(abs(local.xz) > _SsprBounds.xy)) return;
+
+    uint keys[25]; uint reference = 0xffffffffu; int nearest = 100;
+    int radius = clamp((int)_SsprWater.w, 1, 2);
+    [unroll] for (uint sampleIndex = 0; sampleIndex < 25; sampleIndex++)
+    {
+        int2 offset = int2(sampleIndex % 5u, sampleIndex / 5u) - 2, pixel = (int2)id.xy + offset;
+        uint key = 0xffffffffu;
+        if (all(abs(offset) <= radius) && all(pixel >= 0) && all(pixel < (int2)_SsprSize.xy)) key = _SsprKeyRead.Load(int3(pixel, 0));
+        keys[sampleIndex] = key;
+        int distanceSquared = offset.x * offset.x + offset.y * offset.y;
+        if (key != 0xffffffffu && (distanceSquared < nearest || (distanceSquared == nearest && key < reference)))
+        { reference = key; nearest = distanceSquared; }
+    }
+    if (reference == 0xffffffffu) return;
+    if (_SsprWater.w < .5 && keys[12] == 0xffffffffu) return;
+    float referenceDepth = (reference >> SourceBits()) * (_SsprWater.y / DepthLevels());
+    float tolerance = max(.15, referenceDepth * .04);
+    float4 weightedColor = 0, centerColor = 0;
+    float filterWeight = 0, coverage = 0, eligible = radius == 1 ? 16 : 81;
+    [unroll] for (uint tapIndex = 0; tapIndex < 25; tapIndex++)
+    {
+        uint key = keys[tapIndex];
+        if (key == 0xffffffffu) continue;
+        int2 offset = int2(tapIndex % 5u, tapIndex / 5u) - 2;
+        float spatial = (radius + 1 - abs(offset.x)) * (radius + 1 - abs(offset.y));
+        float depth = (key >> SourceBits()) * (_SsprWater.y / DepthLevels());
+        float delta = abs(depth - referenceDepth);
+        if (delta >= tolerance) { eligible -= spatial; continue; }
+        float weight = spatial * (1 - delta / tolerance);
+        uint source = key & SourceMask();
+        float2 sourceUv = (float2(source % (uint)_SsprSize.x, source / (uint)_SsprSize.x) + .5) * _SsprSize.zw;
+        float confidence = saturate(min(min(sourceUv.x, sourceUv.y), min(1-sourceUv.x, 1-sourceUv.y)) * 20);
+        float3 color = _SsprColor.SampleLevel(sampler_LinearClamp, sourceUv, 0).rgb;
+        if (tapIndex == 12) centerColor = float4(color, confidence);
+        weightedColor += float4(color * confidence, confidence) * weight;
+        filterWeight += weight; coverage += spatial;
+    }
+    // Keep premultiplied confidence through reconstruction and the final bilinear upsample.
+    float4 result = weightedColor / max(.00001, filterWeight) * saturate(coverage / max(1, eligible));
+    // Keep coverage AA in every tier; retain more center-pixel detail in higher tiers.
+    if (keys[12] != 0xffffffffu && result.a > .00001)
+        result.rgb = lerp(centerColor.rgb, result.rgb / result.a, saturate(_SsprFilterStrength)) * result.a;
+    _SsprOutput[id.xy] = result;
+}

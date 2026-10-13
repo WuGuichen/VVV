@@ -13,9 +13,27 @@ namespace MxFramework.Authoring.Tests;
 
 internal static class ResourceMappingProfileV2Tests
 {
+    public static void RunCharacterMaterialCollisionChecks()
+    {
+        CharacterProducer_MaterialDescriptorMapsFinalUnityAssetAndFailsClosed();
+        CharacterProducer_RejectsMaterialTargetCollisionsDeterministically();
+        CharacterImport_MaterialTargetCollisionPreservesPublishedOutputs();
+    }
+
     public static void RunFairyGuiAtlasChecks()
     {
         VerifyFairyGuiAtlasPages(new FairyGuiRepositoryProducerAdapter().BuildSnapshot(Directory.GetCurrentDirectory()));
+    }
+
+    public static void RunCharacterSyncChecks()
+    {
+        CharacterSync_RejectsCompileBlockedSnapshots();
+        CharacterSync_RejectsUnsupportedFormatBeforePublishing();
+        CharacterSync_RequiresCompileGateReport();
+        CharacterSync_AllowsWarningsSpawnBlocksAndPendingImport();
+        CharacterSync_ReplacesCompleteSnapshotAndRejectsStaleRevision();
+        CharacterUnityImport_SubmitsSnapshotThroughAggregator();
+        CharacterThenFirstPartySync_PreservesPackageOwnedRows();
     }
 
     private static void VerifyFairyGuiAtlasPages(ResourceMappingProducerSnapshotResult result)
@@ -59,7 +77,13 @@ internal static class ResourceMappingProfileV2Tests
         ResourceManagerProductionState_UsesSharedPlan();
         CharacterCompiler_EmitsCanonicalOwnedSnapshot();
         CharacterProducer_MaterialDescriptorMapsFinalUnityAssetAndFailsClosed();
+        CharacterProducer_RejectsMaterialTargetCollisionsDeterministically();
+        CharacterImport_MaterialTargetCollisionPreservesPublishedOutputs();
         CharacterSync_ReplacesCompleteSnapshotAndRejectsStaleRevision();
+        CharacterSync_RejectsCompileBlockedSnapshots();
+        CharacterSync_RejectsUnsupportedFormatBeforePublishing();
+        CharacterSync_RequiresCompileGateReport();
+        CharacterSync_AllowsWarningsSpawnBlocksAndPendingImport();
         CharacterUnityImport_SubmitsSnapshotThroughAggregator();
         CharacterThenFirstPartySync_PreservesPackageOwnedRows();
         FirstPartySync_ConsumesReviewedDecisionsWithoutAliases();
@@ -614,6 +638,212 @@ internal static class ResourceMappingProfileV2Tests
             "A Material descriptor without a known final .mat materializer must fail closed instead of corrupting the Profile.");
         Require(invalid.Diagnostics.Exists(diagnostic => diagnostic.Code == "CharacterGeneratedMaterialPathInvalid"),
             "Invalid Material source path should report CharacterGeneratedMaterialPathInvalid.");
+    }
+
+    private static void AddCollisionMaterials(CharacterResourcePackage package, string firstName, string secondName)
+    {
+        string[] names = { firstName, secondName };
+        for (int i = 0; i < names.Length; i++)
+        {
+            string key = "char." + package.Manifest.PackageId + ".material.probe_" + i;
+            string relativePath = "resources/materials/" + i + "/" + names[i] + ".material.json";
+            package.ResourceCatalog.Entries.Add(new CharacterPackageResourceEntry
+            {
+                ResourceKey = key,
+                StableId = "charpkg." + package.Manifest.PackageId + ".resource.material.probe_" + i,
+                TypeId = CharacterPackageResourceTypeIds.Material,
+                Usage = CharacterPackageResourceUsageIds.Material,
+                SourceFormat = CharacterPackageResourceFormatIds.MaterialJson,
+                RelativePath = relativePath,
+                ImportHints = new CharacterPackageImportHint { TargetRelativePath = relativePath }
+            });
+        }
+    }
+
+    private static void CharacterProducer_RejectsMaterialTargetCollisionsDeterministically()
+    {
+        foreach (string secondName in new[] { "Shared", "shared", "Shared_Detail" })
+        {
+            string firstName = secondName == "Shared_Detail" ? "Shared.Detail" : "Shared";
+            var package = new CharacterResourcePackage
+            {
+                Manifest = new CharacterPackageManifest { PackageId = "collision_test" },
+                ResourceCatalog = new CharacterPackageResourceCatalog()
+            };
+            AddCollisionMaterials(package, firstName, secondName);
+            var mapping = new CharacterPackageResourceMapping();
+            foreach (CharacterPackageResourceEntry source in package.ResourceCatalog.Entries)
+                mapping.Entries.Add(new CharacterPackageResourceMappingEntry
+                {
+                    PackageResourceKey = source.ResourceKey,
+                    ImportTargetPath = "Assets/MxFrameworkGenerated/CharacterPackages/collision_test/" + source.RelativePath
+                });
+            CharacterResourceMappingV2Materialization first = CharacterResourceMappingV2Producer.Materialize(package, mapping);
+            Require(first.HasErrors && first.Diagnostics.Exists(d => d.Code == "CharacterGeneratedMaterialTargetCollision"),
+                "Different material identities targeting the same sanitized Windows path must be rejected: " + firstName + ", " + secondName);
+            package.ResourceCatalog.Entries.Reverse();
+            mapping.Entries.Reverse();
+            CharacterResourceMappingV2Materialization reordered = CharacterResourceMappingV2Producer.Materialize(package, mapping);
+            Require(JsonSerializer.Serialize(first.Diagnostics, CreateJsonOptions()) == JsonSerializer.Serialize(reordered.Diagnostics, CreateJsonOptions()),
+                "Collision diagnostics must be stable under catalog and mapping reorder.");
+        }
+    }
+
+    private static void CharacterImport_MaterialTargetCollisionPreservesPublishedOutputs()
+    {
+        WithCharacterSyncFixture((root, profilePath, packagePath, package, normal) =>
+        {
+            Require(normal.UnityImportWritePlan.CanWriteToUnityProject, "Normal package must remain importable.");
+            string materialPath = Path.Combine(root, normal.UnityImportWritePlan.TargetRootPath, "materials", package.Manifest.PackageId + "_Shared.mat");
+            Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
+            File.WriteAllText(materialPath, "existing published material");
+            string configPath = Path.Combine(root, normal.UnityImportWritePlan.TargetRootPath, "config", "character_config_patch.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(configPath));
+            File.WriteAllText(configPath, "existing published config");
+            var before = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+                before[file] = Convert.ToBase64String(File.ReadAllBytes(file));
+            AddCollisionMaterials(package, "Shared", "Shared");
+            CharacterAuthoringCompileResult blocked = CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest { Package = package, PackageRootPath = packagePath });
+            Require(blocked.GateReport.ImportBlocked && !blocked.UnityImportWritePlan.CanWriteToUnityProject,
+                "Material target collision must block the compiler write plan before any publication.");
+            Require(blocked.GateReport.Issues.Exists(i => i.Code == "CharacterGeneratedMaterialTargetCollision"),
+                "The original collision diagnostic must reach the compile gate.");
+            CharacterUnityImportReport report = CharacterUnityImportBridge.Execute(new CharacterUnityImportBridgeRequest
+            {
+                CompileResult = blocked, PackageRootPath = packagePath, ProjectRootPath = root
+            });
+            Require(!report.CanWriteToUnityProject && report.Operations.Count == 0,
+                "Blocked import must execute no write operations.");
+            ResourceMappingCharacterSyncResult sync = ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, blocked, "StandaloneWindows64");
+            Require(!sync.Success && !sync.Changed, "Blocked material mapping must not publish to Profile.");
+            string[] after = Directory.GetFiles(root, "*", SearchOption.AllDirectories);
+            Require(after.Length == before.Count, "Blocked import must create no project outputs.");
+            foreach (string file in after)
+                Require(before.TryGetValue(file, out string bytes) && bytes == Convert.ToBase64String(File.ReadAllBytes(file)),
+                    "Blocked import must preserve existing output bytes: " + file);
+        });
+    }
+
+    private static void CharacterSync_RejectsCompileBlockedSnapshots()
+    {
+        foreach (bool exportBlocked in new[] { false, true })
+        {
+            WithCharacterSyncFixture((root, profilePath, packagePath, package, compiled) =>
+            {
+                CharacterAuthoringValidationGate gate = exportBlocked
+                    ? CharacterAuthoringValidationGate.ExportBlocked : CharacterAuthoringValidationGate.ImportBlocked;
+                var issue = new CharacterAuthoringValidationIssue
+                {
+                    Severity = CharacterAuthoringValidationSeverity.Error,
+                    Gate = gate,
+                    Code = "ORIGINAL_COMPILE_BLOCK",
+                    SourcePath = "resource_catalog.json",
+                    SourceObjectPath = "entries[0]",
+                    Field = "sourceFormat",
+                    Message = "Original compiler diagnostic.",
+                    SuggestedFix = "Original compiler suggested fix."
+                };
+                compiled.GateReport.ExportBlocked = exportBlocked;
+                compiled.GateReport.ImportBlocked = !exportBlocked;
+                compiled.GateReport.Issues.Add(issue);
+                byte[] before = File.ReadAllBytes(profilePath);
+                string revision = new ResourceMappingProfileFileAggregator().Read(profilePath).Revision;
+
+                ResourceMappingCharacterSyncResult result = ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, compiled, "StandaloneWindows64");
+
+                Require(!result.Success && !result.Changed && result.ErrorCode == "RESOURCE_MAPPING_CHARACTER_COMPILE_BLOCKED",
+                    "Both compiler blocking gates must reject a complete, otherwise valid snapshot.");
+                Require(result.CompileDiagnostics.Contains(issue), "Original compiler diagnostic payload must be preserved.");
+                Require(Convert.ToBase64String(File.ReadAllBytes(profilePath)) == Convert.ToBase64String(before), "Blocked sync must preserve all Profile bytes and every producer.");
+                Require(new ResourceMappingProfileFileAggregator().Read(profilePath).Revision == revision, "Blocked sync must preserve the revision.");
+            });
+        }
+    }
+
+    private static void CharacterSync_RejectsUnsupportedFormatBeforePublishing()
+    {
+        WithCharacterSyncFixture((root, profilePath, packagePath, package, compiled) =>
+        {
+            Require(ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, compiled, "StandaloneWindows64").Success,
+                "Valid compilation must establish a normal mapping before the fault.");
+            byte[] before = File.ReadAllBytes(profilePath);
+            CharacterPackageResourceEntry texture = package.ResourceCatalog.Entries.Find(entry => entry.ResourceKey == "char.codex_flow_test.texture.body_albedo");
+            texture.SourceFormat = "wav";
+            texture.ImportHints.TargetRelativePath = "resources/textures/rejected_sync_gate.wav";
+            CharacterAuthoringCompileResult blocked = CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest
+            {
+                Package = package, PackageRootPath = packagePath
+            });
+            Require(blocked.GateReport.ImportBlocked && blocked.ResourceMappingV2Diagnostics.Count == 0,
+                "Unsupported texture source format must be a compiler gate failure, independent of mapping diagnostics.");
+            ResourceMappingCharacterSyncResult result = ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, blocked, "StandaloneWindows64");
+            Require(!result.Success && !result.Changed, "Actual compiler ImportBlocked must stop synchronization.");
+            Require(result.CompileDiagnostics.Exists(issue => issue.Code == CharacterAuthoringValidationCodes.UnsupportedResourceFormat
+                && issue.Gate == CharacterAuthoringValidationGate.ImportBlocked && issue.Field == "sourceFormat"),
+                "Sync must expose the original unsupported-format diagnostic and location.");
+            Require(Convert.ToBase64String(File.ReadAllBytes(profilePath)) == Convert.ToBase64String(before), "The previously valid Profile must remain byte-identical.");
+        });
+    }
+
+    private static void CharacterSync_RequiresCompileGateReport()
+    {
+        WithCharacterSyncFixture((root, profilePath, packagePath, package, compiled) =>
+        {
+            byte[] before = File.ReadAllBytes(profilePath);
+            compiled.GateReport = null;
+            ResourceMappingCharacterSyncResult result = ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, compiled, "StandaloneWindows64");
+            Require(!result.Success && result.ErrorCode == "RESOURCE_MAPPING_CHARACTER_COMPILE_GATE_MISSING", "Missing compiler gate evidence must fail closed.");
+            Require(Convert.ToBase64String(File.ReadAllBytes(profilePath)) == Convert.ToBase64String(before), "Missing gate evidence must not publish a snapshot.");
+        });
+    }
+
+    private static void CharacterSync_AllowsWarningsSpawnBlocksAndPendingImport()
+    {
+        foreach (bool spawnBlocked in new[] { false, true })
+        {
+            WithCharacterSyncFixture((root, profilePath, packagePath, package, compiled) =>
+            {
+                compiled.GateReport.SpawnBlocked = spawnBlocked;
+                compiled.GateReport.WarningOnly = !spawnBlocked;
+                compiled.GateReport.Issues.Add(new CharacterAuthoringValidationIssue
+                {
+                    Gate = spawnBlocked ? CharacterAuthoringValidationGate.SpawnBlocked : CharacterAuthoringValidationGate.WarningOnly,
+                    Severity = spawnBlocked ? CharacterAuthoringValidationSeverity.Error : CharacterAuthoringValidationSeverity.Warning,
+                    Code = "NON_IMPORT_BLOCKING_DIAGNOSTIC"
+                });
+                Require(!Directory.Exists(Path.Combine(root, "Assets/MxFrameworkGenerated/CharacterPackages")), "Fixture must contain no imported Character assets.");
+                ResourceMappingCharacterSyncResult first = ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, compiled, "StandaloneWindows64");
+                Require(first.Success && first.Changed, "Warning-only or SpawnBlocked must not block a valid pending-import mapping.");
+                Require(first.CompileDiagnostics.Exists(issue => issue.Code == "NON_IMPORT_BLOCKING_DIAGNOSTIC"), "Non-blocking compiler diagnostics must remain visible.");
+                ResourceMappingCharacterSyncResult second = ResourceMappingCharacterCoordinator.ApplyFromCompileResult(root, compiled, "StandaloneWindows64");
+                Require(second.Success && !second.Changed, "An identical pending-import snapshot must remain a no-op.");
+                Require(!Directory.Exists(Path.Combine(root, "Assets/MxFrameworkGenerated/CharacterPackages")), "Sync must not fabricate imported assets.");
+            });
+        }
+    }
+
+    private static void WithCharacterSyncFixture(Action<string, string, string, CharacterResourcePackage, CharacterAuthoringCompileResult> check)
+    {
+        string root = Path.Combine(Directory.GetCurrentDirectory(), "Temp", "ResourceMappingCharacterGateTests", Guid.NewGuid().ToString("N"));
+        string profilePath = Path.Combine(root, "Assets/Config/MxFramework/ResourceProfiles/global_resource_mapping_profile.v2.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(profilePath));
+        ResourceMappingProfileReadResult seed = ResourceMappingProfileJson.ReadStrict(File.ReadAllText("Assets/Config/MxFramework/ResourceProfiles/global_resource_mapping_profile.v2.json"));
+        Require(seed.Success, "Profile fixture seed must be valid.");
+        seed.Profile.Entries.RemoveAll(entry => entry?.ProducerReceipt?.ProducerId == "character.package.codex-flow-test");
+        File.WriteAllText(profilePath, new GlobalResourceBuildPlanCompiler().SerializeCanonicalProfile(seed.Profile));
+        try
+        {
+            string packagePath = Path.Combine(Directory.GetCurrentDirectory(), "Tools/MxFramework.Authoring/samples/character-codex-flow-test");
+            CharacterResourcePackage package = CharacterPackageCommands.ReadPackage(packagePath, MxFramework.Authoring.Cli.Program.CreateJsonOptions());
+            CharacterAuthoringCompileResult compiled = CharacterAuthoringCompiler.Compile(new CharacterAuthoringCompileRequest { Package = package, PackageRootPath = packagePath });
+            Require(!compiled.GateReport.ExportBlocked && !compiled.GateReport.ImportBlocked, "Fixture must start from a non-blocked character compilation.");
+            check(root, profilePath, packagePath, package, compiled);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     private static void CharacterSync_ReplacesCompleteSnapshotAndRejectsStaleRevision()

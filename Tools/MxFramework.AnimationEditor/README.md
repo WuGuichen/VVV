@@ -17,6 +17,14 @@ Animation Editor 是独立动画配置编辑器。CharacterStudio 使用的 `glo
 
 真实 3D 播放器、Bake 执行、Compiler 集成和 CharacterStudio 迁移由后续里程碑任务完成。
 
+## Timeline 本地 Seconds 诊断
+
+事件的有效 Clip 为 `event.clipId || timeline.clipId`，空或未填写的 Event Clip 继续继承 Timeline 默认 Clip。Seconds 范围按每个事件的有效 Clip 分别计算，允许 `0 <= time <= duration`，负数和超过时长均产生 `ANIM_TIMELINE_EVENT_SECONDS_RANGE`；缺失本地 Clip 的引用诊断继续保留。
+
+`timeline.metadata.durationSeconds` 只覆盖 Timeline 默认 `clipId` 的诊断时长，包括继承默认 Clip 和显式引用同一默认 Clip 的事件。显式引用其他本地 Clip 的事件只读取该 Clip 的 `metadata.durationSeconds`，不套用 Timeline 的覆盖值。例如，默认 Clip 为 10 秒、事件选择 1 秒 Clip 时，5 秒事件必须报错；默认 Clip 为 1 秒、事件选择 10 秒 Clip 时，5 秒事件合法。
+
+默认 Clip 的覆盖值、Clip metadata 和 1 秒后备值继续使用既有 `Number(value || fallback)` 转换与回退规则，不重写旧 authoring 数据。Normalized、PresentationFrame 和 CombatFrame 的原有诊断规则保持；Seconds 轨道的显示尺度仍由默认 Timeline Clip 和其时长覆盖决定。该说明仅描述编辑期本地诊断，不证明 Compiler、Preview、Bake 或 Runtime 的执行结果。
+
 ## 启动
 
 macOS / Linux:
@@ -61,6 +69,9 @@ Tools/MxFramework.AnimationEditor/start-animation-editor.sh 4885 Tools/MxFramewo
 ## 验证
 
 ```bash
+node --test Tools/MxFramework.AnimationEditor/scripts/timeline-diagnostics.test.mjs
 node Tools/MxFramework.AnimationEditor/scripts/smoke.mjs
 bash -n Tools/MxFramework.AnimationEditor/start-animation-editor.sh
 ```
+
+`timeline-diagnostics.test.mjs` 直接提取当前 `web/app.js` 的实际诊断及诊断 HTML 函数，在 Node 中覆盖不同 Event Clip 的误报／漏报、继承与边界、默认 Clip 时长覆盖、旧数据后备值、混合事件以及其它时间域。脚本不加载完整浏览器应用、Compiler、Preview、Bake 或 Unity，不替代浏览器交互及视觉验收。独立复验可用 `node Tools/MxFramework.AnimationEditor/scripts/timeline-diagnostics.test.mjs <从候选提交导出的app.js路径>` 对固定源码执行同一组 fixture。

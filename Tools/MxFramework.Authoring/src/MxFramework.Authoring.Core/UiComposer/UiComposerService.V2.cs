@@ -418,7 +418,7 @@ namespace MxFramework.Authoring.UiComposer
             {
                 ComponentRecipeId = recipe.ComponentId,
                 ComponentName = componentName,
-                ComponentRelativePath = "Components/" + componentName + ".xml",
+                ComponentRelativePath = ComponentRelativePath(recipe),
                 Token = ComponentToken(recipe.ComponentId),
                 XmlTemplate = string.Equals(recipe.ComponentType, "Composite", StringComparison.Ordinal)
                     ? BuildCompositeXml(recipe, resourcesById, recipesById)
@@ -905,6 +905,7 @@ namespace MxFramework.Authoring.UiComposer
             string recipePath,
             List<UiComposerDiagnostic> diagnostics)
         {
+            ValidateComponentRecipePaths(recipes, recipePath, diagnostics);
             var recipesById = recipes
                 .Where(recipe => !string.IsNullOrWhiteSpace(recipe.ComponentId))
                 .GroupBy(recipe => recipe.ComponentId, StringComparer.Ordinal)
@@ -943,6 +944,39 @@ namespace MxFramework.Authoring.UiComposer
             var visited = new HashSet<string>(StringComparer.Ordinal);
             foreach (string recipeId in recipesById.Keys)
                 ValidateCompositeCycle(recipeId, recipesById, new HashSet<string>(StringComparer.Ordinal), visited, recipePath, diagnostics);
+        }
+
+        private static void ValidateComponentRecipePaths(
+            UiComponentRecipe[] recipes,
+            string recipePath,
+            List<UiComposerDiagnostic> diagnostics)
+        {
+            // Use the helper's portable filename alphabet and Windows path equivalence on every host.
+            var paths = new Dictionary<string, UiComponentRecipe>(StringComparer.OrdinalIgnoreCase);
+            foreach (UiComponentRecipe recipe in recipes)
+            {
+                string name = ComponentName(recipe);
+                string path = recipePath + "#" + recipe.ComponentId;
+                if (string.IsNullOrEmpty(name) || name.Any(character =>
+                    !(character >= 'A' && character <= 'Z') && !(character >= 'a' && character <= 'z')
+                    && !(character >= '0' && character <= '9') && character != '_'))
+                {
+                    diagnostics.Add(UiComposerDiagnostic.Error("UICOMP019",
+                        "Effective FairyGUI component name must use only ASCII letters, digits or underscore.", path));
+                    continue;
+                }
+
+                string relativePath = ComponentRelativePath(recipe);
+                if (paths.TryGetValue(relativePath, out UiComponentRecipe first))
+                {
+                    string message = "Recipes '" + first.ComponentId + "' and '" + recipe.ComponentId
+                        + "' map to the same FairyGUI component file '" + relativePath
+                        + "' (case-insensitive). Assign distinct component names.";
+                    diagnostics.Add(UiComposerDiagnostic.Error("UICOMP020", message, recipePath + "#" + first.ComponentId));
+                    diagnostics.Add(UiComposerDiagnostic.Error("UICOMP020", message, path));
+                }
+                else paths.Add(relativePath, recipe);
+            }
         }
 
         private static void ValidateComponentBindingContracts(
@@ -1572,7 +1606,8 @@ namespace MxFramework.Authoring.UiComposer
 
         private static UiComposerBindingSlot FindBindingSlot(UiComposerBindingSlot[] bindings, string slotId) => (bindings ?? Array.Empty<UiComposerBindingSlot>()).FirstOrDefault(item => item.SlotId == slotId);
         private static string FindBindingSlotByControlName(UiComposerBindingSlot[] bindings, string controlName) => (bindings ?? Array.Empty<UiComposerBindingSlot>()).FirstOrDefault(item => item.ControlName == controlName)?.SlotId ?? string.Empty;
-        private static string ComponentName(UiComponentRecipe recipe) => string.IsNullOrWhiteSpace(recipe.FairyGuiComponentName) ? recipe.ComponentId.Split('.').Last() : recipe.FairyGuiComponentName;
+        private static string ComponentName(UiComponentRecipe recipe) => string.IsNullOrWhiteSpace(recipe.FairyGuiComponentName) ? (recipe.ComponentId ?? string.Empty).Split('.').Last() : recipe.FairyGuiComponentName;
+        private static string ComponentRelativePath(UiComponentRecipe recipe) => "Components/" + ComponentName(recipe) + ".xml";
         private static string TargetPngRelativePath(string libraryId, string relativePath)
         {
             string normalized = NormalizePath(relativePath);

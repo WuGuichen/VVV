@@ -16,7 +16,11 @@
     <Reference Include="Newtonsoft.Json"><HintPath>$(NewtonsoftPath)</HintPath></Reference>
     <Compile Include="$(PackageRoot)/Core/**/*.cs;$(PackageRoot)/Runtime/**/*.cs;$(PackageRoot)/Network/**/*.cs;$(PackageRoot)/Events/**/*.cs;$(PackageRoot)/Attributes/**/*.cs;$(PackageRoot)/Modifiers/**/*.cs;$(PackageRoot)/Gameplay/**/*.cs;$(PackageRoot)/Combat/**/*.cs;$(PackageRoot)/CharacterAction/**/*.cs;$(PackageRoot)/CharacterControl/**/*.cs" Exclude="$(PackageRoot)/**/AssemblyInfo.cs" />
     <Compile Include="$(TacticalRoot)/MomentumLedger.cs;$(TacticalRoot)/TacticalAccessoryCombatEffects.cs" />
+    <Compile Include="$(TacticalRoot)/TacticalDoubleEdgeDamageRules.cs;$(TacticalRoot)/TacticalBlackHoleRules.cs" />
+    <Compile Include="$(TacticalRoot)/TacticalDoubleEdgeBattleState.cs" />
     <Compile Include="$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalAccessoryCombatEffectsTests.cs" />
+    <Compile Include="$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalDoubleEdgeDamageRulesTests.cs;$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalBlackHoleRulesTests.cs" />
+    <Compile Include="$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/TacticalCard/TacticalDoubleEdgeBattleStateTests.cs" />
   </ItemGroup>
   <Target Name="RequireCachedDependencies" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('$(NUnitFrameworkPath)')" Text="Supply an existing NUnit 3.13.1 DLL; this source-linked candidate runner never opens Unity or downloads dependencies." />

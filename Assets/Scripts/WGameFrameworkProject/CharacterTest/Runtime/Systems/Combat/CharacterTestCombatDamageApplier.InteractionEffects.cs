@@ -12,13 +12,15 @@ namespace MxFramework.Game.CharacterTest
     {
         private bool _applyingInteractionDerived;
         private readonly HitResolveResult[] _singleDamageResult = new HitResolveResult[1];
-        private readonly struct DerivedMarkRequest
+        internal readonly struct DerivedMarkRequest
         {
             internal readonly HitResolveResult Result;
             internal readonly GameplayEntityId Target;
             internal DerivedMarkRequest(HitResolveResult result, GameplayEntityId target) { Result = result; Target = target; }
         }
         private readonly List<DerivedMarkRequest> _derivedMarkRequests = new List<DerivedMarkRequest>(16);
+        internal IReadOnlyList<DerivedMarkRequest> PendingDerivedMarks => _derivedMarkRequests;
+        internal void ClearDerivedMarks() => _derivedMarkRequests.Clear();
         private readonly List<GameplayScatterPressureRequest> _interactionPressureRequests = new List<GameplayScatterPressureRequest>(16);
         private void CommitInteractionHpCommands(CharacterTestCharacterRuntimeWorld world, RuntimeFrame frame)
         {
@@ -29,9 +31,10 @@ namespace MxFramework.Game.CharacterTest
         private void CommitInteractionReceipt(CharacterTestCharacterRuntimeWorld world, RuntimeFrame frame, HitResolveResult result,
             DamageProfileResolveResult payload, int actualHpLoss, bool targetWasAlive)
         {
+            if (_applyingInteractionDerived) return;
             var attacker = FindEntityByCombatId(result.AttackerId); var target = FindEntityByCombatId(result.TargetId);
             if (attacker == null || target == null || result.Frame.Value != frame.Value) return;
-            var receipt = new TacticalInteractionReceipt(attacker.InteractionEffects.Stage, attacker.InteractionEffects.Turn, frame.Value, attacker.GameplayEntityId, target.GameplayEntityId, result.ActionInstanceId, result.TraceId);
+            var receipt = new TacticalInteractionReceipt(attacker.InteractionEffects.Stage, attacker.InteractionEffects.Turn, frame.Value, attacker.GameplayEntityId, target.GameplayEntityId, result.ActionInstanceId, result.TraceId, result.ProducerIdentity);
             bool activeSource = payload.Success && (payload.Usage.SourceKind == DamageProfileSourceKind.WeaponTrace
                 || payload.Usage.SourceKind == DamageProfileSourceKind.ProjectileImpact || payload.Usage.SourceKind == DamageProfileSourceKind.AreaPulse);
             bool validHit = targetWasAlive && result.IsAcceptedDamage && activeSource;
@@ -49,11 +52,11 @@ namespace MxFramework.Game.CharacterTest
                 _interactionPressureRequests.Add(new GameplayScatterPressureRequest(target.GameplayEntityId, extraPressure, attacker.Id.Value,
                     GameplayScatterPressureEvents.ApplyPressureReason, CreateTraceIdentity(result.TraceId)));
             if (world.GetCurrentAttribute(target.GameplayEntityId, CharacterTestCharacterAttributeIds.Hp) > 0)
-                target.InteractionEffects.CommitReceipt(new TacticalInteractionReceipt(target.InteractionEffects.Stage, target.InteractionEffects.Turn, receipt.Frame, receipt.Attacker, receipt.Target, receipt.ActionInstance, receipt.Trace), actualHpLoss, validHit, result.Kind == HitResolveKind.Blocked,
+                target.InteractionEffects.CommitReceipt(new TacticalInteractionReceipt(target.InteractionEffects.Stage, target.InteractionEffects.Turn, receipt.Frame, receipt.Attacker, receipt.Target, receipt.ActionInstance, receipt.Trace, receipt.ProducerIdentity), actualHpLoss, validHit, result.Kind == HitResolveKind.Blocked,
                     derived: false, defendingLedger);
             if (extra > 0 && world.GetCurrentAttribute(target.GameplayEntityId, CharacterTestCharacterAttributeIds.Hp) > 0)
                 _derivedMarkRequests.Add(new DerivedMarkRequest(new HitResolveResult(result.AttackerId, result.TargetId, result.ActionId, result.ActionInstanceId, result.TraceId,
-                    result.Frame, HitResolveKind.Damage, extra, 0, FixVector3.Zero, result.HitPointWorld, result.HitNormalWorld), target.GameplayEntityId));
+                    result.Frame, HitResolveKind.Damage, extra, 0, FixVector3.Zero, result.HitPointWorld, result.HitNormalWorld).WithProducerIdentity(result.ProducerIdentity), target.GameplayEntityId));
         }
         private void EnqueueInteractionPressureRequests()
         {
@@ -80,7 +83,7 @@ namespace MxFramework.Game.CharacterTest
             }
             _derivedMarkRequests.Clear();
         }
-        private static DamageProfileResolveResult ResolveDerivedMarkPayload(HitResolveResult result)
+        internal static DamageProfileResolveResult ResolveDerivedMarkPayload(HitResolveResult result)
         {
             var usage = new DamageProfileUsage(DamageProfileSourceKind.Scripted, actionInstanceId: result.ActionInstanceId,
                 sourceEntityId: result.AttackerId.Value, targetEntityId: result.TargetId.Value);

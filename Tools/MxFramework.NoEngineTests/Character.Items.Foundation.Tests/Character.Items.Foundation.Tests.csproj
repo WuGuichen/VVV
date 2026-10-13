@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RepoRoot>../../..</RepoRoot>
+    <PackageRoot>$(RepoRoot)/Packages/com.vincent.wgameframework</PackageRoot>
+    <TacticalRoot>$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/TacticalCard</TacticalRoot>
+    <TestRoot>$(RepoRoot)/Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Items</TestRoot>
+    <DependencyCache Condition="'$(DependencyCache)' == ''">$(UserProfile)/.nuget/packages</DependencyCache>
+    <NUnitFrameworkPath Condition="'$(NUnitFrameworkPath)' == ''">$(DependencyCache)/nunit/3.13.1/lib/netstandard2.0/nunit.framework.dll</NUnitFrameworkPath>
+    <NewtonsoftPath Condition="'$(NewtonsoftPath)' == ''">$(DependencyCache)/newtonsoft.json/13.0.3/lib/net6.0/Newtonsoft.Json.dll</NewtonsoftPath>
+    <UnityCoreModulePath Condition="'$(UnityCoreModulePath)' == ''">C:/Program Files/Unity/Hub/Editor/6000.6.3f1/Editor/Data/Managed/UnityEngine/UnityEngine.CoreModule.dll</UnityCoreModulePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnityCoreModulePath)</HintPath></Reference>
+    <Reference Include="nunit.framework"><HintPath>$(NUnitFrameworkPath)</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(NewtonsoftPath)</HintPath></Reference>
+    <Compile Include="$(PackageRoot)/Core/**/*.cs;$(PackageRoot)/Runtime/**/*.cs;$(PackageRoot)/Network/**/*.cs;$(PackageRoot)/Events/**/*.cs;$(PackageRoot)/Attributes/**/*.cs;$(PackageRoot)/Modifiers/**/*.cs;$(PackageRoot)/Gameplay/**/*.cs;$(PackageRoot)/Config/**/*.cs;$(PackageRoot)/Resources/**/*.cs;$(PackageRoot)/Items/**/*.cs;$(PackageRoot)/Items.Runtime/**/*.cs;$(PackageRoot)/Items.Acquisition/**/*.cs;$(PackageRoot)/Items.World/**/*.cs;$(PackageRoot)/Persistence/*.cs;$(PackageRoot)/Persistence.FileSystem/*.cs;$(PackageRoot)/Platform/*.cs" Exclude="$(PackageRoot)/**/AssemblyInfo.cs" />
+    <Compile Include="$(PackageRoot)/Diagnostics/**/*.cs" Exclude="$(PackageRoot)/**/AssemblyInfo.cs" />
+    <Compile Include="$(PackageRoot)/Character.Application/CharacterTacticalDefaults.cs" />
+    <Compile Include="$(TacticalRoot)/MomentumLedger.cs" />
+    <Compile Include="$(TacticalRoot)/CharacterTacticalContent.cs;$(TacticalRoot)/CharacterTacticalPlayerService.cs;$(TacticalRoot)/CharacterTacticalSaveStore.cs" />
+    <Compile Include="$(TacticalRoot)/CharacterTacticalCardAssembly.cs;$(TacticalRoot)/CharacterTacticalPlayerService.CardAssembly.cs" />
+    <Compile Include="$(TacticalRoot)/TacticalFixedAssemblyManifest.cs;$(TacticalRoot)/TacticalFixedCardCommitManifest.cs;$(TacticalRoot)/TacticalAccessoryCombatEffects.cs;$(TacticalRoot)/TacticalInteractionEffects.Accessories.cs" />
+    <Compile Include="$(PackageRoot)/CharacterAction/**/*.cs;$(PackageRoot)/CharacterControl/**/*.cs;$(PackageRoot)/Combat/**/*.cs" Exclude="$(PackageRoot)/**/AssemblyInfo.cs" />
+    <Compile Include="$(TacticalRoot)/TacticalInteractionEffects.cs;$(TacticalRoot)/TacticalDeckManager.cs;$(TacticalRoot)/TacticalDeckManager.TestPreparation.cs;$(TacticalRoot)/TacticalCardInstance.cs;$(TacticalRoot)/TacticalCooldownTracker.cs;$(TacticalRoot)/TacticalTestPreparation.cs" />
+    <Compile Include="$(TacticalRoot)/TacticalBattlePreparationService.cs;$(TacticalRoot)/TacticalDeployment.cs;$(TacticalRoot)/TacticalBattlefieldLayout.cs;$(TacticalRoot)/TacticalCardDefinition.cs;$(TacticalRoot)/TacticalCardEnums.cs;$(TacticalRoot)/TacticalPointMoveRules.cs;$(TacticalRoot)/TacticalPositionRecallRules.cs;$(TacticalRoot)/TacticalCardDefinition.PositionRecall.cs;$(TacticalRoot)/TacticalCardTrialOptions.cs;$(TacticalRoot)/TacticalExecutionInput.cs" />
+    <Compile Include="$(TestRoot)/ItemDefinitionTests.cs;$(TestRoot)/ItemAcquisitionTests.cs" />
+    <Compile Include="$(TestRoot)/TacticalCardAssemblyFoundationTests.cs" />
+  </ItemGroup>
+  <Target Name="RequireCachedDependencies" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(UnityCoreModulePath)')" Text="Set UnityCoreModulePath to the installed Unity managed core DLL. Offline fixtures do not open or control the Editor." />
+    <Error Condition="!Exists('$(NUnitFrameworkPath)')" Text="Set NUnitFrameworkPath to an existing NUnit 3.13.1 DLL. No dependency downloads." />
+    <Error Condition="!Exists('$(NewtonsoftPath)')" Text="Set NewtonsoftPath to an existing Newtonsoft.Json 13.0.3 DLL. No dependency downloads." />
+  </Target>
+</Project>

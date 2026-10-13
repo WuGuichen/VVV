@@ -181,7 +181,244 @@ namespace MxFramework.Tests.ApplicationStartup
             PumpToTerminal(coordinator);
 
             Assert.AreEqual(ApplicationStartupState.Cancelled, coordinator.State);
-            CollectionAssert.AreEqual(new[] { "begin:a", "begin:b", "rollback:a" }, log);
+            Assert.AreEqual(2, coordinator.CompletedStepCount);
+            CollectionAssert.AreEqual(new[] { "begin:a", "begin:b", "rollback:b", "rollback:a" }, log);
+        }
+
+        [TestCase("non-cancellable", false, false)]
+        [TestCase("advisory-cancel", false, false)]
+        [TestCase("cancel-throws", false, false)]
+        [TestCase("already-terminal", false, false)]
+        [TestCase("synchronous-success", false, false)]
+        [TestCase("non-cancellable", true, false)]
+        [TestCase("non-cancellable", false, true)]
+        [TestCase("non-cancellable", true, true)]
+        public void Cancel_DrainedSuccess_CompensatesCurrentStepExactlyOnce(string scenario, bool currentRollbackFails, bool earlierRollbackFails)
+        {
+            var log = new List<string>();
+            var detail = new FakeInnerDetail("drain", "success");
+            var operation = new FakeOperation(RuntimeOperationStatus.Succeeded, 3,
+                canCancel: scenario != "non-cancellable", cancelCompletes: false,
+                throwOnCancel: scenario == "cancel-throws" || scenario == "already-terminal",
+                throwOnTickAfterTerminal: true, innerErrorDetail: detail);
+            IApplicationStartupStepOperation forward = scenario == "synchronous-success"
+                ? new SucceedOnCancelOperation(operation) : operation;
+            var factory = new RecordingTransactionFactory();
+            var publisher = new LiveApplicationStatePublisher();
+            var coordinator = new ApplicationStartupCoordinator(CreateDrainPlan(factory, log, forward,
+                currentRollbackFails ? RuntimeOperationStatus.Failed : RuntimeOperationStatus.Succeeded,
+                earlierRollbackFails ? RuntimeOperationStatus.Failed : RuntimeOperationStatus.Succeeded), publisher);
+            coordinator.Start("drain-success");
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            Assert.AreEqual(2, coordinator.CompletedStepCount);
+            coordinator.RequestCancel();
+            coordinator.RequestCancel();
+            if (scenario == "already-terminal") operation.CompleteExternally(RuntimeOperationStatus.Succeeded);
+            float previousProgress = coordinator.ForwardProgress;
+
+            Tick(coordinator);
+            if (scenario != "already-terminal" && scenario != "synchronous-success")
+            {
+                Assert.AreEqual(ApplicationStartupState.Draining, coordinator.State);
+                Assert.AreSame(forward, coordinator.CurrentOperation);
+                Assert.AreEqual(2, coordinator.CompletedStepCount);
+                Assert.AreEqual(0, factory.Last.RollbackCount);
+                CollectionAssert.AreEqual(new[] { "begin:a", "begin:b", "begin:c" }, log);
+                Assert.That(coordinator.ForwardProgress, Is.GreaterThanOrEqualTo(previousProgress));
+                previousProgress = coordinator.ForwardProgress;
+                coordinator.RequestCancel();
+                Tick(coordinator);
+            }
+
+            Assert.AreEqual(ApplicationStartupState.RollingBack, coordinator.State);
+            Assert.AreEqual(RuntimeOperationStatus.Succeeded, operation.Status);
+            Assert.AreEqual(3, coordinator.CompletedStepCount);
+            Assert.That(coordinator.ForwardProgress, Is.EqualTo(7f / 15f).Within(0.000001f));
+            Assert.That(coordinator.ForwardProgress, Is.GreaterThanOrEqualTo(previousProgress));
+            Assert.AreEqual(0f, coordinator.RollbackProgress);
+            Assert.IsNull(coordinator.CurrentOperation);
+            Assert.AreEqual(RuntimeOperationStatus.Succeeded, coordinator.DrainedOperationStatus);
+            Assert.IsTrue(coordinator.DrainedOperationError.IsNone);
+            Assert.AreSame(detail, coordinator.DrainedInnerDetail);
+            Assert.AreSame(detail, coordinator.ForwardError.InnerDetail);
+            Assert.AreEqual(ApplicationStartupErrorCode.Cancelled, coordinator.ForwardError.Code);
+            Assert.AreEqual("c", coordinator.ForwardError.StepId.Value);
+            if (scenario == "cancel-throws") Assert.IsInstanceOf<InvalidOperationException>(coordinator.ForwardError.Exception);
+            else Assert.IsNull(coordinator.ForwardError.Exception);
+            Assert.AreEqual(scenario == "cancel-throws" || scenario == "advisory-cancel", operation.CancelWasRequested);
+            ApplicationStartupSnapshot snapshot = coordinator.CaptureSnapshot();
+            Assert.AreEqual(3, snapshot.CompletedStepCount);
+            Assert.AreEqual(RuntimeOperationStatus.Succeeded, snapshot.DrainedOperationStatus);
+            Assert.AreSame(detail, snapshot.DrainedInnerDetail);
+
+            PumpToTerminal(coordinator);
+            Assert.AreEqual(currentRollbackFails || earlierRollbackFails ? ApplicationStartupState.RollbackFailed : ApplicationStartupState.Cancelled, coordinator.State);
+            int errors = (currentRollbackFails ? 1 : 0) + (earlierRollbackFails ? 1 : 0);
+            Assert.AreEqual(errors, coordinator.RollbackErrorCount);
+            int errorIndex = 0;
+            if (currentRollbackFails) Assert.AreEqual("c", coordinator.GetRollbackError(errorIndex++).StepId.Value);
+            if (earlierRollbackFails) Assert.AreEqual("b", coordinator.GetRollbackError(errorIndex++).StepId.Value);
+            for (int i = 0; i < errors; i++) Assert.AreEqual(ApplicationStartupErrorCode.RollbackFailed, coordinator.GetRollbackError(i).Code);
+            Assert.AreEqual(ApplicationStartupErrorCode.Cancelled, coordinator.ForwardError.Code);
+            AssertDrainFinalized(coordinator, factory, publisher, log, true);
+        }
+
+        [TestCase(RuntimeOperationStatus.Failed, false)]
+        [TestCase(RuntimeOperationStatus.Cancelled, false)]
+        [TestCase(RuntimeOperationStatus.TimedOut, false)]
+        [TestCase(RuntimeOperationStatus.Cancelled, true)]
+        public void Cancel_DrainedNonSuccess_DoesNotCompensateCurrentStep(RuntimeOperationStatus terminal, bool synchronousCancel)
+        {
+            var log = new List<string>();
+            var detail = new FakeInnerDetail("drain", "non-success");
+            var operation = new FakeOperation(terminal, 3, canCancel: synchronousCancel,
+                throwOnTickAfterTerminal: true, innerErrorDetail: detail);
+            var factory = new RecordingTransactionFactory();
+            var publisher = new LiveApplicationStatePublisher();
+            var coordinator = new ApplicationStartupCoordinator(CreateDrainPlan(factory, log, operation), publisher);
+            coordinator.Start("drain-non-success");
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            coordinator.RequestCancel();
+            Tick(coordinator);
+            if (!synchronousCancel)
+            {
+                Assert.AreEqual(ApplicationStartupState.Draining, coordinator.State);
+                Assert.AreSame(operation, coordinator.CurrentOperation);
+                CollectionAssert.AreEqual(new[] { "begin:a", "begin:b", "begin:c" }, log);
+                Tick(coordinator);
+            }
+
+            Assert.AreEqual(ApplicationStartupState.RollingBack, coordinator.State);
+            Assert.AreEqual(2, coordinator.CompletedStepCount);
+            Assert.AreEqual(terminal, coordinator.DrainedOperationStatus);
+            if (terminal == RuntimeOperationStatus.Failed) Assert.AreEqual("fake.failed", coordinator.DrainedOperationError.Code);
+            else Assert.IsTrue(coordinator.DrainedOperationError.IsNone);
+            Assert.AreSame(detail, coordinator.DrainedInnerDetail);
+            Assert.AreSame(detail, coordinator.CaptureSnapshot().DrainedInnerDetail);
+            Assert.That(coordinator.ForwardProgress, Is.EqualTo(3f / 15f).Within(0.000001f));
+            PumpToTerminal(coordinator);
+            Assert.AreEqual(ApplicationStartupState.Cancelled, coordinator.State);
+            Assert.AreEqual(ApplicationStartupErrorCode.Cancelled, coordinator.ForwardError.Code);
+            Assert.AreSame(detail, coordinator.ForwardError.InnerDetail);
+            AssertDrainFinalized(coordinator, factory, publisher, log, false);
+        }
+
+        [Test]
+        public void Timeout_DrainedSuccess_CompensatesCurrentStepAndKeepsTimeout()
+        {
+            var log = new List<string>();
+            var operation = new FakeOperation(RuntimeOperationStatus.Succeeded, 3, canCancel: false, throwOnTickAfterTerminal: true);
+            var factory = new RecordingTransactionFactory();
+            var publisher = new LiveApplicationStatePublisher();
+            var coordinator = new ApplicationStartupCoordinator(CreateDrainPlan(factory, log, operation, timeout: 0.2d), publisher);
+            coordinator.Start("timeout-success");
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            Assert.AreEqual(ApplicationStartupState.Draining, coordinator.State);
+            Assert.AreSame(operation, coordinator.CurrentOperation);
+            coordinator.RequestCancel();
+            Tick(coordinator);
+            Assert.AreEqual(3, coordinator.CompletedStepCount);
+            PumpToTerminal(coordinator);
+            Assert.AreEqual(ApplicationStartupState.TimedOut, coordinator.State);
+            Assert.AreEqual(ApplicationStartupErrorCode.Timeout, coordinator.ForwardError.Code);
+            Assert.AreEqual(RuntimeOperationStatus.Succeeded, coordinator.DrainedOperationStatus);
+            AssertDrainFinalized(coordinator, factory, publisher, log, true);
+        }
+
+        [Test]
+        public void ForwardTickException_DrainedSuccess_CompensatesCurrentStepAndKeepsFault()
+        {
+            var log = new List<string>();
+            var operation = new FaultDrainOperation(log, "c", 2, RuntimeOperationStatus.Succeeded);
+            var factory = new RecordingTransactionFactory();
+            var publisher = new LiveApplicationStatePublisher();
+            var coordinator = new ApplicationStartupCoordinator(CreateDrainPlan(factory, log, operation), publisher);
+            coordinator.Start("fault-success");
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            Assert.AreEqual(ApplicationStartupState.Draining, coordinator.State);
+            Assert.AreSame(operation, coordinator.CurrentOperation);
+            CollectionAssert.DoesNotContain(log, "rollback:c");
+            Tick(coordinator);
+            Assert.AreEqual(3, coordinator.CompletedStepCount);
+            PumpToTerminal(coordinator);
+            Assert.AreEqual(ApplicationStartupState.Failed, coordinator.State);
+            Assert.AreEqual(ApplicationStartupErrorCode.StepException, coordinator.ForwardError.Code);
+            Assert.IsInstanceOf<InvalidOperationException>(coordinator.ForwardError.Exception);
+            Assert.AreEqual(RuntimeOperationStatus.Succeeded, coordinator.DrainedOperationStatus);
+            CollectionAssert.AreEqual(new[] { "begin:a", "begin:b", "begin:c", "tick:c", "abort:c", "drain:c", "drain:c", "rollback:c", "rollback:b", "rollback:a" }, log);
+            log.RemoveAll(entry => entry == "tick:c" || entry == "abort:c" || entry == "drain:c");
+            AssertDrainFinalized(coordinator, factory, publisher, log, true);
+        }
+
+        [Test]
+        public void Cancel_DrainedSuccess_RollbackFaultDrainsBeforeEarlierCompensation()
+        {
+            var log = new List<string>();
+            var operation = new FakeOperation(RuntimeOperationStatus.Succeeded, 3, canCancel: false, throwOnTickAfterTerminal: true);
+            var rollback = new FaultDrainOperation(log, "rollback-c", 2, RuntimeOperationStatus.Succeeded);
+            var factory = new RecordingTransactionFactory();
+            var publisher = new LiveApplicationStatePublisher();
+            var coordinator = new ApplicationStartupCoordinator(CreateDrainPlan(factory, log, operation, currentRollback: rollback), publisher);
+            coordinator.Start("cancel-rollback-fault");
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            coordinator.RequestCancel();
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            Assert.AreSame(rollback, coordinator.CurrentOperation);
+            Assert.AreEqual(0, factory.Last.RollbackCount);
+            CollectionAssert.DoesNotContain(log, "rollback:b");
+            Tick(coordinator);
+            Assert.AreSame(rollback, coordinator.CurrentOperation);
+            CollectionAssert.DoesNotContain(log, "rollback:b");
+            Tick(coordinator);
+            CollectionAssert.DoesNotContain(log, "rollback:b");
+            PumpToTerminal(coordinator);
+            Assert.AreEqual(ApplicationStartupState.RollbackFailed, coordinator.State);
+            Assert.AreEqual(1, coordinator.RollbackErrorCount);
+            Assert.AreEqual("c", coordinator.GetRollbackError(0).StepId.Value);
+            Assert.AreEqual(ApplicationStartupErrorCode.RollbackException, coordinator.GetRollbackError(0).Code);
+            Assert.AreEqual(ApplicationStartupErrorCode.Cancelled, coordinator.ForwardError.Code);
+            CollectionAssert.AreEqual(new[] { "begin:a", "begin:b", "begin:c", "rollback:c", "tick:rollback-c", "abort:rollback-c", "drain:rollback-c", "drain:rollback-c", "rollback:b", "rollback:a" }, log);
+            log.RemoveAll(entry => entry == "tick:rollback-c" || entry == "abort:rollback-c" || entry == "drain:rollback-c");
+            AssertDrainFinalized(coordinator, factory, publisher, log, true);
+        }
+
+        [Test]
+        public void Cancel_DrainedSuccess_RetainsStepAndCleanupErrorsInAttemptOrder()
+        {
+            var log = new List<string>();
+            var operation = new FakeOperation(RuntimeOperationStatus.Succeeded, 3, canCancel: false, throwOnTickAfterTerminal: true);
+            var factory = new RecordingTransactionFactory { FailFinalizeRollback = true, ThrowOnRollbackDispose = true };
+            var publisher = new LiveApplicationStatePublisher();
+            var coordinator = new ApplicationStartupCoordinator(CreateDrainPlan(factory, log, operation,
+                RuntimeOperationStatus.Failed, RuntimeOperationStatus.Failed), publisher);
+            coordinator.Start("cancel-cleanup-errors");
+            Tick(coordinator);
+            Tick(coordinator);
+            Tick(coordinator);
+            coordinator.RequestCancel();
+            PumpToTerminal(coordinator);
+            Assert.AreEqual(ApplicationStartupState.RollbackFailed, coordinator.State);
+            Assert.AreEqual(4, coordinator.RollbackErrorCount);
+            Assert.AreEqual("c", coordinator.GetRollbackError(0).StepId.Value);
+            Assert.AreEqual("b", coordinator.GetRollbackError(1).StepId.Value);
+            Assert.AreEqual(ApplicationStartupErrorCode.CleanupIncomplete, coordinator.GetRollbackError(2).Code);
+            Assert.AreEqual(ApplicationStartupErrorCode.RollbackException, coordinator.GetRollbackError(3).Code);
+            Assert.AreEqual(ApplicationStartupErrorCode.Cancelled, coordinator.ForwardError.Code);
+            AssertDrainFinalized(coordinator, factory, publisher, log, true);
         }
 
         [Test]
@@ -811,6 +1048,72 @@ namespace MxFramework.Tests.ApplicationStartup
             Assert.AreEqual(0L, allocated);
         }
 
+        private static ApplicationStartupPlan CreateDrainPlan(RecordingTransactionFactory factory, List<string> log,
+            IApplicationStartupStepOperation forward, RuntimeOperationStatus currentRollbackStatus = RuntimeOperationStatus.Succeeded,
+            RuntimeOperationStatus earlierRollbackStatus = RuntimeOperationStatus.Succeeded, double timeout = 0d,
+            IApplicationStartupStepOperation currentRollback = null)
+        {
+            var steps = new IApplicationStartupStep[]
+            {
+                new DualOperationStep("a", new FakeOperation(RuntimeOperationStatus.Succeeded, 1, throwOnTickAfterTerminal: true),
+                    new FakeOperation(RuntimeOperationStatus.Succeeded, 1, throwOnTickAfterTerminal: true), log),
+                new DualOperationStep("b", new FakeOperation(RuntimeOperationStatus.Succeeded, 1, throwOnTickAfterTerminal: true),
+                    new FakeOperation(earlierRollbackStatus, 1, throwOnTickAfterTerminal: true), log),
+                new DualOperationStep("c", forward,
+                    currentRollback ?? new FakeOperation(currentRollbackStatus, 1, throwOnTickAfterTerminal: true), log),
+                new RecordingStep("later", log, RuntimeOperationStatus.Succeeded)
+            };
+            var descriptors = new ApplicationStartupStepDescriptor[steps.Length];
+            for (int i = 0; i < steps.Length; i++)
+                descriptors[i] = new ApplicationStartupStepDescriptor(steps[i].StepId,
+                    i == 0 ? null : new[] { steps[i - 1].StepId }, i, 1 << i, i == 2 ? timeout : 0d);
+            Assert.IsTrue(ApplicationStartupPlan.TryCreate(new ApplicationStartupPlanId("drain"), descriptors, steps, factory,
+                out ApplicationStartupPlan plan, out ApplicationStartupError error), error.Message);
+            return plan;
+        }
+
+        private static void AssertDrainFinalized(ApplicationStartupCoordinator coordinator, RecordingTransactionFactory factory,
+            LiveApplicationStatePublisher publisher, List<string> log, bool currentSucceeded)
+        {
+            Assert.AreEqual(1, factory.Last.RollbackCount);
+            Assert.AreEqual(0, factory.Last.CommitCount);
+            Assert.AreEqual(0L, publisher.Current.Revision);
+            Assert.AreEqual(currentSucceeded ? 3 : 2, coordinator.CompletedStepCount);
+            Assert.AreEqual(1f, coordinator.RollbackProgress);
+            Assert.IsNull(coordinator.CurrentOperation);
+            ApplicationStartupSnapshot snapshot = coordinator.CaptureSnapshot();
+            Assert.AreEqual(coordinator.CompletedStepCount, snapshot.CompletedStepCount);
+            Assert.AreEqual(coordinator.DrainedOperationStatus, snapshot.DrainedOperationStatus);
+            Assert.AreEqual(coordinator.ForwardError.Code, snapshot.ForwardError.Code);
+            var expected = currentSucceeded
+                ? new[] { "begin:a", "begin:b", "begin:c", "rollback:c", "rollback:b", "rollback:a" }
+                : new[] { "begin:a", "begin:b", "begin:c", "rollback:b", "rollback:a" };
+            CollectionAssert.AreEqual(expected, log);
+            for (int i = 0; i < 3; i++)
+            {
+                coordinator.RequestCancel();
+                Tick(coordinator);
+            }
+            CollectionAssert.AreEqual(expected, log);
+            Assert.AreEqual(1, factory.Last.RollbackCount);
+            Assert.AreEqual(0, factory.Last.CommitCount);
+            Assert.AreEqual(currentSucceeded ? 3 : 2, coordinator.CompletedStepCount);
+        }
+
+        private sealed class SucceedOnCancelOperation : IApplicationStartupStepOperation
+        {
+            private readonly FakeOperation _operation;
+            public SucceedOnCancelOperation(FakeOperation operation) => _operation = operation;
+            public string OperationId => _operation.OperationId;
+            public RuntimeOperationStatus Status => _operation.Status;
+            public float Progress => _operation.Progress;
+            public RuntimeOperationError Error => _operation.Error;
+            public IApplicationStartupInnerErrorDetail InnerErrorDetail => _operation.InnerErrorDetail;
+            public bool CanCancel => true;
+            public void Tick(in ApplicationStartupTickContext context) => _operation.Tick(in context);
+            public void RequestCancel() => _operation.CompleteExternally(RuntimeOperationStatus.Succeeded);
+        }
+
         private static ApplicationStartupPlan CreatePlan(RecordingTransactionFactory factory, params IApplicationStartupStep[] steps)
         {
             var descriptors = new ApplicationStartupStepDescriptor[steps.Length];
@@ -902,18 +1205,28 @@ namespace MxFramework.Tests.ApplicationStartup
         {
             private readonly IApplicationStartupStepOperation _forward;
             private readonly IApplicationStartupStepOperation _rollback;
+            private readonly List<string> _log;
 
-            public DualOperationStep(string id, IApplicationStartupStepOperation forward, IApplicationStartupStepOperation rollback)
+            public DualOperationStep(string id, IApplicationStartupStepOperation forward, IApplicationStartupStepOperation rollback, List<string> log = null)
             {
                 StepId = Id(id);
                 _forward = forward;
                 _rollback = rollback;
+                _log = log;
             }
 
             public ApplicationStartupStepId StepId { get; }
             public double Timeout => 0d;
-            public IApplicationStartupStepOperation Begin(in ApplicationStartupStepContext context) => _forward;
-            public IApplicationStartupStepOperation BeginRollback(in ApplicationStartupRollbackContext context) => _rollback;
+            public IApplicationStartupStepOperation Begin(in ApplicationStartupStepContext context)
+            {
+                _log?.Add("begin:" + StepId.Value);
+                return _forward;
+            }
+            public IApplicationStartupStepOperation BeginRollback(in ApplicationStartupRollbackContext context)
+            {
+                _log?.Add("rollback:" + StepId.Value);
+                return _rollback;
+            }
         }
 
         private sealed class FakeInnerDetail : IApplicationStartupInnerErrorDetail

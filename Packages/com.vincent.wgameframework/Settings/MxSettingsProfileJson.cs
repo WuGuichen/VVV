@@ -47,6 +47,12 @@ namespace MxFramework.Settings
 
         private sealed class GraphicsDto
         {
+            [JsonProperty("rippleQuality")]
+            public int? RippleQuality { get; set; }
+
+            [JsonProperty("waterQuality")]
+            public int? WaterQuality { get; set; }
+
             [JsonProperty("directionalShadowQuality")]
             public int? DirectionalShadowQuality { get; set; }
 
@@ -281,6 +287,9 @@ namespace MxFramework.Settings
                 "$.graphics.volumetricFogQuality",
                 IsDefinedFeatureQuality,
                 issues);
+            AddIssueIfInvalidEnum(dto.RippleQuality, "$.graphics.rippleQuality", IsDefinedFeatureQuality, issues);
+            AddIssueIfInvalidEnum(dto.WaterQuality, "$.graphics.waterQuality",
+                value => value == 0 || value >= 2 && value <= 5, issues);
             AddIssueIfInvalidEnum(dto.DirectionalShadowQuality, "$.graphics.directionalShadowQuality",
                 value => value == 0 || value >= 2 && value <= 4, issues);
             AddIssueIfOutsideRange(dto.VSyncCount, -1, 2, "$.graphics.vSyncCount", issues);
@@ -324,7 +333,8 @@ namespace MxFramework.Settings
                 dto.MainLightShadowmapResolution ?? 0,
                 dto.ShadowCascadeCount ?? 0,
                 dto.AdditionalLightsShadowmapResolution ?? 0,
-                ToHdrOutput(dto.HdrOutput, issues), ToFeatureQuality(dto.DirectionalShadowQuality));
+                ToHdrOutput(dto.HdrOutput, issues), ToFeatureQuality(dto.DirectionalShadowQuality),
+                dto.WaterQuality == 5 ? MxGraphicsFeatureQuality.Ultra : ToFeatureQuality(dto.WaterQuality), ToFeatureQuality(dto.RippleQuality));
         }
 
         private static GraphicsDto ToDto(MxGraphicsSettings settings)
@@ -334,6 +344,8 @@ namespace MxFramework.Settings
             {
                 QualityPreset = (int)graphics.QualityPreset,
                 DirectionalShadowQuality = (int)graphics.DirectionalShadowQuality,
+                WaterQuality = (int)graphics.WaterQuality,
+                RippleQuality = (int)graphics.RippleQuality,
                 ResolutionWidth = graphics.ResolutionWidth,
                 ResolutionHeight = graphics.ResolutionHeight,
                 ApplyWindowMode = graphics.ApplyWindowMode,

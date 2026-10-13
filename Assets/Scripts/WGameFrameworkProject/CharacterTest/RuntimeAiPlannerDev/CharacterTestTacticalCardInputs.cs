@@ -44,7 +44,8 @@ namespace MxFramework.Game.CharacterTest
             string fingerprint, string actionSetId, int sourceCharacterId, bool testActionOverride = false,
             CharacterActionConfig stepBack = null, string stepBackHash = null,
             CharacterActionSpatialSummary spatialSummary = null, int summarySourceCharacterId = 0, string summaryIssue = null,
-            CharacterTestTacticalInputRequirements requirements = CharacterTestTacticalInputRequirements.All)
+            CharacterTestTacticalInputRequirements requirements = CharacterTestTacticalInputRequirements.All,
+            CharacterActionProjectileReferenceCatalog combat = null)
         {
             Requirements = requirements;
             Action = action;
@@ -158,7 +159,8 @@ namespace MxFramework.Game.CharacterTest
             CharacterTestCharacterPhysicsRuntime physics, ICharacterTestBakedWeaponTraceSource bakes,
             ICharacterTestWeaponTraceBindingResolver bindings, CharacterActionTacticalMetricsStore store,
             CharacterActionSpatialMeasurement measurement, out CharacterTestTacticalCardInputs inputs, out string issue,
-            int testActionId = 0, CharacterTestTacticalInputRequirements requirements = CharacterTestTacticalInputRequirements.All)
+            int testActionId = 0, CharacterTestTacticalInputRequirements requirements = CharacterTestTacticalInputRequirements.All,
+            CharacterActionProjectileReferenceCatalog combat = null)
         {
             inputs = null;
             issue = string.Empty;
@@ -180,7 +182,7 @@ namespace MxFramework.Game.CharacterTest
                     return Fail("Action:GuardHasNoAttackRange", out issue);
                 if (spatial && action.Category != CharacterActionCategory.Dodge)
                 {
-                    result = store.QueryForTacticalCard(new CharacterActionTacticalInput(action, source, physics, bakes, bindings), measurement);
+                    result = store.QueryForTacticalCard(new CharacterActionTacticalInput(action, source, physics, bakes, bindings, combat), measurement);
                     if (result.Status != CharacterActionTacticalMetricsLoadStatus.Valid || result.Metrics == null)
                         return Fail("ActionSummary:" + result.Status + ":" + result.Issue, out issue);
                     if (!TryValidateSummary(result.SpatialSummary, out issue)) return false;

@@ -106,7 +106,7 @@ namespace MxFramework.Game.CharacterTest
         public const string PoisonedBuffDescriptionKey = "buff.damage.poisoned.description";
     }
 
-    internal sealed class CharacterTestGuardAuraRuntime
+    internal sealed partial class CharacterTestGuardAuraRuntime
     {
         private static readonly RuntimeCommand[] EmptyRuntimeCommands =
             Array.Empty<RuntimeCommand>();
@@ -210,7 +210,9 @@ namespace MxFramework.Game.CharacterTest
             CharacterTestCharacterPhysicsRuntime physicsRuntime,
             RuntimeFrame frame,
             IReadOnlyList<HitResolveResult> results,
-            Func<HitResolveResult, CombatHitBuffApplicationConfig[]> getOnHitBuffs)
+            Func<HitResolveResult, CombatHitBuffApplicationConfig[]> getOnHitBuffs,
+            Func<HitResolveResult, CharacterTestAccessoryHitEvidence> evidence = null,
+            Func<HitResolveResult, TacticalCard.TacticalSecondBatchHit> parentReceipt = null)
         {
             if (!EnsureModule(world, physicsRuntime))
             {
@@ -220,6 +222,8 @@ namespace MxFramework.Game.CharacterTest
 
             _currentOnHitResults = results ?? EmptyHitResults;
             _currentOnHitBuffResolver = getOnHitBuffs;
+            _buffEvidence = evidence; _buffParentReceipt = parentReceipt;
+            PrepareAccessoryBuffOrigins();
             try
             {
                 GameplaySystemContext context = CreateGameplayContext(world, frame);
@@ -227,7 +231,9 @@ namespace MxFramework.Game.CharacterTest
                 OnHitBuffLastSummary = _onHitSystem.LastSummary;
                 if (OnHitBuffLastSummary.RequestedBuffCount > 0)
                 {
+                    _accessoryBuffResults.Prepare(_buffRequests.Count);
                     _onHitBuffApplicationSystem.Tick(context);
+                    PublishAccessoryBuffOrigins(world, frame);
                     _onHitBuffProjectionSystem.Tick(context);
                 }
             }
@@ -235,6 +241,7 @@ namespace MxFramework.Game.CharacterTest
             {
                 _currentOnHitResults = EmptyHitResults;
                 _currentOnHitBuffResolver = null;
+                _buffEvidence = null; _buffParentReceipt = null;
             }
 
             return OnHitBuffLastSummary;
@@ -267,10 +274,12 @@ namespace MxFramework.Game.CharacterTest
                 GetCurrentOnHitResults,
                 ResolveCurrentOnHitBuffs,
                 systemId: "character_test.on_hit_buff.application");
+            _buffCorrelation ??= RecordBuffOrigin;
+            _onHitSystem.RequestCorrelation = _buffCorrelation;
             _onHitBuffApplicationSystem = new GameplayBuffApplicationSystem(
                 _buffDefinitions,
                 _buffRequests,
-                "character_test.on_hit_buff.buff_application");
+                "character_test.on_hit_buff.buff_application", resultSink: _accessoryBuffResults);
             _onHitBuffProjectionSystem = new GameplayBuffEffectProjectionSystem(
                 _buffDefinitions,
                 "character_test.on_hit_buff.buff_projection");
@@ -1551,7 +1560,7 @@ namespace MxFramework.Game.CharacterTest
         private readonly CharacterTestMechanicSourceRuntime _sourceRuntime =
             new CharacterTestMechanicSourceRuntime(
                 CreateMechanicSourceDefinitions(),
-                CharacterTestGuardAuraRuntime.CreateBuffDefinitions());
+                CharacterTestGuardAuraRuntime.CreateBuffDefinitions(), accessoryProducerKind: 6);
         private readonly List<CharacterTestPoisonBottlePoolCreated> _createdPools =
             new List<CharacterTestPoisonBottlePoolCreated>();
 

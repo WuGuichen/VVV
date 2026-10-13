@@ -1,9 +1,13 @@
 # Character Control 接口
 
 > Status: Current
+> 文档版本：2026-10-11.2
 >
 > 状态：v0.7 contract + command sources / motion modifier adapters / pressure state / animation presentation / Debug UI + CharacterAction 单一执行权威
 > 任务入口：`Docs/Tasks/CHARACTER_CONTROL_RUNTIME_00_DESIGN_CONTRACT.md`
+>
+> Code-Doc: `Packages/com.vincent.wgameframework/CharacterControl/CharacterActionController.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/CharacterControl/CharacterActionControllerTests.cs`
 
 ## 职责
 
@@ -104,12 +108,14 @@ MxFramework.DebugUI.Adapters
 
 ## 使用约定
 
+- `CharacterActionController` 将 Runner 的 `TrackEventFired` 和 `TrackLifecycle` 原事件交给同一个 Dispatch Coordinator，再按轨道送到 Runtime 或 Presentation Adapter。区间的 Enter / Active / Exit、boundary、exit reason、action / plan / instance 身份保持原载荷；Controller 不重建生命周期，也不把它转换为一次性事件。单帧与多帧区间、自然结束、取消、打断和生命周期强制终止沿同一路径分发；一次性冲量仍只分发一次。Adapter 既有的 Active-only 策略继续生效（如 `SetVerticalVelocity` / `IgnoreGravity`），不会因转发 Enter / Exit 而额外产生速度或重力请求。区间顺序与退出语义见 [CharacterAction 轨道契约](CharacterAction.md#轨道配置与事件tracks)。
 - 同一个 `RuntimeCommandBuffer` 仍只能由 GameplayRuntimeModule 等现有 owner drain；只有显式注入的 `CharacterActionGameplayTrackBridge` enqueue，Controller 本身不持有 command buffer。
 - `CharacterMotionResolver` 必须通过 `CombatKinematicMotor` 得到权威运动结果。
 - motion modifier 只影响 `CombatMotionInput.MoveSpeedScale`；provider 不能写 Gameplay / Combat source of truth。
 - `CharacterMotionRequestAccumulator` 只聚合运动意图，不拥有角色实体、世界、碰撞体、接触压力、Unity view 或 trace 输出。CharacterTest 这类 adapter 负责把项目实体 request facade 转换为 `CharacterMotionRequest`，并把 request frame 应用到自己的 runtime state。
 - `CharacterActionMotionRequestAccumulatorSink` 是 CharacterControl 内置的默认 motion/root-motion sink：`SetMovementMode` 转为 `CharacterMotionRequestKind.MovementMode`，`ApplyImpulse` 转为毫米/秒 impulse，action-authored root motion sample 转为 `RootMotionDelta` + `RootMotionDriven` movement mode，`LockMovement` 转为 active movement scale `0` / rotation scale `1`，`SetControlScale` / `ResetControlScale` 只改 active-control scale，不套用 legacy `movementMode` 字段。
 - CharacterTest 普通受击通过正式 Reaction action 的 `SetControlScale` 窗口阻断玩家和 Runtime AI Planner 的主动移动/转向；HitStun 计数、last-hit frame 和击退速度方向不得作为 MotionSystem 的隐藏权限规则。Control scale 为零时，Combat impulse、外力、碰撞、摩擦和重力仍按权威运动链执行。
+- 主动移动与转向的控制倍率范围为 `0..10`（整数千分倍率 `0..10000`），默认 `1000`；浮点 motion sink、request accumulator、kinematic motor 与 CharacterTest component 使用同一范围。倍率大于 1 放大目标主动移动速度和转向速率，不放大 RootMotion、冲量或外力。普通比例、表面摩擦等其他字段的限制保持各自原合同。
 - `CharacterMotionRequest.MovementModeId` 是上层稳定 movement mode id；CharacterControl core 虽可选引用 `MxFramework.CharacterAction` 进行动作桥接，但 motion request 仍不依赖 `CharacterMovementMode`。CharacterTest 继续在自己的 facade 中暴露 `CharacterMovementMode`。
 - `ICharacterMotionLocalSpaceResolver.ResolveLocalToWorld(...)`、`CharacterMotionRequestAccumulator.Accumulate(...)`、`CharacterActionMotionRequestAccumulatorSink.SubmitMotionRequest(...)` 和 `SubmitRootMotionRequest(...)` 的 accepted path 为高频路径，正常执行 `NoAlloc after initialization`；local-space request 缺少 resolver 属于 rejected diagnostic path。
 - Root motion delta 可以参与当帧位移，但 `CharacterMotionRequestAccumulator.ResolvePersistent*AfterRootMotion(...)` 保持“root-motion-only 不变成持久速度”的规则，避免 Animator / Playables 表现反写权威运动。
@@ -129,7 +135,9 @@ MxFramework.DebugUI.Adapters
 - CharacterTest组合根只在存在active move input，且本帧没有Root Motion、velocity/horizontal override、external acceleration、Impulse、external-velocity保留或超过既有1mm/s epsilon的有效contact velocity时提供正wall-slide floor；值为`min(simulated speed, target speed)`，因此不越过本帧加速结果或locomotion target。特殊motion结束后的后续普通输入帧可以重新接管主动墙滑。
 - 未提供有效 `CharacterActionControllerOptions` 时动作请求返回 `MissingCharacterActionRuntime`；不再回退到旧 CombatAction 或 Gameplay 直执行路径。
 - `Submit(...)` 把 `CharacterActionRequest` 解析为 `CharacterActionIntentRequest`，经 Resolver / 计划缓存后交给 Gateway 原子启动或切换；`TickCharacterAction(RuntimeFrame)` 推进同一 Gateway，并使用 track 事件的实际派发 frame 构造下游请求。
+- 自然结束后的排队动作仍在同一 runtime frame 同步启动，其非零 local frame 0 root motion sample 由该次 `Submit` 派发一次，metadata 归属新动作的 instance / plan / action 与排队请求的 source / trace。外层 `TickCharacterAction` 在事件派发前保存数值实例 ID；终态派发过程中 pooled instance 被重置为新动作时，外层 Tick 不再用旧 request 消费该对象。后续 local frame 正常由各自 Tick 派发，零 sample 不生成请求；正式 motion accumulator 继续对合法独立请求做加法合成。
 - `CharacterActionRequest.ActionIntentId` 为空时使用默认 intent：`Attack`、`Skill`、`Interact`、`Dodge`、`GameplayAbility`；需要连段、不同普攻段或项目自定义输入时由组合根显式写入 intent id。
+- `Submit(...)` 的同帧去重使用与 Resolver 相同的最终有效 intent：正 `ActionIntentId` 优先，非正值按 `Kind` 回退；显式默认 intent 与其回退形式视为相同意图。仍只比较最近一次通过 Controller 初始校验的提交，身份键保留 frame、`SourceId`、entity、kind、CombatActionId、GameplayAbilityId、target 与 trace。`SourceId` 表示请求来源，不代替动作 intent；同来源／同帧／同 trace 的不同有效 intent 必须进入 Resolver / Gateway，真正重复仍返回 `DuplicateSameFrame`。不同来源或 trace 保留既有独立请求语义；切换仍由正式窗口和掩码拒绝或接受。DTO `Equals` 保持原始字段相等语义，不因有效 intent 规范化而改变。
 - 组合根通过 `CharacterActionTrackAdapter` / `CharacterActionPresentationTrackAdapter` 注入 Motion、root motion、Combat、Gameplay、Animation、Presentation 与 Debug sink。需要旧 CombatAction 子时间线时显式注入 `CharacterActionCombatTrackBridge`；需要 Gameplay command 时显式注入 `CharacterActionGameplayTrackBridge`。
 - Combat child 的 started / finished / canceled 不驱动 CharacterControl 生命周期；外层 CharacterAction 是唯一生命周期权威，外层终止会通过 downstream lifecycle sink 清理子动作。
 - `CharacterActionControllerOptions` 属于 LowFreqAlloc/配置期 API；Gateway、Reaction、Track 与 Presentation 均使用调用方复用缓冲，初始化/扩容后稳定 Tick、成功及常规拒绝路径遵守 NoAlloc。

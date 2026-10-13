@@ -28,6 +28,8 @@ namespace MxFramework.Settings.UI
         GraphicsHdrPaperWhite = 12,
         GraphicsHdrPeakBrightness = 13,
         GraphicsDirectionalShadowQuality = 14,
+        GraphicsWaterQuality = 15,
+        GraphicsRippleQuality = 16,
         AudioBusVolume = 20,
         AudioBusMuted = 21,
         InputBinding = 40,

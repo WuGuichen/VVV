@@ -598,7 +598,7 @@ internal static partial class EditorServer
                     success = false,
                     httpStatus = 400,
                     code = "AUTH_AUDIO_DEVELOPMENT_PUBLISH_CUE_INVALID",
-                    message = "开发发布被阻止：Cue 无法解析当前 FMOD Event：" + invalidCueId,
+                    message = "开发发布被阻止：Cue 无法解析当前 FMOD Event 或默认参数：" + invalidCueId,
                     validation = validation,
                     physicalValidation = physicalValidation
                 };
@@ -727,7 +727,22 @@ internal static partial class EditorServer
             }
             cue.Lifecycle = AudioCueLifecycles.Active;
         }
+        // Development publication may relax readiness gates, but cannot drop authored defaults.
+        AuthoringResourceDiagnostic missingDefault = FindActiveCueDefaultParameterError(result, snapshot);
+        if (missingDefault != null)
+        {
+            invalidCueId = missingDefault.RuntimeResourceKey;
+            return null;
+        }
         return result;
+    }
+
+    private static AuthoringResourceDiagnostic FindActiveCueDefaultParameterError(
+        AudioSemanticManifestDocument manifest, AuthoringFmodAudioLibrarySnapshotDocument snapshot)
+    {
+        return AudioAuthoringManifestV2.Validate(manifest, snapshot).Diagnostics.Find(item =>
+            item.Code == AuthoringResourceDiagnosticCodes.AudioCueDefaultParameterMissing
+            && AudioAuthoringManifestV2.FindCue(manifest, item.RuntimeResourceKey)?.Lifecycle == AudioCueLifecycles.Active);
     }
 
     private static bool TryBuildAudioPackageSubset(

@@ -455,7 +455,9 @@ namespace MxFramework.Editor.CharacterAction
                 action.CancelRules[i] = rule;
             }
             action.InterruptRules = action.InterruptRules ?? Array.Empty<CharacterInterruptRuleJsonDto>();
-            action.MotionTrack = NormalizeMotionTrack(action.MotionTrack);
+            CharacterActionControlScaleAuthoring.Migrate(action);
+            if (string.IsNullOrEmpty(action.MotionTrack?.ControlScaleMigrationIssue))
+                action.MotionTrack = NormalizeMotionTrack(action.MotionTrack);
             action.CombatTrack = NormalizeCombatTrack(action.CombatTrack);
             action.GameplayTrack = NormalizeGameplayTrack(action.GameplayTrack);
             action.AnimationTrack = NormalizeAnimationTrack(action.AnimationTrack);
@@ -511,9 +513,9 @@ namespace MxFramework.Editor.CharacterAction
                     : evt.Space;
                 evt.StableEventId = evt.StableEventId;
                 if (evt.MovementControlScale.HasValue)
-                    evt.MovementControlScale = Clamp01(evt.MovementControlScale.Value);
+                    evt.MovementControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(evt.MovementControlScale.Value);
                 if (evt.RotationControlScale.HasValue)
-                    evt.RotationControlScale = Clamp01(evt.RotationControlScale.Value);
+                    evt.RotationControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(evt.RotationControlScale.Value);
                 track.Events[i] = evt;
             }
 

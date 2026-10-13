@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using MxFramework.Diagnostics;
 using MxFramework.Resources;
 using NUnit.Framework;
@@ -95,6 +96,166 @@ namespace MxFramework.Tests.Resources
             Assert.IsFalse(result.Success);
             Assert.AreEqual(ResourceErrorCode.TypeMismatch, result.Error.Code);
             Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+        }
+
+        [TestCase(ResourceRetainMode.None, false)]
+        [TestCase(ResourceRetainMode.None, true)]
+        [TestCase(ResourceRetainMode.Timed, false)]
+        [TestCase(ResourceRetainMode.Timed, true)]
+        [TestCase(ResourceRetainMode.KeepAlive, false)]
+        [TestCase(ResourceRetainMode.KeepAlive, true)]
+        [TestCase(ResourceRetainMode.Budgeted, false)]
+        [TestCase(ResourceRetainMode.Budgeted, true)]
+        public void Load_ProviderTypeMismatch_RollsBackWithoutRetaining(ResourceRetainMode mode, bool nullValue)
+        {
+            var dependency = new ResourceKey("demo.dep", ResourceTypeIds.String);
+            var key = new ResourceKey("demo.bad", ResourceTypeIds.String);
+            var provider = new MemoryResourceProvider()
+                .Register("dep", "dependency").Register("bad", nullValue ? null : (object)123);
+            ResourceManager manager = CreateManager(provider,
+                Entry("demo.dep", ResourceTypeIds.String, "dep"),
+                Entry("demo.bad", ResourceTypeIds.String, "bad", dependencies: new[] { dependency }));
+            manager.SetRetainPolicy(new ResourceRetainPolicy(mode, 10f, 10, 1024));
+            for (int i = 0; i < 2; i++)
+            {
+                ResourceLoadResult<ResourceHandle<string>> result = manager.Load<string>(key);
+                Assert.IsFalse(result.Success);
+                Assert.AreEqual(ResourceErrorCode.TypeMismatch, result.Error.Code);
+                Assert.IsNull(result.Value);
+                ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+                Assert.AreEqual(0, snapshot.LoadedCount);
+                Assert.AreEqual(0, snapshot.TotalRefCount);
+                Assert.AreEqual(0, snapshot.RetainedCount);
+            }
+            Assert.AreEqual(4, provider.ReleaseCount, "Each failure releases its resource and dependency.");
+            provider.Register("bad", "repaired");
+            ResourceLoadResult<ResourceHandle<string>> repaired = manager.Load<string>(key);
+            Assert.IsTrue(repaired.Success, repaired.Error.Message);
+            Assert.AreEqual("repaired", repaired.Value.Value);
+            manager.Release(repaired.Value);
+            manager.ReleaseAllLoaded();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Load_ProviderTypeMismatch_PreservesExistingOwner(bool preloadOwner)
+        {
+            var dependency = new ResourceKey("demo.dep", ResourceTypeIds.String);
+            var key = new ResourceKey("demo.bad", ResourceTypeIds.String);
+            var provider = new MemoryResourceProvider().Register("dep", "dependency").Register("bad", 123);
+            ResourceManager manager = CreateManager(provider,
+                Entry("demo.dep", ResourceTypeIds.String, "dep"),
+                Entry("demo.bad", ResourceTypeIds.String, "bad", dependencies: new[] { dependency }));
+            var existing = manager.LoadAsync<object>(preloadOwner ? key : dependency).Result;
+            Assert.IsTrue(existing.Success, existing.Error.Message);
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.AreEqual(ResourceErrorCode.TypeMismatch, manager.Load<string>(key).Error.Code);
+                ResourceDebugSnapshot snapshot = manager.CreateDebugSnapshot();
+                Assert.AreEqual(preloadOwner ? 2 : 1, snapshot.LoadedCount);
+                Assert.AreEqual(preloadOwner ? 2 : 1, snapshot.TotalRefCount);
+                Assert.AreEqual(preloadOwner ? (object)123 : "dependency", existing.Value.Value);
+            }
+            manager.Release(existing.Value);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().TotalRefCount);
+        }
+
+        [Test]
+        public void LoadAsync_CompletedCancelPreservesHandleAndOwnership(
+            [Values(ResourceRetainMode.None, ResourceRetainMode.KeepAlive)] ResourceRetainMode mode,
+            [Values(false, true)] bool readBeforeCancel,
+            [Values(false, true)] bool anotherOwner)
+        {
+            var dependency = new ResourceKey("demo.dep", ResourceTypeIds.String);
+            var key = new ResourceKey("demo.asset", ResourceTypeIds.String);
+            var provider = new MemoryResourceProvider().Register("dep", "dependency").Register("asset", "valid");
+            ResourceManager manager = CreateManager(provider,
+                Entry("demo.dep", ResourceTypeIds.String, "dep"),
+                Entry("demo.asset", ResourceTypeIds.String, "asset", dependencies: new[] { dependency }));
+            manager.SetRetainPolicy(new ResourceRetainPolicy(mode));
+            ResourceHandle<string> existing = anotherOwner ? manager.Load<string>(key).Value : null;
+            IResourceOperation<ResourceHandle<string>> operation = manager.LoadAsync<string>(key);
+            Assert.IsTrue(operation.IsDone);
+            Assert.IsFalse(operation.IsCancelled);
+            ResourceHandle<string> original = readBeforeCancel ? operation.Result.Value : null;
+
+            operation.Cancel();
+            operation.Cancel();
+
+            Assert.IsTrue(operation.IsDone);
+            Assert.IsFalse(operation.IsCancelled);
+            Assert.AreEqual(1f, operation.Progress);
+            Assert.IsTrue(operation.Result.Success, operation.Result.Error.Message);
+            ResourceHandle<string> handle = operation.Result.Value;
+            Assert.IsNotNull(handle);
+            if (readBeforeCancel) Assert.AreSame(original, handle);
+            Assert.AreEqual("valid", handle.Value);
+            Assert.IsFalse(handle.IsReleased);
+            Assert.AreEqual(anotherOwner ? 3 : 2, manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.AreEqual(0, provider.ReleaseCount, "Terminal Cancel must not release a consumer's handle.");
+            if (existing != null)
+            {
+                Assert.AreEqual("valid", existing.Value);
+                Assert.IsFalse(existing.IsReleased);
+                manager.Release(existing);
+                Assert.AreEqual(2, manager.CreateDebugSnapshot().TotalRefCount);
+                Assert.AreEqual(0, provider.ReleaseCount);
+            }
+            manager.Release(handle);
+            Assert.IsTrue(handle.IsReleased);
+            operation.Cancel();
+            Assert.AreSame(handle, operation.Result.Value);
+            if (mode == ResourceRetainMode.KeepAlive)
+            {
+                Assert.AreEqual(1, manager.CreateDebugSnapshot().RetainedCount);
+                Assert.AreEqual(1, manager.EvictRetainedResources());
+            }
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.AreEqual(2, provider.ReleaseCount);
+        }
+
+        [TestCase(ResourceErrorCode.NotFound)]
+        [TestCase(ResourceErrorCode.TypeMismatch)]
+        [TestCase(ResourceErrorCode.Cancelled)]
+        public void ImmediateOperation_TerminalFailureRemainsStableAfterCancel(ResourceErrorCode code)
+        {
+            var key = new ResourceKey("demo.missing", ResourceTypeIds.String);
+            var error = new ResourceError(code, key, "memory", "original failure", "original address");
+            var operation = new ImmediateResourceOperation<object>(ResourceLoadResult<object>.Failed(error));
+            bool cancelled = code == ResourceErrorCode.Cancelled;
+            Assert.AreEqual(cancelled, operation.IsCancelled);
+            operation.Cancel();
+            operation.Cancel();
+            Assert.IsTrue(operation.IsDone);
+            Assert.AreEqual(1f, operation.Progress);
+            Assert.IsFalse(operation.Result.Success);
+            Assert.IsNull(operation.Result.Value);
+            Assert.AreEqual(cancelled, operation.IsCancelled);
+            Assert.AreEqual(error, operation.Result.Error);
+        }
+
+        [Test]
+        public void LoadAsync_PreCancelledTokenPreservesCancellationWithoutAcquiringReferences()
+        {
+            var provider = new MemoryResourceProvider().Register("asset", "valid");
+            var manager = CreateManager(provider, Entry("demo.asset", ResourceTypeIds.String, "asset"));
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            var operation = manager.LoadAsync<string>(new ResourceKey("demo.asset", ResourceTypeIds.String), cancellation.Token);
+            Assert.IsTrue(operation.IsDone);
+            Assert.IsTrue(operation.IsCancelled);
+            ResourceError original = operation.Result.Error;
+            Assert.AreEqual(ResourceErrorCode.Cancelled, original.Code);
+            operation.Cancel();
+            operation.Cancel();
+            Assert.AreEqual(original, operation.Result.Error);
+            Assert.IsNull(operation.Result.Value);
+            Assert.AreEqual(0, provider.LoadCount);
+            Assert.AreEqual(0, provider.ReleaseCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().TotalRefCount);
         }
 
         [Test]

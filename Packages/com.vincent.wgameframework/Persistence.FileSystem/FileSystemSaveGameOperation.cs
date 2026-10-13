@@ -340,8 +340,15 @@ namespace MxFramework.Persistence.FileSystem
 
         public bool TryGetResult(out TResult result)
         {
+            if (!HasResult)
+            {
+                result = default;
+                return false;
+            }
+
+            // Acquire the terminal status before copying the result published by the owner Poll.
             result = _result;
-            return HasResult;
+            return true;
         }
 
         public void Poll()

@@ -1,8 +1,12 @@
 # Persistence Core And Runtime Bridge
 
 > Status: Current
-> Version: 0.1 | 2026-10-01
+> Version: 0.3 | 2026-10-11
 > Assemblies: `MxFramework.Persistence`, `MxFramework.Persistence.RuntimeBridge`
+> Code-Doc: `Packages/com.vincent.wgameframework/Persistence.FileSystem/FileSystemSaveGameStore.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/PersistenceFileSystem/FileSystemSaveGameStoreReadRetentionTests.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Persistence.FileSystem/FileSystemSaveGameOperation.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/PersistenceFileSystem/FileSystemOperationAndGenerationTests.cs`
 
 ## Authority and dependencies
 
@@ -43,7 +47,7 @@ Read treats the strict highest generation as the authoritative Current head. Exa
 
 List inspects each slot's strict authoritative head, sorts logical slot IDs ordinally, derives `UpdatedAtUtc` from the decoded envelope, excludes tombstones by default, and exposes them only when `includeDeleted=true`. A malformed reserved profile/slot/generation entry or any corrupt/unsupported head fails the whole List operation; it never returns a partial diagnostic snapshot. Non-reserved entries and staging/lock artifacts are ignored.
 
-After successful Commit/Delete publication, retention best-effort keeps the head plus the nearest lower fully decoded and identity-matched Save or Tombstone. Corrupt or unsupported older records are not retention candidates and may be cleaned. Any I/O or permission uncertainty stops cleanup and emits the single typed `RetentionCleanupFailed` warning; publication remains Succeeded and is never rolled back.
+After successful Commit/Delete publication, retention best-effort keeps the head plus the nearest lower fully decoded and identity-matched Save or Tombstone. Corrupt or unsupported older records are not retention candidates and may be cleaned. Any I/O or permission uncertainty, including typed `QuotaExceeded` disk-full/quota failures, stops cleanup before deletion and emits the single typed `RetentionCleanupFailed` warning; publication remains Succeeded and is never rolled back. This preserves the previous generation and a decoded Tombstone's recovery barrier rather than falling back to a pre-delete Save. Focused `FileSystemSaveGameStoreReadRetentionTests` cover Commit/Delete, Save/Tombstone predecessors, quota/I/O/permission failures, exact reads and CAS after publication, recovery after head corruption, and continued bounded cleanup of genuinely corrupt/unsupported records. Typed fault injection does not establish physical disk exhaustion on another platform.
 
 Allocation: factory/location/layout/probe/store creation and Commit/Delete/Read/List work are `LowFreqAlloc` or `AllocByDesign`; evidence/result/property inspection, operation polling and terminal cancellation are `NoAlloc` after initialization. The BCL backend maps only known platform disk-full/quota native codes (`39`/`112` on Windows, `28`/`122` on Linux/Android, `28`/`69` on Apple/BSD) to `QuotaExceeded`; injectable backends may provide the same typed internal classification. Unknown filesystem `IOException` remains conservatively `IoFailure`.
 
@@ -56,6 +60,8 @@ The wire contract follows ADR-010: `MXSVGM01`, little-endian version/flags/heade
 ## Operations and result validity
 
 `SaveGameEnvelopeResult.IsSuccess` is explicit: it requires no error plus non-null encoded and logical envelope values, so `default(SaveGameEnvelopeResult)` is never successful. `ISaveGameOperation<TResult>` likewise exposes terminal status, `IsDone`, `CanCancel`, structured error, `HasResult`, `Result`, and `TryGetResult`. Callers must only consume `Result` when `HasResult` or `TryGetResult` succeeds; failed, cancelled, timed-out, and default operations/results do not expose a valid result.
+
+For the FileSystem provider, only the thread that created an operation may promote worker completion through `Poll`; a non-owner `Poll` is a no-op. Another thread may query `Status`, `HasResult`, or `TryGetResult` concurrently with that owner promotion. `TryGetResult` first acquires the successful terminal status, then copies the published result, which no longer changes: `true` and the returned struct/reference value belong to the same completion. Before success, including Pending/Running/Failed/Cancelled/TimedOut, it returns `false` with `default`. A separate `Result` read is valid only after observing `HasResult=true`. This publication guarantee does not authorize arbitrary concurrent store operations or mutation of reference-result contents by consumers. Result queries remain `NoAlloc` after initialization.
 
 Succeeded/Failed/Cancelled/TimedOut operations are terminal (`IsDone=true`, `CanCancel=false`). Cancellation is cooperative only before the provider atomic publication boundary. A provider may report `Running && !CanCancel` while atomic publication or an uncancellable cleanup/drain is still in progress; callers continue polling until a terminal state. After publication, success remains success even if cancellation arrives. TimedOut requires `Error.Code=Timeout`, but Persistence Core owns no default timeout, wall-clock timer, or implicit deadline: only an explicit provider or upper-layer policy may produce it. The current in-memory provider completes synchronously but preserves the asynchronous-shaped contract for future providers. Property reads, `Poll`, terminal `RequestCancel`, `IsDone`, and `CanCancel` are `NoAlloc`; envelope/store work is low-frequency `AllocByDesign`.
 

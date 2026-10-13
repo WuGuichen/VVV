@@ -149,12 +149,14 @@ namespace MxFramework.Demo.MarbleMaze
 
             public void Enter(AppFlowStateContext context, AppFlowTransition transition)
             {
-                _owner.RequestTransition(GameplayStateId, "Single-scene demo starts gameplay immediately.");
             }
 
             /// <remarks>LowFreqAlloc: demo and validation ticks may update presentation/debug state; core runtime paths document stricter contracts separately.</remarks>
             public void Tick(AppFlowTickContext context)
             {
+                // Enter runs while AppFlow applies a transition; Tick can queue the next one.
+                // The existing wrapper preserves a pending request and retries on a later Tick.
+                _owner.RequestTransition(GameplayStateId, "Single-scene demo starts gameplay immediately.");
             }
 
             public void Exit(AppFlowStateContext context, AppFlowTransition transition)

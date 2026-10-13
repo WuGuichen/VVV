@@ -1,6 +1,8 @@
 # Core 接口
 
 > Status: Current
+>
+> Code-Doc: `Packages/com.vincent.wgameframework/Core/Pooling/ObjectPool.cs`
 
 ## 职责
 
@@ -31,6 +33,8 @@ Core 提供纯 C# 基础工具。`MxFramework.Core` 不依赖 UnityEngine；Unit
 - `UnsortList<T>.RemoveDelayed` 后需要调用 `Optimize` 才真正压缩列表。
 - `StableHandleTable<T>` 的旧 handle 在 remove / clear / slot 复用后必须失效。
 - `ObjectPool<T>` / `ReferencePool<T>` 不提供隐式全局池；由组合根或模块显式持有。
+- `ObjectPool<T>.Get()` 先登记 active，再调用 `onGet`；回调抛异常时，仅撤销仍属于本次未交付借用的 active 登记，原样重抛异常（保留异常对象和调用栈）。池不会因异常重新缓存对象、调用 `onRelease` 或自动调用 `Dispose()`；回调如持有需要显式清理的资源，应自行处理初始化失败的清理。此规则同时适用于新建对象和 inactive 中取出的对象。
+- `onGet` 内显式 `Release(item)` 会结束该次借用；随后重入 `Get()` 对同一对象产生新借用。外层回调抛异常时，异常回滚按借用身份判断，保留回调已完成的 Release 以及之后产生的借用（包括同一对象上的已交付借用）。其它已交付 active 借用不受影响。`Clear()` 仍只清理 inactive。
 - `ListPool<T>` 只用于临时集合；`PooledList<T>.Dispose()` 后不能继续访问 `List`。
 - `RingBuffer<T>.CopyTo()` 会追加到输出列表，输出顺序为旧到新。
 - Unity 类型只能放在 `Core.Unity`。

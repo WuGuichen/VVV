@@ -36,6 +36,7 @@ namespace MxFramework.Resources.Unity
 
         private readonly List<ResourceGroupHandle> _preloadedGroups = new List<ResourceGroupHandle>();
         private readonly List<IDisposable> _ownedProviders = new List<IDisposable>();
+        private readonly ResourceSceneFlowDriver _ownedSceneFlowDriver;
         private bool _disposed;
 
         public GlobalResourceRuntimeServices(
@@ -46,6 +47,20 @@ namespace MxFramework.Resources.Unity
             string bootstrapErrorMessage = "",
             bool allowMissingPreloadGroupInEditor = true,
             ISceneFlowDriver sceneFlowDriver = null)
+            : this(mode, resourceManager, preloadService, false, sceneFlowDriver, preloadGroups,
+                bootstrapErrorMessage, allowMissingPreloadGroupInEditor)
+        {
+        }
+
+        public GlobalResourceRuntimeServices(
+            GlobalResourceRuntimeMode mode,
+            ResourceManager resourceManager,
+            ResourcePreloadService preloadService,
+            bool ownsSceneFlowDriver,
+            ISceneFlowDriver sceneFlowDriver,
+            GeneratedResourcePreloadGroupCatalog preloadGroups = null,
+            string bootstrapErrorMessage = "",
+            bool allowMissingPreloadGroupInEditor = true)
         {
             Mode = mode;
             ResourceManager = resourceManager ?? new ResourceManager();
@@ -54,6 +69,9 @@ namespace MxFramework.Resources.Unity
             BootstrapErrorMessage = bootstrapErrorMessage ?? string.Empty;
             AllowMissingPreloadGroupInEditor = allowMissingPreloadGroupInEditor;
             SceneFlowDriver = sceneFlowDriver;
+            if (ownsSceneFlowDriver && sceneFlowDriver != null && !(sceneFlowDriver is ResourceSceneFlowDriver))
+                throw new ArgumentException("Owned scene retirement requires a ResourceSceneFlowDriver.", nameof(sceneFlowDriver));
+            _ownedSceneFlowDriver = ownsSceneFlowDriver ? sceneFlowDriver as ResourceSceneFlowDriver : null;
             SceneFlowController = sceneFlowDriver != null ? new SceneFlowController(sceneFlowDriver) : null;
         }
 
@@ -66,6 +84,8 @@ namespace MxFramework.Resources.Unity
         public bool AllowMissingPreloadGroupInEditor { get; }
         public ISceneFlowDriver SceneFlowDriver { get; }
         public SceneFlowController SceneFlowController { get; }
+        public bool SceneRetirementComplete => _ownedSceneFlowDriver == null || _ownedSceneFlowDriver.IsRetired;
+        public SceneFlowError SceneRetirementError => _ownedSceneFlowDriver != null ? _ownedSceneFlowDriver.RetirementError : SceneFlowError.None;
 
         public static IGlobalResourceEditorRuntimeFactory EditorRuntimeFactory => _editorRuntimeFactory;
 
@@ -161,10 +181,15 @@ namespace MxFramework.Resources.Unity
         public void Dispose()
         {
             if (_disposed)
+            {
+                _ownedSceneFlowDriver?.Dispose();
                 return;
+            }
 
             _disposed = true;
             var errors = new List<Exception>();
+            try { _ownedSceneFlowDriver?.Dispose(); }
+            catch (Exception exception) { errors.Add(exception); }
             for (int i = _preloadedGroups.Count - 1; i >= 0; i--)
             {
                 try { PreloadService.ReleaseGroup(_preloadedGroups[i]); }
@@ -235,11 +260,12 @@ namespace MxFramework.Resources.Unity
                     GlobalResourceRuntimeMode.Offline,
                     bootstrap.ResourceManager,
                     new ResourcePreloadService(bootstrap.ResourceManager),
-                    bootstrap.PreloadGroups,
+                    preloadGroups: bootstrap.PreloadGroups,
                     allowMissingPreloadGroupInEditor: options.AllowMissingPreloadGroupInEditor,
                     sceneFlowDriver: bootstrap.SceneAssetBundleProvider != null
                         ? new ResourceSceneFlowDriver(bootstrap.ResourceManager, bootstrap.SceneAssetBundleProvider)
-                        : null);
+                        : null,
+                    ownsSceneFlowDriver: true);
             }
             catch (Exception ex) when (ex is ResourceCatalogException || ex is IOException || ex is UnauthorizedAccessException)
             {

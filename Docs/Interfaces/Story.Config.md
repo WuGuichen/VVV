@@ -1,6 +1,8 @@
 # Story.Config 接口
 
 > 状态：S2 Config Schema / Mapper / Validator 已实现（2026-05-24）。本文记录 `MxFramework.Story.Config` 当前可用的 noEngine 配置桥接 API。
+>
+> Code-Doc: `Tools/MxFrameworkStoryAuthoring/story_authoring.py`
 
 ## 职责
 
@@ -89,6 +91,16 @@ StoryGraphDefinition graph = result.Definition;
 
 Beat transition 合约与 `StoryDirector` 当前推进顺序保持一致：choice beat 会先进入 choice wait，因此同一 beat 不允许再声明 branch rows；branch beat 最多只能有一个 `IsFallback=true` 的 fallback branch。
 
+## 外部 Markdown draft 的目标解析
+
+`Tools/MxFrameworkStoryAuthoring/story_authoring.py` 的 Markdown Story Outline v1 以当前文档的 beat heading slug 作为局部 authoring name，生成配置使用该 beat 的显式 numeric `id`。`entry` 只按当前文档的精确 slug 查找；`choice` 目标按以下优先序解析：
+
+1. `0`、`complete`、`end-graph`、`graph-complete` 是保留的 graph 完成目标，忽略大小写并生成 `TargetBeatId=0`；即使文档声明同名 slug，这些目标仍表示完成。
+2. 其余目标先匹配当前 outline 的精确 slug（区分大小写，包括纯数字 slug），使用该 beat 声明的 `id`。例如 `## Beat 1` 配合 `id: 2` 时，`choice` 目标 `1` 生成 `TargetBeatId=2`，即使同图另有 ID 1；`entry: 1` 同样生成 `EntryBeatId=2`。
+3. 没有匹配 slug 时，保留直接 numeric beat ID 的兼容回退。生成后的非零目标仍须存在于当前 `GraphId`，不能由其他 Graph 的同 ID beat 满足引用。
+
+slug 表每次仅由当前 outline 建立，不跨文档或跨 Graph 查找同名 beat。缺失的非数字 slug 继续产生带 source path、line 和 `choices[i].TargetBeatId` 的 `InvalidChoiceTarget` 构建诊断；缺失的 numeric ID 由 draft validator 产生 `InvalidChoiceTarget`。这些规则只属于外部工具层，不改变 Story.Config 配置行或 Runtime 的 numeric ID 合同。
+
 ## 已知限制
 
 - 不加载或校验真实本地化文本内容；只校验稳定 text key。
@@ -100,3 +112,5 @@ Beat transition 合约与 `StoryDirector` 当前推进顺序保持一致：choic
 ## 测试入口
 
 `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Story.Config/`（编译进 `MxFramework.Tests`）
+
+外部 Markdown draft 工具的离线回归：`python -m unittest discover Tools/MxFrameworkStoryAuthoring/tests`；覆盖数字 slug / 显式 ID 优先序、完成目标、直接 numeric ID 回退、局部文档与 Graph 作用域和缺失目标诊断。该结果不替代 Unity / Runtime 验收。

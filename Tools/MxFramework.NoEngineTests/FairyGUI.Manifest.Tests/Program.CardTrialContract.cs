@@ -33,13 +33,20 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
                 (CharacterTestAiLabCardTrialControlContract.RowRecipe, CharacterTestAiLabCardTrialControlContract.RowControls),
                 (CharacterTestAiLabCardTrialControlContract.ChoiceRecipe, CharacterTestAiLabCardTrialControlContract.ChoiceControls),
                 (CharacterTestAiLabCardTrialControlContract.CardChoiceRecipe, CharacterTestAiLabCardTrialControlContract.CardChoiceControls),
-                (CharacterTestAiLabCardTrialControlContract.HandCardRecipe, CharacterTestAiLabCardTrialControlContract.HandCardControls) })
+                (CharacterTestAiLabCardTrialControlContract.HandCardRecipe, CharacterTestAiLabCardTrialControlContract.HandCardControls),
+                (CharacterTestAiLabCardTrialControlContract.OfferRecipe, CharacterTestAiLabCardTrialControlContract.OfferControls),
+                (CharacterTestAiLabCardTrialControlContract.RoleRecipe, CharacterTestAiLabCardTrialControlContract.RoleControls),
+                (CharacterTestAiLabCardTrialControlContract.MarkerRecipe, CharacterTestAiLabCardTrialControlContract.MarkerControls),
+                (CharacterTestAiLabCardTrialControlContract.AccessorySlotRecipe, CharacterTestAiLabCardTrialControlContract.AccessorySlotControls),
+                (CharacterTestAiLabCardTrialControlContract.HandAccessorySlotRecipe, CharacterTestAiLabCardTrialControlContract.AccessorySlotControls),
+                (CharacterTestAiLabCardTrialControlContract.AccessoryOfferRecipe, CharacterTestAiLabCardTrialControlContract.AccessoryOfferControls),
+                (CharacterTestAiLabCardTrialControlContract.AccessoryArtworkRecipe, CharacterTestAiLabCardTrialControlContract.AccessoryArtworkControls) })
             {
                 var controls = new JsonArray();
                 foreach (var control in spec.Item2)
                     controls.Add(new JsonObject { ["slotId"] = control.Name, ["controlName"] = control.Name,
                         ["nodeType"] = control.Kind == "component" || control.Kind == "view" ? "ComponentInstance" : control.Kind == "graph" ? "Graph"
-                            : control.Kind == "list" ? "List" : "Text", ["required"] = true, ["bindPath"] = "", ["commandId"] = "" });
+                            : control.Kind == "list" ? "List" : control.Kind == "image" ? "Image" : "Text", ["required"] = true, ["bindPath"] = "", ["commandId"] = "" });
                 var expected = new JsonObject { ["componentRecipeId"] = spec.Item1, ["bindings"] = controls };
                 var current = contract["componentBindings"].AsArray().FirstOrDefault(item => item["componentRecipeId"]?.ToString() == spec.Item1);
                 if (current == null) components.Add(expected);
@@ -104,8 +111,11 @@ namespace MxFramework.NoEngineTests.FairyGUI.Manifest
             Require((string)hand.Attribute("layout") == "row" && (string)hand.Attribute("overflow") == "scroll"
                 && (string)hand.Attribute("scroll") == "horizontal", "Configured hand must use a horizontal scrolling list, with no three-card layout limit.");
             var config = trial.Descendants("list").Single(item => (string)item.Attribute("name") == "initialHand");
-            Require((string)config.Attribute("overflow") == "scroll" && (string)config.Attribute("layout") == "row",
-                "Initial cards must retain the formal horizontal card presentation.");
+            Require((string)config.Attribute("overflow") == "scroll" && ((string)config.Attribute("layout") ?? "column") == "column",
+                "Assembled card instances must remain individually editable in the scrolling left pane.");
+            Require(trial.Descendants("list").Any(item => (string)item.Attribute("name") == "mainOffers")
+                && trial.Descendants("list").Any(item => (string)item.Attribute("name") == "accessoryOffers"),
+                "The simultaneous right pane must contain both main-card and accessory choices.");
             Require(row.Descendants("component").Any(item => (string)item.Attribute("name") == "face"), "Configured cards must contain the formal authored face.");
             Require(trial.Descendants("list").Any(item => (string)item.Attribute("name") == "pickerCards"), "Card selection must use formal card tiles.");
             Require(plan.Materialization.Components.Any(item => item.ComponentRecipeId == "ui.component.runtime_ai_lab.card_trial_portrait"),

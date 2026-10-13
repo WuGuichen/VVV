@@ -89,9 +89,15 @@ namespace MxFramework.Game.CharacterTest
         }
 
         private NetworkSnapshotApplyResult ValidateFixedAssemblyImport(CharacterTestNetworkSnapshotDocument document,
-            Func<CharacterTestNetworkFixedAssemblySnapshot[], long, bool> frozenPausedPreflight)
+            Func<CharacterTestNetworkFixedAssemblySnapshot[], long, bool> frozenPausedPreflight,
+            Func<long[][], long, bool> frozenDoubleEdgePreflight = null)
         {
             if (document == null) return NetworkSnapshotApplyResult.Failed("CharacterTest snapshot payload is empty.");
+            bool doubleEdge = _characterRuntimeModule?.World.DoubleEdgeState.HasState == true || document.DoubleEdgeStage != null;
+            if (doubleEdge && (document.SchemaVersion < DoubleEdgeSchemaVersionValue || frozenDoubleEdgePreflight == null))
+                return NetworkSnapshotApplyResult.Failed("network:DoubleEdgeAggregateRestoreUnavailable");
+            if (frozenDoubleEdgePreflight != null && !frozenDoubleEdgePreflight(document.DoubleEdgeStage, document.Frame))
+                return NetworkSnapshotApplyResult.Failed("network:DoubleEdgePausedWitnessMismatch");
             // Match the per-actor production hash boundary, including a real ledger with no assembly.
             // The generic importer has no aggregate owner for that ledger/deck authority.
             bool currentHasState = false, currentHasLedger = false;

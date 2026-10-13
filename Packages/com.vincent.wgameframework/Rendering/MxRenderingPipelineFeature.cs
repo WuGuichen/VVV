@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
@@ -24,6 +25,7 @@ namespace MxFramework.Rendering
         private MxSharedRTLifecyclePass _sharedRTEndFramePass;
         private SharedRenderTextureRegistry _sharedRenderTextures;
         private GraphicsBuffer _directionalShadowFallbackStatus;
+        private RTHandle _directionalShadowFallbackDepth;
 
         public IMxRenderPipeline Pipeline
         {
@@ -50,7 +52,7 @@ namespace MxFramework.Rendering
             CameraRenderSnapshot cameraSnapshot = BeginSharedRTFrameForCameraInvocation(descriptor);
             IReadOnlyList<IMxRenderPass> passes = _pipeline.CollectPasses(descriptor);
 
-            _cameraGlobalsPass.Setup(cameraSnapshot,_directionalShadowFallbackStatus);
+            _cameraGlobalsPass.Setup(cameraSnapshot, _directionalShadowFallbackStatus, _directionalShadowFallbackDepth);
             renderer.EnqueuePass(_cameraGlobalsPass);
 
             EnsureWrapperCapacity(passes.Count);
@@ -76,6 +78,38 @@ namespace MxFramework.Rendering
 
         private void EnsureCreated()
         {
+            if (_directionalShadowFallbackDepth == null)
+            {
+                // Integer depth is loaded, not sampled. Texture2D's Sample validation
+                // rejects R32_UInt on Metal even when the Render/LoadStore path is supported.
+                if (!SystemInfo.IsFormatSupported(GraphicsFormat.R32_UInt, GraphicsFormatUsage.Render) ||
+                    !SystemInfo.IsFormatSupported(GraphicsFormat.R32_UInt, GraphicsFormatUsage.LoadStore))
+                    throw new NotSupportedException("Directional shadow bindings require R32_UInt Render/LoadStore support.");
+                var texture = new RenderTexture(1, 1, 0)
+                {
+                    name = "DirectionalShadows.FallbackDepth",
+                    graphicsFormat = GraphicsFormat.R32_UInt,
+                    enableRandomWrite = true,
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp,
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+                try
+                {
+                    if (!texture.Create())
+                        throw new InvalidOperationException("Cannot allocate directional shadow fallback depth.");
+                    _directionalShadowFallbackDepth = RTHandles.Alloc(texture);
+                }
+                catch
+                {
+                    CoreUtils.Destroy(texture);
+                    throw;
+                }
+                // Also cover draws before the first per-camera globals pass.
+                Shader.SetGlobalTexture(MxDirectionalShadowIds.DynamicDepth, texture);
+                Shader.SetGlobalFloat(MxDirectionalShadowIds.Enabled, 0f);
+                Shader.SetGlobalVector(MxDirectionalShadowIds.Size, Vector4.zero);
+            }
             if(_directionalShadowFallbackStatus==null)
             {
                 _directionalShadowFallbackStatus=new GraphicsBuffer(GraphicsBuffer.Target.Structured,2,4);
@@ -122,6 +156,12 @@ namespace MxFramework.Rendering
             _cameraContext = null;
             _pipeline = null;
             _directionalShadowFallbackStatus?.Dispose();_directionalShadowFallbackStatus=null;
+            if (_directionalShadowFallbackDepth != null)
+            {
+                // The RTHandle owns the RenderTexture and destroys it on Release.
+                _directionalShadowFallbackDepth.Release();
+                _directionalShadowFallbackDepth = null;
+            }
         }
 
         internal SharedRenderTextureRegistry EnsureSharedRenderTexturesForTests()
@@ -1177,21 +1217,25 @@ namespace MxFramework.Rendering
     {
         private CameraRenderSnapshot _snapshot;
         private GraphicsBuffer _shadowStatus;
+        private RTHandle _shadowDepth;
 
         public MxCameraGlobalsPass()
         {
             renderPassEvent = MxRenderPhase.BeforeRendering.ToRenderPassEvent();
         }
 
-        public void Setup(CameraRenderSnapshot snapshot,GraphicsBuffer shadowStatus=null)
+        public void Setup(CameraRenderSnapshot snapshot, GraphicsBuffer shadowStatus, RTHandle shadowDepth)
         {
             _snapshot = snapshot;
             _shadowStatus=shadowStatus;
+            _shadowDepth = shadowDepth;
         }
 
         public void Clear()
         {
             _snapshot = null;
+            _shadowStatus = null;
+            _shadowDepth = null;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -1203,25 +1247,31 @@ namespace MxFramework.Rendering
             {
                 passData.Snapshot = _snapshot;
                 passData.ShadowStatus=_shadowStatus;
+                passData.ShadowDepth = _shadowDepth;
                 passData.InvertCulling = MxSceneRenderingAuxiliaryCamera.TryGet(_snapshot.Camera, out var auxiliary) && auxiliary.InvertCulling;
                 if(_shadowStatus!=null)builder.UseBuffer(renderGraph.ImportBuffer(_shadowStatus),AccessFlags.Read);
+                if (_shadowDepth != null) builder.UseTexture(renderGraph.ImportTexture(_shadowDepth), AccessFlags.Read);
                 builder.AllowPassCulling(false);
                 builder.AllowGlobalStateModification(true);
                 builder.SetRenderFunc((CameraGlobalsPassData data, UnsafeGraphContext graphContext) =>
                 {
                     var cmd = CommandBufferHelpers.GetNativeCommandBuffer(graphContext.cmd);
                     cmd.SetInvertCulling(data.InvertCulling);
-                    ExecuteCameraGlobals(cmd, data.Snapshot,data.ShadowStatus);
+                    ExecuteCameraGlobals(cmd, data.Snapshot, data.ShadowStatus, data.ShadowDepth);
                 });
             }
         }
 
-        private static void ExecuteCameraGlobals(CommandBuffer commandBuffer, CameraRenderSnapshot snapshot,GraphicsBuffer shadowStatus)
+        private static void ExecuteCameraGlobals(CommandBuffer commandBuffer, CameraRenderSnapshot snapshot,
+            GraphicsBuffer shadowStatus, RTHandle shadowDepth)
         {
             // Every camera starts without a scene-lighting field. A targeted provider enables it.
             commandBuffer.SetGlobalFloat(MxSceneLightingShaderIds.Enabled, 0f);
             commandBuffer.SetGlobalFloat(MxDirectionalShadowIds.Enabled, 0f);
             commandBuffer.SetGlobalVector(MxDirectionalShadowIds.StaticCoverage, Vector4.zero);
+            commandBuffer.SetGlobalVector(MxDirectionalShadowIds.Size, Vector4.zero);
+            // Metal validates declared texture types even when shadow sampling is disabled.
+            if (shadowDepth != null) commandBuffer.SetGlobalTexture(MxDirectionalShadowIds.DynamicDepth, shadowDepth);
             if(shadowStatus!=null)commandBuffer.SetGlobalBuffer("_MxDirectionalShadowStatus",shadowStatus);
             commandBuffer.SetGlobalFloat(MxHeightFogShaderIds.Active, 0f);
             commandBuffer.SetGlobalVector(MxRenderingShaderIds.MxViewFocusWorldPos, ToVector4(snapshot.ViewFocusWorldPosition));
@@ -1241,6 +1291,7 @@ namespace MxFramework.Rendering
         {
             public CameraRenderSnapshot Snapshot;
             public GraphicsBuffer ShadowStatus;
+            public RTHandle ShadowDepth;
             public bool InvertCulling;
         }
     }

@@ -53,8 +53,13 @@ namespace MxFramework.Game.CharacterTest
                 triggerKind,
                 projectile.Position,
                 projectile.Direction);
-            AbilityEffectTimelineStartResult start =
-                _effectTimelineRuntime.StartTimeline(timelineContext, frame);
+            var authority = _entityLookup.AccessoryState;
+            var root = authority?.ProjectileSource(projectile.ProjectileId, projectile.SpawnSequence) ?? default;
+            var parent = authority?.SecondBatchProducer(root, 1, projectile.ProjectileId, projectile.SpawnSequence) ?? default;
+            var trigger = triggerKind == AbilityEffectTimelineTriggerKind.ProjectileImpact && parent.IsValid
+                && _projectileCausalParent.Source.Matches(parent) ? _projectileCausalParent.Key : default;
+            AbilityEffectTimelineStartResult start = StartAccessoryTimeline(timelineContext, frame, root, parent, trigger,
+                _entityLookup.AccessoryState?.ThirdSource(1, projectile.ProjectileId, projectile.SpawnSequence).Attack ?? default);
             if (!start.Success)
             {
                 ReportHitTraceWarning(
@@ -92,6 +97,7 @@ namespace MxFramework.Game.CharacterTest
                 0d,
                 RuntimeTickStage.Simulation));
 
+            _effectTimelineRuntime.PumpFrameZero(frame);
             PruneTimelineCombatSuppressions();
         }
 
@@ -153,6 +159,8 @@ namespace MxFramework.Game.CharacterTest
         private void ProcessTimelineCombatEvent(AbilityEffectTimelineEventDispatch dispatch)
         {
             _timelineProfiledCandidates.Clear();
+            var binding = _entityLookup.AccessoryState?.FindProducer(3, dispatch.InstanceId, 0) ?? default;
+            if (_entityLookup.AccessoryState?.SuppressesAttack(binding.Root) == true) return;
 
             if (ShouldSuppressTimelineCombat(dispatch))
             {
@@ -161,7 +169,9 @@ namespace MxFramework.Game.CharacterTest
             }
 
             CharacterTestCharacterEntity source = _entityLookup.FindEntity(dispatch.Context.SourceEntityId);
-            if (source == null)
+            var frozenActor = _entityLookup.AccessoryState?.FindTimelineActor(dispatch.InstanceId);
+            if (source != null && frozenActor != null && source.GameplayEntityId != frozenActor.Actor) source = null;
+            if (source == null && frozenActor == null)
             {
                 ReportHitTraceWarning(
                     dispatch.Context.SourceEntityId,
@@ -170,20 +180,21 @@ namespace MxFramework.Game.CharacterTest
                     string.Empty,
                     dispatch.LocalFrame,
                     "AbilityEffectTimelineSourceMissing",
-                    "Timeline combat event skipped because the source entity is missing.");
+                    "Timeline combat event has neither a live source nor a frozen birth actor.");
                 return;
             }
 
             if (!TryResolveTimelineDamageRequest(
                     dispatch,
                     source,
+                    frozenActor,
                     out CharacterActionGameplayRequest request))
             {
                 return;
             }
 
             RecordExplosionInteractionFromTimelineAreaPulse(dispatch, source, request);
-            QueryTimelineCombatEvent(dispatch, source, request);
+            QueryTimelineCombatEvent(dispatch, source, request, frozenActor);
             if (_timelineProfiledCandidates.Count == 0)
                 return;
 
@@ -192,7 +203,7 @@ namespace MxFramework.Game.CharacterTest
                 _timelineProfiledCandidates,
                 _timelineHitOnceKeys,
                 _results,
-                _teamRelationProvider,
+                ProducerRelations(frozenActor),
                 _entityLookup);
             _timelineProfiledCandidates.Clear();
             _timelineHitOnceKeys.Clear();
@@ -208,6 +219,7 @@ namespace MxFramework.Game.CharacterTest
         private bool TryResolveTimelineDamageRequest(
             AbilityEffectTimelineEventDispatch dispatch,
             CharacterTestCharacterEntity source,
+            TacticalCard.TacticalDoubleEdgeBattleState.ProjectileActor frozenActor,
             out CharacterActionGameplayRequest request)
         {
             request = default;
@@ -239,11 +251,11 @@ namespace MxFramework.Game.CharacterTest
                 actionId,
                 dispatch.LocalFrame,
                 stableEventId,
-                source.Id.Value,
+                dispatch.Context.SourceEntityId,
                 new RuntimeTraceIdentity(CharacterTestFrameworkTraceKinds.AbilityTimelineVfx, dispatch.Context.SourceEntityId, dispatch.InstanceId, dispatch.Event.EventId));
             request = new CharacterActionGameplayRequest(
                 metadata,
-                source.GameplayEntityId,
+                source?.GameplayEntityId ?? frozenActor.Actor,
                 CharacterActionTrackEventKind.ApplyGameplayEffect,
                 stableEventId,
                 abilityStableId,
@@ -286,9 +298,12 @@ namespace MxFramework.Game.CharacterTest
         private void QueryTimelineCombatEvent(
             AbilityEffectTimelineEventDispatch dispatch,
             CharacterTestCharacterEntity source,
-            CharacterActionGameplayRequest request)
+            CharacterActionGameplayRequest request,
+            TacticalCard.TacticalDoubleEdgeBattleState.ProjectileActor frozenActor)
         {
-            CombatEntityId sourceCombatId = _physicsRuntime.GetEntityId(source);
+            CombatEntityId sourceCombatId = frozenActor != null ? new CombatEntityId(frozenActor.CombatSource) : _physicsRuntime.GetEntityId(source);
+            var identity = new CombatHitProducerIdentity(CombatHitProducerKind.EffectTimeline, checked((ulong)dispatch.InstanceId),
+                0, unchecked((ulong)(uint)dispatch.Event.EventId));
             int actionId = StablePositiveId(request.Metadata.ActionId.Value);
             int traceId = request.Metadata.StableEventId;
             var header = new CombatQueryHeader(
@@ -335,7 +350,7 @@ namespace MxFramework.Game.CharacterTest
                         DamageProfileSourceKind.AreaPulse,
                         CharacterTestBodyPartDamageSourcePolicy.Ability,
                         out DamageProfileResolveResult damage,
-                        out CharacterTestHitZoneResolution hitZone))
+                        out CharacterTestHitZoneResolution hitZone, frozenActor, identity))
                 {
                     continue;
                 }
@@ -351,16 +366,17 @@ namespace MxFramework.Game.CharacterTest
                     damage.IncomingDamage,
                     CharacterTestHitReactionResolver.CreateHitResolveReactionGate(damage),
                     CharacterTestHitReactionResolver.CreateHitResolveKnockbackGate(damage),
-                    _entityLookup.ResolveTargetState(queryResult.TargetEntityId));
+                    _entityLookup.ResolveTargetState(queryResult.TargetEntityId)).WithProducerIdentity(identity);
                 var hitKey = new CharacterTestResolvedHitKey(candidate);
-                SetAccessoryAwareDamagePayload(hitKey, damage);
+                SetAccessoryAwareDamagePayload(hitKey, damage, ProducerEvidence(3, dispatch.InstanceId, 0,
+                    source, candidate.TargetId, identity.Occurrence));
                 _hitZonesByHit[hitKey] = hitZone;
                 _timelineProfiledCandidates.Add(candidate);
             }
 
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 dispatch.RuntimeFrame,
-                source.Id.Value,
+                dispatch.Context.SourceEntityId,
                 "effectTimelineCombat timeline="
                 + CharacterTestCombatTraceText.EmptyAsNone(dispatch.Context.EffectTimelineId)
                 + " event=" + CharacterTestCombatTraceText.EmptyAsNone(dispatch.Event.EventId)
@@ -384,15 +400,15 @@ namespace MxFramework.Game.CharacterTest
             _timelineSuppressionsToRemove.Clear();
         }
 
-        private void RegisterProjectileDamagePayload(CombatProjectileImpactEvent impact, RuntimeFrame frame)
+        private void RegisterProjectileDamagePayload(CharacterTestCharacterRuntimeWorld world, CombatProjectileImpactEvent impact, RuntimeFrame frame)
         {
             HitResolveResult result = impact.ResolveResult;
             if (result.Kind != HitResolveKind.Damage && result.Kind != HitResolveKind.Blocked && result.Kind != HitResolveKind.Parried)
                 return;
 
             CharacterTestCharacterEntity source = _entityLookup.FindEntityByCombatId(result.AttackerId);
-            if (source == null)
-                return;
+            var frozenActor = world.DoubleEdgeState.FindProjectileActor(impact.Projectile.ProjectileId, impact.Projectile.SpawnSequence);
+            if (source == null && frozenActor == null) return;
 
             if (!_projectileDefinitions.TryGet(impact.Projectile.DefinitionId, out CombatProjectileDefinition definition))
                 return;
@@ -414,10 +430,16 @@ namespace MxFramework.Game.CharacterTest
             }
 
             var hitKey = new CharacterTestResolvedHitKey(result);
-            SetAccessoryAwareDamagePayload(hitKey, damage,
-                impact.Context.SourceKind == CombatProjectileImpactSourceKind.DirectSweep
-                    ? CharacterTestAccessoryHitEvidence.DirectProjectile(damage.Usage.ActionId, impact.Projectile.Direction)
-                    : default);
+            var root = world.DoubleEdgeState.ProjectileSource(impact.Projectile.ProjectileId, impact.Projectile.SpawnSequence);
+            var target = _entityLookup.FindEntityByCombatId(result.TargetId);
+            var witness = impact.Context.SourceKind == CombatProjectileImpactSourceKind.DirectSweep
+                && world.DoubleEdgeState.IsDirectProjectile(impact.Projectile.ProjectileId, impact.Projectile.SpawnSequence)
+                ? CharacterTestAccessoryHitEvidence.DirectProjectile(damage.Usage.ActionId, impact.Projectile.Direction, root)
+                : CharacterTestAccessoryHitEvidence.Derived.WithSource(root);
+            SetAccessoryAwareDamagePayload(hitKey, damage, witness.WithCollision(frozenActor != null ? frozenActor.Actor : source.GameplayEntityId, target,
+                target != null && (frozenActor != null ? frozenActor.Team : source.Team.TeamId) != target.Team.TeamId,
+                world.DoubleEdgeState.SecondBatchProducer(root, 1, impact.Projectile.ProjectileId, impact.Projectile.SpawnSequence),
+                unchecked((ulong)(uint)impact.Projectile.SpawnSequence + 1)));
             _hitZonesByHit[hitKey] = hitZone;
             CombatHitEventConfig hitEvent =
                 CharacterTestCombatDamageResolver.ResolveProjectileHitEvent(definition.Impact, impact.Context);

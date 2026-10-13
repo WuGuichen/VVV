@@ -221,6 +221,12 @@ namespace MxFramework.CharacterAction
 
     public sealed class MotionTrackJsonDto
     {
+        public ControlScaleKeyJsonDto[] MovementControlKeys { get; set; }
+        public ControlScaleKeyJsonDto[] RotationControlKeys { get; set; }
+        public bool ShouldSerializeMovementControlKeys() => MovementControlKeys != null;
+        public bool ShouldSerializeRotationControlKeys() => RotationControlKeys != null;
+        [JsonIgnore] public string ControlScaleMigrationIssue { get; set; }
+
         public bool UsesRootMotion { get; set; }
         public RootMotionTrackJsonDto RootMotion { get; set; }
         public VerticalRootMotionTrackJsonDto VerticalRootMotion { get; set; }
@@ -230,6 +236,15 @@ namespace MxFramework.CharacterAction
         {
             return VerticalRootMotion != null;
         }
+    }
+
+    public sealed class ControlScaleKeyJsonDto
+    {
+        public int Frame { get; set; }
+        public float Value { get; set; } = 1f;
+        public int StableEventId { get; set; }
+        public string StableEventLabel { get; set; } = string.Empty;
+        public int StableEventOrder { get; set; }
     }
 
     public sealed class RootMotionTrackJsonDto
@@ -292,6 +307,8 @@ namespace MxFramework.CharacterAction
 
     public sealed class MotionTrackEventJsonDto
     {
+        public bool ControlScaleGenerated { get; set; }
+        public bool ShouldSerializeControlScaleGenerated() => ControlScaleGenerated;
         public int Frame { get; set; }
         public int EndFrame { get; set; }
         public string Kind { get; set; } = string.Empty;

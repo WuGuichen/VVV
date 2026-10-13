@@ -61,15 +61,23 @@ namespace MxFramework.Game.CharacterTest
                 var phase = (TacticalCard.TacticalPreparationState)target.Status.TacticalPhase;
                 bool home = phase == TacticalCard.TacticalPreparationState.Home;
                 bool outcome = phase == TacticalCard.TacticalPreparationState.Completed;
+                bool pending = target.Status.TacticalRewardState == (int)TacticalCard.CharacterTacticalRewardState.Pending;
                 target.Title = home ? "战术对战" : outcome ? "战斗结算" : "暂停";
-                target.StatusText = target.Status.TacticalBusy ? "正在保存或准备会话…" : home ? "战斗外进度" : outcome ? "战斗已冻结" : "世界已暂停";
+                target.StatusText = outcome && !target.Status.TacticalSettlementSaved
+                    ? (target.Status.TacticalBusy ? "正在保存结算…" : "结算尚未保存")
+                    : target.Status.TacticalBusy ? (target.Status.TacticalRewardClaiming ? "正在领取并保存…" : "正在保存或准备会话…")
+                    : home ? "战斗外进度" : outcome ? (pending ? "奖励待领取" : target.Status.TacticalRewardState == 2 ? "奖励已领取" : "战斗已冻结") : "世界已暂停";
                 target.StartLabel = home ? (target.Status.HasTacticalCheckpoint ? "继续最近整备" : "开始游戏")
-                    : outcome ? (target.Status.TacticalSettlementSaved ? "返回整备" : "重试保存结算")
+                    : outcome ? (!target.Status.TacticalSettlementSaved ? "重试保存结算" : pending
+                        ? (target.Status.TacticalRewardClaimFailed ? "重试领取奖励" : "确认领取奖励") : "返回整备")
                     : phase == TacticalCard.TacticalPreparationState.Preparation ? "继续整备" : "继续战斗";
                 target.CanNetwork = target.CanAbilities = target.CanBehaviorDeck = false;
                 target.CanStart = target.CanRestart = target.CanClose = !target.Status.TacticalBusy;
                 if (phase == TacticalCard.TacticalPreparationState.Deploying) target.CanStart = target.CanRestart = false;
                 if (outcome) target.CanSettings = false;
+                if (outcome && pending) target.CanRestart = false;
+                if (outcome && !target.Status.TacticalSettlementSaved && target.Status.TacticalBusy) target.StartLabel = "正在保存结算…";
+                else if (outcome && target.Status.TacticalSettlementSaved && target.Status.TacticalRewardClaiming) target.StartLabel = "正在领取并保存…";
                 if (home && string.IsNullOrWhiteSpace(target.Message)) target.Message = "继续恢复角色清单和战斗外整备。战斗中退出后从整备重新出战。";
             }
             return target;
@@ -123,6 +131,11 @@ namespace MxFramework.Game.CharacterTest
             target.NetworkSessionKind = source.NetworkSessionKind;
             target.RuntimeFrame = source.RuntimeFrame;
             target.Message = source.Message;
+            target.IsTacticalSlice = source.IsTacticalSlice; target.TacticalPhase = source.TacticalPhase;
+            target.TacticalBusy = source.TacticalBusy; target.TacticalSettlementSaved = source.TacticalSettlementSaved;
+            target.TacticalRewardState = source.TacticalRewardState; target.TacticalRewardClaimFailed = source.TacticalRewardClaimFailed;
+            target.TacticalRewardClaiming = source.TacticalRewardClaiming;
+            target.HasTacticalCheckpoint = source.HasTacticalCheckpoint;
         }
 
         private static string FormatStatus(CharacterTestMainMenuStatus status, IMxUiTextProvider textProvider)

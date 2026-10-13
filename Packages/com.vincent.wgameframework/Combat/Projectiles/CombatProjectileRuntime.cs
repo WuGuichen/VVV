@@ -437,7 +437,9 @@ namespace MxFramework.Combat.Projectiles
                     request.TrackingTargetEntityId,
                     acceptedImpacts: null);
                 _activeProjectiles.Add(projectile);
-                _frameSpawns.Add(new CombatProjectileSpawnEvent(projectile.ToSnapshot(definition.StableId, definition.StableLabelDigest)));
+                var birth = new CombatProjectileSpawnEvent(projectile.ToSnapshot(definition.StableId, definition.StableLabelDigest), request);
+                _frameSpawns.Add(birth);
+                if (_impactResolver is ICombatProjectileSpawnObserver observer) observer.OnProjectileSpawned(birth);
             }
         }
 
@@ -1010,12 +1012,13 @@ namespace MxFramework.Combat.Projectiles
                 payload.Knockback,
                 payload.TargetState,
                 incomingDirection,
-                payload.ResolvePriority));
+                payload.ResolvePriority).WithProducerIdentity(context.GetProducerIdentity(projectile.ProjectileId, projectile.SpawnSequence)));
             _hitResolve.Resolve(
                 _singleCandidate,
                 _hitOnceKeys,
                 _singleResult,
-                _teamRelationProvider,
+                _impactResolver is ICombatProjectileImpactRelations relations
+                    ? relations.ResolveTeamRelations(projectile, _teamRelationProvider) : _teamRelationProvider,
                 _targetStateResolver,
                 _allowFriendlyFire);
             if (_singleResult.Count == 0)

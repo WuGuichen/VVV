@@ -8,6 +8,18 @@ using MxFramework.Runtime;
 
 namespace MxFramework.Combat.Projectiles
 {
+    /// <summary>Optional actual-birth observer, called after native identity allocation and before any impact.</summary>
+    public interface ICombatProjectileSpawnObserver
+    {
+        void OnProjectileSpawned(in CombatProjectileSpawnEvent birth);
+    }
+
+    /// <summary>Optional frozen-source team relation policy for the exact projectile being classified.</summary>
+    public interface ICombatProjectileImpactRelations
+    {
+        ITeamRelationProvider ResolveTeamRelations(in CombatProjectileSnapshot projectile, ITeamRelationProvider fallback);
+    }
+
     public readonly struct CombatProjectileSpawnRequest : IEquatable<CombatProjectileSpawnRequest>
     {
         public CombatProjectileSpawnRequest(
@@ -385,6 +397,9 @@ namespace MxFramework.Combat.Projectiles
 
         public CombatProjectileImpactSourceKind SourceKind { get; }
         public bool IsAreaPulse => SourceKind == CombatProjectileImpactSourceKind.AreaPulse;
+        public CombatHitProducerIdentity GetProducerIdentity(int projectileId, int spawnSequence)
+            => new CombatHitProducerIdentity(IsAreaPulse ? CombatHitProducerKind.ProjectileArea : CombatHitProducerKind.ProjectileDirect,
+                checked((ulong)projectileId), checked((ulong)spawnSequence), 0);
 
         public bool Equals(CombatProjectileImpactContext other)
         {
@@ -1063,13 +1078,22 @@ namespace MxFramework.Combat.Projectiles
         public CombatProjectileSpawnEvent(CombatProjectileSnapshot projectile)
         {
             Projectile = projectile;
+            Request = default;
+            HasRequest = false;
         }
 
+        /// <summary>Live birth evidence with the exact accepted request, including SourceOrder.</summary>
+        public CombatProjectileSpawnEvent(CombatProjectileSnapshot projectile, CombatProjectileSpawnRequest request)
+        { Projectile = projectile; Request = request; HasRequest = true; }
+
         public CombatProjectileSnapshot Projectile { get; }
+        public CombatProjectileSpawnRequest Request { get; }
+        public bool HasRequest { get; }
 
         public bool Equals(CombatProjectileSpawnEvent other)
         {
-            return Projectile.Equals(other.Projectile);
+            return Projectile.Equals(other.Projectile) && HasRequest == other.HasRequest
+                && (!HasRequest || Request.Equals(other.Request));
         }
 
         public override bool Equals(object obj)
@@ -1079,7 +1103,7 @@ namespace MxFramework.Combat.Projectiles
 
         public override int GetHashCode()
         {
-            return Projectile.GetHashCode();
+            return HasRequest ? unchecked(Projectile.GetHashCode() * 397 ^ Request.GetHashCode()) : Projectile.GetHashCode();
         }
     }
 

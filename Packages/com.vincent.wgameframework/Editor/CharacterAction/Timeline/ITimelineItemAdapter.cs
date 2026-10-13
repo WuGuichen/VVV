@@ -17,6 +17,8 @@ namespace MxFramework.Editor.CharacterAction.Timeline
         Combat,
         Gameplay,
         Presentation,
+        MovementControl,
+        RotationControl,
     }
 
     internal interface ITimelineItemAdapter

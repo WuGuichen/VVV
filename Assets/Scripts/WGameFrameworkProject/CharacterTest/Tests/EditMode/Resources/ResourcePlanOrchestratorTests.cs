@@ -6,6 +6,98 @@ namespace MxFramework.Tests.Resources
 {
     public sealed class ResourcePlanOrchestratorTests
     {
+        [TestCase("global-package")]
+        [TestCase("profile-variant")]
+        [TestCase("label-variant")]
+        [TestCase("logical-aliases")]
+        [TestCase("explicit-package")]
+        [TestCase("explicit-variant")]
+        [TestCase("fallback-variant")]
+        public void StrongPreparation_ResolvedRequestsPreserveEachAcquisition(string scenario)
+        {
+            const string id = "demo.preload";
+            const string package = "demo.package";
+            const string label = "warmup.demo";
+            bool useVariant = scenario != "global-package" && scenario != "explicit-package";
+            var provider = new MemoryResourceProvider().Register("default", "Default").Register("high", "High");
+            var manager = new ResourceManager();
+            manager.RegisterProvider(provider);
+            manager.AddCatalog(new ResourceCatalog("resolved", package, new[]
+            {
+                new ResourceCatalogEntry(id, ResourceTypeIds.String, provider.ProviderId, "default", labels: new[] { label }),
+                new ResourceCatalogEntry(id, ResourceTypeIds.String, provider.ProviderId, "high", "pc.high", labels: new[] { label })
+            }));
+            if (useVariant)
+                manager.SetVariantProfile(new ResourceVariantProfile(
+                    scenario == "fallback-variant" ? "pc.ultra" : "pc.high", new[] { "pc.high", string.Empty }));
+
+            var logicalKey = new ResourceKey(id, ResourceTypeIds.String);
+            var resolvedKey = new ResourceKey(id, ResourceTypeIds.String, useVariant ? "pc.high" : string.Empty, package);
+            ResourceKey[] keys = scenario == "label-variant" ? Array.Empty<ResourceKey>()
+                : scenario == "logical-aliases" ? new[] { logicalKey, resolvedKey }
+                : new[] { scenario == "explicit-package" || scenario == "explicit-variant" ? resolvedKey : logicalKey };
+            var plan = new ResourcePlan("resolved", scenario, keys,
+                labels: scenario == "label-variant" ? new[] { label } : null);
+            var service = new ResourcePreloadService(manager);
+            var orchestrator = new ResourcePlanOrchestrator(service, manager);
+            ResourceRuntimeConfigurationIdentity identity = manager.SealRuntimeConfiguration();
+            int count = scenario == "logical-aliases" ? 2 : 1;
+
+            ResourcePreloadResult ordinary = orchestrator.Preload(plan).Result.Value;
+            Assert.IsTrue(ordinary.Success);
+            Assert.AreEqual(count, ordinary.RequestedCount);
+            Assert.AreEqual(count, ordinary.LoadedCount);
+            Assert.AreEqual(scenario == "explicit-package" || scenario == "explicit-variant" ? resolvedKey : logicalKey,
+                ordinary.RequestedKeys[0]);
+            service.ReleaseGroup(ordinary.Handle);
+            service.ReleaseGroup(ordinary.Handle);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().TotalRefCount);
+
+            ResourcePlanPreparation preparation = orchestrator.Prepare(identity, plan);
+            Assert.AreEqual(ResourcePlanPreparationStatus.Prepared, preparation.Status);
+            Assert.AreEqual(ResourcePlanPreparationErrorCode.None, preparation.Error.Code);
+            ResourcePlanAcquireResult acquired = orchestrator.AcquirePrepared(plan, preparation);
+            Assert.IsTrue(acquired.Success);
+            Assert.AreEqual(ResourcePlanPreparationErrorCode.None, preparation.Error.Code);
+            Assert.AreEqual(count, acquired.Session.LoadedResourceHandles.Count);
+            for (int i = 0; i < count; i++)
+            {
+                Assert.AreEqual(resolvedKey, acquired.Session.LoadedResourceHandles[i].Key);
+                Assert.AreEqual(useVariant ? "High" : "Default", acquired.Session.LoadedResourceHandles[i].Value);
+            }
+            if (count == 2)
+                Assert.AreNotSame(acquired.Session.LoadedResourceHandles[0], acquired.Session.LoadedResourceHandles[1]);
+            Assert.AreEqual(count, manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.AreEqual(ResourcePlanPreparationErrorCode.AlreadyAcquired,
+                orchestrator.AcquirePrepared(plan, preparation).Error.Code);
+            preparation.Dispose();
+            Assert.AreEqual(count, manager.CreateDebugSnapshot().TotalRefCount);
+
+            ResourcePlanPreparation candidate = orchestrator.Prepare(identity, plan);
+            Assert.AreEqual(ResourcePlanPreparationStatus.Prepared, candidate.Status);
+            _ = candidate.Progress;
+            _ = candidate.Error;
+            _ = GC.GetAllocatedBytesForCurrentThread();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++)
+            {
+                _ = candidate.Status;
+                _ = candidate.Progress;
+                _ = candidate.Error;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocated);
+            candidate.Release();
+            candidate.Dispose();
+            Assert.AreEqual(ResourcePlanPreparationStatus.Released, candidate.Status);
+            Assert.AreEqual(count, manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.IsFalse(acquired.Session.LoadedResourceHandles[0].IsReleased);
+            orchestrator.Release(acquired.Session);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.AreEqual(0, manager.CreateDebugSnapshot().LoadedCount);
+            Assert.AreEqual(2, provider.ReleaseCount);
+        }
+
         [Test]
         public void PreloadAcquireRelease_HoldsHandlesAndReleaseIsIdempotent()
         {
@@ -28,6 +120,92 @@ namespace MxFramework.Tests.Resources
             Assert.IsTrue(session.IsReleased);
             Assert.AreEqual(2, fixture.Provider.ReleaseCount);
             AssertDiagnostic(session, ResourcePlanDiagnosticCodes.SessionAlreadyReleased);
+        }
+
+        [TestCase("package")]
+        [TestCase("variant")]
+        [TestCase("id")]
+        [TestCase("type")]
+        public void StrongPreparation_RejectsSubstitutedRequestWithoutReleasingLiveOwnership(string field)
+        {
+            ResourceFixture fixture = CreateFixture(BodyKey);
+            ResourceRuntimeConfigurationIdentity identity = fixture.Manager.SealRuntimeConfiguration();
+            var liveOwner = new ResourcePlanOrchestrator(new ResourcePreloadService(fixture.Manager), fixture.Manager);
+            ResourcePlan livePlan = CreatePlan("live", BodyKey);
+            ResourcePlanAcquireResult live = liveOwner.AcquirePrepared(livePlan, liveOwner.Prepare(identity, livePlan));
+            var requested = new ResourceKey(field == "id" ? "other.id" : BodyKey.Id,
+                field == "type" ? ResourceTypeIds.String : BodyKey.TypeId,
+                field == "variant" ? "other.variant" : BodyKey.Variant,
+                field == "package" ? "other.package" : BodyKey.PackageId);
+            ResourcePlan plan = CreatePlan("substituted", requested);
+            var owner = new ResourcePlanOrchestrator(new SubstitutingPreloadService(fixture.Manager, BodyKey), fixture.Manager);
+            ResourcePlanPreparation preparation = owner.Prepare(identity, plan);
+
+            Assert.AreEqual(ResourcePlanPreparationStatus.Failed, preparation.Status);
+            Assert.AreEqual(ResourcePlanPreparationErrorCode.PreparationResultInvalid, owner.AcquirePrepared(plan, preparation).Error.Code);
+            preparation.Release();
+            preparation.Dispose();
+            Assert.AreEqual(1, fixture.Manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.IsFalse(live.Session.LoadedResourceHandles[0].IsReleased);
+            Assert.AreEqual(0, fixture.Provider.ReleaseCount);
+            liveOwner.Release(live.Session);
+            Assert.AreEqual(0, fixture.Manager.CreateDebugSnapshot().TotalRefCount);
+        }
+
+        [TestCase("forged")]
+        [TestCase("missing")]
+        [TestCase("duplicate")]
+        public void StrongPreparation_UnprovenHandlesCannotAcquireOrReleaseLiveOwnership(string scenario)
+        {
+            ResourceFixture fixture = CreateFixture(BodyKey, SwordKey);
+            ResourceRuntimeConfigurationIdentity identity = fixture.Manager.SealRuntimeConfiguration();
+            var service = new ResourcePreloadService(fixture.Manager);
+            var liveOwner = new ResourcePlanOrchestrator(service, fixture.Manager);
+            ResourcePlan plan = CreatePlan("unproven", BodyKey, SwordKey);
+            ResourcePlanAcquireResult live = liveOwner.AcquirePrepared(plan, liveOwner.Prepare(identity, plan));
+            var owner = new ResourcePlanOrchestrator(new UnprovenPreloadService(service, live.Session, scenario), fixture.Manager);
+            ResourcePlanPreparation preparation = owner.Prepare(identity, plan);
+
+            Assert.AreEqual(ResourcePlanPreparationStatus.Failed, preparation.Status);
+            Assert.AreEqual(ResourcePlanPreparationErrorCode.PreparationResultInvalid, owner.AcquirePrepared(plan, preparation).Error.Code);
+            Assert.AreEqual(ResourcePlanPreparationStatus.Failed, preparation.Status);
+            preparation.Release();
+            preparation.Dispose();
+            Assert.AreEqual(2, fixture.Manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.IsFalse(live.Session.LoadedResourceHandles[0].IsReleased);
+            Assert.IsFalse(live.Session.LoadedResourceHandles[1].IsReleased);
+            Assert.AreEqual(0, fixture.Provider.ReleaseCount);
+            liveOwner.Release(live.Session);
+            Assert.AreEqual(0, fixture.Manager.CreateDebugSnapshot().TotalRefCount);
+        }
+
+        [Test]
+        public void StrongPreparation_RejectsPreloadFromAnotherManagerAndReleaseGroupIgnoresForeignGroups()
+        {
+            ResourceFixture first = CreateFixture(BodyKey);
+            ResourceFixture second = CreateFixture(BodyKey);
+            ResourceRuntimeConfigurationIdentity identity = first.Manager.SealRuntimeConfiguration();
+            second.Manager.SealRuntimeConfiguration();
+            var firstService = new ResourcePreloadService(first.Manager);
+            var secondService = new ResourcePreloadService(second.Manager);
+            var liveOwner = new ResourcePlanOrchestrator(firstService, first.Manager);
+            ResourcePlan plan = CreatePlan("foreign-preload", BodyKey);
+            ResourcePreloadResult ordinary = firstService.PreloadAsync(new ResourcePreloadPlan("foreign-group", new[] { BodyKey })).Result.Value;
+            secondService.ReleaseGroup(ordinary.Handle);
+            Assert.IsFalse(ordinary.Handle.IsReleased);
+            Assert.AreEqual(1, first.Manager.CreateDebugSnapshot().TotalRefCount);
+            firstService.ReleaseGroup(ordinary.Handle);
+            ResourcePlanAcquireResult live = liveOwner.AcquirePrepared(plan, liveOwner.Prepare(identity, plan));
+            var owner = new ResourcePlanOrchestrator(secondService, first.Manager);
+            ResourcePlanPreparation preparation = owner.Prepare(identity, plan);
+
+            Assert.AreEqual(ResourcePlanPreparationStatus.Failed, preparation.Status);
+            Assert.AreEqual(ResourcePlanPreparationErrorCode.PreparationResultInvalid, owner.AcquirePrepared(plan, preparation).Error.Code);
+            Assert.AreEqual(1, first.Manager.CreateDebugSnapshot().TotalRefCount);
+            Assert.IsFalse(live.Session.LoadedResourceHandles[0].IsReleased);
+            Assert.AreEqual(0, second.Manager.CreateDebugSnapshot().TotalRefCount);
+            liveOwner.Release(live.Session);
+            Assert.AreEqual(0, first.Manager.CreateDebugSnapshot().TotalRefCount);
         }
 
         [Test]
@@ -258,7 +436,8 @@ namespace MxFramework.Tests.Resources
                 _ = preparation.ConfigurationIdentity;
             }
 
-            Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocated);
 
             preparation.Release();
             Assert.AreEqual(ResourcePlanPreparationStatus.Released, preparation.Status);
@@ -275,7 +454,8 @@ namespace MxFramework.Tests.Resources
                 _ = preparation.ConfigurationIdentity;
             }
 
-            Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocated);
 
             ResourcePlan acquiredPlan = CreatePlan("noalloc-acquired", BodyKey);
             ResourcePlanPreparation acquiredPreparation = orchestrator.Prepare(identity, acquiredPlan);
@@ -297,7 +477,8 @@ namespace MxFramework.Tests.Resources
                 _ = acquiredPreparation.ConfigurationIdentity;
             }
 
-            Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.AreEqual(0L, allocated);
             orchestrator.Release(acquired.Session);
         }
 
@@ -404,6 +585,65 @@ namespace MxFramework.Tests.Resources
             public void ReleaseGroup(ResourceGroupHandle handle)
             {
             }
+        }
+
+        private sealed class SubstitutingPreloadService : IResourcePreloadService
+        {
+            private readonly ResourcePreloadService _inner;
+            private readonly ResourceKey _actualKey;
+
+            public SubstitutingPreloadService(IResourceManager manager, ResourceKey actualKey)
+            {
+                _inner = new ResourcePreloadService(manager);
+                _actualKey = actualKey;
+            }
+
+            public IResourceOperation<ResourcePreloadResult> PreloadAsync(ResourcePreloadPlan plan,
+                System.Threading.CancellationToken cancellationToken = default)
+            {
+                ResourcePreloadResult actual = _inner.PreloadAsync(new ResourcePreloadPlan(plan.GroupId, new[] { _actualKey })).Result.Value;
+                return new ImmediateResourceOperation<ResourcePreloadResult>(ResourceLoadResult<ResourcePreloadResult>.Loaded(
+                    new ResourcePreloadResult(plan.GroupId, actual.Handle, plan.ExplicitKeys, actual.Errors)));
+            }
+
+            public void ReleaseGroup(ResourceGroupHandle handle) => _inner.ReleaseGroup(handle);
+        }
+
+        private sealed class UnprovenPreloadService : IResourcePreloadService
+        {
+            private readonly ResourcePreloadService _inner;
+            private readonly ResourcePlanSession _live;
+            private readonly string _scenario;
+
+            public UnprovenPreloadService(ResourcePreloadService inner, ResourcePlanSession live, string scenario)
+            {
+                _inner = inner;
+                _live = live;
+                _scenario = scenario;
+            }
+
+            public IResourceOperation<ResourcePreloadResult> PreloadAsync(ResourcePreloadPlan plan,
+                System.Threading.CancellationToken cancellationToken = default)
+            {
+                ResourceHandle<object> first = _live.LoadedResourceHandles[0];
+                ResourceHandle<object> second = _live.LoadedResourceHandles[1];
+                if (_scenario == "forged")
+                    first = (ResourceHandle<object>)Activator.CreateInstance(typeof(ResourceHandle<object>),
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
+                        new object[] { first.Key, first.Entry, first.ProviderId, first.Value }, null);
+                else if (_scenario == "missing")
+                    first = null;
+                else
+                    second = first;
+                // Reflection supplies adversarial data at an otherwise internal construction boundary.
+                var group = (ResourceGroupHandle)Activator.CreateInstance(typeof(ResourceGroupHandle),
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
+                    new object[] { plan.GroupId, new[] { first, second } }, null);
+                return new ImmediateResourceOperation<ResourcePreloadResult>(ResourceLoadResult<ResourcePreloadResult>.Loaded(
+                    new ResourcePreloadResult(plan.GroupId, group, plan.ExplicitKeys, null)));
+            }
+
+            public void ReleaseGroup(ResourceGroupHandle handle) => _inner.ReleaseGroup(handle);
         }
 
         private sealed class PartialSuccessPreloadService : IResourcePreloadService

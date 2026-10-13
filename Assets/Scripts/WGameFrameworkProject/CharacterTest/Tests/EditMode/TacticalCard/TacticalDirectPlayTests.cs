@@ -1,9 +1,15 @@
 using System;
+using System.Reflection;
+using System.Runtime.Serialization;
 using MxFramework.Game.CharacterTest;
 using MxFramework.Game.CharacterTest.TacticalCard;
 using MxFramework.Gameplay;
+using MxFramework.Input;
+using MxFramework.UI;
+using MxFramework.UI.FairyGui;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace MxFramework.Tests.Game.CharacterTest
 {
@@ -51,6 +57,30 @@ namespace MxFramework.Tests.Game.CharacterTest
             f.Pump.Drain(); f.Hud.TickDirectPlay(); f.Pump.Drain(); f.Hud.TickDirectPlay();
             Assert.AreEqual(0,f.Port.Admissions); Assert.AreEqual(0,f.Ledger.Reserved);
             Assert.AreEqual(50,f.Ledger.Current); Assert.IsFalse(f.Hud.DirectPlayActive);
+        }
+        [Test]
+        public void RepeatedDirectCancelSubmitsOneCommandAndReleasesReservationOnce()
+        {
+            using var f=new Fixture(point:true);
+            Assert.IsTrue(f.Hud.TryDirectPlayHandSlot(0)); f.Pump.Drain();
+            f.Hud.CancelDirectPlay(); f.Hud.CancelDirectPlay(); f.Hud.TickDirectPlay();
+            Assert.AreEqual(1,f.Pump.PendingCount);
+            f.Pump.Drain(); f.Hud.TickDirectPlay();
+            Assert.AreEqual(0,f.Ledger.Reserved); Assert.AreEqual(50,f.Ledger.Current);
+            Assert.IsFalse(f.Hud.DirectPlayActive); Assert.AreEqual(0,f.Port.Admissions);
+        }
+        [Test]
+        public void InternalRollbackStillReleasesReservationWhileBattleInputIsBlocked()
+        {
+            using var f=new Fixture(point:true);
+            Assert.IsTrue(f.Hud.TryDirectPlayHandSlot(0)); f.Pump.Drain();
+            typeof(TacticalCardHud).GetField("_inventoryOpen",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(f.Hud,true);
+            Assert.IsTrue(f.Hud.BattleInputBlocked);
+            f.Hud.CancelDirectPlay(); f.Hud.TickDirectPlay();
+            Assert.AreEqual(1,f.Pump.PendingCount);
+            f.Pump.Drain(); f.Hud.TickDirectPlay();
+            Assert.AreEqual(0,f.Ledger.Reserved); Assert.AreEqual(50,f.Ledger.Current);
+            Assert.IsFalse(f.Hud.DirectPlayActive);
         }
         [Test]
         public void PointClickWaitsForValidPointThenExecutesWithoutConfirmationGesture()
@@ -149,6 +179,93 @@ namespace MxFramework.Tests.Game.CharacterTest
             public bool TryAdmit(TacticalCardInstance card,in TacticalExecutionInput input,out ulong id,out string issue){Input=input;return TryAdmit(card,out id,out issue);}
             public ExecutionObservation Observe(ulong id)=>new(id,false,false,false,true,true);
             public bool TryAbortPreAction(ulong id,string reason)=>true;
+        }
+    }
+
+    // Real InputSystem buttons with the production HUD/drag methods and stage command pump.
+    // This fixture does not claim published FairyGUI settings-panel or scene validation.
+    public sealed class TacticalBattleCancelInputTests : InputTestFixture
+    {
+        private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        [TestCase(true, false, false)]
+        [TestCase(true, false, true)]
+        [TestCase(true, true, false)]
+        [TestCase(true, true, true)]
+        [TestCase(false, false, false)]
+        [TestCase(false, false, true)]
+        public void ModalCancelPreservesPendingAndBattleCancelSubmitsOnce(bool modal, bool closeBeforeHud, bool rightClick)
+        {
+            var keyboard=InputSystem.AddDevice<Keyboard>();
+            var mouse=InputSystem.AddDevice<Mouse>();
+            float timeScale=Time.timeScale;
+            var f=new TacticalDirectPlayTests.Fixture(point:true);
+            var manager=f.Hud.gameObject.AddComponent<GameManager>();
+            var input=new CancelInputProvider();
+            var runtime=new CharacterTestUiRuntime(f.Hud,null);
+            var context=new CharacterTestRuntimeContext(manager,null) { UiRuntime=runtime, InputProvider=input };
+            typeof(GameManager).GetField("_context",PrivateInstance).SetValue(manager,context);
+            typeof(TacticalCardHud).GetField("_preparationManager",PrivateInstance).SetValue(f.Hud,manager);
+            typeof(TacticalCardHud).GetField("_pointInputProvider",PrivateInstance).SetValue(f.Hud,input);
+            IDisposable scope=null;
+            try
+            {
+                Assert.IsTrue(f.Hud.TryDirectPlayHandSlot(0)); f.Pump.Drain();
+                Assert.IsTrue(f.Hud.TryCompleteDirectPoint(new TacticalWorldPoint(1000,0,0))); f.Pump.Drain();
+                var pending=f.Stage.Deck.PendingAction;
+                ulong version=pending.Version, revision=f.Stage.SnapshotRevision;
+                if(modal)
+                {
+                    var bridge=(IMxFairyGuiInputContextBridge)typeof(CharacterTestUiRuntime)
+                        .GetMethod("CreatePlayerInputBridge",PrivateInstance).Invoke(runtime,new object[] { input,null });
+                    scope=bridge.Enter(new MxUiViewDescriptor(new MxUiViewId("fixture.settings"),"","",MxUiLayer.Modal) { Modal=true });
+                    if(closeBeforeHud) { scope.Dispose(); scope=null; }
+                    Assert.IsTrue(runtime.BlocksTacticalBattleInput);
+                }
+                if(rightClick) Press(mouse.rightButton); else Press(keyboard.escapeKey);
+                Assert.IsTrue(input.Snapshot.CancelPressed);
+                var view=(CharacterTestFairyGuiTacticalBattleView)FormatterServices.GetUninitializedObject(typeof(CharacterTestFairyGuiTacticalBattleView));
+                typeof(CharacterTestFairyGuiTacticalBattleView).GetField("_hud",PrivateInstance).SetValue(view,f.Hud);
+                var updatePoint=typeof(TacticalCardHud).GetMethod("UpdatePointSelection",PrivateInstance);
+                var updateDrag=typeof(CharacterTestFairyGuiTacticalBattleView).GetMethod("UpdateCardDrag",PrivateInstance);
+                updatePoint.Invoke(f.Hud,null); updateDrag.Invoke(view,null); updateDrag.Invoke(view,null);
+                Assert.AreEqual(modal?0:1,f.Pump.PendingCount);
+                if(modal)
+                {
+                    f.Pump.Drain(); f.Hud.TickDirectPlay();
+                    Assert.AreSame(pending,f.Stage.Deck.PendingAction);
+                    Assert.AreEqual(version,pending.Version); Assert.AreEqual(revision,f.Stage.SnapshotRevision);
+                    Assert.AreEqual(10,f.Ledger.Reserved); Assert.AreEqual(50,f.Ledger.Current);
+                    Assert.AreEqual(TacticalExecutionInputKind.WorldPoint,f.Stage.Deck.PendingExecutionInput.Kind);
+                    Assert.AreEqual(1000,f.Stage.Deck.PendingExecutionInput.Point.X);
+                    Assert.IsTrue(f.Hud.DirectPlayActive); Assert.AreEqual(0,f.Pump.PendingCount);
+                }
+                else
+                {
+                    f.Pump.Drain(); f.Hud.TickDirectPlay();
+                    Assert.IsNull(f.Stage.Deck.PendingAction); Assert.AreEqual(0,f.Ledger.Reserved);
+                    Assert.AreEqual(50,f.Ledger.Current); Assert.AreEqual(0,f.Port.Admissions);
+                }
+            }
+            finally
+            {
+                scope?.Dispose(); runtime.Release(); f.Dispose();
+                Time.timeScale=timeScale;
+            }
+        }
+
+        private sealed class CancelInputProvider : IInputProvider
+        {
+            public InputSnapshot Snapshot => new InputSnapshot(default,default,default,default,default,0,
+                false,false,false,false,false,false,false,false,false,false,
+                Keyboard.current?.escapeKey.wasPressedThisFrame==true || Mouse.current?.rightButton.wasPressedThisFrame==true,
+                false,false);
+            public InputCommandQueue Commands { get; }=new InputCommandQueue();
+            public InputContext CurrentContext => InputContext.UI;
+            public bool ContainsContext(InputContext context)=>context==InputContext.UI;
+            public bool IsContextEnabled(InputContext context)=>ContainsContext(context);
+            public void SetContext(InputContext context) { }
+            public IDisposable PushContext(InputContext context,InputContextPolicy policy=InputContextPolicy.Exclusive)=>null;
         }
     }
 }

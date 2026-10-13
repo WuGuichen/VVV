@@ -1,12 +1,224 @@
 using System;
+using System.Collections;
 using System.IO;
+using System.Reflection;
 using MxFramework.Config.Levels;
 using MxFramework.Game.CharacterTest;
+using MxFramework.Game.CharacterTest.Editor;
 using MxFramework.Resources;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
 
 namespace MxFramework.Tests.Game.CharacterTest
 {
+    public sealed class CharacterTestDefinitionDraftUndoNativeTests
+    {
+        private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+        private CharacterTestWorldObjectLevelEditorModule _module;
+        private Scene _originalScene;
+        private Scene _testScene;
+        private bool _originalDirty;
+        private int _undoBoundary = -1;
+        private CharacterTestWorldObjectDefinitionAuthoringDocument Draft =>
+            (CharacterTestWorldObjectDefinitionAuthoringDocument)Field("_definitionDocument").GetValue(_module);
+        private string Snapshot => CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(Draft);
+        private static FieldInfo Field(string name) => typeof(CharacterTestWorldObjectLevelEditorModule).GetField(name, Private);
+        private void Invoke(string name, params object[] args) =>
+            typeof(CharacterTestWorldObjectLevelEditorModule).GetMethod(name, Private).Invoke(_module, args);
+
+        [SetUp]
+        public void SetUp()
+        {
+            _module = null;
+            _testScene = default;
+            _undoBoundary = -1;
+            _originalScene = SceneManager.GetActiveScene();
+            _originalDirty = _originalScene.isDirty;
+            // Preview scenes do not require saving the native Runner's untitled scene.
+            _testScene = EditorSceneManager.NewPreviewScene();
+            Undo.IncrementCurrentGroup();
+            _undoBoundary = Undo.GetCurrentGroup();
+            _module = new CharacterTestWorldObjectLevelEditorModule();
+            Field("_definitionDocument").SetValue(_module, CharacterTestWorldObjectDefinitionMigration.ExportBuiltInCatalog());
+            Invoke("CompileDefinitions");
+            Invoke("EnsureDefinitionUndoSession");
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            var session = _module == null ? null
+                : (CharacterTestLevelEditorDocumentUndoSession)Field("_definitionUndoSession").GetValue(_module);
+            session?.Retire();
+            if (_undoBoundary >= 0)
+                Undo.RevertAllDownToGroup(_undoBoundary);
+            if (session != null)
+            {
+                var state = (UnityEngine.Object)typeof(CharacterTestLevelEditorDocumentUndoSession)
+                    .GetField("_state", Private).GetValue(session);
+                UnityEngine.Object.DestroyImmediate(state);
+            }
+            if (_originalScene.IsValid() && _originalScene.isLoaded)
+                SceneManager.SetActiveScene(_originalScene);
+            if (_testScene.IsValid() && _testScene.isLoaded)
+                EditorSceneManager.ClosePreviewScene(_testScene);
+            Assert.AreEqual(_originalDirty, _originalScene.isDirty, "User scene dirty state must be preserved.");
+        }
+
+        private void Mutate(Action<CharacterTestWorldObjectDefinitionAuthoringEntry> edit)
+        {
+            Invoke("MutateDefinition", "Definition draft regression", Draft.Definitions[0], edit);
+            MoveOwnedMarkersToPreview();
+        }
+
+        private void MoveOwnedMarkersToPreview()
+        {
+            object session = Field("_definitionUndoSession").GetValue(_module);
+            var records = (IEnumerable)typeof(CharacterTestLevelEditorDocumentUndoSession)
+                .GetField("_transactions", Private).GetValue(session);
+            foreach (object record in records)
+            {
+                var marker = (CharacterTestLevelEditorDocumentUndoMarker)record.GetType()
+                    .GetField("Marker").GetValue(record);
+                if (marker != null && marker.gameObject.scene != _testScene)
+                    SceneManager.MoveGameObjectToScene(marker.gameObject, _testScene);
+            }
+        }
+
+        private void AssertSnapshot(string expected, bool dirty)
+        {
+            Assert.AreEqual(expected, Snapshot);
+            Assert.AreEqual(dirty, _module.IsDocumentDirty);
+            var session = Field("_definitionUndoSession").GetValue(_module);
+            var state = (CharacterTestLevelEditorDocumentUndoState)typeof(CharacterTestLevelEditorDocumentUndoSession)
+                .GetField("_state", Private).GetValue(session);
+            Assert.AreEqual(Snapshot, state.Snapshot, "Undo state and the real draft must stay identical.");
+        }
+
+        [UnityTest]
+        public IEnumerator DefinitionUndoRedo_RestoresIncompleteNameAndDescriptionExactly()
+        {
+            var snapshots = new string[4];
+            snapshots[0] = Snapshot;
+            Mutate(d => d.DisplayName = string.Empty);
+            snapshots[1] = Snapshot;
+            Mutate(d => d.Description = "note after second edit");
+            snapshots[2] = Snapshot;
+            Mutate(d => d.DisplayName = "valid repaired name");
+            snapshots[3] = Snapshot;
+            for (int i = 2; i >= 0; i--)
+            {
+                Undo.PerformUndo();
+                yield return null;
+                MoveOwnedMarkersToPreview();
+                AssertSnapshot(snapshots[i], dirty: i != 0);
+                if (i > 0)
+                {
+                    Assert.That(CharacterTestWorldObjectDefinitionValidator.Validate(Draft).Issues,
+                        Has.Some.Matches<CharacterTestWorldObjectDefinitionValidationIssue>(x => x.Code == "WOD_DISPLAY_NAME_MISSING"));
+                    Assert.Throws<InvalidOperationException>(() => CharacterTestWorldObjectDefinitionArtifactsBuilder.Save(Draft));
+                }
+            }
+            for (int i = 1; i <= 3; i++)
+            {
+                Undo.PerformRedo();
+                yield return null;
+                MoveOwnedMarkersToPreview();
+                AssertSnapshot(snapshots[i], dirty: true);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator DefinitionUndoRedo_InvalidStableIdStillRestoresOtherFields()
+        {
+            Mutate(d => d.StableId = string.Empty);
+            string beforeDescriptionEdit = Snapshot;
+            Mutate(d => d.Description = "description while the stable ID is incomplete");
+            string afterDescriptionEdit = Snapshot;
+            Undo.PerformUndo();
+            yield return null;
+            MoveOwnedMarkersToPreview();
+            AssertSnapshot(beforeDescriptionEdit, dirty: true);
+            Assert.IsFalse(CharacterTestWorldObjectDefinitionCompiler.Compile(Draft).Success);
+            Assert.Throws<InvalidOperationException>(() => CharacterTestWorldObjectDefinitionArtifactsBuilder.Save(Draft));
+            Undo.PerformRedo();
+            yield return null;
+            MoveOwnedMarkersToPreview();
+            AssertSnapshot(afterDescriptionEdit, dirty: true);
+            Assert.AreEqual(string.Empty, Draft.Definitions[0].StableId);
+        }
+
+        [TestCase("malformed")]
+        [TestCase("null")]
+        [TestCase("format")]
+        [TestCase("schema")]
+        public void DefinitionSnapshot_RejectsMalformedOrForeignDataWithoutOverwritingDraft(string kind)
+        {
+            string before = Snapshot;
+            var json = JObject.Parse(before);
+            if (kind == "format") json["format"] = "foreign.definition.format";
+            if (kind == "schema") json["schemaVersion"] = 999;
+            string snapshot = kind == "malformed" ? "{" : kind == "null" ? "null" : json.ToString();
+            var exception = Assert.Throws<TargetInvocationException>(() => Invoke("RestoreDefinitionSnapshot", snapshot));
+            Assert.IsInstanceOf<InvalidOperationException>(exception.InnerException);
+            AssertSnapshot(before, dirty: false);
+        }
+
+        [Test]
+        public void DefinitionSnapshot_ValidDataRestoresAndCompiles()
+        {
+            var json = JObject.Parse(Snapshot);
+            json["definitions"][0]["description"] = "valid history entry";
+            Invoke("RestoreDefinitionSnapshot", json.ToString());
+            Assert.AreEqual("valid history entry", Draft.Definitions[0].Description);
+            Assert.IsTrue(CharacterTestWorldObjectDefinitionCompiler.Compile(Draft).Success);
+        }
+
+        [Test]
+        public void DefinitionReload_RetainsInvalidDraftSourceHashAndSavedUndoBaseline()
+        {
+            string saved = Snapshot;
+            Field("_definitionSourceHash").SetValue(_module, "original-source-generation");
+            Mutate(d => d.DisplayName = string.Empty);
+            string draft = Snapshot;
+            var state = (JObject)typeof(CharacterTestWorldObjectLevelEditorModule)
+                .GetMethod("CaptureDefinitionReloadState", Private).Invoke(_module, null);
+            var restored = new CharacterTestWorldObjectLevelEditorModule();
+            try
+            {
+                typeof(CharacterTestWorldObjectLevelEditorModule).GetMethod("RestoreDefinitionReloadState", Private)
+                    .Invoke(restored, new object[] { state });
+                var restoredDocument = (CharacterTestWorldObjectDefinitionAuthoringDocument)
+                    Field("_definitionDocument").GetValue(restored);
+                Assert.AreEqual(draft, CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(restoredDocument));
+                Assert.IsTrue(restored.IsDocumentDirty);
+                Assert.AreEqual("original-source-generation", Field("_definitionSourceHash").GetValue(restored));
+                var undo = (CharacterTestLevelEditorDocumentUndoSession)Field("_definitionUndoSession").GetValue(restored);
+                Assert.AreEqual(saved, undo.SavedBaseline);
+                var failure = Assert.Throws<TargetInvocationException>(() =>
+                    typeof(CharacterTestWorldObjectLevelEditorModule).GetMethod("RequireDefinitionSourceUnchanged", Private)
+                        .Invoke(restored, null));
+                Assert.IsInstanceOf<InvalidOperationException>(failure.InnerException);
+                Assert.AreEqual(draft, CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(restoredDocument));
+            }
+            finally
+            {
+                var undo = (CharacterTestLevelEditorDocumentUndoSession)Field("_definitionUndoSession").GetValue(restored);
+                if (undo != null)
+                {
+                    undo.Retire();
+                    UnityEngine.Object.DestroyImmediate((UnityEngine.Object)typeof(CharacterTestLevelEditorDocumentUndoSession)
+                        .GetField("_state", Private).GetValue(undo));
+                }
+            }
+        }
+    }
+
     public sealed class CharacterTestWorldObjectDefinitionAuthoringTests
     {
         [Test]

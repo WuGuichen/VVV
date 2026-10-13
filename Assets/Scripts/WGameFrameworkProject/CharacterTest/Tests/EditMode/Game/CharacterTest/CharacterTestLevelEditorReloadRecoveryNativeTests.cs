@@ -6,6 +6,7 @@ using MxFramework.Config.Levels;
 using MxFramework.Editor.Levels;
 using MxFramework.Game.CharacterTest;
 using MxFramework.Game.CharacterTest.Editor;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -54,6 +55,76 @@ namespace MxFramework.Tests.Game.CharacterTest
             typeof(CharacterTestLevelEditorDocumentSession).GetField("_sceneBaseline", Private).SetValue(Session, null);
             Window.ReloadDocumentModules();
             typeof(CharacterTestLevelEditorDocumentSession).GetMethod("EnsureLoaded", Private).Invoke(Session, null);
+        }
+
+        private static CharacterTestWorldObjectDefinitionAuthoringDocument DefinitionDraft(CharacterTestWorldObjectLevelEditorModule module)
+            => (CharacterTestWorldObjectDefinitionAuthoringDocument)typeof(CharacterTestWorldObjectLevelEditorModule)
+                .GetField("_definitionDocument", Private).GetValue(module);
+
+        private static MxLevelAuthoringDocument WorldEnvelope(CharacterTestWorldObjectLevelEditorModule module)
+            => (MxLevelAuthoringDocument)typeof(CharacterTestWorldObjectLevelEditorModule).GetField("_envelope", Private).GetValue(module);
+
+        private static void EditDefinitionDraft(CharacterTestWorldObjectLevelEditorModule module, string name)
+        {
+            DefinitionDraft(module).Definitions[0].DisplayName = name;
+            typeof(CharacterTestWorldObjectLevelEditorModule).GetField("_definitionsDirty", Private).SetValue(module, true);
+        }
+
+        [Test] public void DefinitionRecoveryRetainsDirtyDraftAndOriginalUndoBaseline()
+        {
+            var module = new CharacterTestWorldObjectLevelEditorModule(); module.OnEnable();
+            string saved = CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(DefinitionDraft(module));
+            EditDefinitionDraft(module, "未保存的定义名称");
+            string draft = CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(DefinitionDraft(module));
+            JObject state = module.CaptureReloadState();
+            var restored = new CharacterTestWorldObjectLevelEditorModule();
+            restored.RestoreReloadState(WorldEnvelope(module), state);
+            Assert.AreEqual(draft, CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(DefinitionDraft(restored)));
+            Assert.IsTrue(restored.IsDocumentDirty);
+            var undo = (CharacterTestLevelEditorDocumentUndoSession)typeof(CharacterTestWorldObjectLevelEditorModule)
+                .GetField("_definitionUndoSession", Private).GetValue(restored);
+            Assert.AreEqual(saved, undo.SavedBaseline);
+        }
+
+        [Test] public void DefinitionRecoveryPreservesSemanticallyInvalidDraft()
+        {
+            var module = new CharacterTestWorldObjectLevelEditorModule(); module.OnEnable();
+            EditDefinitionDraft(module, string.Empty);
+            JObject state = module.CaptureReloadState();
+            var restored = new CharacterTestWorldObjectLevelEditorModule();
+            restored.RestoreReloadState(WorldEnvelope(module), state);
+            Assert.AreEqual(string.Empty, DefinitionDraft(restored).Definitions[0].DisplayName);
+            Assert.IsTrue(restored.IsDocumentDirty);
+        }
+
+        [Test] public void RecoveredStaleDefinitionSourceHashBlocksSaveAndKeepsDraft()
+        {
+            var module = new CharacterTestWorldObjectLevelEditorModule(); module.OnEnable();
+            EditDefinitionDraft(module, "来源冲突草稿");
+            JObject state = module.CaptureReloadState();
+            state["definitions"]["sourceHash"] = "stale-source-generation";
+            string path = CharacterTestWorldObjectDefinitionCatalogLoader.DefaultAuthoringPath;
+            byte[] before = File.ReadAllBytes(path);
+            var restored = new CharacterTestWorldObjectLevelEditorModule();
+            restored.RestoreReloadState(WorldEnvelope(module), state);
+            Assert.AreEqual("stale-source-generation", typeof(CharacterTestWorldObjectLevelEditorModule)
+                .GetField("_definitionSourceHash", Private).GetValue(restored));
+            Assert.IsFalse(MxLevelEditorSaveCoordinator.TrySaveModules(new IMxLevelEditorModule[] { restored }, out string issue));
+            Assert.That(issue, Does.Contain(path));
+            Assert.IsTrue(restored.IsDocumentDirty);
+            Assert.AreEqual("来源冲突草稿", DefinitionDraft(restored).Definitions[0].DisplayName);
+            CollectionAssert.AreEqual(before, File.ReadAllBytes(path));
+        }
+
+        [Test] public void LegacyWorldRecoveryWithoutDefinitionsKeepsDiskCatalogClean()
+        {
+            var module = new CharacterTestWorldObjectLevelEditorModule(); module.OnEnable();
+            string saved = CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(DefinitionDraft(module));
+            JObject state = module.CaptureReloadState(); state.Remove("definitions");
+            var restored = new CharacterTestWorldObjectLevelEditorModule();
+            restored.RestoreReloadState(WorldEnvelope(module), state);
+            Assert.AreEqual(saved, CharacterTestWorldObjectDefinitionJson.SerializeAuthoring(DefinitionDraft(restored)));
+            Assert.IsFalse(restored.IsDocumentDirty);
         }
 
         [Test] public void CompleteRecoveryRetainsRulesBindingDirtyAndScopedDiscard()

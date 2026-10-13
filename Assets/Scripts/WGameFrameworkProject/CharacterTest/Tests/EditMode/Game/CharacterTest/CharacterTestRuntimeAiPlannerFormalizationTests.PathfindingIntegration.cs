@@ -63,6 +63,98 @@ namespace MxFramework.Tests.Game.CharacterTest
             }
         }
 
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void PathfindingPlanner_FormalHurtboxAdapterPreservesNavigationThroughActiveCard(int scenarioIndex)
+        {
+            var scenario = (PlannerNavigationScenario)scenarioIndex;
+            using PlannerNavigationFixture fixture = CreatePlannerNavigationFixture(
+                CharacterTestRuntimeAiPlannerActionKind.MoveToTarget, scenario, includeAttackOpportunity: true);
+            var payload = new CharacterTestRuntimeAiLabBehaviorCardLogicPayload
+                { BehaviorRecipeVersion = 11, EntryTimelineId = "main" };
+            var timeline = new CharacterTestRuntimeAiLabBehaviorRecipeTimeline { TimelineId = "main" };
+            payload.Timelines.Add(timeline);
+            timeline.Events.Add(new CharacterTestRuntimeAiLabBehaviorRecipeEvent
+            {
+                EventId = "approach", TimelineId = "main", DurationFrames = 10,
+                Operation = new CharacterTestRuntimeAiLabBehaviorRecipeEventOperation
+                {
+                    Kind = CharacterTestRuntimeAiLabBehaviorRecipeEventOperationKind.MoveToTarget,
+                    MovementStrategy = CharacterTestRuntimeAiLabMovementStrategy.ApproachTarget,
+                    MovementTargetKind = CharacterTestRuntimeAiLabMovementTargetKind.CurrentCombatTarget
+                }
+            });
+            var compiled = CharacterTestRuntimeAiLabBehaviorCardLogicCompiler.Compile(payload);
+            Assert.IsTrue(compiled.Success);
+            Assert.NotNull(compiled.Program.Execution);
+            var composition = new CharacterTestRuntimeAiPlannerBehaviorCompositionProfile("hurtbox-navigation-regression");
+            composition.Entries.Add(new CharacterTestRuntimeAiPlannerBehaviorModuleEntry(
+                CharacterTestRuntimeAiPlannerBehaviorCompositionCatalog.FoundationIdle, true, 0)
+                { NumericId = 74801, DefinitionNumericId = 74802 });
+            var overlay = new CharacterTestRuntimeAiLabBehaviorCardRuntimeOverlay(composition,
+                new[] { compiled.Program }, fixture.Module.ActionRuntime, null, 748,
+                entities: fixture.Module.Entities, perceptionFrameCache: fixture.Cache,
+                characterRuntime: fixture.Module, attackOpportunity: fixture.AttackOpportunity);
+            var commands = new CharacterTestRuntimeCommandModule(fixture.Module, NullRuntimeLogger.Instance);
+
+            try
+            {
+                for (int tick = 1; tick <= 3; tick++)
+                {
+                    var frame = new RuntimeFrame(tick);
+                    Assert.IsTrue(fixture.Cache.BeginCommittedConsumerPhase(frame, fixture.Module, fixture.Physics));
+                    Assert.IsTrue(fixture.AttackOpportunity.TryResolveCombatTarget(
+                        fixture.Source, fixture.Target, frame, out _, out var distance));
+                    Assert.IsTrue(distance.HasDistance);
+                    Assert.Greater(distance.SurfaceGapMeters, 1f);
+                    Assert.AreNotEqual(distance.SourceWitnessPoint, distance.TargetWitnessPoint);
+                    Assert.IsTrue(fixture.Evaluator.TryRefreshFactsWithoutSelection(
+                        fixture.Source, fixture.Module.Entities, frame, out _, CharacterTestRuntimeAiPerceptionRequirements.Navigation));
+                    Assert.IsTrue(fixture.Evaluator.TryGetFactState(fixture.Source.Id.Value, out var facts));
+                    CharacterTestNavigationSample navigation = fixture.GetCachedSample();
+                    if (scenario == PlannerNavigationScenario.Detour)
+                        Assert.AreEqual(CharacterTestNavigationResolutionStatus.PathWaypoint, navigation.ResolutionStatus);
+                    else if (scenario == PlannerNavigationScenario.Unreachable)
+                    {
+                        Assert.AreEqual(CharacterTestNavigationFallbackReason.Stop, navigation.FallbackReason);
+                        Assert.AreEqual(Vector2.zero, navigation.Result.Move);
+                    }
+                    else
+                        Assert.AreEqual(CharacterTestNavigationResolutionStatus.Direct, navigation.ResolutionStatus);
+                    Assert.AreEqual(navigation.Result.Move, facts.MoveDirection, "Hurtbox witness must not replace navigation.");
+                    Assert.AreEqual(navigation.Result.DirectPathClear, facts.DirectPathClear);
+                    Assert.AreEqual(navigation.Result.SelectedCandidateIndex, facts.NavigationCandidateIndex);
+                    Assert.IsFalse(facts.TargetInAttackRange);
+                    Assert.AreEqual(navigation.Result.Move.sqrMagnitude > 0.0001f, facts.MovePathAvailable);
+                    Assert.IsTrue(overlay.TryTick(fixture.Source, facts, frame, out var intent));
+                    Assert.IsTrue(overlay.OwnsActiveCardExecution(fixture.Source.Id.Value));
+                    // Native card activation owns the actor before its first control sample on the next tick.
+                    if (tick == 1)
+                    {
+                        Assert.AreEqual(CharacterTestRuntimeAiLabRuntimeIntentKind.None, intent.Kind);
+                        fixture.Module.Tick(new RuntimeTickContext(tick, 1d / 60d, tick / 60d, RuntimeTickStage.Simulation));
+                        continue;
+                    }
+                    Assert.IsTrue(intent.HasExecutionControl);
+                    Assert.Less(Vector2.Distance(navigation.Result.Move.normalized, intent.Move), 0.0001f);
+                    var submitted = CharacterTestBehaviorExecutionCommandWriter.Submit(frame,
+                        fixture.Source.Id.Value, intent, commands.Enqueue);
+                    Assert.IsTrue(submitted.Success, submitted.Success ? string.Empty : submitted.Error.Message);
+                    overlay.RecordCommandResult(fixture.Source.Id.Value, submitted);
+                    var context = new RuntimeTickContext(tick, 1d / 60d, tick / 60d, RuntimeTickStage.Simulation);
+                    commands.Tick(context);
+                    Assert.IsEmpty(commands.LastCommandErrors);
+                    Assert.Less(Vector2.Distance(intent.Move, fixture.Source.Input.WorldMove), 0.002f);
+                    fixture.Module.Tick(context);
+                }
+            }
+            finally
+            {
+                commands.Dispose();
+            }
+        }
+
         [Test]
         public void PathfindingPlanner_FactsAndDiagnosticsRefreshWithoutStaleNavigation()
         {
@@ -271,7 +363,8 @@ namespace MxFramework.Tests.Game.CharacterTest
 
         private static PlannerNavigationFixture CreatePlannerNavigationFixture(
             CharacterTestRuntimeAiPlannerActionKind actionKind,
-            PlannerNavigationScenario scenario)
+            PlannerNavigationScenario scenario,
+            bool includeAttackOpportunity = false)
         {
             CharacterTestCharacterPhysicsRuntime physics = CreatePlannerNavigationPhysics();
             if (scenario == PlannerNavigationScenario.Detour
@@ -374,17 +467,27 @@ namespace MxFramework.Tests.Game.CharacterTest
                 navigationProfile,
                 cache,
                 session);
+            CharacterTestRuntimeAiPlannerAttackOpportunityAdapter attackOpportunity = null;
+            if (includeAttackOpportunity)
+            {
+                module.Tick(new RuntimeTickContext(0, 1d / 60d, 0d, RuntimeTickStage.Simulation));
+                attackOpportunity = new CharacterTestRuntimeAiPlannerAttackOpportunityAdapter(module, session);
+            }
             var evaluator = new CharacterTestRuntimeAiPlannerEvaluator(
                 compiled,
                 navigationService,
                 new FakeRuntimeAiPlannerPerceptionSource(),
-                cache);
+                cache,
+                actionRuntime: includeAttackOpportunity ? module.ActionRuntime : null,
+                primaryAttackEligibility: includeAttackOpportunity ? attackOpportunity.EvaluatePlannerPrimaryAttack : null,
+                attackOpportunityAdapter: attackOpportunity);
             return new PlannerNavigationFixture(
                 module,
                 physics,
                 source,
                 target,
-                evaluator);
+                evaluator,
+                attackOpportunity);
         }
 
         private static void AssertMovementRelativeToNavigation(
@@ -481,13 +584,15 @@ namespace MxFramework.Tests.Game.CharacterTest
                 CharacterTestCharacterPhysicsRuntime physics,
                 CharacterTestCharacterEntity source,
                 CharacterTestCharacterEntity target,
-                CharacterTestRuntimeAiPlannerEvaluator evaluator)
+                CharacterTestRuntimeAiPlannerEvaluator evaluator,
+                CharacterTestRuntimeAiPlannerAttackOpportunityAdapter attackOpportunity)
             {
                 Module = module;
                 Physics = physics;
                 Source = source;
                 Target = target;
                 Evaluator = evaluator;
+                AttackOpportunity = attackOpportunity;
             }
 
             public CharacterTestCharacterRuntimeModule Module { get; }
@@ -495,6 +600,7 @@ namespace MxFramework.Tests.Game.CharacterTest
             public CharacterTestCharacterEntity Source { get; }
             public CharacterTestCharacterEntity Target { get; }
             public CharacterTestRuntimeAiPlannerEvaluator Evaluator { get; }
+            public CharacterTestRuntimeAiPlannerAttackOpportunityAdapter AttackOpportunity { get; }
             public CharacterTestPerceptionFrameCache Cache => Module.PerceptionFrameCache;
 
             public CharacterTestRuntimeAiPlannerDecision Evaluate(int frame)

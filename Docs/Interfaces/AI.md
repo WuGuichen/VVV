@@ -97,13 +97,21 @@ PF-M3 已在同一 internal graph 上提供 `CharacterTestBoundedAStarPathfinder
 
 权威比较只使用固定点位置与非负整数毫米成本。Edge 作者长度必须不小于两端 Node 的几何距离，因此直线毫米 heuristic 保持 admissible/consistent；open set 决胜固定为 `f -> h -> NodeId -> incoming EdgeId`，等价 parent 再按 incoming EdgeId、parent NodeId。成功结果包含 node/edge corridor、endpoint snap、next waypoint、remaining geometric distance、penalty-inclusive total cost 和 expanded count；失败返回 typed status 并清空 corridor。pathfinder/scratch 在初始化时分配，预热后的重复查询为 0 B，不保存跨帧 cursor 或隐式 replan state。
 
+### CharacterTest 环境感知
+
+CharacterTest 环境感知（2026-10-11，Issue #760）在采样半径内对合法可移动物体作存在性聚合：任一命中令 movable/useful 为 true，任一非零 Motion/Cohesion/Scatter potency 令 `environment.nearHazard` 为 true。cached 与 fallback 保持同语义，普通低 ID 物体不能截断后续危险物查找；只有三个物体摘要都已确定为 true 时才短路。半径边界仍包含相等距离，不改稳定排序、potency 分类、同帧 cache 复用或下一帧清空规则；复用原循环与存储，warmed 后无新增分配。原生回归定义见 `CharacterTestIntegrationContractTests.EnvironmentHazard_*`，实际候选及运行证据在 Issue #760，定义本身不证明运行通过。
+
 ### CharacterTest Pathfinding Foundation PF-M4 Planner 接入
 
 PF-M4 已在正式 CharacterTest session 低频路径中把显式 navigation region 和 static `WorldObjectSceneCache`/CombatPhysics 输入编译为唯一共享 graph/session；build clearance 使用场景 fallback 与全部已注册 playable character physics profile 的分量最大值。Tick 不扫描 Unity Scene，也不使用 NavMesh、PhysX 或 Transform 作为导航权威。
 
-`CharacterTestPerceptionFrameCache` 的同帧 navigation key 覆盖 source/target/profile、角色 clearance、graph revision/hash、路径预算和 CombatPhysics world revision。direct capsule 受阻后才运行有界 A*；成功时从 corridor 第一条实际 traversed node 产生 waypoint，并再次用 CombatPhysics capsule 验证当前 segment；动态 segment 阻挡进入现有 L1 candidate steering，无法绕行才显式 stop。`Unreachable`、`BudgetExceeded`、endpoint outside、graph unavailable/stale 等状态保持 typed 且不会复用旧 success。
+`CharacterTestPerceptionFrameCache` 的同帧 navigation key 覆盖 source/target/profile、角色 clearance 半径/高度/实际中心及 grounded 状态、graph revision/hash、路径预算和 CombatPhysics world revision。direct 净空受阻后才运行有界 A*；成功时从 corridor 第一条实际 traversed node 产生 waypoint，并再次验证当前 segment；动态 segment 阻挡进入现有 L1 candidate steering，无法绕行才显式 stop。`Unreachable`、`BudgetExceeded`、endpoint outside、graph unavailable/stale 等状态保持 typed 且不会复用旧 success。
+
+2026-10-11 / Issue #758：cached 与 fallback 的 direct、waypoint、candidate 净空统一使用一条 `CombatObbQuery`（sample `QueryShape=SweptObb`），保守包围沿移动方向扫过的角色胶囊；X/Z 半径、Y 高度及中心均来自当前姿态/CombatPhysics body。下缘排除 ground skin，仅 grounded 时再排除 motor 的 `MaxStepHeight`，空中不使用跨台阶余量。每段仍恰好一次 query，复用已有结果列表，目标/self 排除与 motion obstacle mask 保持原规则。矩形端部角落可能比圆形胶囊更保守；query 不是精确的 capsule cast，也不承诺电机一定能完成台阶/斜坡移动，实际运动仍由 motor 决定。唯一共享图及其构建算法保持现状。
 
 Runtime AI Planner 的 MoveToTarget、Strafe、Retreat 只消费统一 sample 的 move 建议，最终仍提交 `SetControlIntent` 并经过 Character Motion/CombatPhysics。Facts 保持 `move.pathAvailable`、`move.directPathClear`、`move.candidateIndex` 稳定语义；Runtime AI Lab Facts、Play Monitor 和 overlay 只读显示 graph identity、status、waypoint、cost、expanded/query、blocker/replan/fallback，不发起新 query。navigation sample、graph 和 diagnostics 都是可重算派生数据，不进入 SaveState、network、rollback、replay 或 authority hash；rollback/reset 后清空并在下一 Tick 重算，presentation/recovery identity 可以包含只读诊断摘要。
+
+CD-M5 锁定 Hurtbox 的距离及 witness 投影不改写导航服务的 move、zero 或 direct/candidate metadata。原生活动卡的 `CurrentCombatTarget + ApproachTarget` 从 Facts 消费该建议，距离仍在停止范围外时也必须保留导航 stop；执行器不能把已采样的 zero 再退回直线 toward。独立的目标／朝向采样与移动导航保持各自职责，攻击 eligibility 仍走既有机会结果。
 
 ## Gameplay bridge
 

@@ -17,6 +17,7 @@ internal sealed class ResourceMappingCharacterSyncResult
     public string ErrorCode { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public List<ResourceMappingDiagnostic> Diagnostics { get; set; } = new();
+    public List<CharacterAuthoringValidationIssue> CompileDiagnostics { get; set; } = new();
 }
 
 internal static class ResourceMappingCharacterCoordinator
@@ -41,6 +42,12 @@ internal static class ResourceMappingCharacterCoordinator
         }
         if (compileResult == null || compileResult.ResourceMappingV2Snapshot == null)
             return Failure(result, "RESOURCE_MAPPING_CHARACTER_SNAPSHOT_MISSING", "Character compiler did not produce a v2 snapshot.");
+        if (compileResult.GateReport == null)
+            return Failure(result, "RESOURCE_MAPPING_CHARACTER_COMPILE_GATE_MISSING", "Character compiler did not produce a gate report.");
+        if (compileResult.GateReport.Issues != null)
+            result.CompileDiagnostics.AddRange(compileResult.GateReport.Issues);
+        if (compileResult.GateReport.ExportBlocked || compileResult.GateReport.ImportBlocked)
+            return Failure(result, "RESOURCE_MAPPING_CHARACTER_COMPILE_BLOCKED", "Character compiler blocked export or Unity import; resource mapping was not published.");
         try { buildTarget = ResourceMappingBuildTargetResolver.Resolve(root, buildTarget); }
         catch (InvalidOperationException ex) { return Failure(result, "RESOURCE_MAPPING_BUILD_TARGET_REQUIRED", ex.Message); }
         if (compileResult.ResourceMappingV2Diagnostics != null)

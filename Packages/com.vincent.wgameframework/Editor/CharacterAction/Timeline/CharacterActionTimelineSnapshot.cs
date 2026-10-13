@@ -51,6 +51,8 @@ namespace MxFramework.Editor.CharacterAction.Timeline
                 new TimelineTrackDescriptor(TimelineTrackKind.Phases, "阶段", new Color(0.4f, 0.55f, 0.75f), true),
                 new TimelineTrackDescriptor(TimelineTrackKind.TransitionWindow, "切换窗口 / Transition Window", new Color(0.78f, 0.52f, 0.25f), true),
                 new TimelineTrackDescriptor(TimelineTrackKind.Motion, "运动", new Color(0.35f, 0.7f, 0.55f), action.MotionTrack != null),
+                new TimelineTrackDescriptor(TimelineTrackKind.MovementControl, "移动控制倍率", new Color(0.35f, 0.78f, 0.6f), true),
+                new TimelineTrackDescriptor(TimelineTrackKind.RotationControl, "旋转控制倍率", new Color(0.45f, 0.68f, 0.93f), true),
                 new TimelineTrackDescriptor(TimelineTrackKind.Animation, "动画", new Color(0.55f, 0.5f, 0.85f), action.AnimationTrack != null),
                 new TimelineTrackDescriptor(TimelineTrackKind.Combat, "战斗", new Color(0.85f, 0.4f, 0.4f), action.CombatTrack != null),
                 new TimelineTrackDescriptor(TimelineTrackKind.Gameplay, "玩法", new Color(0.35f, 0.58f, 0.92f), action.GameplayTrack != null),
@@ -62,6 +64,8 @@ namespace MxFramework.Editor.CharacterAction.Timeline
                 [TimelineTrackKind.Phases] = BuildPhases(action, actionDuration, canEdit),
                 [TimelineTrackKind.TransitionWindow] = BuildTransitionWindows(action, actionDuration, canEdit),
                 [TimelineTrackKind.Motion] = BuildMotion(action, canEdit),
+                [TimelineTrackKind.MovementControl] = BuildControlKeys(action, false, canEdit),
+                [TimelineTrackKind.RotationControl] = BuildControlKeys(action, true, canEdit),
                 [TimelineTrackKind.Animation] = BuildAnimation(action, canEdit),
                 [TimelineTrackKind.Combat] = BuildCombat(action, canEdit),
                 [TimelineTrackKind.Gameplay] = BuildGameplay(action, canEdit),
@@ -136,6 +140,10 @@ namespace MxFramework.Editor.CharacterAction.Timeline
         {
             const int tailEditingPaddingFrames = 30;
             int displayDuration = Math.Max(1, actionDuration);
+            foreach (bool rotation in new[] { false, true })
+                foreach (var key in CharacterActionControlScaleAuthoring.Keys(action, rotation))
+                    if (key != null && key.Frame >= actionDuration && key.Frame < int.MaxValue - tailEditingPaddingFrames - 1)
+                        displayDuration = Math.Max(displayDuration, key.Frame + 1 + tailEditingPaddingFrames);
             PresentationTrackEventJsonDto[] events =
                 action?.PresentationTrack?.Events ?? Array.Empty<PresentationTrackEventJsonDto>();
             for (int i = 0; i < events.Length; i++)
@@ -206,7 +214,16 @@ namespace MxFramework.Editor.CharacterAction.Timeline
             if (action.MotionTrack?.RootMotion != null)
                 result.Add(new Adapters.RootMotionTimelineAdapter(action, new Color(0.25f, 0.72f, 0.62f, 0.85f)));
             for (int i = 0; i < events.Length; i++)
-                result.Add(new Adapters.TrackEventTimelineAdapter(action, TimelineTrackKind.Motion, i, color, canEdit));
+                if (!events[i].ControlScaleGenerated && events[i].Kind != "SetControlScale")
+                    result.Add(new Adapters.TrackEventTimelineAdapter(action, TimelineTrackKind.Motion, i, color, canEdit));
+            return result;
+        }
+
+        private static IReadOnlyList<ITimelineItemAdapter> BuildControlKeys(CharacterActionJsonDto action, bool rotation, bool canEdit)
+        {
+            var result = new List<ITimelineItemAdapter>();
+            foreach (var key in CharacterActionControlScaleAuthoring.Keys(action, rotation))
+                if (key != null) result.Add(new Adapters.ControlScaleTimelineAdapter(action, key, rotation, canEdit));
             return result;
         }
 

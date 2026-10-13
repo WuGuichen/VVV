@@ -80,7 +80,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             try
             {
-                if (_resetting || _characterItemDefinitions == null) return Fail("装配需先配置真实角色物品与背包。", out issue);
+                if (MutationBlocked || _characterItemDefinitions == null) return Fail("装配需先配置真实角色物品与背包。", out issue);
                 var staged = Clone(configuration);
                 CharacterTacticalAssemblyRules.ValidateConfiguration(staged, _catalog, _itemDefinitions, _characterItemDefinitions);
                 if (_assemblyConfiguration != null && (staged.Revision < _assemblyConfiguration.Revision
@@ -119,7 +119,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         {
             instanceId = default; issue = string.Empty;
             var definition = _assemblyConfiguration?.Accessories.FirstOrDefault(value => value.ItemDefinitionId == definitionId.Value);
-            if (_resetting || definition == null || !requestId.IsValid || !owner.IsValid || frame < 0
+            if (MutationBlocked || definition == null || !requestId.IsValid || !owner.IsValid || frame < 0
                 || _state.Characters.Count > 0 || _state.CharacterItems?.Any(value => value.TacticalSchema == null) == true
                 || context.Stage != RuntimeTickStage.Simulation || context.FrameIndex != frame)
                 return AcquisitionFailure("配件授予参数、配置或逻辑帧不可用。", out issue);
@@ -174,7 +174,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 return AcquisitionFailure("主卡授予必须引用定义，不能携带持有实例。", out issue);
             if (!TryCharacterCommand(characterId, owner, frame, context, out var candidate,
                 out var character, out var inventory, out var ledger, out issue)) return ItemAcquisitionResult.Failed(ItemAcquisitionStatus.InvalidRequest);
-            if (_catalog.ExactCard(reference)?.HasActionSlot != true || _catalog.Pool(character.CharacterStableId)?.Cards.Any(value => Same(value, reference)) != true)
+            if (_catalog.ExactCard(reference)?.CanBeAssemblyMain != true || _catalog.Pool(character.CharacterStableId)?.Cards.Any(value => Same(value, reference)) != true)
                 return AcquisitionFailure("卡定义或角色的明确获取范围不可用。", out issue);
             string fingerprint = Digest(JsonConvert.SerializeObject(new { Kind = "card", Character = characterId.Value,
                 Owner = owner.Value, reference.CardId, reference.Revision, reference.ContentHash }));
@@ -305,7 +305,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 throw new JsonSerializationException("TACTICAL_ASSEMBLY_VERSION_UNAVAILABLE");
             var held = character.Cards?.Find(value => value.InstanceId == assembly.MainCard.InstanceId);
             var main = config.MainCards.FirstOrDefault(value => CharacterTacticalAssemblyRules.Same(value.Card, assembly.MainCard));
-            if (!CharacterTacticalAssemblyRules.Same(held, assembly.MainCard) || main == null || _catalog.ExactCard(held)?.HasActionSlot != true)
+            if (!CharacterTacticalAssemblyRules.Same(held, assembly.MainCard) || main == null || _catalog.ExactCard(held)?.CanBeAssemblyMain != true)
                 throw new JsonSerializationException("TACTICAL_ASSEMBLY_MAIN_REFERENCE_UNAVAILABLE");
             var owner = inventory.CreateContainerSnapshot().FirstOrDefault(bag => Enumerable.Range(0, bag.SlotCount)
                 .Any(slot => bag.GetStack(slot).InstanceId.Value == character.ItemInstanceId))?.OwnerId ?? default;

@@ -78,6 +78,25 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             return _deck.EvaluateCard(card, _ledger);
         }
         internal bool IsReleased => _released;
+        internal bool HasReleasedCleanup => _driver.HasReleasedCleanup;
+        private bool _completionCleanupOpen;
+        internal void ReconcileReleasedCleanup()
+        {
+            _driver.ReconcileReleasedControl();
+            // A fresh ingress also starts Suspended, without any fault pause owner.
+            if (!_released && !IsLeavingSession && Phase != TacticalStagePhase.StageCompleted
+                && Health == TacticalStageHealth.Running && _time.Phase == TacticalTurnPhase.Suspended
+                && (_time.HasPauseReason(TacticalPauseReason.ExecutionFault)
+                    || _time.HasPauseReason(TacticalPauseReason.RecoveryTimeout))) {
+                ExecutionIssue = _driver.LastIssue;
+                Health = TacticalStageHealth.SuspendedByFault; Fault = TacticalStageRejection.FaultSuspended; Changed();
+            }
+            if (_completionCleanupOpen && !_driver.HasReleasedCleanup) {
+                _completionCleanupOpen = false;
+                if (!_released && !IsLeavingSession && Phase == TacticalStagePhase.StageCompleted)
+                    _time.ForceSuspend(TacticalPauseReason.BattleEnded);
+            }
+        }
         internal bool HasAutomaticPointProvider => _pointProvider?.Capability == TacticalPointProviderCapability.WorldPoint;
         internal TacticalInputStatus TryBuildAutomaticPointInput(ITacticalPointProvider provider, out TacticalExecutionInput input)
         {
@@ -132,12 +151,14 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         internal void CompleteExternalOutcome(long completedFrame)
         {
+            _driver.ReleaseControl();
             ClearTestPreparation();
             LastCompletedFrame = completedFrame;
             _completionPending = false;
             Phase = TacticalStagePhase.StageCompleted;
             Health = TacticalStageHealth.Running;
             _time.ForceSuspend(TacticalPauseReason.BattleEnded);
+            if (_driver.HasReleasedCleanup) { _completionCleanupOpen = true; _time.BeginStoryTransfer(); }
             Changed();
         }
 
@@ -276,9 +297,13 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             {
                 LastCompletedFrame = completedFrame;
                 _completionPending = false;
+                _driver.ReleaseControl();
+                if (_interactionRuntime?.World.DoubleEdgeState.Stage == StageRunId)
+                    _interactionRuntime.World.DoubleEdgeState = new TacticalDoubleEdgeBattleState();
                 Phase = TacticalStagePhase.StageCompleted;
                 Health = TacticalStageHealth.Running;
                 _time.ForceSuspend(TacticalPauseReason.BattleEnded);
+                if (_driver.HasReleasedCleanup) { _completionCleanupOpen = true; _time.BeginStoryTransfer(); }
                 Changed();
                 return;
             }
@@ -324,8 +349,10 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (Phase != TacticalStagePhase.Executing && Phase != TacticalStagePhase.TurnSettling) return;
             if (player.SimulationTick != completedFrame)
             { ReportFault(TacticalStageRejection.StaleFrame); return; }
+            ulong settledTurn = _time.CurrentTurnIndex;
             if (_driver.OnCompletedSimulationTick(in player))
             {
+                _interactionRuntime?.World.DoubleEdgeState.SettleThirdFullTurn(completedFrame, settledTurn);
                 ExecutionIssue = _driver.LastIssue;
                 BeginPlanningPause();
                 if (!string.IsNullOrEmpty(ExecutionIssue)) LastRejection = TacticalStageRejection.ExecutionRejected;
@@ -509,8 +536,10 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
 
         private void BeginPlanningPause()
         {
-            SyncInteractionTurn();
             _awaitingWorldPause = !_time.IsWorldPaused;
+            // The final smooth-pause simulation ticks still belong to the completed combat turn.
+            // Publish effect expiry only after the world is actually paused.
+            if (!_awaitingWorldPause) SyncInteractionTurn();
             Phase = _awaitingWorldPause ? TacticalStagePhase.TurnSettling : TacticalStagePhase.Planning;
             Changed();
         }
@@ -521,6 +550,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (_released || !_awaitingWorldPause || Health != TacticalStageHealth.Running
                 || Phase != TacticalStagePhase.TurnSettling || !_time.IsWorldPaused) return;
             _awaitingWorldPause = false;
+            SyncInteractionTurn();
             Phase = TacticalStagePhase.Planning;
             Changed();
             if (!string.IsNullOrEmpty(ExecutionIssue)) LastRejection = TacticalStageRejection.ExecutionRejected;

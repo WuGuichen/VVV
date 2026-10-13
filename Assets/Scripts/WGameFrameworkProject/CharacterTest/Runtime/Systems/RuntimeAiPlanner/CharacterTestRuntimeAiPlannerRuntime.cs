@@ -774,15 +774,7 @@ namespace MxFramework.Game.CharacterTest
                 targetDistanceAvailable = true;
                 targetDistance = lockedDistance.SurfaceGapMeters;
                 WriteScenePreviewDistanceWitness(state, lockedDistance);
-                Vector2 witnessDirection = ResolveWitnessDirection(lockedDistance);
-                if (witnessDirection.sqrMagnitude > DirectionEpsilonSquared)
-                {
-                    navigation = new CharacterTestAiNavigationResult(
-                        witnessDirection,
-                        navigation.DirectPathClear,
-                        navigation.TargetInAttackRange,
-                        navigation.SelectedCandidateIndex);
-                }
+                // Hurtbox distance witnesses do not replace validated navigation or its stop result.
                 if (requirePrimaryAttackFact && _primaryAttackEligibility != null && !actionRunning)
                 {
                     bool canHit;
@@ -1550,19 +1542,6 @@ namespace MxFramework.Game.CharacterTest
             float dx = lhs.Transform.X - rhs.Transform.X;
             float dz = lhs.Transform.Z - rhs.Transform.Z;
             return dx * dx + dz * dz;
-        }
-
-        private static Vector2 ResolveWitnessDirection(
-            in CharacterTestLockedHurtboxDistanceSample sample)
-        {
-            double dx = (sample.TargetWitnessPoint.X.RawValue
-                - sample.SourceWitnessPoint.X.RawValue) / (double)Fix64.Scale;
-            double dz = (sample.TargetWitnessPoint.Z.RawValue
-                - sample.SourceWitnessPoint.Z.RawValue) / (double)Fix64.Scale;
-            var direction = new Vector2((float)dx, (float)dz);
-            return direction.sqrMagnitude > DirectionEpsilonSquared
-                ? direction.normalized
-                : Vector2.zero;
         }
 
         private static bool IsActionRunning(CharacterTestCharacterEntity entity)

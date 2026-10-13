@@ -138,7 +138,7 @@ namespace MxFramework.Game.CharacterTest
             }
             var mouse=Mouse.current;var keyboard=Keyboard.current;
             bool cancel=keyboard?.escapeKey.wasPressedThisFrame==true||mouse?.rightButton.wasPressedThisFrame==true;
-            if(cancel&&_hud.DirectPlayActive)_hud.CancelDirectPlay();
+            if(cancel&&!_hud.BattleCancelInputBlocked&&_hud.DirectPlayActive)_hud.CancelDirectPlay();
             if(!_pointerHeld)return;
             if(mouse==null||cancel||_hud.BattleInputBlocked||!Application.isFocused)
             {CancelCardDrag();return;}

@@ -87,7 +87,7 @@ namespace MxFramework.Game.CharacterTest
                 return;
             }
 
-            _projectileSpawnRequests.Enqueue(new CombatProjectileSpawnRequest(
+            var spawnRequest = new CombatProjectileSpawnRequest(
                 combatFrame,
                 definition.DefinitionId,
                 _physicsRuntime.GetEntityId(entity),
@@ -102,7 +102,10 @@ namespace MxFramework.Game.CharacterTest
                 sourceOrder,
                 effectiveLifetimeFrames,
                 hasTrackingTarget,
-                trackingTargetEntityId));
+                trackingTargetEntityId);
+            var doubleEdgeSource = entity.CaptureDoubleEdgeSource(request.Metadata.InstanceId);
+            if (!EnqueueAccessoryProjectile(spawnRequest, doubleEdgeSource,
+                _entityLookup.AccessoryState?.SecondBatchRoot(doubleEdgeSource) ?? default, frame.Value, true)) return;
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 frame,
                 entity.Id.Value,
@@ -150,7 +153,9 @@ namespace MxFramework.Game.CharacterTest
                 anchor,
                 CharacterTestFireballProjectileAdapter.ResolveDirection(entity));
             AbilityEffectTimelineStartResult start =
-                _effectTimelineRuntime.StartTimeline(timelineContext, frame);
+                StartAccessoryTimeline(timelineContext, frame, entity.CaptureDoubleEdgeSource(request.Metadata.InstanceId),
+                    _entityLookup.AccessoryState?.SecondBatchRoot(entity.CaptureDoubleEdgeSource(request.Metadata.InstanceId)) ?? default,
+                    third: _entityLookup.AccessoryState?.ThirdAttack(entity.GameplayEntityId, request.Metadata.InstanceId) ?? default);
             if (!start.Success)
             {
                 ReportHitTraceWarning(
@@ -254,7 +259,8 @@ namespace MxFramework.Game.CharacterTest
                     CharacterTestHitReactionResolver.CreateHitResolveKnockbackGate(damage),
                     _entityLookup.ResolveTargetState(queryResult.TargetEntityId));
                 var hitKey = new CharacterTestResolvedHitKey(candidate);
-                SetAccessoryAwareDamagePayload(hitKey, damage);
+                SetAccessoryAwareDamagePayload(hitKey, damage, ActionRequestEvidence(entity, request,
+                    candidate.TargetId, frame, unchecked((ulong)(uint)request.Metadata.LocalFrame + 1)));
                 _hitZonesByHit[hitKey] = hitZone;
                 if (request.HitEvent.OnHitBuffCount > 0)
                     _onHitBuffsByHit[hitKey] = request.HitEvent.OnHitBuffs;
@@ -277,6 +283,7 @@ namespace MxFramework.Game.CharacterTest
                 return;
 
             _projectileRuntime.Tick(ToCombatFrame(frame), _projectileFrameEvents);
+            PublishDoubleEdgeProjectileBirths(world);
             IReadOnlyList<CombatProjectileAreaPulseTriggerEvent> areaPulseTriggers =
                 _projectileFrameEvents.AreaPulseTriggers;
             for (int i = 0; i < areaPulseTriggers.Count; i++)
@@ -298,26 +305,16 @@ namespace MxFramework.Game.CharacterTest
                             .ToString(CultureInfo.InvariantCulture));
                     continue;
                 }
-                StartEffectTimelineFromProjectileImpact(impact, frame);
-                bool arcMineImpact = IsArcMineProjectile(impact.Projectile);
-                bool poisonBottleImpact = IsPoisonBottleProjectile(impact.Projectile)
-                    && impact.ResolveResult.IsAcceptedDamage;
-                if (arcMineImpact)
-                {
-                    CreateArcMineFromProjectileImpact(world, impact, frame);
-                }
-                else if (poisonBottleImpact)
-                {
-                    CreatePoisonBottlePoolFromProjectileImpact(world, impact, frame);
-                }
-                else
-                {
+                if (_entityLookup.FindEntityByCombatId(impact.ResolveResult.TargetId) == null) {
+                    // Environment collision is natural production, never an accepted actor-hit receipt.
+                    PublishProjectileImpactEffects(world, impact, frame);
+                } else {
                     _results.Add(impact.ResolveResult);
-                    RegisterProjectileDamagePayload(impact, frame);
+                    if (IsArcMineProjectile(impact.Projectile) || IsPoisonBottleProjectile(impact.Projectile) && impact.ResolveResult.IsAcceptedDamage)
+                        _accessoryCarrierHits.Add(new CharacterTestResolvedHitKey(impact.ResolveResult));
+                    RegisterProjectileDamagePayload(world, impact, frame);
+                    _deferredAccessoryImpacts.Add(impact);
                 }
-
-                TryRegisterHookChainPullFromProjectileImpact(world, impact, frame);
-                CreateRuneTurretFromProjectileImpact(world, impact, frame);
 
                 GetVerboseCombatTraceRecorder()?.AttackCombat(
                     frame,
@@ -342,7 +339,7 @@ namespace MxFramework.Game.CharacterTest
                 RecordLaserPathVfxFromProjectileExpiration(expiration, frame);
             }
 
-            RecordProjectilePhysicalInteractions(frame, _projectileFrameEvents.PhysicalEvents);
+            // Physical attack effects are released after the shared causal judgment gate.
 
             _activeProjectileViews.Clear();
             if (_projectileRuntime.ActiveCount > 0)
@@ -544,7 +541,7 @@ namespace MxFramework.Game.CharacterTest
             }
 
             CombatFrame spawnFrame = ToCombatFrame(new RuntimeFrame(frame.Value + 1L));
-            _projectileSpawnRequests.Enqueue(new CombatProjectileSpawnRequest(
+            var dropRequest = new CombatProjectileSpawnRequest(
                 spawnFrame,
                 dropDefinition.DefinitionId,
                 impact.Projectile.SourceEntityId,
@@ -557,7 +554,12 @@ namespace MxFramework.Game.CharacterTest
                 CharacterTestCharacterActionConfigSource.ArcMineDropProjectileImpactStableEventId,
                 impact.Projectile.LocalFrame,
                 impact.Projectile.SpawnSequence,
-                effectiveLifetimeFrames));
+                effectiveLifetimeFrames);
+
+            var root = world.DoubleEdgeState.ProjectileSource(impact.Projectile.ProjectileId, impact.Projectile.SpawnSequence);
+            var parent = world.DoubleEdgeState.SecondBatchProducer(root, 1, impact.Projectile.ProjectileId, impact.Projectile.SpawnSequence);
+            if (!EnqueueAccessoryProjectile(dropRequest, root, parent, frame.Value, false,
+                _projectileCausalParent.Source.Matches(parent) ? _projectileCausalParent.Key : default)) return false;
 
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 frame,
@@ -577,6 +579,7 @@ namespace MxFramework.Game.CharacterTest
             string deployMode,
             string reason)
         {
+            if (!AllowsProjectileAttack(projectile)) return;
             FixVector3 center = ProjectPoisonBottlePoolCenterToGround(point);
             FixVector3 forward = ResolveArcMineDeployForward(caster, projectile.Direction);
             CharacterTestArcMineDeployResult result = _arcMineRuntime.CreateMine(
@@ -591,6 +594,7 @@ namespace MxFramework.Game.CharacterTest
                 projectile.LocalFrame,
                 projectile.SpawnSequence,
                 projectile.ActionInstanceId);
+            if (result.Success) BindProjectileChildProducer(4, result.Deployed.RuntimeId, projectile, frame);
             GetVerboseCombatTraceRecorder()?.AttackCombat(
                 frame,
                 caster.Id.Value,
@@ -774,6 +778,7 @@ namespace MxFramework.Game.CharacterTest
             if (caster == null)
                 return;
 
+            if (!AllowsProjectileAttack(impact.Projectile)) return;
             FixVector3 center = ResolvePoisonBottlePoolCenterFromImpact(impact);
             FixVector3 forward = NormalizeProjectileDirection(impact.Projectile.Direction);
             CharacterTestMechanicSourceCreateResult result = _poisonBottlePoolRuntime.CreatePool(
@@ -786,6 +791,7 @@ namespace MxFramework.Game.CharacterTest
                 CharacterTestCharacterActionConfigSource.PoisonBottlePoolVfxStableEventId,
                 impact.Projectile.LocalFrame,
                 impact.Projectile.SpawnSequence);
+            if (result.Success) BindProjectileChildProducer(6, result.RuntimeSourceId, impact.Projectile, frame);
             SpawnPoisonBottleShatterVfx(
                 caster.Id.Value,
                 center,
@@ -811,6 +817,7 @@ namespace MxFramework.Game.CharacterTest
             if (caster == null)
                 return;
 
+            if (!AllowsProjectileAttack(expiration.Projectile)) return;
             FixVector3 center = ProjectPoisonBottlePoolCenterToGround(expiration.Projectile.Position);
             FixVector3 forward = NormalizeProjectileDirection(expiration.Projectile.Direction);
             CharacterTestMechanicSourceCreateResult result = _poisonBottlePoolRuntime.CreatePool(
@@ -823,6 +830,7 @@ namespace MxFramework.Game.CharacterTest
                 CharacterTestCharacterActionConfigSource.PoisonBottlePoolVfxStableEventId,
                 expiration.Projectile.LocalFrame,
                 expiration.Projectile.SpawnSequence);
+            if (result.Success) BindProjectileChildProducer(6, result.RuntimeSourceId, expiration.Projectile, frame);
             SpawnPoisonBottleShatterVfx(
                 caster.Id.Value,
                 center,
@@ -1098,6 +1106,7 @@ namespace MxFramework.Game.CharacterTest
             for (int i = 0; i < physicalEvents.Count; i++)
             {
                 CombatProjectilePhysicalEvent physicalEvent = physicalEvents[i];
+                if (!AllowsProjectileAttack(physicalEvent.Projectile)) continue;
                 if (physicalEvent.Radius <= Fix64.Zero || physicalEvent.ImpactPower <= 0)
                     continue;
 
@@ -1296,11 +1305,11 @@ namespace MxFramework.Game.CharacterTest
                 if (tickingProjectileCount == 0)
                     return;
 
-                EnsureTornadoDamageTargetIndex(world, _physicsRuntime, frame);
                 EnsureTornadoDamageQueryResultCapacity(tickingProjectileCount);
 
                 int actionId = StablePositiveId(CharacterTestCharacterActionConfigSource.TornadoActionId);
                 int traceId = CharacterTestCharacterActionConfigSource.TornadoProjectileTickStableEventId;
+                int startResultCount = _results.Count;
                 for (int i = 0; i < activeProjectiles.Count; i++)
                 {
                     CombatProjectileActiveView projectile = activeProjectiles[i];
@@ -1308,8 +1317,10 @@ namespace MxFramework.Game.CharacterTest
                         continue;
 
                     CharacterTestCharacterEntity source = _entityLookup.FindEntityByCombatId(projectile.SourceEntityId);
-                    if (source == null)
-                        continue;
+                    var frozenActor = _entityLookup.AccessoryState?.FindProjectileActor(projectile.ProjectileId, projectile.SpawnSequence);
+                    if (source != null && frozenActor != null && source.GameplayEntityId != frozenActor.Actor) source = null;
+                    if (source == null && frozenActor == null) continue;
+                    _tornadoDamagePayloadCandidates.Clear();
 
                     int startCount = _tornadoDamageQueryResults.Count;
                     var header = new CombatQueryHeader(
@@ -1326,42 +1337,27 @@ namespace MxFramework.Game.CharacterTest
                         CharacterTestFireballProjectileAdapter.TornadoDamageTickRadius);
                     using (TornadoDamageQueryMarker.Auto())
                     {
-                        _tornadoDamageTargetIndex.QueryVerticalCapsule(
-                            header,
-                            query.PointA,
-                            query.PointB,
-                            query.Radius,
+                        // Damage reception uses authored hurtboxes, including OBB/capsule shapes;
+                        // the movement-field index contains only dynamic movement colliders.
+                        _physicsRuntime.World.QueryCapsule(
+                            query,
                             _tornadoDamageQueryResults,
                             includeSourceEntity: false);
                     }
 
                     using (TornadoDamageCandidateResolveMarker.Auto())
                     {
-                        for (int resultIndex = startCount; resultIndex < _tornadoDamageQueryResults.Count; resultIndex++)
-                        {
-                            TryAddTornadoDamageTickCandidate(
-                                projectile,
-                                source,
-                                _tornadoDamageQueryResults[resultIndex],
-                                frame,
-                                actionId,
-                                traceId);
-                        }
+                        // QueryCapsule orders this appended range by CombatQueryResult.CompareTo.
+                        // Within one producer/tick the remaining HitCandidate ordering fields are equal.
+                        CharacterTestTornadoDamageTickSelection.AddFirstEligiblePerTarget(
+                            _tornadoDamageQueryResults, startCount, _tornadoDamageSelectedTargets,
+                            hit => TryAddTornadoDamageTickCandidate(projectile, source, hit, frame, actionId, traceId));
                     }
+                    _tornadoDamageHitOnceKeys.Clear();
+                    _hitResolve.Resolve(_tornadoDamagePayloadCandidates, _tornadoDamageHitOnceKeys,
+                        _results, ProducerRelations(frozenActor), _entityLookup);
+                    _tornadoDamageHitOnceKeys.Clear();
                 }
-
-                if (_tornadoDamagePayloadCandidates.Count == 0)
-                    return;
-
-                int startResultCount = _results.Count;
-                _tornadoDamageHitOnceKeys.Clear();
-                _hitResolve.Resolve(
-                    _tornadoDamagePayloadCandidates,
-                    _tornadoDamageHitOnceKeys,
-                    _results,
-                    _teamRelationProvider,
-                    _entityLookup);
-                _tornadoDamageHitOnceKeys.Clear();
                 for (int i = startResultCount; i < _results.Count; i++)
                 {
                     HitResolveResult result = _results[i];
@@ -1379,9 +1375,10 @@ namespace MxFramework.Game.CharacterTest
             int actionId,
             int traceId)
         {
-            if (source == null
+            var frozenActor = _entityLookup.AccessoryState?.FindProjectileActor(projectile.ProjectileId, projectile.SpawnSequence);
+            if (source == null && frozenActor == null
                 || query.TargetEntityId.Equals(projectile.SourceEntityId)
-                || !_teamRelationProvider.AreHostile(projectile.SourceEntityId, query.TargetEntityId))
+                || !ProducerRelations(frozenActor).AreHostile(projectile.SourceEntityId, query.TargetEntityId))
             {
                 return false;
             }
@@ -1411,9 +1408,12 @@ namespace MxFramework.Game.CharacterTest
                 damage.IncomingDamage,
                 CharacterTestHitReactionResolver.CreateHitResolveReactionGate(damage),
                 CharacterTestHitReactionResolver.CreateHitResolveKnockbackGate(damage),
-                _entityLookup.ResolveTargetState(query.TargetEntityId));
+                _entityLookup.ResolveTargetState(query.TargetEntityId)).WithProducerIdentity(
+                    new CombatHitProducerIdentity(CombatHitProducerKind.ProjectilePeriodic, checked((ulong)projectile.ProjectileId),
+                        checked((ulong)projectile.SpawnSequence), unchecked((ulong)frame.Value + 1)));
             var hitKey = new CharacterTestResolvedHitKey(candidate);
-            SetAccessoryAwareDamagePayload(hitKey, damage, CharacterTestAccessoryHitEvidence.Periodic);
+            SetAccessoryAwareDamagePayload(hitKey, damage, ProjectilePeriodicEvidence(projectile.ProjectileId, projectile.SpawnSequence,
+                source, candidate.TargetId, unchecked((ulong)frame.Value + 1)));
             _hitZonesByHit[hitKey] = hitZone;
             if (hitEvent.OnHitBuffCount > 0)
                 _onHitBuffsByHit[hitKey] = hitEvent.OnHitBuffs;
@@ -1431,36 +1431,9 @@ namespace MxFramework.Game.CharacterTest
             return true;
         }
 
-        private void EnsureTornadoDamageTargetIndex(
-            CharacterTestCharacterRuntimeWorld world,
-            CharacterTestCharacterPhysicsRuntime physicsRuntime,
-            RuntimeFrame frame)
-        {
-            if (_hasTornadoDamageTargetIndex
-                && ReferenceEquals(_tornadoDamageIndexedWorld, world)
-                && ReferenceEquals(_tornadoDamageIndexedPhysicsRuntime, physicsRuntime)
-                && _tornadoDamageIndexedFrame == frame.Value)
-            {
-                return;
-            }
-
-            using (TornadoDamageIndexRebuildMarker.Auto())
-            {
-                _tornadoDamageTargetIndex.Rebuild(
-                    world,
-                    physicsRuntime,
-                    CombatPhysicsLayerMask.FromLayer(CharacterTestCharacterPhysicsRuntime.CharacterHurtboxLayer));
-            }
-
-            _tornadoDamageIndexedWorld = world;
-            _tornadoDamageIndexedPhysicsRuntime = physicsRuntime;
-            _tornadoDamageIndexedFrame = frame.Value;
-            _hasTornadoDamageTargetIndex = true;
-        }
-
         private void EnsureTornadoDamageQueryResultCapacity(int tickingProjectileCount)
         {
-            int targetCount = _tornadoDamageTargetIndex.TargetCount;
+            int targetCount = _physicsRuntime.World.TotalColliderCount;
             if (targetCount <= 0)
                 return;
 
@@ -1539,6 +1512,8 @@ namespace MxFramework.Game.CharacterTest
             if (targetCombatId.IsNone)
                 return;
 
+            var origin = _entityLookup.AccessoryState?.FindBuffLineage(target.GameplayEntityId, poison) ?? default;
+            if (_entityLookup.AccessoryState?.SuppressesAttack(origin.Binding.Root) == true) return;
             int actionInstanceId = StablePositiveId(poison.StartFrame * 1000003L + target.Id.Value);
             int localFrame = (int)Math.Min(int.MaxValue, Math.Max(0L, frame.Value - poison.StartFrame));
             var targetColliderId = new CombatColliderId(CharacterTestCharacterPhysicsRuntime.CharacterHurtboxColliderIdStart);
@@ -1547,7 +1522,7 @@ namespace MxFramework.Game.CharacterTest
                     targetColliderId,
                     _entityLookup,
                     frame,
-                    sourceEntityId: 0,
+                    sourceEntityId: CharacterTestCombatEntityLookup.ResolveCharacterEntityId(new CombatEntityId(origin.CombatSource)),
                     actionInstanceId,
                     localFrame,
                     out DamageProfileResolveResult damage,
@@ -1558,7 +1533,7 @@ namespace MxFramework.Game.CharacterTest
 
             FixVector3 hitPoint = ResolveProjectileAimTargetPoint(target, Fix64.Zero);
             var result = new HitResolveResult(
-                CombatEntityId.None,
+                origin.CombatSource > 0 ? new CombatEntityId(origin.CombatSource) : CombatEntityId.None,
                 targetCombatId,
                 actionId,
                 actionInstanceId,
@@ -1572,7 +1547,8 @@ namespace MxFramework.Game.CharacterTest
                 FixVector3.Zero);
             var hitKey = new CharacterTestResolvedHitKey(result);
             _results.Add(result);
-            SetAccessoryAwareDamagePayload(hitKey, damage, CharacterTestAccessoryHitEvidence.Periodic);
+            SetAccessoryAwareDamagePayload(hitKey, damage, CharacterTestAccessoryHitEvidence.Periodic.WithSource(origin.Binding.Root)
+                .WithCollision(origin.Binding.Source.Producer, target, origin.ActualEnemy, origin.Binding.Source, unchecked((ulong)(uint)tickIndex)));
             _hitZonesByHit[hitKey] = hitZone;
             LastPoisonTickTargetCount++;
 
@@ -1922,7 +1898,7 @@ namespace MxFramework.Game.CharacterTest
                 CharacterTestInteractionKind.PhysicalField,
                 stableId,
                 dispatch.InstanceId,
-                source.Id.Value,
+                source?.Id.Value ?? dispatch.Context.SourceEntityId,
                 targetEntityId: 0,
                 dispatch.AnchorPosition,
                 dispatch.Context.AnchorDirection,
@@ -2005,6 +1981,30 @@ namespace MxFramework.Game.CharacterTest
                 suppressFrameZeroCombat: definition.Impact.PolicyKind == CombatProjectileImpactPolicyKind.AreaPulseOnImpact);
         }
 
+    }
+
+    // Scope is one periodic producer occurrence. A failed target/payload filter does not
+    // consume the target; a successful callback records the only damage/part evidence.
+    internal static class CharacterTestTornadoDamageTickSelection
+    {
+        internal static void AddFirstEligiblePerTarget(
+            IReadOnlyList<CombatQueryResult> sortedHits,
+            int startIndex,
+            HashSet<CombatEntityId> selectedTargets,
+            Func<CombatQueryResult, bool> tryAddCandidate)
+        {
+            selectedTargets.Clear();
+            for (int i = startIndex; i < sortedHits.Count; i++)
+            {
+                CombatQueryResult hit = sortedHits[i];
+                if (selectedTargets.Contains(hit.TargetEntityId))
+                    continue;
+                // All existing source/target and payload checks remain inside the callback.
+                // Stop before calling its side-effectful resolver for later hurtboxes.
+                if (tryAddCandidate(hit))
+                    selectedTargets.Add(hit.TargetEntityId);
+            }
+        }
     }
 }
 

@@ -1,8 +1,15 @@
 # Combat 接口
 
 > Status: Current
+> Code-Doc: `Packages/com.vincent.wgameframework/Combat/Projectiles/CombatProjectileRuntime.cs`
+> Code-Doc: `Packages/com.vincent.wgameframework/Combat/Projectiles/CombatProjectileRuntimeTypes.cs`
+> 文档版本：2026-10-11.1
+> Code-Doc: `Packages/com.vincent.wgameframework/Combat/Hit/HitTargetStateContributionStore.cs`
+> Code-Doc: `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Combat/Hit/HitTargetStateContributionStoreTests.cs`
 
 > 状态：Combat Physics / Motion / Hit Resolve / RuntimeHost animation modules 已实现并有测试覆盖。本文记录当前源码中已经存在的 `MxFramework.Combat` 公开契约，不收录设计文档中尚未落地的 `CombatWorld`、`ActionSystem` 等草案类型。
+
+2026-10-12补充：`CombatProjectileSpawnEvent` 增加 `HasRequest` 与 `Request`。Runtime发出的出生事件保留实际接受的完整请求（含SourceOrder），供调用方冻结来源；旧仅snapshot构造函数不提供请求证明。该瞬时事件不把游戏特定状态带入Combat；CharacterTest自行保存出生来源并进入阶段hash。见[双刃配件交接](../Tasks/TACTICAL_DOUBLE_EDGE_ACCESSORY_IMPLEMENTATION.md)。
 
 ## 职责
 
@@ -37,6 +44,7 @@ Combat 提供 noEngine 的确定性战斗物理、动作时间轴、命中结算
 | Motion | `CombatMotionCapsuleProxy` / `CombatMotionCollision` / `CombatMotionCollisionFlags` | capsule proxy 与运动碰撞摘要 |
 | Hit | `HitResolveSystem` | 对命中候选执行稳定排序、hit-once、防友伤和目标状态过滤 |
 | Hit | `HitCandidate` / `HitResolveResult` / `HitResolveKind` / `HitTargetStateFlags` | 命中候选、结算结果、结果类型和目标状态 flags |
+| Hit | `HitTargetStateContributionStore` | 按 entity / action instance / stable event 隔离临时目标状态贡献，合并 flags 并支持单来源、实例和实体清理 |
 | Hit | `ITeamRelationProvider` / `IHitTargetStateResolver` / `ICombatEventDispatcher` | 队伍关系、目标状态和命中事件派发扩展点 |
 | Hit Config | `CombatHitEventConfig` / `CombatHitDamageConfig` / `CombatHitTargetTypes` / `CombatEnvironmentHitPolicy` / `CombatHitSameTargetPolicy` | 武器 trace、projectile impact 等命中生产者共享的目标类型、环境触发、稳定事件 identity、命中次数约束和受限伤害属性 |
 | Damage | `DamageRequest` / `DamageProfileUsage` / `DamageProfileResolver` / `DamageProfileResolveResult` / `DamageResolvedEvent` / `HitPresentationEvent` / `DamageTelemetryRow` | 结构化伤害来源上下文、伤害计算、结果事件和 telemetry；旧 profile catalog 类型仍属于通用 Combat legacy 工具，不是 CharacterAction / CharacterTest 正式配置入口 |
@@ -250,6 +258,10 @@ Physical Audio 的双方声学属性、Basis Sound 选择和播放参数属于 A
 
 `HitResolveKind.Blocked` 保留本次 incoming damage 到 `HitResolveResult.Damage`，用于 bridge 层作为 GuardPressure 输入；但 `HitResolveResult.IsAcceptedDamage` 仍只在 `Kind == Damage && Damage > 0` 时为 true，因此 Blocked 不会被旧 HP 应用路径当作已接受伤害。
 
+`HitTargetStateContributionStore` 以 `(CombatEntityId, actionInstanceId, stableEventId)` 为贡献 identity，`ResolveFlags` 返回该实体所有临时贡献的按位 OR；`Alive` 仍由生命周期 owner 管理。`RemoveInstance` 只清理指定实体和动作实例的全部事件，保留同实体其他实例及其他实体；`ClearEntity` 清理指定实体的全部实例；`Count` 统计贡献条目，`Clear` 同时清空贡献与合并状态。
+
+分配约定：贡献、实体及批量清理匹配键数量的高水位增长允许 `LowFreqAlloc`。批量清理复用 store-owned 匹配键列表，先收集再删除，避免修改正在枚举的字典；筛选不创建捕获委托。列表容量预热后，`Upsert` → `Remove`、`Upsert` → `RemoveInstance`、`Upsert` → `ClearEntity`、无匹配的 `RemoveInstance` 和空 store 清理均为 `NoAlloc`；`Clear` 保留内部集合容量，后续同高水位循环也维持该合同。调用方按 store 的原有串行使用方式执行操作，缓冲区不跨 store 共享。
+
 ## Shields v1
 
 `MxFramework.Combat.Shields` 提供 noEngine 物理防护盾权威状态。护盾是绑定 owner 朝向和局部偏移的 Combat object，用 `CombatPhysicsWorld` body / collider 表达可被 projectile 和 weapon trace 查询的遮挡体；它不进入角色运动 obstacle mask，因此不阻挡移动。
@@ -411,10 +423,14 @@ cohesionLimit = Max(baseLine, Max(actionLine, minLine))
 处理规则：
 - `HitResolveKind.Blocked`：Blocked 不扣普通 HP。通用 bridge 仍可在项目显式传入 `GameplayGuardPressureSystem` 时写入 GuardPressure 请求；CharacterTest v1 不接这条独立 GuardPressure 链路，而是用 `ScatterImpact` 表达格挡受压和破绽风险。
 - `HitResolveKind.Damage`：读取目标 `GameplayArmorIntegrityComponent`，按 armor 调整后的实际 HP 伤害输出 `GameplayRuntimeCommandFactory.AddComponentAttribute(..., -finalDamage, traceId)`。
+- 同一 `Tick` 的批量结果按输入顺序结算。每个 `GameplayEntityId` 的剩余 HP 同时计入本批已输出的 HP 扣减；每击限幅、`DamageResolvedEvent.FinalDamage` 及 telemetry 的 `HpBefore/HpAfter` 使用同一逐击投影。例：HP=10、伤害=8/8 时输出 -8/-2，记录 10→2→0；HP=100、伤害=12/12 时记录 100→88→76。投影不直接写组件 HP，正式 HP 写入仍由属性命令消费者执行。
 - `HitResolveKind.Duplicate` / `Friendly` / `SelfDamage` 等拒绝结果只写 telemetry，不输出 HP delta。
+- Blocked／拒绝结果的 HP telemetry 可观察同目标在本批先前已结算的伤害，但自身不消耗剩余 HP。不同目标的批内剩余 HP 独立；耗尽 HP 后不再输出扣血命令，既有逐击 armor 衰减语义保持。
 - 没有 armor component，或 armor `MaxIntegrity <= 0`、`CurrentIntegrity <= 0`、`CurrentIntegrity > MaxIntegrity`、`IsBroken == true` 时，应用完整 incoming damage。
 - 可用 armor 的固定口径：先用命中前的 `CurrentIntegrity` 计算 `absorbed = incomingDamage * CurrentIntegrity / MaxIntegrity`（整数截断）；再按 incoming damage 衰减 `CurrentIntegrity = max(0, CurrentIntegrity - incomingDamage)`；最终 `adjustedDamage = incomingDamage - absorbed`。
 - armor 从未破裂状态衰减到 0 时只发布 `ArmorBreakEvent`，不新增 `HitResolveKind.ArmorBroken`，也不改变原始 hit resolve kind。
+
+批内 HP 投影只在当前 `Tick` 有效，正常退出或异常退出均清空；下一次调用重新读取组件 HP，不进入 SaveState／Replay authority。调用方须在两次 `Tick` 之间消费或丢弃上一批命令，不能跨调用积累未提交 HP delta，也不能在批次中途提交 HP／修改 HP authority。逐条 Tick 后立即提交的入口保持兼容。投影复用 system 自有集合，首次目标容量扩展发生在 warm-up；容量与调用方输出／telemetry／event 缓冲预热后不为批内投影创建临时集合。
 
 `CombatTargetStateProvider` 可选配置 `guardBrokenStatusId`。当目标同时拥有 Blocking status 和 GuardBroken status 时，provider 不再设置 `HitTargetStateFlags.Blocking`；Invincible、Parrying、SuperArmor 等其他映射不受影响。GuardBreak 后如何写入该 status 归 Gameplay / 组合根负责。
 
@@ -479,6 +495,7 @@ world.Query(query, results);
 - `Tests/Combat/Core/CombatHashTests.cs`
 - `Tests/Combat/Core/CombatSortKeyTests.cs`
 - `Tests/Combat/CombatHitEventConfigTests.cs`
+- `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Combat/Hit/HitTargetStateContributionStoreTests.cs`：来源隔离、批量清理与 `Clear` 后复用，以及固定高水位预热后循环零分配。
 - `Tests/Combat/Physics/CombatPhysicsWorldTests.cs`
 - `Tests/Combat/Physics/CombatPhysicsBroadphaseTests.cs`
 - `Tests/Combat/Physics/CombatQueryContractTests.cs`
@@ -534,3 +551,25 @@ The bridge sends one-shot compact `VfxDefinitionId` values directly to `VfxRunti
 ## 非写入 motor 步进（2026-10-07）
 
 `CombatKinematicMotor.Step(..., candidateCache, CombatMotionStepOptions options, bool syncBodyPosition)` 显式控制是否将步进后的 actor body 位置同步到 world。旧 overload 保持 syncBodyPosition=true 的行为。CharacterControl.Query 使用 false，调用方仅观察预测 motion/result；scratch 可以变化，world body 不变。正式 Step 仍执行一次权威 body 同步；调用方不得把 query 当作已发生的接触或命中。
+
+## 接受来源与护甲后 HP 限额（2026-10-12）
+
+`ICombatProjectileSpawnObserver.OnProjectileSpawned(in birth)` 由实际 runtime 在 native id/sequence 分配后、任何 impact 前同步调用；恢复已有快照不重新发布出生。`ICombatProjectileImpactRelations.ResolveTeamRelations(in projectile, fallback)` 可为每个弹体选择冻结出生关系，默认保持原 team provider。观察者由调用方提供，项目层可在低频实际出生/排队时分配冻结属性数组；这不等于通用高频 collision 路径获准分配。
+
+`CombatDamageApplicationSystem` 保留原构造入口，新增接收 `ICombatHpDebitPolicy` 的重载。policy 在护甲消费后、HP command／事件／遥测前收到最新 currentHp 和 maximumDebit，只能返回 [0, maximumDebit]，越界拒绝。护甲行为保持，政策不回补 HP。`CombatOnHitBuffApplicationSystem.RequestCorrelation` 是可选 correlation 工厂；应由共同接受子集调用，其结果只关联申请，实际出生仍以成功 Buff application 为准。
+
+具体非致死、一拳消费和来源谱系留在 CharacterTest：[第二批实施交接](../Tasks/TACTICAL_ACCESSORY_SECOND_BATCH_IMPLEMENTATION.md)。公共 API 已离线编译，Unity、package consumer 与生产场景验收待统一协调者执行。
+
+
+
+### 物理生产者身份补充（P1 修复合同，2026-10-12）
+
+`HitCandidate`、`HitResolveResult` 和 `WeaponHitOnceKey` 携带 `CombatHitProducerIdentity(Kind, Id, Generation, Occurrence)`。旧构造函数仍产生空身份，保持既有近战调用合同。实际 `CombatProjectileRuntime` 在进入 `HitResolveSystem` 前赋值：Id 为原生 ProjectileId，Generation 为 SpawnSequence，Kind 区分 direct sweep 与 area pulse，Occurrence 为该相位内的 0；目标和帧继续由外层命中键提供。相同相位的重复 collider 分类仍去重，两个原生出生不因 action/trace/frame/target 相同而合并。
+
+`WithProducerIdentity` 用于保留或补充不可变身份；伤害缩放和衍生请求复制结果时必须保留。身份参与候选比较、命中结果相等性和 HitOnce key。弹体身份由已持久化的原生 ID/出生序列恢复，不增加另一个未经恢复的临时计数器。
+
+本合同对应独立覆盖补丁；离线证据不表示 Unity 或正式发布验收。项目层因果收据和来源移除边界见 `CharacterTest.TacticalCard.md` 的同日 P1 补充。
+
+Tornado periodic damage uses the same CombatPhysicsWorld capsule query over CharacterHurtbox colliders as other damage reception paths. The movement-only dynamic field index is not a damage target source. Original collider IDs and deterministic query ordering reach hit-zone and producer resolution; periodic source-removal attribution still uses the frozen birth actor.
+
+For each Tornado periodic producer and tick, the sorted capsule results select the first eligible hurtbox per target before invoking damage resolution or recording damage/body-part evidence. A failed source/target/payload filter leaves the target eligible for a later hurtbox; a successful candidate prevents later hurtboxes from overwriting its evidence. The selector resets for every producer occurrence. Target-state immunity and final hit resolution retain their existing ordering, and the entity-level hit-once key remains unchanged (no collider identity is added).

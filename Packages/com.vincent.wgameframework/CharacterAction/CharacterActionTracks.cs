@@ -616,8 +616,8 @@ namespace MxFramework.CharacterAction
             Z = z;
             StableEventId = stableEventId;
             StableEventOrder = stableEventOrder;
-            MovementControlScale = Clamp01(movementControlScale);
-            RotationControlScale = Clamp01(rotationControlScale);
+            MovementControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(movementControlScale);
+            RotationControlScale = CharacterActionControlScaleJsonProjection.ValidateScale(rotationControlScale);
             Space = space;
             HasMovementControlScale = hasMovementControlScale;
             HasRotationControlScale = hasRotationControlScale;

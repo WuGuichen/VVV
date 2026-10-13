@@ -2,6 +2,8 @@
 
 > Status: Current
 >
+> Code-Doc: `Packages/com.vincent.wgameframework/Application/ApplicationStartupCoordinator.cs`, `Assets/Scripts/WGameFrameworkProject/CharacterTest/Tests/EditMode/Application/ApplicationStartupCoordinatorTests.cs`
+>
 > Phase 1 noEngine coordinator。本文描述 `MxFramework.Application` 程序集中、由 `MxFramework.ApplicationStartup` 公共命名空间暴露的 plan/runner/transaction/publication contracts；candidate Runtime/Resource/AppFlow/Scene bridge 与 Unity exact-scene adapter 见 `ApplicationSessionBridge.md`，SaveGame candidate publication 见 `ApplicationPersistenceBridge.md`。Platform lifecycle bridge 与 Persistence-backed suspend/quitting policy 已实现；Unity Boot bridge 仍未实现。
 
 ## 职责与依赖
@@ -38,7 +40,7 @@ Plan 拒绝空/重复身份、descriptor-step mismatch、missing/self/duplicate 
 - `Tick()` 串行 pump 当前 forward 或 rollback operation；steady path 为 `NoAlloc after Start`，phase transition 和用户 operation code 除外；
 - cancel/timeout 进入 `Draining`，不再开始新 step；不可取消 operation 必须先到 truthful terminal boundary；
 - 可取消 operation 在 `RequestCancel()` 后若同步进入 terminal，不会再收到一次非法 `Tick()`；取消分发抛异常时 coordinator 保留 operation ownership 并继续 drain，不会让 rollback 与未知在途工作并发；
-- 只回滚已经 `Succeeded` 的 forward steps，顺序为严格 reverse completion order；一个 rollback error 不阻断后续 compensation；
+- 只回滚已经 `Succeeded` 的 forward steps，顺序为严格 reverse completion order；取消、超时或 forward fault 后当前 operation drain 为 `Succeeded` 时，也必须恰好一次登记完成计数与权重，并先补偿当前步骤、再补偿此前成功步骤。drain 为 `Failed` / `Cancelled` / `TimedOut` 的当前步骤不进入成功补偿序列；一个 rollback error 不阻断后续 compensation；
 - 全部 forward step 成功后进入 transaction `TryCommit()`；普通 terminal result 只调用一次，`PublicationDeferred` 表示 shared save fence 在任何 candidate mutation 前拒绝本次尝试，coordinator 保持 rollback ownership 并在后续 Tick 重试；失败、取消、超时都不发布；
 - transaction 的 `CommitObservation` 是 `NoAlloc` ownership query；`TryCommit()` 返回或抛出前必须记录 `NotPublished` 或精确的 `PublishedState`。已记录 Published 的异常按已提交处理，绝不 rollback/dispose live lease；outcome 仍为 `NotAttempted` 时 coordinator 保留 transaction 并停在 Draining，禁止猜测发布结果；
 - terminal run 不可重启；retry 必须创建新的 coordinator/transaction/operation graph。
@@ -102,6 +104,8 @@ produces `RuntimeAttemptFailed`, never the ordinary successful-attempt result.
 
 cancel/timeout drain 到 terminal 后，`DrainedOperationStatus`、`DrainedOperationError` 与 `DrainedInnerDetail` 会在清除 current operation 前持久化；snapshot 同步携带这组三字段，因此 outer Cancelled/TimedOut 不会覆盖 inner terminal evidence。
 
+drain 成功登记不会把取消、超时或 forward fault 改为成功，也不会启动后续步骤或提交 transaction。`CompletedStepCount` / `ForwardProgress` 与 snapshot 保留真实成功步骤及其权重；补偿成功后仍使用已锁定的 outer outcome，补偿失败时返回 `RollbackFailed` 并保留原 `ForwardError`。
+
 Rollback errors 保持实际 reverse-attempt 顺序，可通过 `RollbackErrorCount` / `GetRollbackError()` 读取。`RollbackFailed` 不覆盖 `ForwardError`。
 
 ## 当前限制
@@ -111,6 +115,8 @@ Rollback errors 保持实际 reverse-attempt 顺序，可通过 `RollbackErrorCo
 - 当前切片已实现唯一 live driver、long-lived Platform lifecycle drain 与安全 suspend/quitting checkpoint policy，但尚未接入真实 Unity Boot 组合根，因此不声明端到端 production-ready load 或 Playable。
 
 ## 验证
+
+取消/drain 的 focused 回归包括不可取消晚成功、协作取消晚成功、取消分发异常后成功、分发前已成功和分发中同步成功；并核对非成功 drain 对照、非均匀权重、snapshot、严格逆序、终态后重复调用不再补偿、当前/此前补偿失败继续、fault-drain ownership 与 cleanup 错误顺序。离线直接执行真实源码与 NUnit assertions 的证据不能替代 Unity compile/Console 或原生 EditMode Runner 验收。
 
 Focused noEngine 与 Unity EditMode tests覆盖 plan invalid/cycle/owner conflict、稳定顺序、同步 terminal 不再 Tick、success/commit、commit 后异常 outcome、middle failure、fault-drain ownership、cancel drain（含同步终态和 cancel-dispatch fault）、timeout-later-failure evidence、reverse rollback、rollback failure continuation、完整 N+2 cleanup error evidence、candidate exact-once/lease alias rejection、fresh retry、live frame、lifecycle evidence 与 suspend checkpoint policy。真实 Unity Boot 与 PlayMode 证据仍属于后续阶段。
 

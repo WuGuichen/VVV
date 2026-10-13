@@ -17,10 +17,25 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         private bool _physicalStarted;
         private bool _deferPayment;
         private bool _timeoutRaised;
+        private TacticalFixedCardPaymentCommit _fixedPayment;
+        private bool _fixedReleaseRequested;
+        private TacticalPauseReason? _fixedFaultAfterCleanup;
+        private readonly Action _onFixedActorRetired;
+        internal bool HasReleasedCleanup => _fixedReleaseRequested && _fixedPayment != null && ExecutionId != 0;
         public ulong ExecutionId { get; private set; }
         public string LastIssue { get; private set; } = string.Empty;
 
         internal ExecutionObservation ObserveOwnedExecution(ulong executionId) => _execution.Observe(executionId);
+
+        /// <remarks>LowFreqAlloc before confirmation; confirmed fees are read from the actual paid receipt.</remarks>
+        internal bool TryReadFixedFees(TacticalCardInstance card, out TacticalFixedCardFeePlan fees, out string issue)
+        {
+            fees = null; issue = "fixed-fee:OwnerUnavailable";
+            if (card?.Definition.FixedAssembly == null) return false;
+            if (_fixedPayment?.IsPaid == true && _fixedPayment.Record.BattleCardInstance == card.InstanceId)
+            { fees = _fixedPayment.Record.Fees; issue = string.Empty; return true; }
+            return _execution is ITacticalFixedFeeReadoutPort port && port.TryReadFixedFees(card, out fees, out issue);
+        }
 
         internal bool Uses(TacticalTimeCoordinator time, TacticalDeckManager deck, IMomentumLedger ledger)
             => ReferenceEquals(_coordinator, time) && ReferenceEquals(_deck, deck) && ReferenceEquals(_ledger, ledger);
@@ -29,6 +44,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             TacticalDeckManager deck, IMomentumLedger ledger, int preActionBudgetTicks = 240, int executionBudgetTicks = 300)
         {
             _execution = execution ?? throw new ArgumentNullException(nameof(execution));
+            _onFixedActorRetired = OnFixedActorRetired;
             _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
             _deck = deck ?? throw new ArgumentNullException(nameof(deck));
             _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
@@ -113,6 +129,16 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             { issue = "execution:NotReady"; return false; }
             var card = _deck.PendingAction;
             ulong id;
+            if (card.Definition.FixedAssembly != null)
+            {
+                if (!(_execution is ITacticalFixedExecutionPort fixedPort) || !(_ledger is MomentumLedger actualLedger))
+                { issue = "execution:FixedAssemblyOwnerUnavailable"; return false; }
+                if (!fixedPort.TryCommitFixed(card, _deck, _coordinator, actualLedger, CaptureConfirmationInput(),
+                    out id, out _fixedPayment, out issue)) return false;
+                ExecutionId = id; _lastTick = currentTick; _elapsedTicks = 0;
+                _started = _physicalStarted = _deferPayment = _timeoutRaised = false; LastIssue = string.Empty;
+                return true;
+            }
             if (_execution is ITacticalExecutionInputPort inputs && inputs.GetRequiredInputKind(card) != TacticalExecutionInputKind.None)
             {
                 var input = CaptureConfirmationInput();
@@ -169,6 +195,15 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
         /// <summary>NoAlloc. Reconcile an already accepted move before releasing a stage's remaining reservation.</summary>
         internal void ReleaseControl()
         {
+            if (_fixedPayment != null && ExecutionId != 0)
+            {
+                if (!_fixedReleaseRequested) {
+                    _fixedReleaseRequested = true;
+                    (_execution as ITacticalFixedCleanupPort)?.SetFixedReleaseObserver(ExecutionId, _onFixedActorRetired);
+                    (_execution as ITacticalFixedExecutionPort)?.CancelFixed(ExecutionId);
+                }
+                ReconcileReleasedControl(); return;
+            }
             if (!_deferPayment || ExecutionId == 0) return;
             var observation = _execution.Observe(ExecutionId);
             if (!ApplyExecutionStart(in observation, _lastTick)) return;
@@ -176,9 +211,51 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 _coordinator.ForceSuspend(TacticalPauseReason.ExecutionFault);
         }
 
+        private void OnFixedActorRetired() => ReconcileReleasedControl();
+
+        // Stop commands are consumed at the next runtime boundary. Keep the existing exit lane
+        // open until its matching terminal/release ACK, rather than freezing those consumers now.
+        private void SuspendExecutionFault(TacticalPauseReason reason)
+        {
+            if (_fixedPayment?.Record.Assembly.HasDoubleEdge != true) {
+                _coordinator.ForceSuspend(reason); return;
+            }
+            _fixedFaultAfterCleanup = reason;
+            ReleaseControl();
+        }
+
+        /// <summary>NoAlloc. Called from the runtime exit lane or the actual world's actor-retirement event.
+        /// Does not complete a turn, refill a hand, refund confirmation fees or grant completion rewards.</summary>
+        internal bool ReconcileReleasedControl()
+        {
+            if (!HasReleasedCleanup) return true;
+            var cleanup = _execution as ITacticalFixedCleanupPort;
+            var observation = cleanup != null ? cleanup.ReconcileFixedRelease(ExecutionId) : _execution.Observe(ExecutionId);
+            if (observation.ExecutionId != ExecutionId || !observation.BehaviorTerminal
+                || !observation.OwnedIntentsReleased || !observation.CommandsAcknowledged) return false;
+            if (!_deck.ReleaseFixedReservation(_ledger, _fixedPayment)) {
+                LastIssue = "execution:FixedBudgetReleaseRejected"; return false;
+            }
+            if (!_deck.CompleteFixedAbnormal(_fixedPayment)) {
+                LastIssue = "execution:FixedExhaustionRejected"; return false;
+            }
+            cleanup?.FinishFixedRelease(ExecutionId);
+            ExecutionId = 0; _fixedPayment = null; _fixedReleaseRequested = false;
+            if (_fixedFaultAfterCleanup.HasValue) {
+                var reason = _fixedFaultAfterCleanup.Value; _fixedFaultAfterCleanup = null;
+                _coordinator.ForceSuspend(reason);
+                // This execution was abandoned and its card may be exhausted. Recovery must not
+                // resume the old completion receipt; only the existing stage restart can replace it.
+                if (reason == TacticalPauseReason.RecoveryTimeout)
+                    _coordinator.ForceSuspend(TacticalPauseReason.ExecutionFault);
+            }
+            return true;
+        }
+
         /// <summary>NoAlloc. Invoke after the entire simulation tick, including reward and receipt handling.</summary>
         public bool OnCompletedSimulationTick(in SettleSample sample)
         {
+            if (HasReleasedCleanup) { ReconcileReleasedControl(); return false; }
             if (ExecutionId == 0 || _coordinator.IsWorldPaused) return false;
             if (sample.SimulationTick <= _lastTick) { ResetSettleWindow(); return false; }
             long elapsed = sample.SimulationTick - _lastTick;
@@ -189,9 +266,13 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (observation.ExecutionId != ExecutionId)
             {
                 LastIssue = string.IsNullOrEmpty(observation.Issue) ? "execution:ObservationMismatch" : observation.Issue;
-                _coordinator.ForceSuspend(TacticalPauseReason.ExecutionFault); return false;
+                SuspendExecutionFault(TacticalPauseReason.ExecutionFault); return false;
             }
             if (!string.IsNullOrEmpty(observation.Issue)) LastIssue = observation.Issue;
+            if (_fixedPayment?.Record.Assembly.HasDoubleEdge == true && observation.BehaviorTerminal
+                && !(_execution is ITacticalFixedTerminalPort terminal && terminal.IsNaturalFixedCompletion(ExecutionId))) {
+                SuspendExecutionFault(TacticalPauseReason.ExecutionFault); return false;
+            }
             if (!ApplyExecutionStart(in observation, sample.SimulationTick)) return false;
             if (observation.ActionStarted && !_physicalStarted)
             {
@@ -204,6 +285,12 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             if (_deferPayment && !_started && observation.BehaviorTerminal && observation.OwnedIntentsReleased
                 && observation.CommandsAcknowledged && !_deck.SettleResolvingReservation(_ledger, false))
             { LastIssue = "execution:ReservationReleaseRejected"; _coordinator.ForceSuspend(TacticalPauseReason.ExecutionFault); return false; }
+            if (_fixedPayment != null && observation.BehaviorTerminal)
+            {
+                if (!observation.OwnedIntentsReleased || !observation.CommandsAcknowledged) return false;
+                if (!_deck.ReleaseFixedReservation(_ledger, _fixedPayment))
+                { LastIssue = "execution:FixedBudgetReleaseRejected"; _coordinator.ForceSuspend(TacticalPauseReason.ExecutionFault); return false; }
+            }
             // Lifecycle facts come from the matching port, never from an uncorrelated physics sample.
             var correlated = new SettleSample(sample.SimulationTick, observation.ActionTimelineCompleted,
                 observation.BehaviorTerminal, sample.NeutralPoseReached, sample.HasReactionOrRecovery,
@@ -217,7 +304,7 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
             {
                 if (resolvingCard?.Definition is TacticalActionCardDefinition actionCard)
                 {
-                    if (!_started && !_deferPayment)
+                    if (!_started && !_deferPayment && _fixedPayment == null)
                     {
                         // No physical action or accepted point movement started.
                         // Two-stage settlement: full refund of committed momentum cost.
@@ -231,14 +318,14 @@ namespace MxFramework.Game.CharacterTest.TacticalCard
                 }
                 if (_execution is ITacticalExecutionRetirementPort retirement)
                     retirement.RetireSettledExecution(ExecutionId, in observation, sample.SimulationTick);
-                ExecutionId = 0;
+                ExecutionId = 0; _fixedPayment = null;
                 return true;
             }
             if (!_timeoutRaised && _elapsedTicks >= _executionBudget)
             {
                 _timeoutRaised = true;
                 LastIssue = "execution:RecoveryTimeout";
-                _coordinator.ForceSuspend(TacticalPauseReason.RecoveryTimeout);
+                SuspendExecutionFault(TacticalPauseReason.RecoveryTimeout);
             }
             return false;
         }
